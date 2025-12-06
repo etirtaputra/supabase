@@ -14,34 +14,35 @@ export async function POST(request: NextRequest) {
     // --- STEP 1: SMART KEYWORD EXTRACTION ---
     // Extract key terms to perform a targeted search across all tables
     const stopWords = ['show', 'me', 'the', 'last', 'compare', 'price', 'history', 'for', 'of', 'trend', 'cost', 'unit', 'true', 'and', 'qty', 'quote', 'quotes', 'po', 'pos', 'is', 'what', 'are', 'icl', 'isl', 'mbs'];
+    
+    // Explicitly typing 'w' as string here
     const keywords = query.toLowerCase().split(/\s+/)
       .filter((w: string) => !stopWords.includes(w) && w.length > 1);
 
     let filterString = '';
     if (keywords.length > 0) {
       // Build a search filter for Supplier, SKU, or Description
-      filterString = keywords.map(k => `supplier_name.ilike.%${k}%,model_sku.ilike.%${k}%,component_name.ilike.%${k}%`).join(',');
+      // FIX: Explicitly added (k: string) type definition below
+      filterString = keywords.map((k: string) => `supplier_name.ilike.%${k}%,model_sku.ilike.%${k}%,component_name.ilike.%${k}%`).join(',');
     }
 
     // --- STEP 2: PARALLEL DATA FETCHING (3 SOURCES) ---
     const [poReq, quoteReq, statsReq] = await Promise.all([
       
       // SOURCE A: Purchase Orders (v_analytics_master)
-      // Filters by keywords or defaults to recent 5
       filterString 
         ? supabase.from('v_analytics_master').select('*').or(filterString).order('po_date', { ascending: false }).limit(10)
         : supabase.from('v_analytics_master').select('*').order('po_date', { ascending: false }).limit(5),
       
-      // SOURCE B: Price Quotes (v_quotes_analytics) - INCORPORATED HERE
-      // Filters by same keywords (Supplier/SKU) to find matching offers
+      // SOURCE B: Price Quotes (v_quotes_analytics)
       filterString
         ? supabase.from('v_quotes_analytics').select('*').or(filterString).order('quote_date', { ascending: false }).limit(10)
         : supabase.from('v_quotes_analytics').select('*').order('quote_date', { ascending: false }).limit(5),
         
       // SOURCE C: Historical Stats (mv_component_analytics)
-      // Uses the Materialized View for ICL/ISL/MBS counts and True Cost Averages
+      // FIX: Added (k: string) type definition here as well just in case
       keywords.length > 0
-        ? supabase.from('mv_component_analytics').select('*').or(keywords.map(k => `model_sku.ilike.%${k}%,description.ilike.%${k}%`).join(',')).limit(5)
+        ? supabase.from('mv_component_analytics').select('*').or(keywords.map((k: string) => `model_sku.ilike.%${k}%,description.ilike.%${k}%`).join(',')).limit(5)
         : supabase.from('mv_component_analytics').select('*').limit(5)
     ]);
 
