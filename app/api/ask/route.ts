@@ -15,6 +15,10 @@ export async function POST(request: NextRequest) {
     // Try to use the Service Role Key (Admin) to bypass RLS policies.
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    console.log("--- DEBUG VERCEL ---");
+    console.log("Supabase URL:", supabaseUrl);
+    console.log("Using Key (Last 5 chars):", supabaseKey.slice(-5));
+    console.log("Is Service Key?", supabaseKey === process.env.SUPABASE_SERVICE_ROLE_KEY ? "YES (Admin)" : "NO (Public/RLS Blocked)");
     
     const supabase = createClient(supabaseUrl, supabaseKey, {
       auth: { persistSession: false }
