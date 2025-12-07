@@ -1,104 +1,127 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { OpenAIStream, StreamingTextResponse } from 'ai';
 import OpenAI from 'openai';
-import { createSupabaseClient } from '@/lib/supabase';
 
+// Initialize OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-export async function POST(request: NextRequest) {
-  try {
-    const { query, cleanMode = false } = await request.json();
-    const supabase = createSupabaseClient();
+// Initialize Supabase ADMIN Client
+// We strictly require the Service Role Key to bypass RLS.
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-    // Fetch line items (core data) AND components (for descriptions)
-    const [
-      lineItemsResult,
-      purchases,
-      components,
-      suppliers
-    ] = await Promise.all([
-      supabase.from('6.1_purchase_line_items').select('*'),
-      supabase.from('6.0_purchases').select('*').order('po_date', { ascending: false }),
-      supabase.from('3.0_components').select('*'),
-      supabase.from('2.0_suppliers').select('*'),
+if (!supabaseServiceKey) {
+  throw new Error("CRITICAL: SUPABASE_SERVICE_ROLE_KEY is missing from .env.local");
+}
+
+const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+  },
+});
+
+export const runtime = 'edge';
+
+export async function POST(req: Request) {
+  try {
+    const { messages } = await req.json();
+    
+    // Get the last user message
+    const lastMessage = messages[messages.length - 1];
+    const userQuery = lastMessage.content;
+
+    // --- SMART SEARCH LOGIC ---
+    // Split query into clean keywords
+    const ignoreWords = ['show', 'me', 'the', 'cost', 'price', 'history', 'for', 'of', 'what', 'is', 'a', 'an'];
+    const keywords = userQuery
+      .toLowerCase()
+      .replace(/[^\w\s]/g, '')
+      .split(' ')
+      .filter((w: string) => w.length > 2 && !ignoreWords.includes(w));
+
+    console.log(`🔎 Searching for keywords: ${keywords.join(', ')}`);
+
+    // --- PARALLEL DB FETCHING ---
+    const [historyRes, recentRes, quoteRes] = await Promise.all([
+      // 1. Historical Data (Materialized View)
+      supabase
+        .from('mv_component_analytics')
+        .select('*')
+        .or(keywords.map(k => `description.ilike.%${k}%,model_sku.ilike.%${k}%`).join(',')),
+
+      // 2. Recent POs (Live Data View)
+      supabase
+        .from('6.0_purchases')
+        .select('*')
+        .order('po_date', { ascending: false })
+        .limit(5)
+        .or(keywords.map(k => `item_description.ilike.%${k}%,po_number.ilike.%${k}%`).join(',')),
+
+      // 3. Active Quotes
+      supabase
+        .from('4.0_price_quotes')
+        .select('*')
+        .limit(5)
+        .or(keywords.map(k => `item_description.ilike.%${k}%`).join(','))
     ]);
 
-    const lineItems = lineItemsResult.data || [];
-    const purchaseOrders = purchases.data || [];
-    const componentMaster = components.data || [];
-    const supplierList = suppliers.data || [];
+    // --- CONSTRUCT CONTEXT FOR AI ---
+    let contextText = "";
+    const fmt = (n: any) => n ? "$" + Number(n).toFixed(2) : 'N/A';
 
-    const hasComponentData = componentMaster.length > 0;
+    if (historyRes.data && historyRes.data.length > 0) {
+      contextText += "\n--- HISTORICAL STATS (MV) ---\n";
+      historyRes.data.forEach((row: any) => {
+        contextText += "- SKU: " + row.model_sku + "\n  Desc: " + row.description + "\n  True Cost (Avg): " + fmt(row.weighted_avg_true_cost) + "\n  Last PO Price: " + fmt(row.last_po_price) + "\n";
+      });
+    }
 
-    // Create a lookup map for faster AI processing
-    const componentLookup = componentMaster.reduce((acc, comp) => {
-      acc[comp.component_id] = {
-        model_sku: comp.model_sku || 'N/A',
-        description: comp.description || 'N/A',
-        brand: comp.brand || 'N/A'
-      };
-      return acc;
-    }, {} as Record<string, any>);
+    if (recentRes.data && recentRes.data.length > 0) {
+      contextText += "\n--- RECENT PURCHASE ORDERS ---\n";
+      recentRes.data.forEach((po: any) => {
+        contextText += "- PO: " + po.po_number + " (" + po.po_date + ")\n  Qty: " + po.quantity + " @ " + fmt(po.unit_price) + "\n";
+      });
+    }
 
-    const dataContext = {
-      line_items: lineItems,
-      component_lookup: componentLookup,
-      has_component_master: hasComponentData,
-      total_line_items: lineItems.length,
-      total_components: componentMaster.length,
-    };
+    if (quoteRes.data && quoteRes.data.length > 0) {
+      contextText += "\n--- ACTIVE QUOTES ---\n";
+      quoteRes.data.forEach((q: any) => {
+        contextText += "- Quote ID: " + q.quote_id + "\n  Offer: " + fmt(q.unit_price) + "\n";
+      });
+    }
 
-    const prompt = `You are a data analysis engine. Process the provided data to answer the query.
+    if (!contextText) {
+      contextText = "No matching records found in the database.";
+    }
 
-# INCOMING DATA:
-${JSON.stringify(dataContext, null, 2)}
+    // --- SEND TO OPENAI ---
+    const systemPrompt = `
+      You are a Supply Chain Analyst Assistant.
+      Answer the user's question using ONLY the provided context below.
+      - If looking for "True Cost", prioritize the 'weighted_avg_true_cost' from Historical Stats.
+      - If looking for "Recent Price", look at Recent Purchase Orders.
+      - Be concise and professional.
+      
+      CONTEXT DATA:
+      ${contextText}
+    `;
 
-# COMPONENT IDENTIFICATION RULES:
-1. **Primary Key**: component_id (from 6.1_purchase_line_items)
-2. **Detail Lookup**: Use component_lookup[component_id] to get model_sku, description, brand
-3. **Fallback**: If component_lookup is empty or missing an ID, show:
-   - component_id (always show this)
-   - supplier_description (from line item if available)
-   - "Component master data missing" as placeholder
-
-# HOW TO DISPLAY COMPONENTS:
-When showing component purchases, ALWAYS display:
-| component_id | model_sku | description | quantity | ...other fields |
-
-Example:
-| fca1aa8e-1afd-489b-b605-d03296dc80e3 | ABC-123 | DC Fuse 15A | 90 | ...
-
-# QUERY TO ANSWER:
-${query}
-
-# INSTRUCTIONS:
-1. Group line_items by component_id
-2. Sum quantities for each component
-3. Look up model_sku/description from component_lookup
-4. Sort by total_quantity descending
-5. ${cleanMode ? 'Show markdown table only' : 'Explain analysis and show table'}
-
-PROCESS THE DATA ABOVE:`;
-
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4',
+      stream: true,
       messages: [
-        { role: 'system', content: prompt },
-        { role: 'user', content: query },
+        { role: 'system', content: systemPrompt },
+        ...messages
       ],
-      temperature: 0.1,
-      max_tokens: 2000,
     });
 
-    const answer = completion.choices[0]?.message?.content || 'No answer.';
+    return new StreamingTextResponse(OpenAIStream(response));
 
-    return NextResponse.json({ answer });
-  } catch (error) {
+  } catch (error: any) {
     console.error('API Error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
+    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
   }
 }
