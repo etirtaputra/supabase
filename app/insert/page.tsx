@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 
 // --- Types ---
-type Tab = 'foundation' | 'quoting' | 'ordering' | 'financials';
+type Tab = 'foundation' | 'quoting' | 'ordering' | 'financials' | 'history';
 
 export default function MasterInsertPage() {
   const supabase = createSupabaseClient();
@@ -29,6 +29,8 @@ export default function MasterInsertPage() {
     modelSkus: [] as string[],
     descriptions: [] as string[],
     supplierNames: [] as string[],
+    poNumbers: [] as string[],
+    quoteNumbers: [] as string[],
   });
 
   // --- ENUM Definitions ---
@@ -72,6 +74,8 @@ export default function MasterInsertPage() {
         modelSkus: getUnique(comp.data, 'model_sku'),
         descriptions: getUnique(comp.data, 'description'),
         supplierNames: getUnique(sup.data, 'supplier_name'),
+        poNumbers: getUnique(poData.data, 'po_number'),
+        quoteNumbers: getUnique(quo.data, 'pi_number'),
       });
     }
   };
@@ -116,6 +120,7 @@ export default function MasterInsertPage() {
     { id: 'quoting', label: 'Add Quotes' },
     { id: 'ordering', label: 'Add PI / PO' },
     { id: 'financials', label: 'Add Payments and Landed Costs' },
+    { id: 'history', label: 'Import History' },
   ];
 
   return (
@@ -175,7 +180,6 @@ export default function MasterInsertPage() {
                   { name: 'payment_terms_default', label: 'Pay Terms', type: 'text', suggestions: suggestions.paymentTerms },
                   { name: 'supplier_bank_details', label: 'Bank Details', type: 'textarea' },
                 ]}
-                // FIX: added (d: any)
                 onSubmit={(d: any) => handleInsert('2.0_suppliers', d)} loading={loading}
               />
               <SimpleForm 
@@ -187,7 +191,6 @@ export default function MasterInsertPage() {
                   { name: 'category', label: 'Category', type: 'select', options: ENUMS.product_category },
                   { name: 'specifications', label: 'Specs (JSON)', type: 'textarea', placeholder: '{"watts": 100}' },
                 ]}
-                // FIX: added (d: any)
                 onSubmit={(d: any) => handleInsert('3.0_components', d)} loading={loading}
               />
             </div>
@@ -210,7 +213,6 @@ export default function MasterInsertPage() {
                     { name: 'estimated_lead_time_days', label: 'Lead Time', type: 'select', options: ENUMS.lead_time },
                     { name: 'replaces_quote_id', label: 'Replaces', type: 'select', options: quoteOptions },
                   ]}
-                  // FIX: added (d: any)
                   onSubmit={(d: any) => handleInsert('4.0_price_quotes', d)} loading={loading}
                 />
               </div>
@@ -226,7 +228,6 @@ export default function MasterInsertPage() {
                     { name: 'unit_price', label: 'Price', type: 'number', req: true, width: 'w-24' },
                     { name: 'currency', label: 'Curr', type: 'select', options: ENUMS.currency, req: true, width: 'w-20' },
                   ]}
-                  // FIX: added (items: any)
                   onSubmit={(items: any) => handleInsert('4.1_price_quote_line_items', items)}
                   loading={loading}
                 />
@@ -247,7 +248,6 @@ export default function MasterInsertPage() {
                     { name: 'status', label: 'Status', type: 'select', options: ENUMS.proforma_status, default: 'Open' },
                     { name: 'replaces_pi_id', label: 'Replaces', type: 'select', options: piOptions },
                   ]}
-                  // FIX: added (d: any)
                   onSubmit={(d: any) => handleInsert('5.0_proforma_invoices', d)} loading={loading}
                 />
                 <SimpleForm 
@@ -269,7 +269,6 @@ export default function MasterInsertPage() {
                     { name: 'status', label: 'Status', type: 'select', options: ENUMS.purchases_status, default: 'Draft' },
                     { name: 'replaces_po_id', label: 'Replaces', type: 'select', options: poOptions },
                   ]}
-                  // FIX: added (d: any)
                   onSubmit={(d: any) => handleInsert('6.0_purchases', d)} loading={loading}
                 />
               </div>
@@ -285,7 +284,6 @@ export default function MasterInsertPage() {
                     { name: 'unit_cost', label: 'Cost', type: 'number', req: true, width: 'w-24' },
                     { name: 'currency', label: 'Curr', type: 'select', options: ENUMS.currency, req: true, width: 'w-20' },
                   ]}
-                  // FIX: added (items: any)
                   onSubmit={(items: any) => handleInsert('6.1_purchase_line_items', items)}
                   loading={loading}
                 />
@@ -306,7 +304,6 @@ export default function MasterInsertPage() {
                   { name: 'payment_date', label: 'Date', type: 'date', req: true, default: new Date().toISOString().split('T')[0] },
                   { name: 'notes', label: 'Notes', type: 'textarea' },
                 ]}
-                // FIX: added (d: any)
                 onSubmit={(d: any) => handleInsert('7.0_payment_details', d)} loading={loading}
               />
               <SimpleForm 
@@ -319,8 +316,55 @@ export default function MasterInsertPage() {
                   { name: 'payment_date', label: 'Date', type: 'date' },
                   { name: 'notes', label: 'Notes', type: 'textarea' },
                 ]}
-                // FIX: added (d: any)
                 onSubmit={(d: any) => handleInsert('7.1_landed_costs', d)} loading={loading}
+              />
+            </div>
+          )}
+
+           {/* === TAB 5: HISTORY IMPORT (Batch Enabled) === */}
+          {activeTab === 'history' && (
+            <div className="grid grid-cols-1 gap-10">
+              {/* PURCHASE HISTORY BATCH */}
+              <BatchLineItemsForm 
+                title="Add Purchase History (Batch)"
+                // No parent field needed for flat history
+                itemFields={[
+                   // Sticky Fields (Left side - Header info)
+                   { name: 'po_date', label: 'PO Date', type: 'date', width: 'w-32' },
+                   { name: 'po_number', label: 'PO Number', type: 'text', suggestions: suggestions.poNumbers, width: 'w-36' },
+                   { name: 'supplier_id', label: 'Supplier', type: 'rich-select', options: suppliers, config: { labelKey: 'supplier_name', valueKey: 'supplier_id', subLabelKey: 'location' }, width: 'w-48' },
+                   
+                   // Variable Fields (Right side - Item info)
+                   { name: 'component_id', label: 'Component', type: 'rich-select', options: components, config: { labelKey: 'model_sku', valueKey: 'component_id', subLabelKey: 'description' }, width: 'w-64' },
+                   { name: 'brand', label: 'Brand', type: 'text', suggestions: suggestions.brands, width: 'w-24' },
+                   { name: 'description', label: 'Description', type: 'text', suggestions: suggestions.descriptions, width: 'w-40' },
+                   { name: 'quantity', label: 'Qty', type: 'number', width: 'w-20' },
+                   { name: 'unit_cost', label: 'Cost', type: 'number', width: 'w-24' },
+                   { name: 'currency', label: 'Curr', type: 'select', options: ENUMS.currency, width: 'w-20' },
+                ]}
+                stickyFields={['po_date', 'po_number', 'supplier_id', 'currency']} // These won't clear after adding
+                onSubmit={(items: any) => handleInsert('purchase_history', items)} 
+                loading={loading}
+              />
+              
+              {/* QUOTE HISTORY BATCH */}
+              <BatchLineItemsForm 
+                title="Add Quote History (Batch)"
+                itemFields={[
+                   { name: 'quote_date', label: 'Quote Date', type: 'date', width: 'w-32' },
+                   { name: 'quote_number', label: 'Quote Ref', type: 'text', suggestions: suggestions.quoteNumbers, width: 'w-36' },
+                   { name: 'supplier_id', label: 'Supplier', type: 'rich-select', options: suppliers, config: { labelKey: 'supplier_name', valueKey: 'supplier_id', subLabelKey: 'location' }, width: 'w-48' },
+                   
+                   { name: 'component_id', label: 'Component', type: 'rich-select', options: components, config: { labelKey: 'model_sku', valueKey: 'component_id', subLabelKey: 'description' }, width: 'w-64' },
+                   { name: 'brand', label: 'Brand', type: 'text', suggestions: suggestions.brands, width: 'w-24' },
+                   { name: 'description', label: 'Description', type: 'text', suggestions: suggestions.descriptions, width: 'w-40' },
+                   { name: 'quantity', label: 'Qty', type: 'number', width: 'w-20' },
+                   { name: 'unit_cost', label: 'Cost', type: 'number', width: 'w-24' },
+                   { name: 'currency', label: 'Curr', type: 'select', options: ENUMS.currency, width: 'w-20' },
+                ]}
+                stickyFields={['quote_date', 'quote_number', 'supplier_id', 'currency']}
+                onSubmit={(items: any) => handleInsert('quote_history', items)} 
+                loading={loading}
               />
             </div>
           )}
@@ -332,14 +376,13 @@ export default function MasterInsertPage() {
 
 // ============================================
 // COMPONENT: Rich Dropdown (Searchable Combobox)
-// REVISED: GENERIC VERSION (Handles Components or Suppliers)
+// REVISED: GENERIC VERSION
 // ============================================
 function RichDropdown({ options, value, onChange, placeholder = "Search...", config = {} }: any) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  // Defaults for component-style if config not provided
   const labelKey = config.labelKey || 'model_sku';
   const subLabelKey = config.subLabelKey || 'description';
   const valueKey = config.valueKey || 'component_id';
@@ -438,8 +481,9 @@ function RichDropdown({ options, value, onChange, placeholder = "Search...", con
 
 // ============================================
 // COMPONENT: Batch Form (Compact)
+// UPDATED: Supports "Sticky Fields" & Optional Parent
 // ============================================
-function BatchLineItemsForm({ title, parentField, itemFields, onSubmit, loading }: any) {
+function BatchLineItemsForm({ title, parentField, itemFields, onSubmit, loading, stickyFields = [] }: any) {
   const [parentId, setParentId] = useState('');
   const [items, setItems] = useState<any[]>([]);
   const [draft, setDraft] = useState<any>({});
@@ -447,21 +491,39 @@ function BatchLineItemsForm({ title, parentField, itemFields, onSubmit, loading 
   const handleDraftChange = (field: string, value: any) => setDraft({ ...draft, [field]: value });
 
   const addItem = () => {
+    // Validation
     for (const f of itemFields) {
+      // Check required only if it's explicitly required
       if (f.req && !draft[f.name]) return alert(`${f.label} is required`);
     }
     setItems([...items, { ...draft, _id: Date.now() }]);
     
-    const resetState: any = { currency: draft.currency };
-    setDraft(resetState);
+    // Reset State with Sticky Logic
+    const nextDraft: any = {};
+    // 1. Keep sticky fields
+    stickyFields.forEach((key: string) => {
+        if(draft[key]) nextDraft[key] = draft[key];
+    });
+    // 2. Keep currency by default if not strictly passed
+    if(draft.currency && !nextDraft.currency) nextDraft.currency = draft.currency;
+
+    setDraft(nextDraft);
   };
 
   const removeItem = (id: number) => setItems(items.filter(i => i._id !== id));
     
   const handleSubmit = () => {
-    if (!parentId) return alert(`Select ${parentField.label}`);
+    // If parentField exists, require parentId
+    if (parentField && !parentId) return alert(`Select ${parentField.label}`);
     if (items.length === 0) return alert("Add at least one item");
-    onSubmit(items.map(({ _id, ...rest }) => ({ ...rest, [parentField.name]: parentId })));
+    
+    // Inject parentId if applicable
+    const payload = items.map(({ _id, ...rest }) => {
+        if (parentField) return { ...rest, [parentField.name]: parentId };
+        return rest;
+    });
+
+    onSubmit(payload);
     setItems([]);
   };
 
@@ -473,18 +535,20 @@ function BatchLineItemsForm({ title, parentField, itemFields, onSubmit, loading 
         </h3>
       </div>
 
-      {/* Select Parent */}
-      <div>
-        <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">{parentField.label}</label>
-        <select 
-          className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded text-sm text-white focus:border-emerald-500 focus:outline-none transition-colors"
-          value={parentId}
-          onChange={(e) => setParentId(e.target.value)}
-        >
-          <option value="">-- Select --</option>
-          {parentField.options.map((o:any) => <option key={o.val} value={o.val}>{o.txt}</option>)}
-        </select>
-      </div>
+      {/* Select Parent (Only if parentField provided) */}
+      {parentField && (
+        <div>
+            <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">{parentField.label}</label>
+            <select 
+            className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded text-sm text-white focus:border-emerald-500 focus:outline-none transition-colors"
+            value={parentId}
+            onChange={(e) => setParentId(e.target.value)}
+            >
+            <option value="">-- Select --</option>
+            {parentField.options.map((o:any) => <option key={o.val} value={o.val}>{o.txt}</option>)}
+            </select>
+        </div>
+      )}
 
       {/* Add Item Row */}
       <div className="bg-slate-900/50 p-3 rounded border border-slate-800 overflow-visible">
@@ -516,8 +580,15 @@ function BatchLineItemsForm({ title, parentField, itemFields, onSubmit, loading 
                   value={draft[f.name] || ''}
                   onChange={(e) => handleDraftChange(f.name, e.target.value)}
                   placeholder={f.placeholder}
+                  list={f.suggestions ? `${f.name}-list` : undefined}
                 />
               )}
+               {/* Datalist for simple inputs */}
+               {f.type === 'text' && f.suggestions && (
+                  <datalist id={`${f.name}-list`}>
+                    {(draft[f.name] || '').length >= 1 && f.suggestions.map((val: string, i: number) => <option key={i} value={val} />)}
+                  </datalist>
+               )}
             </div>
           ))}
           <button onClick={addItem} className="bg-emerald-600 hover:bg-emerald-500 text-white h-[42px] px-5 rounded text-sm font-bold shadow-lg shadow-emerald-900/20 transition-all active:scale-95">
