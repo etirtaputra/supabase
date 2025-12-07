@@ -23,7 +23,7 @@ export default function AskPage() {
     setMessages(prev => [...prev, { role: 'user', content: query }]);
     
     try {
-      const response = await fetch('/api/ask-clean-results', {
+      const response = await fetch('/api/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query }),

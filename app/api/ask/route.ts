@@ -1,127 +1,105 @@
-import { createClient } from '@supabase/supabase-js';
-import { OpenAIStream, StreamingTextResponse } from 'ai';
+import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { createClient } from '@supabase/supabase-js';
 
 // Initialize OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Initialize Supabase ADMIN Client
-// We strictly require the Service Role Key to bypass RLS.
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-if (!supabaseServiceKey) {
-  throw new Error("CRITICAL: SUPABASE_SERVICE_ROLE_KEY is missing from .env.local");
-}
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-  },
-});
-
-export const runtime = 'edge';
-
-export async function POST(req: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const { messages } = await req.json();
+    const { query } = await request.json();
+
+    // --- CRITICAL FIX: USE ADMIN CLIENT ---
+    // Try to use the Service Role Key (Admin) to bypass RLS policies.
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
     
-    // Get the last user message
-    const lastMessage = messages[messages.length - 1];
-    const userQuery = lastMessage.content;
-
-    // --- SMART SEARCH LOGIC ---
-    // Split query into clean keywords
-    const ignoreWords = ['show', 'me', 'the', 'cost', 'price', 'history', 'for', 'of', 'what', 'is', 'a', 'an'];
-    const keywords = userQuery
-      .toLowerCase()
-      .replace(/[^\w\s]/g, '')
-      .split(' ')
-      .filter((w: string) => w.length > 2 && !ignoreWords.includes(w));
-
-    console.log(`🔎 Searching for keywords: ${keywords.join(', ')}`);
-
-    // --- PARALLEL DB FETCHING ---
-    const [historyRes, recentRes, quoteRes] = await Promise.all([
-      // 1. Historical Data (Materialized View)
-      supabase
-        .from('mv_component_analytics')
-        .select('*')
-        .or(keywords.map(k => `description.ilike.%${k}%,model_sku.ilike.%${k}%`).join(',')),
-
-      // 2. Recent POs (Live Data View)
-      supabase
-        .from('6.0_purchases')
-        .select('*')
-        .order('po_date', { ascending: false })
-        .limit(5)
-        .or(keywords.map(k => `item_description.ilike.%${k}%,po_number.ilike.%${k}%`).join(',')),
-
-      // 3. Active Quotes
-      supabase
-        .from('4.0_price_quotes')
-        .select('*')
-        .limit(5)
-        .or(keywords.map(k => `item_description.ilike.%${k}%`).join(','))
-    ]);
-
-    // --- CONSTRUCT CONTEXT FOR AI ---
-    let contextText = "";
-    const fmt = (n: any) => n ? "$" + Number(n).toFixed(2) : 'N/A';
-
-    if (historyRes.data && historyRes.data.length > 0) {
-      contextText += "\n--- HISTORICAL STATS (MV) ---\n";
-      historyRes.data.forEach((row: any) => {
-        contextText += "- SKU: " + row.model_sku + "\n  Desc: " + row.description + "\n  True Cost (Avg): " + fmt(row.weighted_avg_true_cost) + "\n  Last PO Price: " + fmt(row.last_po_price) + "\n";
-      });
-    }
-
-    if (recentRes.data && recentRes.data.length > 0) {
-      contextText += "\n--- RECENT PURCHASE ORDERS ---\n";
-      recentRes.data.forEach((po: any) => {
-        contextText += "- PO: " + po.po_number + " (" + po.po_date + ")\n  Qty: " + po.quantity + " @ " + fmt(po.unit_price) + "\n";
-      });
-    }
-
-    if (quoteRes.data && quoteRes.data.length > 0) {
-      contextText += "\n--- ACTIVE QUOTES ---\n";
-      quoteRes.data.forEach((q: any) => {
-        contextText += "- Quote ID: " + q.quote_id + "\n  Offer: " + fmt(q.unit_price) + "\n";
-      });
-    }
-
-    if (!contextText) {
-      contextText = "No matching records found in the database.";
-    }
-
-    // --- SEND TO OPENAI ---
-    const systemPrompt = `
-      You are a Supply Chain Analyst Assistant.
-      Answer the user's question using ONLY the provided context below.
-      - If looking for "True Cost", prioritize the 'weighted_avg_true_cost' from Historical Stats.
-      - If looking for "Recent Price", look at Recent Purchase Orders.
-      - Be concise and professional.
-      
-      CONTEXT DATA:
-      ${contextText}
-    `;
-
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4',
-      stream: true,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...messages
-      ],
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: { persistSession: false }
     });
 
-    return new StreamingTextResponse(OpenAIStream(response));
+    // --- STEP 1: SMART KEYWORD EXTRACTION ---
+    const stopWords = ['show', 'me', 'the', 'last', 'compare', 'price', 'history', 'for', 'of', 'trend', 'cost', 'unit', 'true', 'and', 'qty', 'quote', 'quotes', 'po', 'pos', 'is', 'what', 'are', 'icl', 'isl', 'mbs'];
+    const keywords = query.toLowerCase().split(/\s+/)
+      .filter((w: string) => !stopWords.includes(w) && w.length > 1);
 
-  } catch (error: any) {
+    let filterString = '';
+    if (keywords.length > 0) {
+      filterString = keywords.map((k: string) => `supplier_name.ilike.%${k}%,model_sku.ilike.%${k}%,component_name.ilike.%${k}%`).join(',');
+    }
+
+    // --- STEP 2: PARALLEL DATA FETCHING ---
+    const [poReq, quoteReq, statsReq] = await Promise.all([
+      // A. Purchase Orders
+      filterString 
+        ? supabase.from('v_analytics_master').select('*').or(filterString).order('po_date', { ascending: false }).limit(10)
+        : supabase.from('v_analytics_master').select('*').order('po_date', { ascending: false }).limit(5),
+      
+      // B. Price Quotes
+      filterString
+        ? supabase.from('v_quotes_analytics').select('*').or(filterString).order('quote_date', { ascending: false }).limit(10)
+        : supabase.from('v_quotes_analytics').select('*').order('quote_date', { ascending: false }).limit(5),
+        
+      // C. Historical Stats
+      keywords.length > 0
+        ? supabase.from('mv_component_analytics').select('*').or(keywords.map((k: string) => `model_sku.ilike.%${k}%,description.ilike.%${k}%`).join(',')).limit(5)
+        : supabase.from('mv_component_analytics').select('*').limit(5)
+    ]);
+
+    // --- STEP 3: FORMATTING CONTEXT ---
+    const poContext = (poReq.data || []).map((r: any) => 
+      `[PO] Date: ${r.po_date}, Supplier: ${r.supplier_name}, SKU: ${r.model_sku}, Item: ${r.component_name?.substring(0,30)}, Qty: ${r.quantity}, True Cost: ${r.true_unit_cost_idr} IDR`
+    ).join('\n');
+
+    const quoteContext = (quoteReq.data || []).map((r: any) => 
+      `[QUOTE] Date: ${r.quote_date}, Ref: ${r.supplier_quote_ref}, Supplier: ${r.supplier_name}, SKU: ${r.model_sku}, Price: ${r.unit_price} ${r.currency}, Status: ${r.status}`
+    ).join('\n');
+
+    const statsContext = (statsReq.data || []).map((r: any) => 
+      `[STATS] Item: ${r.description}, Avg True Cost: ${r.average_true_unit_cost} IDR, Min: ${r.min_price}, Max: ${r.max_price}, Total Orders: ${r.number_of_po} (Split: ISL=${r.number_of_po_isl}, MBS=${r.number_of_po_mbs}, ICL=${r.number_of_po_icl})`
+    ).join('\n');
+
+    // --- STEP 4: SYSTEM PROMPT ---
+    const prompt = `
+    You are a Supply Chain Intelligence Assistant. Answer STRICTLY based on the 3 datasets below.
+
+    USER QUESTION: "${query}"
+
+    === SOURCE 1: RECENT PURCHASE ORDERS (Actual Spend) ===
+    ${poContext || '(No matching POs found)'}
+
+    === SOURCE 2: ACTIVE QUOTES (Supplier Offers) ===
+    ${quoteContext || '(No matching Quotes found)'}
+
+    === SOURCE 3: HISTORICAL STATISTICS (Trends) ===
+    ${statsContext || '(No statistics found. NOTE: If empty, database view may need refreshing.)'}
+
+    GUIDELINES:
+    1. Be Direct.
+    2. Prioritize True Cost.
+    3. Use the counts in Source 3 for ISL/MBS/ICL questions.
+    `;
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini', 
+      messages: [
+        { role: 'system', content: prompt },
+        { role: 'user', content: query },
+      ],
+      temperature: 0.0,
+    });
+
+    const answer = completion.choices[0]?.message?.content || 'No answer.';
+    const cleanAnswer = answer.replace(/^```markdown\n?/, '').replace(/\n?```$/, '').trim();
+
+    return NextResponse.json({ answer: cleanAnswer });
+  } catch (error) {
     console.error('API Error:', error);
-    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    );
   }
 }
