@@ -28,7 +28,7 @@ export default function MasterInsertPage() {
     incoterms: [] as string[],
     modelSkus: [] as string[],
     descriptions: [] as string[],
-    supplierNames: [] as string[], // Added for duplicate checking
+    supplierNames: [] as string[],
   });
 
   // --- ENUM Definitions ---
@@ -71,7 +71,7 @@ export default function MasterInsertPage() {
         incoterms: getUnique(poData.data, 'incoterms'),
         modelSkus: getUnique(comp.data, 'model_sku'),
         descriptions: getUnique(comp.data, 'description'),
-        supplierNames: getUnique(sup.data, 'supplier_name'), // Populate supplier names
+        supplierNames: getUnique(sup.data, 'supplier_name'),
       });
     }
   };
@@ -168,7 +168,6 @@ export default function MasterInsertPage() {
               <SimpleForm 
                 title="Add New Supplier"
                 fields={[
-                  // Added suggestions here for Autocomplete (Duplicate Prevention)
                   { name: 'supplier_name', label: 'Supplier Name', type: 'text', req: true, suggestions: suggestions.supplierNames },
                   { name: 'supplier_code', label: 'Supplier Code', type: 'text', placeholder: 'SUP-001' },
                   { name: 'location', label: 'Location', type: 'text', suggestions: suggestions.locations },
@@ -176,7 +175,8 @@ export default function MasterInsertPage() {
                   { name: 'payment_terms_default', label: 'Pay Terms', type: 'text', suggestions: suggestions.paymentTerms },
                   { name: 'supplier_bank_details', label: 'Bank Details', type: 'textarea' },
                 ]}
-                onSubmit={(d) => handleInsert('2.0_suppliers', d)} loading={loading}
+                // FIX: added (d: any)
+                onSubmit={(d: any) => handleInsert('2.0_suppliers', d)} loading={loading}
               />
               <SimpleForm 
                 title="Add New Component"
@@ -187,7 +187,8 @@ export default function MasterInsertPage() {
                   { name: 'category', label: 'Category', type: 'select', options: ENUMS.product_category },
                   { name: 'specifications', label: 'Specs (JSON)', type: 'textarea', placeholder: '{"watts": 100}' },
                 ]}
-                onSubmit={(d) => handleInsert('3.0_components', d)} loading={loading}
+                // FIX: added (d: any)
+                onSubmit={(d: any) => handleInsert('3.0_components', d)} loading={loading}
               />
             </div>
           )}
@@ -199,7 +200,6 @@ export default function MasterInsertPage() {
                 <SimpleForm 
                   title="Step 1: Quote Header"
                   fields={[
-                    // Upgraded to rich-select for searchable supplier
                     { name: 'supplier_id', label: 'Supplier', type: 'rich-select', options: suppliers, config: { labelKey: 'supplier_name', valueKey: 'supplier_id', subLabelKey: 'location' }, req: true },
                     { name: 'company_id', label: 'Addressed To', type: 'select', options: companies.map(c => ({val: c.company_id, txt: c.legal_name})), req: true },
                     { name: 'quote_date', label: 'Date', type: 'date', req: true, default: new Date().toISOString().split('T')[0] },
@@ -210,7 +210,8 @@ export default function MasterInsertPage() {
                     { name: 'estimated_lead_time_days', label: 'Lead Time', type: 'select', options: ENUMS.lead_time },
                     { name: 'replaces_quote_id', label: 'Replaces', type: 'select', options: quoteOptions },
                   ]}
-                  onSubmit={(d) => handleInsert('4.0_price_quotes', d)} loading={loading}
+                  // FIX: added (d: any)
+                  onSubmit={(d: any) => handleInsert('4.0_price_quotes', d)} loading={loading}
                 />
               </div>
 
@@ -219,14 +220,14 @@ export default function MasterInsertPage() {
                   title="Step 2: Quote Items"
                   parentField={{ name: 'quote_id', label: 'Select Quote', options: quoteOptions }}
                   itemFields={[
-                    // Using Generic Rich Select for Components
                     { name: 'component_id', label: 'Component (Search SKU)', type: 'rich-select', options: components, config: { labelKey: 'model_sku', valueKey: 'component_id', subLabelKey: 'description' }, req: true, width: 'w-72' },
                     { name: 'supplier_description', label: 'Supplier Desc', type: 'text', placeholder: 'Override', width: 'w-40' },
                     { name: 'quantity', label: 'Qty', type: 'number', req: true, width: 'w-20' },
                     { name: 'unit_price', label: 'Price', type: 'number', req: true, width: 'w-24' },
                     { name: 'currency', label: 'Curr', type: 'select', options: ENUMS.currency, req: true, width: 'w-20' },
                   ]}
-                  onSubmit={(items) => handleInsert('4.1_price_quote_line_items', items)}
+                  // FIX: added (items: any)
+                  onSubmit={(items: any) => handleInsert('4.1_price_quote_line_items', items)}
                   loading={loading}
                 />
               </div>
@@ -246,7 +247,8 @@ export default function MasterInsertPage() {
                     { name: 'status', label: 'Status', type: 'select', options: ENUMS.proforma_status, default: 'Open' },
                     { name: 'replaces_pi_id', label: 'Replaces', type: 'select', options: piOptions },
                   ]}
-                  onSubmit={(d) => handleInsert('5.0_proforma_invoices', d)} loading={loading}
+                  // FIX: added (d: any)
+                  onSubmit={(d: any) => handleInsert('5.0_proforma_invoices', d)} loading={loading}
                 />
                 <SimpleForm 
                   title="2. Purchase Order"
@@ -267,7 +269,8 @@ export default function MasterInsertPage() {
                     { name: 'status', label: 'Status', type: 'select', options: ENUMS.purchases_status, default: 'Draft' },
                     { name: 'replaces_po_id', label: 'Replaces', type: 'select', options: poOptions },
                   ]}
-                  onSubmit={(d) => handleInsert('6.0_purchases', d)} loading={loading}
+                  // FIX: added (d: any)
+                  onSubmit={(d: any) => handleInsert('6.0_purchases', d)} loading={loading}
                 />
               </div>
 
@@ -276,14 +279,14 @@ export default function MasterInsertPage() {
                   title="3. PO Items"
                   parentField={{ name: 'po_id', label: 'Select PO', options: poOptions }}
                   itemFields={[
-                    // Using Generic Rich Select for Components
                     { name: 'component_id', label: 'Component (Search SKU)', type: 'rich-select', options: components, config: { labelKey: 'model_sku', valueKey: 'component_id', subLabelKey: 'description' }, req: true, width: 'w-72' },
                     { name: 'supplier_description', label: 'Supplier Desc', type: 'text', placeholder: 'Override', width: 'w-40' },
                     { name: 'quantity', label: 'Qty', type: 'number', req: true, width: 'w-20' },
                     { name: 'unit_cost', label: 'Cost', type: 'number', req: true, width: 'w-24' },
                     { name: 'currency', label: 'Curr', type: 'select', options: ENUMS.currency, req: true, width: 'w-20' },
                   ]}
-                  onSubmit={(items) => handleInsert('6.1_purchase_line_items', items)}
+                  // FIX: added (items: any)
+                  onSubmit={(items: any) => handleInsert('6.1_purchase_line_items', items)}
                   loading={loading}
                 />
               </div>
@@ -303,7 +306,8 @@ export default function MasterInsertPage() {
                   { name: 'payment_date', label: 'Date', type: 'date', req: true, default: new Date().toISOString().split('T')[0] },
                   { name: 'notes', label: 'Notes', type: 'textarea' },
                 ]}
-                onSubmit={(d) => handleInsert('7.0_payment_details', d)} loading={loading}
+                // FIX: added (d: any)
+                onSubmit={(d: any) => handleInsert('7.0_payment_details', d)} loading={loading}
               />
               <SimpleForm 
                 title="Landed Cost"
@@ -315,7 +319,8 @@ export default function MasterInsertPage() {
                   { name: 'payment_date', label: 'Date', type: 'date' },
                   { name: 'notes', label: 'Notes', type: 'textarea' },
                 ]}
-                onSubmit={(d) => handleInsert('7.1_landed_costs', d)} loading={loading}
+                // FIX: added (d: any)
+                onSubmit={(d: any) => handleInsert('7.1_landed_costs', d)} loading={loading}
               />
             </div>
           )}
