@@ -64,20 +64,24 @@ export default function MasterInsertPage() {
     setPis(piData.data || []);
     setPos(poData.data || []);
 
-    if (sup.data && comp.data && poData.data) {
-      const getUnique = (arr: any[], k: string) => Array.from(new Set(arr.map(i => i[k]).filter(Boolean))).sort();
-      setSuggestions({
-        brands: getUnique(comp.data, 'brand'),
-        locations: getUnique(sup.data, 'location'),
-        paymentTerms: Array.from(new Set([...getUnique(sup.data, 'payment_terms_default'), ...getUnique(poData.data, 'payment_terms')])).sort(),
-        incoterms: getUnique(poData.data, 'incoterms'),
-        modelSkus: getUnique(comp.data, 'model_sku'),
-        descriptions: getUnique(comp.data, 'description'),
-        supplierNames: getUnique(sup.data, 'supplier_name'),
-        poNumbers: getUnique(poData.data, 'po_number'),
-        quoteNumbers: getUnique(quo.data, 'pi_number'),
-      });
-    }
+    // Helper to get unique values safely
+    const getUnique = (arr: any[] | null, k: string) => {
+        if (!arr) return [];
+        return Array.from(new Set(arr.map(i => i[k]).filter(Boolean))).sort();
+    };
+
+    setSuggestions({
+      brands: getUnique(comp.data || [], 'brand'),
+      locations: getUnique(sup.data || [], 'location'),
+      paymentTerms: Array.from(new Set([...getUnique(sup.data || [], 'payment_terms_default'), ...getUnique(poData.data || [], 'payment_terms')])).sort(),
+      incoterms: getUnique(poData.data || [], 'incoterms'),
+      modelSkus: getUnique(comp.data || [], 'model_sku'),
+      descriptions: getUnique(comp.data || [], 'description'),
+      supplierNames: getUnique(sup.data || [], 'supplier_name'),
+      poNumbers: getUnique(poData.data || [], 'po_number'),
+      // FIXED: Added || [] fallback here to prevent null error
+      quoteNumbers: getUnique(quo.data || [], 'pi_number'),
+    });
   };
 
   useEffect(() => { refreshData(); }, []);
