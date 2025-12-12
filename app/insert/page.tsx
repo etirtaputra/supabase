@@ -11,6 +11,7 @@ export default function MasterInsertPage() {
   const [activeTab, setActiveTab] = useState<Tab>('foundation');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // New state for mobile nav
 
   // --- Data State ---
   const [companies, setCompanies] = useState<any[]>([]); 
@@ -64,7 +65,6 @@ export default function MasterInsertPage() {
     setPis(piData.data || []);
     setPos(poData.data || []);
 
-    // Helper to get unique values safely
     const getUnique = (arr: any[] | null, k: string) => {
         if (!arr) return [];
         return Array.from(new Set(arr.map(i => i[k]).filter(Boolean))).sort();
@@ -79,7 +79,6 @@ export default function MasterInsertPage() {
       descriptions: getUnique(comp.data || [], 'description'),
       supplierNames: getUnique(sup.data || [], 'supplier_name'),
       poNumbers: getUnique(poData.data || [], 'po_number'),
-      // FIXED: Added || [] fallback here to prevent null error
       quoteNumbers: getUnique(quo.data || [], 'pi_number'),
     });
   };
@@ -106,10 +105,12 @@ export default function MasterInsertPage() {
     setLoading(false);
 
     if (error) {
-      setMessage(`❌ Error in ${table}: ${error.message}`);
+      setMessage(`❌ Error: ${error.message}`);
     } else {
       setMessage(`✅ Added ${cleanPayload.length} record(s)!`);
-      refreshData(); 
+      refreshData();
+      // Clear message after 3 seconds
+      setTimeout(() => setMessage(''), 3000);
     }
   };
 
@@ -120,18 +121,46 @@ export default function MasterInsertPage() {
 
   // --- Menu Config ---
   const menuItems = [
-    { id: 'foundation', label: 'Add New Supplier or Component' },
-    { id: 'quoting', label: 'Add Quotes' },
-    { id: 'ordering', label: 'Add PI / PO' },
-    { id: 'financials', label: 'Add Payments and Landed Costs' },
-    { id: 'history', label: 'Import History' },
+    { id: 'foundation', label: 'Suppliers & Components', icon: '🏢' },
+    { id: 'quoting', label: 'Quotes', icon: '📝' },
+    { id: 'ordering', label: 'PI / PO', icon: '📦' },
+    { id: 'financials', label: 'Financials', icon: '💰' },
+    { id: 'history', label: 'History Import', icon: '📂' },
   ];
 
   return (
-    <div className="flex min-h-screen bg-slate-950 text-slate-100 font-sans text-sm">
-        
-      {/* === LEFT SIDEBAR === */}
-      <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col fixed h-full z-20 shadow-xl">
+    <div className="flex flex-col md:flex-row min-h-screen bg-slate-950 text-slate-100 font-sans text-sm">
+      
+      {/* === MOBILE NAVIGATION === */}
+      <div className="md:hidden bg-slate-900 border-b border-slate-800 p-4 sticky top-0 z-50">
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="font-bold text-white text-lg">Supply Chain</h1>
+           {/* Message display for mobile */}
+           {message && (
+             <span className={`text-xs px-2 py-1 rounded ${message.includes('Error') ? 'bg-red-900 text-red-200' : 'bg-emerald-900 text-emerald-200'}`}>
+               {message}
+             </span>
+           )}
+        </div>
+        <div className="flex overflow-x-auto space-x-2 pb-2 scrollbar-hide">
+          {menuItems.map((item) => (
+             <button
+             key={item.id}
+             onClick={() => setActiveTab(item.id as Tab)}
+             className={`whitespace-nowrap px-4 py-2 rounded-full text-xs font-bold transition-all ${
+               activeTab === item.id 
+               ? 'bg-emerald-600 text-white shadow-lg' 
+               : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+             }`}
+           >
+             {item.label}
+           </button>
+          ))}
+        </div>
+      </div>
+
+      {/* === DESKTOP SIDEBAR === */}
+      <aside className="hidden md:flex w-64 bg-slate-900 border-r border-slate-800 flex-col fixed h-full z-20 shadow-xl">
         <div className="p-6 border-b border-slate-800">
           <h1 className="text-base font-bold text-white tracking-wide uppercase leading-tight">
             Supabase | <br />
@@ -149,6 +178,7 @@ export default function MasterInsertPage() {
                 : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
               }`}
             >
+              <span className="mr-3 opacity-70">{item.icon}</span>
               {item.label}
             </button>
           ))}
@@ -156,10 +186,11 @@ export default function MasterInsertPage() {
       </aside>
 
       {/* === MAIN CONTENT === */}
-      <main className="flex-1 ml-64 p-8 bg-slate-950 min-h-screen overflow-x-hidden">
-        <div className="max-w-6xl mx-auto">
+      <main className="flex-1 md:ml-64 p-4 md:p-8 bg-slate-950 min-h-screen overflow-x-hidden">
+        <div className="max-w-7xl mx-auto pb-20 md:pb-0">
             
-          <div className="mb-8 flex justify-between items-center h-10">
+          {/* Header & Status Message (Desktop) */}
+          <div className="hidden md:flex mb-8 justify-between items-center h-10">
             <h2 className="text-2xl font-bold text-white tracking-tight border-l-4 border-emerald-500 pl-4">
               {menuItems.find(m => m.id === activeTab)?.label}
             </h2>
@@ -226,12 +257,14 @@ export default function MasterInsertPage() {
                   title="Step 2: Quote Items"
                   parentField={{ name: 'quote_id', label: 'Select Quote', options: quoteOptions }}
                   itemFields={[
-                    { name: 'component_id', label: 'Component (Search SKU)', type: 'rich-select', options: components, config: { labelKey: 'model_sku', valueKey: 'component_id', subLabelKey: 'description' }, req: true, width: 'w-72' },
-                    { name: 'supplier_description', label: 'Supplier Desc', type: 'text', placeholder: 'Override', width: 'w-40' },
-                    { name: 'quantity', label: 'Qty', type: 'number', req: true, width: 'w-20' },
-                    { name: 'unit_price', label: 'Price', type: 'number', req: true, width: 'w-24' },
-                    { name: 'currency', label: 'Curr', type: 'select', options: ENUMS.currency, req: true, width: 'w-20' },
+                    { name: 'component_id', label: 'Component (Search SKU)', type: 'rich-select', options: components, config: { labelKey: 'model_sku', valueKey: 'component_id', subLabelKey: 'description' }, req: true },
+                    { name: 'supplier_description', label: 'Supplier Desc', type: 'text', placeholder: 'Override' },
+                    { name: 'quantity', label: 'Qty', type: 'number', req: true },
+                    { name: 'unit_price', label: 'Price', type: 'number', req: true },
+                    { name: 'currency', label: 'Curr', type: 'select', options: ENUMS.currency, req: true },
                   ]}
+                  // Define what is mostly static to separate UI
+                  stickyFields={['currency']}
                   onSubmit={(items: any) => handleInsert('4.1_price_quote_line_items', items)}
                   loading={loading}
                 />
@@ -282,12 +315,13 @@ export default function MasterInsertPage() {
                   title="3. PO Items"
                   parentField={{ name: 'po_id', label: 'Select PO', options: poOptions }}
                   itemFields={[
-                    { name: 'component_id', label: 'Component (Search SKU)', type: 'rich-select', options: components, config: { labelKey: 'model_sku', valueKey: 'component_id', subLabelKey: 'description' }, req: true, width: 'w-72' },
-                    { name: 'supplier_description', label: 'Supplier Desc', type: 'text', placeholder: 'Override', width: 'w-40' },
-                    { name: 'quantity', label: 'Qty', type: 'number', req: true, width: 'w-20' },
-                    { name: 'unit_cost', label: 'Cost', type: 'number', req: true, width: 'w-24' },
-                    { name: 'currency', label: 'Curr', type: 'select', options: ENUMS.currency, req: true, width: 'w-20' },
+                    { name: 'component_id', label: 'Component (Search SKU)', type: 'rich-select', options: components, config: { labelKey: 'model_sku', valueKey: 'component_id', subLabelKey: 'description' }, req: true },
+                    { name: 'supplier_description', label: 'Supplier Desc', type: 'text', placeholder: 'Override' },
+                    { name: 'quantity', label: 'Qty', type: 'number', req: true },
+                    { name: 'unit_cost', label: 'Cost', type: 'number', req: true },
+                    { name: 'currency', label: 'Curr', type: 'select', options: ENUMS.currency, req: true },
                   ]}
+                  stickyFields={['currency']}
                   onSubmit={(items: any) => handleInsert('6.1_purchase_line_items', items)}
                   loading={loading}
                 />
@@ -327,24 +361,24 @@ export default function MasterInsertPage() {
 
            {/* === TAB 5: HISTORY IMPORT (Batch Enabled) === */}
           {activeTab === 'history' && (
-            <div className="grid grid-cols-1 gap-10">
+            <div className="flex flex-col gap-8">
               {/* PURCHASE HISTORY BATCH */}
               <BatchLineItemsForm 
                 title="Add Purchase History (Batch)"
                 // No parent field needed for flat history
                 itemFields={[
-                   // Sticky Fields (Left side - Header info)
-                   { name: 'po_date', label: 'PO Date', type: 'date', width: 'w-32' },
-                   { name: 'po_number', label: 'PO Number', type: 'text', suggestions: suggestions.poNumbers, width: 'w-36' },
-                   { name: 'supplier_id', label: 'Supplier', type: 'rich-select', options: suppliers, config: { labelKey: 'supplier_name', valueKey: 'supplier_id', subLabelKey: 'location' }, width: 'w-48' },
+                   // Header info
+                   { name: 'po_date', label: 'PO Date', type: 'date' },
+                   { name: 'po_number', label: 'PO Number', type: 'text', suggestions: suggestions.poNumbers },
+                   { name: 'supplier_id', label: 'Supplier', type: 'rich-select', options: suppliers, config: { labelKey: 'supplier_name', valueKey: 'supplier_id', subLabelKey: 'location' } },
+                   { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency },
                    
-                   // Variable Fields (Right side - Item info)
-                   { name: 'component_id', label: 'Component', type: 'rich-select', options: components, config: { labelKey: 'model_sku', valueKey: 'component_id', subLabelKey: 'description' }, width: 'w-64' },
-                   { name: 'brand', label: 'Brand', type: 'text', suggestions: suggestions.brands, width: 'w-24' },
-                   { name: 'description', label: 'Description', type: 'text', suggestions: suggestions.descriptions, width: 'w-40' },
-                   { name: 'quantity', label: 'Qty', type: 'number', width: 'w-20' },
-                   { name: 'unit_cost', label: 'Cost', type: 'number', width: 'w-24' },
-                   { name: 'currency', label: 'Curr', type: 'select', options: ENUMS.currency, width: 'w-20' },
+                   // Item info
+                   { name: 'component_id', label: 'Component', type: 'rich-select', options: components, config: { labelKey: 'model_sku', valueKey: 'component_id', subLabelKey: 'description' } },
+                   { name: 'brand', label: 'Brand', type: 'text', suggestions: suggestions.brands },
+                   { name: 'description', label: 'Description', type: 'text', suggestions: suggestions.descriptions },
+                   { name: 'quantity', label: 'Qty', type: 'number' },
+                   { name: 'unit_cost', label: 'Cost', type: 'number' },
                 ]}
                 stickyFields={['po_date', 'po_number', 'supplier_id', 'currency']} // These won't clear after adding
                 onSubmit={(items: any) => handleInsert('purchase_history', items)} 
@@ -355,16 +389,16 @@ export default function MasterInsertPage() {
               <BatchLineItemsForm 
                 title="Add Quote History (Batch)"
                 itemFields={[
-                   { name: 'quote_date', label: 'Quote Date', type: 'date', width: 'w-32' },
-                   { name: 'quote_number', label: 'Quote Ref', type: 'text', suggestions: suggestions.quoteNumbers, width: 'w-36' },
-                   { name: 'supplier_id', label: 'Supplier', type: 'rich-select', options: suppliers, config: { labelKey: 'supplier_name', valueKey: 'supplier_id', subLabelKey: 'location' }, width: 'w-48' },
+                   { name: 'quote_date', label: 'Quote Date', type: 'date' },
+                   { name: 'quote_number', label: 'Quote Ref', type: 'text', suggestions: suggestions.quoteNumbers },
+                   { name: 'supplier_id', label: 'Supplier', type: 'rich-select', options: suppliers, config: { labelKey: 'supplier_name', valueKey: 'supplier_id', subLabelKey: 'location' } },
+                   { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency },
                    
-                   { name: 'component_id', label: 'Component', type: 'rich-select', options: components, config: { labelKey: 'model_sku', valueKey: 'component_id', subLabelKey: 'description' }, width: 'w-64' },
-                   { name: 'brand', label: 'Brand', type: 'text', suggestions: suggestions.brands, width: 'w-24' },
-                   { name: 'description', label: 'Description', type: 'text', suggestions: suggestions.descriptions, width: 'w-40' },
-                   { name: 'quantity', label: 'Qty', type: 'number', width: 'w-20' },
-                   { name: 'unit_cost', label: 'Cost', type: 'number', width: 'w-24' },
-                   { name: 'currency', label: 'Curr', type: 'select', options: ENUMS.currency, width: 'w-20' },
+                   { name: 'component_id', label: 'Component', type: 'rich-select', options: components, config: { labelKey: 'model_sku', valueKey: 'component_id', subLabelKey: 'description' } },
+                   { name: 'brand', label: 'Brand', type: 'text', suggestions: suggestions.brands },
+                   { name: 'description', label: 'Description', type: 'text', suggestions: suggestions.descriptions },
+                   { name: 'quantity', label: 'Qty', type: 'number' },
+                   { name: 'unit_cost', label: 'Cost', type: 'number' },
                 ]}
                 stickyFields={['quote_date', 'quote_number', 'supplier_id', 'currency']}
                 onSubmit={(items: any) => handleInsert('quote_history', items)} 
@@ -380,7 +414,7 @@ export default function MasterInsertPage() {
 
 // ============================================
 // COMPONENT: Rich Dropdown (Searchable Combobox)
-// REVISED: GENERIC VERSION
+// REVISED: Better z-index and positioning for mobile
 // ============================================
 function RichDropdown({ options, value, onChange, placeholder = "Search...", config = {} }: any) {
   const [isOpen, setIsOpen] = useState(false);
@@ -440,21 +474,21 @@ function RichDropdown({ options, value, onChange, placeholder = "Search...", con
       <div className="relative">
         <input
           type="text"
-          className={`w-full p-2.5 bg-slate-900 border rounded text-sm text-white placeholder-slate-600 focus:outline-none transition-all ${
-            isOpen ? 'border-emerald-500 ring-1 ring-emerald-500/50 rounded-b-none' : 'border-slate-700'
+          className={`w-full p-2.5 bg-slate-950 border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all ${
+            isOpen ? 'border-emerald-500 rounded-b-none' : 'border-slate-700'
           }`}
           placeholder={placeholder}
           value={searchTerm}
           onChange={handleInputChange}
           onFocus={() => { setIsOpen(true); if(value === null) setSearchTerm(''); }}
         />
-        <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 text-xs">
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 text-xs">
           ▼
         </div>
       </div>
 
       {isOpen && (
-        <div className="absolute z-50 top-full left-0 w-full bg-slate-900 border border-t-0 border-emerald-500/50 rounded-b-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-75">
+        <div className="absolute z-[60] top-full left-0 w-full bg-slate-900 border border-t-0 border-emerald-500/50 rounded-b-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-75">
           <div className="max-h-60 overflow-y-auto custom-scrollbar">
             {filtered.length === 0 ? (
               <div className="p-3 text-center text-xs text-slate-500 italic">
@@ -465,7 +499,7 @@ function RichDropdown({ options, value, onChange, placeholder = "Search...", con
                 <div
                   key={c[valueKey]}
                   onClick={() => handleSelect(c)}
-                  className="p-2 border-b border-slate-800/50 cursor-pointer hover:bg-slate-800 transition-colors group flex flex-col gap-0.5 last:border-0"
+                  className="p-3 border-b border-slate-800/50 cursor-pointer hover:bg-slate-800 transition-colors group flex flex-col gap-0.5 last:border-0"
                 >
                   <div className="flex justify-between items-center">
                     <span className="font-mono text-emerald-400 font-bold text-xs">{c[labelKey]}</span>
@@ -484,8 +518,8 @@ function RichDropdown({ options, value, onChange, placeholder = "Search...", con
 }
 
 // ============================================
-// COMPONENT: Batch Form (Compact)
-// UPDATED: Supports "Sticky Fields" & Optional Parent
+// COMPONENT: Batch Form (Compact & Grid Layout)
+// UPDATED: Fixed UI issues (No horizontal scroll, better spacing)
 // ============================================
 function BatchLineItemsForm({ title, parentField, itemFields, onSubmit, loading, stickyFields = [] }: any) {
   const [parentId, setParentId] = useState('');
@@ -497,18 +531,15 @@ function BatchLineItemsForm({ title, parentField, itemFields, onSubmit, loading,
   const addItem = () => {
     // Validation
     for (const f of itemFields) {
-      // Check required only if it's explicitly required
       if (f.req && !draft[f.name]) return alert(`${f.label} is required`);
     }
     setItems([...items, { ...draft, _id: Date.now() }]);
     
     // Reset State with Sticky Logic
     const nextDraft: any = {};
-    // 1. Keep sticky fields
     stickyFields.forEach((key: string) => {
         if(draft[key]) nextDraft[key] = draft[key];
     });
-    // 2. Keep currency by default if not strictly passed
     if(draft.currency && !nextDraft.currency) nextDraft.currency = draft.currency;
 
     setDraft(nextDraft);
@@ -517,11 +548,9 @@ function BatchLineItemsForm({ title, parentField, itemFields, onSubmit, loading,
   const removeItem = (id: number) => setItems(items.filter(i => i._id !== id));
     
   const handleSubmit = () => {
-    // If parentField exists, require parentId
     if (parentField && !parentId) return alert(`Select ${parentField.label}`);
     if (items.length === 0) return alert("Add at least one item");
     
-    // Inject parentId if applicable
     const payload = items.map(({ _id, ...rest }) => {
         if (parentField) return { ...rest, [parentField.name]: parentId };
         return rest;
@@ -531,20 +560,22 @@ function BatchLineItemsForm({ title, parentField, itemFields, onSubmit, loading,
     setItems([]);
   };
 
+  const isHeaderField = (name: string) => stickyFields.includes(name);
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-4">
-        <h3 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> {title}
+      <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-2">
+        <h3 className="text-base font-bold text-white flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span> {title}
         </h3>
       </div>
 
       {/* Select Parent (Only if parentField provided) */}
       {parentField && (
-        <div>
-            <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">{parentField.label}</label>
+        <div className="mb-4 bg-slate-900/50 p-4 rounded-xl border border-slate-800">
+            <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">{parentField.label}</label>
             <select 
-            className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded text-sm text-white focus:border-emerald-500 focus:outline-none transition-colors"
+            className="w-full md:w-1/2 p-3 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
             value={parentId}
             onChange={(e) => setParentId(e.target.value)}
             >
@@ -554,93 +585,128 @@ function BatchLineItemsForm({ title, parentField, itemFields, onSubmit, loading,
         </div>
       )}
 
-      {/* Add Item Row */}
-      <div className="bg-slate-900/50 p-3 rounded border border-slate-800 overflow-visible">
-        <div className="flex gap-3 items-end overflow-x-auto pb-4 lg:pb-0 lg:overflow-visible">
-          {itemFields.map((f: any) => (
-            <div key={f.name} className={`${f.width || 'w-32'} flex-shrink-0 relative`}>
-              <label className="block text-[10px] text-slate-500 mb-1 font-semibold">{f.label}</label>
-              
-              {f.type === 'rich-select' ? (
-                 <RichDropdown 
-                   options={f.options} 
-                   value={draft[f.name]} 
-                   config={f.config}
-                   onChange={(val: any) => handleDraftChange(f.name, val)}
-                 />
-              ) : f.type === 'select' ? (
-                <select 
-                  className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded text-sm text-white focus:border-emerald-500 focus:outline-none"
-                  value={draft[f.name] || ''}
-                  onChange={(e) => handleDraftChange(f.name, e.target.value)}
-                >
-                   <option value="">-</option>
-                   {f.options.map((o:any) => typeof o === 'string' ? <option key={o} value={o}>{o}</option> : <option key={o.val} value={o.val}>{o.txt}</option>)}
-                </select>
-              ) : (
-                <input 
-                  type={f.type} 
-                  className="w-full p-2.5 bg-slate-900 border border-slate-700 rounded text-sm text-white focus:border-emerald-500 focus:outline-none placeholder-slate-700"
-                  value={draft[f.name] || ''}
-                  onChange={(e) => handleDraftChange(f.name, e.target.value)}
-                  placeholder={f.placeholder}
-                  list={f.suggestions ? `${f.name}-list` : undefined}
-                />
-              )}
-               {/* Datalist for simple inputs */}
-               {f.type === 'text' && f.suggestions && (
-                  <datalist id={`${f.name}-list`}>
-                    {(draft[f.name] || '').length >= 1 && f.suggestions.map((val: string, i: number) => <option key={i} value={val} />)}
-                  </datalist>
-               )}
+      {/* Input Container - Changed to Card with Grid */}
+      <div className="bg-slate-900/80 p-4 md:p-5 rounded-xl border border-slate-800 shadow-xl">
+        <div className="flex flex-col gap-6">
+          
+          {/* ROW 1: HEADER INFO (Sticky Fields) - GRID LAYOUT */}
+          {stickyFields.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pb-6 border-b border-slate-700/50">
+                {itemFields.filter((f:any) => isHeaderField(f.name)).map((f: any) => (
+                <FieldRenderer key={f.name} f={f} draft={draft} handleDraftChange={handleDraftChange} />
+                ))}
             </div>
-          ))}
-          <button onClick={addItem} className="bg-emerald-600 hover:bg-emerald-500 text-white h-[42px] px-5 rounded text-sm font-bold shadow-lg shadow-emerald-900/20 transition-all active:scale-95">
-            +
-          </button>
+          )}
+
+          {/* ROW 2: ITEM INFO (Variable Fields) - FLEX WRAP */}
+          <div className="flex flex-col md:flex-row flex-wrap items-end gap-4">
+             {/* Render non-header fields */}
+             {itemFields.filter((f:any) => !isHeaderField(f.name)).map((f: any) => (
+               // Flexible width logic for better responsiveness
+               <div key={f.name} className={`w-full ${f.name.includes('description') || f.name.includes('component') ? 'md:flex-[2]' : 'md:flex-1'} min-w-[140px]`}>
+                 <FieldRenderer f={f} draft={draft} handleDraftChange={handleDraftChange} />
+               </div>
+            ))}
+            
+            {/* Add Button - Full width on mobile, auto on desktop */}
+            <button onClick={addItem} className="w-full md:w-auto h-[46px] bg-emerald-600 hover:bg-emerald-500 text-white px-8 rounded-lg text-sm font-bold shadow-lg shadow-emerald-900/20 transition-all active:scale-95 flex items-center justify-center">
+              Add Item +
+            </button>
+          </div>
+
         </div>
       </div>
 
-      {/* Queue */}
+      {/* Queue Table */}
       {items.length > 0 && (
-        <div className="rounded border border-slate-800 overflow-hidden">
-          <table className="w-full text-xs text-left text-slate-400">
-            <thead className="bg-slate-900 uppercase font-semibold text-slate-500">
-              <tr>
-                {itemFields.map((f:any) => <th key={f.name} className="px-3 py-2 whitespace-nowrap">{f.label}</th>)}
-                <th className="px-3 py-2 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800">
-              {items.map((item) => (
-                <tr key={item._id} className="hover:bg-slate-800/50 transition-colors">
-                  {itemFields.map((f:any) => (
-                    <td key={f.name} className="px-3 py-2 whitespace-nowrap">
-                      {f.type === 'rich-select' 
-                        ? (f.options.find((o:any) => o[f.config?.valueKey || 'component_id'] === item[f.name])?.[f.config?.labelKey || 'model_sku']) 
-                        : item[f.name]}
-                    </td>
-                  ))}
-                  <td className="px-3 py-2 text-right">
-                    <button onClick={() => removeItem(item._id)} className="text-red-500 hover:text-red-400 font-bold px-2">×</button>
-                  </td>
+        <div className="rounded-xl border border-slate-800 overflow-hidden shadow-lg animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left text-slate-400">
+              <thead className="bg-slate-900 uppercase font-bold text-slate-500 tracking-wider">
+                <tr>
+                  {itemFields.map((f:any) => <th key={f.name} className="px-4 py-3 whitespace-nowrap">{f.label}</th>)}
+                  <th className="px-4 py-3 text-right">Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="bg-slate-900 p-3 flex justify-end border-t border-slate-800">
+              </thead>
+              <tbody className="divide-y divide-slate-800 bg-slate-900/40">
+                {items.map((item) => (
+                  <tr key={item._id} className="hover:bg-slate-800/80 transition-colors">
+                    {itemFields.map((f:any) => (
+                      <td key={f.name} className="px-4 py-3 whitespace-nowrap text-slate-300 font-medium">
+                        {f.type === 'rich-select' 
+                          ? (f.options.find((o:any) => o[f.config?.valueKey || 'component_id'] === item[f.name])?.[f.config?.labelKey || 'model_sku']) 
+                          : item[f.name]}
+                      </td>
+                    ))}
+                    <td className="px-4 py-3 text-right">
+                      <button onClick={() => removeItem(item._id)} className="text-red-400 hover:text-red-300 hover:bg-red-900/30 w-8 h-8 rounded-full flex items-center justify-center transition-all">×</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="bg-slate-900 p-4 flex justify-between items-center border-t border-slate-800">
+            <span className="text-xs text-slate-500">{items.length} items staged</span>
             <button 
               onClick={handleSubmit} 
               disabled={loading}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2 px-6 rounded shadow transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
+              className="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold py-2.5 px-6 rounded-lg shadow-md transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:scale-100"
             >
-              {loading ? 'Saving...' : `Save ${items.length} Items`}
+              {loading ? 'Saving...' : `Save All Items`}
             </button>
           </div>
         </div>
       )}
     </div>
   );
+}
+
+// Helper Sub-Component to render individual fields cleanly
+function FieldRenderer({ f, draft, handleDraftChange }: any) {
+  return (
+    <div className="relative w-full group">
+      <label className="block text-[11px] font-bold text-slate-400 mb-2 ml-1 group-focus-within:text-emerald-400 transition-colors">
+        {f.label} {f.req && <span className="text-emerald-500">*</span>}
+      </label>
+      
+      {f.type === 'rich-select' ? (
+          <RichDropdown 
+            options={f.options} 
+            value={draft[f.name]} 
+            config={f.config}
+            onChange={(val: any) => handleDraftChange(f.name, val)}
+          />
+      ) : f.type === 'select' ? (
+        <div className="relative">
+             <select 
+            className="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all appearance-none"
+            value={draft[f.name] || ''}
+            onChange={(e) => handleDraftChange(f.name, e.target.value)}
+            >
+                <option value="">- Select -</option>
+                {f.options.map((o:any) => typeof o === 'string' ? <option key={o} value={o}>{o}</option> : <option key={o.val} value={o.val}>{o.txt}</option>)}
+            </select>
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 text-xs">▼</div>
+        </div>
+      ) : (
+        <input 
+          type={f.type} 
+          className="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none placeholder-slate-600 transition-all"
+          value={draft[f.name] || ''}
+          onChange={(e) => handleDraftChange(f.name, e.target.value)}
+          placeholder={f.placeholder}
+          list={f.suggestions ? `${f.name}-list` : undefined}
+        />
+      )}
+        {/* Datalist for simple inputs */}
+        {f.type === 'text' && f.suggestions && (
+          <datalist id={`${f.name}-list`}>
+            {(draft[f.name] || '').length >= 1 && f.suggestions.map((val: string, i: number) => <option key={i} value={val} />)}
+          </datalist>
+        )}
+    </div>
+  )
 }
 
 // ============================================
@@ -659,38 +725,21 @@ function SimpleForm({ title, fields, onSubmit, loading }: any) {
   const handleRichChange = (name: string, val: any) => setData({ ...data, [name]: val });
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onSubmit(data); }} className="bg-slate-900 rounded border border-slate-800 p-5 shadow-lg">
-      <h3 className="text-sm font-semibold text-slate-200 border-b border-slate-800 pb-3 mb-4 flex items-center gap-2">
-        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+    <form onSubmit={(e) => { e.preventDefault(); onSubmit(data); }} className="bg-slate-900 rounded-xl border border-slate-800 p-6 shadow-xl h-full flex flex-col">
+      <h3 className="text-base font-bold text-white border-b border-slate-800 pb-4 mb-6 flex items-center gap-3">
+        <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
         {title}
       </h3>
-      <div className="grid gap-4">
+      <div className="grid gap-5 flex-1">
         {fields.map((f: any) => (
-          <div key={f.name}>
-            <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">
-              {f.label} {f.req && <span className="text-emerald-500">*</span>}
-            </label>
-            {f.type === 'rich-select' ? (
-              <RichDropdown 
-                options={f.options} 
-                value={data[f.name]} 
-                config={f.config}
-                onChange={(val: any) => handleRichChange(f.name, val)}
-              />
-            ) : f.type === 'select' ? (
-              <select name={f.name} value={data[f.name] || ''} onChange={handleChange} required={f.req} className="w-full p-2.5 bg-slate-950 border border-slate-700 rounded text-sm text-white focus:border-emerald-500 focus:outline-none transition-colors">
-                <option value="">-- Select --</option>
-                {f.options?.map((opt: any) => typeof opt === 'string' ? <option key={opt} value={opt}>{opt}</option> : <option key={opt.val} value={opt.val}>{opt.txt}</option>)}
-              </select>
-            ) : f.type === 'textarea' ? (
-              <textarea name={f.name} value={data[f.name] || ''} onChange={handleChange} className="w-full p-2.5 bg-slate-950 border border-slate-700 rounded text-sm text-white focus:border-emerald-500 focus:outline-none min-h-[80px]" placeholder={f.placeholder} />
-            ) : (
-              <input type={f.type} name={f.name} value={data[f.name] || ''} onChange={handleChange} required={f.req} list={f.suggestions ? `${f.name}-list` : undefined} className="w-full p-2.5 bg-slate-950 border border-slate-700 rounded text-sm text-white focus:border-emerald-500 focus:outline-none placeholder-slate-700" placeholder={f.placeholder} />
-            )}
-             {f.suggestions && <datalist id={`${f.name}-list`}>{(data[f.name] || '').length >= 1 && f.suggestions.map((val: string, i: number) => <option key={i} value={val} />)}</datalist>}
-          </div>
+          <FieldRenderer key={f.name} f={f} draft={data} handleDraftChange={(name: string, val: any) => {
+             if (f.type === 'rich-select') handleRichChange(name, val);
+             else handleChange({ target: { name, value: val } });
+          }} />
         ))}
-        <button type="submit" disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-4 rounded text-sm shadow-lg shadow-emerald-900/20 transition-all hover:translate-y-[-1px] active:translate-y-[1px] disabled:opacity-50">
+      </div>
+      <div className="mt-8">
+        <button type="submit" disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-lg text-sm shadow-lg shadow-emerald-900/20 transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:transform-none">
           {loading ? 'Saving...' : 'Save Record'}
         </button>
       </div>
