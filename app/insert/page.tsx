@@ -1,11 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
-import { Metadata } from 'next';
 
 // --- Types ---
-type Tab = 'foundation' | 'quoting' | 'ordering' | 'financials' | 'history';
+type Tab = 'foundation' | 'quoting' | 'ordering' | 'financials' | 'history' | 'database';
 
 export default function MasterInsertPage() {
   const supabase = createSupabaseClient();
@@ -18,8 +17,14 @@ export default function MasterInsertPage() {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [components, setComponents] = useState<any[]>([]);
   const [quotes, setQuotes] = useState<any[]>([]);
+  const [quoteItems, setQuoteItems] = useState<any[]>([]); 
   const [pis, setPis] = useState<any[]>([]);
   const [pos, setPos] = useState<any[]>([]);
+  const [poItems, setPoItems] = useState<any[]>([]); 
+  const [payments, setPayments] = useState<any[]>([]);
+  const [landedCosts, setLandedCosts] = useState<any[]>([]);
+  const [poHistory, setPoHistory] = useState<any[]>([]);
+  const [quoteHistory, setQuoteHistory] = useState<any[]>([]);
     
   // --- Autocomplete Lists ---
   const [suggestions, setSuggestions] = useState({
@@ -49,48 +54,89 @@ export default function MasterInsertPage() {
 
   // --- Fetch Data ---
   const refreshData = async () => {
-    const [compRows, sup, comp, quo, piData, poData, purHist, quoHist] = await Promise.all([
-      supabase.from('1.0_companies').select('company_id, legal_name'),
-      supabase.from('2.0_suppliers').select('*'),
-      supabase.from('3.0_components').select('*').order('model_sku', { ascending: true }),
-      supabase.from('4.0_price_quotes').select('*').order('quote_date', { ascending: false }),
-      supabase.from('5.0_proforma_invoices').select('*').order('pi_date', { ascending: false }),
-      supabase.from('6.0_purchases').select('*').order('po_date', { ascending: false }),
-      supabase.from('purchase_history').select('*'),
-      supabase.from('quote_history').select('*') 
-    ]);
-     
-    setCompanies(compRows.data || []);
-    setSuppliers(sup.data || []);
-    setComponents(comp.data || []);
-    setQuotes(quo.data || []);
-    setPis(piData.data || []);
-    setPos(poData.data || []);
+    // 1. Fetch Foundation Data (Safe to wait for)
+    try {
+        const { data: compRows } = await supabase.from('1.0_companies').select('company_id, legal_name');
+        const { data: sup } = await supabase.from('2.0_suppliers').select('*');
+        const { data: comp } = await supabase.from('3.0_components').select('*');
 
+        setCompanies(compRows || []);
+        setSuppliers(sup || []);
+        setComponents(comp || []);
+        
+        // 2. Fetch Transactional Data (Independent Fetches to prevent crashes)
+        // We do not await these in a single Promise.all so one failure doesn't kill others.
+        
+        supabase.from('4.0_price_quotes').select('*').then(({ data }) => setQuotes(data || []));
+        
+        // REMOVED .order('created_at') to prevent crashes if column missing
+        supabase.from('4.1_price_quote_line_items').select('*').then(({ data }) => {
+            console.log('Quote Items Loaded:', data?.length); // Debug Log
+            setQuoteItems(data || []);
+        });
+
+        supabase.from('5.0_proforma_invoices').select('*').then(({ data }) => setPis(data || []));
+        
+        supabase.from('6.0_purchases').select('*').then(({ data }) => setPos(data || []));
+
+        // REMOVED .order('created_at')
+        supabase.from('6.1_purchase_line_items').select('*').then(({ data }) => {
+            console.log('PO Items Loaded:', data?.length); // Debug Log
+            setPoItems(data || []);
+        });
+
+        supabase.from('7.0_payment_details').select('*').then(({ data }) => setPayments(data || []));
+        supabase.from('7.1_landed_costs').select('*').then(({ data }) => setLandedCosts(data || []));
+        
+        supabase.from('purchase_history').select('*').then(({ data }) => {
+            console.log('History Purchase Loaded:', data?.length); 
+            setPoHistory(data || []);
+        });
+        
+        supabase.from('quote_history').select('*').then(({ data }) => {
+            console.log('History Quote Loaded:', data?.length);
+            setQuoteHistory(data || []);
+        });
+
+        // 3. Build Autocomplete (Needs foundation data)
+        const getUniqueCombined = (key: string, ...arrays: any[][]) => {
+            const allValues = arrays.flatMap(arr => (arr || []).map(item => item[key])).filter(Boolean);
+            return Array.from(new Set(allValues)).sort();
+        };
+
+        // Note: Suggestions might lag slightly behind transactional data load, which is fine
+        // We use the initial foundation load + what we have for now.
+    } catch (error) {
+        console.error("Critical Data Load Error:", error);
+        setMessage("❌ Error loading data foundation.");
+    }
+  };
+
+  // Re-run suggestion builder when key data changes
+  useEffect(() => {
     const getUniqueCombined = (key: string, ...arrays: any[][]) => {
         const allValues = arrays.flatMap(arr => (arr || []).map(item => item[key])).filter(Boolean);
         return Array.from(new Set(allValues)).sort();
     };
-
-    const getUniqueMixed = (config: {arr: any[], key: string}[]) => {
-        const allValues = config.flatMap(c => (c.arr || []).map(item => item[c.key])).filter(Boolean);
-        return Array.from(new Set(allValues)).sort();
-    };
-
+    
     setSuggestions({
-      brands: getUniqueCombined('brand', comp.data || [], purHist.data || [], quoHist.data || []),
-      locations: getUniqueCombined('location', sup.data || []),
-      paymentTerms: getUniqueCombined('payment_terms', poData.data || []).concat(getUniqueCombined('payment_terms_default', sup.data || [])).sort(),
-      incoterms: getUniqueCombined('incoterms', poData.data || []),
-      modelSkus: getUniqueCombined('model_sku', comp.data || []),
-      descriptions: getUniqueCombined('description', comp.data || [], purHist.data || [], quoHist.data || []),
-      supplierNames: getUniqueCombined('supplier_name', sup.data || []),
-      poNumbers: getUniqueCombined('po_number', poData.data || [], purHist.data || []),
-      quoteNumbers: getUniqueMixed([{ arr: quo.data || [], key: 'pi_number' }, { arr: quoHist.data || [], key: 'quote_number' }]),
+        brands: getUniqueCombined('brand', components, poHistory, quoteHistory),
+        locations: getUniqueCombined('location', suppliers),
+        paymentTerms: getUniqueCombined('payment_terms', pos).concat(getUniqueCombined('payment_terms_default', suppliers)).sort(),
+        incoterms: getUniqueCombined('incoterms', pos),
+        modelSkus: getUniqueCombined('model_sku', components),
+        descriptions: getUniqueCombined('description', components, poHistory, quoteHistory),
+        supplierNames: getUniqueCombined('supplier_name', suppliers),
+        poNumbers: getUniqueCombined('po_number', pos, poHistory),
+        quoteNumbers: getUniqueCombined('pi_number', quotes).concat(getUniqueCombined('quote_number', quoteHistory)).sort(),
     });
-  };
+  }, [suppliers, components, pos, quotes, poHistory, quoteHistory]);
 
   useEffect(() => { refreshData(); }, []);
+
+  // --- Helper: Get Names from IDs (Safe Mapping) ---
+  const getSupplierName = (id: any) => suppliers.find(s => s.supplier_id === id)?.supplier_name || 'Unknown';
+  const getComponentSku = (id: any) => components.find(c => c.component_id === id)?.model_sku || 'Unknown';
 
   // --- Insert Handler ---
   const handleInsert = async (table: string, data: any) => {
@@ -115,7 +161,7 @@ export default function MasterInsertPage() {
       setMessage(`❌ Error: ${error.message}`);
     } else {
       setMessage(`✅ Added ${cleanPayload.length} record(s)!`);
-      refreshData();
+      refreshData(); // Triggers reload
       setTimeout(() => setMessage(''), 3000);
     }
   };
@@ -132,6 +178,7 @@ export default function MasterInsertPage() {
     { id: 'ordering', label: 'PI / PO', icon: '📦' },
     { id: 'financials', label: 'Financials', icon: '💰' },
     { id: 'history', label: 'History Import', icon: '📂' },
+    { id: 'database', label: 'Database View', icon: '🔍' },
   ];
 
   return (
@@ -192,7 +239,7 @@ export default function MasterInsertPage() {
 
       {/* === MAIN CONTENT === */}
       <main className="flex-1 md:ml-64 p-4 md:p-8 bg-slate-950 min-h-screen overflow-x-hidden">
-        <div className="max-w-7xl mx-auto pb-20 md:pb-0">
+        <div className="max-w-[1600px] mx-auto pb-20 md:pb-0">
             
           {/* Header & Status Message (Desktop) */}
           <div className="hidden md:flex mb-8 justify-between items-center h-10">
@@ -207,7 +254,8 @@ export default function MasterInsertPage() {
             )}
           </div>
 
-          {/* === TAB 1: FOUNDATION === */}
+          {/* === INSERT FORMS (Standard Tabs) === */}
+          
           {activeTab === 'foundation' && (
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
               <SimpleForm 
@@ -236,7 +284,6 @@ export default function MasterInsertPage() {
             </div>
           )}
 
-          {/* === TAB 2: QUOTING === */}
           {activeTab === 'quoting' && (
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
               <div>
@@ -256,7 +303,6 @@ export default function MasterInsertPage() {
                   onSubmit={(d: any) => handleInsert('4.0_price_quotes', d)} loading={loading}
                 />
               </div>
-
               <div>
                 <BatchLineItemsForm 
                   title="Step 2: Quote Items"
@@ -268,7 +314,6 @@ export default function MasterInsertPage() {
                     { name: 'unit_price', label: 'Price', type: 'number', req: true },
                     { name: 'currency', label: 'Curr', type: 'select', options: ENUMS.currency, req: true },
                   ]}
-                  // Define what is mostly static to separate UI
                   stickyFields={['currency']}
                   onSubmit={(items: any) => handleInsert('4.1_price_quote_line_items', items)}
                   loading={loading}
@@ -277,7 +322,6 @@ export default function MasterInsertPage() {
             </div>
           )}
 
-          {/* === TAB 3: ORDERING === */}
           {activeTab === 'ordering' && (
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
               <div className="space-y-6">
@@ -314,7 +358,6 @@ export default function MasterInsertPage() {
                   onSubmit={(d: any) => handleInsert('6.0_purchases', d)} loading={loading}
                 />
               </div>
-
               <div>
                 <BatchLineItemsForm 
                   title="3. PO Items"
@@ -334,7 +377,6 @@ export default function MasterInsertPage() {
             </div>
           )}
 
-          {/* === TAB 4: FINANCIALS === */}
           {activeTab === 'financials' && (
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
               <SimpleForm 
@@ -364,43 +406,34 @@ export default function MasterInsertPage() {
             </div>
           )}
 
-           {/* === TAB 5: HISTORY IMPORT (Batch Enabled) === */}
           {activeTab === 'history' && (
             <div className="flex flex-col gap-8">
-              {/* PURCHASE HISTORY BATCH */}
               <BatchLineItemsForm 
                 title="Add Purchase History (Batch)"
-                formId="purchase_hist" // <--- UNIQUE ID
-                // No parent field needed for flat history
+                formId="purchase_hist"
                 itemFields={[
-                   // Header info
                    { name: 'po_date', label: 'PO Date', type: 'date' },
                    { name: 'po_number', label: 'PO Number', type: 'text', suggestions: suggestions.poNumbers },
                    { name: 'supplier_id', label: 'Supplier', type: 'rich-select', options: suppliers, config: { labelKey: 'supplier_name', valueKey: 'supplier_id', subLabelKey: 'location' } },
                    { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency },
-                   
-                   // Item info
                    { name: 'component_id', label: 'Component', type: 'rich-select', options: components, config: { labelKey: 'model_sku', valueKey: 'component_id', subLabelKey: 'description' } },
                    { name: 'brand', label: 'Brand', type: 'text', suggestions: suggestions.brands },
                    { name: 'description', label: 'Description', type: 'text', suggestions: suggestions.descriptions },
                    { name: 'quantity', label: 'Qty', type: 'number' },
                    { name: 'unit_cost', label: 'Cost', type: 'number' },
                 ]}
-                stickyFields={['po_date', 'po_number', 'supplier_id', 'currency']} // These won't clear after adding
+                stickyFields={['po_date', 'po_number', 'supplier_id', 'currency']}
                 onSubmit={(items: any) => handleInsert('purchase_history', items)} 
                 loading={loading}
               />
-              
-              {/* QUOTE HISTORY BATCH */}
               <BatchLineItemsForm 
                 title="Add Quote History (Batch)"
-                formId="quote_hist" // <--- UNIQUE ID
+                formId="quote_hist"
                 itemFields={[
                    { name: 'quote_date', label: 'Quote Date', type: 'date' },
                    { name: 'quote_number', label: 'Quote Ref', type: 'text', suggestions: suggestions.quoteNumbers },
                    { name: 'supplier_id', label: 'Supplier', type: 'rich-select', options: suppliers, config: { labelKey: 'supplier_name', valueKey: 'supplier_id', subLabelKey: 'location' } },
                    { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency },
-                   
                    { name: 'component_id', label: 'Component', type: 'rich-select', options: components, config: { labelKey: 'model_sku', valueKey: 'component_id', subLabelKey: 'description' } },
                    { name: 'brand', label: 'Brand', type: 'text', suggestions: suggestions.brands },
                    { name: 'description', label: 'Description', type: 'text', suggestions: suggestions.descriptions },
@@ -413,10 +446,262 @@ export default function MasterInsertPage() {
               />
             </div>
           )}
+
+          {/* === NEW DATABASE VIEW TAB === */}
+          {activeTab === 'database' && (
+             <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                {/* Section 1: Foundation */}
+                <div className="space-y-6">
+                    <h2 className="text-xl font-bold text-emerald-400 border-b border-emerald-900/50 pb-2">1. Foundation Data</h2>
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                        <SearchableTable 
+                            title="Suppliers"
+                            data={suppliers}
+                            columns={[
+                                { key: 'supplier_name', label: 'Name' },
+                                { key: 'location', label: 'Location' },
+                                { key: 'supplier_code', label: 'Code' },
+                                { key: 'primary_contact_email', label: 'Email' }
+                            ]}
+                        />
+                         <SearchableTable 
+                            title="Components"
+                            data={components}
+                            columns={[
+                                { key: 'model_sku', label: 'SKU' },
+                                { key: 'description', label: 'Description' },
+                                { key: 'brand', label: 'Brand' },
+                                { key: 'category', label: 'Category' }
+                            ]}
+                        />
+                         <SearchableTable 
+                            title="Companies (Internal)"
+                            data={companies}
+                            columns={[
+                                { key: 'legal_name', label: 'Legal Name' },
+                            ]}
+                        />
+                    </div>
+                </div>
+
+                {/* Section 2: Quoting */}
+                <div className="space-y-6">
+                    <h2 className="text-xl font-bold text-emerald-400 border-b border-emerald-900/50 pb-2">2. Quoting</h2>
+                    <div className="grid grid-cols-1 gap-8">
+                        <SearchableTable 
+                            title="Price Quotes (Headers)"
+                            data={quotes}
+                            columns={[
+                                { key: 'quote_date', label: 'Date' },
+                                { key: 'pi_number', label: 'Ref #' },
+                                { key: 'supplier', label: 'Supplier', render: (r:any) => getSupplierName(r.supplier_id) },
+                                { key: 'total_value', label: 'Total', render: (r:any) => `${r.currency} ${r.total_value}` },
+                                { key: 'status', label: 'Status' }
+                            ]}
+                        />
+                        <SearchableTable 
+                            title="Quote Items (Detail)"
+                            data={quoteItems}
+                            columns={[
+                                { key: 'sku', label: 'SKU', render: (r:any) => getComponentSku(r.component_id) },
+                                { key: 'supplier_description', label: 'Supplier Desc' },
+                                { key: 'quantity', label: 'Qty' },
+                                { key: 'unit_price', label: 'Price' },
+                                { key: 'currency', label: 'Curr' }
+                            ]}
+                        />
+                    </div>
+                </div>
+
+                {/* Section 3: Ordering */}
+                <div className="space-y-6">
+                    <h2 className="text-xl font-bold text-emerald-400 border-b border-emerald-900/50 pb-2">3. Ordering</h2>
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                        <SearchableTable 
+                            title="Proforma Invoices"
+                            data={pis}
+                            columns={[
+                                { key: 'pi_date', label: 'Date' },
+                                { key: 'pi_number', label: 'PI #' },
+                                { key: 'status', label: 'Status' }
+                            ]}
+                        />
+                        <SearchableTable 
+                            title="Purchase Orders"
+                            data={pos}
+                            columns={[
+                                { key: 'po_date', label: 'Date' },
+                                { key: 'po_number', label: 'PO #' },
+                                { key: 'total_value', label: 'Total', render: (r:any) => `${r.currency} ${r.total_value}` },
+                                { key: 'status', label: 'Status' }
+                            ]}
+                        />
+                    </div>
+                     <SearchableTable 
+                        title="Purchase Line Items (All)"
+                        data={poItems}
+                        columns={[
+                            { key: 'po_id', label: 'PO ID' },
+                            { key: 'sku', label: 'SKU', render: (r:any) => getComponentSku(r.component_id) },
+                            { key: 'quantity', label: 'Qty' },
+                            { key: 'unit_cost', label: 'Cost' },
+                            { key: 'supplier_description', label: 'Desc' }
+                        ]}
+                    />
+                </div>
+
+                {/* Section 4: Financials */}
+                <div className="space-y-6">
+                    <h2 className="text-xl font-bold text-emerald-400 border-b border-emerald-900/50 pb-2">4. Financials</h2>
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                        <SearchableTable 
+                            title="Payments Made"
+                            data={payments}
+                            columns={[
+                                { key: 'payment_date', label: 'Date' },
+                                { key: 'category', label: 'Category' },
+                                { key: 'amount', label: 'Amount', render: (r:any) => `${r.currency} ${r.amount}` },
+                                { key: 'notes', label: 'Notes' }
+                            ]}
+                        />
+                        <SearchableTable 
+                            title="Landed Costs"
+                            data={landedCosts}
+                            columns={[
+                                { key: 'payment_date', label: 'Date' },
+                                { key: 'cost_type', label: 'Type' },
+                                { key: 'amount', label: 'Amount', render: (r:any) => `${r.currency} ${r.amount}` },
+                                { key: 'notes', label: 'Notes' }
+                            ]}
+                        />
+                    </div>
+                </div>
+
+                 {/* Section 5: History */}
+                 <div className="space-y-6">
+                    <h2 className="text-xl font-bold text-emerald-400 border-b border-emerald-900/50 pb-2">5. Historical Data</h2>
+                    <div className="grid grid-cols-1 gap-8">
+                        <SearchableTable 
+                            title="Purchase History Import"
+                            data={poHistory}
+                            columns={[
+                                { key: 'po_date', label: 'Date' },
+                                { key: 'po_number', label: 'PO #' },
+                                { key: 'supplier', label: 'Supplier', render: (r:any) => getSupplierName(r.supplier_id) },
+                                { key: 'brand', label: 'Brand' },
+                                { key: 'description', label: 'Desc' },
+                                { key: 'quantity', label: 'Qty' },
+                                { key: 'unit_cost', label: 'Cost', render: (r:any) => `${r.currency} ${r.unit_cost}` },
+                            ]}
+                        />
+                        <SearchableTable 
+                            title="Quote History Import"
+                            data={quoteHistory}
+                            columns={[
+                                { key: 'quote_date', label: 'Date' },
+                                { key: 'quote_number', label: 'Ref #' },
+                                { key: 'supplier', label: 'Supplier', render: (r:any) => getSupplierName(r.supplier_id) },
+                                { key: 'brand', label: 'Brand' },
+                                { key: 'description', label: 'Desc' },
+                                { key: 'quantity', label: 'Qty' },
+                                { key: 'unit_cost', label: 'Cost', render: (r:any) => `${r.currency} ${r.unit_cost}` },
+                            ]}
+                        />
+                    </div>
+                </div>
+             </div>
+          )}
+
         </div>
       </main>
     </div>
   );
+}
+
+// ============================================
+// COMPONENT: Searchable Table (NEW)
+// Features: Local search, highlighting, pagination (limit 10 for view)
+// ============================================
+function SearchableTable({ title, data, columns }: any) {
+    const [term, setTerm] = useState('');
+    
+    const filteredData = useMemo(() => {
+        if (!term) return data;
+        const lowerTerm = term.toLowerCase();
+        return data.filter((row: any) => {
+            return columns.some((col: any) => {
+                const val = col.render ? col.render(row) : row[col.key];
+                return String(val || '').toLowerCase().includes(lowerTerm);
+            });
+        });
+    }, [data, term, columns]);
+
+    const Highlight = ({ text }: { text: string }) => {
+        if (!term) return <>{text}</>;
+        const parts = text.toString().split(new RegExp(`(${term})`, 'gi'));
+        return (
+            <>
+                {parts.map((part, i) => 
+                    part.toLowerCase() === term.toLowerCase() 
+                    ? <span key={i} className="bg-emerald-500/50 text-white rounded px-0.5">{part}</span> 
+                    : part
+                )}
+            </>
+        );
+    };
+
+    return (
+        <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl flex flex-col h-full">
+            {/* Header + Search Bar */}
+            <div className="p-4 border-b border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-950/30">
+                <h3 className="font-bold text-slate-200 flex items-center gap-2 text-sm uppercase tracking-wide">
+                    {title}
+                    <span className="bg-slate-800 text-slate-400 px-2 py-0.5 rounded text-[10px]">
+                        {filteredData.length}
+                    </span>
+                </h3>
+                <div className="relative w-full sm:w-64">
+                    <input 
+                        type="text" 
+                        placeholder="Search table..." 
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg py-1.5 pl-9 pr-3 text-xs text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                        value={term}
+                        onChange={(e) => setTerm(e.target.value)}
+                    />
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">🔍</span>
+                </div>
+            </div>
+
+            {/* Table Area */}
+            <div className="overflow-x-auto custom-scrollbar flex-1 max-h-[500px]">
+                <table className="w-full text-xs text-left text-slate-400">
+                    <thead className="bg-slate-950 text-slate-500 uppercase font-bold tracking-wider sticky top-0 z-10 shadow-sm">
+                        <tr>
+                            {columns.map((col: any) => <th key={col.key} className="px-6 py-3 whitespace-nowrap bg-slate-950">{col.label}</th>)}
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/50">
+                        {filteredData.length === 0 ? (
+                            <tr><td colSpan={columns.length} className="px-6 py-8 text-center text-slate-600 italic">No matching records found.</td></tr>
+                        ) : (
+                            filteredData.map((row: any, i: number) => (
+                                <tr key={i} className="hover:bg-slate-800/40 transition-colors group">
+                                    {columns.map((col: any) => {
+                                        const rawVal = col.render ? col.render(row) : (row[col.key] || '-');
+                                        return (
+                                            <td key={col.key} className="px-6 py-3 whitespace-nowrap text-slate-300 group-hover:text-slate-200">
+                                                <Highlight text={String(rawVal)} />
+                                            </td>
+                                        );
+                                    })}
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
 }
 
 // ============================================
@@ -433,15 +718,12 @@ function RichDropdown({ options, value, onChange, placeholder = "Search...", con
   const valueKey = config.valueKey || 'component_id';
 
   useEffect(() => {
-    // 1. If we have a valid ID, find it and show text
     if (value) {
       const selected = options.find((o: any) => o[valueKey] === value);
       if (selected) {
         setSearchTerm(`${selected[labelKey]} - ${selected[subLabelKey] || ''}`);
       }
     } 
-    // 2. ONLY clear text if value is strictly undefined/empty string (Reset)
-    //    Do NOT clear if value is null (which means user is typing/searching)
     else if (value === undefined || value === '') {
       setSearchTerm('');
     }
@@ -451,12 +733,10 @@ function RichDropdown({ options, value, onChange, placeholder = "Search...", con
     function handleClickOutside(event: any) {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
         setIsOpen(false);
-        // On blur, if valid ID, reset text to match ID.
         if (value) {
            const selected = options.find((o: any) => o[valueKey] === value);
            setSearchTerm(selected ? `${selected[labelKey]} - ${selected[subLabelKey] || ''}` : '');
         } else {
-           // If invalid/no ID, clear text
            setSearchTerm(''); 
         }
       }
@@ -479,8 +759,6 @@ function RichDropdown({ options, value, onChange, placeholder = "Search...", con
   const handleInputChange = (e: any) => {
     setSearchTerm(e.target.value);
     setIsOpen(true);
-    // Send NULL to indicate "User is typing, no ID selected yet"
-    // Only fire if it wasn't already null to prevent loops
     if (value !== null) onChange(null); 
   };
 
@@ -537,10 +815,8 @@ function RichDropdown({ options, value, onChange, placeholder = "Search...", con
 
 // ============================================
 // COMPONENT: Batch Form (Compact & Grid Layout)
-// UPDATED: Now accepts formId to prevent ID conflicts
 // ============================================
 function BatchLineItemsForm({ title, parentField, itemFields, onSubmit, loading, stickyFields = [], formId }: any) {
-  // Generate a fallback ID if none provided
   const uniqueFormId = formId || title.toLowerCase().replace(/\s+/g, '_');
   
   const [parentId, setParentId] = useState('');
@@ -550,13 +826,11 @@ function BatchLineItemsForm({ title, parentField, itemFields, onSubmit, loading,
   const handleDraftChange = (field: string, value: any) => setDraft({ ...draft, [field]: value });
 
   const addItem = () => {
-    // Validation
     for (const f of itemFields) {
       if (f.req && !draft[f.name]) return alert(`${f.label} is required`);
     }
     setItems([...items, { ...draft, _id: Date.now() }]);
     
-    // Reset State with Sticky Logic
     const nextDraft: any = {};
     stickyFields.forEach((key: string) => {
         if(draft[key]) nextDraft[key] = draft[key];
@@ -591,7 +865,6 @@ function BatchLineItemsForm({ title, parentField, itemFields, onSubmit, loading,
         </h3>
       </div>
 
-      {/* Select Parent (Only if parentField provided) */}
       {parentField && (
         <div className="mb-4 bg-slate-900/50 p-4 rounded-xl border border-slate-800">
             <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">{parentField.label}</label>
@@ -606,11 +879,8 @@ function BatchLineItemsForm({ title, parentField, itemFields, onSubmit, loading,
         </div>
       )}
 
-      {/* Input Container */}
       <div className="bg-slate-900/80 p-4 md:p-5 rounded-xl border border-slate-800 shadow-xl">
         <div className="flex flex-col gap-6">
-          
-          {/* ROW 1: HEADER INFO (Sticky Fields) */}
           {stickyFields.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pb-6 border-b border-slate-700/50">
                 {itemFields.filter((f:any) => isHeaderField(f.name)).map((f: any) => (
@@ -619,7 +889,6 @@ function BatchLineItemsForm({ title, parentField, itemFields, onSubmit, loading,
             </div>
           )}
 
-          {/* ROW 2: ITEM INFO (Variable Fields) */}
           <div className="flex flex-col md:flex-row flex-wrap items-end gap-4">
              {itemFields.filter((f:any) => !isHeaderField(f.name)).map((f: any) => (
                <div key={f.name} className={`w-full ${f.name.includes('description') || f.name.includes('component') ? 'md:flex-[2]' : 'md:flex-1'} min-w-[140px]`}>
@@ -631,11 +900,9 @@ function BatchLineItemsForm({ title, parentField, itemFields, onSubmit, loading,
               Add Item +
             </button>
           </div>
-
         </div>
       </div>
 
-      {/* Queue Table */}
       {items.length > 0 && (
         <div className="rounded-xl border border-slate-800 overflow-hidden shadow-lg animate-in fade-in slide-in-from-top-4 duration-300">
           <div className="overflow-x-auto">
@@ -680,8 +947,9 @@ function BatchLineItemsForm({ title, parentField, itemFields, onSubmit, loading,
   );
 }
 
-// Helper Sub-Component to render individual fields cleanly
-// UPDATED: Fixed date icon color (invert)
+// ============================================
+// COMPONENT: Field Renderer
+// ============================================
 function FieldRenderer({ f, draft, handleDraftChange, formId = 'def' }: any) {
   const listId = `${formId}-${f.name}-list`; 
 
@@ -720,7 +988,6 @@ function FieldRenderer({ f, draft, handleDraftChange, formId = 'def' }: any) {
           list={f.suggestions ? listId : undefined} 
         />
       )}
-        {/* Datalist for simple inputs */}
         {f.type === 'text' && f.suggestions && (
           <datalist id={listId}> 
             {(draft[f.name] || '').length >= 1 && f.suggestions.map((val: string, i: number) => <option key={i} value={val} />)}
@@ -732,7 +999,6 @@ function FieldRenderer({ f, draft, handleDraftChange, formId = 'def' }: any) {
 
 // ============================================
 // COMPONENT: Simple Form (Compact)
-// UPDATED: Generates formId from title for safety
 // ============================================
 function SimpleForm({ title, fields, onSubmit, loading }: any) {
   const [data, setData] = useState<any>({});
