@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
+import { Metadata } from 'next';
 
 // --- Types ---
 type Tab = 'foundation' | 'quoting' | 'ordering' | 'financials' | 'history';
@@ -11,8 +12,7 @@ export default function MasterInsertPage() {
   const [activeTab, setActiveTab] = useState<Tab>('foundation');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // New state for mobile nav
-
+  
   // --- Data State ---
   const [companies, setCompanies] = useState<any[]>([]); 
   const [suppliers, setSuppliers] = useState<any[]>([]);
@@ -49,13 +49,15 @@ export default function MasterInsertPage() {
 
   // --- Fetch Data ---
   const refreshData = async () => {
-    const [compRows, sup, comp, quo, piData, poData] = await Promise.all([
+    const [compRows, sup, comp, quo, piData, poData, purHist, quoHist] = await Promise.all([
       supabase.from('1.0_companies').select('company_id, legal_name'),
       supabase.from('2.0_suppliers').select('*'),
       supabase.from('3.0_components').select('*').order('model_sku', { ascending: true }),
       supabase.from('4.0_price_quotes').select('*').order('quote_date', { ascending: false }),
       supabase.from('5.0_proforma_invoices').select('*').order('pi_date', { ascending: false }),
-      supabase.from('6.0_purchases').select('*').order('po_date', { ascending: false })
+      supabase.from('6.0_purchases').select('*').order('po_date', { ascending: false }),
+      supabase.from('purchase_history').select('*'),
+      supabase.from('quote_history').select('*') 
     ]);
      
     setCompanies(compRows.data || []);
@@ -65,21 +67,26 @@ export default function MasterInsertPage() {
     setPis(piData.data || []);
     setPos(poData.data || []);
 
-    const getUnique = (arr: any[] | null, k: string) => {
-        if (!arr) return [];
-        return Array.from(new Set(arr.map(i => i[k]).filter(Boolean))).sort();
+    const getUniqueCombined = (key: string, ...arrays: any[][]) => {
+        const allValues = arrays.flatMap(arr => (arr || []).map(item => item[key])).filter(Boolean);
+        return Array.from(new Set(allValues)).sort();
+    };
+
+    const getUniqueMixed = (config: {arr: any[], key: string}[]) => {
+        const allValues = config.flatMap(c => (c.arr || []).map(item => item[c.key])).filter(Boolean);
+        return Array.from(new Set(allValues)).sort();
     };
 
     setSuggestions({
-      brands: getUnique(comp.data || [], 'brand'),
-      locations: getUnique(sup.data || [], 'location'),
-      paymentTerms: Array.from(new Set([...getUnique(sup.data || [], 'payment_terms_default'), ...getUnique(poData.data || [], 'payment_terms')])).sort(),
-      incoterms: getUnique(poData.data || [], 'incoterms'),
-      modelSkus: getUnique(comp.data || [], 'model_sku'),
-      descriptions: getUnique(comp.data || [], 'description'),
-      supplierNames: getUnique(sup.data || [], 'supplier_name'),
-      poNumbers: getUnique(poData.data || [], 'po_number'),
-      quoteNumbers: getUnique(quo.data || [], 'pi_number'),
+      brands: getUniqueCombined('brand', comp.data || [], purHist.data || [], quoHist.data || []),
+      locations: getUniqueCombined('location', sup.data || []),
+      paymentTerms: getUniqueCombined('payment_terms', poData.data || []).concat(getUniqueCombined('payment_terms_default', sup.data || [])).sort(),
+      incoterms: getUniqueCombined('incoterms', poData.data || []),
+      modelSkus: getUniqueCombined('model_sku', comp.data || []),
+      descriptions: getUniqueCombined('description', comp.data || [], purHist.data || [], quoHist.data || []),
+      supplierNames: getUniqueCombined('supplier_name', sup.data || []),
+      poNumbers: getUniqueCombined('po_number', poData.data || [], purHist.data || []),
+      quoteNumbers: getUniqueMixed([{ arr: quo.data || [], key: 'pi_number' }, { arr: quoHist.data || [], key: 'quote_number' }]),
     });
   };
 
@@ -109,7 +116,6 @@ export default function MasterInsertPage() {
     } else {
       setMessage(`✅ Added ${cleanPayload.length} record(s)!`);
       refreshData();
-      // Clear message after 3 seconds
       setTimeout(() => setMessage(''), 3000);
     }
   };
@@ -135,7 +141,6 @@ export default function MasterInsertPage() {
       <div className="md:hidden bg-slate-900 border-b border-slate-800 p-4 sticky top-0 z-50">
         <div className="flex justify-between items-center mb-4">
           <h1 className="font-bold text-white text-lg">Supply Chain</h1>
-           {/* Message display for mobile */}
            {message && (
              <span className={`text-xs px-2 py-1 rounded ${message.includes('Error') ? 'bg-red-900 text-red-200' : 'bg-emerald-900 text-emerald-200'}`}>
                {message}
@@ -365,6 +370,7 @@ export default function MasterInsertPage() {
               {/* PURCHASE HISTORY BATCH */}
               <BatchLineItemsForm 
                 title="Add Purchase History (Batch)"
+                formId="purchase_hist" // <--- UNIQUE ID
                 // No parent field needed for flat history
                 itemFields={[
                    // Header info
@@ -388,6 +394,7 @@ export default function MasterInsertPage() {
               {/* QUOTE HISTORY BATCH */}
               <BatchLineItemsForm 
                 title="Add Quote History (Batch)"
+                formId="quote_hist" // <--- UNIQUE ID
                 itemFields={[
                    { name: 'quote_date', label: 'Quote Date', type: 'date' },
                    { name: 'quote_number', label: 'Quote Ref', type: 'text', suggestions: suggestions.quoteNumbers },
@@ -414,7 +421,7 @@ export default function MasterInsertPage() {
 
 // ============================================
 // COMPONENT: Rich Dropdown (Searchable Combobox)
-// REVISED: Better z-index and positioning for mobile
+// FIX: Handles typing state properly (doesn't clear on null)
 // ============================================
 function RichDropdown({ options, value, onChange, placeholder = "Search...", config = {} }: any) {
   const [isOpen, setIsOpen] = useState(false);
@@ -426,12 +433,16 @@ function RichDropdown({ options, value, onChange, placeholder = "Search...", con
   const valueKey = config.valueKey || 'component_id';
 
   useEffect(() => {
+    // 1. If we have a valid ID, find it and show text
     if (value) {
       const selected = options.find((o: any) => o[valueKey] === value);
       if (selected) {
         setSearchTerm(`${selected[labelKey]} - ${selected[subLabelKey] || ''}`);
       }
-    } else {
+    } 
+    // 2. ONLY clear text if value is strictly undefined/empty string (Reset)
+    //    Do NOT clear if value is null (which means user is typing/searching)
+    else if (value === undefined || value === '') {
       setSearchTerm('');
     }
   }, [value, options, labelKey, subLabelKey, valueKey]);
@@ -440,11 +451,13 @@ function RichDropdown({ options, value, onChange, placeholder = "Search...", con
     function handleClickOutside(event: any) {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
         setIsOpen(false);
+        // On blur, if valid ID, reset text to match ID.
         if (value) {
-          const selected = options.find((o: any) => o[valueKey] === value);
-          setSearchTerm(selected ? `${selected[labelKey]} - ${selected[subLabelKey] || ''}` : '');
+           const selected = options.find((o: any) => o[valueKey] === value);
+           setSearchTerm(selected ? `${selected[labelKey]} - ${selected[subLabelKey] || ''}` : '');
         } else {
-          setSearchTerm(''); 
+           // If invalid/no ID, clear text
+           setSearchTerm(''); 
         }
       }
     }
@@ -466,7 +479,9 @@ function RichDropdown({ options, value, onChange, placeholder = "Search...", con
   const handleInputChange = (e: any) => {
     setSearchTerm(e.target.value);
     setIsOpen(true);
-    onChange(null); 
+    // Send NULL to indicate "User is typing, no ID selected yet"
+    // Only fire if it wasn't already null to prevent loops
+    if (value !== null) onChange(null); 
   };
 
   return (
@@ -480,7 +495,10 @@ function RichDropdown({ options, value, onChange, placeholder = "Search...", con
           placeholder={placeholder}
           value={searchTerm}
           onChange={handleInputChange}
-          onFocus={() => { setIsOpen(true); if(value === null) setSearchTerm(''); }}
+          onFocus={() => { 
+             setIsOpen(true); 
+             if(value === undefined) setSearchTerm(''); 
+          }}
         />
         <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 text-xs">
           ▼
@@ -519,9 +537,12 @@ function RichDropdown({ options, value, onChange, placeholder = "Search...", con
 
 // ============================================
 // COMPONENT: Batch Form (Compact & Grid Layout)
-// UPDATED: Fixed UI issues (No horizontal scroll, better spacing)
+// UPDATED: Now accepts formId to prevent ID conflicts
 // ============================================
-function BatchLineItemsForm({ title, parentField, itemFields, onSubmit, loading, stickyFields = [] }: any) {
+function BatchLineItemsForm({ title, parentField, itemFields, onSubmit, loading, stickyFields = [], formId }: any) {
+  // Generate a fallback ID if none provided
+  const uniqueFormId = formId || title.toLowerCase().replace(/\s+/g, '_');
+  
   const [parentId, setParentId] = useState('');
   const [items, setItems] = useState<any[]>([]);
   const [draft, setDraft] = useState<any>({});
@@ -585,30 +606,27 @@ function BatchLineItemsForm({ title, parentField, itemFields, onSubmit, loading,
         </div>
       )}
 
-      {/* Input Container - Changed to Card with Grid */}
+      {/* Input Container */}
       <div className="bg-slate-900/80 p-4 md:p-5 rounded-xl border border-slate-800 shadow-xl">
         <div className="flex flex-col gap-6">
           
-          {/* ROW 1: HEADER INFO (Sticky Fields) - GRID LAYOUT */}
+          {/* ROW 1: HEADER INFO (Sticky Fields) */}
           {stickyFields.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pb-6 border-b border-slate-700/50">
                 {itemFields.filter((f:any) => isHeaderField(f.name)).map((f: any) => (
-                <FieldRenderer key={f.name} f={f} draft={draft} handleDraftChange={handleDraftChange} />
+                <FieldRenderer key={f.name} f={f} draft={draft} handleDraftChange={handleDraftChange} formId={uniqueFormId} />
                 ))}
             </div>
           )}
 
-          {/* ROW 2: ITEM INFO (Variable Fields) - FLEX WRAP */}
+          {/* ROW 2: ITEM INFO (Variable Fields) */}
           <div className="flex flex-col md:flex-row flex-wrap items-end gap-4">
-             {/* Render non-header fields */}
              {itemFields.filter((f:any) => !isHeaderField(f.name)).map((f: any) => (
-               // Flexible width logic for better responsiveness
                <div key={f.name} className={`w-full ${f.name.includes('description') || f.name.includes('component') ? 'md:flex-[2]' : 'md:flex-1'} min-w-[140px]`}>
-                 <FieldRenderer f={f} draft={draft} handleDraftChange={handleDraftChange} />
+                 <FieldRenderer f={f} draft={draft} handleDraftChange={handleDraftChange} formId={uniqueFormId} />
                </div>
             ))}
             
-            {/* Add Button - Full width on mobile, auto on desktop */}
             <button onClick={addItem} className="w-full md:w-auto h-[46px] bg-emerald-600 hover:bg-emerald-500 text-white px-8 rounded-lg text-sm font-bold shadow-lg shadow-emerald-900/20 transition-all active:scale-95 flex items-center justify-center">
               Add Item +
             </button>
@@ -663,7 +681,10 @@ function BatchLineItemsForm({ title, parentField, itemFields, onSubmit, loading,
 }
 
 // Helper Sub-Component to render individual fields cleanly
-function FieldRenderer({ f, draft, handleDraftChange }: any) {
+// UPDATED: Fixed date icon color (invert)
+function FieldRenderer({ f, draft, handleDraftChange, formId = 'def' }: any) {
+  const listId = `${formId}-${f.name}-list`; 
+
   return (
     <div className="relative w-full group">
       <label className="block text-[11px] font-bold text-slate-400 mb-2 ml-1 group-focus-within:text-emerald-400 transition-colors">
@@ -692,16 +713,16 @@ function FieldRenderer({ f, draft, handleDraftChange }: any) {
       ) : (
         <input 
           type={f.type} 
-          className="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none placeholder-slate-600 transition-all"
+          className="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none placeholder-slate-600 transition-all [&::-webkit-calendar-picker-indicator]:invert"
           value={draft[f.name] || ''}
           onChange={(e) => handleDraftChange(f.name, e.target.value)}
           placeholder={f.placeholder}
-          list={f.suggestions ? `${f.name}-list` : undefined}
+          list={f.suggestions ? listId : undefined} 
         />
       )}
         {/* Datalist for simple inputs */}
         {f.type === 'text' && f.suggestions && (
-          <datalist id={`${f.name}-list`}>
+          <datalist id={listId}> 
             {(draft[f.name] || '').length >= 1 && f.suggestions.map((val: string, i: number) => <option key={i} value={val} />)}
           </datalist>
         )}
@@ -711,9 +732,11 @@ function FieldRenderer({ f, draft, handleDraftChange }: any) {
 
 // ============================================
 // COMPONENT: Simple Form (Compact)
+// UPDATED: Generates formId from title for safety
 // ============================================
 function SimpleForm({ title, fields, onSubmit, loading }: any) {
   const [data, setData] = useState<any>({});
+  const formId = title.toLowerCase().replace(/\s+/g, '-'); 
     
   useEffect(() => {
     const defaults: any = {};
@@ -735,7 +758,7 @@ function SimpleForm({ title, fields, onSubmit, loading }: any) {
           <FieldRenderer key={f.name} f={f} draft={data} handleDraftChange={(name: string, val: any) => {
              if (f.type === 'rich-select') handleRichChange(name, val);
              else handleChange({ target: { name, value: val } });
-          }} />
+          }} formId={formId} />
         ))}
       </div>
       <div className="mt-8">
