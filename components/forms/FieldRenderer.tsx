@@ -43,8 +43,8 @@ export default function FieldRenderer({
 
       {field.type === 'rich-select' ? (
         <RichDropdown
-          options={field.options || []}
-          value={value}
+          options={(field.options || []) as any[]}
+	  value={value}
           config={field.config}
           onChange={(val: any) => onChange(field.name, val)}
         />
@@ -90,8 +90,8 @@ export default function FieldRenderer({
           id={datalistId}
           value={value || ''}
           onChange={(val) => onChange(field.name, val)}
-          suggestions={field.suggestions}
-          placeholder={field.placeholder}
+          suggestions={field.suggestions || []}
+	  placeholder={field.placeholder}
           disabled={disabled}
           required={field.req}
         />
