@@ -14,7 +14,7 @@ interface RichDropdownProps {
   value: any;
   onChange: (value: any) => void;
   placeholder?: string;
-  config?: RichSelectConfig;
+  config?: Partial<RichSelectConfig>;
 }
 
 const RichDropdown = memo(function RichDropdown({
@@ -22,7 +22,7 @@ const RichDropdown = memo(function RichDropdown({
   value,
   onChange,
   placeholder = 'Search...',
-  config = {},
+  config = {} as Partial<RichSelectConfig>,
 }: RichDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
