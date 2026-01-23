@@ -1,0 +1,230 @@
+/**
+ * Batch Line Items Form Component
+ * Allows adding multiple related items in batch mode
+ * Supports sticky fields and mobile-optimized layout
+ */
+
+'use client';
+
+import React, { useState, useId } from 'react';
+import FieldRenderer from './FieldRenderer';
+import { Spinner } from '../ui/LoadingSkeleton';
+import type { BatchLineItemsFormProps } from '../../types/forms';
+
+export default function BatchLineItemsForm({
+  title,
+  parentField,
+  itemFields,
+  stickyFields = [],
+  onSubmit,
+  loading,
+  formId: customFormId,
+}: BatchLineItemsFormProps) {
+  const uniqueFormId = useId();
+  const formId = customFormId || uniqueFormId;
+
+  const [parentId, setParentId] = useState('');
+  const [items, setItems] = useState<any[]>([]);
+  const [draft, setDraft] = useState<Record<string, any>>({});
+
+  const handleDraftChange = (field: string, value: any) => {
+    setDraft({ ...draft, [field]: value });
+  };
+
+  const addItem = () => {
+    // Validation
+    for (const f of itemFields) {
+      if (f.req && !draft[f.name]) {
+        alert(`${f.label} is required`);
+        return;
+      }
+    }
+
+    setItems([...items, { ...draft, _id: Date.now() }]);
+
+    // Reset draft with sticky logic
+    const nextDraft: Record<string, any> = {};
+    stickyFields.forEach((key) => {
+      if (draft[key]) nextDraft[key] = draft[key];
+    });
+    // Keep currency by default if not in sticky fields
+    if (draft.currency && !nextDraft.currency) nextDraft.currency = draft.currency;
+
+    setDraft(nextDraft);
+  };
+
+  const removeItem = (id: number) => {
+    if (confirm('Remove this item?')) {
+      setItems(items.filter((i) => i._id !== id));
+    }
+  };
+
+  const handleSubmit = () => {
+    if (parentField && !parentId) {
+      alert(`Select ${parentField.label}`);
+      return;
+    }
+    if (items.length === 0) {
+      alert('Add at least one item');
+      return;
+    }
+
+    const payload = items.map(({ _id, ...rest }) => {
+      if (parentField) return { ...rest, [parentField.name]: parentId };
+      return rest;
+    });
+
+    onSubmit(payload);
+    setItems([]);
+  };
+
+  const isHeaderField = (name: string) => stickyFields.includes(name);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-2">
+        <h3 className="text-base font-bold text-white flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
+          {title}
+        </h3>
+      </div>
+
+      {/* Parent Selector (if provided) */}
+      {parentField && (
+        <div className="mb-4 bg-slate-900/50 p-4 rounded-xl border border-slate-800">
+          <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">
+            {parentField.label}
+          </label>
+          <select
+            className="w-full md:w-1/2 p-3 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
+            value={parentId}
+            onChange={(e) => setParentId(e.target.value)}
+          >
+            <option value="">-- Select --</option>
+            {parentField.options.map((o) => (
+              <option key={o.val} value={o.val}>
+                {o.txt}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Add Item Section */}
+      <div className="bg-slate-900/80 p-4 md:p-5 rounded-xl border border-slate-800 shadow-xl">
+        <div className="flex flex-col gap-6">
+          {/* Header/Sticky Fields (if any) */}
+          {stickyFields.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pb-6 border-b border-slate-700/50">
+              {itemFields
+                .filter((f) => isHeaderField(f.name))
+                .map((f) => (
+                  <FieldRenderer
+                    key={f.name}
+                    field={f}
+                    value={draft[f.name]}
+                    onChange={handleDraftChange}
+                    formId={formId}
+                  />
+                ))}
+            </div>
+          )}
+
+          {/* Variable Fields */}
+          <div className="flex flex-col md:flex-row flex-wrap items-end gap-4">
+            {itemFields
+              .filter((f) => !isHeaderField(f.name))
+              .map((f) => (
+                <div
+                  key={f.name}
+                  className={`w-full ${
+                    f.name.includes('description') || f.name.includes('component')
+                      ? 'md:flex-[2]'
+                      : 'md:flex-1'
+                  } min-w-[140px]`}
+                >
+                  <FieldRenderer
+                    field={f}
+                    value={draft[f.name]}
+                    onChange={handleDraftChange}
+                    formId={formId}
+                  />
+                </div>
+              ))}
+
+            {/* Add Button */}
+            <button
+              type="button"
+              onClick={addItem}
+              className="w-full md:w-auto h-[46px] bg-emerald-600 hover:bg-emerald-500 text-white px-8 rounded-lg text-sm font-bold shadow-lg shadow-emerald-900/20 transition-all active:scale-95 flex items-center justify-center"
+            >
+              Add Item +
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Staged Items Table */}
+      {items.length > 0 && (
+        <div className="rounded-xl border border-slate-800 overflow-hidden shadow-lg animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left text-slate-400 min-w-[600px]">
+              <thead className="bg-slate-900 uppercase font-bold text-slate-500 tracking-wider">
+                <tr>
+                  {itemFields.map((f) => (
+                    <th key={f.name} className="px-4 py-3 whitespace-nowrap">
+                      {f.label}
+                    </th>
+                  ))}
+                  <th className="px-4 py-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800 bg-slate-900/40">
+                {items.map((item) => (
+                  <tr key={item._id} className="hover:bg-slate-800/80 transition-colors">
+                    {itemFields.map((f) => (
+                      <td key={f.name} className="px-4 py-3 whitespace-nowrap text-slate-300 font-medium">
+                        {f.type === 'rich-select'
+                          ? f.options?.find(
+                              (o: any) => o[f.config?.valueKey || 'component_id'] === item[f.name]
+                            )?.[f.config?.labelKey || 'model_sku']
+                          : item[f.name]}
+                      </td>
+                    ))}
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => removeItem(item._id)}
+                        className="text-red-400 hover:text-red-300 hover:bg-red-900/30 w-8 h-8 rounded-full flex items-center justify-center transition-all text-lg font-bold"
+                      >
+                        ×
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Submit Section */}
+          <div className="bg-slate-900 p-4 flex flex-col sm:flex-row justify-between items-center gap-3 border-t border-slate-800">
+            <span className="text-xs text-slate-500">{items.length} items staged</span>
+            <button
+              onClick={handleSubmit}
+              disabled={loading}
+              className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold py-2.5 px-6 rounded-lg shadow-md transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <>
+                  <Spinner className="w-4 h-4" />
+                  Saving...
+                </>
+              ) : (
+                `Save All Items`
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

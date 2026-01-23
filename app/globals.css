@@ -1,3 +1,4 @@
+
 @import "tailwindcss";
 
 :root {
@@ -24,3 +25,35 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ===== Supply Chain App Animations ===== */
+
+/* Toast animations */
+@keyframes shrink {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgb(15, 23, 42);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgb(71, 85, 105);
+  border-radius: 4px;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
