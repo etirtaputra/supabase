@@ -1,6 +1,7 @@
 /**
  * Supply Chain Data Entry - Refactored Main Page
  * Clean, modular, and mobile-optimized
+ * Database view moved to /database route
  */
 
 'use client';
@@ -13,10 +14,9 @@ import Sidebar from '@/components/layout/Sidebar';
 import MobileNav from '@/components/layout/MobileNav';
 import SimpleForm from '@/components/forms/SimpleForm';
 import BatchLineItemsForm from '@/components/forms/BatchLineItemsForm';
-import SearchableTable from '@/components/ui/SearchableTable';
 import { ToastContainer } from '@/components/ui/Toast';
 import { ToastProvider } from '@/hooks/useToast';
-import { FormSkeleton, TableSkeleton } from '@/components/ui/LoadingSkeleton';
+import { FormSkeleton } from '@/components/ui/LoadingSkeleton';
 
 // Hooks
 import { useSupabaseData } from '@/hooks/useSupabaseData';
@@ -27,14 +27,13 @@ import { useToast } from '@/hooks/useToast';
 import { ENUMS } from '@/constants/enums';
 import type { Tab, MenuItem } from '@/types/forms';
 
-// Menu configuration
+// Menu configuration (removed database tab)
 const MENU_ITEMS: MenuItem[] = [
   { id: 'foundation', label: 'Suppliers & Components', icon: '🏢' },
   { id: 'quoting', label: 'Quotes', icon: '📝' },
   { id: 'ordering', label: 'PI / PO', icon: '📦' },
   { id: 'financials', label: 'Financials', icon: '💰' },
   { id: 'history', label: 'History Import', icon: '📂' },
-  { id: 'database', label: 'Database View', icon: '🔍' },
 ];
 
 function MasterInsertPage() {
@@ -92,10 +91,6 @@ function MasterInsertPage() {
       refetch();
     }
   };
-
-  // Helper functions
-  const getSupplierName = (id: any) => data.suppliers.find((s) => s.supplier_id === id)?.supplier_name || 'Unknown';
-  const getComponentSku = (id: any) => data.components.find((c) => c.component_id === id)?.model_sku || 'Unknown';
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-slate-950 text-slate-100 font-sans text-sm">
@@ -163,7 +158,7 @@ function MasterInsertPage() {
                       { name: 'supplier_id', label: 'Supplier', type: 'rich-select', options: data.suppliers, config: { labelKey: 'supplier_name', valueKey: 'supplier_id', subLabelKey: 'location' }, req: true },
                       { name: 'company_id', label: 'Addressed To', type: 'select', options: options.companies, req: true },
                       { name: 'quote_date', label: 'Date', type: 'date', req: true, default: new Date().toISOString().split('T')[0] },
-                      { name: 'pi_number', label: 'Quote Ref', type: 'text' },
+                      { name: 'pi_number', label: 'Quote Ref', type: 'text', suggestions: suggestions.quoteNumbers },
                       { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true },
                       { name: 'total_value', label: 'Total Value', type: 'number', req: true },
                       { name: 'status', label: 'Status', type: 'select', options: ENUMS.price_quotes_status, default: 'Open' },
@@ -210,7 +205,7 @@ function MasterInsertPage() {
                       title="2. Purchase Order"
                       fields={[
                         { name: 'pi_id', label: 'Link PI', type: 'select', options: options.pis },
-                        { name: 'po_number', label: 'PO #', type: 'text', req: true },
+                        { name: 'po_number', label: 'PO #', type: 'text', req: true, suggestions: suggestions.poNumbers },
                         { name: 'po_date', label: 'PO Date', type: 'date', req: true, default: new Date().toISOString().split('T')[0] },
                         { name: 'incoterms', label: 'Incoterms', type: 'text', suggestions: ['FOB', 'EXW', 'CIF', 'DDP', ...suggestions.incoterms] },
                         { name: 'method_of_shipment', label: 'Ship Via', type: 'select', options: ENUMS.method_of_shipment },
@@ -317,140 +312,6 @@ function MasterInsertPage() {
                     onSubmit={(items) => handleInsert('quote_history', items)}
                     loading={loading}
                   />
-                </div>
-              )}
-
-              {/* Database View Tab */}
-              {activeTab === 'database' && (
-                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <div className="space-y-6">
-                    <h2 className="text-xl font-bold text-emerald-400 border-b border-emerald-900/50 pb-2">1. Foundation Data</h2>
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                      <SearchableTable
-                        title="Suppliers"
-                        data={data.suppliers}
-                        columns={[
-                          { key: 'supplier_name', label: 'Name' },
-                          { key: 'location', label: 'Location' },
-                          { key: 'supplier_code', label: 'Code' },
-                          { key: 'primary_contact_email', label: 'Email' },
-                        ]}
-                        isLoading={dataLoading}
-                      />
-                      <SearchableTable
-                        title="Components"
-                        data={data.components}
-                        columns={[
-                          { key: 'model_sku', label: 'SKU' },
-                          { key: 'description', label: 'Description' },
-                          { key: 'brand', label: 'Brand' },
-                          { key: 'category', label: 'Category' },
-                        ]}
-                        isLoading={dataLoading}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-6">
-                    <h2 className="text-xl font-bold text-emerald-400 border-b border-emerald-900/50 pb-2">2. Quoting</h2>
-                    <SearchableTable
-                      title="Price Quotes"
-                      data={data.quotes}
-                      columns={[
-                        { key: 'quote_date', label: 'Date' },
-                        { key: 'pi_number', label: 'Ref #' },
-                        { key: 'supplier', label: 'Supplier', render: (r) => getSupplierName(r.supplier_id) },
-                        { key: 'total_value', label: 'Total', render: (r) => `${r.currency} ${r.total_value}` },
-                        { key: 'status', label: 'Status' },
-                      ]}
-                      isLoading={dataLoading}
-                    />
-                  </div>
-
-                  <div className="space-y-6">
-                    <h2 className="text-xl font-bold text-emerald-400 border-b border-emerald-900/50 pb-2">3. Ordering</h2>
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                      <SearchableTable
-                        title="Proforma Invoices"
-                        data={data.pis}
-                        columns={[
-                          { key: 'pi_date', label: 'Date' },
-                          { key: 'pi_number', label: 'PI #' },
-                          { key: 'status', label: 'Status' },
-                        ]}
-                        isLoading={dataLoading}
-                      />
-                      <SearchableTable
-                        title="Purchase Orders"
-                        data={data.pos}
-                        columns={[
-                          { key: 'po_date', label: 'Date' },
-                          { key: 'po_number', label: 'PO #' },
-                          { key: 'total_value', label: 'Total', render: (r) => `${r.currency} ${r.total_value}` },
-                          { key: 'status', label: 'Status' },
-                        ]}
-                        isLoading={dataLoading}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-6">
-                    <h2 className="text-xl font-bold text-emerald-400 border-b border-emerald-900/50 pb-2">4. Financials</h2>
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                      <SearchableTable
-                        title="Payments Made"
-                        data={data.payments}
-                        columns={[
-                          { key: 'payment_date', label: 'Date' },
-                          { key: 'category', label: 'Category' },
-                          { key: 'amount', label: 'Amount', render: (r) => `${r.currency} ${r.amount}` },
-                        ]}
-                        isLoading={dataLoading}
-                      />
-                      <SearchableTable
-                        title="Landed Costs"
-                        data={data.landedCosts}
-                        columns={[
-                          { key: 'payment_date', label: 'Date' },
-                          { key: 'cost_type', label: 'Type' },
-                          { key: 'amount', label: 'Amount', render: (r) => `${r.currency} ${r.amount}` },
-                        ]}
-                        isLoading={dataLoading}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-6">
-                    <h2 className="text-xl font-bold text-emerald-400 border-b border-emerald-900/50 pb-2">5. Historical Data</h2>
-                    <div className="grid grid-cols-1 gap-8">
-                      <SearchableTable
-                        title="Purchase History"
-                        data={data.poHistory}
-                        columns={[
-                          { key: 'po_date', label: 'Date' },
-                          { key: 'po_number', label: 'PO #' },
-                          { key: 'supplier', label: 'Supplier', render: (r) => getSupplierName(r.supplier_id) },
-                          { key: 'description', label: 'Desc' },
-                          { key: 'quantity', label: 'Qty' },
-                          { key: 'unit_cost', label: 'Cost', render: (r) => `${r.currency} ${r.unit_cost}` },
-                        ]}
-                        isLoading={dataLoading}
-                      />
-                      <SearchableTable
-                        title="Quote History"
-                        data={data.quoteHistory}
-                        columns={[
-                          { key: 'quote_date', label: 'Date' },
-                          { key: 'quote_number', label: 'Ref #' },
-                          { key: 'supplier', label: 'Supplier', render: (r) => getSupplierName(r.supplier_id) },
-                          { key: 'description', label: 'Desc' },
-                          { key: 'quantity', label: 'Qty' },
-                          { key: 'unit_cost', label: 'Cost', render: (r) => `${r.currency} ${r.unit_cost}` },
-                        ]}
-                        isLoading={dataLoading}
-                      />
-                    </div>
-                  </div>
                 </div>
               )}
             </>
