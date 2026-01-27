@@ -93,9 +93,21 @@ export async function POST(request: NextRequest) {
       `[STATS] Item: ${r.description}, Avg True Cost: ${r.average_true_unit_cost} IDR, Min: ${r.min_price}, Max: ${r.max_price}, Total Orders: ${r.number_of_po} (Split: ISL=${r.number_of_po_isl}, MBS=${r.number_of_po_mbs}, ICL=${r.number_of_po_icl})`
     ).join('\n');
 
+    // Debug: Log supplier performance data
+    console.log('=== SUPPLIER PERFORMANCE DEBUG ===');
+    console.log('Keywords:', keywords);
+    console.log('Supplier Keywords:', supplierKeywords);
+    console.log('Supplier Filter String:', supplierFilterString);
+    console.log('Raw data count:', supplierPerfReq.data?.length || 0);
+    console.log('Sample data:', JSON.stringify(supplierPerfReq.data?.[0], null, 2));
+    console.log('Error:', supplierPerfReq.error);
+
     const supplierPerfContext = (supplierPerfReq.data || []).map((r: any) =>
       `[SUPPLIER] ${r.supplier_name}: Total Orders: ${r.total_orders || 0}, Total Spend: ${r.total_spend?.toFixed(0) || 0}, Avg Order Value: ${r.avg_order_value?.toFixed(0) || 0}, Avg Delay: ${r.avg_delay_days?.toFixed(1) || 'N/A'} days, Last Order: ${r.last_order_date || 'N/A'}`
     ).join('\n');
+
+    console.log('Formatted context length:', supplierPerfContext.length);
+    console.log('First 200 chars:', supplierPerfContext.substring(0, 200));
 
     const componentDemandContext = (componentDemandReq.data || []).map((r: any) =>
       `[DEMAND] ${r.model_sku} (${r.description?.substring(0,30)}): Ordered ${r.order_frequency || 0}x, Total Qty: ${r.total_quantity_ordered || 0}, Avg Qty: ${r.avg_order_quantity?.toFixed(0) || 0}, Last Ordered: ${r.last_ordered_date || 'N/A'}, Price Range: ${r.min_unit_cost?.toFixed(0) || 0}-${r.max_unit_cost?.toFixed(0) || 0}`
