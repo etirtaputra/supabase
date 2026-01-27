@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     });
 
     // --- STEP 1: SMART KEYWORD EXTRACTION ---
-    const stopWords = ['show', 'me', 'the', 'last', 'compare', 'price', 'history', 'for', 'of', 'trend', 'cost', 'unit', 'true', 'and', 'qty', 'quote', 'quotes', 'po', 'pos', 'is', 'what', 'are', 'icl', 'isl', 'mbs'];
+    const stopWords = ['show', 'me', 'the', 'last', 'compare', 'price', 'history', 'for', 'of', 'trend', 'cost', 'unit', 'true', 'and', 'qty', 'quote', 'quotes', 'po', 'pos', 'is', 'what', 'are', 'icl', 'isl', 'mbs', 'by', 'with', 'from', 'to', 'in', 'on'];
     const keywords = query.toLowerCase().split(/\s+/)
       .filter((w: string) => !stopWords.includes(w) && w.length > 1);
 
