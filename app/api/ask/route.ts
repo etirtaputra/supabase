@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize OpenAI
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+// Initialize Anthropic (Claude)
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
 export async function POST(request: NextRequest) {
@@ -86,16 +86,17 @@ export async function POST(request: NextRequest) {
     3. Use the counts in Source 3 for ISL/MBS/ICL questions.
     `;
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini', 
+    const completion = await anthropic.messages.create({
+      model: 'claude-3-5-sonnet-20241022',
+      max_tokens: 1024,
+      system: prompt,
       messages: [
-        { role: 'system', content: prompt },
         { role: 'user', content: query },
       ],
       temperature: 0.0,
     });
 
-    const answer = completion.choices[0]?.message?.content || 'No answer.';
+    const answer = completion.content[0]?.type === 'text' ? completion.content[0].text : 'No answer.';
     const cleanAnswer = answer.replace(/^```markdown\n?/, '').replace(/\n?```$/, '').trim();
 
     return NextResponse.json({ answer: cleanAnswer });
