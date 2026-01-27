@@ -38,7 +38,12 @@ export async function POST(request: NextRequest) {
       ? supplierKeywords.map((k: string) => `supplier_name.ilike.%${k}%`).join(',')
       : '';
 
-    const [poReq, quoteReq, statsReq, supplierPerfReq, componentDemandReq, paymentTrackingReq, landedCostReq] = await Promise.all([
+    // History filter: search by brand, description, model_sku
+    const historyFilterString = keywords.length > 0
+      ? keywords.map((k: string) => `brand.ilike.%${k}%,description.ilike.%${k}%,model_sku.ilike.%${k}%,supplier_name.ilike.%${k}%`).join(',')
+      : '';
+
+    const [poReq, quoteReq, statsReq, supplierPerfReq, componentDemandReq, paymentTrackingReq, landedCostReq, quoteHistReq, poHistReq] = await Promise.all([
       // A. Purchase Orders
       filterString
         ? supabase.from('v_analytics_master').select('*').or(filterString).order('po_date', { ascending: false }).limit(10)
@@ -72,7 +77,17 @@ export async function POST(request: NextRequest) {
       // G. Landed Costs
       filterString
         ? supabase.from('v_landed_cost_summary').select('*').or(filterString).order('po_date', { ascending: false }).limit(5)
-        : supabase.from('v_landed_cost_summary').select('*').order('po_date', { ascending: false }).limit(5)
+        : supabase.from('v_landed_cost_summary').select('*').order('po_date', { ascending: false }).limit(5),
+
+      // H. Quote History
+      historyFilterString
+        ? supabase.from('v_quote_history_analytics').select('*').or(historyFilterString).order('quote_date', { ascending: false }).limit(10)
+        : supabase.from('v_quote_history_analytics').select('*').order('quote_date', { ascending: false }).limit(10),
+
+      // I. Purchase History
+      historyFilterString
+        ? supabase.from('v_purchase_history_analytics').select('*').or(historyFilterString).order('po_date', { ascending: false }).limit(10)
+        : supabase.from('v_purchase_history_analytics').select('*').order('po_date', { ascending: false }).limit(10)
     ]);
 
     // --- STEP 3: FORMATTING CONTEXT ---
@@ -104,9 +119,17 @@ export async function POST(request: NextRequest) {
       `[LANDED COST] PO: ${r.po_number}, Date: ${r.po_date}, Supplier: ${r.supplier_name}, PO Value: ${r.po_value} ${r.currency}, Import Duty: ${r.import_duty}, VAT: ${r.vat}, Income Tax: ${r.income_tax}, Delivery: ${r.delivery_cost}, Total Landed Costs: ${r.total_landed_costs}, True Total: ${r.true_total_cost}`
     ).join('\n');
 
+    const quoteHistContext = (quoteHistReq.data || []).map((r: any) =>
+      `[QUOTE HIST] Date: ${r.quote_date}, Supplier: ${r.supplier_name || 'N/A'}, Brand: ${r.brand || 'N/A'}, SKU: ${r.model_sku || 'N/A'}, Item: ${r.description?.substring(0, 40) || 'N/A'}, Qty: ${r.quantity || 0}, Unit Cost: ${r.unit_cost} ${r.currency}`
+    ).join('\n');
+
+    const poHistContext = (poHistReq.data || []).map((r: any) =>
+      `[PO HIST] Date: ${r.po_date}, PO#: ${r.po_number || 'N/A'}, Supplier: ${r.supplier_name || 'N/A'}, Brand: ${r.brand || 'N/A'}, SKU: ${r.model_sku || 'N/A'}, Item: ${r.description?.substring(0, 40) || 'N/A'}, Qty: ${r.quantity || 0}, Unit Cost: ${r.unit_cost} ${r.currency}`
+    ).join('\n');
+
     // --- STEP 4: SYSTEM PROMPT ---
     const prompt = `
-    You are a Supply Chain Intelligence Assistant. Answer STRICTLY based on the 7 datasets below.
+    You are a Supply Chain Intelligence Assistant. Answer STRICTLY based on the 9 datasets below.
 
     USER QUESTION: "${query}"
 
@@ -131,6 +154,12 @@ export async function POST(request: NextRequest) {
     === SOURCE 7: LANDED COSTS (Import Duties & Total Costs) ===
     ${landedCostContext || '(No landed cost data available)'}
 
+    === SOURCE 8: QUOTE HISTORY (Historical Quote Records) ===
+    ${quoteHistContext || '(No quote history data available)'}
+
+    === SOURCE 9: PURCHASE HISTORY (Historical Purchase Records) ===
+    ${poHistContext || '(No purchase history data available)'}
+
     GUIDELINES:
     1. Be Direct and concise.
     2. Prioritize True Cost data when discussing pricing.
@@ -138,7 +167,8 @@ export async function POST(request: NextRequest) {
     4. Use Source 5 for demand forecasting and reorder analysis.
     5. Use Source 6 for payment status and cash flow questions.
     6. Use Source 7 for total cost calculations including duties and taxes.
-    7. When data is missing or insufficient, clearly state the limitation.
+    7. Use Sources 8 and 9 for historical price tracking, brand comparisons, and long-term trends.
+    8. When data is missing or insufficient, clearly state the limitation.
     `;
 
     const completion = await anthropic.messages.create({
