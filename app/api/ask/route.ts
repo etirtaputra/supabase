@@ -35,6 +35,14 @@ export async function POST(request: NextRequest) {
     }
 
     // --- STEP 2: PARALLEL DATA FETCHING ---
+    // Smart filtering: Only filter by specific supplier/component names, not generic terms
+    const supplierKeywords = keywords.filter((k: string) =>
+      !['total', 'spend', 'supplier', 'suppliers', 'all', 'which', 'performance', 'best', 'worst', 'reliable'].includes(k)
+    );
+    const supplierFilterString = supplierKeywords.length > 0
+      ? supplierKeywords.map((k: string) => `supplier_name.ilike.%${k}%`).join(',')
+      : '';
+
     const [poReq, quoteReq, statsReq, supplierPerfReq, componentDemandReq, paymentTrackingReq, landedCostReq] = await Promise.all([
       // A. Purchase Orders
       filterString
@@ -51,10 +59,10 @@ export async function POST(request: NextRequest) {
         ? supabase.from('mv_component_analytics').select('*').or(keywords.map((k: string) => `model_sku.ilike.%${k}%,description.ilike.%${k}%`).join(',')).limit(5)
         : supabase.from('mv_component_analytics').select('*').limit(5),
 
-      // D. Supplier Performance
-      filterString
-        ? supabase.from('v_supplier_performance').select('*').or(filterString.split(',').filter((f: string) => f.includes('supplier_name')).join(',')).order('total_spend', { ascending: false }).limit(5)
-        : supabase.from('v_supplier_performance').select('*').order('total_spend', { ascending: false }).limit(5),
+      // D. Supplier Performance - Only filter if specific supplier names mentioned
+      supplierFilterString
+        ? supabase.from('v_supplier_performance').select('*').or(supplierFilterString).order('total_spend', { ascending: false }).limit(10)
+        : supabase.from('v_supplier_performance').select('*').order('total_spend', { ascending: false }).limit(10),
 
       // E. Component Demand
       keywords.length > 0
