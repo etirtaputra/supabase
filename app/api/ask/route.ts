@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
     `;
 
     const completion = await anthropic.messages.create({
-      model: 'claude-3-opus-20240229',
+      model: 'claude-3-haiku-20240307',
       max_tokens: 2048,
       system: prompt,
       messages: [
