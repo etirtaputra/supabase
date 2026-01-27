@@ -61,8 +61,8 @@ export async function POST(request: NextRequest) {
 
       // D. Supplier Performance - Only filter if specific supplier names mentioned
       supplierFilterString
-        ? supabase.from('v_supplier_performance').select('*').or(supplierFilterString).order('total_spend', { ascending: false }).limit(10)
-        : supabase.from('v_supplier_performance').select('*').order('total_spend', { ascending: false }).limit(10),
+        ? supabase.from('v_supplier_performance').select('*').or(supplierFilterString).order('total_spend', { ascending: false, nullsFirst: false }).limit(10)
+        : supabase.from('v_supplier_performance').select('*').order('total_spend', { ascending: false, nullsFirst: false }).limit(10),
 
       // E. Component Demand
       keywords.length > 0
@@ -159,8 +159,8 @@ export async function POST(request: NextRequest) {
     `;
 
     const completion = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 1024,
+      model: 'claude-3-5-sonnet-20240620',
+      max_tokens: 2048,
       system: prompt,
       messages: [
         { role: 'user', content: query },
