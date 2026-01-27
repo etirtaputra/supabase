@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     // --- STEP 2: PARALLEL DATA FETCHING ---
     // Smart filtering: Only filter by specific supplier/component names, not generic terms
     const supplierKeywords = keywords.filter((k: string) =>
-      !['total', 'spend', 'supplier', 'suppliers', 'all', 'which', 'performance', 'best', 'worst', 'reliable'].includes(k)
+      !['total', 'spend', 'supplier', 'suppliers', 'supplie', 'all', 'which', 'performance', 'best', 'worst', 'reliable', 'top'].includes(k)
     );
     const supplierFilterString = supplierKeywords.length > 0
       ? supplierKeywords.map((k: string) => `supplier_name.ilike.%${k}%`).join(',')
