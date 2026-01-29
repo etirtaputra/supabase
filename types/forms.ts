@@ -57,6 +57,7 @@ export interface BatchLineItemsFormProps {
   onSubmit: (items: Record<string, any>[]) => void;
   loading: boolean;
   formId?: string;
+  enablePdfUpload?: boolean; // Enable PDF upload to pre-fill form
 }
 
 // Field renderer props

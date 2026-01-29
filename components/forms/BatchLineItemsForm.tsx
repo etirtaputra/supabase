@@ -19,6 +19,7 @@ export default function BatchLineItemsForm({
   onSubmit,
   loading,
   formId: customFormId,
+  enablePdfUpload = false,
 }: BatchLineItemsFormProps) {
   const uniqueFormId = useId();
   const formId = customFormId || uniqueFormId;
@@ -26,6 +27,8 @@ export default function BatchLineItemsForm({
   const [parentId, setParentId] = useState('');
   const [items, setItems] = useState<any[]>([]);
   const [draft, setDraft] = useState<Record<string, any>>({});
+  const [pdfUploading, setPdfUploading] = useState(false);
+  const [pdfError, setPdfError] = useState('');
 
   const handleDraftChange = (field: string, value: any) => {
     setDraft({ ...draft, [field]: value });
@@ -59,6 +62,95 @@ export default function BatchLineItemsForm({
     }
   };
 
+  const editItem = (id: number) => {
+    const itemToEdit = items.find((i) => i._id === id);
+    if (itemToEdit) {
+      // Move item back to draft form for editing
+      const { _id, ...itemData } = itemToEdit;
+      setDraft(itemData);
+      // Remove from items list
+      setItems(items.filter((i) => i._id !== id));
+    }
+  };
+
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || file.type !== 'application/pdf') {
+      setPdfError('Please select a PDF file');
+      return;
+    }
+
+    setPdfUploading(true);
+    setPdfError('');
+
+    try {
+      const formData = new FormData();
+      formData.append('pdf', file);
+
+      const response = await fetch('/api/extract-pdf', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to extract PDF data');
+      }
+
+      const extractedData = await response.json();
+
+      // Pre-populate sticky fields (header fields)
+      const newDraft: Record<string, any> = {};
+
+      // Map extracted data to form fields
+      if (extractedData.quote_date || extractedData.pi_date || extractedData.po_date) {
+        newDraft.quote_date = extractedData.quote_date || extractedData.pi_date || extractedData.po_date;
+        newDraft.po_date = extractedData.po_date || extractedData.quote_date;
+      }
+
+      if (extractedData.quote_number || extractedData.pi_number || extractedData.po_number) {
+        newDraft.quote_number = extractedData.quote_number || extractedData.pi_number;
+        newDraft.po_number = extractedData.po_number || extractedData.pi_number;
+      }
+
+      if (extractedData.currency) {
+        newDraft.currency = extractedData.currency;
+      }
+
+      if (extractedData.supplier_name) {
+        newDraft.supplier_name = extractedData.supplier_name;
+      }
+
+      setDraft(newDraft);
+
+      // Pre-populate line items
+      if (extractedData.line_items && extractedData.line_items.length > 0) {
+        const newItems = extractedData.line_items.map((item: any, index: number) => ({
+          _id: Date.now() + index,
+          brand: item.brand || '',
+          description: item.description || item.supplier_description || '',
+          model_sku: item.model_sku || '',
+          quantity: item.quantity || 0,
+          unit_cost: item.unit_price || item.unit_cost || 0,
+          unit_price: item.unit_price || item.unit_cost || 0,
+          ...newDraft, // Include sticky fields
+        }));
+
+        setItems(newItems);
+        alert(`✅ Extracted ${newItems.length} line items from PDF!\nPlease review and edit before submitting.`);
+      } else {
+        alert('PDF extracted but no line items found. Please add items manually.');
+      }
+
+      // Reset file input
+      e.target.value = '';
+    } catch (error) {
+      setPdfError(error instanceof Error ? error.message : 'Failed to extract PDF');
+      alert('Failed to extract PDF data. Please check the console for details.');
+    } finally {
+      setPdfUploading(false);
+    }
+  };
+
   const handleSubmit = () => {
     if (parentField && !parentId) {
       alert(`Select ${parentField.label}`);
@@ -88,6 +180,49 @@ export default function BatchLineItemsForm({
           {title}
         </h3>
       </div>
+
+      {/* PDF Upload Button (if enabled) */}
+      {enablePdfUpload && (
+        <div className="bg-blue-900/30 border border-blue-700/50 rounded-xl p-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">📄</span>
+              <div>
+                <h4 className="text-sm font-bold text-blue-300">Upload PDF to Pre-fill</h4>
+                <p className="text-xs text-slate-400">
+                  AI will extract data and populate the form below
+                </p>
+              </div>
+            </div>
+            <label className="cursor-pointer">
+              <input
+                type="file"
+                accept="application/pdf"
+                onChange={handlePdfUpload}
+                disabled={pdfUploading}
+                className="hidden"
+              />
+              <span className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+                {pdfUploading ? (
+                  <>
+                    <Spinner className="w-4 h-4" />
+                    Extracting...
+                  </>
+                ) : (
+                  <>
+                    📤 Upload PDF
+                  </>
+                )}
+              </span>
+            </label>
+          </div>
+          {pdfError && (
+            <div className="mt-3 p-3 bg-red-900/30 border border-red-700/50 rounded-lg text-xs text-red-300">
+              {pdfError}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Parent Selector (if provided) */}
       {parentField && (
@@ -192,12 +327,22 @@ export default function BatchLineItemsForm({
                       </td>
                     ))}
                     <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => removeItem(item._id)}
-                        className="text-red-400 hover:text-red-300 hover:bg-red-900/30 w-8 h-8 rounded-full flex items-center justify-center transition-all text-lg font-bold"
-                      >
-                        ×
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => editItem(item._id)}
+                          className="text-blue-400 hover:text-blue-300 hover:bg-blue-900/30 px-3 py-1 rounded-lg transition-all text-xs font-bold"
+                          title="Edit this item"
+                        >
+                          ✏️ Edit
+                        </button>
+                        <button
+                          onClick={() => removeItem(item._id)}
+                          className="text-red-400 hover:text-red-300 hover:bg-red-900/30 w-8 h-8 rounded-full flex items-center justify-center transition-all text-lg font-bold"
+                          title="Delete this item"
+                        >
+                          ×
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
