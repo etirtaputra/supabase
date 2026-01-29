@@ -170,6 +170,7 @@ function MasterInsertPage() {
                   />
                   <BatchLineItemsForm
                     title="Step 2: Quote Items"
+                    enablePdfUpload={true}
                     parentField={{ name: 'quote_id', label: 'Select Quote', options: options.quotes }}
                     itemFields={[
                       { name: 'component_id', label: 'Component', type: 'rich-select', options: data.components, config: { labelKey: 'model_sku', valueKey: 'component_id', subLabelKey: 'description' }, req: true },
@@ -226,6 +227,7 @@ function MasterInsertPage() {
                   </div>
                   <BatchLineItemsForm
                     title="3. PO Items"
+                    enablePdfUpload={true}
                     parentField={{ name: 'po_id', label: 'Select PO', options: options.pos }}
                     itemFields={[
                       { name: 'component_id', label: 'Component', type: 'rich-select', options: data.components, config: { labelKey: 'model_sku', valueKey: 'component_id', subLabelKey: 'description' }, req: true },
