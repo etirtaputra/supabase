@@ -62,6 +62,17 @@ export default function BatchLineItemsForm({
     }
   };
 
+  const editItem = (id: number) => {
+    const itemToEdit = items.find((i) => i._id === id);
+    if (itemToEdit) {
+      // Move item back to draft form for editing
+      const { _id, ...itemData } = itemToEdit;
+      setDraft(itemData);
+      // Remove from items list
+      setItems(items.filter((i) => i._id !== id));
+    }
+  };
+
   const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || file.type !== 'application/pdf') {
@@ -316,12 +327,22 @@ export default function BatchLineItemsForm({
                       </td>
                     ))}
                     <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => removeItem(item._id)}
-                        className="text-red-400 hover:text-red-300 hover:bg-red-900/30 w-8 h-8 rounded-full flex items-center justify-center transition-all text-lg font-bold"
-                      >
-                        ×
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => editItem(item._id)}
+                          className="text-blue-400 hover:text-blue-300 hover:bg-blue-900/30 px-3 py-1 rounded-lg transition-all text-xs font-bold"
+                          title="Edit this item"
+                        >
+                          ✏️ Edit
+                        </button>
+                        <button
+                          onClick={() => removeItem(item._id)}
+                          className="text-red-400 hover:text-red-300 hover:bg-red-900/30 w-8 h-8 rounded-full flex items-center justify-center transition-all text-lg font-bold"
+                          title="Delete this item"
+                        >
+                          ×
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
