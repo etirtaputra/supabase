@@ -279,6 +279,7 @@ function MasterInsertPage() {
                   <BatchLineItemsForm
                     title="Add Purchase History (Batch)"
                     formId="purchase_hist"
+                    enablePdfUpload={true}
                     itemFields={[
                       { name: 'po_date', label: 'PO Date', type: 'date' },
                       { name: 'po_number', label: 'PO Number', type: 'text', suggestions: suggestions.poNumbers },
@@ -297,6 +298,7 @@ function MasterInsertPage() {
                   <BatchLineItemsForm
                     title="Add Quote History (Batch)"
                     formId="quote_hist"
+                    enablePdfUpload={true}
                     itemFields={[
                       { name: 'quote_date', label: 'Quote Date', type: 'date' },
                       { name: 'quote_number', label: 'Quote Ref', type: 'text', suggestions: suggestions.quoteNumbers },
