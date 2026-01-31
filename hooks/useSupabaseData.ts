@@ -52,6 +52,7 @@ export function useSupabaseData() {
       supabase
         .from(TABLE_NAMES.PRICE_QUOTES)
         .select('*')
+        .order('quote_date', { ascending: false })
         .then(({ data: quotes }) => {
           if (quotes) setData((prev) => ({ ...prev, quotes }));
         });
@@ -66,6 +67,7 @@ export function useSupabaseData() {
       supabase
         .from(TABLE_NAMES.PROFORMA_INVOICES)
         .select('*')
+        .order('pi_date', { ascending: false })
         .then(({ data: pis }) => {
           if (pis) setData((prev) => ({ ...prev, pis }));
         });
@@ -73,6 +75,7 @@ export function useSupabaseData() {
       supabase
         .from(TABLE_NAMES.PURCHASES)
         .select('*')
+        .order('po_date', { ascending: false })
         .then(({ data: pos }) => {
           if (pos) setData((prev) => ({ ...prev, pos }));
         });
