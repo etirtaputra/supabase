@@ -369,31 +369,33 @@ function MasterInsertPage() {
 
               {/* Financials Tab */}
               {activeTab === 'financials' && (
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                  <SimpleForm
-                    title="Payment Record"
-                    fields={[
-                      { name: 'po_id', label: 'Select PO', type: 'select', options: options.pos, req: true },
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+                  <BatchLineItemsForm
+                    title="Payment Records"
+                    parentField={{ name: 'po_id', label: 'Select PO', options: options.pos }}
+                    itemFields={[
                       { name: 'category', label: 'Category', type: 'select', options: ENUMS.payment_category, req: true },
                       { name: 'amount', label: 'Amount', type: 'number', req: true },
                       { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true },
-                      { name: 'payment_date', label: 'Date', type: 'date', req: true, default: new Date().toISOString().split('T')[0] },
-                      { name: 'notes', label: 'Notes', type: 'textarea' },
+                      { name: 'payment_date', label: 'Date', type: 'date', req: true },
+                      { name: 'notes', label: 'Notes', type: 'text' },
                     ]}
-                    onSubmit={(d) => handleInsert('7.0_payment_details', d)}
+                    stickyFields={['currency', 'payment_date']}
+                    onSubmit={(items) => handleInsert('7.0_payment_details', items)}
                     loading={loading}
                   />
-                  <SimpleForm
-                    title="Landed Cost"
-                    fields={[
-                      { name: 'po_id', label: 'Select PO', type: 'select', options: options.pos, req: true },
+                  <BatchLineItemsForm
+                    title="Landed Costs"
+                    parentField={{ name: 'po_id', label: 'Select PO', options: options.pos }}
+                    itemFields={[
                       { name: 'cost_type', label: 'Type', type: 'select', options: ENUMS.landed_costs_type, req: true },
                       { name: 'amount', label: 'Amount', type: 'number', req: true },
                       { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true },
                       { name: 'payment_date', label: 'Date', type: 'date' },
-                      { name: 'notes', label: 'Notes', type: 'textarea' },
+                      { name: 'notes', label: 'Notes', type: 'text' },
                     ]}
-                    onSubmit={(d) => handleInsert('7.1_landed_costs', d)}
+                    stickyFields={['currency', 'payment_date']}
+                    onSubmit={(items) => handleInsert('7.1_landed_costs', items)}
                     loading={loading}
                   />
                 </div>
