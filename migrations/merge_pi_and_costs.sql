@@ -43,10 +43,18 @@ ALTER TABLE "6.0_purchases"
 -- Step 5: Drop old pi_id foreign key constraint
 ALTER TABLE "6.0_purchases" DROP CONSTRAINT IF EXISTS purchases_pi_id_fkey;
 
--- Step 6: Drop old pi_id column (no longer needed)
+-- Step 6: Drop views that depend on pi_id column
+DROP VIEW IF EXISTS v_analytics_master CASCADE;
+DROP VIEW IF EXISTS v_supplier_performance CASCADE;
+DROP VIEW IF EXISTS v_payment_tracking CASCADE;
+DROP VIEW IF EXISTS v_landed_cost_summary CASCADE;
+DROP VIEW IF EXISTS purchase_history CASCADE;
+DROP VIEW IF EXISTS v_purchase_history_analytics CASCADE;
+
+-- Step 7: Drop old pi_id column (now safe - no dependencies)
 ALTER TABLE "6.0_purchases" DROP COLUMN IF EXISTS pi_id;
 
--- Step 7: Drop proforma invoices table
+-- Step 8: Drop proforma invoices table
 DROP TABLE IF EXISTS "5.0_proforma_invoices" CASCADE;
 
 -- ============================================================================
