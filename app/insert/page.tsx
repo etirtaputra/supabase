@@ -311,44 +311,36 @@ function MasterInsertPage() {
                   </div>
 
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
-                  <div className="space-y-6">
-                    <SimpleForm
-                      title="1. Proforma Invoice"
-                      fields={[
-                        { name: 'quote_id', label: 'Link Quote', type: 'select', options: options.quotes },
-                        { name: 'pi_number', label: 'PI #', type: 'text', req: true, default: pdfData?.pi_number },
-                        { name: 'pi_date', label: 'PI Date', type: 'date', req: true, default: pdfData?.pi_date || new Date().toISOString().split('T')[0] },
-                        { name: 'status', label: 'Status', type: 'select', options: ENUMS.proforma_status, default: 'Open' },
-                        { name: 'replaces_pi_id', label: 'Replaces', type: 'select', options: options.pis },
-                      ]}
-                      onSubmit={(d) => handleInsert('5.0_proforma_invoices', d)}
-                      loading={loading}
-                    />
-                    <SimpleForm
-                      title="2. Purchase Order"
-                      fields={[
-                        { name: 'pi_id', label: 'Link PI', type: 'select', options: options.pis },
-                        { name: 'po_number', label: 'PO #', type: 'text', req: true, suggestions: suggestions.poNumbers, default: pdfData?.po_number },
-                        { name: 'po_date', label: 'PO Date', type: 'date', req: true, default: pdfData?.po_date || new Date().toISOString().split('T')[0] },
-                        { name: 'incoterms', label: 'Incoterms', type: 'text', suggestions: ['FOB', 'EXW', 'CIF', 'DDP', ...suggestions.incoterms] },
-                        { name: 'method_of_shipment', label: 'Ship Via', type: 'select', options: ENUMS.method_of_shipment },
-                        { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true, default: pdfData?.currency },
-                        { name: 'exchange_rate', label: 'Exch Rate', type: 'number' },
-                        { name: 'total_value', label: 'Total Value', type: 'number', default: pdfData?.total_value },
-                        { name: 'payment_terms', label: 'Terms', type: 'text', suggestions: suggestions.paymentTerms, default: pdfData?.payment_terms },
-                        { name: 'freight_charges_intl', label: 'Freight', type: 'number' },
-                        { name: 'estimated_delivery_date', label: 'Est. Deliv', type: 'date' },
-                        { name: 'actual_delivery_date', label: 'Act. Deliv', type: 'date' },
-                        { name: 'actual_received_date', label: 'Received', type: 'date' },
-                        { name: 'status', label: 'Status', type: 'select', options: ENUMS.purchases_status, default: 'Draft' },
-                        { name: 'replaces_po_id', label: 'Replaces', type: 'select', options: options.pos },
-                      ]}
-                      onSubmit={(d) => handleInsert('6.0_purchases', d)}
-                      loading={loading}
-                    />
-                  </div>
+                  <SimpleForm
+                    title="1. Purchase Order (with PI fields)"
+                    fields={[
+                      // PI fields (optional - for POs that have a PI)
+                      { name: 'quote_id', label: 'Link Quote', type: 'select', options: options.quotes },
+                      { name: 'pi_number', label: 'PI #', type: 'text', default: pdfData?.pi_number },
+                      { name: 'pi_date', label: 'PI Date', type: 'date', default: pdfData?.pi_date },
+                      { name: 'pi_status', label: 'PI Status', type: 'select', options: ENUMS.proforma_status },
+
+                      // PO fields (required)
+                      { name: 'po_number', label: 'PO #', type: 'text', req: true, suggestions: suggestions.poNumbers, default: pdfData?.po_number },
+                      { name: 'po_date', label: 'PO Date', type: 'date', req: true, default: pdfData?.po_date || new Date().toISOString().split('T')[0] },
+                      { name: 'incoterms', label: 'Incoterms', type: 'text', suggestions: ['FOB', 'EXW', 'CIF', 'DDP', ...suggestions.incoterms] },
+                      { name: 'method_of_shipment', label: 'Ship Via', type: 'select', options: ENUMS.method_of_shipment },
+                      { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true, default: pdfData?.currency },
+                      { name: 'exchange_rate', label: 'Exch Rate', type: 'number' },
+                      { name: 'total_value', label: 'Total Value', type: 'number', default: pdfData?.total_value },
+                      { name: 'payment_terms', label: 'Terms', type: 'text', suggestions: suggestions.paymentTerms, default: pdfData?.payment_terms },
+                      { name: 'freight_charges_intl', label: 'Freight', type: 'number' },
+                      { name: 'estimated_delivery_date', label: 'Est. Deliv', type: 'date' },
+                      { name: 'actual_delivery_date', label: 'Act. Deliv', type: 'date' },
+                      { name: 'actual_received_date', label: 'Received', type: 'date' },
+                      { name: 'status', label: 'Status', type: 'select', options: ENUMS.purchases_status, default: 'Draft' },
+                      { name: 'replaces_po_id', label: 'Replaces PO', type: 'select', options: options.pos },
+                    ]}
+                    onSubmit={(d) => handleInsert('5.0_purchases', d)}
+                    loading={loading}
+                  />
                   <BatchLineItemsForm
-                    title="3. PO Items"
+                    title="2. PO Items"
                     enablePdfUpload={true}
                     parentField={{ name: 'po_id', label: 'Select PO', options: options.pos }}
                     itemFields={[
@@ -359,7 +351,7 @@ function MasterInsertPage() {
                       { name: 'currency', label: 'Curr', type: 'select', options: ENUMS.currency, req: true },
                     ]}
                     stickyFields={['currency']}
-                    onSubmit={(items) => handleInsert('6.1_purchase_line_items', items)}
+                    onSubmit={(items) => handleInsert('5.1_purchase_line_items', items)}
                     loading={loading}
                   />
                 </div>
