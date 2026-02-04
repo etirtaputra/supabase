@@ -212,7 +212,7 @@ export default function BatchLineItemsForm({
         setItems(newItems);
 
         // Count matched vs unmatched components
-        const matchedCount = newItems.filter(item => item.component_id).length;
+        const matchedCount = newItems.filter((item: Record<string, any>) => item.component_id).length;
         const unmatchedCount = newItems.length - matchedCount;
 
         let message = `✅ Extracted ${newItems.length} line items from PDF!\n`;
