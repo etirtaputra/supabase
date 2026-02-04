@@ -124,16 +124,50 @@ export default function BatchLineItemsForm({
 
       // Pre-populate line items
       if (extractedData.line_items && extractedData.line_items.length > 0) {
-        const newItems = extractedData.line_items.map((item: any, index: number) => ({
-          _id: Date.now() + index,
-          brand: item.brand || '',
-          description: item.description || item.supplier_description || '',
-          model_sku: item.model_sku || '',
-          quantity: item.quantity || 0,
-          unit_cost: item.unit_price || item.unit_cost || 0,
-          unit_price: item.unit_price || item.unit_cost || 0,
-          ...newDraft, // Include sticky fields
-        }));
+        // Check if this form uses component_id (quote/PO line items) or direct fields (history)
+        const hasComponentField = itemFields.some(f => f.name === 'component_id');
+
+        const newItems = extractedData.line_items.map((item: any, index: number) => {
+          const baseItem: Record<string, any> = {
+            _id: Date.now() + index,
+            ...newDraft, // Include sticky fields
+          };
+
+          if (hasComponentField) {
+            // For quote/PO line items: map to component_id if possible
+            // Try to find matching component by model_sku
+            const componentField = itemFields.find(f => f.name === 'component_id');
+            if (componentField?.options && item.model_sku) {
+              const matchedComponent = componentField.options.find(
+                (c: any) => c.model_sku?.toLowerCase() === item.model_sku?.toLowerCase()
+              );
+              if (matchedComponent) {
+                baseItem.component_id = matchedComponent.component_id;
+              }
+            }
+
+            // Map other fields
+            baseItem.supplier_description = item.description || item.supplier_description || '';
+            baseItem.quantity = item.quantity || 0;
+
+            // Use unit_price for quotes, unit_cost for POs
+            if (itemFields.some(f => f.name === 'unit_price')) {
+              baseItem.unit_price = item.unit_price || item.unit_cost || 0;
+            }
+            if (itemFields.some(f => f.name === 'unit_cost')) {
+              baseItem.unit_cost = item.unit_cost || item.unit_price || 0;
+            }
+          } else {
+            // For history tables: use direct fields
+            baseItem.brand = item.brand || '';
+            baseItem.description = item.description || item.supplier_description || '';
+            baseItem.model_sku = item.model_sku || '';
+            baseItem.quantity = item.quantity || 0;
+            baseItem.unit_cost = item.unit_price || item.unit_cost || 0;
+          }
+
+          return baseItem;
+        });
 
         setItems(newItems);
         alert(`✅ Extracted ${newItems.length} line items from PDF!\nPlease review and edit before submitting.`);
