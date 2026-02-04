@@ -27,13 +27,12 @@ import { useToast } from '@/hooks/useToast';
 import { ENUMS } from '@/constants/enums';
 import type { Tab, MenuItem } from '@/types/forms';
 
-// Menu configuration (removed database tab)
+// Menu configuration (removed database tab and history import)
 const MENU_ITEMS: MenuItem[] = [
   { id: 'foundation', label: 'Suppliers & Components', icon: '🏢' },
   { id: 'quoting', label: 'Quotes', icon: '📝' },
   { id: 'ordering', label: 'PI / PO', icon: '📦' },
   { id: 'financials', label: 'Financials', icon: '💰' },
-  { id: 'history', label: 'History Import', icon: '📂' },
 ];
 
 function MasterInsertPage() {
@@ -369,77 +368,19 @@ function MasterInsertPage() {
 
               {/* Financials Tab */}
               {activeTab === 'financials' && (
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+                <div className="max-w-4xl mx-auto">
                   <BatchLineItemsForm
-                    title="Payment Records"
+                    title="PO Costs (Payments, Bank Fees & Landed Costs)"
                     parentField={{ name: 'po_id', label: 'Select PO', options: options.pos }}
                     itemFields={[
-                      { name: 'category', label: 'Category', type: 'select', options: ENUMS.payment_category, req: true },
-                      { name: 'amount', label: 'Amount', type: 'number', req: true },
-                      { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true },
-                      { name: 'payment_date', label: 'Date', type: 'date', req: true },
-                      { name: 'notes', label: 'Notes', type: 'text' },
-                    ]}
-                    stickyFields={['currency', 'payment_date']}
-                    onSubmit={(items) => handleInsert('7.0_payment_details', items)}
-                    loading={loading}
-                  />
-                  <BatchLineItemsForm
-                    title="Landed Costs"
-                    parentField={{ name: 'po_id', label: 'Select PO', options: options.pos }}
-                    itemFields={[
-                      { name: 'cost_type', label: 'Type', type: 'select', options: ENUMS.landed_costs_type, req: true },
+                      { name: 'cost_category', label: 'Cost Category', type: 'select', options: ENUMS.po_cost_category, req: true },
                       { name: 'amount', label: 'Amount', type: 'number', req: true },
                       { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true },
                       { name: 'payment_date', label: 'Date', type: 'date' },
                       { name: 'notes', label: 'Notes', type: 'text' },
                     ]}
                     stickyFields={['currency', 'payment_date']}
-                    onSubmit={(items) => handleInsert('7.1_landed_costs', items)}
-                    loading={loading}
-                  />
-                </div>
-              )}
-
-              {/* History Import Tab */}
-              {activeTab === 'history' && (
-                <div className="flex flex-col gap-8">
-                  <BatchLineItemsForm
-                    title="Add Purchase History (Batch)"
-                    formId="purchase_hist"
-                    enablePdfUpload={true}
-                    itemFields={[
-                      { name: 'po_date', label: 'PO Date', type: 'date' },
-                      { name: 'po_number', label: 'PO Number', type: 'text', suggestions: suggestions.poNumbers },
-                      { name: 'supplier_id', label: 'Supplier', type: 'rich-select', options: data.suppliers, config: { labelKey: 'supplier_name', valueKey: 'supplier_id', subLabelKey: 'location' } },
-                      { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency },
-                      { name: 'component_id', label: 'Component', type: 'rich-select', options: data.components, config: { labelKey: 'model_sku', valueKey: 'component_id', subLabelKey: 'description' } },
-                      { name: 'brand', label: 'Brand', type: 'text', suggestions: suggestions.brands },
-                      { name: 'description', label: 'Description', type: 'text', suggestions: suggestions.descriptions },
-                      { name: 'quantity', label: 'Qty', type: 'number' },
-                      { name: 'unit_cost', label: 'Cost', type: 'number' },
-                    ]}
-                    stickyFields={['po_date', 'po_number', 'supplier_id', 'currency']}
-                    onSubmit={(items) => handleInsert('purchase_history', items)}
-                    loading={loading}
-                  />
-                  <BatchLineItemsForm
-                    title="Add Quote History (Batch)"
-                    formId="quote_hist"
-                    enablePdfUpload={true}
-                    itemFields={[
-                      { name: 'quote_date', label: 'Quote Date', type: 'date' },
-                      { name: 'quote_number', label: 'Quote Ref', type: 'text', suggestions: suggestions.quoteNumbers },
-                      { name: 'supplier_id', label: 'Supplier', type: 'rich-select', options: data.suppliers, config: { labelKey: 'supplier_name', valueKey: 'supplier_id', subLabelKey: 'location' } },
-                      { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency },
-                      { name: 'component_id', label: 'Component', type: 'rich-select', options: data.components, config: { labelKey: 'model_sku', valueKey: 'component_id', subLabelKey: 'description' } },
-                      { name: 'brand', label: 'Brand', type: 'text', suggestions: suggestions.brands },
-                      { name: 'description', label: 'Description', type: 'text', suggestions: suggestions.descriptions },
-                      { name: 'quantity', label: 'Qty', type: 'number' },
-                      { name: 'unit_cost', label: 'Cost', type: 'number' },
-                    ]}
-                    stickyFields={['quote_date', 'quote_number', 'supplier_id', 'currency']}
-                    onSubmit={(items) => handleInsert('quote_history', items)}
+                    onSubmit={(items) => handleInsert('6.0_po_costs', items)}
                     loading={loading}
                   />
                 </div>

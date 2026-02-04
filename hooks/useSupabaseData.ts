@@ -21,8 +21,7 @@ export function useSupabaseData() {
     pis: [],
     pos: [],
     poItems: [],
-    payments: [],
-    landedCosts: [],
+    poCosts: [],
     poHistory: [],
     quoteHistory: [],
   });
@@ -88,22 +87,17 @@ export function useSupabaseData() {
         });
 
       supabase
-        .from(TABLE_NAMES.PAYMENT_DETAILS)
+        .from(TABLE_NAMES.PO_COSTS)
         .select('*')
-        .then(({ data: payments }) => {
-          if (payments) setData((prev) => ({ ...prev, payments }));
-        });
-
-      supabase
-        .from(TABLE_NAMES.LANDED_COSTS)
-        .select('*')
-        .then(({ data: landedCosts }) => {
-          if (landedCosts) setData((prev) => ({ ...prev, landedCosts }));
+        .order('payment_date', { ascending: false, nullsFirst: false })
+        .then(({ data: poCosts }) => {
+          if (poCosts) setData((prev) => ({ ...prev, poCosts }));
         });
 
       supabase
         .from(TABLE_NAMES.PURCHASE_HISTORY)
         .select('*')
+        .order('po_date', { ascending: false })
         .then(({ data: poHistory }) => {
           if (poHistory) setData((prev) => ({ ...prev, poHistory }));
         });
@@ -111,6 +105,7 @@ export function useSupabaseData() {
       supabase
         .from(TABLE_NAMES.QUOTE_HISTORY)
         .select('*')
+        .order('quote_date', { ascending: false })
         .then(({ data: quoteHistory }) => {
           if (quoteHistory) setData((prev) => ({ ...prev, quoteHistory }));
         });
