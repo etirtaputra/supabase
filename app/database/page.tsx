@@ -144,28 +144,17 @@ export default function DatabaseViewPage() {
               <h2 className="text-xl font-bold text-emerald-400 border-b border-emerald-900/50 pb-2">
                 4. Financials
               </h2>
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                <SearchableTable
-                  title="Payments Made"
-                  data={data.payments}
-                  columns={[
-                    { key: 'payment_date', label: 'Date' },
-                    { key: 'category', label: 'Category' },
-                    { key: 'amount', label: 'Amount', render: (r) => `${r.currency} ${r.amount}` },
-                  ]}
-                  isLoading={loading}
-                />
-                <SearchableTable
-                  title="Landed Costs"
-                  data={data.landedCosts}
-                  columns={[
-                    { key: 'payment_date', label: 'Date' },
-                    { key: 'cost_type', label: 'Type' },
-                    { key: 'amount', label: 'Amount', render: (r) => `${r.currency} ${r.amount}` },
-                  ]}
-                  isLoading={loading}
-                />
-              </div>
+              <SearchableTable
+                title="PO Costs (Payments, Bank Fees & Landed Costs)"
+                data={data.poCosts}
+                columns={[
+                  { key: 'payment_date', label: 'Date' },
+                  { key: 'cost_category', label: 'Category' },
+                  { key: 'amount', label: 'Amount', render: (r) => `${r.currency} ${r.amount}` },
+                  { key: 'notes', label: 'Notes' },
+                ]}
+                isLoading={loading}
+              />
             </section>
 
             {/* Section 5: Historical Data */}
