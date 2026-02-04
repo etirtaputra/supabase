@@ -6,14 +6,35 @@
 import type {
   Currency,
   ProductCategory,
-  PaymentCategory,
-  LandedCostsType,
   MethodOfShipment,
   PriceQuotesStatus,
   ProformaStatus,
   PurchasesStatus,
   LeadTime,
 } from '../constants/enums';
+
+// Unified cost category type (replaces PaymentCategory + LandedCostsType)
+export type POCostCategory =
+  // Payment categories
+  | 'down_payment'
+  | 'balance_payment'
+  | 'additional_balance_payment'
+  | 'overpayment_credit'
+  // Bank fee categories
+  | 'full_amount_bank_fee'
+  | 'telex_bank_fee'
+  | 'value_today_bank_fee'
+  | 'admin_bank_fee'
+  | 'inter_bank_transfer_fee'
+  // Landed cost categories
+  | 'local_import_duty'
+  | 'local_vat'
+  | 'local_income_tax'
+  | 'local_delivery'
+  | 'demurrage_fee'
+  | 'penalty_fee'
+  | 'dhl_advance_payment_fee'
+  | 'local_import_tax';
 
 // Base entity with common fields
 export interface BaseEntity {
@@ -86,7 +107,6 @@ export interface ProformaInvoice extends BaseEntity {
 // 6.0 Purchases (Purchase Orders)
 export interface PurchaseOrder extends BaseEntity {
   po_id: number;
-  pi_id?: number;
   po_number: string;
   po_date: string;
   incoterms?: string;
@@ -101,6 +121,11 @@ export interface PurchaseOrder extends BaseEntity {
   actual_received_date?: string;
   status?: PurchasesStatus;
   replaces_po_id?: number;
+  // Proforma Invoice fields (merged from 5.0_proforma_invoices)
+  pi_number?: string;
+  pi_date?: string;
+  pi_status?: ProformaStatus;
+  quote_id?: number;
 }
 
 // 6.1 Purchase Line Items
@@ -114,22 +139,11 @@ export interface PurchaseLineItem extends BaseEntity {
   currency: Currency;
 }
 
-// 7.0 Payment Details
-export interface PaymentDetail extends BaseEntity {
-  payment_id: number;
+// Unified PO Costs (replaces 7.0 Payment Details + 7.1 Landed Costs)
+export interface POCost extends BaseEntity {
+  cost_id: string;
   po_id: number;
-  category: PaymentCategory;
-  amount: number;
-  currency: Currency;
-  payment_date: string;
-  notes?: string;
-}
-
-// 7.1 Landed Costs
-export interface LandedCost extends BaseEntity {
-  landed_cost_id: number;
-  po_id: number;
-  cost_type: LandedCostsType;
+  cost_category: POCostCategory;
   amount: number;
   currency: Currency;
   payment_date?: string;
@@ -174,8 +188,7 @@ export interface DatabaseData {
   pis: ProformaInvoice[];
   pos: PurchaseOrder[];
   poItems: PurchaseLineItem[];
-  payments: PaymentDetail[];
-  landedCosts: LandedCost[];
+  poCosts: POCost[];
 }
 
 // Autocomplete suggestions structure
