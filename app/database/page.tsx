@@ -101,29 +101,20 @@ export default function DatabaseViewPage() {
               <h2 className="text-xl font-bold text-emerald-400 border-b border-emerald-900/50 pb-2">
                 3. Ordering
               </h2>
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                <SearchableTable
-                  title="Proforma Invoices"
-                  data={data.pis}
-                  columns={[
-                    { key: 'pi_date', label: 'Date' },
-                    { key: 'pi_number', label: 'PI #' },
-                    { key: 'status', label: 'Status' },
-                  ]}
-                  isLoading={loading}
-                />
-                <SearchableTable
-                  title="Purchase Orders"
-                  data={data.pos}
-                  columns={[
-                    { key: 'po_date', label: 'Date' },
-                    { key: 'po_number', label: 'PO #' },
-                    { key: 'total_value', label: 'Total', render: (r) => `${r.currency} ${r.total_value}` },
-                    { key: 'status', label: 'Status' },
-                  ]}
-                  isLoading={loading}
-                />
-              </div>
+              <SearchableTable
+                title="Purchase Orders (with PI fields)"
+                data={data.pos}
+                columns={[
+                  { key: 'po_date', label: 'PO Date' },
+                  { key: 'po_number', label: 'PO #' },
+                  { key: 'pi_number', label: 'PI #' },
+                  { key: 'pi_date', label: 'PI Date' },
+                  { key: 'total_value', label: 'Total', render: (r) => `${r.currency} ${r.total_value || ''}` },
+                  { key: 'status', label: 'PO Status' },
+                  { key: 'pi_status', label: 'PI Status' },
+                ]}
+                isLoading={loading}
+              />
               <SearchableTable
                 title="Purchase Line Items"
                 data={data.poItems}
