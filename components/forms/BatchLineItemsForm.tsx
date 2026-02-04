@@ -101,22 +101,34 @@ export default function BatchLineItemsForm({
       // Pre-populate sticky fields (header fields)
       const newDraft: Record<string, any> = {};
 
-      // Map extracted data to form fields
+      // Get list of valid field names from itemFields
+      const validFieldNames = itemFields.map(f => f.name);
+
+      // Map extracted data to form fields - only add if field exists in form
       if (extractedData.quote_date || extractedData.pi_date || extractedData.po_date) {
-        newDraft.quote_date = extractedData.quote_date || extractedData.pi_date || extractedData.po_date;
-        newDraft.po_date = extractedData.po_date || extractedData.quote_date;
+        const dateValue = extractedData.quote_date || extractedData.pi_date || extractedData.po_date;
+        if (validFieldNames.includes('quote_date')) {
+          newDraft.quote_date = dateValue;
+        }
+        if (validFieldNames.includes('po_date')) {
+          newDraft.po_date = dateValue;
+        }
       }
 
       if (extractedData.quote_number || extractedData.pi_number || extractedData.po_number) {
-        newDraft.quote_number = extractedData.quote_number || extractedData.pi_number;
-        newDraft.po_number = extractedData.po_number || extractedData.pi_number;
+        if (validFieldNames.includes('quote_number')) {
+          newDraft.quote_number = extractedData.quote_number || extractedData.pi_number;
+        }
+        if (validFieldNames.includes('po_number')) {
+          newDraft.po_number = extractedData.po_number || extractedData.pi_number;
+        }
       }
 
-      if (extractedData.currency) {
+      if (extractedData.currency && validFieldNames.includes('currency')) {
         newDraft.currency = extractedData.currency;
       }
 
-      if (extractedData.supplier_name) {
+      if (extractedData.supplier_name && validFieldNames.includes('supplier_name')) {
         newDraft.supplier_name = extractedData.supplier_name;
       }
 
