@@ -31,7 +31,23 @@ export default function BatchLineItemsForm({
   const [pdfError, setPdfError] = useState('');
 
   const handleDraftChange = (field: string, value: any) => {
-    setDraft({ ...draft, [field]: value });
+    const updatedDraft = { ...draft, [field]: value };
+
+    // Auto-populate supplier_description when component_id is selected
+    if (field === 'component_id' && value) {
+      const componentField = itemFields.find(f => f.name === 'component_id');
+      if (componentField?.options) {
+        const selectedComponent = componentField.options.find(
+          (c: any) => c[componentField.config?.valueKey || 'component_id'] === value
+        );
+        if (selectedComponent) {
+          // Auto-fill supplier_description with component's description
+          updatedDraft.supplier_description = selectedComponent.description || selectedComponent.model_sku || '';
+        }
+      }
+    }
+
+    setDraft(updatedDraft);
   };
 
   const addItem = () => {
@@ -192,14 +208,17 @@ export default function BatchLineItemsForm({
 
               if (matchedComponent) {
                 baseItem.component_id = matchedComponent.component_id;
+                // Use the matched component's description as supplier_description
+                baseItem.supplier_description = matchedComponent.description || matchedComponent.model_sku || '';
                 console.log(`✅ Auto-matched: "${searchSku || searchDesc}" → Component ID ${matchedComponent.component_id} (${matchedComponent.model_sku})`);
               } else {
+                // No match found - use PDF description as fallback
+                baseItem.supplier_description = item.description || item.supplier_description || '';
                 console.warn(`⚠️ No match found for: SKU="${item.model_sku}", Brand="${item.brand}", Desc="${item.description}"`);
               }
             }
 
             // Map other fields
-            baseItem.supplier_description = item.description || item.supplier_description || '';
             baseItem.quantity = item.quantity || 0;
 
             // Use unit_price for quotes, unit_cost for POs
