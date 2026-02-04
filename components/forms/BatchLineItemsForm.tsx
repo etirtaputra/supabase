@@ -134,15 +134,55 @@ export default function BatchLineItemsForm({
           };
 
           if (hasComponentField) {
-            // For quote/PO line items: map to component_id if possible
-            // Try to find matching component by model_sku
+            // For quote/PO line items: map to component_id using fuzzy matching
             const componentField = itemFields.find(f => f.name === 'component_id');
-            if (componentField?.options && item.model_sku) {
-              const matchedComponent = componentField.options.find(
-                (c: any) => c.model_sku?.toLowerCase() === item.model_sku?.toLowerCase()
-              );
+            let matchedComponent = null;
+
+            if (componentField?.options) {
+              const components = componentField.options as any[];
+              const searchSku = item.model_sku?.toLowerCase().trim() || '';
+              const searchDesc = item.description?.toLowerCase().trim() || '';
+              const searchBrand = item.brand?.toLowerCase().trim() || '';
+
+              // Strategy 1: Exact SKU match (case-insensitive)
+              if (searchSku) {
+                matchedComponent = components.find(
+                  (c: any) => c.model_sku?.toLowerCase().trim() === searchSku
+                );
+              }
+
+              // Strategy 2: Partial SKU match (contains)
+              if (!matchedComponent && searchSku) {
+                matchedComponent = components.find(
+                  (c: any) => c.model_sku?.toLowerCase().includes(searchSku) ||
+                             searchSku.includes(c.model_sku?.toLowerCase())
+                );
+              }
+
+              // Strategy 3: Match by brand + description similarity
+              if (!matchedComponent && searchBrand && searchDesc) {
+                matchedComponent = components.find((c: any) => {
+                  const componentBrand = c.brand?.toLowerCase().trim() || '';
+                  const componentDesc = c.description?.toLowerCase().trim() || '';
+                  const brandMatch = componentBrand === searchBrand;
+                  const descMatch = componentDesc.includes(searchDesc) || searchDesc.includes(componentDesc);
+                  return brandMatch && descMatch;
+                });
+              }
+
+              // Strategy 4: Match by description alone (if longer than 10 chars)
+              if (!matchedComponent && searchDesc && searchDesc.length > 10) {
+                matchedComponent = components.find((c: any) => {
+                  const componentDesc = c.description?.toLowerCase().trim() || '';
+                  return componentDesc.includes(searchDesc) || searchDesc.includes(componentDesc);
+                });
+              }
+
               if (matchedComponent) {
                 baseItem.component_id = matchedComponent.component_id;
+                console.log(`✅ Auto-matched: "${searchSku || searchDesc}" → Component ID ${matchedComponent.component_id} (${matchedComponent.model_sku})`);
+              } else {
+                console.warn(`⚠️ No match found for: SKU="${item.model_sku}", Brand="${item.brand}", Desc="${item.description}"`);
               }
             }
 
@@ -170,7 +210,21 @@ export default function BatchLineItemsForm({
         });
 
         setItems(newItems);
-        alert(`✅ Extracted ${newItems.length} line items from PDF!\nPlease review and edit before submitting.`);
+
+        // Count matched vs unmatched components
+        const matchedCount = newItems.filter((item: Record<string, any>) => item.component_id).length;
+        const unmatchedCount = newItems.length - matchedCount;
+
+        let message = `✅ Extracted ${newItems.length} line items from PDF!\n`;
+        if (hasComponentField) {
+          message += `\n🎯 Auto-matched: ${matchedCount} components`;
+          if (unmatchedCount > 0) {
+            message += `\n⚠️ Not matched: ${unmatchedCount} items - please select components manually`;
+          }
+        }
+        message += '\n\nPlease review and edit before submitting.';
+
+        alert(message);
       } else {
         alert('PDF extracted but no line items found. Please add items manually.');
       }
