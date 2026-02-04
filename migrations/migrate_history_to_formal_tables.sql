@@ -239,11 +239,56 @@ GROUP BY ph.po_number, ph.po_date, ph.supplier_id, s.supplier_name
 ORDER BY ph.po_date DESC;
 
 -- ============================================================================
--- AFTER VERIFICATION: Optionally delete history tables
+-- STEP 3: Convert history tables to read-only views
 -- ============================================================================
 
--- IMPORTANT: Only run these after verifying migration was successful!
--- Uncomment to execute:
+-- IMPORTANT: Only run this after verifying migration was successful!
 
--- DROP TABLE IF EXISTS quote_history;
--- DROP TABLE IF EXISTS purchase_history;
+-- Drop existing history tables
+DROP TABLE IF EXISTS quote_history;
+DROP TABLE IF EXISTS purchase_history;
+
+-- Create quote_history VIEW (replicates old denormalized structure)
+CREATE VIEW quote_history AS
+SELECT
+  qli.quote_item_id as history_id,
+  q.quote_date,
+  q.pi_number as quote_number,
+  q.supplier_id,
+  qli.component_id,
+  c.brand,
+  qli.supplier_description as description,
+  qli.quantity,
+  qli.unit_price as unit_cost,
+  qli.currency,
+  qli.created_at,
+  qli.updated_at
+FROM "4.1_price_quote_line_items" qli
+JOIN "4.0_price_quotes" q ON qli.quote_id = q.quote_id
+LEFT JOIN "3.0_components" c ON qli.component_id = c.component_id;
+
+-- Create purchase_history VIEW (replicates old denormalized structure)
+CREATE VIEW purchase_history AS
+SELECT
+  pli.po_item_id as history_id,
+  p.po_date,
+  p.po_number,
+  q.supplier_id,
+  pli.component_id,
+  c.brand,
+  pli.supplier_description as description,
+  pli.quantity,
+  pli.unit_cost,
+  pli.currency,
+  pli.created_at,
+  pli.updated_at
+FROM "6.1_purchase_line_items" pli
+JOIN "6.0_purchases" p ON pli.po_id = p.po_id
+LEFT JOIN "5.0_proforma_invoices" pi ON p.pi_id = pi.pi_id
+LEFT JOIN "4.0_price_quotes" q ON pi.quote_id = q.quote_id
+LEFT JOIN "3.0_components" c ON pli.component_id = c.component_id;
+
+-- Verify views work correctly
+SELECT 'quote_history view' as view_name, COUNT(*) as record_count FROM quote_history
+UNION ALL
+SELECT 'purchase_history view' as view_name, COUNT(*) as record_count FROM purchase_history;
