@@ -244,9 +244,13 @@ ORDER BY ph.po_date DESC;
 
 -- IMPORTANT: Only run this after verifying migration was successful!
 
--- Drop existing history tables
-DROP TABLE IF EXISTS quote_history;
-DROP TABLE IF EXISTS purchase_history;
+-- Drop dependent analytics views first
+DROP VIEW IF EXISTS v_quote_history_analytics CASCADE;
+DROP VIEW IF EXISTS v_purchase_history_analytics CASCADE;
+
+-- Drop existing history tables with CASCADE
+DROP TABLE IF EXISTS quote_history CASCADE;
+DROP TABLE IF EXISTS purchase_history CASCADE;
 
 -- Create quote_history VIEW (replicates old denormalized structure)
 CREATE VIEW quote_history AS
@@ -288,7 +292,34 @@ LEFT JOIN "5.0_proforma_invoices" pi ON p.pi_id = pi.pi_id
 LEFT JOIN "4.0_price_quotes" q ON pi.quote_id = q.quote_id
 LEFT JOIN "3.0_components" c ON pli.component_id = c.component_id;
 
+-- Recreate analytics views (now based on the new views)
+CREATE VIEW v_quote_history_analytics AS
+SELECT
+  supplier_id,
+  COUNT(*) as total_quotes,
+  SUM(quantity) as total_quantity,
+  AVG(unit_cost) as avg_unit_cost,
+  MIN(quote_date) as first_quote_date,
+  MAX(quote_date) as last_quote_date
+FROM quote_history
+GROUP BY supplier_id;
+
+CREATE VIEW v_purchase_history_analytics AS
+SELECT
+  supplier_id,
+  COUNT(*) as total_purchases,
+  SUM(quantity) as total_quantity,
+  AVG(unit_cost) as avg_unit_cost,
+  MIN(po_date) as first_purchase_date,
+  MAX(po_date) as last_purchase_date
+FROM purchase_history
+GROUP BY supplier_id;
+
 -- Verify views work correctly
 SELECT 'quote_history view' as view_name, COUNT(*) as record_count FROM quote_history
 UNION ALL
-SELECT 'purchase_history view' as view_name, COUNT(*) as record_count FROM purchase_history;
+SELECT 'purchase_history view' as view_name, COUNT(*) as record_count FROM purchase_history
+UNION ALL
+SELECT 'v_quote_history_analytics' as view_name, COUNT(*) as record_count FROM v_quote_history_analytics
+UNION ALL
+SELECT 'v_purchase_history_analytics' as view_name, COUNT(*) as record_count FROM v_purchase_history_analytics;
