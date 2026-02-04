@@ -17,14 +17,12 @@ ALTER TABLE "6.0_purchases"
   ADD COLUMN IF NOT EXISTS pi_number TEXT,
   ADD COLUMN IF NOT EXISTS pi_date DATE,
   ADD COLUMN IF NOT EXISTS pi_status public.proforma_invoices_status,
-  ADD COLUMN IF NOT EXISTS quote_id UUID,
-  ADD COLUMN IF NOT EXISTS replaces_pi_id UUID;
+  ADD COLUMN IF NOT EXISTS quote_id UUID;
 
 -- Step 2: Create indexes for new columns
 CREATE INDEX IF NOT EXISTS idx_purchases_pi_number ON "6.0_purchases"(pi_number) WHERE pi_number IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_purchases_pi_date ON "6.0_purchases"(pi_date) WHERE pi_date IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_purchases_quote_id ON "6.0_purchases"(quote_id) WHERE quote_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_purchases_replaces_pi_id ON "6.0_purchases"(replaces_pi_id) WHERE replaces_pi_id IS NOT NULL;
 
 -- Step 3: Migrate PI data into purchases (for the 16 POs that have PIs)
 UPDATE "6.0_purchases" p
@@ -32,20 +30,14 @@ SET
   pi_number = pi.pi_number,
   pi_date = pi.pi_date,
   pi_status = pi.status,
-  quote_id = pi.quote_id,
-  replaces_pi_id = pi.replaces_pi_id
+  quote_id = pi.quote_id
 FROM "5.0_proforma_invoices" pi
 WHERE p.pi_id = pi.pi_id;
 
--- Step 4: Add foreign key constraints for new columns
+-- Step 4: Add foreign key constraint for quote_id
 ALTER TABLE "6.0_purchases"
   ADD CONSTRAINT purchases_quote_id_fkey
   FOREIGN KEY (quote_id) REFERENCES "4.0_price_quotes"(quote_id)
-  ON UPDATE CASCADE ON DELETE SET NULL;
-
-ALTER TABLE "6.0_purchases"
-  ADD CONSTRAINT purchases_replaces_pi_id_fkey
-  FOREIGN KEY (replaces_pi_id) REFERENCES "6.0_purchases"(po_id)
   ON UPDATE CASCADE ON DELETE SET NULL;
 
 -- Step 5: Drop old pi_id foreign key constraint
