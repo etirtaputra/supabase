@@ -176,8 +176,6 @@ export interface DatabaseData {
   poItems: PurchaseLineItem[];
   payments: PaymentDetail[];
   landedCosts: LandedCost[];
-  poHistory: PurchaseHistory[];
-  quoteHistory: QuoteHistory[];
 }
 
 // Autocomplete suggestions structure

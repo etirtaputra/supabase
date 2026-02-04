@@ -23,8 +23,6 @@ export function useSupabaseData() {
     poItems: [],
     payments: [],
     landedCosts: [],
-    poHistory: [],
-    quoteHistory: [],
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -99,20 +97,6 @@ export function useSupabaseData() {
         .select('*')
         .then(({ data: landedCosts }) => {
           if (landedCosts) setData((prev) => ({ ...prev, landedCosts }));
-        });
-
-      supabase
-        .from(TABLE_NAMES.PURCHASE_HISTORY)
-        .select('*')
-        .then(({ data: poHistory }) => {
-          if (poHistory) setData((prev) => ({ ...prev, poHistory }));
-        });
-
-      supabase
-        .from(TABLE_NAMES.QUOTE_HISTORY)
-        .select('*')
-        .then(({ data: quoteHistory }) => {
-          if (quoteHistory) setData((prev) => ({ ...prev, quoteHistory }));
         });
 
       setLoading(false);
