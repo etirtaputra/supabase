@@ -189,6 +189,8 @@ export interface DatabaseData {
   pos: PurchaseOrder[];
   poItems: PurchaseLineItem[];
   poCosts: POCost[];
+  poHistory: PurchaseHistory[];
+  quoteHistory: QuoteHistory[];
 }
 
 // Autocomplete suggestions structure
