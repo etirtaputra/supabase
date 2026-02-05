@@ -19,7 +19,7 @@ SELECT
   p.po_id,
   p.po_number,
   p.po_date,
-  p.supplier_id,
+  q.supplier_id,
   s.supplier_name,
   p.total_value,
   p.currency,
@@ -75,13 +75,14 @@ SELECT
   END AS payment_status
 
 FROM "5.0_purchases" p
-LEFT JOIN "2.0_suppliers" s ON p.supplier_id = s.supplier_id
+LEFT JOIN "4.0_price_quotes" q ON p.quote_id = q.quote_id
+LEFT JOIN "2.0_suppliers" s ON q.supplier_id = s.supplier_id
 LEFT JOIN "6.0_po_costs" c ON p.po_id = c.po_id
 GROUP BY
   p.po_id,
   p.po_number,
   p.po_date,
-  p.supplier_id,
+  q.supplier_id,
   s.supplier_name,
   p.total_value,
   p.currency,
@@ -98,7 +99,7 @@ SELECT
   p.po_id,
   p.po_number,
   p.po_date,
-  p.supplier_id,
+  q.supplier_id,
   s.supplier_name,
   p.total_value AS po_value,
   p.currency,
@@ -179,13 +180,14 @@ SELECT
   ), 0) AS true_total_cost
 
 FROM "5.0_purchases" p
-LEFT JOIN "2.0_suppliers" s ON p.supplier_id = s.supplier_id
+LEFT JOIN "4.0_price_quotes" q ON p.quote_id = q.quote_id
+LEFT JOIN "2.0_suppliers" s ON q.supplier_id = s.supplier_id
 LEFT JOIN "6.0_po_costs" c ON p.po_id = c.po_id
 GROUP BY
   p.po_id,
   p.po_number,
   p.po_date,
-  p.supplier_id,
+  q.supplier_id,
   s.supplier_name,
   p.total_value,
   p.currency;
