@@ -37,6 +37,8 @@ export default function BatchLineItemsForm({
   const [pdfError, setPdfError] = useState('');
   const [showImportModal, setShowImportModal] = useState(false);
   const [importDismissed, setImportDismissed] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingData, setEditingData] = useState<Record<string, any>>({});
 
   // Compute linked quote data based on selected parent (PO)
   const linkedQuote = React.useMemo(() => {
@@ -106,11 +108,32 @@ export default function BatchLineItemsForm({
   const editItem = (id: number) => {
     const itemToEdit = items.find((i) => i._id === id);
     if (itemToEdit) {
-      // Move item back to draft form for editing
+      setEditingId(id);
       const { _id, ...itemData } = itemToEdit;
-      setDraft(itemData);
-      // Remove from items list
-      setItems(items.filter((i) => i._id !== id));
+      setEditingData(itemData);
+    }
+  };
+
+  const saveEdit = () => {
+    if (editingId !== null) {
+      setItems(items.map(item =>
+        item._id === editingId
+          ? { ...editingData, _id: editingId }
+          : item
+      ));
+      setEditingId(null);
+      setEditingData({});
+    }
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditingData({});
+  };
+
+  const clearAllItems = () => {
+    if (confirm('Remove all items? This cannot be undone.')) {
+      setItems([]);
     }
   };
 
@@ -519,55 +542,100 @@ export default function BatchLineItemsForm({
         </div>
       </div>
 
-      {/* Staged Items Table */}
+      {/* Staged Items List */}
       {items.length > 0 && (
         <div className="rounded-xl border border-slate-800 overflow-hidden shadow-lg animate-in fade-in slide-in-from-top-4 duration-300">
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs text-left text-slate-400 min-w-[600px]">
-              <thead className="bg-slate-900 uppercase font-bold text-slate-500 tracking-wider">
-                <tr>
-                  {itemFields.map((f) => (
-                    <th key={f.name} className="px-4 py-3 whitespace-nowrap">
-                      {f.label}
-                    </th>
-                  ))}
-                  <th className="px-4 py-3 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800 bg-slate-900/40">
-                {items.map((item) => (
-                  <tr key={item._id} className="hover:bg-slate-800/80 transition-colors">
-                    {itemFields.map((f) => (
-                      <td key={f.name} className="px-4 py-3 whitespace-nowrap text-slate-300 font-medium">
-                        {f.type === 'rich-select'
-                          ? f.options?.find(
-                              (o: any) => o[f.config?.valueKey || 'component_id'] === item[f.name]
-                            )?.[f.config?.labelKey || 'model_sku']
-                          : item[f.name]}
-                      </td>
-                    ))}
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
+          {/* Header with Clear All button */}
+          <div className="bg-slate-900 px-4 py-3 flex items-center justify-between border-b border-slate-800">
+            <div className="text-sm font-bold text-slate-400 uppercase tracking-wider">
+              {items.length} Item{items.length !== 1 ? 's' : ''} Added
+            </div>
+            <button
+              onClick={clearAllItems}
+              className="text-xs text-red-400 hover:text-red-300 hover:bg-red-900/30 px-3 py-1.5 rounded-lg transition-all font-medium"
+            >
+              🗑️ Clear All
+            </button>
+          </div>
+
+          {/* Mobile-optimized list */}
+          <div className="divide-y divide-slate-800 bg-slate-900/40">
+            {items.map((item) => {
+              const isEditing = editingId === item._id;
+              const displayData = isEditing ? editingData : item;
+
+              return (
+                <div key={item._id} className="p-4 hover:bg-slate-800/50 transition-colors">
+                  {isEditing ? (
+                    /* Inline Editing Mode */
+                    <div className="space-y-3">
+                      <div className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-3">
+                        ✏️ Editing Item
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {itemFields.map((f) => (
+                          <div key={f.name} className="flex flex-col gap-1">
+                            <label className="text-xs text-slate-400 font-medium">{f.label}</label>
+                            <FieldRenderer
+                              field={f}
+                              value={displayData[f.name]}
+                              onChange={(name, value) => setEditingData({ ...editingData, [name]: value })}
+                              formId={`${formId}-edit-${item._id}`}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex gap-2 pt-2">
+                        <button
+                          onClick={saveEdit}
+                          className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all"
+                        >
+                          ✓ Save
+                        </button>
+                        <button
+                          onClick={cancelEdit}
+                          className="flex-1 bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Display Mode */
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-2">
+                        {itemFields.map((f) => (
+                          <div key={f.name} className="flex flex-col">
+                            <span className="text-xs text-slate-500 font-medium">{f.label}</span>
+                            <span className="text-sm text-slate-200 font-medium">
+                              {f.type === 'rich-select'
+                                ? f.options?.find(
+                                    (o: any) => o[f.config?.valueKey || 'component_id'] === displayData[f.name]
+                                  )?.[f.config?.labelKey || 'model_sku'] || displayData[f.name]
+                                : displayData[f.name] || '-'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2 pt-2 border-t border-slate-800 mt-3">
                         <button
                           onClick={() => editItem(item._id)}
-                          className="text-blue-400 hover:text-blue-300 hover:bg-blue-900/30 px-3 py-1 rounded-lg transition-all text-xs font-bold"
-                          title="Edit this item"
+                          className="flex-1 sm:flex-initial text-blue-400 hover:text-blue-300 hover:bg-blue-900/30 px-4 py-2 rounded-lg transition-all text-sm font-medium"
                         >
                           ✏️ Edit
                         </button>
                         <button
                           onClick={() => removeItem(item._id)}
-                          className="text-red-400 hover:text-red-300 hover:bg-red-900/30 w-8 h-8 rounded-full flex items-center justify-center transition-all text-lg font-bold"
-                          title="Delete this item"
+                          className="flex-1 sm:flex-initial text-red-400 hover:text-red-300 hover:bg-red-900/30 px-4 py-2 rounded-lg transition-all text-sm font-medium"
                         >
-                          ×
+                          🗑️ Remove
                         </button>
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* Submit Section */}
