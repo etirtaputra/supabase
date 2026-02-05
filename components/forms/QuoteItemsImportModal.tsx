@@ -40,14 +40,6 @@ export default function QuoteItemsImportModal({
     return components.find(c => c.component_id === componentId);
   };
 
-  // Check if item is selected
-  const isItemSelected = (itemId: any): boolean => {
-    const idStr = String(itemId);
-    const result = selectedIds.includes(idStr);
-    console.log(`[QuoteImport] Checking if ${idStr} is selected:`, result, 'Array:', selectedIds);
-    return result;
-  };
-
   // Toggle selection
   const toggleItem = (itemId: any) => {
     const idStr = String(itemId);
@@ -167,37 +159,33 @@ export default function QuoteItemsImportModal({
             </div>
           ) : (
             quoteItems.map((item) => {
-              const isSelected = isItemSelected(item.quote_item_id);
+              const itemIdStr = String(item.quote_item_id);
+              const isSelected = selectedIds.includes(itemIdStr);
               const component = getComponent(item.component_id);
 
               return (
-                <div
+                <label
                   key={`quote-item-${item.quote_item_id}`}
                   className={`
-                    p-4 rounded-lg border cursor-pointer
-                    transition-all active:scale-[0.98]
+                    block p-4 rounded-lg border cursor-pointer
+                    transition-all
                     ${isSelected
                       ? 'bg-blue-900/30 border-blue-500 ring-2 ring-blue-500/20'
                       : 'bg-slate-900/50 border-slate-700 hover:border-slate-600 hover:bg-slate-900/70'
                     }
                   `}
-                  onClick={() => toggleItem(item.quote_item_id)}
                 >
                   <div className="flex items-start gap-3">
-                    {/* Custom Checkbox - Visual indicator only, parent div handles clicks */}
-                    <div className={`
-                      w-5 h-5 mt-1 rounded border-2 flex items-center justify-center transition-all flex-shrink-0
-                      ${isSelected
-                        ? 'bg-blue-600 border-blue-600'
-                        : 'bg-slate-800 border-slate-600'
-                      }
-                    `}>
-                      {isSelected && (
-                        <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
-                    </div>
+                    {/* Real checkbox with proper onChange */}
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        toggleItem(item.quote_item_id);
+                      }}
+                      className="w-5 h-5 mt-1 rounded border-slate-600 bg-slate-800 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 transition flex-shrink-0"
+                    />
 
                     {/* Item Details */}
                     <div className="flex-1 min-w-0">
@@ -238,7 +226,7 @@ export default function QuoteItemsImportModal({
                       </div>
                     </div>
                   </div>
-                </div>
+                </label>
               );
             })
           )}
