@@ -9,6 +9,7 @@
 import React, { useState, useId } from 'react';
 import FieldRenderer from './FieldRenderer';
 import { Spinner } from '../ui/LoadingSkeleton';
+import QuoteItemsImportModal from './QuoteItemsImportModal';
 import type { BatchLineItemsFormProps } from '../../types/forms';
 
 export default function BatchLineItemsForm({
@@ -20,6 +21,11 @@ export default function BatchLineItemsForm({
   loading,
   formId: customFormId,
   enablePdfUpload = false,
+  enableQuoteImport = false,
+  allQuoteItems = [],
+  allQuotes = [],
+  allPurchases = [],
+  components = [],
 }: BatchLineItemsFormProps) {
   const uniqueFormId = useId();
   const formId = customFormId || uniqueFormId;
@@ -29,6 +35,25 @@ export default function BatchLineItemsForm({
   const [draft, setDraft] = useState<Record<string, any>>({});
   const [pdfUploading, setPdfUploading] = useState(false);
   const [pdfError, setPdfError] = useState('');
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importDismissed, setImportDismissed] = useState(false);
+
+  // Compute linked quote data based on selected parent (PO)
+  const linkedQuote = React.useMemo(() => {
+    if (!enableQuoteImport || !parentId || !allPurchases.length) return null;
+
+    const selectedPO = allPurchases.find((po: any) => po.po_id === parentId);
+    if (!selectedPO?.quote_id) return null;
+
+    const quote = allQuotes.find((q: any) => q.quote_id === selectedPO.quote_id);
+    const quoteItems = allQuoteItems.filter((item: any) => item.quote_id === selectedPO.quote_id);
+
+    return {
+      quoteId: selectedPO.quote_id,
+      quoteNumber: quote?.pi_number || `Quote #${selectedPO.quote_id}`,
+      items: quoteItems,
+    };
+  }, [enableQuoteImport, parentId, allPurchases, allQuotes, allQuoteItems]);
 
   const handleDraftChange = (field: string, value: any) => {
     const updatedDraft = { ...draft, [field]: value };
@@ -270,6 +295,21 @@ export default function BatchLineItemsForm({
     }
   };
 
+  const handleImportQuoteItems = (importedItems: any[]) => {
+    // Add imported items with unique IDs
+    const newItems = importedItems.map((item, index) => ({
+      ...item,
+      _id: Date.now() + index,
+    }));
+
+    setItems([...items, ...newItems]);
+    setImportDismissed(true); // Hide the prompt after import
+  };
+
+  const handleStartFresh = () => {
+    setImportDismissed(true);
+  };
+
   const handleSubmit = () => {
     if (parentField && !parentId) {
       alert(`Select ${parentField.label}`);
@@ -341,6 +381,67 @@ export default function BatchLineItemsForm({
             </div>
           )}
         </div>
+      )}
+
+      {/* Quote Import - Smart Prompt (when PO has linked quote) */}
+      {enableQuoteImport && linkedQuote && !importDismissed && items.length === 0 && (
+        <div className="bg-gradient-to-r from-emerald-900/20 to-blue-900/20 border border-emerald-700/50 rounded-xl p-4">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">💡</span>
+              <div className="flex-1">
+                <h4 className="text-sm font-bold text-emerald-300 mb-1">
+                  This PO is linked to {linkedQuote.quoteNumber}
+                </h4>
+                <p className="text-xs text-slate-400">
+                  {linkedQuote.items.length > 0
+                    ? `Found ${linkedQuote.items.length} item${linkedQuote.items.length !== 1 ? 's' : ''} in the quote. Import them to save time!`
+                    : 'No items found in the linked quote.'
+                  }
+                </p>
+              </div>
+            </div>
+            {linkedQuote.items.length > 0 && (
+              <div className="flex flex-col sm:flex-row gap-2">
+                <button
+                  onClick={() => setShowImportModal(true)}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-lg font-medium transition-all shadow-lg active:scale-98"
+                >
+                  📋 Import Quote Items
+                </button>
+                <button
+                  onClick={handleStartFresh}
+                  className="flex-1 bg-slate-700 hover:bg-slate-600 text-white px-4 py-2.5 rounded-lg font-medium transition-all active:scale-98"
+                >
+                  Start Fresh
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Quote Import - Manual Button (always available when enabled) */}
+      {enableQuoteImport && linkedQuote && linkedQuote.items.length > 0 && (importDismissed || items.length > 0) && (
+        <div className="flex justify-end">
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="inline-flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all active:scale-98"
+          >
+            📋 Import from Quote
+          </button>
+        </div>
+      )}
+
+      {/* Quote Import Modal */}
+      {enableQuoteImport && linkedQuote && (
+        <QuoteItemsImportModal
+          isOpen={showImportModal}
+          quoteItems={linkedQuote.items}
+          components={components}
+          onSelect={handleImportQuoteItems}
+          onClose={() => setShowImportModal(false)}
+        />
       )}
 
       {/* Parent Selector (if provided) */}

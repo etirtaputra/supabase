@@ -342,6 +342,7 @@ function MasterInsertPage() {
                   <BatchLineItemsForm
                     title="2. PO Items"
                     enablePdfUpload={true}
+                    enableQuoteImport={true}
                     parentField={{ name: 'po_id', label: 'Select PO', options: options.pos }}
                     itemFields={[
                       { name: 'component_id', label: 'Component', type: 'rich-select', options: data.components, config: { labelKey: 'model_sku', valueKey: 'component_id', subLabelKey: 'description' }, req: true },
@@ -351,6 +352,10 @@ function MasterInsertPage() {
                       { name: 'currency', label: 'Curr', type: 'select', options: ENUMS.currency, req: true },
                     ]}
                     stickyFields={['currency']}
+                    allQuoteItems={data.quoteItems}
+                    allQuotes={data.quotes}
+                    allPurchases={data.pos}
+                    components={data.components}
                     onSubmit={(items) => handleInsert('5.1_purchase_line_items', items)}
                     loading={loading}
                   />

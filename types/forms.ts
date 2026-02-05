@@ -58,6 +58,11 @@ export interface BatchLineItemsFormProps {
   loading: boolean;
   formId?: string;
   enablePdfUpload?: boolean; // Enable PDF upload to pre-fill form
+  enableQuoteImport?: boolean; // Enable import from quote
+  allQuoteItems?: any[]; // All quote line items available
+  allQuotes?: any[]; // All quotes for lookup
+  allPurchases?: any[]; // All purchases for getting linked quote_id
+  components?: any[]; // Components for display in import modal
 }
 
 // Field renderer props
