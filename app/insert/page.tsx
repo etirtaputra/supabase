@@ -63,6 +63,41 @@ function MasterInsertPage() {
     [data]
   );
 
+  // Auto-match supplier and company from PDF data
+  const pdfDefaults = useMemo(() => {
+    if (!pdfData) return {};
+
+    const defaults: any = {};
+
+    // Match supplier by name
+    if (pdfData.supplier_name && data.suppliers.length > 0) {
+      const supplierName = pdfData.supplier_name.toLowerCase().trim();
+      const matchedSupplier = data.suppliers.find((s: any) =>
+        s.supplier_name?.toLowerCase().trim() === supplierName ||
+        s.supplier_name?.toLowerCase().includes(supplierName) ||
+        supplierName.includes(s.supplier_name?.toLowerCase())
+      );
+      if (matchedSupplier) {
+        defaults.supplier_id = matchedSupplier.supplier_id;
+      }
+    }
+
+    // Match company by name
+    if (pdfData.company_name && data.companies.length > 0) {
+      const companyName = pdfData.company_name.toLowerCase().trim();
+      const matchedCompany = data.companies.find((c: any) =>
+        c.legal_name?.toLowerCase().trim() === companyName ||
+        c.legal_name?.toLowerCase().includes(companyName) ||
+        companyName.includes(c.legal_name?.toLowerCase())
+      );
+      if (matchedCompany) {
+        defaults.company_id = matchedCompany.company_id;
+      }
+    }
+
+    return defaults;
+  }, [pdfData, data.suppliers, data.companies]);
+
   // Insert handler
   const handleInsert = async (table: string, insertData: any) => {
     setLoading(true);
@@ -119,7 +154,17 @@ function MasterInsertPage() {
 
       const extractedData = await response.json();
       setPdfData(extractedData);
-      showToast(`✅ Extracted ${extractedData.line_items?.length || 0} items from PDF!`, 'success');
+
+      // Build success message with auto-match info
+      let message = `✅ Extracted ${extractedData.line_items?.length || 0} items from PDF!`;
+      if (extractedData.supplier_name) {
+        message += `\n📦 Supplier: ${extractedData.supplier_name}`;
+      }
+      if (extractedData.company_name) {
+        message += `\n🏢 Addressed to: ${extractedData.company_name}`;
+      }
+
+      showToast(message, 'success');
 
       // Reset file input
       e.target.value = '';
@@ -235,8 +280,8 @@ function MasterInsertPage() {
                   <SimpleForm
                     title="Step 1: Quote Header"
                     fields={[
-                      { name: 'supplier_id', label: 'Supplier', type: 'rich-select', options: data.suppliers, config: { labelKey: 'supplier_name', valueKey: 'supplier_id', subLabelKey: 'location' }, req: true },
-                      { name: 'company_id', label: 'Addressed To', type: 'select', options: options.companies, req: true },
+                      { name: 'supplier_id', label: 'Supplier', type: 'rich-select', options: data.suppliers, config: { labelKey: 'supplier_name', valueKey: 'supplier_id', subLabelKey: 'location' }, req: true, default: pdfDefaults.supplier_id },
+                      { name: 'company_id', label: 'Addressed To', type: 'select', options: options.companies, req: true, default: pdfDefaults.company_id },
                       { name: 'quote_date', label: 'Date', type: 'date', req: true, default: pdfData?.quote_date || pdfData?.pi_date || new Date().toISOString().split('T')[0] },
                       { name: 'pi_number', label: 'Quote Ref', type: 'text', suggestions: suggestions.quoteNumbers, default: pdfData?.quote_number || pdfData?.pi_number },
                       { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true, default: pdfData?.currency },
