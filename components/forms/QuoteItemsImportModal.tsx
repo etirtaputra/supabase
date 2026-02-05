@@ -27,6 +27,13 @@ export default function QuoteItemsImportModal({
   // Fix: quote_item_id can be UUID string OR number, use any for Set
   const [selectedIds, setSelectedIds] = useState<Set<any>>(new Set());
 
+  // Force reset when modal opens
+  React.useEffect(() => {
+    if (isOpen) {
+      setSelectedIds(new Set());
+    }
+  }, [isOpen]);
+
   // Helper to get component details
   const getComponent = (componentId: number) => {
     return components.find(c => c.component_id === componentId);
@@ -41,13 +48,24 @@ export default function QuoteItemsImportModal({
 
   // Toggle selection - accept any type for itemId
   const toggleItem = (itemId: any) => {
-    const newSet = new Set(selectedIds);
-    if (newSet.has(itemId)) {
-      newSet.delete(itemId);
-    } else {
-      newSet.add(itemId);
-    }
-    setSelectedIds(newSet);
+    console.log('[QuoteImport] Toggle clicked for ID:', itemId, 'Type:', typeof itemId);
+    console.log('[QuoteImport] Current selected IDs:', Array.from(selectedIds));
+
+    setSelectedIds(prevIds => {
+      const newSet = new Set(prevIds);
+      const wasSelected = newSet.has(itemId);
+
+      if (wasSelected) {
+        console.log('[QuoteImport] Removing ID:', itemId);
+        newSet.delete(itemId);
+      } else {
+        console.log('[QuoteImport] Adding ID:', itemId);
+        newSet.add(itemId);
+      }
+
+      console.log('[QuoteImport] New selected IDs:', Array.from(newSet));
+      return newSet;
+    });
   };
 
   // Select all
@@ -144,6 +162,11 @@ export default function QuoteItemsImportModal({
             quoteItems.map((item) => {
               const isSelected = selectedIds.has(item.quote_item_id);
               const component = getComponent(item.component_id);
+
+              // Debug logging
+              if (typeof window !== 'undefined') {
+                console.log('[QuoteImport] Rendering item:', item.quote_item_id, 'Type:', typeof item.quote_item_id, 'Selected:', isSelected);
+              }
 
               return (
                 <div
