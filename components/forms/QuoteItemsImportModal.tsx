@@ -31,9 +31,14 @@ export default function QuoteItemsImportModal({
   React.useEffect(() => {
     if (isOpen) {
       console.log('[QuoteImport] Modal opened, resetting selection');
+      console.log('[QuoteImport] Quote Items received:', quoteItems);
+      if (quoteItems.length > 0) {
+        console.log('[QuoteImport] First item keys:', Object.keys(quoteItems[0]));
+        console.log('[QuoteImport] First item full object:', quoteItems[0]);
+      }
       setSelectedIds([]);
     }
-  }, [isOpen]);
+  }, [isOpen, quoteItems]);
 
   // Helper to get component details
   const getComponent = (componentId: number) => {
