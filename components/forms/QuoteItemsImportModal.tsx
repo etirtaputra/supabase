@@ -145,24 +145,29 @@ export default function QuoteItemsImportModal({
               const component = getComponent(item.component_id);
 
               return (
-                <label
+                <div
                   key={item.quote_item_id}
                   className={`
-                    block p-4 rounded-lg border cursor-pointer
+                    p-4 rounded-lg border cursor-pointer
                     transition-all active:scale-[0.98]
                     ${isSelected
                       ? 'bg-blue-900/30 border-blue-500 ring-2 ring-blue-500/20'
                       : 'bg-slate-900/50 border-slate-700 hover:border-slate-600 hover:bg-slate-900/70'
                     }
                   `}
+                  onClick={() => toggleItem(item.quote_item_id)}
                 >
                   <div className="flex items-start gap-3">
                     {/* Checkbox */}
                     <input
                       type="checkbox"
                       checked={isSelected}
-                      onChange={() => toggleItem(item.quote_item_id)}
-                      className="w-5 h-5 mt-1 rounded border-slate-600 bg-slate-800 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 transition"
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        toggleItem(item.quote_item_id);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-5 h-5 mt-1 rounded border-slate-600 bg-slate-800 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 transition pointer-events-none"
                     />
 
                     {/* Item Details */}
@@ -204,7 +209,7 @@ export default function QuoteItemsImportModal({
                       </div>
                     </div>
                   </div>
-                </label>
+                </div>
               );
             })
           )}
