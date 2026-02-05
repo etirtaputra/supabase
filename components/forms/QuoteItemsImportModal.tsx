@@ -6,7 +6,7 @@
 
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import type { PriceQuoteLineItem, Component } from '@/types/database';
 
 interface QuoteItemsImportModalProps {
@@ -24,13 +24,14 @@ export default function QuoteItemsImportModal({
   onSelect,
   onClose,
 }: QuoteItemsImportModalProps) {
-  // Fix: quote_item_id can be UUID string OR number, use any for Set
-  const [selectedIds, setSelectedIds] = useState<Set<any>>(new Set());
+  // Use ARRAY instead of Set - simpler and more reliable
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   // Force reset when modal opens
   React.useEffect(() => {
     if (isOpen) {
-      setSelectedIds(new Set());
+      console.log('[QuoteImport] Modal opened, resetting selection');
+      setSelectedIds([]);
     }
   }, [isOpen]);
 
@@ -39,49 +40,54 @@ export default function QuoteItemsImportModal({
     return components.find(c => c.component_id === componentId);
   };
 
-  // Helper to format component name
-  const getComponentName = (componentId: number) => {
-    const comp = getComponent(componentId);
-    if (!comp) return 'Unknown Component';
-    return comp.model_sku || comp.description || 'Component';
+  // Check if item is selected
+  const isItemSelected = (itemId: any): boolean => {
+    const idStr = String(itemId);
+    const result = selectedIds.includes(idStr);
+    console.log(`[QuoteImport] Checking if ${idStr} is selected:`, result, 'Array:', selectedIds);
+    return result;
   };
 
-  // Toggle selection - accept any type for itemId
+  // Toggle selection
   const toggleItem = (itemId: any) => {
-    console.log('[QuoteImport] Toggle clicked for ID:', itemId, 'Type:', typeof itemId);
-    console.log('[QuoteImport] Current selected IDs:', Array.from(selectedIds));
+    const idStr = String(itemId);
+    console.log('[QuoteImport] Toggle clicked for ID:', idStr);
+    console.log('[QuoteImport] Current selected IDs:', selectedIds);
 
-    setSelectedIds(prevIds => {
-      const newSet = new Set(prevIds);
-      const wasSelected = newSet.has(itemId);
+    setSelectedIds(prev => {
+      const isCurrentlySelected = prev.includes(idStr);
 
-      if (wasSelected) {
-        console.log('[QuoteImport] Removing ID:', itemId);
-        newSet.delete(itemId);
+      if (isCurrentlySelected) {
+        console.log('[QuoteImport] Removing ID:', idStr);
+        const newArray = prev.filter(id => id !== idStr);
+        console.log('[QuoteImport] New selected IDs:', newArray);
+        return newArray;
       } else {
-        console.log('[QuoteImport] Adding ID:', itemId);
-        newSet.add(itemId);
+        console.log('[QuoteImport] Adding ID:', idStr);
+        const newArray = [...prev, idStr];
+        console.log('[QuoteImport] New selected IDs:', newArray);
+        return newArray;
       }
-
-      console.log('[QuoteImport] New selected IDs:', Array.from(newSet));
-      return newSet;
     });
   };
 
   // Select all
   const selectAll = () => {
-    setSelectedIds(new Set(quoteItems.map(item => item.quote_item_id)));
+    const allIds = quoteItems.map(item => String(item.quote_item_id));
+    console.log('[QuoteImport] Select All:', allIds);
+    setSelectedIds(allIds);
   };
 
   // Deselect all
   const deselectAll = () => {
-    setSelectedIds(new Set());
+    console.log('[QuoteImport] Clear All');
+    setSelectedIds([]);
   };
 
   // Handle import
   const handleImport = () => {
     const selectedItems = quoteItems
-      .filter(item => selectedIds.has(item.quote_item_id))
+      .filter(item => selectedIds.includes(String(item.quote_item_id)))
       .map(item => ({
         component_id: item.component_id,
         supplier_description: item.supplier_description,
@@ -90,8 +96,9 @@ export default function QuoteItemsImportModal({
         currency: item.currency,
       }));
 
+    console.log('[QuoteImport] Importing items:', selectedItems.length);
     onSelect(selectedItems);
-    setSelectedIds(new Set()); // Reset selection
+    setSelectedIds([]); // Reset selection
     onClose();
   };
 
@@ -144,7 +151,7 @@ export default function QuoteItemsImportModal({
               Clear
             </button>
             <div className="ml-auto text-sm text-slate-400">
-              {selectedIds.size} of {quoteItems.length} selected
+              {selectedIds.length} of {quoteItems.length} selected
             </div>
           </div>
         )}
@@ -160,17 +167,12 @@ export default function QuoteItemsImportModal({
             </div>
           ) : (
             quoteItems.map((item) => {
-              const isSelected = selectedIds.has(item.quote_item_id);
+              const isSelected = isItemSelected(item.quote_item_id);
               const component = getComponent(item.component_id);
-
-              // Debug logging
-              if (typeof window !== 'undefined') {
-                console.log('[QuoteImport] Rendering item:', item.quote_item_id, 'Type:', typeof item.quote_item_id, 'Selected:', isSelected);
-              }
 
               return (
                 <div
-                  key={item.quote_item_id}
+                  key={`quote-item-${item.quote_item_id}`}
                   className={`
                     p-4 rounded-lg border cursor-pointer
                     transition-all active:scale-[0.98]
@@ -184,7 +186,7 @@ export default function QuoteItemsImportModal({
                   <div className="flex items-start gap-3">
                     {/* Custom Checkbox - Visual indicator only, parent div handles clicks */}
                     <div className={`
-                      w-5 h-5 mt-1 rounded border-2 flex items-center justify-center transition-all
+                      w-5 h-5 mt-1 rounded border-2 flex items-center justify-center transition-all flex-shrink-0
                       ${isSelected
                         ? 'bg-blue-600 border-blue-600'
                         : 'bg-slate-800 border-slate-600'
@@ -253,10 +255,10 @@ export default function QuoteItemsImportModal({
             </button>
             <button
               onClick={handleImport}
-              disabled={selectedIds.size === 0}
+              disabled={selectedIds.length === 0}
               className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all shadow-lg disabled:shadow-none"
             >
-              Add {selectedIds.size > 0 ? `${selectedIds.size} Item${selectedIds.size !== 1 ? 's' : ''}` : 'Items'}
+              Add {selectedIds.length > 0 ? `${selectedIds.length} Item${selectedIds.length !== 1 ? 's' : ''}` : 'Items'}
             </button>
           </div>
         </div>
