@@ -30,8 +30,8 @@ const RichDropdown = memo(function RichDropdown({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const labelKey = config.labelKey || 'model_sku';
-  const subLabelKey = config.subLabelKey || 'description';
+  const labelKey = config.labelKey || 'supplier_model';
+  const subLabelKey = config.subLabelKey || 'internal_description';
   const valueKey = config.valueKey || 'component_id';
 
   // Update display text when value changes

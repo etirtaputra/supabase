@@ -62,8 +62,8 @@ export interface Supplier extends BaseEntity {
 // 3.0 Components
 export interface Component extends BaseEntity {
   component_id: number;
-  model_sku: string;
-  description: string;
+  supplier_model: string;
+  internal_description: string;
   brand?: string;
   category?: ProductCategory;
   specifications?: Record<string, any>;

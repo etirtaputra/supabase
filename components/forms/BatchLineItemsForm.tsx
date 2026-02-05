@@ -69,7 +69,7 @@ export default function BatchLineItemsForm({
         );
         if (selectedComponent) {
           // Auto-fill supplier_description with component's description
-          updatedDraft.supplier_description = selectedComponent.description || selectedComponent.model_sku || '';
+          updatedDraft.supplier_description = selectedComponent.internal_description || selectedComponent.supplier_model || '';
         }
       }
     }
@@ -223,15 +223,15 @@ export default function BatchLineItemsForm({
               // Strategy 1: Exact SKU match (case-insensitive)
               if (searchSku) {
                 matchedComponent = components.find(
-                  (c: any) => c.model_sku?.toLowerCase().trim() === searchSku
+                  (c: any) => c.supplier_model?.toLowerCase().trim() === searchSku
                 );
               }
 
               // Strategy 2: Partial SKU match (contains)
               if (!matchedComponent && searchSku) {
                 matchedComponent = components.find(
-                  (c: any) => c.model_sku?.toLowerCase().includes(searchSku) ||
-                             searchSku.includes(c.model_sku?.toLowerCase())
+                  (c: any) => c.supplier_model?.toLowerCase().includes(searchSku) ||
+                             searchSku.includes(c.supplier_model?.toLowerCase())
                 );
               }
 
@@ -239,7 +239,7 @@ export default function BatchLineItemsForm({
               if (!matchedComponent && searchBrand && searchDesc) {
                 matchedComponent = components.find((c: any) => {
                   const componentBrand = c.brand?.toLowerCase().trim() || '';
-                  const componentDesc = c.description?.toLowerCase().trim() || '';
+                  const componentDesc = c.internal_description?.toLowerCase().trim() || '';
                   const brandMatch = componentBrand === searchBrand;
                   const descMatch = componentDesc.includes(searchDesc) || searchDesc.includes(componentDesc);
                   return brandMatch && descMatch;
@@ -249,7 +249,7 @@ export default function BatchLineItemsForm({
               // Strategy 4: Match by description alone (if longer than 10 chars)
               if (!matchedComponent && searchDesc && searchDesc.length > 10) {
                 matchedComponent = components.find((c: any) => {
-                  const componentDesc = c.description?.toLowerCase().trim() || '';
+                  const componentDesc = c.internal_description?.toLowerCase().trim() || '';
                   return componentDesc.includes(searchDesc) || searchDesc.includes(componentDesc);
                 });
               }
@@ -257,8 +257,8 @@ export default function BatchLineItemsForm({
               if (matchedComponent) {
                 baseItem.component_id = matchedComponent.component_id;
                 // Use the matched component's description as supplier_description
-                baseItem.supplier_description = matchedComponent.description || matchedComponent.model_sku || '';
-                console.log(`✅ Auto-matched: "${searchSku || searchDesc}" → Component ID ${matchedComponent.component_id} (${matchedComponent.model_sku})`);
+                baseItem.supplier_description = matchedComponent.internal_description || matchedComponent.supplier_model || '';
+                console.log(`✅ Auto-matched: "${searchSku || searchDesc}" → Component ID ${matchedComponent.component_id} (${matchedComponent.supplier_model})`);
               } else {
                 // No match found - use PDF description as fallback
                 baseItem.supplier_description = item.description || item.supplier_description || '';
@@ -611,7 +611,7 @@ export default function BatchLineItemsForm({
                               {f.type === 'rich-select'
                                 ? f.options?.find(
                                     (o: any) => o[f.config?.valueKey || 'component_id'] === displayData[f.name]
-                                  )?.[f.config?.labelKey || 'model_sku'] || displayData[f.name]
+                                  )?.[f.config?.labelKey || 'supplier_model'] || displayData[f.name]
                                 : displayData[f.name] || '-'}
                             </span>
                           </div>
