@@ -70,7 +70,7 @@ export default function QuoteItemsImportModal({
 
   // Select all
   const selectAll = () => {
-    const allIds = quoteItems.map(item => String(item.quote_item_id));
+    const allIds = quoteItems.map(item => String(item.quote_line_id));
     console.log('[QuoteImport] Select All:', allIds);
     setSelectedIds(allIds);
   };
@@ -84,7 +84,7 @@ export default function QuoteItemsImportModal({
   // Handle import
   const handleImport = () => {
     const selectedItems = quoteItems
-      .filter(item => selectedIds.includes(String(item.quote_item_id)))
+      .filter(item => selectedIds.includes(String(item.quote_line_id)))
       .map(item => ({
         component_id: item.component_id,
         supplier_description: item.supplier_description,
@@ -164,13 +164,13 @@ export default function QuoteItemsImportModal({
             </div>
           ) : (
             quoteItems.map((item) => {
-              const itemIdStr = String(item.quote_item_id);
+              const itemIdStr = String(item.quote_line_id);
               const isSelected = selectedIds.includes(itemIdStr);
               const component = getComponent(item.component_id);
 
               return (
                 <label
-                  key={`quote-item-${item.quote_item_id}`}
+                  key={`quote-item-${item.quote_line_id}`}
                   className={`
                     block p-4 rounded-lg border cursor-pointer
                     transition-all
@@ -187,7 +187,7 @@ export default function QuoteItemsImportModal({
                       checked={isSelected}
                       onChange={(e) => {
                         e.stopPropagation();
-                        toggleItem(item.quote_item_id);
+                        toggleItem(item.quote_line_id);
                       }}
                       className="w-5 h-5 mt-1 rounded border-slate-600 bg-slate-800 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 transition flex-shrink-0"
                     />

@@ -85,7 +85,7 @@ export interface PriceQuote extends BaseEntity {
 
 // 4.1 Price Quote Line Items
 export interface PriceQuoteLineItem extends BaseEntity {
-  quote_item_id: number;
+  quote_line_id: number;
   quote_id: number;
   component_id: number;
   supplier_description?: string;
