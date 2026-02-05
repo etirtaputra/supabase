@@ -24,7 +24,8 @@ export default function QuoteItemsImportModal({
   onSelect,
   onClose,
 }: QuoteItemsImportModalProps) {
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  // Fix: quote_item_id can be UUID string OR number, use any for Set
+  const [selectedIds, setSelectedIds] = useState<Set<any>>(new Set());
 
   // Helper to get component details
   const getComponent = (componentId: number) => {
@@ -38,8 +39,8 @@ export default function QuoteItemsImportModal({
     return comp.model_sku || comp.description || 'Component';
   };
 
-  // Toggle selection
-  const toggleItem = (itemId: number) => {
+  // Toggle selection - accept any type for itemId
+  const toggleItem = (itemId: any) => {
     const newSet = new Set(selectedIds);
     if (newSet.has(itemId)) {
       newSet.delete(itemId);
