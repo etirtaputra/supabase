@@ -196,13 +196,13 @@ export default function QuoteItemsImportModal({
                     <div className="flex-1 min-w-0">
                       {/* Component Name */}
                       <div className="font-medium text-white mb-1">
-                        {component?.model_sku || 'Unknown Component'}
+                        {component?.supplier_model || 'Unknown Component'}
                       </div>
 
                       {/* Component Description */}
-                      {component?.description && (
+                      {component?.internal_description && (
                         <div className="text-sm text-slate-400 mb-2">
-                          {component.description}
+                          {component.internal_description}
                         </div>
                       )}
 

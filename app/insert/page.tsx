@@ -221,8 +221,8 @@ function MasterInsertPage() {
                   <SimpleForm
                     title="Add New Component"
                     fields={[
-                      { name: 'model_sku', label: 'Model / SKU', type: 'text', req: true, suggestions: suggestions.modelSkus },
-                      { name: 'description', label: 'Description', type: 'text', req: true, suggestions: suggestions.descriptions },
+                      { name: 'supplier_model', label: 'Supplier Model / SKU', type: 'text', req: true, suggestions: suggestions.modelSkus },
+                      { name: 'internal_description', label: 'Internal Description', type: 'text', req: true, suggestions: suggestions.descriptions },
                       { name: 'brand', label: 'Brand', type: 'text', suggestions: suggestions.brands },
                       { name: 'category', label: 'Category', type: 'select', options: ENUMS.product_category },
                       { name: 'specifications', label: 'Specs (JSON)', type: 'textarea', placeholder: '{"watts": 100}' },
@@ -298,7 +298,7 @@ function MasterInsertPage() {
                     enablePdfUpload={true}
                     parentField={{ name: 'quote_id', label: 'Select Quote', options: options.quotes }}
                     itemFields={[
-                      { name: 'component_id', label: 'Component', type: 'rich-select', options: data.components, config: { labelKey: 'model_sku', valueKey: 'component_id', subLabelKey: 'description' }, req: true },
+                      { name: 'component_id', label: 'Component', type: 'rich-select', options: data.components, config: { labelKey: 'supplier_model', valueKey: 'component_id', subLabelKey: 'internal_description' }, req: true },
                       { name: 'supplier_description', label: 'Supplier Desc', type: 'text' },
                       { name: 'quantity', label: 'Qty', type: 'number', req: true },
                       { name: 'unit_price', label: 'Price', type: 'number', req: true },
@@ -390,7 +390,7 @@ function MasterInsertPage() {
                     enableQuoteImport={true}
                     parentField={{ name: 'po_id', label: 'Select PO', options: options.pos }}
                     itemFields={[
-                      { name: 'component_id', label: 'Component', type: 'rich-select', options: data.components, config: { labelKey: 'model_sku', valueKey: 'component_id', subLabelKey: 'description' }, req: true },
+                      { name: 'component_id', label: 'Component', type: 'rich-select', options: data.components, config: { labelKey: 'supplier_model', valueKey: 'component_id', subLabelKey: 'internal_description' }, req: true },
                       { name: 'supplier_description', label: 'Supplier Desc', type: 'text' },
                       { name: 'quantity', label: 'Qty', type: 'number', req: true },
                       { name: 'unit_cost', label: 'Cost', type: 'number', req: true },

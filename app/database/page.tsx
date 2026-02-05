@@ -14,7 +14,7 @@ export default function DatabaseViewPage() {
 
   // Helper functions
   const getSupplierName = (id: any) => data.suppliers.find((s) => s.supplier_id === id)?.supplier_name || 'Unknown';
-  const getComponentSku = (id: any) => data.components.find((c) => c.component_id === id)?.model_sku || 'Unknown';
+  const getComponentSku = (id: any) => data.components.find((c) => c.component_id === id)?.supplier_model || 'Unknown';
 
   return (
     <ToastProvider>
@@ -54,8 +54,8 @@ export default function DatabaseViewPage() {
                   title="Components"
                   data={data.components}
                   columns={[
-                    { key: 'model_sku', label: 'SKU' },
-                    { key: 'description', label: 'Description' },
+                    { key: 'supplier_model', label: 'Supplier Model' },
+                    { key: 'internal_description', label: 'Internal Description' },
                     { key: 'brand', label: 'Brand' },
                     { key: 'category', label: 'Category' },
                   ]}
