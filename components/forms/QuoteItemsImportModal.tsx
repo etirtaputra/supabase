@@ -159,15 +159,11 @@ export default function QuoteItemsImportModal({
                   onClick={() => toggleItem(item.quote_item_id)}
                 >
                   <div className="flex items-start gap-3">
-                    {/* Checkbox */}
+                    {/* Checkbox - Visual indicator only, parent div handles clicks */}
                     <input
                       type="checkbox"
                       checked={isSelected}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        toggleItem(item.quote_item_id);
-                      }}
-                      onClick={(e) => e.stopPropagation()}
+                      readOnly
                       className="w-5 h-5 mt-1 rounded border-slate-600 bg-slate-800 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 transition pointer-events-none"
                     />
 
