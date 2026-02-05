@@ -12,7 +12,7 @@
 CREATE OR REPLACE FUNCTION recalculate_po_total()
 RETURNS TRIGGER AS $$
 DECLARE
-  total_value NUMERIC;
+  new_total_value NUMERIC;
   target_po_id UUID;
 BEGIN
   -- Determine which PO to recalculate
@@ -24,13 +24,13 @@ BEGIN
 
   -- Calculate total from line items (FIXED: now uses 5.1_purchase_line_items)
   SELECT COALESCE(SUM(quantity * unit_cost), 0)
-  INTO total_value
+  INTO new_total_value
   FROM "5.1_purchase_line_items"
   WHERE po_id = target_po_id;
 
   -- Update the PO total_value (FIXED: now uses 5.0_purchases)
   UPDATE "5.0_purchases"
-  SET total_value = total_value
+  SET total_value = new_total_value
   WHERE po_id = target_po_id;
 
   -- Return appropriate record
