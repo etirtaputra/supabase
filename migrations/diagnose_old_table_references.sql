@@ -19,11 +19,10 @@ SELECT
   schemaname,
   tablename,
   policyname as name,
-  pg_get_expr(qual, relid) as definition
-FROM pg_policies p
-JOIN pg_class c ON c.relname = p.tablename
-WHERE pg_get_expr(qual, relid) LIKE '%6.0_purchases%'
-   OR pg_get_expr(qual, relid) LIKE '%6.1_purchase%';
+  qual as definition
+FROM pg_policies
+WHERE qual LIKE '%6.0_purchases%'
+   OR qual LIKE '%6.1_purchase%';
 
 -- Check for check constraints
 SELECT
