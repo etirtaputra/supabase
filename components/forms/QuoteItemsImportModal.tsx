@@ -27,6 +27,13 @@ export default function QuoteItemsImportModal({
   // Fix: quote_item_id can be UUID string OR number, use any for Set
   const [selectedIds, setSelectedIds] = useState<Set<any>>(new Set());
 
+  // Force reset when modal opens
+  React.useEffect(() => {
+    if (isOpen) {
+      setSelectedIds(new Set());
+    }
+  }, [isOpen]);
+
   // Helper to get component details
   const getComponent = (componentId: number) => {
     return components.find(c => c.component_id === componentId);
@@ -41,13 +48,24 @@ export default function QuoteItemsImportModal({
 
   // Toggle selection - accept any type for itemId
   const toggleItem = (itemId: any) => {
-    const newSet = new Set(selectedIds);
-    if (newSet.has(itemId)) {
-      newSet.delete(itemId);
-    } else {
-      newSet.add(itemId);
-    }
-    setSelectedIds(newSet);
+    console.log('[QuoteImport] Toggle clicked for ID:', itemId, 'Type:', typeof itemId);
+    console.log('[QuoteImport] Current selected IDs:', Array.from(selectedIds));
+
+    setSelectedIds(prevIds => {
+      const newSet = new Set(prevIds);
+      const wasSelected = newSet.has(itemId);
+
+      if (wasSelected) {
+        console.log('[QuoteImport] Removing ID:', itemId);
+        newSet.delete(itemId);
+      } else {
+        console.log('[QuoteImport] Adding ID:', itemId);
+        newSet.add(itemId);
+      }
+
+      console.log('[QuoteImport] New selected IDs:', Array.from(newSet));
+      return newSet;
+    });
   };
 
   // Select all
@@ -145,6 +163,11 @@ export default function QuoteItemsImportModal({
               const isSelected = selectedIds.has(item.quote_item_id);
               const component = getComponent(item.component_id);
 
+              // Debug logging
+              if (typeof window !== 'undefined') {
+                console.log('[QuoteImport] Rendering item:', item.quote_item_id, 'Type:', typeof item.quote_item_id, 'Selected:', isSelected);
+              }
+
               return (
                 <div
                   key={item.quote_item_id}
@@ -159,13 +182,20 @@ export default function QuoteItemsImportModal({
                   onClick={() => toggleItem(item.quote_item_id)}
                 >
                   <div className="flex items-start gap-3">
-                    {/* Checkbox - Visual indicator only, parent div handles clicks */}
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      readOnly
-                      className="w-5 h-5 mt-1 rounded border-slate-600 bg-slate-800 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 transition pointer-events-none"
-                    />
+                    {/* Custom Checkbox - Visual indicator only, parent div handles clicks */}
+                    <div className={`
+                      w-5 h-5 mt-1 rounded border-2 flex items-center justify-center transition-all
+                      ${isSelected
+                        ? 'bg-blue-600 border-blue-600'
+                        : 'bg-slate-800 border-slate-600'
+                      }
+                    `}>
+                      {isSelected && (
+                        <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
 
                     {/* Item Details */}
                     <div className="flex-1 min-w-0">
