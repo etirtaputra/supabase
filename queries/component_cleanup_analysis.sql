@@ -209,13 +209,25 @@ LEFT JOIN (
 ) po_usage ON c.component_id = po_usage.component_id
 
 ORDER BY
-  CASE status
-    WHEN '❌ UNUSED - Candidate for deletion' THEN 1
-    WHEN '⚠️ INACTIVE - Not used in 1+ year' THEN 2
-    WHEN '⏸️ DORMANT - Not used in 6+ months' THEN 3
-    ELSE 4
+  CASE
+    WHEN COALESCE(quote_usage.quote_count, 0) = 0 AND COALESCE(po_usage.po_count, 0) = 0
+      THEN 1  -- UNUSED
+    WHEN EXTRACT(DAY FROM (NOW() - GREATEST(
+      COALESCE(quote_usage.last_quote_date, '1900-01-01'::date),
+      COALESCE(po_usage.last_po_date, '1900-01-01'::date)
+    ))) > 365
+      THEN 2  -- INACTIVE
+    WHEN EXTRACT(DAY FROM (NOW() - GREATEST(
+      COALESCE(quote_usage.last_quote_date, '1900-01-01'::date),
+      COALESCE(po_usage.last_po_date, '1900-01-01'::date)
+    ))) > 180
+      THEN 3  -- DORMANT
+    ELSE 4  -- ACTIVE
   END,
-  last_used_date DESC NULLS LAST;
+  GREATEST(
+    COALESCE(quote_usage.last_quote_date, '1900-01-01'::date),
+    COALESCE(po_usage.last_po_date, '1900-01-01'::date)
+  ) DESC NULLS LAST;
 
 
 -- ============================================================================
