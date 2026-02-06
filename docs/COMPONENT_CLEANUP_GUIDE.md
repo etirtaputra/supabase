@@ -39,7 +39,8 @@ This guide helps you safely clean up and standardize your components database.
 
 **What it finds:**
 - Components not used in ANY quotes or POs
-- Shows age (days_old) to help determine if truly obsolete
+- Shows days_since_last_update to help determine if truly obsolete
+- Note: Uses `updated_at` field (components table may not have `created_at`)
 
 **Action:**
 ```sql
@@ -47,12 +48,12 @@ This guide helps you safely clean up and standardize your components database.
 \copy (SELECT * FROM orphaned_components_query) TO 'orphaned_components.csv' CSV HEADER;
 
 -- Review in spreadsheet:
--- - Components < 30 days old: Might be for upcoming quotes - KEEP
--- - Components 30-90 days: Review carefully
--- - Components > 90 days: Likely safe to delete
+-- - Components updated < 30 days ago: Might be for upcoming quotes - KEEP
+-- - Components 30-90 days since update: Review carefully
+-- - Components > 90 days since update: Likely safe to delete
 ```
 
-**⚠️ Warning:** Don't delete components created in the last 30 days - they might be for upcoming quotes!
+**⚠️ Warning:** Don't delete components updated in the last 30 days - they might be for upcoming quotes!
 
 ---
 
@@ -67,7 +68,7 @@ This guide helps you safely clean up and standardize your components database.
 **Example duplicates:**
 | Comp 1 | Comp 2 | Match % | Recommendation |
 |--------|--------|---------|----------------|
-| "Samsung LCD 6.1inch" | "Samsung LCD 6.1"" | 85% | Merge - keep longer name |
+| "Samsung LCD 6.1inch" | "Samsung LCD 6.1\" AMOLED" | 85% | Merge - keep longer name |
 | "XYZ-123" | "XYZ 123" | 90% | Merge - standardize format |
 | "Power Supply 5V" (unused) | "Power Supply 5V 2A" (used 10x) | 70% | Delete first, keep second |
 
@@ -113,13 +114,13 @@ COMMIT;
 
 **Decision Matrix:**
 ```
-Status          | Usage Count | Age      | Action
-----------------|-------------|----------|------------------
-UNUSED          | 0           | >90 days | DELETE
-UNUSED          | 0           | <90 days | REVIEW (might be new)
-INACTIVE        | >0          | Any      | ARCHIVE (keep for history)
-DORMANT         | >0          | Any      | MONITOR
-ACTIVE          | >0          | Any      | KEEP
+Status          | Usage Count | Days Since Update | Action
+----------------|-------------|-------------------|------------------
+UNUSED          | 0           | >90               | DELETE
+UNUSED          | 0           | <90               | REVIEW (might be new)
+INACTIVE        | >0          | Any               | ARCHIVE (keep for history)
+DORMANT         | >0          | Any               | MONITOR
+ACTIVE          | >0          | Any               | KEEP
 ```
 
 ---

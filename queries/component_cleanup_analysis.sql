@@ -16,11 +16,11 @@ SELECT
   c.internal_description,
   c.brand,
   c.category,
-  c.created_at,
   c.updated_at,
 
   -- Age of component (helps decide if it's truly obsolete)
-  EXTRACT(DAY FROM (NOW() - c.created_at)) AS days_old,
+  -- Using updated_at as proxy for age since created_at may not exist
+  EXTRACT(DAY FROM (NOW() - c.updated_at)) AS days_since_last_update,
 
   -- Why it's orphaned
   'Not used in any quote or PO' AS reason
@@ -40,7 +40,7 @@ WHERE
     WHERE pli.component_id = c.component_id
   )
 
-ORDER BY c.created_at DESC;
+ORDER BY c.updated_at DESC NULLS LAST;
 
 -- Export this to CSV and review before deleting!
 -- Components created recently might be for upcoming quotes
