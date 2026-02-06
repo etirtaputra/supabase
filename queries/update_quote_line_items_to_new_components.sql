@@ -15,7 +15,7 @@
 
 SELECT
   q.quote_id,
-  q.quote_number,
+  q.pi_number,
   q.supplier_id,
   s.supplier_name,
 
@@ -58,7 +58,7 @@ WHERE q.supplier_id IN (
   'b0c03580-f471-4637-bc33-d094781c98d5'   -- SUPREME
 )
 
-ORDER BY q.supplier_id, q.quote_number, qli.line_item_id;
+ORDER BY q.supplier_id, q.pi_number, qli.line_item_id;
 
 -- Review the above! Make sure:
 -- 1. old_component_id and new_component_id are different
@@ -190,7 +190,7 @@ COMMIT;
 
 SELECT
   q.quote_id,
-  q.quote_number,
+  q.pi_number,
   q.supplier_id,
   s.supplier_name,
 
@@ -219,7 +219,7 @@ WHERE q.supplier_id IN (
   'b0c03580-f471-4637-bc33-d094781c98d5'   -- Should all show SUPREME brand
 )
 
-ORDER BY q.supplier_id, q.quote_number, qli.line_item_id;
+ORDER BY q.supplier_id, q.pi_number, qli.line_item_id;
 
 
 -- ============================================================================
@@ -229,7 +229,7 @@ ORDER BY q.supplier_id, q.quote_number, qli.line_item_id;
 -- This should return 0 rows if everything is correct
 SELECT
   q.quote_id,
-  q.quote_number,
+  q.pi_number,
   q.supplier_id,
   c.component_id,
   c.supplier_model,
@@ -251,7 +251,7 @@ UNION ALL
 
 SELECT
   q.quote_id,
-  q.quote_number,
+  q.pi_number,
   q.supplier_id,
   c.component_id,
   c.supplier_model,
