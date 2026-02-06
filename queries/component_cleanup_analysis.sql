@@ -189,7 +189,7 @@ FROM "3.0_components" c
 LEFT JOIN (
   SELECT
     component_id,
-    COUNT(DISTINCT quote_id) AS quote_count,
+    COUNT(DISTINCT qli.quote_id) AS quote_count,
     SUM(quantity) AS total_quoted_qty,
     MAX(q.quote_date) AS last_quote_date
   FROM "4.1_price_quote_line_items" qli
@@ -200,7 +200,7 @@ LEFT JOIN (
 LEFT JOIN (
   SELECT
     component_id,
-    COUNT(DISTINCT po_id) AS po_count,
+    COUNT(DISTINCT pli.po_id) AS po_count,
     SUM(quantity) AS total_purchased_qty,
     MAX(p.po_date) AS last_po_date
   FROM "5.1_purchase_line_items" pli
@@ -274,23 +274,42 @@ ORDER BY array_length(
 -- ============================================================================
 -- Find brand variations that should be standardized
 
+WITH brand_usage AS (
+  SELECT
+    LOWER(TRIM(brand)) AS normalized_brand,
+    COUNT(*) AS variant_count,
+    array_agg(DISTINCT brand) AS brand_variants,
+    array_agg(DISTINCT component_id) AS affected_components
+  FROM "3.0_components"
+  WHERE brand IS NOT NULL
+  GROUP BY LOWER(TRIM(brand))
+  HAVING COUNT(DISTINCT brand) > 1
+)
 SELECT
-  LOWER(TRIM(brand)) AS normalized_brand,
-  COUNT(*) AS variant_count,
-  array_agg(DISTINCT brand) AS brand_variants,
-  array_agg(DISTINCT component_id) AS affected_components,
-  SUM((SELECT COUNT(*) FROM "4.1_price_quote_line_items" WHERE component_id = c.component_id)) AS total_quote_usage,
-  SUM((SELECT COUNT(*) FROM "5.1_purchase_line_items" WHERE component_id = c.component_id)) AS total_po_usage
+  bu.normalized_brand,
+  bu.variant_count,
+  bu.brand_variants,
+  bu.affected_components,
 
-FROM "3.0_components" c
+  -- Count usage in quotes
+  COALESCE((
+    SELECT COUNT(*)
+    FROM "4.1_price_quote_line_items" qli
+    WHERE qli.component_id = ANY(bu.affected_components)
+  ), 0) AS total_quote_usage,
 
-WHERE brand IS NOT NULL
+  -- Count usage in POs
+  COALESCE((
+    SELECT COUNT(*)
+    FROM "5.1_purchase_line_items" pli
+    WHERE pli.component_id = ANY(bu.affected_components)
+  ), 0) AS total_po_usage
 
-GROUP BY LOWER(TRIM(brand))
+FROM brand_usage bu
 
-HAVING COUNT(DISTINCT brand) > 1  -- Only show brands with variations
-
-ORDER BY variant_count DESC, total_quote_usage + total_po_usage DESC;
+ORDER BY
+  bu.variant_count DESC,
+  total_quote_usage + total_po_usage DESC;
 
 
 -- ============================================================================
