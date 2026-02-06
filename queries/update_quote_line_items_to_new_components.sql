@@ -19,7 +19,6 @@ SELECT
   q.supplier_id,
   s.supplier_name,
 
-  qli.line_item_id,
   qli.component_id AS old_component_id,
 
   old_comp.supplier_model,
@@ -58,7 +57,7 @@ WHERE q.supplier_id IN (
   'b0c03580-f471-4637-bc33-d094781c98d5'   -- SUPREME
 )
 
-ORDER BY q.supplier_id, q.pi_number, qli.line_item_id;
+ORDER BY q.supplier_id, q.pi_number, qli.component_id;
 
 -- Review the above! Make sure:
 -- 1. old_component_id and new_component_id are different
@@ -78,7 +77,7 @@ SELECT
     WHEN q.supplier_id = 'b0c03580-f471-4637-bc33-d094781c98d5' THEN 'SUPREME'
   END AS target_brand,
   COUNT(DISTINCT q.quote_id) AS quotes_affected,
-  COUNT(qli.line_item_id) AS line_items_to_update,
+  COUNT(*) AS line_items_to_update,
   COUNT(DISTINCT old_comp.component_id) AS unique_old_components,
   COUNT(DISTINCT new_comp.component_id) AS unique_new_components
 
@@ -194,7 +193,6 @@ SELECT
   q.supplier_id,
   s.supplier_name,
 
-  qli.line_item_id,
   qli.component_id,
 
   c.supplier_model,
@@ -219,7 +217,7 @@ WHERE q.supplier_id IN (
   'b0c03580-f471-4637-bc33-d094781c98d5'   -- Should all show SUPREME brand
 )
 
-ORDER BY q.supplier_id, q.pi_number, qli.line_item_id;
+ORDER BY q.supplier_id, q.pi_number, qli.component_id;
 
 
 -- ============================================================================
