@@ -111,8 +111,8 @@ SELECT
   comp2_brand,
   comp2_quote_usage + comp2_po_usage AS comp2_total_usage,
 
-  ROUND(model_similarity * 100, 1) AS model_match_pct,
-  ROUND(desc_similarity * 100, 1) AS desc_match_pct,
+  ROUND((model_similarity * 100)::numeric, 1) AS model_match_pct,
+  ROUND((desc_similarity * 100)::numeric, 1) AS desc_match_pct,
 
   -- Recommendation
   CASE
