@@ -296,31 +296,40 @@ WITH brand_usage AS (
   WHERE brand IS NOT NULL
   GROUP BY LOWER(TRIM(brand))
   HAVING COUNT(DISTINCT brand) > 1
+),
+brand_with_usage AS (
+  SELECT
+    bu.normalized_brand,
+    bu.variant_count,
+    bu.brand_variants,
+    bu.affected_components,
+
+    -- Count usage in quotes
+    COALESCE((
+      SELECT COUNT(*)
+      FROM "4.1_price_quote_line_items" qli
+      WHERE qli.component_id = ANY(bu.affected_components)
+    ), 0) AS total_quote_usage,
+
+    -- Count usage in POs
+    COALESCE((
+      SELECT COUNT(*)
+      FROM "5.1_purchase_line_items" pli
+      WHERE pli.component_id = ANY(bu.affected_components)
+    ), 0) AS total_po_usage
+
+  FROM brand_usage bu
 )
 SELECT
-  bu.normalized_brand,
-  bu.variant_count,
-  bu.brand_variants,
-  bu.affected_components,
-
-  -- Count usage in quotes
-  COALESCE((
-    SELECT COUNT(*)
-    FROM "4.1_price_quote_line_items" qli
-    WHERE qli.component_id = ANY(bu.affected_components)
-  ), 0) AS total_quote_usage,
-
-  -- Count usage in POs
-  COALESCE((
-    SELECT COUNT(*)
-    FROM "5.1_purchase_line_items" pli
-    WHERE pli.component_id = ANY(bu.affected_components)
-  ), 0) AS total_po_usage
-
-FROM brand_usage bu
-
+  normalized_brand,
+  variant_count,
+  brand_variants,
+  affected_components,
+  total_quote_usage,
+  total_po_usage
+FROM brand_with_usage
 ORDER BY
-  bu.variant_count DESC,
+  variant_count DESC,
   total_quote_usage + total_po_usage DESC;
 
 
