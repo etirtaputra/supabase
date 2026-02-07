@@ -14,12 +14,12 @@ SELECT
   brand,
   supplier_model AS current_supplier_model,
   CASE
-    WHEN supplier_model IS NULL THEN '[' || brand || '] ' || COALESCE(internal_description, 'N/A')
-    ELSE '[' || brand || '] ' || supplier_model
+    WHEN supplier_model IS NULL THEN brand || ' ' || COALESCE(internal_description, 'N/A')
+    ELSE brand || ' ' || supplier_model
   END AS new_supplier_model,
 
   internal_description AS current_internal_description,
-  '[' || brand || '] ' || COALESCE(internal_description, 'N/A') AS new_internal_description,
+  brand || ' ' || COALESCE(internal_description, 'N/A') AS new_internal_description,
 
   CASE
     WHEN supplier_model IS NULL THEN 'Will fill from internal_description'
@@ -52,21 +52,21 @@ UPDATE "3.0_components"
 SET
   -- Add brand prefix to supplier_model, or fill with internal_description if null
   supplier_model = CASE
-    WHEN supplier_model IS NULL THEN '[' || brand || '] ' || COALESCE(internal_description, 'N/A')
-    ELSE '[' || brand || '] ' || supplier_model
+    WHEN supplier_model IS NULL THEN brand || ' ' || COALESCE(internal_description, 'N/A')
+    ELSE brand || ' ' || supplier_model
   END,
 
   -- Add brand prefix to internal_description
-  internal_description = '[' || brand || '] ' || COALESCE(internal_description, 'N/A'),
+  internal_description = brand || ' ' || COALESCE(internal_description, 'N/A'),
 
   updated_at = NOW()
 
 WHERE brand IN ('KMI', 'JEMBO', 'SUPREME')
   -- Only update if not already prefixed (to avoid double prefixing)
   AND (
-    supplier_model NOT LIKE '[' || brand || ']%'
+    supplier_model NOT LIKE brand || ' %'
     OR supplier_model IS NULL
-    OR internal_description NOT LIKE '[' || brand || ']%'
+    OR internal_description NOT LIKE brand || ' %'
     OR internal_description IS NULL
   );
 
@@ -107,8 +107,8 @@ SELECT
 FROM "3.0_components"
 WHERE brand IN ('KMI', 'JEMBO', 'SUPREME')
   AND (
-    supplier_model NOT LIKE '[' || brand || ']%'
-    OR internal_description NOT LIKE '[' || brand || ']%'
+    supplier_model NOT LIKE brand || ' %'
+    OR internal_description NOT LIKE brand || ' %'
   )
 GROUP BY brand;
 
