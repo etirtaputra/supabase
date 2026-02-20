@@ -1,17 +1,20 @@
 /**
  * ProductCostLookup
  * Search for a component and see its full cost history:
- *   A) Quote line items
- *   B) PO line items with proportional true-cost allocation
- *   C) Raw PO costs reference table
+ *   Summary dashboard
+ *   A) Quote line items (sorted by date desc)
+ *   B) PO line items + proportional true-cost allocation (sorted by PO date desc)
+ *   C) PO costs reference, visually grouped by PO
  *
- * Cost allocation methodology (mirrors the SQL true-unit-cost query):
+ * Cost allocation methodology:
  *   line_share = (unit_cost × qty) / total_po_value_foreign
  *   allocated_cost = line_share × cost_total_idr
  *   true_unit_cost = (alloc_principal + alloc_bank_fees + alloc_landed) / qty
  *
- * PPN (local_vat, local_income_tax) is EXCLUDED from the true cost calc,
- * since all amounts in the system are entered ex-tax.
+ * Rules:
+ *   - True unit cost is only shown for POs that have a balance_payment recorded.
+ *   - PPN (local_vat, local_income_tax) is excluded from the true cost calc.
+ *   - All amounts are entered ex-tax (ex-PPN).
  */
 
 'use client';
@@ -44,8 +47,11 @@ const BANK_FEE_CATS = new Set([
   'inter_bank_transfer_fee',
 ]);
 
-// These are excluded from the true cost calculation (PPN / tax)
+// Excluded from true cost (PPN / tax)
 const TAX_CATS = new Set(['local_vat', 'local_income_tax']);
+
+// PO is considered "balance paid" if either of these exists
+const BALANCE_CATS = new Set(['balance_payment', 'additional_balance_payment']);
 
 const COST_LABELS: Record<string, string> = {
   down_payment: 'Down Payment',
@@ -67,13 +73,13 @@ const COST_LABELS: Record<string, string> = {
   local_import_tax: 'Import Tax',
 };
 
-// ─── Formatters ──────────────────────────────────────────────────────────────
+// ─── Formatters ───────────────────────────────────────────────────────────────
 
 const fmtIdr = (n: number) => 'IDR ' + Math.round(n).toLocaleString('en-US');
 const fmtNum = (n: number) =>
   n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-// ─── Props ────────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Props {
   components: Component[];
@@ -86,28 +92,31 @@ interface Props {
   isLoading: boolean;
 }
 
-// ─── Allocation result per PO line ────────────────────────────────────────────
-
 interface Allocation {
   item: PurchaseLineItem;
   po: PurchaseOrder;
   lineValueForeign: number;
   totalPoValueForeign: number;
   lineShare: number;
-  // PO-level cost totals (assumed IDR)
   principal: number;
   bankFees: number;
   landed: number;
-  // This line's allocated share
   allocPrincipal: number;
   allocBankFees: number;
   allocLanded: number;
   totalAllocated: number;
   trueUnitCostIdr: number;
-  warnings: string[];
+  hasBalancePayment: boolean;
 }
 
-// ─── Component ───────────────────────────────────────────────────────────────
+interface POCostGroup {
+  po: PurchaseOrder;
+  costs: POCost[];
+  hasBalancePayment: boolean;
+  subtotalByCurrency: Record<string, number>; // excl. tax
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ProductCostLookup({
   components,
@@ -124,7 +133,6 @@ export default function ProductCostLookup({
   const [showDrop, setShowDrop] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -135,7 +143,8 @@ export default function ProductCostLookup({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Autocomplete candidates
+  // ── Autocomplete ──────────────────────────────────────────────────────────
+
   const candidates = useMemo(() => {
     const q = query.toLowerCase().trim();
     if (!q) return [];
@@ -155,11 +164,18 @@ export default function ProductCostLookup({
     setShowDrop(false);
   };
 
-  // ── Filtered data ────────────────────────────────────────────────────────
+  // ── Filtered data ─────────────────────────────────────────────────────────
 
   const myQuoteItems = useMemo(
-    () => (selected ? quoteItems.filter((qi) => qi.component_id === selected.component_id) : []),
-    [selected, quoteItems],
+    () =>
+      selected
+        ? [...quoteItems.filter((qi) => qi.component_id === selected.component_id)].sort((a, b) => {
+            const qA = quotes.find((q) => q.quote_id === a.quote_id)?.quote_date || '';
+            const qB = quotes.find((q) => q.quote_id === b.quote_id)?.quote_date || '';
+            return qB.localeCompare(qA);
+          })
+        : [],
+    [selected, quoteItems, quotes],
   );
 
   const myPoItems = useMemo(
@@ -167,7 +183,7 @@ export default function ProductCostLookup({
     [selected, poItems],
   );
 
-  // ── Cost allocation per PO line item ─────────────────────────────────────
+  // ── Cost allocation per PO line, sorted by PO date desc ───────────────────
 
   const allocations = useMemo<Allocation[]>(() => {
     return myPoItems
@@ -175,21 +191,20 @@ export default function ProductCostLookup({
         const po = pos.find((p) => p.po_id === item.po_id);
         if (!po) return null;
 
-        // Total PO value in foreign currency across ALL line items
         const allPoItems = poItems.filter((i) => i.po_id === item.po_id && i.quantity > 0);
         const totalPoValueForeign = allPoItems.reduce((s, i) => s + i.unit_cost * i.quantity, 0);
         const lineValueForeign = item.unit_cost * item.quantity;
         const lineShare = totalPoValueForeign > 0 ? lineValueForeign / totalPoValueForeign : 0;
 
-        // PO costs
         const costs = poCosts.filter((c) => c.po_id === item.po_id);
+        const hasBalancePayment = costs.some((c) => BALANCE_CATS.has(c.cost_category));
+
         const principal = costs
           .filter((c) => PRINCIPAL_CATS.has(c.cost_category))
           .reduce((s, c) => s + c.amount, 0);
         const bankFees = costs
           .filter((c) => BANK_FEE_CATS.has(c.cost_category))
           .reduce((s, c) => s + c.amount, 0);
-        // Landed = everything that is NOT a payment, NOT a bank fee, NOT a tax
         const landed = costs
           .filter(
             (c) =>
@@ -205,11 +220,6 @@ export default function ProductCostLookup({
         const totalAllocated = allocPrincipal + allocBankFees + allocLanded;
         const trueUnitCostIdr = item.quantity > 0 ? totalAllocated / item.quantity : 0;
 
-        const warnings: string[] = [];
-        if (principal === 0) warnings.push('No payments recorded');
-        if (!po.exchange_rate && po.currency !== 'IDR') warnings.push('Missing exchange rate');
-        if (totalPoValueForeign === 0) warnings.push('PO total is zero');
-
         return {
           item,
           po,
@@ -224,28 +234,95 @@ export default function ProductCostLookup({
           allocLanded,
           totalAllocated,
           trueUnitCostIdr,
-          warnings,
+          hasBalancePayment,
         };
       })
-      .filter((a): a is Allocation => a !== null);
+      .filter((a): a is Allocation => a !== null)
+      .sort((a, b) => b.po.po_date.localeCompare(a.po.po_date));
   }, [myPoItems, poItems, pos, poCosts]);
 
-  // All PO costs for the related POs (reference section)
-  const relatedPoIds = useMemo(() => new Set(myPoItems.map((i) => i.po_id)), [myPoItems]);
-  const relatedPoCosts = useMemo(
-    () => poCosts.filter((c) => relatedPoIds.has(c.po_id)),
-    [poCosts, relatedPoIds],
-  );
+  // ── Summary stats ─────────────────────────────────────────────────────────
 
-  // Lookup helpers
+  const summary = useMemo(() => {
+    // True unit cost: weighted avg from paid POs only
+    const paidAllocs = allocations.filter((a) => a.hasBalancePayment && a.trueUnitCostIdr > 0);
+    const paidTotalWeighted = paidAllocs.reduce(
+      (s, a) => s + a.trueUnitCostIdr * a.item.quantity,
+      0,
+    );
+    const paidTotalQty = paidAllocs.reduce((s, a) => s + a.item.quantity, 0);
+    const avgTrueUnitCostIdr = paidTotalQty > 0 ? paidTotalWeighted / paidTotalQty : null;
+    const lastPaidPoDate =
+      paidAllocs.length > 0
+        ? paidAllocs.map((a) => a.po.po_date).sort((a, b) => b.localeCompare(a))[0]
+        : null;
+
+    // Avg PO unit cost per currency (weighted, all PO lines)
+    const poByCurrency: Record<string, { totalValue: number; totalQty: number }> = {};
+    myPoItems.forEach((pi) => {
+      if (!poByCurrency[pi.currency])
+        poByCurrency[pi.currency] = { totalValue: 0, totalQty: 0 };
+      poByCurrency[pi.currency].totalValue += pi.unit_cost * pi.quantity;
+      poByCurrency[pi.currency].totalQty += pi.quantity;
+    });
+
+    // Avg quote unit price per currency (weighted)
+    const quoteByCurrency: Record<string, { totalValue: number; totalQty: number }> = {};
+    myQuoteItems.forEach((qi) => {
+      if (!quoteByCurrency[qi.currency])
+        quoteByCurrency[qi.currency] = { totalValue: 0, totalQty: 0 };
+      quoteByCurrency[qi.currency].totalValue += qi.unit_price * qi.quantity;
+      quoteByCurrency[qi.currency].totalQty += qi.quantity;
+    });
+
+    const totalOrderedQty = myPoItems.reduce((s, i) => s + i.quantity, 0);
+    const totalQuotedQty = myQuoteItems.reduce((s, i) => s + i.quantity, 0);
+
+    return {
+      avgTrueUnitCostIdr,
+      paidPoCount: paidAllocs.length,
+      lastPaidPoDate,
+      poByCurrency,
+      quoteByCurrency,
+      totalOrderedQty,
+      totalQuotedQty,
+    };
+  }, [allocations, myPoItems, myQuoteItems]);
+
+  // ── PO costs grouped by PO for section C ─────────────────────────────────
+
+  const relatedPoIds = useMemo(() => new Set(myPoItems.map((i) => i.po_id)), [myPoItems]);
+
+  const poCostGroups = useMemo<POCostGroup[]>(() => {
+    const sortedPoIds = [...relatedPoIds].sort((a, b) => {
+      const dA = pos.find((p) => p.po_id === a)?.po_date || '';
+      const dB = pos.find((p) => p.po_id === b)?.po_date || '';
+      return dB.localeCompare(dA);
+    });
+    return sortedPoIds.flatMap((poId) => {
+      const po = pos.find((p) => p.po_id === poId);
+      if (!po) return [];
+      const costs = poCosts
+        .filter((c) => c.po_id === poId)
+        .sort((a, b) => (a.payment_date || '').localeCompare(b.payment_date || ''));
+      const hasBalancePayment = costs.some((c) => BALANCE_CATS.has(c.cost_category));
+      const subtotalByCurrency: Record<string, number> = {};
+      costs
+        .filter((c) => !TAX_CATS.has(c.cost_category))
+        .forEach((c) => {
+          subtotalByCurrency[c.currency] = (subtotalByCurrency[c.currency] || 0) + c.amount;
+        });
+      return [{ po, costs, hasBalancePayment, subtotalByCurrency }];
+    });
+  }, [relatedPoIds, pos, poCosts]);
+
+  // ── Lookup helpers ────────────────────────────────────────────────────────
+
   const getQuote = (id: number) => quotes.find((q) => q.quote_id === id);
-  const getPo = (id: number) => pos.find((p) => p.po_id === id);
   const getSupplier = (id?: number) =>
     suppliers.find((s) => s.supplier_id === id)?.supplier_name || '—';
 
   const hasData = selected && (myQuoteItems.length > 0 || myPoItems.length > 0);
-
-  // ── Status badge helper ──────────────────────────────────────────────────
 
   const statusBadge = (status?: string) => {
     const cls =
@@ -256,16 +333,14 @@ export default function ProductCostLookup({
           : status === 'Partially Received'
             ? 'bg-amber-900/50 text-amber-300'
             : 'bg-slate-700 text-slate-300';
-    return (
-      <span className={`text-xs px-2 py-0.5 rounded-full ${cls}`}>{status || '—'}</span>
-    );
+    return <span className={`text-xs px-2 py-0.5 rounded-full ${cls}`}>{status || '—'}</span>;
   };
 
-  // ────────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-8">
-      {/* ── Search input ── */}
+      {/* ── Search ── */}
       <div ref={containerRef} className="relative max-w-xl">
         <label className="block text-xs font-medium text-slate-400 mb-1.5 uppercase tracking-wider">
           Product Description / SKU
@@ -337,6 +412,106 @@ export default function ProductCostLookup({
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════
+          SUMMARY DASHBOARD
+      ══════════════════════════════════════════════════════════════════════ */}
+      {hasData && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Card 1: Avg. True Unit Cost */}
+          <div
+            className={`rounded-xl border px-5 py-4 flex flex-col gap-1 ${
+              summary.avgTrueUnitCostIdr != null
+                ? 'bg-amber-950/40 border-amber-700/50'
+                : 'bg-slate-800/60 border-slate-700'
+            }`}
+          >
+            <div className="text-xs text-slate-400 uppercase tracking-wider">
+              Avg. True Unit Cost
+            </div>
+            {summary.avgTrueUnitCostIdr != null ? (
+              <>
+                <div className="text-xl font-bold text-amber-300 leading-tight">
+                  {fmtIdr(summary.avgTrueUnitCostIdr)}
+                </div>
+                <div className="text-xs text-slate-400">
+                  {summary.paidPoCount} paid PO{summary.paidPoCount !== 1 ? 's' : ''}
+                </div>
+                <div className="text-xs text-slate-500">Last: {summary.lastPaidPoDate}</div>
+              </>
+            ) : (
+              <>
+                <div className="text-xl font-bold text-slate-600">—</div>
+                <div className="text-xs text-slate-500">No fully paid POs yet</div>
+              </>
+            )}
+          </div>
+
+          {/* Card 2: Avg. PO Unit Cost (raw, per currency) */}
+          <div className="bg-slate-800/60 border border-slate-700 rounded-xl px-5 py-4 flex flex-col gap-1">
+            <div className="text-xs text-slate-400 uppercase tracking-wider">
+              Avg. PO Unit Cost
+            </div>
+            {Object.keys(summary.poByCurrency).length > 0 ? (
+              <>
+                {Object.entries(summary.poByCurrency).map(([cur, { totalValue, totalQty }]) => (
+                  <div key={cur} className="text-xl font-bold text-white leading-tight">
+                    {cur} {fmtNum(totalQty > 0 ? totalValue / totalQty : 0)}
+                  </div>
+                ))}
+                <div className="text-xs text-slate-400">
+                  {myPoItems.length} PO line{myPoItems.length !== 1 ? 's' : ''} · excl. overhead
+                </div>
+              </>
+            ) : (
+              <div className="text-xl font-bold text-slate-600">—</div>
+            )}
+          </div>
+
+          {/* Card 3: Avg. Quote Price (per currency) */}
+          <div className="bg-slate-800/60 border border-slate-700 rounded-xl px-5 py-4 flex flex-col gap-1">
+            <div className="text-xs text-slate-400 uppercase tracking-wider">Avg. Quote Price</div>
+            {Object.keys(summary.quoteByCurrency).length > 0 ? (
+              <>
+                {Object.entries(summary.quoteByCurrency).map(([cur, { totalValue, totalQty }]) => (
+                  <div key={cur} className="text-xl font-bold text-emerald-300 leading-tight">
+                    {cur} {fmtNum(totalQty > 0 ? totalValue / totalQty : 0)}
+                  </div>
+                ))}
+                <div className="text-xs text-slate-400">
+                  {myQuoteItems.length} quote line{myQuoteItems.length !== 1 ? 's' : ''}
+                </div>
+              </>
+            ) : (
+              <div className="text-xl font-bold text-slate-600">—</div>
+            )}
+          </div>
+
+          {/* Card 4: Total Qty */}
+          <div className="bg-slate-800/60 border border-slate-700 rounded-xl px-5 py-4 flex flex-col gap-1">
+            <div className="text-xs text-slate-400 uppercase tracking-wider">Total Qty</div>
+            {summary.totalOrderedQty > 0 && (
+              <div className="flex items-baseline gap-2">
+                <span className="text-xl font-bold text-white">
+                  {summary.totalOrderedQty.toLocaleString()}
+                </span>
+                <span className="text-xs text-slate-400">ordered</span>
+              </div>
+            )}
+            {summary.totalQuotedQty > 0 && (
+              <div className="flex items-baseline gap-2">
+                <span className="text-lg font-semibold text-slate-300">
+                  {summary.totalQuotedQty.toLocaleString()}
+                </span>
+                <span className="text-xs text-slate-400">quoted</span>
+              </div>
+            )}
+            {summary.totalOrderedQty === 0 && summary.totalQuotedQty === 0 && (
+              <div className="text-xl font-bold text-slate-600">—</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
           A: QUOTE LINE ITEMS
       ══════════════════════════════════════════════════════════════════════ */}
       {myQuoteItems.length > 0 && (
@@ -373,9 +548,7 @@ export default function ProductCostLookup({
                         {quote?.pi_number || `Quote #${qi.quote_id}`}
                       </td>
                       <td className="px-4 py-3 text-slate-300">{quote?.quote_date || '—'}</td>
-                      <td className="px-4 py-3 text-slate-300">
-                        {getSupplier(quote?.supplier_id)}
-                      </td>
+                      <td className="px-4 py-3 text-slate-300">{getSupplier(quote?.supplier_id)}</td>
                       <td className="px-4 py-3 text-slate-400 text-xs max-w-[180px] truncate">
                         {qi.supplier_description || '—'}
                       </td>
@@ -410,9 +583,8 @@ export default function ProductCostLookup({
             </span>
           </h3>
           <p className="text-slate-500 text-xs mb-3">
-            Bank fees &amp; landed costs (excl. PPN/VAT) are apportioned by each line
-            item&apos;s share of the PO&apos;s total foreign-currency value. PO cost amounts
-            assumed to be entered in IDR.
+            Sorted latest first. Bank fees &amp; landed costs (excl. PPN) apportioned by line
+            share of PO total. True cost shown only for POs with balance payment recorded.
           </p>
           <div className="overflow-x-auto rounded-lg border border-slate-700">
             <table className="w-full text-sm">
@@ -437,7 +609,9 @@ export default function ProductCostLookup({
                 {allocations.map((a) => (
                   <tr
                     key={a.item.po_item_id}
-                    className="bg-slate-900/40 hover:bg-slate-800/60 transition-colors"
+                    className={`hover:bg-slate-800/60 transition-colors ${
+                      a.hasBalancePayment ? 'bg-slate-900/40' : 'bg-slate-900/20 opacity-75'
+                    }`}
                   >
                     <td className="px-4 py-3 text-sky-300 font-mono text-xs">{a.po.po_number}</td>
                     <td className="px-4 py-3 text-violet-300 font-mono text-xs">
@@ -456,28 +630,38 @@ export default function ProductCostLookup({
                     <td className="px-4 py-3 text-right text-slate-300 text-xs">
                       {(a.lineShare * 100).toFixed(1)}%
                     </td>
-                    <td className="px-4 py-3 text-right text-slate-300 text-xs">
-                      {a.principal > 0 ? fmtIdr(a.allocPrincipal) : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-right text-slate-300 text-xs">
-                      {a.bankFees > 0 ? fmtIdr(a.allocBankFees) : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-right text-slate-300 text-xs">
-                      {a.landed > 0 ? fmtIdr(a.allocLanded) : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-right text-amber-300 font-semibold">
-                      {a.trueUnitCostIdr > 0 ? fmtIdr(a.trueUnitCostIdr) : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-right text-amber-200 font-semibold">
-                      {a.totalAllocated > 0 ? fmtIdr(a.totalAllocated) : '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      {a.warnings.length > 0 ? (
-                        <span className="text-xs text-yellow-400">⚠ {a.warnings[0]}</span>
-                      ) : (
-                        statusBadge(a.po.status)
-                      )}
-                    </td>
+                    {a.hasBalancePayment ? (
+                      <>
+                        <td className="px-4 py-3 text-right text-slate-300 text-xs">
+                          {a.principal > 0 ? fmtIdr(a.allocPrincipal) : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-right text-slate-300 text-xs">
+                          {a.bankFees > 0 ? fmtIdr(a.allocBankFees) : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-right text-slate-300 text-xs">
+                          {a.landed > 0 ? fmtIdr(a.allocLanded) : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-right text-amber-300 font-semibold">
+                          {a.trueUnitCostIdr > 0 ? fmtIdr(a.trueUnitCostIdr) : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-right text-amber-200 font-semibold">
+                          {a.totalAllocated > 0 ? fmtIdr(a.totalAllocated) : '—'}
+                        </td>
+                        <td className="px-4 py-3">{statusBadge(a.po.status)}</td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-4 py-3 text-right text-slate-600 text-xs" colSpan={4}>
+                          —
+                        </td>
+                        <td className="px-4 py-3 text-right text-slate-600 text-xs">—</td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-900/50 text-yellow-400">
+                            Balance Unpaid
+                          </span>
+                        </td>
+                      </>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -487,87 +671,144 @@ export default function ProductCostLookup({
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════
-          C: PO COSTS REFERENCE
+          C: PO COSTS REFERENCE — grouped by PO
       ══════════════════════════════════════════════════════════════════════ */}
-      {relatedPoCosts.length > 0 && (
+      {poCostGroups.length > 0 && (
         <div>
           <h3 className="text-sm font-semibold text-rose-400 mb-1 flex items-center gap-2">
             C — PO Costs Reference
             <span className="bg-rose-900/50 text-rose-300 text-xs px-2 py-0.5 rounded-full">
-              {relatedPoCosts.length}
+              {poCostGroups.reduce((s, g) => s + g.costs.length, 0)}
             </span>
           </h3>
           <p className="text-slate-500 text-xs mb-3">
-            All costs for the {relatedPoIds.size} PO{relatedPoIds.size !== 1 ? 's' : ''} that
-            contain this component. Rows marked Tax (PPN) are greyed out — they are excluded from
-            the true cost calculation above.
+            Grouped by PO. Tax rows (PPN / PPh) are greyed out — excluded from true cost.
           </p>
-          <div className="overflow-x-auto rounded-lg border border-slate-700">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-800/80 text-slate-400 text-xs uppercase tracking-wider">
-                <tr>
-                  <th className="px-4 py-3 text-left">PO #</th>
-                  <th className="px-4 py-3 text-left">PI #</th>
-                  <th className="px-4 py-3 text-left">Date</th>
-                  <th className="px-4 py-3 text-left">Category</th>
-                  <th className="px-4 py-3 text-left">Type</th>
-                  <th className="px-4 py-3 text-right">Amount</th>
-                  <th className="px-4 py-3 text-left">Notes</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-700/50">
-                {relatedPoCosts.map((c) => {
-                  const po = getPo(c.po_id);
-                  const isTax = TAX_CATS.has(c.cost_category);
-                  const isPayment = PRINCIPAL_CATS.has(c.cost_category);
-                  const isBankFee = BANK_FEE_CATS.has(c.cost_category);
-                  const typeLabel = isPayment
-                    ? 'Payment'
-                    : isBankFee
-                      ? 'Bank Fee'
-                      : isTax
-                        ? 'Tax (PPN)'
-                        : 'Landed Cost';
-                  const typeCls = isPayment
-                    ? 'bg-sky-900/50 text-sky-300'
-                    : isBankFee
-                      ? 'bg-purple-900/50 text-purple-300'
-                      : isTax
-                        ? 'bg-slate-700/50 text-slate-500'
-                        : 'bg-orange-900/50 text-orange-300';
-                  return (
-                    <tr
-                      key={c.cost_id}
-                      className={`hover:bg-slate-800/60 transition-colors ${isTax ? 'opacity-40' : 'bg-slate-900/40'}`}
-                    >
-                      <td className="px-4 py-3 text-sky-300 font-mono text-xs">
-                        {po?.po_number || `PO #${c.po_id}`}
-                      </td>
-                      <td className="px-4 py-3 text-violet-300 font-mono text-xs">
-                        {po?.pi_number || '—'}
-                      </td>
-                      <td className="px-4 py-3 text-slate-300">{c.payment_date || '—'}</td>
-                      <td className="px-4 py-3 text-slate-200">
-                        {COST_LABELS[c.cost_category] || c.cost_category}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${typeCls}`}>
-                          {typeLabel}
-                        </span>
-                      </td>
-                      <td
-                        className={`px-4 py-3 text-right font-medium ${isTax ? 'text-slate-500' : 'text-rose-300'}`}
-                      >
-                        {c.currency} {fmtNum(c.amount)}
-                      </td>
-                      <td className="px-4 py-3 text-slate-400 text-xs max-w-[200px] truncate">
-                        {c.notes || '—'}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+
+          <div className="space-y-4">
+            {poCostGroups.map((group) => {
+              const poStatusCls =
+                group.po.status === 'Fully Received'
+                  ? 'text-emerald-400'
+                  : group.po.status === 'Partially Received'
+                    ? 'text-amber-400'
+                    : group.po.status === 'Cancelled'
+                      ? 'text-red-400'
+                      : 'text-slate-400';
+
+              return (
+                <div
+                  key={group.po.po_id}
+                  className="rounded-lg border border-slate-700 overflow-hidden"
+                >
+                  {/* Group header */}
+                  <div className="bg-slate-800 px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-1 border-b border-slate-700">
+                    <span className="text-sky-300 font-mono text-xs font-semibold">
+                      {group.po.po_number}
+                    </span>
+                    {group.po.pi_number && (
+                      <span className="text-violet-300 font-mono text-xs">
+                        PI: {group.po.pi_number}
+                      </span>
+                    )}
+                    <span className="text-slate-400 text-xs">{group.po.po_date}</span>
+                    <span className={`text-xs ${poStatusCls}`}>{group.po.status}</span>
+                    {group.hasBalancePayment ? (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-900/50 text-emerald-300 ml-auto">
+                        Balance Paid
+                      </span>
+                    ) : (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-900/50 text-yellow-400 ml-auto">
+                        Balance Unpaid
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Cost rows */}
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-800/50 text-slate-500 text-xs uppercase tracking-wider">
+                      <tr>
+                        <th className="px-4 py-2 text-left">Date</th>
+                        <th className="px-4 py-2 text-left">Category</th>
+                        <th className="px-4 py-2 text-left">Type</th>
+                        <th className="px-4 py-2 text-right">Amount</th>
+                        <th className="px-4 py-2 text-left">Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-700/40">
+                      {group.costs.map((c) => {
+                        const isTax = TAX_CATS.has(c.cost_category);
+                        const isPayment = PRINCIPAL_CATS.has(c.cost_category);
+                        const isBankFee = BANK_FEE_CATS.has(c.cost_category);
+                        const typeLabel = isPayment
+                          ? 'Payment'
+                          : isBankFee
+                            ? 'Bank Fee'
+                            : isTax
+                              ? 'Tax (PPN)'
+                              : 'Landed Cost';
+                        const typeCls = isPayment
+                          ? 'bg-sky-900/50 text-sky-300'
+                          : isBankFee
+                            ? 'bg-purple-900/50 text-purple-300'
+                            : isTax
+                              ? 'bg-slate-700/50 text-slate-500'
+                              : 'bg-orange-900/50 text-orange-300';
+                        return (
+                          <tr
+                            key={c.cost_id}
+                            className={`hover:bg-slate-800/60 transition-colors ${
+                              isTax ? 'opacity-40 bg-slate-900/10' : 'bg-slate-900/30'
+                            }`}
+                          >
+                            <td className="px-4 py-2.5 text-slate-400 text-xs">
+                              {c.payment_date || '—'}
+                            </td>
+                            <td className="px-4 py-2.5 text-slate-200">
+                              {COST_LABELS[c.cost_category] || c.cost_category}
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <span className={`text-xs px-2 py-0.5 rounded-full ${typeCls}`}>
+                                {typeLabel}
+                              </span>
+                            </td>
+                            <td
+                              className={`px-4 py-2.5 text-right font-medium ${
+                                isTax ? 'text-slate-500' : 'text-rose-300'
+                              }`}
+                            >
+                              {c.currency} {fmtNum(c.amount)}
+                            </td>
+                            <td className="px-4 py-2.5 text-slate-400 text-xs max-w-[200px] truncate">
+                              {c.notes || '—'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    {/* Subtotal row (excl. tax) */}
+                    {Object.keys(group.subtotalByCurrency).length > 0 && (
+                      <tfoot>
+                        <tr className="bg-slate-800/60 border-t border-slate-600">
+                          <td
+                            colSpan={3}
+                            className="px-4 py-2 text-xs text-slate-400 font-medium"
+                          >
+                            Subtotal (excl. PPN)
+                          </td>
+                          <td className="px-4 py-2 text-right font-semibold text-rose-200 text-xs">
+                            {Object.entries(group.subtotalByCurrency)
+                              .map(([cur, amt]) => `${cur} ${fmtNum(amt)}`)
+                              .join('  ·  ')}
+                          </td>
+                          <td />
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
