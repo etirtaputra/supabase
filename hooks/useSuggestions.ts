@@ -28,8 +28,11 @@ export function useSuggestions(data: DatabaseData): Suggestions {
         ])
       ).sort(),
       incoterms: getUniqueCombined('incoterms', data.pos),
-      modelSkus: getUniqueCombined('model_sku', data.components),
-      descriptions: getUniqueCombined('description', data.components, data.poHistory, data.quoteHistory),
+      modelSkus: getUniqueCombined('supplier_model', data.components),
+      descriptions: Array.from(new Set([
+        ...getUniqueCombined('internal_description', data.components),
+        ...getUniqueCombined('description', data.poHistory, data.quoteHistory),
+      ])).sort(),
       supplierNames: getUniqueCombined('supplier_name', data.suppliers),
       poNumbers: getUniqueCombined('po_number', data.pos, data.poHistory),
       quoteNumbers: Array.from(
