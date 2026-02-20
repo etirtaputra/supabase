@@ -58,7 +58,7 @@ function MasterInsertPage() {
         txt: `${q.pi_number || 'No Ref'} | ${q.currency} ${q.total_value}`,
       })),
       pis: data.pis.map((p) => ({ val: p.pi_id, txt: `${p.pi_number} (${p.pi_date})` })),
-      pos: data.pos.map((p) => ({ val: p.po_id, txt: `${p.po_number} - ${p.po_date}` })),
+      pos: data.pos.map((p) => ({ val: p.po_id, txt: `${p.po_number} - ${p.po_date}${p.pi_number ? ` | PI: ${p.pi_number}` : ''}` })),
     }),
     [data]
   );
