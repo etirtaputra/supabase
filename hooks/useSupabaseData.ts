@@ -37,7 +37,7 @@ export function useSupabaseData() {
       const [compRows, sup, comp] = await Promise.all([
         supabase.from(TABLE_NAMES.COMPANIES).select('company_id, legal_name'),
         supabase.from(TABLE_NAMES.SUPPLIERS).select('*'),
-        supabase.from(TABLE_NAMES.COMPONENTS).select('*'),
+        supabase.from(TABLE_NAMES.COMPONENTS).select('*').order('supplier_model', { ascending: true }).limit(5000),
       ]);
 
       setData((prev) => ({

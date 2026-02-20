@@ -64,15 +64,17 @@ const RichDropdown = memo(function RichDropdown({
   }, [value, options, valueKey, labelKey, subLabelKey]);
 
   // Filter options based on search term
+  // When searching: show all matches (no cap) so nothing is hidden
+  // When browsing: show first 50 as a preview; user should type to narrow down
+  const BROWSE_LIMIT = 50;
   const filtered = searchTerm
-    ? options
-        .filter(
-          (c) =>
-            (c[labelKey] || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (c[subLabelKey] || '').toLowerCase().includes(searchTerm.toLowerCase())
-        )
-        .slice(0, 30)
-    : options.slice(0, 30);
+    ? options.filter(
+        (c) =>
+          (c[labelKey] || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (c[subLabelKey] || '').toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    : options.slice(0, BROWSE_LIMIT);
+  const isTruncated = !searchTerm && options.length > BROWSE_LIMIT;
 
   const handleSelect = (item: any) => {
     onChange(item[valueKey]);
@@ -152,26 +154,33 @@ const RichDropdown = memo(function RichDropdown({
                 No matching results.
               </div>
             ) : (
-              filtered.map((c, index) => (
-                <div
-                  key={c[valueKey]}
-                  onClick={() => handleSelect(c)}
-                  className={`p-3 md:p-4 border-b border-slate-800/50 cursor-pointer transition-colors group flex flex-col gap-0.5 last:border-0 ${
-                    index === focusedIndex ? 'bg-slate-800' : 'hover:bg-slate-800'
-                  }`}
-                  role="option"
-                  aria-selected={index === focusedIndex}
-                >
-                  <div className="flex justify-between items-center">
-                    <span className="font-mono text-emerald-400 font-bold text-xs md:text-sm">
-                      {c[labelKey]}
-                    </span>
+              <>
+                {filtered.map((c, index) => (
+                  <div
+                    key={c[valueKey]}
+                    onClick={() => handleSelect(c)}
+                    className={`p-3 md:p-4 border-b border-slate-800/50 cursor-pointer transition-colors group flex flex-col gap-0.5 last:border-0 ${
+                      index === focusedIndex ? 'bg-slate-800' : 'hover:bg-slate-800'
+                    }`}
+                    role="option"
+                    aria-selected={index === focusedIndex}
+                  >
+                    <div className="flex justify-between items-center">
+                      <span className="font-mono text-emerald-400 font-bold text-xs md:text-sm">
+                        {c[labelKey]}
+                      </span>
+                    </div>
+                    <div className="text-[11px] md:text-xs text-slate-400 group-hover:text-slate-200 line-clamp-1">
+                      {c[subLabelKey]}
+                    </div>
                   </div>
-                  <div className="text-[11px] md:text-xs text-slate-400 group-hover:text-slate-200 line-clamp-1">
-                    {c[subLabelKey]}
+                ))}
+                {isTruncated && (
+                  <div className="px-4 py-2.5 text-center text-[11px] text-slate-500 italic border-t border-slate-800">
+                    Showing {BROWSE_LIMIT} of {options.length} — type to search all
                   </div>
-                </div>
-              ))
+                )}
+              </>
             )}
           </div>
         </div>
