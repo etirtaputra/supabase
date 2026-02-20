@@ -28,9 +28,9 @@ export function useSupabaseData() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError(null);
 
       // Fetch foundation data (critical)
@@ -125,6 +125,6 @@ export function useSupabaseData() {
     data,
     loading,
     error,
-    refetch: fetchData,
+    refetch: () => fetchData(true),
   };
 }
