@@ -7,6 +7,7 @@
 
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import SearchableTable from '@/components/ui/SearchableTable';
+import ProductCostLookup from '@/components/ui/ProductCostLookup';
 import { ToastProvider } from '@/hooks/useToast';
 
 export default function DatabaseViewPage() {
@@ -32,7 +33,31 @@ export default function DatabaseViewPage() {
         {/* Content */}
         <main className="p-4 md:p-8">
           <div className="max-w-[1600px] mx-auto space-y-12">
-            
+
+            {/* Section 0: Product Cost Lookup */}
+            <section className="space-y-6">
+              <div>
+                <h2 className="text-xl font-bold text-sky-400 border-b border-sky-900/50 pb-2">
+                  Product Cost Lookup
+                </h2>
+                <p className="text-slate-500 text-xs mt-1">
+                  All amounts are entered <span className="text-slate-300">excluding PPN (tax)</span>.
+                  True unit cost = principal payments + bank fees + landed costs, apportioned by
+                  each line item&apos;s share of the PO value.
+                </p>
+              </div>
+              <ProductCostLookup
+                components={data.components}
+                quotes={data.quotes}
+                quoteItems={data.quoteItems}
+                pos={data.pos}
+                poItems={data.poItems}
+                poCosts={data.poCosts}
+                suppliers={data.suppliers}
+                isLoading={loading}
+              />
+            </section>
+
             {/* Section 1: Foundation Data */}
             <section className="space-y-6">
               <h2 className="text-xl font-bold text-emerald-400 border-b border-emerald-900/50 pb-2">
