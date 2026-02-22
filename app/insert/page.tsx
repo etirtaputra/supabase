@@ -3,12 +3,9 @@
  * Clean, modular, and mobile-optimized
  * Database view moved to /database route
  */
-
 'use client';
-
 import { useState, useMemo } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
-
 // Components
 import Sidebar from '@/components/layout/Sidebar';
 import MobileNav from '@/components/layout/MobileNav';
@@ -17,16 +14,13 @@ import BatchLineItemsForm from '@/components/forms/BatchLineItemsForm';
 import { ToastContainer } from '@/components/ui/Toast';
 import { ToastProvider } from '@/hooks/useToast';
 import { FormSkeleton } from '@/components/ui/LoadingSkeleton';
-
 // Hooks
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useSuggestions } from '@/hooks/useSuggestions';
 import { useToast } from '@/hooks/useToast';
-
 // Constants & Types
 import { ENUMS } from '@/constants/enums';
 import type { Tab, MenuItem } from '@/types/forms';
-
 // Menu configuration (removed database tab and history import)
 const MENU_ITEMS: MenuItem[] = [
   { id: 'foundation', label: 'Suppliers & Components', icon: '🏢' },
@@ -34,21 +28,17 @@ const MENU_ITEMS: MenuItem[] = [
   { id: 'ordering', label: 'PI / PO', icon: '📦' },
   { id: 'financials', label: 'Financials', icon: '💰' },
 ];
-
 function MasterInsertPage() {
   const supabase = createSupabaseClient();
   const [activeTab, setActiveTab] = useState<Tab>('foundation');
   const [loading, setLoading] = useState(false);
-
   // PDF pre-fill state
   const [pdfData, setPdfData] = useState<any>(null);
   const [pdfUploading, setPdfUploading] = useState(false);
-
   // Data & Suggestions
   const { data, loading: dataLoading, refetch } = useSupabaseData();
   const suggestions = useSuggestions(data);
   const { showToast } = useToast();
-
   // Memoized options for selects
   const options = useMemo(
     () => ({
@@ -62,13 +52,10 @@ function MasterInsertPage() {
     }),
     [data]
   );
-
   // Auto-match supplier and company from PDF data
   const pdfDefaults = useMemo(() => {
     if (!pdfData) return {};
-
     const defaults: any = {};
-
     // Match supplier by name
     if (pdfData.supplier_name && data.suppliers.length > 0) {
       const supplierName = pdfData.supplier_name.toLowerCase().trim();
@@ -81,7 +68,6 @@ function MasterInsertPage() {
         defaults.supplier_id = matchedSupplier.supplier_id;
       }
     }
-
     // Match company by name
     if (pdfData.company_name && data.companies.length > 0) {
       const companyName = pdfData.company_name.toLowerCase().trim();
@@ -94,14 +80,11 @@ function MasterInsertPage() {
         defaults.company_id = matchedCompany.company_id;
       }
     }
-
     return defaults;
   }, [pdfData, data.suppliers, data.companies]);
-
   // Insert handler
   const handleInsert = async (table: string, insertData: any) => {
     setLoading(true);
-
     const payload = Array.isArray(insertData) ? insertData : [insertData];
     const cleanPayload = payload.map((item) =>
       Object.fromEntries(
@@ -118,10 +101,8 @@ function MasterInsertPage() {
         })
       )
     );
-
     const { error } = await supabase.from(table).insert(cleanPayload);
     setLoading(false);
-
     if (error) {
       showToast(`Error: ${error.message}`, 'error');
     } else {
@@ -129,7 +110,6 @@ function MasterInsertPage() {
       refetch();
     }
   };
-
   // PDF upload handler
   const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -137,24 +117,19 @@ function MasterInsertPage() {
       showToast('Please select a PDF file', 'error');
       return;
     }
-
     setPdfUploading(true);
     try {
       const formData = new FormData();
       formData.append('pdf', file);
-
       const response = await fetch('/api/extract-pdf', {
         method: 'POST',
         body: formData,
       });
-
       if (!response.ok) {
         throw new Error('Failed to extract PDF data');
       }
-
       const extractedData = await response.json();
       setPdfData(extractedData);
-
       // Build success message with auto-match info
       let message = `✅ Extracted ${extractedData.line_items?.length || 0} items from PDF!`;
       if (extractedData.supplier_name) {
@@ -163,9 +138,7 @@ function MasterInsertPage() {
       if (extractedData.company_name) {
         message += `\n🏢 Addressed to: ${extractedData.company_name}`;
       }
-
       showToast(message, 'success');
-
       // Reset file input
       e.target.value = '';
     } catch (error) {
@@ -175,28 +148,24 @@ function MasterInsertPage() {
       setPdfUploading(false);
     }
   };
-
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-slate-950 text-slate-100 font-sans text-sm">
+    <div className="flex flex-col md:flex-row min-h-screen bg-[#0B1120] text-slate-200 font-sans text-sm selection:bg-emerald-500/30">
       {/* Mobile Navigation */}
       <MobileNav activeTab={activeTab} onTabChange={setActiveTab} menuItems={MENU_ITEMS} />
-
       {/* Desktop Sidebar */}
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} menuItems={MENU_ITEMS} />
-
       {/* Main Content */}
-      <main className="flex-1 md:ml-64 p-4 md:p-8 bg-slate-950 min-h-screen overflow-x-hidden">
-        <div className="max-w-[1600px] mx-auto pb-20 md:pb-0">
+      <main className="flex-1 md:ml-64 p-4 md:p-8 min-h-screen overflow-x-hidden">
+        <div className="max-w-[1600px] mx-auto pb-24 md:pb-0 animate-in fade-in duration-300">
           {/* Page Header (Desktop) */}
           <div className="hidden md:flex mb-8 justify-between items-center h-10">
-            <h2 className="text-2xl font-bold text-white tracking-tight border-l-4 border-emerald-500 pl-4">
+            <h2 className="text-2xl font-extrabold text-white tracking-tight border-l-4 border-emerald-500 pl-4">
               {MENU_ITEMS.find((m) => m.id === activeTab)?.label}
             </h2>
           </div>
-
           {/* Tab Content */}
           {dataLoading ? (
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 md:gap-8">
               <FormSkeleton />
               <FormSkeleton />
             </div>
@@ -204,7 +173,7 @@ function MasterInsertPage() {
             <>
               {/* Foundation Tab */}
               {activeTab === 'foundation' && (
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 md:gap-8">
                   <SimpleForm
                     title="Add New Supplier"
                     fields={[
@@ -232,35 +201,38 @@ function MasterInsertPage() {
                   />
                 </div>
               )}
-
               {/* Quoting Tab */}
               {activeTab === 'quoting' && (
                 <>
                   {/* PDF Upload Banner */}
-                  <div className="mb-6 bg-gradient-to-r from-blue-900/40 to-indigo-900/40 border border-blue-700/50 rounded-xl p-6">
-                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                      <div className="flex items-start gap-4">
-                        <span className="text-4xl">📄✨</span>
+                  <div className="mb-8 bg-gradient-to-br from-blue-900/40 via-slate-900/40 to-indigo-900/40 backdrop-blur-sm border border-blue-500/30 rounded-2xl p-6 md:p-8 shadow-2xl ring-1 ring-white/5 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
+                      <div className="flex items-start md:items-center gap-5">
+                        <div className="p-3 bg-blue-500/20 rounded-xl border border-blue-500/30 shadow-inner">
+                          <span className="text-3xl block leading-none">📄</span>
+                        </div>
                         <div>
-                          <h3 className="text-lg font-bold text-blue-300 mb-1">Upload Quote/PI PDF to Pre-fill All Forms</h3>
-                          <p className="text-sm text-slate-400">AI will extract supplier info, quote details, and all line items automatically</p>
+                          <h3 className="text-xl font-bold text-white mb-1 tracking-tight">Upload Quote/PI PDF</h3>
+                          <p className="text-sm text-blue-200/80 font-medium">AI will extract supplier info, quote details, and all line items automatically.</p>
                           {pdfData && (
-                            <p className="text-xs text-emerald-400 mt-2">
-                              ✅ PDF loaded! {pdfData.supplier_name} • {pdfData.line_items?.length || 0} items • Scroll down to review
-                            </p>
+                            <div className="mt-3 inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded-lg text-xs font-bold">
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                              Extracted {pdfData.line_items?.length || 0} items from {pdfData.supplier_name || 'PDF'}
+                            </div>
                           )}
                         </div>
                       </div>
-                      <div className="flex gap-3">
+                      <div className="flex gap-3 w-full md:w-auto">
                         {pdfData && (
                           <button
                             onClick={() => setPdfData(null)}
-                            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition"
+                            className="px-5 py-2.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-600/50 text-white rounded-xl text-sm font-bold transition-all w-full md:w-auto"
                           >
                             Clear
                           </button>
                         )}
-                        <label className="cursor-pointer">
+                        <label className="cursor-pointer w-full md:w-auto">
                           <input
                             type="file"
                             accept="application/pdf"
@@ -268,15 +240,18 @@ function MasterInsertPage() {
                             disabled={pdfUploading}
                             className="hidden"
                           />
-                          <span className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-bold shadow-lg transition-all active:scale-95 disabled:opacity-50">
-                            {pdfUploading ? '⏳ Extracting...' : '📤 Upload PDF'}
+                          <span className={`flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-blue-900/20 transition-all active:scale-[0.98] w-full md:w-auto border border-blue-500 ${pdfUploading ? 'opacity-70 cursor-not-allowed' : ''}`}>
+                            {pdfUploading ? (
+                              <><span className="animate-spin text-lg leading-none">⏳</span> Extracting...</>
+                            ) : (
+                              <><span className="text-lg leading-none">📤</span> Upload PDF</>
+                            )}
                           </span>
                         </label>
                       </div>
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 md:gap-8 items-start">
                   <SimpleForm
                     title="Step 1: Quote Header"
                     fields={[
@@ -311,35 +286,38 @@ function MasterInsertPage() {
                 </div>
                 </>
               )}
-
               {/* Ordering Tab */}
               {activeTab === 'ordering' && (
                 <>
                   {/* PDF Upload Banner */}
-                  <div className="mb-6 bg-gradient-to-r from-blue-900/40 to-indigo-900/40 border border-blue-700/50 rounded-xl p-6">
-                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                      <div className="flex items-start gap-4">
-                        <span className="text-4xl">📄✨</span>
+                  <div className="mb-8 bg-gradient-to-br from-blue-900/40 via-slate-900/40 to-indigo-900/40 backdrop-blur-sm border border-blue-500/30 rounded-2xl p-6 md:p-8 shadow-2xl ring-1 ring-white/5 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
+                      <div className="flex items-start md:items-center gap-5">
+                        <div className="p-3 bg-blue-500/20 rounded-xl border border-blue-500/30 shadow-inner">
+                          <span className="text-3xl block leading-none">📄</span>
+                        </div>
                         <div>
-                          <h3 className="text-lg font-bold text-blue-300 mb-1">Upload PI/PO PDF to Pre-fill All Forms</h3>
-                          <p className="text-sm text-slate-400">AI will extract PI details, PO information, and all line items automatically</p>
+                          <h3 className="text-xl font-bold text-white mb-1 tracking-tight">Upload PI/PO PDF</h3>
+                          <p className="text-sm text-blue-200/80 font-medium">AI will extract PI details, PO information, and all line items automatically.</p>
                           {pdfData && (
-                            <p className="text-xs text-emerald-400 mt-2">
-                              ✅ PDF loaded! {pdfData.line_items?.length || 0} items • Scroll down to review
-                            </p>
+                            <div className="mt-3 inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded-lg text-xs font-bold">
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                              Extracted {pdfData.line_items?.length || 0} items from PDF
+                            </div>
                           )}
                         </div>
                       </div>
-                      <div className="flex gap-3">
+                      <div className="flex gap-3 w-full md:w-auto">
                         {pdfData && (
                           <button
                             onClick={() => setPdfData(null)}
-                            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition"
+                            className="px-5 py-2.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-600/50 text-white rounded-xl text-sm font-bold transition-all w-full md:w-auto"
                           >
                             Clear
                           </button>
                         )}
-                        <label className="cursor-pointer">
+                        <label className="cursor-pointer w-full md:w-auto">
                           <input
                             type="file"
                             accept="application/pdf"
@@ -347,15 +325,18 @@ function MasterInsertPage() {
                             disabled={pdfUploading}
                             className="hidden"
                           />
-                          <span className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-bold shadow-lg transition-all active:scale-95 disabled:opacity-50">
-                            {pdfUploading ? '⏳ Extracting...' : '📤 Upload PDF'}
+                          <span className={`flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-blue-900/20 transition-all active:scale-[0.98] w-full md:w-auto border border-blue-500 ${pdfUploading ? 'opacity-70 cursor-not-allowed' : ''}`}>
+                            {pdfUploading ? (
+                              <><span className="animate-spin text-lg leading-none">⏳</span> Extracting...</>
+                            ) : (
+                              <><span className="text-lg leading-none">📤</span> Upload PDF</>
+                            )}
                           </span>
                         </label>
                       </div>
                     </div>
                   </div>
-
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 md:gap-8 items-start">
                   <SimpleForm
                     title="1. Purchase Order (with PI fields)"
                     fields={[
@@ -364,7 +345,6 @@ function MasterInsertPage() {
                       { name: 'pi_number', label: 'PI #', type: 'text', default: pdfData?.pi_number },
                       { name: 'pi_date', label: 'PI Date', type: 'date', default: pdfData?.pi_date },
                       { name: 'pi_status', label: 'PI Status', type: 'select', options: ENUMS.proforma_status },
-
                       // PO fields (required)
                       { name: 'po_number', label: 'PO #', type: 'text', req: true, suggestions: suggestions.poNumbers, default: pdfData?.po_number },
                       { name: 'po_date', label: 'PO Date', type: 'date', req: true, default: pdfData?.po_date || new Date().toISOString().split('T')[0] },
@@ -407,7 +387,6 @@ function MasterInsertPage() {
                 </div>
                 </>
               )}
-
               {/* Financials Tab */}
               {activeTab === 'financials' && (
                 <div className="max-w-4xl mx-auto">
@@ -431,13 +410,11 @@ function MasterInsertPage() {
           )}
         </div>
       </main>
-
       {/* Toast Notifications */}
       <ToastContainer />
     </div>
   );
 }
-
 // Wrap with Toast Provider
 export default function Page() {
   return (

@@ -3,15 +3,12 @@
  * Allows adding multiple related items in batch mode
  * Supports sticky fields and mobile-optimized layout
  */
-
 'use client';
-
 import React, { useState, useId } from 'react';
 import FieldRenderer from './FieldRenderer';
 import { Spinner } from '../ui/LoadingSkeleton';
 import QuoteItemsImportModal from './QuoteItemsImportModal';
 import type { BatchLineItemsFormProps } from '../../types/forms';
-
 export default function BatchLineItemsForm({
   title,
   parentField,
@@ -68,7 +65,6 @@ export default function BatchLineItemsForm({
           (c: any) => c[componentField.config?.valueKey || 'component_id'] === value
         );
         if (selectedComponent) {
-          // Auto-fill supplier_description with component's description
           updatedDraft.supplier_description = selectedComponent.internal_description || selectedComponent.supplier_model || '';
         }
       }
@@ -78,7 +74,6 @@ export default function BatchLineItemsForm({
   };
 
   const addItem = () => {
-    // Validation
     for (const f of itemFields) {
       if (f.req && !draft[f.name]) {
         alert(`${f.label} is required`);
@@ -88,12 +83,10 @@ export default function BatchLineItemsForm({
 
     setItems([...items, { ...draft, _id: Date.now() }]);
 
-    // Reset draft with sticky logic
     const nextDraft: Record<string, any> = {};
     stickyFields.forEach((key) => {
       if (draft[key]) nextDraft[key] = draft[key];
     });
-    // Keep currency by default if not in sticky fields
     if (draft.currency && !nextDraft.currency) nextDraft.currency = draft.currency;
 
     setDraft(nextDraft);
@@ -162,55 +155,35 @@ export default function BatchLineItemsForm({
 
       const extractedData = await response.json();
 
-      // Pre-populate sticky fields (header fields)
       const newDraft: Record<string, any> = {};
-
-      // Get list of valid field names from itemFields
       const validFieldNames = itemFields.map(f => f.name);
 
-      // Map extracted data to form fields - only add if field exists in form
       if (extractedData.quote_date || extractedData.pi_date || extractedData.po_date) {
         const dateValue = extractedData.quote_date || extractedData.pi_date || extractedData.po_date;
-        if (validFieldNames.includes('quote_date')) {
-          newDraft.quote_date = dateValue;
-        }
-        if (validFieldNames.includes('po_date')) {
-          newDraft.po_date = dateValue;
-        }
+        if (validFieldNames.includes('quote_date')) newDraft.quote_date = dateValue;
+        if (validFieldNames.includes('po_date')) newDraft.po_date = dateValue;
       }
 
       if (extractedData.quote_number || extractedData.pi_number || extractedData.po_number) {
-        if (validFieldNames.includes('quote_number')) {
-          newDraft.quote_number = extractedData.quote_number || extractedData.pi_number;
-        }
-        if (validFieldNames.includes('po_number')) {
-          newDraft.po_number = extractedData.po_number || extractedData.pi_number;
-        }
+        if (validFieldNames.includes('quote_number')) newDraft.quote_number = extractedData.quote_number || extractedData.pi_number;
+        if (validFieldNames.includes('po_number')) newDraft.po_number = extractedData.po_number || extractedData.pi_number;
       }
 
-      if (extractedData.currency && validFieldNames.includes('currency')) {
-        newDraft.currency = extractedData.currency;
-      }
-
-      if (extractedData.supplier_name && validFieldNames.includes('supplier_name')) {
-        newDraft.supplier_name = extractedData.supplier_name;
-      }
+      if (extractedData.currency && validFieldNames.includes('currency')) newDraft.currency = extractedData.currency;
+      if (extractedData.supplier_name && validFieldNames.includes('supplier_name')) newDraft.supplier_name = extractedData.supplier_name;
 
       setDraft(newDraft);
 
-      // Pre-populate line items
       if (extractedData.line_items && extractedData.line_items.length > 0) {
-        // Check if this form uses component_id (quote/PO line items) or direct fields (history)
         const hasComponentField = itemFields.some(f => f.name === 'component_id');
 
         const newItems = extractedData.line_items.map((item: any, index: number) => {
           const baseItem: Record<string, any> = {
             _id: Date.now() + index,
-            ...newDraft, // Include sticky fields
+            ...newDraft,
           };
 
           if (hasComponentField) {
-            // For quote/PO line items: map to component_id using fuzzy matching
             const componentField = itemFields.find(f => f.name === 'component_id');
             let matchedComponent = null;
 
@@ -220,22 +193,17 @@ export default function BatchLineItemsForm({
               const searchDesc = item.description?.toLowerCase().trim() || '';
               const searchBrand = item.brand?.toLowerCase().trim() || '';
 
-              // Strategy 1: Exact SKU match (case-insensitive)
               if (searchSku) {
                 matchedComponent = components.find(
                   (c: any) => c.supplier_model?.toLowerCase().trim() === searchSku
                 );
               }
-
-              // Strategy 2: Partial SKU match (contains)
               if (!matchedComponent && searchSku) {
                 matchedComponent = components.find(
                   (c: any) => c.supplier_model?.toLowerCase().includes(searchSku) ||
                              searchSku.includes(c.supplier_model?.toLowerCase())
                 );
               }
-
-              // Strategy 3: Match by brand + description similarity
               if (!matchedComponent && searchBrand && searchDesc) {
                 matchedComponent = components.find((c: any) => {
                   const componentBrand = c.brand?.toLowerCase().trim() || '';
@@ -245,8 +213,6 @@ export default function BatchLineItemsForm({
                   return brandMatch && descMatch;
                 });
               }
-
-              // Strategy 4: Match by description alone (if longer than 10 chars)
               if (!matchedComponent && searchDesc && searchDesc.length > 10) {
                 matchedComponent = components.find((c: any) => {
                   const componentDesc = c.internal_description?.toLowerCase().trim() || '';
@@ -256,28 +222,18 @@ export default function BatchLineItemsForm({
 
               if (matchedComponent) {
                 baseItem.component_id = matchedComponent.component_id;
-                // Use the matched component's description as supplier_description
                 baseItem.supplier_description = matchedComponent.internal_description || matchedComponent.supplier_model || '';
                 console.log(`✅ Auto-matched: "${searchSku || searchDesc}" → Component ID ${matchedComponent.component_id} (${matchedComponent.supplier_model})`);
               } else {
-                // No match found - use PDF description as fallback
                 baseItem.supplier_description = item.description || item.supplier_description || '';
                 console.warn(`⚠️ No match found for: SKU="${item.model_sku}", Brand="${item.brand}", Desc="${item.description}"`);
               }
             }
 
-            // Map other fields
             baseItem.quantity = item.quantity || 0;
-
-            // Use unit_price for quotes, unit_cost for POs
-            if (itemFields.some(f => f.name === 'unit_price')) {
-              baseItem.unit_price = item.unit_price || item.unit_cost || 0;
-            }
-            if (itemFields.some(f => f.name === 'unit_cost')) {
-              baseItem.unit_cost = item.unit_cost || item.unit_price || 0;
-            }
+            if (itemFields.some(f => f.name === 'unit_price')) baseItem.unit_price = item.unit_price || item.unit_cost || 0;
+            if (itemFields.some(f => f.name === 'unit_cost')) baseItem.unit_cost = item.unit_cost || item.unit_price || 0;
           } else {
-            // For history tables: use direct fields
             baseItem.brand = item.brand || '';
             baseItem.description = item.description || item.supplier_description || '';
             baseItem.model_sku = item.model_sku || '';
@@ -290,16 +246,13 @@ export default function BatchLineItemsForm({
 
         setItems(newItems);
 
-        // Count matched vs unmatched components
         const matchedCount = newItems.filter((item: Record<string, any>) => item.component_id).length;
         const unmatchedCount = newItems.length - matchedCount;
 
         let message = `✅ Extracted ${newItems.length} line items from PDF!\n`;
         if (hasComponentField) {
           message += `\n🎯 Auto-matched: ${matchedCount} components`;
-          if (unmatchedCount > 0) {
-            message += `\n⚠️ Not matched: ${unmatchedCount} items - please select components manually`;
-          }
+          if (unmatchedCount > 0) message += `\n⚠️ Not matched: ${unmatchedCount} items - please select components manually`;
         }
         message += '\n\nPlease review and edit before submitting.';
 
@@ -308,7 +261,6 @@ export default function BatchLineItemsForm({
         alert('PDF extracted but no line items found. Please add items manually.');
       }
 
-      // Reset file input
       e.target.value = '';
     } catch (error) {
       setPdfError(error instanceof Error ? error.message : 'Failed to extract PDF');
@@ -319,14 +271,12 @@ export default function BatchLineItemsForm({
   };
 
   const handleImportQuoteItems = (importedItems: any[]) => {
-    // Add imported items with unique IDs
     const newItems = importedItems.map((item, index) => ({
       ...item,
       _id: Date.now() + index,
     }));
-
     setItems([...items, ...newItems]);
-    setImportDismissed(true); // Hide the prompt after import
+    setImportDismissed(true);
   };
 
   const handleStartFresh = () => {
@@ -355,25 +305,26 @@ export default function BatchLineItemsForm({
   const isHeaderField = (name: string) => stickyFields.includes(name);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-2">
-        <h3 className="text-base font-bold text-white flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
-          {title}
-        </h3>
+    <div className="bg-slate-900/40 backdrop-blur-sm rounded-2xl border border-slate-800/80 p-5 md:p-8 shadow-xl ring-1 ring-white/5 space-y-6">
+      {/* Title */}
+      <div className="flex items-center gap-3 border-b border-slate-800/80 pb-4">
+        <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center">
+          <span className="w-2.5 h-2.5 rounded-full bg-sky-500 shadow-[0_0_10px_rgba(14,165,233,0.8)]"></span>
+        </div>
+        <h3 className="text-lg font-bold text-white tracking-tight">{title}</h3>
       </div>
 
       {/* PDF Upload Button (if enabled) */}
       {enablePdfUpload && (
-        <div className="bg-blue-900/30 border border-blue-700/50 rounded-xl p-4">
+        <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4 ring-1 ring-white/5">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <span className="text-2xl">📄</span>
+              <div className="p-2 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                <span className="text-xl block leading-none">📄</span>
+              </div>
               <div>
                 <h4 className="text-sm font-bold text-blue-300">Upload PDF to Pre-fill</h4>
-                <p className="text-xs text-slate-400">
-                  AI will extract data and populate the form below
-                </p>
+                <p className="text-xs text-slate-400">AI will extract data and populate the form below</p>
               </div>
             </div>
             <label className="cursor-pointer">
@@ -384,22 +335,20 @@ export default function BatchLineItemsForm({
                 disabled={pdfUploading}
                 className="hidden"
               />
-              <span className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+              <span className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg border border-blue-500 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed">
                 {pdfUploading ? (
                   <>
                     <Spinner className="w-4 h-4" />
                     Extracting...
                   </>
                 ) : (
-                  <>
-                    📤 Upload PDF
-                  </>
+                  <>📤 Upload PDF</>
                 )}
               </span>
             </label>
           </div>
           {pdfError && (
-            <div className="mt-3 p-3 bg-red-900/30 border border-red-700/50 rounded-lg text-xs text-red-300">
+            <div className="mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400">
               {pdfError}
             </div>
           )}
@@ -408,7 +357,7 @@ export default function BatchLineItemsForm({
 
       {/* Quote Import - Smart Prompt (when PO has linked quote) */}
       {enableQuoteImport && linkedQuote && !importDismissed && items.length === 0 && (
-        <div className="bg-gradient-to-r from-emerald-900/20 to-blue-900/20 border border-emerald-700/50 rounded-xl p-4">
+        <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4 ring-1 ring-white/5">
           <div className="flex flex-col gap-3">
             <div className="flex items-start gap-3">
               <span className="text-2xl">💡</span>
@@ -428,13 +377,13 @@ export default function BatchLineItemsForm({
               <div className="flex flex-col sm:flex-row gap-2">
                 <button
                   onClick={() => setShowImportModal(true)}
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-lg font-medium transition-all shadow-lg active:scale-98"
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl font-bold text-sm transition-all shadow-lg border border-emerald-500/50 active:scale-[0.98]"
                 >
                   📋 Import Quote Items
                 </button>
                 <button
                   onClick={handleStartFresh}
-                  className="flex-1 bg-slate-700 hover:bg-slate-600 text-white px-4 py-2.5 rounded-lg font-medium transition-all active:scale-98"
+                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm transition-all border border-slate-700/50 active:scale-[0.98]"
                 >
                   Start Fresh
                 </button>
@@ -444,12 +393,12 @@ export default function BatchLineItemsForm({
         </div>
       )}
 
-      {/* Quote Import - Manual Button (always available when enabled) */}
+      {/* Quote Import - Manual Button */}
       {enableQuoteImport && linkedQuote && linkedQuote.items.length > 0 && (importDismissed || items.length > 0) && (
         <div className="flex justify-end">
           <button
             onClick={() => setShowImportModal(true)}
-            className="inline-flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all active:scale-98"
+            className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all border border-slate-700/50 active:scale-[0.98]"
           >
             📋 Import from Quote
           </button>
@@ -469,12 +418,12 @@ export default function BatchLineItemsForm({
 
       {/* Parent Selector (if provided) */}
       {parentField && (
-        <div className="mb-4 bg-slate-900/50 p-4 rounded-xl border border-slate-800">
-          <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">
+        <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800/80">
+          <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-widest">
             {parentField.label}
           </label>
           <select
-            className="w-full md:w-1/2 p-3 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
+            className="w-full md:w-1/2 p-3 bg-slate-950/70 border border-slate-700/80 rounded-xl text-sm text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
             value={parentId}
             onChange={(e) => setParentId(e.target.value)}
           >
@@ -489,7 +438,7 @@ export default function BatchLineItemsForm({
       )}
 
       {/* Add Item Section */}
-      <div className="bg-slate-900/80 p-4 md:p-5 rounded-xl border border-slate-800 shadow-xl">
+      <div className="bg-slate-950/50 p-4 md:p-6 rounded-xl border border-slate-800/80">
         <div className="flex flex-col gap-6">
           {/* Header/Sticky Fields (if any) */}
           {stickyFields.length > 0 && (
@@ -534,7 +483,7 @@ export default function BatchLineItemsForm({
             <button
               type="button"
               onClick={addItem}
-              className="w-full md:w-auto h-[46px] bg-emerald-600 hover:bg-emerald-500 text-white px-8 rounded-lg text-sm font-bold shadow-lg shadow-emerald-900/20 transition-all active:scale-95 flex items-center justify-center"
+              className="w-full md:w-auto h-[46px] bg-emerald-600 hover:bg-emerald-500 text-white px-8 rounded-xl text-sm font-bold shadow-lg shadow-emerald-900/20 border border-emerald-500/50 transition-all active:scale-[0.98] flex items-center justify-center"
             >
               Add Item +
             </button>
@@ -544,32 +493,32 @@ export default function BatchLineItemsForm({
 
       {/* Staged Items List */}
       {items.length > 0 && (
-        <div className="rounded-xl border border-slate-800 overflow-hidden shadow-lg animate-in fade-in slide-in-from-top-4 duration-300">
+        <div className="rounded-xl border border-slate-700/50 overflow-hidden shadow-lg ring-1 ring-white/5 animate-in fade-in slide-in-from-top-4 duration-300">
           {/* Header with Clear All button */}
-          <div className="bg-slate-900 px-4 py-3 flex items-center justify-between border-b border-slate-800">
+          <div className="bg-slate-900/80 px-4 py-3 flex items-center justify-between border-b border-slate-800/80">
             <div className="text-sm font-bold text-slate-400 uppercase tracking-wider">
               {items.length} Item{items.length !== 1 ? 's' : ''} Added
             </div>
             <button
               onClick={clearAllItems}
-              className="text-xs text-red-400 hover:text-red-300 hover:bg-red-900/30 px-3 py-1.5 rounded-lg transition-all font-medium"
+              className="text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 px-3 py-1.5 rounded-lg transition-all font-bold border border-transparent hover:border-red-500/20"
             >
               🗑️ Clear All
             </button>
           </div>
 
           {/* Mobile-optimized list */}
-          <div className="divide-y divide-slate-800 bg-slate-900/40">
+          <div className="divide-y divide-slate-800/60 bg-slate-900/40">
             {items.map((item) => {
               const isEditing = editingId === item._id;
               const displayData = isEditing ? editingData : item;
 
               return (
-                <div key={item._id} className="p-4 hover:bg-slate-800/50 transition-colors">
+                <div key={item._id} className="p-4 hover:bg-slate-800/40 transition-colors">
                   {isEditing ? (
                     /* Inline Editing Mode */
                     <div className="space-y-3">
-                      <div className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-3">
+                      <div className="text-xs font-bold text-sky-400 uppercase tracking-widest mb-3">
                         ✏️ Editing Item
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -588,13 +537,13 @@ export default function BatchLineItemsForm({
                       <div className="flex gap-2 pt-2">
                         <button
                           onClick={saveEdit}
-                          className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all"
+                          className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all border border-emerald-500/50"
                         >
                           ✓ Save
                         </button>
                         <button
                           onClick={cancelEdit}
-                          className="flex-1 bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all"
+                          className="flex-1 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all border border-slate-700/50"
                         >
                           Cancel
                         </button>
@@ -617,16 +566,16 @@ export default function BatchLineItemsForm({
                           </div>
                         ))}
                       </div>
-                      <div className="flex items-center gap-2 pt-2 border-t border-slate-800 mt-3">
+                      <div className="flex items-center gap-2 pt-2 border-t border-slate-800/60 mt-3">
                         <button
                           onClick={() => editItem(item._id)}
-                          className="flex-1 sm:flex-initial text-blue-400 hover:text-blue-300 hover:bg-blue-900/30 px-4 py-2 rounded-lg transition-all text-sm font-medium"
+                          className="flex-1 sm:flex-initial text-sky-400 hover:text-sky-300 hover:bg-sky-500/10 px-4 py-2 rounded-xl transition-all text-sm font-bold border border-transparent hover:border-sky-500/20"
                         >
                           ✏️ Edit
                         </button>
                         <button
                           onClick={() => removeItem(item._id)}
-                          className="flex-1 sm:flex-initial text-red-400 hover:text-red-300 hover:bg-red-900/30 px-4 py-2 rounded-lg transition-all text-sm font-medium"
+                          className="flex-1 sm:flex-initial text-red-400 hover:text-red-300 hover:bg-red-500/10 px-4 py-2 rounded-xl transition-all text-sm font-bold border border-transparent hover:border-red-500/20"
                         >
                           🗑️ Remove
                         </button>
@@ -639,12 +588,12 @@ export default function BatchLineItemsForm({
           </div>
 
           {/* Submit Section */}
-          <div className="bg-slate-900 p-4 flex flex-col sm:flex-row justify-between items-center gap-3 border-t border-slate-800">
-            <span className="text-xs text-slate-500">{items.length} items staged</span>
+          <div className="bg-slate-900/80 p-4 flex flex-col sm:flex-row justify-between items-center gap-3 border-t border-slate-800/80">
+            <span className="text-xs text-slate-500 font-medium">{items.length} items staged</span>
             <button
               onClick={handleSubmit}
               disabled={loading}
-              className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold py-2.5 px-6 rounded-lg shadow-md transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-emerald-900/20 border border-emerald-500/50 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>
