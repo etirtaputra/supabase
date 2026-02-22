@@ -163,13 +163,18 @@ export default function DatabaseViewPage() {
             <div className="mb-6">
               <h2 className="text-lg md:text-xl font-bold text-violet-400 tracking-tight">Cash Conversion Cycle</h2>
               <p className="text-slate-400 text-xs mt-1 max-w-2xl">
-                Tracks cash commitment timing per PO. <span className="text-slate-200 font-medium">Cycle gap</span> = days between consecutive PO down payments.
-                <span className="text-slate-200 font-medium ml-1">Settlement</span> = days from down payment to balance payment within the same PO.
+                Per-product reorder cycles: time between consecutive balance-settled POs for the same item.
+                Shows <span className="text-slate-200 font-medium">how long a batch lasts</span> before you need to reorder.
+                Only products with ≥2 fully-paid POs are shown.
               </p>
             </div>
             <POCashCycle
               pos={data.pos}
+              poItems={data.poItems}
               poCosts={data.poCosts}
+              components={data.components}
+              quotes={data.quotes}
+              suppliers={data.suppliers}
               isLoading={loading}
             />
           </div>
