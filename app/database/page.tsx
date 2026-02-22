@@ -7,14 +7,16 @@ import { useState } from 'react';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import SearchableTable from '@/components/ui/SearchableTable';
 import ProductCostLookup from '@/components/ui/ProductCostLookup';
+import POCashCycle from '@/components/ui/POCashCycle';
 import { ToastProvider } from '@/hooks/useToast';
-type TabId = 'lookup' | 'quotes' | 'orders' | 'financials' | 'reference';
+type TabId = 'lookup' | 'quotes' | 'orders' | 'financials' | 'cash' | 'reference';
 const TABS: { id: TabId; label: string; color: string; activeColor: string }[] = [
-  { id: 'lookup',     label: 'Cost Lookup',  color: 'text-slate-400 hover:text-sky-300 hover:bg-slate-800/50', activeColor: 'bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30' },
-  { id: 'quotes',     label: 'Quotes',       color: 'text-slate-400 hover:text-emerald-300 hover:bg-slate-800/50', activeColor: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30' },
-  { id: 'orders',     label: 'Orders',       color: 'text-slate-400 hover:text-amber-300 hover:bg-slate-800/50',   activeColor: 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30' },
-  { id: 'financials', label: 'Financials',   color: 'text-slate-400 hover:text-rose-300 hover:bg-slate-800/50',    activeColor: 'bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30' },
-  { id: 'reference',  label: 'Reference',    color: 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50',   activeColor: 'bg-slate-700 text-white ring-1 ring-slate-500/30' },
+  { id: 'lookup',     label: 'Cost Lookup',  color: 'text-slate-400 hover:text-sky-300 hover:bg-slate-800/50',      activeColor: 'bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30' },
+  { id: 'quotes',     label: 'Quotes',       color: 'text-slate-400 hover:text-emerald-300 hover:bg-slate-800/50',  activeColor: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30' },
+  { id: 'orders',     label: 'Orders',       color: 'text-slate-400 hover:text-amber-300 hover:bg-slate-800/50',    activeColor: 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30' },
+  { id: 'financials', label: 'Financials',   color: 'text-slate-400 hover:text-rose-300 hover:bg-slate-800/50',     activeColor: 'bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30' },
+  { id: 'cash',       label: 'Cash Cycle',   color: 'text-slate-400 hover:text-violet-300 hover:bg-slate-800/50',   activeColor: 'bg-violet-500/15 text-violet-300 ring-1 ring-violet-500/30' },
+  { id: 'reference',  label: 'Reference',    color: 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50',    activeColor: 'bg-slate-700 text-white ring-1 ring-slate-500/30' },
 ];
 export default function DatabaseViewPage() {
   const { data, loading } = useSupabaseData();
@@ -156,6 +158,22 @@ export default function DatabaseViewPage() {
               isLoading={loading}
             />
           </div>
+          {/* Cash Cycle */}
+          <div className={activeTab !== 'cash' ? 'hidden' : 'space-y-6'}>
+            <div className="mb-6">
+              <h2 className="text-lg md:text-xl font-bold text-violet-400 tracking-tight">Cash Conversion Cycle</h2>
+              <p className="text-slate-400 text-xs mt-1 max-w-2xl">
+                Tracks cash commitment timing per PO. <span className="text-slate-200 font-medium">Cycle gap</span> = days between consecutive PO down payments.
+                <span className="text-slate-200 font-medium ml-1">Settlement</span> = days from down payment to balance payment within the same PO.
+              </p>
+            </div>
+            <POCashCycle
+              pos={data.pos}
+              poCosts={data.poCosts}
+              isLoading={loading}
+            />
+          </div>
+
           {/* Reference */}
           <div className={activeTab !== 'reference' ? 'hidden' : 'space-y-8'}>
             <div className="mb-2">
