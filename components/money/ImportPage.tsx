@@ -116,16 +116,22 @@ function normaliseDate(raw: string | number): string {
 
 /** Normalise time → 'HH:MM:SS' */
 function normaliseTime(raw: string | number | undefined): string {
-  if (!raw) return '00:00:00';
+  if (raw == null || raw === '') return '00:00:00';
   if (typeof raw === 'number') {
-    // Excel time fraction (0–1)
-    const total = Math.round(raw * 86400);
+    // Excel time fraction (0–1) OR full date+time serial (≥1).
+    // Use modulo to strip the date portion and keep only the time fraction.
+    const fraction = raw % 1;
+    const total = Math.round(fraction * 86400);
     const h = Math.floor(total / 3600);
     const m = Math.floor((total % 3600) / 60);
     const s = total % 60;
     return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
   }
-  const s = String(raw).trim();
+  // Handle combined datetime strings like "23/02/2026, 08.35.11" — extract time part
+  let s = String(raw).trim();
+  const commaIdx = s.indexOf(',');
+  if (commaIdx > 0) s = s.slice(commaIdx + 1).trim();
+
   // Colon-separated: "08:35:11"
   if (/^\d{1,2}:\d{2}(:\d{2})?/.test(s)) {
     const parts = s.split(':');
@@ -135,7 +141,7 @@ function normaliseTime(raw: string | number | undefined): string {
       (parts[2] ?? '00').slice(0,2).padStart(2,'0'),
     ].join(':');
   }
-  // Dot-separated: "08.35.11" (from combined Period column)
+  // Dot-separated: "08.35.11"
   if (/^\d{1,2}\.\d{2}(\.\d{2})?/.test(s)) {
     const parts = s.split('.');
     return [
@@ -162,9 +168,13 @@ function mapRow(raw: RawRow, colMap: ColumnMap, typeMap: Record<string, TxType>)
   const rawDateStr = typeof rawDate === 'number' ? rawDate : String(rawDate ?? '');
   const date = normaliseDate(rawDateStr);
 
-  // Extract embedded time from combined datetime (e.g. "23/02/2026, 08.35.11")
-  let embeddedTime: string | undefined;
-  if (typeof rawDateStr === 'string' && rawDateStr.includes(',')) {
+  // Extract embedded time from combined datetime:
+  //   • numeric serial ≥1 (e.g. 46076.358) — fractional part carries the time
+  //   • string with comma (e.g. "23/02/2026, 08.35.11") — part after comma
+  let embeddedTime: string | number | undefined;
+  if (typeof rawDate === 'number' && rawDate % 1 !== 0) {
+    embeddedTime = rawDate; // normaliseTime will use raw % 1 to get the time fraction
+  } else if (typeof rawDateStr === 'string' && rawDateStr.includes(',')) {
     embeddedTime = rawDateStr.split(',')[1]?.trim();
   }
   const rawTime = colMap.time ? raw[colMap.time] : embeddedTime;
