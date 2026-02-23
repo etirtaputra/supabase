@@ -1,0 +1,163 @@
+import { createClient } from '@supabase/supabase-js';
+import type { Transaction, TransactionFormData, NoteSuggestion } from '@/types/money';
+
+export function getSupabaseClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+}
+
+// ── Auth helpers ─────────────────────────────────────────────
+
+export async function signInWithEmail(email: string, password: string) {
+  const supabase = getSupabaseClient();
+  return supabase.auth.signInWithPassword({ email, password });
+}
+
+export async function signUpWithEmail(email: string, password: string) {
+  const supabase = getSupabaseClient();
+  return supabase.auth.signUp({ email, password });
+}
+
+export async function signOut() {
+  const supabase = getSupabaseClient();
+  return supabase.auth.signOut();
+}
+
+export async function getUser() {
+  const supabase = getSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  return user;
+}
+
+// ── Transaction CRUD ─────────────────────────────────────────
+
+/** Fetch all transactions for the logged-in user (no month filter; filtering done client-side). */
+export async function fetchTransactions(): Promise<Transaction[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('*')
+    .order('date', { ascending: false })
+    .order('time', { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []) as Transaction[];
+}
+
+/** Fetch transactions for a specific month (YYYY-MM). */
+export async function fetchTransactionsByMonth(yearMonth: string): Promise<Transaction[]> {
+  const supabase = getSupabaseClient();
+  const start = `${yearMonth}-01`;
+  // last day of month
+  const [y, m] = yearMonth.split('-').map(Number);
+  const end = new Date(y, m, 0).toISOString().split('T')[0];
+
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('*')
+    .gte('date', start)
+    .lte('date', end)
+    .order('date', { ascending: false })
+    .order('time', { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []) as Transaction[];
+}
+
+/** Insert a new transaction. */
+export async function addTransaction(form: TransactionFormData): Promise<Transaction> {
+  const supabase = getSupabaseClient();
+  const user = await getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('transactions')
+    .insert({ ...form, user_id: user.id })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as Transaction;
+}
+
+/** Update an existing transaction. */
+export async function updateTransaction(id: string, form: TransactionFormData): Promise<Transaction> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('transactions')
+    .update(form)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as Transaction;
+}
+
+/** Delete a transaction by id. */
+export async function deleteTransaction(id: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.from('transactions').delete().eq('id', id);
+  if (error) throw error;
+}
+
+/** Toggle the bookmarked flag. */
+export async function toggleBookmark(id: string, current: boolean): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from('transactions')
+    .update({ bookmarked: !current })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+/** Duplicate a transaction, optionally replacing date/time with today. */
+export async function duplicateTransaction(
+  transaction: Transaction,
+  useTodayDate: boolean
+): Promise<Transaction> {
+  const now = new Date();
+  const form: TransactionFormData = {
+    date: useTodayDate ? now.toISOString().split('T')[0] : transaction.date,
+    time: useTodayDate
+      ? now.toTimeString().split(' ')[0]
+      : transaction.time,
+    account:     transaction.account,
+    category:    transaction.category,
+    subcategory: transaction.subcategory,
+    note:        transaction.note,
+    description: transaction.description,
+    amount:      transaction.amount,
+    type:        transaction.type,
+  };
+  return addTransaction(form);
+}
+
+/** Autocomplete: find distinct notes matching a prefix, plus their most-recent metadata. */
+export async function fetchNoteSuggestions(prefix: string): Promise<NoteSuggestion[]> {
+  if (!prefix.trim()) return [];
+  const supabase = getSupabaseClient();
+
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('note, account, category, subcategory')
+    .ilike('note', `${prefix}%`)
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  if (error) return [];
+
+  // deduplicate by note (keep first / most-recent occurrence)
+  const seen = new Set<string>();
+  const suggestions: NoteSuggestion[] = [];
+  for (const row of data ?? []) {
+    if (!seen.has(row.note) && row.note) {
+      seen.add(row.note);
+      suggestions.push(row as NoteSuggestion);
+    }
+    if (suggestions.length >= 8) break;
+  }
+  return suggestions;
+}
