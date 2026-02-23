@@ -221,7 +221,7 @@ cat > package.json << 'PKGJSON'
     "@supabase/supabase-js": "^2.86.2",
     "chart.js": "^4.5.1",
     "date-fns": "^4.1.0",
-    "next": "15.3.1",
+    "next": "latest",
     "react": "^19.0.0",
     "react-chartjs-2": "^5.3.0",
     "react-dom": "^19.0.0",
@@ -233,7 +233,7 @@ cat > package.json << 'PKGJSON'
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "15.3.1",
+    "eslint-config-next": "latest",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
