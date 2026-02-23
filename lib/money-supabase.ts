@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Transaction, TransactionFormData, NoteSuggestion } from '@/types/money';
+import type { Transaction, TransactionFormData, NoteSuggestion, UserAccount, AccountCategory } from '@/types/money';
 
 export function getSupabaseClient() {
   return createClient(
@@ -144,7 +144,7 @@ export interface BulkRow {
   note: string;
   description: string;
   amount: number;
-  type: 'Inc' | 'Exp' | 'Trf';
+  type: 'Inc' | 'Exp' | 'Trf' | 'TrfIn' | 'TrfOut' | 'IncBal' | 'ExpBal';
 }
 
 export interface BulkInsertResult {
@@ -225,4 +225,47 @@ export async function fetchNoteSuggestions(prefix: string): Promise<NoteSuggesti
     if (suggestions.length >= 8) break;
   }
   return suggestions;
+}
+
+// ── User Account CRUD ─────────────────────────────────────────
+
+export async function fetchUserAccounts(): Promise<UserAccount[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('user_accounts')
+    .select('*')
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as UserAccount[];
+}
+
+export async function addUserAccount(name: string, category: AccountCategory): Promise<UserAccount> {
+  const supabase = getSupabaseClient();
+  const user = await getUser();
+  if (!user) throw new Error('Not authenticated');
+  const { data, error } = await supabase
+    .from('user_accounts')
+    .insert({ name, category, user_id: user.id })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as UserAccount;
+}
+
+export async function updateUserAccount(id: string, name: string, category: AccountCategory): Promise<UserAccount> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('user_accounts')
+    .update({ name, category })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as UserAccount;
+}
+
+export async function deleteUserAccount(id: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.from('user_accounts').delete().eq('id', id);
+  if (error) throw error;
 }

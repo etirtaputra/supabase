@@ -4,13 +4,14 @@ import { MoneyProvider, useMoney } from '@/context/MoneyContext';
 import AuthGate from '@/components/money/AuthGate';
 import Sidebar from '@/components/money/Sidebar';
 import BottomNav from '@/components/money/BottomNav';
-import MonthNavigator from '@/components/money/MonthNavigator';
+import PeriodNavigator from '@/components/money/MonthNavigator';
 import SummaryCards from '@/components/money/SummaryCards';
 import TransactionList from '@/components/money/TransactionList';
 import TransactionModal from '@/components/money/TransactionModal';
 import TransactionActionMenu from '@/components/money/TransactionActionMenu';
 import StatsView from '@/components/money/StatsView';
 import AccountsView from '@/components/money/AccountsView';
+import SettingsView from '@/components/money/SettingsView';
 import Link from 'next/link';
 import { signOut } from '@/lib/money-supabase';
 
@@ -23,19 +24,20 @@ function MoneyApp() {
     transactions: 'Transactions',
     stats:        'Statistics',
     accounts:     'Accounts',
+    settings:     'Settings',
   };
+
+  const showPeriodNav = activeView === 'transactions' || activeView === 'stats';
 
   return (
     <div className="flex h-dvh bg-slate-950 text-white overflow-hidden">
-      {/* Desktop sidebar */}
       <Sidebar />
 
-      {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top header */}
         <header className="flex items-center justify-between px-4 py-3 border-b border-slate-700/50 bg-slate-900/80 backdrop-blur-sm shrink-0">
           <div className="flex items-center gap-3">
-            {/* Mobile: show app icon */}
+            {/* Mobile: app icon */}
             <div className="lg:hidden w-7 h-7 rounded-lg bg-violet-600 flex items-center justify-center">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
                 stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
@@ -52,18 +54,13 @@ function MoneyApp() {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Month navigator for transactions + stats */}
-            {(activeView === 'transactions' || activeView === 'stats') && (
-              <MonthNavigator />
-            )}
+            {/* Period navigator for transactions + stats */}
+            {showPeriodNav && <PeriodNavigator />}
 
-            {/* Import – mobile only (desktop uses sidebar link) */}
-            <Link
-              href="/money/import"
+            {/* Import – mobile only */}
+            <Link href="/money/import"
               className="lg:hidden p-2 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
-              aria-label="Import from Excel"
-              title="Import from Excel"
-            >
+              aria-label="Import from Excel" title="Import from Excel">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
                 className="w-4 h-4">
@@ -75,11 +72,9 @@ function MoneyApp() {
             </Link>
 
             {/* Refresh */}
-            <button
-              onClick={refreshTransactions}
+            <button onClick={refreshTransactions}
               className="p-2 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
-              aria-label="Refresh"
-            >
+              aria-label="Refresh">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
                 className="w-4 h-4">
@@ -89,12 +84,9 @@ function MoneyApp() {
             </button>
 
             {/* Sign out */}
-            <button
-              onClick={async () => { await signOut(); window.location.reload(); }}
+            <button onClick={async () => { await signOut(); window.location.reload(); }}
               className="p-2 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
-              aria-label="Sign out"
-              title="Sign out"
-            >
+              aria-label="Sign out" title="Sign out">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
                 className="w-4 h-4">
@@ -106,28 +98,23 @@ function MoneyApp() {
           </div>
         </header>
 
-        {/* Summary cards (only on transactions view) */}
+        {/* Summary cards (transactions view only) */}
         {activeView === 'transactions' && <SummaryCards />}
 
-        {/* Scrollable content */}
         <main className="flex-1 overflow-y-auto">
           {activeView === 'transactions' && <TransactionList />}
           {activeView === 'stats'        && <StatsView />}
           {activeView === 'accounts'     && <AccountsView />}
+          {activeView === 'settings'     && <SettingsView />}
         </main>
       </div>
 
-      {/* Mobile bottom nav + FAB */}
       <BottomNav />
-
-      {/* Modals */}
       <TransactionModal />
       <TransactionActionMenu />
     </div>
   );
 }
-
-// ── Page export ────────────────────────────────────────────────
 
 export default function MoneyPage() {
   return (

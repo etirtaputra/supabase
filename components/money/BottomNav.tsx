@@ -6,7 +6,7 @@ import type { ViewType } from '@/types/money';
 const navItems: { view: ViewType; label: string; icon: (active: boolean) => React.ReactNode }[] = [
   {
     view: 'transactions',
-    label: 'Transactions',
+    label: 'Home',
     icon: (active) => (
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
         fill={active ? 'currentColor' : 'none'}
@@ -44,26 +44,38 @@ const navItems: { view: ViewType; label: string; icon: (active: boolean) => Reac
       </svg>
     ),
   },
+  {
+    view: 'settings',
+    label: 'Settings',
+    icon: (active) => (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+        fill={active ? 'currentColor' : 'none'}
+        stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+        className="w-6 h-6">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    ),
+  },
 ];
 
 export default function BottomNav() {
   const { activeView, setActiveView, openAddModal } = useMoney();
 
+  // Split: 2 left, FAB, 2 right
+  const left  = navItems.slice(0, 2);
+  const right = navItems.slice(2);
+
   return (
     <>
-      {/* Bottom nav bar */}
       <nav className="lg:hidden fixed bottom-0 inset-x-0 bg-slate-900 border-t border-slate-700/50 flex items-center z-40 safe-area-bottom">
-        {/* Left items */}
         <div className="flex flex-1 justify-around">
-          {navItems.slice(0, 2).map(({ view, label, icon }) => {
+          {left.map(({ view, label, icon }) => {
             const active = activeView === view;
             return (
-              <button
-                key={view}
-                onClick={() => setActiveView(view)}
-                className={`flex flex-col items-center gap-1 py-2 px-4 text-xs font-medium transition-colors
-                  ${active ? 'text-violet-400' : 'text-slate-500'}`}
-              >
+              <button key={view} onClick={() => setActiveView(view)}
+                className={`flex flex-col items-center gap-1 py-2 px-3 text-xs font-medium transition-colors
+                  ${active ? 'text-violet-400' : 'text-slate-500'}`}>
                 {icon(active)}
                 {label}
               </button>
@@ -71,20 +83,16 @@ export default function BottomNav() {
           })}
         </div>
 
-        {/* FAB placeholder space */}
+        {/* FAB placeholder */}
         <div className="w-16" />
 
-        {/* Right items */}
         <div className="flex flex-1 justify-around">
-          {navItems.slice(2).map(({ view, label, icon }) => {
+          {right.map(({ view, label, icon }) => {
             const active = activeView === view;
             return (
-              <button
-                key={view}
-                onClick={() => setActiveView(view)}
-                className={`flex flex-col items-center gap-1 py-2 px-4 text-xs font-medium transition-colors
-                  ${active ? 'text-violet-400' : 'text-slate-500'}`}
-              >
+              <button key={view} onClick={() => setActiveView(view)}
+                className={`flex flex-col items-center gap-1 py-2 px-3 text-xs font-medium transition-colors
+                  ${active ? 'text-violet-400' : 'text-slate-500'}`}>
                 {icon(active)}
                 {label}
               </button>
@@ -93,7 +101,7 @@ export default function BottomNav() {
         </div>
       </nav>
 
-      {/* Floating Action Button */}
+      {/* FAB */}
       <button
         onClick={() => openAddModal('Exp')}
         className="lg:hidden fixed bottom-12 left-1/2 -translate-x-1/2 z-50 w-14 h-14 rounded-full bg-violet-600 hover:bg-violet-500 shadow-lg shadow-violet-600/40 flex items-center justify-center transition-colors"

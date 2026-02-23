@@ -9,7 +9,6 @@ import type { TransactionFormData, TransactionType, NoteSuggestion } from '@/typ
 // ── Calculator ────────────────────────────────────────────────
 
 function safeEval(expr: string): number | null {
-  // Whitelist: digits, +, -, *, /, decimal, parentheses, spaces
   if (!/^[\d+\-*/().\s]+$/.test(expr)) return null;
   try {
     // eslint-disable-next-line no-new-func
@@ -55,35 +54,21 @@ function Calculator({ initialValue, onConfirm, onCancel }: CalcProps) {
       if (input.length > 0) {
         setInput(p => p.slice(0, -1));
       } else if (expression.length > 0) {
-        // remove last char of expression
         const trimmed = expression.slice(0, -1);
-        // if trimmed ends with operator, set expression and clear input
         const lastChar = trimmed.slice(-1);
         if (['+', '-', '*', '/', '×', '÷'].includes(lastChar)) {
           setExpression(trimmed);
         } else {
-          // move back: last "number" part becomes input
           const match = trimmed.match(/(.*?)([\d.]*)$/);
-          if (match) {
-            setExpression(match[1]);
-            setInput(match[2]);
-          }
+          if (match) { setExpression(match[1]); setInput(match[2]); }
         }
       }
       return;
     }
-
-    if (key === 'C') {
-      setInput('');
-      setExpression('');
-      return;
-    }
-
+    if (key === 'C') { setInput(''); setExpression(''); return; }
     if (['+', '-', '×', '÷'].includes(key)) {
-      // fold current input into expression
       setExpression(prev => {
         const cur = prev + input;
-        // if cur ends with operator, replace it
         if (cur && ['+', '-', '*', '/', '×', '÷'].includes(cur.slice(-1))) {
           return cur.slice(0, -1) + key;
         }
@@ -92,17 +77,11 @@ function Calculator({ initialValue, onConfirm, onCancel }: CalcProps) {
       setInput('');
       return;
     }
-
     if (key === '=') {
       const result = evaluate(currentDisplay);
-      if (result !== null) {
-        setInput(String(Math.round(result * 100) / 100));
-        setExpression('');
-      }
+      if (result !== null) { setInput(String(Math.round(result * 100) / 100)); setExpression(''); }
       return;
     }
-
-    // digit or '.'
     if (key === '.' && input.includes('.')) return;
     setInput(p => p + key);
   }, [input, expression, currentDisplay, evaluate]);
@@ -111,64 +90,61 @@ function Calculator({ initialValue, onConfirm, onCancel }: CalcProps) {
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Display */}
       <div className="bg-slate-950 rounded-xl p-4 min-h-[72px] flex flex-col items-end justify-center">
-        {expression && (
-          <p className="text-slate-500 text-sm mb-1">{expression}{input}</p>
-        )}
-        <p className="text-2xl font-bold text-white tracking-tight">
-          {displayValue}
-        </p>
+        {expression && <p className="text-slate-500 text-sm mb-1">{expression}{input}</p>}
+        <p className="text-2xl font-bold text-white tracking-tight">{displayValue}</p>
       </div>
-
-      {/* Keypad */}
       <div className="grid grid-cols-4 gap-2">
         {CALC_KEYS.map(row =>
           row.map(key => {
             const isOp = ['+', '-', '×', '÷'].includes(key);
             const isDel = key === '⌫';
             return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => handleKey(key)}
+              <button key={key} type="button" onClick={() => handleKey(key)}
                 className={`h-12 rounded-xl text-sm font-semibold transition-colors active:scale-95
                   ${isOp ? 'bg-violet-600/30 text-violet-300 hover:bg-violet-600/50' :
                     isDel ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' :
-                    'bg-slate-800 text-white hover:bg-slate-700'}`}
-              >
+                    'bg-slate-800 text-white hover:bg-slate-700'}`}>
                 {key}
               </button>
             );
           })
         )}
-
-        {/* Bottom row: C, =, OK */}
         <button type="button" onClick={() => handleKey('C')}
-          className="h-12 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 text-sm font-semibold transition-colors col-span-1">
-          C
-        </button>
+          className="h-12 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 text-sm font-semibold col-span-1">C</button>
         <button type="button" onClick={() => handleKey('=')}
-          className="h-12 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 text-sm font-semibold transition-colors col-span-1">
-          =
-        </button>
+          className="h-12 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 text-sm font-semibold col-span-1">=</button>
         <button type="button" onClick={onCancel}
-          className="h-12 rounded-xl bg-slate-700 text-slate-400 hover:bg-slate-600 text-sm font-semibold transition-colors col-span-1">
-          ✕
-        </button>
-        <button
-          type="button"
-          onClick={() => onConfirm(Math.abs(confirmed))}
-          className="h-12 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-bold transition-colors col-span-1"
-        >
-          OK
-        </button>
+          className="h-12 rounded-xl bg-slate-700 text-slate-400 hover:bg-slate-600 text-sm font-semibold col-span-1">✕</button>
+        <button type="button" onClick={() => onConfirm(Math.abs(confirmed))}
+          className="h-12 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-bold col-span-1">OK</button>
       </div>
     </div>
   );
 }
 
-// ── Common categories ──────────────────────────────────────────
+// ── Type config ───────────────────────────────────────────────
+
+interface TypeConfig {
+  label: string;
+  activeClass: string;
+  submitClass: string;
+}
+
+const TYPE_CONFIG: Record<TransactionType, TypeConfig> = {
+  Exp:    { label: 'Expense',      activeClass: 'bg-rose-500 text-white',    submitClass: 'bg-rose-500 hover:bg-rose-400' },
+  Inc:    { label: 'Income',       activeClass: 'bg-emerald-500 text-white',  submitClass: 'bg-emerald-500 hover:bg-emerald-400' },
+  ExpBal: { label: 'Exp Balance',  activeClass: 'bg-orange-500 text-white',   submitClass: 'bg-orange-500 hover:bg-orange-400' },
+  IncBal: { label: 'Inc Balance',  activeClass: 'bg-teal-500 text-white',     submitClass: 'bg-teal-500 hover:bg-teal-400' },
+  TrfOut: { label: 'Transfer Out', activeClass: 'bg-sky-500 text-white',      submitClass: 'bg-sky-500 hover:bg-sky-400' },
+  TrfIn:  { label: 'Transfer In',  activeClass: 'bg-indigo-500 text-white',   submitClass: 'bg-indigo-500 hover:bg-indigo-400' },
+  Trf:    { label: 'Transfer',     activeClass: 'bg-sky-500 text-white',      submitClass: 'bg-sky-500 hover:bg-sky-400' },
+};
+
+// Primary types shown in new-transaction modal (3 per row)
+const PRIMARY_TYPES: TransactionType[] = ['Exp', 'Inc', 'ExpBal', 'IncBal', 'TrfOut', 'TrfIn'];
+
+// ── Categories ────────────────────────────────────────────────
 
 const EXPENSE_CATEGORIES = [
   'Food & Drink', 'Shopping', 'Transport', 'Housing', 'Health',
@@ -177,22 +153,19 @@ const EXPENSE_CATEGORIES = [
 const INCOME_CATEGORIES = [
   'Salary', 'Freelance', 'Business', 'Investment', 'Gift', 'Other',
 ];
-const ACCOUNTS = ['Cash', 'Bank BCA', 'Bank BRI', 'Bank Mandiri', 'GoPay', 'OVO', 'ShopeePay', 'Credit Card'];
 
 // ── Main Modal ─────────────────────────────────────────────────
 
 export default function TransactionModal() {
   const {
-    showModal,
-    closeModal,
-    editingTransaction,
-    handleAddTransaction,
-    handleUpdateTransaction,
+    showModal, closeModal, editingTransaction,
+    handleAddTransaction, handleUpdateTransaction,
+    userAccounts,
   } = useMoney();
 
   const defaultType = useDefaultModalType();
 
-  const today      = format(new Date(), 'yyyy-MM-dd');
+  const today       = format(new Date(), 'yyyy-MM-dd');
   const currentTime = format(new Date(), 'HH:mm');
 
   const [type,        setType]        = useState<TransactionType>(defaultType);
@@ -207,13 +180,14 @@ export default function TransactionModal() {
   const [showCalc,    setShowCalc]    = useState(false);
   const [saving,      setSaving]      = useState(false);
 
-  // Note autocomplete
   const [suggestions,     setSuggestions]    = useState<NoteSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const noteRef = useRef<HTMLInputElement>(null);
+  const noteRef     = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Populate form when editing
+  // Derive account list from settings; fallback to 'Cash'
+  const accountNames = userAccounts.length > 0 ? userAccounts.map(a => a.name) : ['Cash'];
+
   useEffect(() => {
     if (!showModal) return;
     if (editingTransaction) {
@@ -230,7 +204,7 @@ export default function TransactionModal() {
       setType(defaultType);
       setDate(today);
       setTime(currentTime);
-      setAccount('Cash');
+      setAccount(accountNames[0] ?? 'Cash');
       setCategory('');
       setSubcategory('');
       setNote('');
@@ -243,7 +217,6 @@ export default function TransactionModal() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showModal, editingTransaction]);
 
-  // Autocomplete on note change
   const handleNoteChange = useCallback((value: string) => {
     setNote(value);
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -268,15 +241,8 @@ export default function TransactionModal() {
     setSaving(true);
     try {
       const form: TransactionFormData = {
-        date,
-        time: time + ':00',
-        account,
-        category,
-        subcategory,
-        note,
-        description,
-        amount,
-        type,
+        date, time: time + ':00', account, category,
+        subcategory, note, description, amount, type,
       };
       if (editingTransaction) {
         await handleUpdateTransaction(editingTransaction.id, form);
@@ -288,19 +254,30 @@ export default function TransactionModal() {
     }
   };
 
-  const categories = type === 'Inc' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+  const isTransfer = type === 'TrfIn' || type === 'TrfOut' || type === 'Trf';
+  const categories = (type === 'Inc' || type === 'IncBal')
+    ? INCOME_CATEGORIES
+    : (type === 'Exp' || type === 'ExpBal')
+    ? EXPENSE_CATEGORIES
+    : [];
+
+  const descLabel = type === 'TrfOut' || type === 'Trf' ? 'Transfer To'
+    : type === 'TrfIn' ? 'Transfer From'
+    : 'Description';
+
+  const cfg = TYPE_CONFIG[type];
+
+  // If editing a legacy 'Trf' record, add it to the visible tabs
+  const visibleTypes = editingTransaction?.type === 'Trf'
+    ? ([...PRIMARY_TYPES, 'Trf'] as TransactionType[])
+    : PRIMARY_TYPES;
 
   if (!showModal) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end lg:items-center justify-center">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={closeModal}
-      />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeModal} />
 
-      {/* Modal panel */}
       <div className="relative w-full lg:max-w-md max-h-[92dvh] bg-slate-900 rounded-t-2xl lg:rounded-2xl flex flex-col overflow-hidden shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700/50">
@@ -312,25 +289,22 @@ export default function TransactionModal() {
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
               className="w-5 h-5">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
           </button>
         </div>
 
-        {/* Type tabs */}
-        <div className="flex gap-1 px-5 pt-4">
-          {(['Exp', 'Inc', 'Trf'] as TransactionType[]).map(t => {
-            const labels = { Exp: 'Expense', Inc: 'Income', Trf: 'Transfer' };
-            const colors = {
-              Exp: type === 'Exp' ? 'bg-rose-500 text-white' : 'text-slate-400 hover:text-white',
-              Inc: type === 'Inc' ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:text-white',
-              Trf: type === 'Trf' ? 'bg-sky-500 text-white' : 'text-slate-400 hover:text-white',
-            };
+        {/* Type selector — 3 columns, up to 2 rows */}
+        <div className="grid grid-cols-3 gap-1.5 px-5 pt-4">
+          {visibleTypes.map(t => {
+            const c = TYPE_CONFIG[t];
+            const active = type === t;
             return (
-              <button key={t} type="button" onClick={() => setType(t)}
-                className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors ${colors[t]}`}>
-                {labels[t]}
+              <button key={t} type="button"
+                onClick={() => { setType(t); setCategory(''); }}
+                className={`py-2 rounded-xl text-xs font-semibold transition-colors
+                  ${active ? c.activeClass : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'}`}>
+                {c.label}
               </button>
             );
           })}
@@ -338,22 +312,16 @@ export default function TransactionModal() {
 
         {/* Scrollable form body */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-          {/* Amount button */}
-          <button
-            type="button"
-            onClick={() => setShowCalc(v => !v)}
+          {/* Amount */}
+          <button type="button" onClick={() => setShowCalc(v => !v)}
             className={`w-full text-center py-4 rounded-xl border-2 transition-colors
-              ${showCalc
-                ? 'border-violet-500 bg-violet-500/10'
-                : 'border-slate-700 bg-slate-800 hover:border-slate-600'}`}
-          >
+              ${showCalc ? 'border-violet-500 bg-violet-500/10' : 'border-slate-700 bg-slate-800 hover:border-slate-600'}`}>
             <p className="text-xs text-slate-400 mb-0.5">Amount</p>
             <p className={`text-2xl font-bold ${amount > 0 ? 'text-white' : 'text-slate-600'}`}>
               {amount > 0 ? fmt(amount) : 'Tap to enter'}
             </p>
           </button>
 
-          {/* Inline Calculator */}
           {showCalc && (
             <Calculator
               initialValue={amount}
@@ -379,21 +347,16 @@ export default function TransactionModal() {
           {/* Note with autocomplete */}
           <div className="relative">
             <label className="block text-xs text-slate-400 mb-1">Note</label>
-            <input
-              ref={noteRef}
-              type="text"
-              value={note}
+            <input ref={noteRef} type="text" value={note}
               onChange={e => handleNoteChange(e.target.value)}
               onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
               onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
               placeholder="What was this for?"
-              className="w-full bg-slate-800 border border-slate-700 text-white text-sm rounded-xl px-3 py-2.5 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-            />
+              className="w-full bg-slate-800 border border-slate-700 text-white text-sm rounded-xl px-3 py-2.5 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent" />
             {showSuggestions && (
               <div className="absolute z-20 top-full mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden">
                 {suggestions.map((s, i) => (
-                  <button key={i} type="button"
-                    onMouseDown={() => applySuggestion(s)}
+                  <button key={i} type="button" onMouseDown={() => applySuggestion(s)}
                     className="w-full text-left px-3 py-2.5 hover:bg-slate-700 transition-colors">
                     <p className="text-sm text-white">{s.note}</p>
                     <p className="text-xs text-slate-500">{s.category} · {s.account}</p>
@@ -408,25 +371,29 @@ export default function TransactionModal() {
             <label className="block text-xs text-slate-400 mb-1">Account</label>
             <select value={account} onChange={e => setAccount(e.target.value)}
               className="w-full bg-slate-800 border border-slate-700 text-white text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent">
-              {ACCOUNTS.map(a => <option key={a}>{a}</option>)}
+              {accountNames.map(a => <option key={a}>{a}</option>)}
+              {/* Show edited account even if removed from settings */}
+              {editingTransaction && !accountNames.includes(editingTransaction.account) && (
+                <option value={editingTransaction.account}>{editingTransaction.account}</option>
+              )}
             </select>
           </div>
 
-          {/* Category */}
-          <div>
-            <label className="block text-xs text-slate-400 mb-2">Category</label>
-            <div className="flex flex-wrap gap-2">
-              {categories.map(c => (
-                <button key={c} type="button" onClick={() => setCategory(c)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
-                    ${category === c
-                      ? 'bg-violet-600 text-white'
-                      : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'}`}>
-                  {c}
-                </button>
-              ))}
+          {/* Category (hidden for transfers) */}
+          {!isTransfer && categories.length > 0 && (
+            <div>
+              <label className="block text-xs text-slate-400 mb-2">Category</label>
+              <div className="flex flex-wrap gap-2">
+                {categories.map(c => (
+                  <button key={c} type="button" onClick={() => setCategory(c)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+                      ${category === c ? 'bg-violet-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'}`}>
+                    {c}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Subcategory */}
           <div>
@@ -436,27 +403,29 @@ export default function TransactionModal() {
               className="w-full bg-slate-800 border border-slate-700 text-white text-sm rounded-xl px-3 py-2.5 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent" />
           </div>
 
-          {/* Description */}
+          {/* Description / Transfer counterpart */}
           <div>
-            <label className="block text-xs text-slate-400 mb-1">
-              {type === 'Trf' ? 'Transfer To' : 'Description'}
-            </label>
+            <label className="block text-xs text-slate-400 mb-1">{descLabel}</label>
             <input type="text" value={description} onChange={e => setDescription(e.target.value)}
-              placeholder={type === 'Trf' ? 'Destination account…' : 'Additional notes…'}
+              placeholder={isTransfer ? 'Other account…' : 'Additional notes…'}
               className="w-full bg-slate-800 border border-slate-700 text-white text-sm rounded-xl px-3 py-2.5 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent" />
           </div>
+
+          {/* Balance-adjustment hint */}
+          {(type === 'ExpBal' || type === 'IncBal') && (
+            <p className="text-xs text-slate-500 bg-slate-800/60 rounded-xl px-3 py-2.5 leading-relaxed">
+              {type === 'ExpBal'
+                ? 'Expense Balance: the actual account has less than the app shows. This reduces the balance to match.'
+                : 'Income Balance: the actual account has more than the app shows. This increases the balance to match.'}
+            </p>
+          )}
         </div>
 
         {/* Footer */}
         <div className="px-5 py-4 border-t border-slate-700/50">
-          <button
-            onClick={handleSubmit}
-            disabled={saving}
+          <button onClick={handleSubmit} disabled={saving}
             className={`w-full py-3.5 rounded-xl font-bold text-sm text-white transition-colors
-              ${saving ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'}
-              ${type === 'Exp' ? 'bg-rose-500' :
-                type === 'Inc' ? 'bg-emerald-500' : 'bg-sky-500'}`}
-          >
+              ${saving ? 'opacity-50 cursor-not-allowed' : ''} ${cfg.submitClass}`}>
             {saving ? 'Saving…' : editingTransaction ? 'Update Transaction' : 'Save Transaction'}
           </button>
         </div>

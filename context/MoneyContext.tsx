@@ -8,13 +8,25 @@ import React, {
   useEffect,
   useRef,
 } from 'react';
-import { format, startOfMonth, endOfMonth } from 'date-fns';
+import {
+  format,
+  startOfMonth, endOfMonth,
+  startOfWeek,  endOfWeek,
+  startOfYear,  endOfYear,
+  addDays, subDays,
+  addWeeks, subWeeks,
+  addMonths, subMonths,
+  addYears, subYears,
+} from 'date-fns';
 import type {
   Transaction,
   TransactionFormData,
   ViewType,
+  ViewPeriod,
   GroupedTransactions,
   AccountBalance,
+  UserAccount,
+  AccountCategory,
 } from '@/types/money';
 import {
   fetchTransactions,
@@ -23,9 +35,71 @@ import {
   deleteTransaction,
   toggleBookmark,
   duplicateTransaction,
+  fetchUserAccounts,
+  addUserAccount,
+  updateUserAccount,
+  deleteUserAccount,
 } from '@/lib/money-supabase';
 
-// ── helpers ──────────────────────────────────────────────────
+// ── Period helpers ────────────────────────────────────────────
+
+function getPeriodRange(anchor: Date, period: ViewPeriod): { start: string; end: string } {
+  switch (period) {
+    case 'daily':
+      const d = format(anchor, 'yyyy-MM-dd');
+      return { start: d, end: d };
+    case 'weekly':
+      return {
+        start: format(startOfWeek(anchor, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
+        end:   format(endOfWeek(anchor,   { weekStartsOn: 1 }), 'yyyy-MM-dd'),
+      };
+    case 'monthly':
+      return {
+        start: format(startOfMonth(anchor), 'yyyy-MM-dd'),
+        end:   format(endOfMonth(anchor),   'yyyy-MM-dd'),
+      };
+    case 'annual':
+      return {
+        start: format(startOfYear(anchor), 'yyyy-MM-dd'),
+        end:   format(endOfYear(anchor),   'yyyy-MM-dd'),
+      };
+  }
+}
+
+export function getPeriodLabel(anchor: Date, period: ViewPeriod): string {
+  switch (period) {
+    case 'daily':
+      return format(anchor, 'EEE, d MMM yyyy');
+    case 'weekly': {
+      const ws = startOfWeek(anchor, { weekStartsOn: 1 });
+      const we = endOfWeek(anchor,   { weekStartsOn: 1 });
+      if (format(ws, 'MMM yyyy') === format(we, 'MMM yyyy')) {
+        return `${format(ws, 'd')}–${format(we, 'd MMM yyyy')}`;
+      }
+      return `${format(ws, 'd MMM')}–${format(we, 'd MMM yyyy')}`;
+    }
+    case 'monthly':
+      return format(anchor, 'MMMM yyyy');
+    case 'annual':
+      return format(anchor, 'yyyy');
+  }
+}
+
+export function navigatePeriod(anchor: Date, period: ViewPeriod, dir: 1 | -1): Date {
+  switch (period) {
+    case 'daily':   return dir === 1 ? addDays(anchor, 1)    : subDays(anchor, 1);
+    case 'weekly':  return dir === 1 ? addWeeks(anchor, 1)   : subWeeks(anchor, 1);
+    case 'monthly': return dir === 1 ? addMonths(anchor, 1)  : subMonths(anchor, 1);
+    case 'annual':  return dir === 1 ? addYears(anchor, 1)   : subYears(anchor, 1);
+  }
+}
+
+// ── Data helpers ──────────────────────────────────────────────
+
+/** Types that count as income for summary/stats purposes */
+const INCOME_TYPES = new Set(['Inc', 'IncBal'] as const);
+/** Types that count as expense for summary/stats purposes */
+const EXPENSE_TYPES = new Set(['Exp', 'ExpBal'] as const);
 
 function groupByDate(transactions: Transaction[]): GroupedTransactions[] {
   const map = new Map<string, Transaction[]>();
@@ -35,15 +109,13 @@ function groupByDate(transactions: Transaction[]): GroupedTransactions[] {
     map.set(t.date, existing);
   }
 
-  // Sort dates descending
   const dates = [...map.keys()].sort((a, b) => (a < b ? 1 : -1));
 
   return dates.map((date) => {
     const txns = map.get(date)!.sort((a, b) => (a.time < b.time ? 1 : -1));
-    const dailyIncome  = txns.filter(t => t.type === 'Inc').reduce((s, t) => s + t.amount, 0);
-    const dailyExpense = txns.filter(t => t.type === 'Exp').reduce((s, t) => s + t.amount, 0);
+    const dailyIncome  = txns.filter(t => INCOME_TYPES.has(t.type as 'Inc' | 'IncBal')).reduce((s, t) => s + t.amount, 0);
+    const dailyExpense = txns.filter(t => EXPENSE_TYPES.has(t.type as 'Exp' | 'ExpBal')).reduce((s, t) => s + t.amount, 0);
 
-    // Human-readable date: "Monday, 17 Feb"
     const d = new Date(date + 'T00:00:00');
     const displayDate = format(d, 'EEEE, d MMM');
 
@@ -56,23 +128,26 @@ function calcAccountBalances(transactions: Transaction[]): AccountBalance[] {
 
   const ensure = (acc: string) => {
     if (!map.has(acc)) {
-      map.set(acc, { account: acc, income: 0, expense: 0, balance: 0 });
+      map.set(acc, { account: acc, income: 0, expense: 0, balance: 0, transferIn: 0, transferOut: 0 });
     }
     return map.get(acc)!;
   };
 
   for (const t of transactions) {
     const ab = ensure(t.account);
-    if (t.type === 'Inc') {
-      ab.income  += t.amount;
-      ab.balance += t.amount;
-    } else if (t.type === 'Exp') {
-      ab.expense += t.amount;
-      ab.balance -= t.amount;
-    } else {
-      // Transfer – debit from this account
-      ab.expense += t.amount;
-      ab.balance -= t.amount;
+    const { type, amount } = t;
+    if (type === 'Inc' || type === 'IncBal') {
+      ab.income  += amount;
+      ab.balance += amount;
+    } else if (type === 'Exp' || type === 'ExpBal') {
+      ab.expense += amount;
+      ab.balance -= amount;
+    } else if (type === 'TrfIn') {
+      ab.transferIn += amount;
+      ab.balance    += amount;
+    } else if (type === 'TrfOut' || type === 'Trf') {
+      ab.transferOut += amount;
+      ab.balance     -= amount;
     }
   }
 
@@ -83,34 +158,38 @@ function calcAccountBalances(transactions: Transaction[]): AccountBalance[] {
 
 interface MoneyContextValue {
   // Data
-  allTransactions: Transaction[];
+  allTransactions:    Transaction[];
   filteredTransactions: Transaction[];
-  groupedTransactions: GroupedTransactions[];
-  accountBalances: AccountBalance[];
+  groupedTransactions:  GroupedTransactions[];
+  accountBalances:    AccountBalance[];
+  userAccounts:       UserAccount[];
 
-  // UI state
-  activeView: ViewType;
+  // Period / view
+  activeView:    ViewType;
   setActiveView: (v: ViewType) => void;
-  selectedMonth: Date;
-  setSelectedMonth: (d: Date) => void;
+  periodAnchor:    Date;
+  setPeriodAnchor: (d: Date) => void;
+  viewPeriod:    ViewPeriod;
+  setViewPeriod: (p: ViewPeriod) => void;
+  periodLabel:   string;
 
   // Loading / error
   isLoading: boolean;
-  error: string | null;
+  error:     string | null;
 
   // Modal
-  showModal: boolean;
-  openAddModal: (defaultType?: Transaction['type']) => void;
-  openEditModal: (t: Transaction) => void;
-  closeModal: () => void;
-  editingTransaction: Transaction | null;
+  showModal:           boolean;
+  openAddModal:        (defaultType?: Transaction['type']) => void;
+  openEditModal:       (t: Transaction) => void;
+  closeModal:          () => void;
+  editingTransaction:  Transaction | null;
 
   // Action menu
   actionTransaction: Transaction | null;
-  openActionMenu: (t: Transaction) => void;
-  closeActionMenu: () => void;
+  openActionMenu:    (t: Transaction) => void;
+  closeActionMenu:   () => void;
 
-  // CRUD
+  // Transaction CRUD
   handleAddTransaction:    (form: TransactionFormData) => Promise<void>;
   handleUpdateTransaction: (id: string, form: TransactionFormData) => Promise<void>;
   handleDeleteTransaction: (id: string) => Promise<void>;
@@ -118,7 +197,13 @@ interface MoneyContextValue {
   handleDuplicate:         (t: Transaction, useToday: boolean) => Promise<void>;
   refreshTransactions:     () => Promise<void>;
 
-  // Derived totals for selected month
+  // Account CRUD
+  handleAddUserAccount:    (name: string, category: AccountCategory) => Promise<void>;
+  handleUpdateUserAccount: (id: string, name: string, category: AccountCategory) => Promise<void>;
+  handleDeleteUserAccount: (id: string) => Promise<void>;
+  refreshUserAccounts:     () => Promise<void>;
+
+  // Derived totals for selected period
   monthlyIncome:  number;
   monthlyExpense: number;
   monthlyBalance: number;
@@ -128,20 +213,18 @@ const MoneyContext = createContext<MoneyContextValue | null>(null);
 
 export function MoneyProvider({ children }: { children: React.ReactNode }) {
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
-  const [activeView, setActiveView] = useState<ViewType>('transactions');
-  const [selectedMonth, setSelectedMonth] = useState<Date>(startOfMonth(new Date()));
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [userAccounts,    setUserAccounts]    = useState<UserAccount[]>([]);
+  const [activeView,      setActiveView]      = useState<ViewType>('transactions');
+  const [periodAnchor,    setPeriodAnchor]    = useState<Date>(startOfMonth(new Date()));
+  const [viewPeriod,      setViewPeriod]      = useState<ViewPeriod>('monthly');
+  const [isLoading,       setIsLoading]       = useState(true);
+  const [error,           setError]           = useState<string | null>(null);
 
-  // Modal state
-  const [showModal, setShowModal] = useState(false);
-  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-  const [defaultModalType, setDefaultModalType] = useState<Transaction['type']>('Exp');
+  const [showModal,            setShowModal]            = useState(false);
+  const [editingTransaction,   setEditingTransaction]   = useState<Transaction | null>(null);
+  const [defaultModalType,     setDefaultModalType]     = useState<Transaction['type']>('Exp');
+  const [actionTransaction,    setActionTransaction]    = useState<Transaction | null>(null);
 
-  // Action menu state
-  const [actionTransaction, setActionTransaction] = useState<Transaction | null>(null);
-
-  // Track if we've loaded once
   const loaded = useRef(false);
 
   const refreshTransactions = useCallback(async () => {
@@ -157,25 +240,34 @@ export function MoneyProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const refreshUserAccounts = useCallback(async () => {
+    try {
+      const accs = await fetchUserAccounts();
+      setUserAccounts(accs);
+    } catch { /* non-fatal if table doesn't exist yet */ }
+  }, []);
+
   useEffect(() => {
     if (!loaded.current) {
       loaded.current = true;
       refreshTransactions();
+      refreshUserAccounts();
     }
-  }, [refreshTransactions]);
+  }, [refreshTransactions, refreshUserAccounts]);
 
-  // ── Derived: filter to selected month ────────────────────────
-  const filteredTransactions = allTransactions.filter((t) => {
-    const start = format(startOfMonth(selectedMonth), 'yyyy-MM-dd');
-    const end   = format(endOfMonth(selectedMonth),   'yyyy-MM-dd');
-    return t.date >= start && t.date <= end;
-  });
+  // ── Derived: filter to selected period ───────────────────────
+  const { start: periodStart, end: periodEnd } = getPeriodRange(periodAnchor, viewPeriod);
 
-  const groupedTransactions  = groupByDate(filteredTransactions);
-  const accountBalances      = calcAccountBalances(allTransactions);
+  const filteredTransactions = allTransactions.filter(
+    (t) => t.date >= periodStart && t.date <= periodEnd
+  );
 
-  const monthlyIncome  = filteredTransactions.filter(t => t.type === 'Inc').reduce((s, t) => s + t.amount, 0);
-  const monthlyExpense = filteredTransactions.filter(t => t.type === 'Exp').reduce((s, t) => s + t.amount, 0);
+  const groupedTransactions = groupByDate(filteredTransactions);
+  const accountBalances     = calcAccountBalances(allTransactions);
+  const periodLabel         = getPeriodLabel(periodAnchor, viewPeriod);
+
+  const monthlyIncome  = filteredTransactions.filter(t => INCOME_TYPES.has(t.type as 'Inc' | 'IncBal')).reduce((s, t) => s + t.amount, 0);
+  const monthlyExpense = filteredTransactions.filter(t => EXPENSE_TYPES.has(t.type as 'Exp' | 'ExpBal')).reduce((s, t) => s + t.amount, 0);
   const monthlyBalance = monthlyIncome - monthlyExpense;
 
   // ── Modal helpers ─────────────────────────────────────────────
@@ -185,21 +277,12 @@ export function MoneyProvider({ children }: { children: React.ReactNode }) {
     setShowModal(true);
   }, []);
 
-  const openEditModal = useCallback((t: Transaction) => {
-    setEditingTransaction(t);
-    setShowModal(true);
-  }, []);
-
-  const closeModal = useCallback(() => {
-    setShowModal(false);
-    setEditingTransaction(null);
-  }, []);
-
-  // ── Action menu helpers ───────────────────────────────────────
-  const openActionMenu  = useCallback((t: Transaction) => setActionTransaction(t), []);
+  const openEditModal  = useCallback((t: Transaction) => { setEditingTransaction(t); setShowModal(true); }, []);
+  const closeModal     = useCallback(() => { setShowModal(false); setEditingTransaction(null); }, []);
+  const openActionMenu = useCallback((t: Transaction) => setActionTransaction(t), []);
   const closeActionMenu = useCallback(() => setActionTransaction(null), []);
 
-  // ── CRUD ──────────────────────────────────────────────────────
+  // ── Transaction CRUD ──────────────────────────────────────────
   const handleAddTransaction = useCallback(async (form: TransactionFormData) => {
     const txn = await addTransaction(form);
     setAllTransactions(prev => [txn, ...prev]);
@@ -220,9 +303,7 @@ export function MoneyProvider({ children }: { children: React.ReactNode }) {
 
   const handleToggleBookmark = useCallback(async (id: string, current: boolean) => {
     await toggleBookmark(id, current);
-    setAllTransactions(prev =>
-      prev.map(t => t.id === id ? { ...t, bookmarked: !current } : t)
-    );
+    setAllTransactions(prev => prev.map(t => t.id === id ? { ...t, bookmarked: !current } : t));
   }, []);
 
   const handleDuplicate = useCallback(async (t: Transaction, useToday: boolean) => {
@@ -231,15 +312,35 @@ export function MoneyProvider({ children }: { children: React.ReactNode }) {
     closeActionMenu();
   }, [closeActionMenu]);
 
+  // ── Account CRUD ──────────────────────────────────────────────
+  const handleAddUserAccount = useCallback(async (name: string, category: AccountCategory) => {
+    const acc = await addUserAccount(name, category);
+    setUserAccounts(prev => [...prev, acc]);
+  }, []);
+
+  const handleUpdateUserAccount = useCallback(async (id: string, name: string, category: AccountCategory) => {
+    const acc = await updateUserAccount(id, name, category);
+    setUserAccounts(prev => prev.map(a => a.id === id ? acc : a));
+  }, []);
+
+  const handleDeleteUserAccount = useCallback(async (id: string) => {
+    await deleteUserAccount(id);
+    setUserAccounts(prev => prev.filter(a => a.id !== id));
+  }, []);
+
   const value: MoneyContextValue = {
     allTransactions,
     filteredTransactions,
     groupedTransactions,
     accountBalances,
+    userAccounts,
     activeView,
     setActiveView,
-    selectedMonth,
-    setSelectedMonth,
+    periodAnchor,
+    setPeriodAnchor,
+    viewPeriod,
+    setViewPeriod,
+    periodLabel,
     isLoading,
     error,
     showModal,
@@ -256,13 +357,15 @@ export function MoneyProvider({ children }: { children: React.ReactNode }) {
     handleToggleBookmark,
     handleDuplicate,
     refreshTransactions,
+    handleAddUserAccount,
+    handleUpdateUserAccount,
+    handleDeleteUserAccount,
+    refreshUserAccounts,
     monthlyIncome,
     monthlyExpense,
     monthlyBalance,
   };
 
-  // Expose defaultModalType via a context trick: attach it to editingTransaction being null
-  // We pass it separately via a dedicated field
   return (
     <MoneyContext.Provider value={{ ...value, _defaultModalType: defaultModalType } as MoneyContextValue & { _defaultModalType: Transaction['type'] }}>
       {children}
@@ -276,7 +379,6 @@ export function useMoney() {
   return ctx;
 }
 
-// Extra hook to get the defaultModalType set when opening the add modal
 export function useDefaultModalType(): Transaction['type'] {
   const ctx = useContext(MoneyContext) as (MoneyContextValue & { _defaultModalType?: Transaction['type'] }) | null;
   return ctx?._defaultModalType ?? 'Exp';

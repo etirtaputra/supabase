@@ -8,27 +8,48 @@ function fmt(n: number) {
 }
 
 function typeColor(type: Transaction['type']) {
-  if (type === 'Inc') return 'text-emerald-400';
-  if (type === 'Exp') return 'text-rose-400';
-  return 'text-sky-400'; // Trf
+  switch (type) {
+    case 'Inc':    return 'text-emerald-400';
+    case 'IncBal': return 'text-teal-400';
+    case 'Exp':    return 'text-rose-400';
+    case 'ExpBal': return 'text-orange-400';
+    case 'TrfIn':  return 'text-indigo-400';
+    default:       return 'text-sky-400'; // TrfOut, Trf
+  }
 }
 
 function typeSign(type: Transaction['type']) {
-  if (type === 'Inc') return '+';
-  if (type === 'Exp') return '-';
-  return '↔';
+  switch (type) {
+    case 'Inc':    return '+';
+    case 'IncBal': return '+';
+    case 'Exp':    return '-';
+    case 'ExpBal': return '-';
+    case 'TrfIn':  return '↓';
+    default:       return '↑'; // TrfOut, Trf
+  }
 }
 
 function typePrefix(type: Transaction['type']) {
-  if (type === 'Inc') return 'INC';
-  if (type === 'Exp') return 'EXP';
-  return 'TRF';
+  switch (type) {
+    case 'Inc':    return 'INC';
+    case 'IncBal': return 'INC BAL';
+    case 'Exp':    return 'EXP';
+    case 'ExpBal': return 'EXP BAL';
+    case 'TrfIn':  return 'TRF IN';
+    case 'TrfOut': return 'TRF OUT';
+    default:       return 'TRF';
+  }
 }
 
 function typeBadgeBg(type: Transaction['type']) {
-  if (type === 'Inc') return 'bg-emerald-500/15 text-emerald-400';
-  if (type === 'Exp') return 'bg-rose-500/15 text-rose-400';
-  return 'bg-sky-500/15 text-sky-400';
+  switch (type) {
+    case 'Inc':    return 'bg-emerald-500/15 text-emerald-400';
+    case 'IncBal': return 'bg-teal-500/15 text-teal-400';
+    case 'Exp':    return 'bg-rose-500/15 text-rose-400';
+    case 'ExpBal': return 'bg-orange-500/15 text-orange-400';
+    case 'TrfIn':  return 'bg-indigo-500/15 text-indigo-400';
+    default:       return 'bg-sky-500/15 text-sky-400'; // TrfOut, Trf
+  }
 }
 
 interface TransactionRowProps {
@@ -148,12 +169,18 @@ export default function TransactionList() {
           {/* Date header */}
           <div className="flex items-center justify-between px-4 py-2 bg-slate-900/80 sticky top-0 z-10 backdrop-blur-sm">
             <span className="text-xs font-semibold text-slate-400">{group.displayDate}</span>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               {group.dailyIncome > 0 && (
                 <span className="text-xs text-emerald-400">+{fmt(group.dailyIncome)}</span>
               )}
               {group.dailyExpense > 0 && (
                 <span className="text-xs text-rose-400">-{fmt(group.dailyExpense)}</span>
+              )}
+              {(group.dailyIncome > 0 || group.dailyExpense > 0) && (
+                <span className="text-xs text-slate-600">
+                  {group.dailyIncome - group.dailyExpense >= 0 ? '+' : ''}
+                  {fmt(group.dailyIncome - group.dailyExpense)}
+                </span>
               )}
             </div>
           </div>

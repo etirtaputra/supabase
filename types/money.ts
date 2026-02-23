@@ -1,5 +1,15 @@
-export type TransactionType = 'Inc' | 'Exp' | 'Trf';
-export type ViewType = 'transactions' | 'stats' | 'accounts';
+export type TransactionType = 'Inc' | 'Exp' | 'Trf' | 'TrfIn' | 'TrfOut' | 'IncBal' | 'ExpBal';
+export type ViewType = 'transactions' | 'stats' | 'accounts' | 'settings';
+export type ViewPeriod = 'daily' | 'weekly' | 'monthly' | 'annual';
+export type AccountCategory = 'cash' | 'debit' | 'credit' | 'investment' | 'ewallet';
+
+export interface UserAccount {
+  id: string;
+  user_id: string;
+  name: string;
+  category: AccountCategory;
+  created_at: string;
+}
 
 export interface Transaction {
   id: string;
@@ -42,6 +52,8 @@ export interface AccountBalance {
   income: number;
   expense: number;
   balance: number;
+  transferIn: number;
+  transferOut: number;
 }
 
 export interface CategoryStat {

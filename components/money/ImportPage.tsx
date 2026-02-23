@@ -8,7 +8,7 @@ import { bulkInsertTransactions, type BulkRow } from '@/lib/money-supabase';
 
 // ── Types ─────────────────────────────────────────────────────
 
-type TxType = 'Inc' | 'Exp' | 'Trf';
+type TxType = 'Inc' | 'Exp' | 'Trf' | 'TrfIn' | 'TrfOut' | 'IncBal' | 'ExpBal';
 type Step = 'upload' | 'map' | 'preview' | 'importing' | 'done';
 
 interface RawRow {
@@ -67,14 +67,21 @@ function autoDetect(headers: string[]): Partial<ColumnMap> {
   };
 }
 
-/** Normalise type strings to Inc / Exp / Trf */
+/** Normalise type strings to Inc / Exp / Trf / TrfIn / TrfOut / IncBal / ExpBal */
 function normaliseType(raw: string): TxType | null {
   const s = String(raw ?? '').toLowerCase().trim();
   if (['inc', 'income', 'in', 'pemasukan', 'masuk', '+'].includes(s)) return 'Inc';
-  if (['exp', 'exp.', 'expense', 'expense.', 'ex', 'out', 'pengeluaran', 'keluar', '-',
-       'balance', 'expense balance', 'balance adjustment'].includes(s)) return 'Exp';
-  if (['trf', 'transfer', 'transfer-in', 'transfer-out', 'transfer in', 'transfer out',
-       'tr', 'tf', 'pindah'].includes(s)) return 'Trf';
+  if (['exp', 'exp.', 'expense', 'expense.', 'ex', 'out', 'pengeluaran', 'keluar', '-'].includes(s)) return 'Exp';
+  // Balance corrections
+  if (['expbal', 'exp bal', 'exp.bal', 'expense balance', 'balance', 'balance adjustment',
+       'balance exp', 'selisih kurang', 'koreksi kurang'].includes(s)) return 'ExpBal';
+  if (['incbal', 'inc bal', 'inc.bal', 'income balance', 'balance inc',
+       'selisih lebih', 'koreksi lebih'].includes(s)) return 'IncBal';
+  // Transfers (split)
+  if (['trf-in', 'trfin', 'transfer-in', 'transfer in', 'trf in', 'masuk transfer', 'terima'].includes(s)) return 'TrfIn';
+  if (['trf-out', 'trfout', 'transfer-out', 'transfer out', 'trf out', 'kirim', 'keluar transfer'].includes(s)) return 'TrfOut';
+  // Legacy generic transfer
+  if (['trf', 'transfer', 'tr', 'tf', 'pindah'].includes(s)) return 'Trf';
   return null;
 }
 
@@ -456,19 +463,22 @@ export default function ImportPage() {
                         stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-slate-600 shrink-0">
                         <polyline points="9 18 15 12 9 6"/>
                       </svg>
-                      <div className="flex gap-2">
-                        {(['Inc', 'Exp', 'Trf'] as TxType[]).map(t => {
-                          const colors = {
-                            Inc: 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400',
-                            Exp: 'bg-rose-500/20 border-rose-500/40 text-rose-400',
-                            Trf: 'bg-sky-500/20 border-sky-500/40 text-sky-400',
-                          };
+                      <div className="flex flex-wrap gap-1.5">
+                        {([
+                          ['Inc',    'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'],
+                          ['Exp',    'bg-rose-500/20 border-rose-500/40 text-rose-400'],
+                          ['IncBal', 'bg-teal-500/20 border-teal-500/40 text-teal-400'],
+                          ['ExpBal', 'bg-orange-500/20 border-orange-500/40 text-orange-400'],
+                          ['TrfIn',  'bg-indigo-500/20 border-indigo-500/40 text-indigo-400'],
+                          ['TrfOut', 'bg-sky-500/20 border-sky-500/40 text-sky-400'],
+                          ['Trf',    'bg-slate-500/20 border-slate-500/40 text-slate-400'],
+                        ] as [TxType, string][]).map(([t, color]) => {
                           const selected = typeMap[val] === t;
                           return (
                             <button key={t}
                               onClick={() => setTypeMap(prev => ({ ...prev, [val]: t }))}
-                              className={`px-3 py-1 rounded-lg border text-xs font-semibold transition-all
-                                ${selected ? colors[t] + ' ring-1 ring-offset-0' :
+                              className={`px-2 py-0.5 rounded-lg border text-[10px] font-semibold transition-all
+                                ${selected ? color + ' ring-1 ring-offset-0' :
                                   'bg-slate-700 border-slate-600 text-slate-400 hover:text-white'}`}>
                               {t}
                             </button>
