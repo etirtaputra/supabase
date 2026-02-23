@@ -135,6 +135,71 @@ export async function duplicateTransaction(
   return addTransaction(form);
 }
 
+export interface BulkRow {
+  date: string;        // 'YYYY-MM-DD'
+  time: string;        // 'HH:MM:SS'
+  account: string;
+  category: string;
+  subcategory: string;
+  note: string;
+  description: string;
+  amount: number;
+  type: 'Inc' | 'Exp' | 'Trf';
+}
+
+export interface BulkInsertResult {
+  inserted: number;
+  errors: { row: number; message: string }[];
+}
+
+/**
+ * Batch-insert rows from an import file.
+ * Splits into chunks of 200 to stay within Supabase limits.
+ */
+export async function bulkInsertTransactions(
+  rows: BulkRow[],
+  onProgress?: (done: number, total: number) => void
+): Promise<BulkInsertResult> {
+  const supabase = getSupabaseClient();
+  const user = await getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const CHUNK = 200;
+  let inserted = 0;
+  const errors: { row: number; message: string }[] = [];
+
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const chunk = rows.slice(i, i + CHUNK).map((r, idx) => ({
+      ...r,
+      user_id: user.id,
+      bookmarked: false,
+      // row index for error reporting
+      _idx: i + idx,
+    }));
+
+    // strip _idx before insert
+    const payload = chunk.map(({ _idx: _i, ...rest }) => rest);
+
+    const { error, data: insertedRows } = await supabase
+      .from('transactions')
+      .insert(payload)
+      .select('id');
+
+    if (error) {
+      // Record the whole chunk as errored
+      chunk.forEach(({ _idx }) =>
+        errors.push({ row: _idx + 2, message: error.message })
+      );
+    } else {
+      inserted += insertedRows?.length ?? chunk.length;
+    }
+
+    onProgress?.(Math.min(i + CHUNK, rows.length), rows.length);
+  }
+
+  return { inserted, errors };
+}
+
 /** Autocomplete: find distinct notes matching a prefix, plus their most-recent metadata. */
 export async function fetchNoteSuggestions(prefix: string): Promise<NoteSuggestion[]> {
   if (!prefix.trim()) return [];

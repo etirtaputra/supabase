@@ -11,6 +11,7 @@ import TransactionModal from '@/components/money/TransactionModal';
 import TransactionActionMenu from '@/components/money/TransactionActionMenu';
 import StatsView from '@/components/money/StatsView';
 import AccountsView from '@/components/money/AccountsView';
+import Link from 'next/link';
 import { signOut } from '@/lib/money-supabase';
 
 // ── Inner app (needs MoneyProvider context) ───────────────────
@@ -55,6 +56,23 @@ function MoneyApp() {
             {(activeView === 'transactions' || activeView === 'stats') && (
               <MonthNavigator />
             )}
+
+            {/* Import – mobile only (desktop uses sidebar link) */}
+            <Link
+              href="/money/import"
+              className="lg:hidden p-2 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+              aria-label="Import from Excel"
+              title="Import from Excel"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                className="w-4 h-4">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="12" y1="18" x2="12" y2="12"/>
+                <polyline points="9 15 12 12 15 15"/>
+              </svg>
+            </Link>
 
             {/* Refresh */}
             <button
