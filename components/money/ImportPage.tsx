@@ -55,15 +55,15 @@ function autoDetect(headers: string[]): Partial<ColumnMap> {
     headers[lower.findIndex(h => candidates.some(c => h.includes(c)))] ?? '';
 
   return {
-    date:        find('date', 'tanggal', 'tgl', 'datetime'),
+    date:        find('date', 'period', 'tanggal', 'tgl', 'datetime'),
     time:        find('time', 'waktu', 'jam', 'datetime'),
     account:     find('account', 'akun', 'rekening', 'wallet', 'bank'),
     category:    find('category', 'kategori', 'cat '),
     subcategory: find('subcategory', 'sub cat', 'sub-cat', 'subkategori'),
-    note:        find('note', 'memo', 'catatan', 'keterangan', 'description'),
-    type:        find('type', 'tipe', 'jenis', 'in/ex', 'in / ex', 'inex'),
+    note:        find('note', 'memo', 'catatan', 'keterangan'),
+    type:        find('income/expense', 'type', 'tipe', 'jenis', 'in/ex', 'in / ex', 'inex'),
     description: find('description', 'deskripsi', 'desc', 'keterangan', 'detail'),
-    amount:      find('amount', 'nominal', 'jumlah', 'nilai', 'total', 'debit', 'credit'),
+    amount:      find('idr', 'amount', 'nominal', 'jumlah', 'nilai', 'total', 'debit', 'credit'),
   };
 }
 
@@ -71,8 +71,10 @@ function autoDetect(headers: string[]): Partial<ColumnMap> {
 function normaliseType(raw: string): TxType | null {
   const s = String(raw ?? '').toLowerCase().trim();
   if (['inc', 'income', 'in', 'pemasukan', 'masuk', '+'].includes(s)) return 'Inc';
-  if (['exp', 'expense', 'ex', 'out', 'pengeluaran', 'keluar', '-'].includes(s)) return 'Exp';
-  if (['trf', 'transfer', 'tr', 'tf', 'pindah'].includes(s)) return 'Trf';
+  if (['exp', 'exp.', 'expense', 'expense.', 'ex', 'out', 'pengeluaran', 'keluar', '-',
+       'balance', 'expense balance', 'balance adjustment'].includes(s)) return 'Exp';
+  if (['trf', 'transfer', 'transfer-in', 'transfer-out', 'transfer in', 'transfer out',
+       'tr', 'tf', 'pindah'].includes(s)) return 'Trf';
   return null;
 }
 
@@ -87,8 +89,12 @@ function normaliseDate(raw: string | number): string {
       return `${d.y}-${month}-${day}`;
     }
   }
-  const s = String(raw).trim();
+  let s = String(raw).trim();
   if (!s) return '';
+
+  // Strip embedded time from combined datetime: "23/02/2026, 08.35.11" → "23/02/2026"
+  const commaIdx = s.indexOf(',');
+  if (commaIdx > 0) s = s.slice(0, commaIdx).trim();
 
   // Already ISO
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
@@ -120,8 +126,18 @@ function normaliseTime(raw: string | number | undefined): string {
     return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
   }
   const s = String(raw).trim();
+  // Colon-separated: "08:35:11"
   if (/^\d{1,2}:\d{2}(:\d{2})?/.test(s)) {
     const parts = s.split(':');
+    return [
+      parts[0].padStart(2,'0'),
+      parts[1].padStart(2,'0'),
+      (parts[2] ?? '00').slice(0,2).padStart(2,'0'),
+    ].join(':');
+  }
+  // Dot-separated: "08.35.11" (from combined Period column)
+  if (/^\d{1,2}\.\d{2}(\.\d{2})?/.test(s)) {
+    const parts = s.split('.');
     return [
       parts[0].padStart(2,'0'),
       parts[1].padStart(2,'0'),
@@ -143,9 +159,15 @@ function mapRow(raw: RawRow, colMap: ColumnMap, typeMap: Record<string, TxType>)
   const amount = Math.abs(parseFloat(String(rawAmount ?? '0').replace(/[^0-9.-]/g, '')) || 0);
 
   const rawDate = raw[colMap.date];
-  const date = normaliseDate(typeof rawDate === 'number' ? rawDate : String(rawDate ?? ''));
+  const rawDateStr = typeof rawDate === 'number' ? rawDate : String(rawDate ?? '');
+  const date = normaliseDate(rawDateStr);
 
-  const rawTime = colMap.time ? raw[colMap.time] : undefined;
+  // Extract embedded time from combined datetime (e.g. "23/02/2026, 08.35.11")
+  let embeddedTime: string | undefined;
+  if (typeof rawDateStr === 'string' && rawDateStr.includes(',')) {
+    embeddedTime = rawDateStr.split(',')[1]?.trim();
+  }
+  const rawTime = colMap.time ? raw[colMap.time] : embeddedTime;
   const time = normaliseTime(rawTime as string | number | undefined);
 
   let _error: string | undefined;
