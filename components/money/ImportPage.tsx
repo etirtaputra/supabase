@@ -4,7 +4,14 @@ import { useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import { format, parse, isValid } from 'date-fns';
-import { bulkInsertTransactions, type BulkRow } from '@/lib/money-supabase';
+import {
+  bulkInsertTransactions,
+  fetchExistingTransactionKeys,
+  addUserAccount,
+  fetchUserAccounts,
+  getUser,
+  type BulkRow,
+} from '@/lib/money-supabase';
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -16,97 +23,112 @@ interface RawRow {
 }
 
 interface MappedRow extends BulkRow {
-  _raw: RawRow;
+  _raw:    RawRow;
   _error?: string;
+  _dupKey: string;        // for dedup display
 }
 
 interface ColumnMap {
-  date:        string;
-  time:        string;
-  account:     string;
-  category:    string;
-  subcategory: string;
-  note:        string;
-  type:        string;
-  description: string;
-  amount:      string;
+  date:         string;
+  time:         string;
+  account:      string;
+  category:     string;
+  subcategory:  string;
+  note:         string;
+  type:         string;
+  description:  string;
+  amount:       string;
+  currency:     string;
+  original_amount: string;
+  raw_accounts1:   string;
+}
+
+interface ImportResult {
+  inserted:    number;
+  duplicates:  number;
+  errors:      { row: number; message: string }[];
+  newAccounts: string[];
 }
 
 // ── Helpers ───────────────────────────────────────────────────
 
 const FIELD_LABELS: Record<keyof ColumnMap, string> = {
-  date:        'Date',
-  time:        'Time',
-  account:     'Account',
-  category:    'Category',
-  subcategory: 'Subcategory',
-  note:        'Note / Memo',
-  type:        'Type (Inc/Exp/Trf)',
-  description: 'Description',
-  amount:      'Amount',
+  date:            'Date / Period',
+  time:            'Time (if separate)',
+  account:         'Account',
+  category:        'Category',
+  subcategory:     'Subcategory',
+  note:            'Note / Memo',
+  type:            'Type (Income/Expense)',
+  description:     'Description',
+  amount:          'Amount (IDR)',
+  currency:        'Currency',
+  original_amount: 'Original Amount',
+  raw_accounts1:   'Accounts.1 (redundant)',
 };
 
-const REQUIRED_FIELDS: (keyof ColumnMap)[] = ['date', 'amount', 'type'];
+const OPTIONAL_FIELDS: (keyof ColumnMap)[] = ['time', 'currency', 'original_amount', 'raw_accounts1'];
+const REQUIRED_FIELDS:  (keyof ColumnMap)[] = ['date', 'amount', 'type'];
 
 /** Best-guess column name matching */
 function autoDetect(headers: string[]): Partial<ColumnMap> {
   const lower = headers.map(h => h.toLowerCase().trim());
-  const find = (...candidates: string[]) =>
-    headers[lower.findIndex(h => candidates.some(c => h.includes(c)))] ?? '';
+  const find = (...candidates: string[]): string =>
+    headers[lower.findIndex(h => candidates.some(c => h === c || h.includes(c)))] ?? '';
 
   return {
-    date:        find('date', 'period', 'tanggal', 'tgl', 'datetime'),
-    time:        find('time', 'waktu', 'jam', 'datetime'),
-    account:     find('account', 'akun', 'rekening', 'wallet', 'bank'),
-    category:    find('category', 'kategori', 'cat '),
-    subcategory: find('subcategory', 'sub cat', 'sub-cat', 'subkategori'),
-    note:        find('note', 'memo', 'catatan', 'keterangan'),
-    type:        find('income/expense', 'type', 'tipe', 'jenis', 'in/ex', 'in / ex', 'inex'),
-    description: find('description', 'deskripsi', 'desc', 'keterangan', 'detail'),
-    amount:      find('idr', 'amount', 'nominal', 'jumlah', 'nilai', 'total', 'debit', 'credit'),
+    date:            find('period', 'date', 'tanggal', 'tgl', 'datetime'),
+    time:            find('time', 'waktu', 'jam'),
+    account:         find('accounts', 'account', 'akun', 'rekening', 'wallet', 'bank'),
+    category:        find('category', 'kategori'),
+    subcategory:     find('subcategory', 'sub cat', 'sub-cat', 'subkategori'),
+    note:            find('note', 'memo', 'catatan', 'keterangan'),
+    type:            find('income/expense', 'type', 'tipe', 'jenis'),
+    description:     find('description', 'deskripsi', 'desc'),
+    amount:          find('idr', 'amount', 'nominal', 'jumlah', 'nilai'),
+    currency:        find('currency', 'mata uang'),
+    original_amount: find('original_amount', 'original amount'),
+    raw_accounts1:   find('accounts.1', 'accounts1'),
   };
 }
 
-/** Normalise type strings to Inc / Exp / Trf / TrfIn / TrfOut / IncBal / ExpBal */
+/** Normalise type strings → TxType */
 function normaliseType(raw: string): TxType | null {
   const s = String(raw ?? '').toLowerCase().trim();
-  if (['inc', 'income', 'in', 'pemasukan', 'masuk', '+'].includes(s)) return 'Inc';
-  if (['exp', 'exp.', 'expense', 'expense.', 'ex', 'out', 'pengeluaran', 'keluar', '-'].includes(s)) return 'Exp';
-  // Balance corrections
-  if (['expbal', 'exp bal', 'exp.bal', 'expense balance', 'balance', 'balance adjustment',
+  // Exact spec values first
+  if (s === 'income')           return 'Inc';
+  if (s === 'exp.' || s === 'expense' || s === 'exp') return 'Exp';
+  if (s === 'transfer-out' || s === 'transfer out')   return 'TrfOut';
+  if (s === 'transfer-in'  || s === 'transfer in')    return 'TrfIn';
+  if (s === 'income balance')   return 'IncBal';
+  if (s === 'expense balance')  return 'ExpBal';
+  // Aliases
+  if (['inc', 'in', 'pemasukan', 'masuk', '+'].includes(s)) return 'Inc';
+  if (['keluar', 'pengeluaran', 'out', '-'].includes(s))     return 'Exp';
+  if (['expbal', 'exp bal', 'exp.bal', 'balance', 'balance adjustment',
        'balance exp', 'selisih kurang', 'koreksi kurang'].includes(s)) return 'ExpBal';
-  if (['incbal', 'inc bal', 'inc.bal', 'income balance', 'balance inc',
+  if (['incbal', 'inc bal', 'inc.bal', 'balance inc',
        'selisih lebih', 'koreksi lebih'].includes(s)) return 'IncBal';
-  // Transfers (split)
-  if (['trf-in', 'trfin', 'transfer-in', 'transfer in', 'trf in', 'masuk transfer', 'terima'].includes(s)) return 'TrfIn';
-  if (['trf-out', 'trfout', 'transfer-out', 'transfer out', 'trf out', 'kirim', 'keluar transfer'].includes(s)) return 'TrfOut';
-  // Legacy generic transfer
+  if (['trf-in', 'trfin', 'masuk transfer', 'terima'].includes(s))  return 'TrfIn';
+  if (['trf-out', 'trfout', 'kirim', 'keluar transfer'].includes(s)) return 'TrfOut';
   if (['trf', 'transfer', 'tr', 'tf', 'pindah'].includes(s)) return 'Trf';
   return null;
 }
 
 /** Normalise various date formats → 'YYYY-MM-DD' */
 function normaliseDate(raw: string | number): string {
-  // Excel serial date
   if (typeof raw === 'number') {
     const d = XLSX.SSF.parse_date_code(raw);
     if (d) {
-      const month = String(d.m).padStart(2, '0');
-      const day   = String(d.d).padStart(2, '0');
-      return `${d.y}-${month}-${day}`;
+      return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
     }
   }
   let s = String(raw).trim();
   if (!s) return '';
-
   // Strip embedded time from combined datetime: "23/02/2026, 08.35.11" → "23/02/2026"
   const commaIdx = s.indexOf(',');
   if (commaIdx > 0) s = s.slice(0, commaIdx).trim();
-
-  // Already ISO
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-
-  // Try common formats
   const formats = [
     'dd/MM/yyyy', 'MM/dd/yyyy', 'dd-MM-yyyy', 'MM-dd-yyyy',
     'yyyy/MM/dd', 'd/M/yyyy', 'M/d/yyyy',
@@ -125,37 +147,23 @@ function normaliseDate(raw: string | number): string {
 function normaliseTime(raw: string | number | undefined): string {
   if (raw == null || raw === '') return '00:00:00';
   if (typeof raw === 'number') {
-    // Excel time fraction (0–1) OR full date+time serial (≥1).
-    // Use modulo to strip the date portion and keep only the time fraction.
-    const fraction = raw % 1;
+    const fraction = raw % 1; // strip date portion
     const total = Math.round(fraction * 86400);
     const h = Math.floor(total / 3600);
     const m = Math.floor((total % 3600) / 60);
     const s = total % 60;
     return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
   }
-  // Handle combined datetime strings like "23/02/2026, 08.35.11" — extract time part
   let s = String(raw).trim();
   const commaIdx = s.indexOf(',');
   if (commaIdx > 0) s = s.slice(commaIdx + 1).trim();
-
-  // Colon-separated: "08:35:11"
   if (/^\d{1,2}:\d{2}(:\d{2})?/.test(s)) {
     const parts = s.split(':');
-    return [
-      parts[0].padStart(2,'0'),
-      parts[1].padStart(2,'0'),
-      (parts[2] ?? '00').slice(0,2).padStart(2,'0'),
-    ].join(':');
+    return [parts[0].padStart(2,'0'), parts[1].padStart(2,'0'), (parts[2] ?? '00').slice(0,2).padStart(2,'0')].join(':');
   }
-  // Dot-separated: "08.35.11"
   if (/^\d{1,2}\.\d{2}(\.\d{2})?/.test(s)) {
     const parts = s.split('.');
-    return [
-      parts[0].padStart(2,'0'),
-      parts[1].padStart(2,'0'),
-      (parts[2] ?? '00').slice(0,2).padStart(2,'0'),
-    ].join(':');
+    return [parts[0].padStart(2,'0'), parts[1].padStart(2,'0'), (parts[2] ?? '00').slice(0,2).padStart(2,'0')].join(':');
   }
   return '00:00:00';
 }
@@ -165,46 +173,106 @@ function mapRow(raw: RawRow, colMap: ColumnMap, typeMap: Record<string, TxType>)
   const get = (field: keyof ColumnMap): string =>
     String(raw[colMap[field]] ?? '').trim();
 
-  const rawType = get('type');
+  const rawType     = get('type');
   const resolvedType: TxType = typeMap[rawType] ?? normaliseType(rawType) ?? 'Exp';
 
   const rawAmount = raw[colMap.amount];
   const amount = Math.abs(parseFloat(String(rawAmount ?? '0').replace(/[^0-9.-]/g, '')) || 0);
 
-  const rawDate = raw[colMap.date];
+  const rawDate    = raw[colMap.date];
   const rawDateStr = typeof rawDate === 'number' ? rawDate : String(rawDate ?? '');
-  const date = normaliseDate(rawDateStr);
+  const date       = normaliseDate(rawDateStr);
 
-  // Extract embedded time from combined datetime:
-  //   • numeric serial ≥1 (e.g. 46076.358) — fractional part carries the time
-  //   • string with comma (e.g. "23/02/2026, 08.35.11") — part after comma
+  // Extract embedded time from combined datetime column
   let embeddedTime: string | number | undefined;
   if (typeof rawDate === 'number' && rawDate % 1 !== 0) {
-    embeddedTime = rawDate; // normaliseTime will use raw % 1 to get the time fraction
+    embeddedTime = rawDate; // normaliseTime will use raw % 1
   } else if (typeof rawDateStr === 'string' && rawDateStr.includes(',')) {
     embeddedTime = rawDateStr.split(',')[1]?.trim();
   }
   const rawTime = colMap.time ? raw[colMap.time] : embeddedTime;
-  const time = normaliseTime(rawTime as string | number | undefined);
+  const time    = normaliseTime(rawTime as string | number | undefined);
+
+  const rawOriginal = raw[colMap.original_amount];
+  const originalAmount = rawOriginal != null && rawOriginal !== ''
+    ? Math.abs(parseFloat(String(rawOriginal).replace(/[^0-9.-]/g, '')) || 0)
+    : null;
+
+  const rawAcc1 = raw[colMap.raw_accounts1];
+  const rawAccounts1 = rawAcc1 != null && rawAcc1 !== ''
+    ? Math.abs(parseFloat(String(rawAcc1).replace(/[^0-9.-]/g, '')) || 0)
+    : null;
+
+  const currency = get('currency') || 'IDR';
 
   let _error: string | undefined;
-  if (!date)        _error = 'Invalid date';
+  if (!date)    _error = 'Invalid date';
   else if (!amount) _error = 'Zero or missing amount';
   else if (!resolvedType) _error = 'Unknown type';
+
+  const account = get('account') || 'Cash';
+  const _dupKey = `${date}|${time}|${account}|${amount}|${resolvedType}`;
 
   return {
     _raw: raw,
     _error,
+    _dupKey,
     date,
     time,
-    account:     get('account')     || 'Cash',
-    category:    get('category')    || '',
-    subcategory: get('subcategory') || '',
-    note:        get('note')        || '',
-    description: get('description') || '',
+    account,
+    category:        get('category'),
+    subcategory:     get('subcategory'),
+    note:            get('note'),
+    description:     get('description'),
     amount,
-    type: resolvedType,
+    type:            resolvedType,
+    currency,
+    original_amount: originalAmount,
+    raw_accounts1:   rawAccounts1,
   };
+}
+
+/** Generate a UUID v4 (crypto.randomUUID if available, else fallback) */
+function uuid(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
+/**
+ * Assign shared transfer_id UUIDs to TrfOut+TrfIn pairs.
+ * Pairs matched by: date + time + amount (same or within 1 second).
+ */
+function assignTransferIds(rows: MappedRow[]): MappedRow[] {
+  // Build a lookup: "date|time|amount" → [index, ...]
+  const trfOut = new Map<string, number[]>();
+  const trfIn  = new Map<string, number[]>();
+
+  rows.forEach((r, i) => {
+    if (r._error) return;
+    const key = `${r.date}|${r.time}|${r.amount}`;
+    if (r.type === 'TrfOut' || r.type === 'Trf') {
+      trfOut.set(key, [...(trfOut.get(key) ?? []), i]);
+    } else if (r.type === 'TrfIn') {
+      trfIn.set(key, [...(trfIn.get(key) ?? []), i]);
+    }
+  });
+
+  const result = rows.map(r => ({ ...r }));
+
+  for (const [key, outIdxs] of trfOut.entries()) {
+    const inIdxs = trfIn.get(key);
+    if (!inIdxs) continue;
+    const pairCount = Math.min(outIdxs.length, inIdxs.length);
+    for (let p = 0; p < pairCount; p++) {
+      const id = uuid();
+      result[outIdxs[p]].transfer_id = id;
+      result[inIdxs[p]].transfer_id  = id;
+    }
+  }
+  return result;
 }
 
 // ── Sub-components ────────────────────────────────────────────
@@ -218,7 +286,6 @@ function StepIndicator({ step }: { step: Step }) {
     { id: 'done',      label: 'Done' },
   ];
   const activeIdx = steps.findIndex(s => s.id === step);
-
   return (
     <div className="flex items-center gap-0 mb-8">
       {steps.map((s, i) => {
@@ -227,9 +294,7 @@ function StepIndicator({ step }: { step: Step }) {
         return (
           <div key={s.id} className="flex items-center">
             <div className={`flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold
-              ${done    ? 'bg-emerald-500 text-white' :
-                current ? 'bg-violet-600 text-white' :
-                          'bg-slate-700 text-slate-400'}`}>
+              ${done ? 'bg-emerald-500 text-white' : current ? 'bg-violet-600 text-white' : 'bg-slate-700 text-slate-400'}`}>
               {done ? '✓' : i + 1}
             </div>
             <span className={`ml-1.5 text-xs font-medium
@@ -251,20 +316,22 @@ function StepIndicator({ step }: { step: Step }) {
 export default function ImportPage() {
   const router = useRouter();
 
-  const [step,       setStep]       = useState<Step>('upload');
-  const [headers,    setHeaders]    = useState<string[]>([]);
-  const [rawRows,    setRawRows]    = useState<RawRow[]>([]);
-  const [colMap,     setColMap]     = useState<ColumnMap>({
+  const [step,          setStep]          = useState<Step>('upload');
+  const [headers,       setHeaders]       = useState<string[]>([]);
+  const [rawRows,       setRawRows]       = useState<RawRow[]>([]);
+  const [colMap,        setColMap]        = useState<ColumnMap>({
     date:'', time:'', account:'', category:'', subcategory:'',
     note:'', type:'', description:'', amount:'',
+    currency:'', original_amount:'', raw_accounts1:'',
   });
-  // typeMap: raw string in file → TxType
   const [distinctTypes, setDistinctTypes] = useState<string[]>([]);
-  const [typeMap,  setTypeMap]  = useState<Record<string, TxType>>({});
-  const [mapped,   setMapped]   = useState<MappedRow[]>([]);
-  const [progress, setProgress] = useState(0);
-  const [result,   setResult]   = useState<{ inserted: number; errors: {row:number;message:string}[] } | null>(null);
-  const [dragging, setDragging] = useState(false);
+  const [typeMap,       setTypeMap]       = useState<Record<string, TxType>>({});
+  const [mapped,        setMapped]        = useState<MappedRow[]>([]);
+  const [dupKeys,       setDupKeys]       = useState<Set<string>>(new Set());
+  const [progress,      setProgress]      = useState(0);
+  const [progressLabel, setProgressLabel] = useState('');
+  const [result,        setResult]        = useState<ImportResult | null>(null);
+  const [dragging,      setDragging]      = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // ── Parse file ─────────────────────────────────────────────
@@ -275,27 +342,28 @@ export default function ImportPage() {
       const wb   = XLSX.read(data, { type: 'array', cellDates: false, raw: false });
       const ws   = wb.Sheets[wb.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json<RawRow>(ws, { defval: '' });
-
       if (json.length === 0) return;
 
-      const hdrs = Object.keys(json[0]);
+      const hdrs    = Object.keys(json[0]);
       const detected = autoDetect(hdrs);
 
       setHeaders(hdrs);
       setRawRows(json);
       setColMap({
-        date:        detected.date        ?? '',
-        time:        detected.time        ?? '',
-        account:     detected.account     ?? '',
-        category:    detected.category    ?? '',
-        subcategory: detected.subcategory ?? '',
-        note:        detected.note        ?? '',
-        type:        detected.type        ?? '',
-        description: detected.description ?? '',
-        amount:      detected.amount      ?? '',
+        date:            detected.date            ?? '',
+        time:            detected.time            ?? '',
+        account:         detected.account         ?? '',
+        category:        detected.category        ?? '',
+        subcategory:     detected.subcategory     ?? '',
+        note:            detected.note            ?? '',
+        type:            detected.type            ?? '',
+        description:     detected.description     ?? '',
+        amount:          detected.amount          ?? '',
+        currency:        detected.currency        ?? '',
+        original_amount: detected.original_amount ?? '',
+        raw_accounts1:   detected.raw_accounts1   ?? '',
       });
 
-      // Collect distinct type values for mapping UI
       if (detected.type) {
         const vals = [...new Set(json.map(r => String(r[detected.type!] ?? '').trim()).filter(Boolean))];
         setDistinctTypes(vals);
@@ -303,7 +371,6 @@ export default function ImportPage() {
         vals.forEach(v => { const t = normaliseType(v); if (t) auto[v] = t; });
         setTypeMap(auto);
       }
-
       setStep('map');
     };
     reader.readAsArrayBuffer(file);
@@ -322,8 +389,8 @@ export default function ImportPage() {
   }, [parseFile]);
 
   // ── Build preview ──────────────────────────────────────────
-  const buildPreview = useCallback(() => {
-    // Re-collect distinct types in case colMap.type changed
+  const buildPreview = useCallback(async () => {
+    // Re-collect distinct types in case colMap changed
     if (colMap.type) {
       const vals = [...new Set(rawRows.map(r => String(r[colMap.type] ?? '').trim()).filter(Boolean))];
       setDistinctTypes(vals);
@@ -333,8 +400,17 @@ export default function ImportPage() {
         return next;
       });
     }
+
+    // Fetch existing keys for dedup
+    setProgressLabel('Checking for duplicates…');
+    const existingKeys = await fetchExistingTransactionKeys();
+    setDupKeys(existingKeys);
+
     const rows = rawRows.map(r => mapRow(r, colMap, typeMap));
-    setMapped(rows);
+    // Assign transfer_id to paired TrfOut+TrfIn rows
+    const withIds = assignTransferIds(rows);
+    setMapped(withIds);
+    setProgressLabel('');
     setStep('preview');
   }, [rawRows, colMap, typeMap]);
 
@@ -342,24 +418,49 @@ export default function ImportPage() {
   const doImport = useCallback(async () => {
     setStep('importing');
     setProgress(0);
-    const toInsert: BulkRow[] = mapped
-      .filter(r => !r._error)
-      .map(({ _raw: _r, _error: _e, ...rest }) => rest);
 
+    // Filter valid, non-duplicate rows
+    const toInsert: BulkRow[] = mapped
+      .filter(r => !r._error && !dupKeys.has(r._dupKey))
+      .map(({ _raw: _r, _error: _e, _dupKey: _d, ...rest }) => rest);
+
+    // Auto-create accounts that don't exist
+    const newAccounts: string[] = [];
+    try {
+      setProgressLabel('Setting up accounts…');
+      const user = await getUser();
+      if (user) {
+        const existing = await fetchUserAccounts();
+        const existingNames = new Set(existing.map(a => a.name));
+        const neededNames   = [...new Set(toInsert.map(r => r.account))];
+        for (const name of neededNames) {
+          if (!existingNames.has(name)) {
+            try {
+              await addUserAccount(name, 'debit');
+              newAccounts.push(name);
+            } catch { /* ignore duplicate-key errors */ }
+          }
+        }
+      }
+    } catch { /* non-fatal */ }
+
+    setProgressLabel('Inserting transactions…');
     try {
       const res = await bulkInsertTransactions(toInsert, (done, total) => {
         setProgress(Math.round((done / total) * 100));
       });
-      setResult(res);
+      setResult({ ...res, duplicates: dupKeys.size > 0 ? mapped.filter(r => !r._error && dupKeys.has(r._dupKey)).length : 0, newAccounts });
       setStep('done');
     } catch (err) {
-      setResult({ inserted: 0, errors: [{ row: 0, message: String(err) }] });
+      setResult({ inserted: 0, duplicates: 0, errors: [{ row: 0, message: String(err) }], newAccounts });
       setStep('done');
     }
-  }, [mapped]);
+  }, [mapped, dupKeys]);
 
-  const validCount   = mapped.filter(r => !r._error).length;
-  const invalidCount = mapped.filter(r =>  r._error).length;
+  const validCount     = mapped.filter(r => !r._error && !dupKeys.has(r._dupKey)).length;
+  const dupCount       = mapped.filter(r => !r._error &&  dupKeys.has(r._dupKey)).length;
+  const invalidCount   = mapped.filter(r =>  r._error).length;
+  const transferPairs  = mapped.filter(r => !r._error && r.transfer_id != null).length / 2;
 
   // ── Render ─────────────────────────────────────────────────
   return (
@@ -373,13 +474,11 @@ export default function ImportPage() {
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-            className="w-5 h-5">
-            <polyline points="15 18 9 12 15 6"/>
-          </svg>
+            className="w-5 h-5"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
         <div>
           <h1 className="text-base font-bold">Import Transactions</h1>
-          <p className="text-xs text-slate-400">Excel (.xlsx) or CSV</p>
+          <p className="text-xs text-slate-400">Excel (.xlsx) — 11-column format</p>
         </div>
       </header>
 
@@ -389,7 +488,7 @@ export default function ImportPage() {
         {/* ── STEP 1: Upload ── */}
         {step === 'upload' && (
           <div
-            className={`border-2 border-dashed rounded-2xl p-12 text-center transition-colors
+            className={`border-2 border-dashed rounded-2xl p-12 text-center transition-colors cursor-pointer
               ${dragging ? 'border-violet-500 bg-violet-500/5' : 'border-slate-700 hover:border-slate-500'}`}
             onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
@@ -398,7 +497,6 @@ export default function ImportPage() {
           >
             <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden"
               onChange={onFileChange} />
-
             <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-violet-600/20 flex items-center justify-center">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
                 stroke="#8b5cf6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
@@ -409,10 +507,12 @@ export default function ImportPage() {
                 <polyline points="9 15 12 12 15 15"/>
               </svg>
             </div>
-
-            <p className="text-white font-semibold mb-1">Drop your Excel or CSV file here</p>
+            <p className="text-white font-semibold mb-1">Drop your Excel file here</p>
             <p className="text-slate-400 text-sm mb-4">or click to browse</p>
-            <p className="text-slate-600 text-xs">Supports .xlsx, .xls, .csv</p>
+            <div className="inline-block bg-slate-800/80 rounded-xl px-4 py-2 text-left">
+              <p className="text-slate-400 text-xs font-semibold mb-1">Expected columns:</p>
+              <p className="text-slate-500 text-xs">Period · Accounts · Category · Subcategory · Note · IDR · Income/Expense · Description · Amount · Currency · Accounts.1</p>
+            </div>
           </div>
         )}
 
@@ -431,9 +531,8 @@ export default function ImportPage() {
                 <div key={field}>
                   <label className="block text-xs text-slate-400 mb-1.5">
                     {FIELD_LABELS[field]}
-                    {REQUIRED_FIELDS.includes(field) && (
-                      <span className="text-rose-400 ml-0.5">*</span>
-                    )}
+                    {REQUIRED_FIELDS.includes(field) && <span className="text-rose-400 ml-0.5">*</span>}
+                    {OPTIONAL_FIELDS.includes(field) && <span className="text-slate-600 ml-1">(optional)</span>}
                   </label>
                   <select
                     value={colMap[field]}
@@ -441,9 +540,7 @@ export default function ImportPage() {
                     className="w-full bg-slate-900 border border-slate-700 text-white text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-violet-500"
                   >
                     <option value="">— skip —</option>
-                    {headers.map(h => (
-                      <option key={h} value={h}>{h}</option>
-                    ))}
+                    {headers.map(h => <option key={h} value={h}>{h}</option>)}
                   </select>
                 </div>
               ))}
@@ -456,7 +553,7 @@ export default function ImportPage() {
                 <div className="space-y-2">
                   {distinctTypes.map(val => (
                     <div key={val} className="flex items-center gap-3">
-                      <span className="text-sm text-slate-300 w-40 truncate font-mono bg-slate-900 rounded px-2 py-1">
+                      <span className="text-sm text-slate-300 w-44 truncate font-mono bg-slate-900 rounded px-2 py-1 shrink-0">
                         {val}
                       </span>
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
@@ -491,6 +588,10 @@ export default function ImportPage() {
               </div>
             )}
 
+            {progressLabel && (
+              <p className="text-xs text-slate-500 text-center">{progressLabel}</p>
+            )}
+
             <button
               onClick={buildPreview}
               disabled={!colMap.date || !colMap.amount || !colMap.type}
@@ -505,15 +606,27 @@ export default function ImportPage() {
         {step === 'preview' && (
           <div className="space-y-4">
             {/* Stats bar */}
-            <div className="flex gap-3">
-              <div className="flex-1 bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 text-center">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 text-center">
                 <p className="text-emerald-400 text-xl font-bold">{validCount}</p>
-                <p className="text-xs text-slate-400">Ready to import</p>
+                <p className="text-xs text-slate-400">Ready</p>
               </div>
+              {dupCount > 0 && (
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-center">
+                  <p className="text-amber-400 text-xl font-bold">{dupCount}</p>
+                  <p className="text-xs text-slate-400">Duplicates</p>
+                </div>
+              )}
               {invalidCount > 0 && (
-                <div className="flex-1 bg-rose-500/10 border border-rose-500/20 rounded-xl p-3 text-center">
+                <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-3 text-center">
                   <p className="text-rose-400 text-xl font-bold">{invalidCount}</p>
-                  <p className="text-xs text-slate-400">Will be skipped</p>
+                  <p className="text-xs text-slate-400">Invalid</p>
+                </div>
+              )}
+              {transferPairs > 0 && (
+                <div className="bg-sky-500/10 border border-sky-500/20 rounded-xl p-3 text-center">
+                  <p className="text-sky-400 text-xl font-bold">{Math.round(transferPairs)}</p>
+                  <p className="text-xs text-slate-400">Transfer pairs</p>
                 </div>
               )}
             </div>
@@ -529,48 +642,54 @@ export default function ImportPage() {
                       <th className="px-3 py-2.5 text-left text-slate-400 font-semibold">Category</th>
                       <th className="px-3 py-2.5 text-left text-slate-400 font-semibold">Note</th>
                       <th className="px-3 py-2.5 text-left text-slate-400 font-semibold">Type</th>
-                      <th className="px-3 py-2.5 text-right text-slate-400 font-semibold">Amount</th>
+                      <th className="px-3 py-2.5 text-right text-slate-400 font-semibold">Amount (IDR)</th>
                       <th className="px-3 py-2.5 text-center text-slate-400 font-semibold">Status</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {mapped.map((row, i) => (
-                      <tr key={i}
-                        className={`border-t border-slate-800 ${row._error ? 'opacity-50' : 'hover:bg-slate-800/40'}`}>
-                        <td className="px-3 py-2 text-slate-300">{row.date}</td>
-                        <td className="px-3 py-2 text-slate-300 max-w-[80px] truncate">{row.account}</td>
-                        <td className="px-3 py-2 text-slate-400 max-w-[80px] truncate">{row.category}</td>
-                        <td className="px-3 py-2 text-slate-400 max-w-[120px] truncate">{row.note}</td>
-                        <td className="px-3 py-2">
-                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold
-                            ${row.type === 'Inc' ? 'bg-emerald-500/20 text-emerald-400' :
-                              row.type === 'Exp' ? 'bg-rose-500/20 text-rose-400' :
-                              'bg-sky-500/20 text-sky-400'}`}>
-                            {row.type}
-                          </span>
-                        </td>
-                        <td className={`px-3 py-2 text-right font-semibold
-                          ${row.type === 'Inc' ? 'text-emerald-400' :
-                            row.type === 'Exp' ? 'text-rose-400' : 'text-sky-400'}`}>
-                          {new Intl.NumberFormat('id-ID').format(row.amount)}
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          {row._error
-                            ? <span className="text-rose-400" title={row._error}>✗</span>
-                            : <span className="text-emerald-400">✓</span>}
-                        </td>
-                      </tr>
-                    ))}
+                    {mapped.map((row, i) => {
+                      const isDup = !row._error && dupKeys.has(row._dupKey);
+                      return (
+                        <tr key={i}
+                          className={`border-t border-slate-800 ${row._error || isDup ? 'opacity-40' : 'hover:bg-slate-800/40'}`}>
+                          <td className="px-3 py-2 text-slate-300 whitespace-nowrap">{row.date}</td>
+                          <td className="px-3 py-2 text-slate-300 max-w-[80px] truncate">{row.account}</td>
+                          <td className="px-3 py-2 text-slate-400 max-w-[80px] truncate">{row.category}</td>
+                          <td className="px-3 py-2 text-slate-400 max-w-[120px] truncate">{row.note}</td>
+                          <td className="px-3 py-2">
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold
+                              ${row.type === 'Inc' || row.type === 'IncBal' ? 'bg-emerald-500/20 text-emerald-400' :
+                                row.type === 'Exp' || row.type === 'ExpBal' ? 'bg-rose-500/20 text-rose-400' :
+                                'bg-sky-500/20 text-sky-400'}`}>
+                              {row.type}
+                            </span>
+                            {row.transfer_id && (
+                              <span className="ml-1 text-[9px] text-sky-600">⇄</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-right font-semibold text-slate-300">
+                            {new Intl.NumberFormat('id-ID').format(row.amount)}
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            {row._error
+                              ? <span className="text-rose-400" title={row._error}>✗</span>
+                              : isDup
+                              ? <span className="text-amber-400" title="Already exists">⊘</span>
+                              : <span className="text-emerald-400">✓</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             </div>
 
-            {invalidCount > 0 && (
-              <p className="text-xs text-slate-500">
-                Rows marked ✗ have invalid date, zero amount, or unknown type — they will be skipped.
-              </p>
-            )}
+            <div className="text-xs text-slate-500 space-y-0.5">
+              {dupCount > 0 && <p>⊘ = already exists in DB — will be skipped</p>}
+              {invalidCount > 0 && <p>✗ = invalid date, zero amount, or unknown type — will be skipped</p>}
+              {transferPairs > 0 && <p>⇄ = transfer pair detected — both rows share a transfer ID</p>}
+            </div>
 
             <div className="flex gap-3">
               <button
@@ -595,15 +714,19 @@ export default function ImportPage() {
           <div className="flex flex-col items-center justify-center py-20 gap-6">
             <div className="w-16 h-16 rounded-full border-4 border-violet-600 border-t-transparent animate-spin" />
             <div className="text-center">
-              <p className="text-white font-semibold text-lg">Importing transactions…</p>
-              <p className="text-slate-400 text-sm mt-1">{progress}% complete</p>
+              <p className="text-white font-semibold text-lg">
+                {progressLabel || 'Importing transactions…'}
+              </p>
+              {!progressLabel && <p className="text-slate-400 text-sm mt-1">{progress}% complete</p>}
             </div>
-            <div className="w-64 h-2 bg-slate-800 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-violet-600 rounded-full transition-all duration-300"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
+            {!progressLabel && (
+              <div className="w-64 h-2 bg-slate-800 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-violet-600 rounded-full transition-all duration-300"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -618,9 +741,15 @@ export default function ImportPage() {
               <p className="text-white font-bold text-xl">
                 {result.inserted} transaction{result.inserted !== 1 ? 's' : ''} imported
               </p>
+              {result.duplicates > 0 && (
+                <p className="text-amber-400 text-sm mt-1">{result.duplicates} duplicate{result.duplicates !== 1 ? 's' : ''} skipped</p>
+              )}
               {result.errors.length > 0 && (
-                <p className="text-rose-400 text-sm mt-1">
-                  {result.errors.length} row{result.errors.length !== 1 ? 's' : ''} failed
+                <p className="text-rose-400 text-sm mt-1">{result.errors.length} row{result.errors.length !== 1 ? 's' : ''} failed</p>
+              )}
+              {result.newAccounts.length > 0 && (
+                <p className="text-sky-400 text-sm mt-2">
+                  {result.newAccounts.length} new account{result.newAccounts.length !== 1 ? 's' : ''} auto-created: {result.newAccounts.join(', ')}
                 </p>
               )}
             </div>
@@ -630,9 +759,7 @@ export default function ImportPage() {
                 <p className="text-sm font-semibold text-white mb-2">Failed rows:</p>
                 <div className="space-y-1 max-h-40 overflow-y-auto">
                   {result.errors.map((e, i) => (
-                    <p key={i} className="text-xs text-rose-400">
-                      Row {e.row}: {e.message}
-                    </p>
+                    <p key={i} className="text-xs text-rose-400">Row {e.row}: {e.message}</p>
                   ))}
                 </div>
               </div>
@@ -642,7 +769,7 @@ export default function ImportPage() {
               <button
                 onClick={() => {
                   setStep('upload');
-                  setRawRows([]); setHeaders([]); setMapped([]); setResult(null);
+                  setRawRows([]); setHeaders([]); setMapped([]); setResult(null); setDupKeys(new Set());
                 }}
                 className="flex-1 py-3.5 border border-slate-600 hover:border-slate-500 text-slate-300 rounded-xl font-semibold transition-colors text-sm"
               >

@@ -145,6 +145,11 @@ export interface BulkRow {
   description: string;
   amount: number;
   type: 'Inc' | 'Exp' | 'Trf' | 'TrfIn' | 'TrfOut' | 'IncBal' | 'ExpBal';
+  // Extended fields (Phase 4)
+  transfer_id?:     string | null;
+  currency?:        string;        // ISO 3-char, default 'IDR'
+  original_amount?: number | null;
+  raw_accounts1?:   number | null;
 }
 
 export interface BulkInsertResult {
@@ -153,8 +158,26 @@ export interface BulkInsertResult {
 }
 
 /**
+ * Fetch a Set of existing transaction deduplication keys.
+ * Key format: "date|time|account|amount|type"
+ * Used by ImportPage to skip rows that are already in the DB.
+ */
+export async function fetchExistingTransactionKeys(): Promise<Set<string>> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('date, time, account, amount, type');
+  if (error) return new Set();
+  const keys = new Set<string>();
+  for (const row of data ?? []) {
+    keys.add(`${row.date}|${row.time}|${row.account}|${row.amount}|${row.type}`);
+  }
+  return keys;
+}
+
+/**
  * Batch-insert rows from an import file.
- * Splits into chunks of 200 to stay within Supabase limits.
+ * Splits into chunks of 500 to stay within Supabase limits.
  */
 export async function bulkInsertTransactions(
   rows: BulkRow[],
@@ -164,7 +187,7 @@ export async function bulkInsertTransactions(
   const user = await getUser();
   if (!user) throw new Error('Not authenticated');
 
-  const CHUNK = 200;
+  const CHUNK = 500;
   let inserted = 0;
   const errors: { row: number; message: string }[] = [];
 
@@ -195,6 +218,7 @@ export async function bulkInsertTransactions(
     }
 
     onProgress?.(Math.min(i + CHUNK, rows.length), rows.length);
+
   }
 
   return { inserted, errors };
