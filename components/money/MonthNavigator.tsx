@@ -15,7 +15,7 @@ function isCurrentPeriod(anchor: Date, period: ViewPeriod): boolean {
   const now = new Date();
   switch (period) {
     case 'daily':   return format(anchor, 'yyyy-MM-dd') === format(now, 'yyyy-MM-dd');
-    case 'weekly':  return format(anchor, 'yyyy-[W]II') === format(now, 'yyyy-[W]II');
+    case 'weekly':  return format(anchor, 'yyyy-II') === format(now, 'yyyy-II');
     case 'monthly': return format(anchor, 'yyyy-MM') === format(now, 'yyyy-MM');
     case 'annual':  return format(anchor, 'yyyy') === format(now, 'yyyy');
   }
