@@ -88,6 +88,7 @@ export default function SettingsView() {
     handleAddUserAccount,
     handleUpdateUserAccount,
     handleDeleteUserAccount,
+    handleResetAllData,
   } = useMoney();
 
   // "handleAddSubAccount" is on the context; cast to access it
@@ -119,6 +120,11 @@ export default function SettingsView() {
 
   // ── Which group is showing the "add subaccount" form
   const [addingSubFor, setAddingSubFor] = useState<string | null>(null);
+
+  // ── Reset all data state
+  const [resetConfirm, setResetConfirm] = useState(false);
+  const [resetting,    setResetting]    = useState(false);
+  const [resetError,   setResetError]   = useState('');
 
   // ── Handlers ────────────────────────────────────────────────
   const handleAddGroup = async () => {
@@ -172,6 +178,19 @@ export default function SettingsView() {
     } catch (e: unknown) {
       setEditSubError(e instanceof Error ? e.message : 'Failed to update subaccount');
     } finally { setEditSubSaving(false); }
+  };
+
+  const handleReset = async () => {
+    setResetting(true);
+    setResetError('');
+    try {
+      await handleResetAllData();
+      setResetConfirm(false);
+    } catch (e: unknown) {
+      setResetError(e instanceof Error ? e.message : 'Failed to reset data');
+    } finally {
+      setResetting(false);
+    }
   };
 
   // ── Render ───────────────────────────────────────────────────
@@ -413,6 +432,50 @@ export default function SettingsView() {
               </div>
             );
           })}
+        </div>
+      </section>
+
+      {/* ── Danger Zone ── */}
+      <section>
+        <h2 className="text-rose-400 font-bold text-base mb-3">Danger Zone</h2>
+        <div className="bg-rose-950/40 border border-rose-500/30 rounded-2xl p-4 space-y-3">
+          <div>
+            <p className="text-sm font-semibold text-white">Reset All Data</p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Permanently deletes <span className="text-rose-400 font-medium">all transactions and all accounts</span>. This cannot be undone.
+            </p>
+          </div>
+
+          {!resetConfirm ? (
+            <button
+              onClick={() => { setResetConfirm(true); setResetError(''); }}
+              className="w-full py-2.5 bg-rose-600/20 hover:bg-rose-600/40 border border-rose-500/40 text-rose-400 rounded-xl text-sm font-semibold transition-colors"
+            >
+              Reset All Data…
+            </button>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-xs text-rose-300 font-medium bg-rose-500/10 border border-rose-500/30 rounded-xl px-3 py-2">
+                Are you sure? This will permanently erase everything.
+              </p>
+              {resetError && <p className="text-xs text-rose-400">{resetError}</p>}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setResetConfirm(false); setResetError(''); }}
+                  className="flex-1 py-2.5 border border-slate-600 hover:border-slate-500 text-slate-300 rounded-xl text-sm font-semibold transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleReset}
+                  disabled={resetting}
+                  className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-colors"
+                >
+                  {resetting ? 'Deleting…' : 'Yes, Delete Everything'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 

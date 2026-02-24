@@ -308,3 +308,22 @@ export async function deleteUserAccount(id: string): Promise<void> {
   const { error } = await supabase.from('user_accounts').delete().eq('id', id);
   if (error) throw error;
 }
+
+/** Delete ALL transactions and user accounts for the logged-in user. */
+export async function resetAllData(): Promise<void> {
+  const supabase = getSupabaseClient();
+  const user = await getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { error: txnError } = await supabase
+    .from('transactions')
+    .delete()
+    .eq('user_id', user.id);
+  if (txnError) throw txnError;
+
+  const { error: accError } = await supabase
+    .from('user_accounts')
+    .delete()
+    .eq('user_id', user.id);
+  if (accError) throw accError;
+}

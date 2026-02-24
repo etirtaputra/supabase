@@ -40,6 +40,7 @@ import {
   addSubAccount,
   updateUserAccount,
   deleteUserAccount,
+  resetAllData,
 } from '@/lib/money-supabase';
 
 // ── Period helpers ────────────────────────────────────────────
@@ -204,6 +205,7 @@ interface MoneyContextValue {
   handleUpdateUserAccount: (id: string, name: string, category: AccountCategory) => Promise<void>;
   handleDeleteUserAccount: (id: string) => Promise<void>;
   refreshUserAccounts:     () => Promise<void>;
+  handleResetAllData:      () => Promise<void>;
 
   // Derived totals for selected period
   monthlyIncome:  number;
@@ -335,6 +337,12 @@ export function MoneyProvider({ children }: { children: React.ReactNode }) {
     setUserAccounts(prev => prev.filter(a => a.id !== id));
   }, []);
 
+  const handleResetAllData = useCallback(async () => {
+    await resetAllData();
+    setAllTransactions([]);
+    setUserAccounts([]);
+  }, []);
+
   const value: MoneyContextValue = {
     allTransactions,
     filteredTransactions,
@@ -369,6 +377,7 @@ export function MoneyProvider({ children }: { children: React.ReactNode }) {
     handleUpdateUserAccount,
     handleDeleteUserAccount,
     refreshUserAccounts,
+    handleResetAllData,
     monthlyIncome,
     monthlyExpense,
     monthlyBalance,
