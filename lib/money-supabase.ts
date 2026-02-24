@@ -239,13 +239,28 @@ export async function fetchUserAccounts(): Promise<UserAccount[]> {
   return (data ?? []) as UserAccount[];
 }
 
+/** Add a top-level account group (parent_id = null). */
 export async function addUserAccount(name: string, category: AccountCategory): Promise<UserAccount> {
   const supabase = getSupabaseClient();
   const user = await getUser();
   if (!user) throw new Error('Not authenticated');
   const { data, error } = await supabase
     .from('user_accounts')
-    .insert({ name, category, user_id: user.id })
+    .insert({ name, category, parent_id: null, user_id: user.id })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as UserAccount;
+}
+
+/** Add a subaccount under a parent account group. */
+export async function addSubAccount(name: string, parentId: string): Promise<UserAccount> {
+  const supabase = getSupabaseClient();
+  const user = await getUser();
+  if (!user) throw new Error('Not authenticated');
+  const { data, error } = await supabase
+    .from('user_accounts')
+    .insert({ name, parent_id: parentId, category: 'debit', user_id: user.id })
     .select()
     .single();
   if (error) throw error;

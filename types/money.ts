@@ -7,7 +7,8 @@ export interface UserAccount {
   id: string;
   user_id: string;
   name: string;
-  category: AccountCategory;
+  category: AccountCategory;  // only relevant on parent (group) accounts
+  parent_id: string | null;   // null = top-level account group; set = subaccount
   created_at: string;
 }
 

@@ -37,6 +37,7 @@ import {
   duplicateTransaction,
   fetchUserAccounts,
   addUserAccount,
+  addSubAccount,
   updateUserAccount,
   deleteUserAccount,
 } from '@/lib/money-supabase';
@@ -199,6 +200,7 @@ interface MoneyContextValue {
 
   // Account CRUD
   handleAddUserAccount:    (name: string, category: AccountCategory) => Promise<void>;
+  handleAddSubAccount:     (name: string, parentId: string) => Promise<void>;
   handleUpdateUserAccount: (id: string, name: string, category: AccountCategory) => Promise<void>;
   handleDeleteUserAccount: (id: string) => Promise<void>;
   refreshUserAccounts:     () => Promise<void>;
@@ -318,6 +320,11 @@ export function MoneyProvider({ children }: { children: React.ReactNode }) {
     setUserAccounts(prev => [...prev, acc]);
   }, []);
 
+  const handleAddSubAccount = useCallback(async (name: string, parentId: string) => {
+    const acc = await addSubAccount(name, parentId);
+    setUserAccounts(prev => [...prev, acc]);
+  }, []);
+
   const handleUpdateUserAccount = useCallback(async (id: string, name: string, category: AccountCategory) => {
     const acc = await updateUserAccount(id, name, category);
     setUserAccounts(prev => prev.map(a => a.id === id ? acc : a));
@@ -358,6 +365,7 @@ export function MoneyProvider({ children }: { children: React.ReactNode }) {
     handleDuplicate,
     refreshTransactions,
     handleAddUserAccount,
+    handleAddSubAccount,
     handleUpdateUserAccount,
     handleDeleteUserAccount,
     refreshUserAccounts,

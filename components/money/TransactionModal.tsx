@@ -185,8 +185,16 @@ export default function TransactionModal() {
   const noteRef     = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Derive account list from settings; fallback to 'Cash'
-  const accountNames = userAccounts.length > 0 ? userAccounts.map(a => a.name) : ['Cash'];
+  // Derive account hierarchy from settings
+  const accountGroups = userAccounts.filter(a => a.parent_id === null);
+  const subAccountsOf = (parentId: string) => userAccounts.filter(a => a.parent_id === parentId);
+  // Flat list of selectable accounts: subaccounts if group has children, else the group itself
+  const selectableAccounts = userAccounts.length > 0
+    ? accountGroups.flatMap(g => {
+        const subs = subAccountsOf(g.id);
+        return subs.length > 0 ? subs.map(s => s.name) : [g.name];
+      })
+    : ['Cash'];
 
   useEffect(() => {
     if (!showModal) return;
@@ -204,7 +212,7 @@ export default function TransactionModal() {
       setType(defaultType);
       setDate(today);
       setTime(currentTime);
-      setAccount(accountNames[0] ?? 'Cash');
+      setAccount(selectableAccounts[0] ?? 'Cash');
       setCategory('');
       setSubcategory('');
       setNote('');
@@ -371,9 +379,20 @@ export default function TransactionModal() {
             <label className="block text-xs text-slate-400 mb-1">Account</label>
             <select value={account} onChange={e => setAccount(e.target.value)}
               className="w-full bg-slate-800 border border-slate-700 text-white text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent">
-              {accountNames.map(a => <option key={a}>{a}</option>)}
+              {userAccounts.length === 0 ? (
+                <option value="Cash">Cash</option>
+              ) : accountGroups.map(g => {
+                const subs = subAccountsOf(g.id);
+                return subs.length > 0 ? (
+                  <optgroup key={g.id} label={g.name}>
+                    {subs.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                  </optgroup>
+                ) : (
+                  <option key={g.id} value={g.name}>{g.name}</option>
+                );
+              })}
               {/* Show edited account even if removed from settings */}
-              {editingTransaction && !accountNames.includes(editingTransaction.account) && (
+              {editingTransaction && !selectableAccounts.includes(editingTransaction.account) && (
                 <option value={editingTransaction.account}>{editingTransaction.account}</option>
               )}
             </select>
