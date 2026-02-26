@@ -12,6 +12,7 @@ import TransactionActionMenu from '@/components/money/TransactionActionMenu';
 import StatsView from '@/components/money/StatsView';
 import AccountsView from '@/components/money/AccountsView';
 import SettingsView from '@/components/money/SettingsView';
+import CashflowView from '@/components/money/CashflowView';
 import Link from 'next/link';
 import { signOut } from '@/lib/money-supabase';
 
@@ -23,11 +24,13 @@ function MoneyApp() {
   const viewTitles: Record<string, string> = {
     transactions: 'Transactions',
     stats:        'Statistics',
+    cashflow:     'Cash Flow',
     accounts:     'Accounts',
     settings:     'Settings',
   };
 
   const showPeriodNav = activeView === 'transactions' || activeView === 'stats';
+  // cashflow view has its own year navigator inside the component
 
   return (
     <div className="flex h-dvh bg-slate-950 text-white overflow-hidden">
@@ -104,6 +107,7 @@ function MoneyApp() {
         <main className="flex-1 overflow-y-auto">
           {activeView === 'transactions' && <TransactionList />}
           {activeView === 'stats'        && <StatsView />}
+          {activeView === 'cashflow'     && <CashflowView />}
           {activeView === 'accounts'     && <AccountsView />}
           {activeView === 'settings'     && <SettingsView />}
         </main>

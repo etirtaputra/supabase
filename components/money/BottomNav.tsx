@@ -32,6 +32,21 @@ const navItems: { view: ViewType; label: string; icon: (active: boolean) => Reac
     ),
   },
   {
+    view: 'cashflow',
+    label: 'Cash Flow',
+    icon: (active) => (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+        fill={active ? 'currentColor' : 'none'}
+        stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+        className="w-6 h-6">
+        <rect x="3" y="3" width="18" height="18" rx="2"/>
+        <line x1="3" y1="9" x2="21" y2="9"/>
+        <line x1="3" y1="15" x2="21" y2="15"/>
+        <line x1="9" y1="9" x2="9" y2="21"/>
+      </svg>
+    ),
+  },
+  {
     view: 'accounts',
     label: 'Accounts',
     icon: (active) => (
@@ -62,9 +77,9 @@ const navItems: { view: ViewType; label: string; icon: (active: boolean) => Reac
 export default function BottomNav() {
   const { activeView, setActiveView, openAddModal } = useMoney();
 
-  // Split: 2 left, FAB, 2 right
-  const left  = navItems.slice(0, 2);
-  const right = navItems.slice(2);
+  // Split: 3 left (Home, Stats, Cash Flow), FAB, 2 right (Accounts, Settings)
+  const left  = navItems.slice(0, 3);
+  const right = navItems.slice(3);
 
   return (
     <>

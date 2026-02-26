@@ -1,5 +1,5 @@
 export type TransactionType = 'Inc' | 'Exp' | 'Trf' | 'TrfIn' | 'TrfOut' | 'IncBal' | 'ExpBal';
-export type ViewType = 'transactions' | 'stats' | 'accounts' | 'settings';
+export type ViewType = 'transactions' | 'stats' | 'cashflow' | 'accounts' | 'settings';
 export type ViewPeriod = 'daily' | 'weekly' | 'monthly' | 'annual';
 export type AccountCategory = 'cash' | 'debit' | 'credit' | 'investment' | 'ewallet';
 
