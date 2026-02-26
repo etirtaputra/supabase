@@ -4,7 +4,6 @@
  * Database view moved to /database route
  */
 'use client';
-export const dynamic = 'force-dynamic';
 import { useState, useMemo } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 // Components
