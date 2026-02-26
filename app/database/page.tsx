@@ -3,6 +3,7 @@
  * Tab-based layout for mobile-first navigation
  */
 'use client';
+export const dynamic = 'force-dynamic';
 import { useState } from 'react';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import SearchableTable from '@/components/ui/SearchableTable';

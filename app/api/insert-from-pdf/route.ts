@@ -2,12 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { TABLE_NAMES } from '@/constants/tableNames';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: { persistSession: false }
-});
+function getSupabase() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  return createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
+}
 
 interface LineItem {
   model_sku: string;
@@ -65,6 +64,7 @@ export async function POST(request: NextRequest) {
 }
 
 async function insertToHistory(data: ExtractedData) {
+  const supabase = getSupabase();
   // Find or create supplier
   const supplierId = await findOrCreateSupplier(data.supplier_name);
 
@@ -117,6 +117,7 @@ async function insertToHistory(data: ExtractedData) {
 }
 
 async function insertToFormalTables(data: ExtractedData) {
+  const supabase = getSupabase();
   // Step 1: Find or create supplier
   const supplierId = await findOrCreateSupplier(data.supplier_name);
 
@@ -206,6 +207,7 @@ async function insertToFormalTables(data: ExtractedData) {
 }
 
 async function findOrCreateSupplier(supplierName: string): Promise<number> {
+  const supabase = getSupabase();
   // Try to find existing supplier (fuzzy match)
   const { data: existing } = await supabase
     .from(TABLE_NAMES.SUPPLIERS)
@@ -232,6 +234,7 @@ async function findOrCreateSupplier(supplierName: string): Promise<number> {
 }
 
 async function findOrCreateComponent(item: LineItem): Promise<number> {
+  const supabase = getSupabase();
   // Try to find existing component by SKU
   const { data: existing } = await supabase
     .from(TABLE_NAMES.COMPONENTS)
