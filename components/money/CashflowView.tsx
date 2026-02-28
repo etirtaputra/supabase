@@ -2,6 +2,12 @@
 
 import { Fragment, useState, useMemo, useCallback, useEffect } from 'react';
 import { useMoney } from '@/context/MoneyContext';
+import {
+  DISPLAY_DEFAULTS,
+  loadDisplay,
+  fmtAmount,
+  type DisplaySettings,
+} from '@/lib/money-display';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -12,12 +18,23 @@ const EXPENSE_TYPES = new Set(['Exp', 'ExpBal']);
 const LS_OVERRIDES = 'money_cf3_overrides';  // { [year][Inc|Exp][cat][sub][mi]: number }
 const LS_CUSTOM    = 'money_cf3_custom';     // { [year].inc/exp: [{cat,sub}] }
 const LS_COLLAPSED = 'money_cf3_collapsed';  // { [`${year}-${tp}-${cat}`]: true }
+const LS_CAT_ORDER = 'money_cf3_cat_order';  // { Inc: string[], Exp: string[] }
+const LS_SUB_ORDER = 'money_cf3_sub_order';  // { [`${tp}-${cat}`]: string[] }
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
 type Overrides  = Record<string, Record<string, Record<string, Record<string, Record<string, number>>>>>;
 type CustomRows = Record<string, { inc: Array<{cat:string;sub:string}>; exp: Array<{cat:string;sub:string}> }>;
 type Collapsed  = Record<string, boolean>;
+type CatOrder   = { Inc: string[]; Exp: string[] };
+type SubOrder   = Record<string, string[]>;  // key: `${tp}-${cat}`
+
+interface DragInfo {
+  kind: 'cat' | 'sub';
+  tp: 'Inc' | 'Exp';
+  cat: string;
+  sub?: string;
+}
 
 // ── Storage helpers ────────────────────────────────────────────────────────
 
@@ -32,17 +49,13 @@ function lsSet(key: string, val: unknown) {
   try { localStorage.setItem(key, JSON.stringify(val)); } catch { /* ignore */ }
 }
 
-// ── Number formatter ───────────────────────────────────────────────────────
+// ── Order helper ───────────────────────────────────────────────────────────
 
-function fmt(n: number, forceShow = false): string {
-  if (n === 0) return forceShow ? '0' : '—';
-  const abs = Math.abs(n);
-  let s: string;
-  if      (abs >= 1e9) s = `${(abs / 1e9).toFixed(1)}B`;
-  else if (abs >= 1e6) s = `${(abs / 1e6).toFixed(1)}M`;
-  else if (abs >= 1e3) s = `${(abs / 1e3).toFixed(1)}K`;
-  else                 s = abs.toFixed(0);
-  return n < 0 ? `(${s})` : s;
+/** Keep known items in saved order, append novel items at end. */
+function applyOrder(items: string[], saved: string[]): string[] {
+  const known = saved.filter(i => items.includes(i));
+  const novel = items.filter(i => !saved.includes(i));
+  return [...known, ...novel];
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
@@ -50,10 +63,13 @@ function fmt(n: number, forceShow = false): string {
 export default function CashflowView() {
   const { allTransactions } = useMoney();
 
-  const [year,       setYear]       = useState(() => new Date().getFullYear());
-  const [overrides,  setOverrides]  = useState<Overrides>({});
-  const [customRows, setCustomRows] = useState<CustomRows>({});
-  const [collapsed,  setCollapsed]  = useState<Collapsed>({});
+  const [year,            setYear]            = useState(() => new Date().getFullYear());
+  const [overrides,       setOverrides]       = useState<Overrides>({});
+  const [customRows,      setCustomRows]      = useState<CustomRows>({});
+  const [collapsed,       setCollapsed]       = useState<Collapsed>({});
+  const [catOrder,        setCatOrder]        = useState<CatOrder>({ Inc: [], Exp: [] });
+  const [subOrder,        setSubOrder]        = useState<SubOrder>({});
+  const [displaySettings, setDisplaySettings] = useState<DisplaySettings>(DISPLAY_DEFAULTS);
 
   // Inline-edit state
   const [editCell, setEditCell] = useState<{tp:string;cat:string;sub:string;mi:number}|null>(null);
@@ -67,10 +83,17 @@ export default function CashflowView() {
   const [addingCat,  setAddingCat]  = useState<string|null>(null); // 'Inc'|'Exp'
   const [newCatName, setNewCatName] = useState('');
 
+  // Drag-and-drop state
+  const [dragging, setDragging] = useState<DragInfo | null>(null);
+  const [dragOver, setDragOver] = useState<string | null>(null);
+
   useEffect(() => {
-    setOverrides (lsGet<Overrides> (LS_OVERRIDES, {}));
-    setCustomRows(lsGet<CustomRows>(LS_CUSTOM,    {}));
-    setCollapsed (lsGet<Collapsed> (LS_COLLAPSED, {}));
+    setOverrides      (lsGet<Overrides> (LS_OVERRIDES, {}));
+    setCustomRows     (lsGet<CustomRows>(LS_CUSTOM,    {}));
+    setCollapsed      (lsGet<Collapsed> (LS_COLLAPSED, {}));
+    setCatOrder       (lsGet<CatOrder>  (LS_CAT_ORDER, { Inc: [], Exp: [] }));
+    setSubOrder       (lsGet<SubOrder>  (LS_SUB_ORDER, {}));
+    setDisplaySettings(loadDisplay());
   }, []);
 
   // ── Date helpers ───────────────────────────────────────────────────────
@@ -128,25 +151,29 @@ export default function CashflowView() {
       if (!m.has(cat)) m.set(cat, new Set());
       m.get(cat)!.add(sub);
     };
-    // From all-time transactions (keeps categories visible across years)
     for (const t of allTransactions) {
       const cat = t.category || 'Other', sub = t.subcategory || '';
       if      (INCOME_TYPES.has(t.type))  add(inc, cat, sub);
       else if (EXPENSE_TYPES.has(t.type)) add(exp, cat, sub);
     }
-    // From overrides (this year)
     for (const [cat, sm] of Object.entries(overrides[yearStr]?.Inc ?? {}))
       for (const sub of Object.keys(sm)) add(inc, cat, sub);
     for (const [cat, sm] of Object.entries(overrides[yearStr]?.Exp ?? {}))
       for (const sub of Object.keys(sm)) add(exp, cat, sub);
-    // From custom rows
     for (const { cat, sub } of customRows[yearStr]?.inc ?? []) add(inc, cat, sub);
     for (const { cat, sub } of customRows[yearStr]?.exp ?? []) add(exp, cat, sub);
     return { incMap: inc, expMap: exp };
   }, [allTransactions, overrides, customRows, yearStr]);
 
-  const incCats = useMemo(() => [...incMap.keys()].sort(), [incMap]);
-  const expCats = useMemo(() => [...expMap.keys()].sort(), [expMap]);
+  const incCats = useMemo(() => {
+    const base = [...incMap.keys()].sort();
+    return applyOrder(base, catOrder.Inc);
+  }, [incMap, catOrder]);
+
+  const expCats = useMemo(() => {
+    const base = [...expMap.keys()].sort();
+    return applyOrder(base, catOrder.Exp);
+  }, [expMap, catOrder]);
 
   // ── Value getters ──────────────────────────────────────────────────────
 
@@ -277,7 +304,81 @@ export default function CashflowView() {
     setNewCatName(''); setAddingCat(null);
   };
 
+  // ── Drag-and-drop handlers ─────────────────────────────────────────────
+
+  const handleDragStart = (e: React.DragEvent, info: DragInfo) => {
+    setDragging(info);
+    e.dataTransfer.effectAllowed = 'move';
+    // Transparent drag ghost
+    const ghost = document.createElement('div');
+    ghost.style.position = 'absolute';
+    ghost.style.top = '-9999px';
+    document.body.appendChild(ghost);
+    e.dataTransfer.setDragImage(ghost, 0, 0);
+    setTimeout(() => document.body.removeChild(ghost), 0);
+  };
+
+  const dragKey = (info: DragInfo) =>
+    info.kind === 'cat'
+      ? `cat-${info.tp}-${info.cat}`
+      : `sub-${info.tp}-${info.cat}-${info.sub}`;
+
+  const handleDragOver = (e: React.DragEvent, info: DragInfo) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOver(dragKey(info));
+  };
+
+  const handleDrop = (e: React.DragEvent, target: DragInfo) => {
+    e.preventDefault();
+    if (!dragging) return;
+
+    if (dragging.kind === 'cat' && target.kind === 'cat' && dragging.tp === target.tp) {
+      const cats = dragging.tp === 'Inc' ? [...incCats] : [...expCats];
+      const from = cats.indexOf(dragging.cat);
+      const to   = cats.indexOf(target.cat);
+      if (from !== -1 && to !== -1 && from !== to) {
+        cats.splice(from, 1);
+        cats.splice(to, 0, dragging.cat);
+        setCatOrder(prev => {
+          const next = { ...prev, [dragging.tp]: cats };
+          lsSet(LS_CAT_ORDER, next);
+          return next;
+        });
+      }
+    } else if (
+      dragging.kind === 'sub' && target.kind === 'sub' &&
+      dragging.tp === target.tp && dragging.cat === target.cat
+    ) {
+      const subsSet   = (dragging.tp === 'Inc' ? incMap : expMap).get(dragging.cat) ?? new Set<string>();
+      const namedSubs = [...subsSet].filter(s => s !== '').sort();
+      const sk        = `${dragging.tp}-${dragging.cat}`;
+      const ordered   = applyOrder(namedSubs, subOrder[sk] ?? []);
+      const from      = ordered.indexOf(dragging.sub!);
+      const to        = ordered.indexOf(target.sub!);
+      if (from !== -1 && to !== -1 && from !== to) {
+        ordered.splice(from, 1);
+        ordered.splice(to, 0, dragging.sub!);
+        setSubOrder(prev => {
+          const next = { ...prev, [sk]: ordered };
+          lsSet(LS_SUB_ORDER, next);
+          return next;
+        });
+      }
+    }
+
+    setDragging(null);
+    setDragOver(null);
+  };
+
+  const handleDragEnd = () => {
+    setDragging(null);
+    setDragOver(null);
+  };
+
   // ── Cell renderers (plain functions — not React components → no remount) ─
+
+  const fmt = (n: number, forceShow = false) => fmtAmount(n, displaySettings, forceShow);
 
   const renderDataCell = (tp: string, cat: string, sub: string, mi: number) => {
     const val    = getVal(tp, cat, sub, mi);
@@ -296,7 +397,7 @@ export default function CashflowView() {
           onChange={e => setEditVal(e.target.value)}
           onBlur={commitEdit}
           onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditCell(null); }}
-          className="w-14 bg-violet-900/90 border border-violet-400 rounded px-1 py-0.5 text-white text-[11px] text-right focus:outline-none"
+          className="w-28 bg-violet-900/90 border border-violet-400 rounded px-1 py-0.5 text-white text-[11px] text-right focus:outline-none"
         />
       </td>
     );
@@ -324,7 +425,6 @@ export default function CashflowView() {
     );
   };
 
-  // Category subtotal cell (sum of all subs for that month)
   const renderSubtotalCell = (tp: string, cat: string, mi: number) => {
     const val = catMonthSum(tp, cat, mi);
     const bg  = isCurrent(mi) ? 'bg-violet-900/15' : isFuture(mi) ? 'bg-slate-800/10' : '';
@@ -336,7 +436,6 @@ export default function CashflowView() {
     );
   };
 
-  // Grand-total / balance cell
   const renderSummaryCell = (val: number, mi: number, color: string) => {
     const bg = isCurrent(mi) ? 'bg-violet-900/20' : isFuture(mi) ? 'bg-slate-800/15' : '';
     return (
@@ -352,7 +451,6 @@ export default function CashflowView() {
     const isInc   = tp === 'Inc';
     const tpLower = isInc ? 'inc' : 'exp' as 'inc'|'exp';
 
-    // Style tokens
     const sectionBg   = isInc ? 'bg-emerald-950/60 border-emerald-900/30 text-emerald-300'
                                : 'bg-rose-950/60 border-rose-900/30 text-rose-300';
     const catBg       = isInc ? 'bg-emerald-950/35' : 'bg-rose-950/35';
@@ -383,23 +481,41 @@ export default function CashflowView() {
 
         {/* Category blocks */}
         {cats.map(cat => {
-          const subsSet   = catMap.get(cat) ?? new Set<string>();
-          const subs      = [...subsSet].sort();
-          const namedSubs = subs.filter(s => s !== '');
-          // Expandable = has named subcategories → header shows subtotals, rows shown beneath
+          const subsSet    = catMap.get(cat) ?? new Set<string>();
+          const subs       = [...subsSet].sort();
+          const namedSubs  = subs.filter(s => s !== '');
+          const sk         = `${tp}-${cat}`;
+          const orderedSubs = applyOrder(namedSubs, subOrder[sk] ?? []);
           const expandable  = namedSubs.length > 0;
           const catCollapsed = isCollapsed(tp, cat);
           const cAnn        = catAnnual(tp, cat);
+
+          const catDragKey   = `cat-${tp}-${cat}`;
+          const isCatDragOver = dragOver === catDragKey;
+          const isCatDragging = dragging?.kind === 'cat' && dragging.tp === tp && dragging.cat === cat;
 
           return (
             <Fragment key={`${tp}-${cat}`}>
               {/* Category header row */}
               <tr
+                draggable
+                onDragStart={e => handleDragStart(e, { kind: 'cat', tp, cat })}
+                onDragOver={e => handleDragOver(e, { kind: 'cat', tp, cat })}
+                onDrop={e => handleDrop(e, { kind: 'cat', tp, cat })}
+                onDragEnd={handleDragEnd}
                 onClick={() => expandable && toggleCollapse(tp, cat)}
-                className={`${catBg} border-t border-slate-700/30 ${expandable ? 'cursor-pointer select-none' : ''}`}
+                className={`${catBg} border-t border-slate-700/30 transition-colors
+                  ${expandable ? 'cursor-pointer select-none' : ''}
+                  ${isCatDragOver && !isCatDragging ? 'border-t-2 border-t-violet-400' : ''}
+                  ${isCatDragging ? 'opacity-40' : ''}`}
               >
-                <td className={`sticky left-0 ${catBg} pl-3 pr-3 py-1.5 text-[11px] font-semibold ${catText} border-r border-slate-700/30`}>
-                  <span className="flex items-center gap-1.5">
+                <td className={`sticky left-0 ${catBg} pl-2 pr-3 py-1.5 text-[11px] font-semibold ${catText} border-r border-slate-700/30`}>
+                  <span className="flex items-center gap-1">
+                    {/* Drag handle */}
+                    <span
+                      className="text-slate-600 hover:text-slate-400 cursor-grab active:cursor-grabbing text-[13px] leading-none select-none shrink-0"
+                      title="Drag to reorder"
+                    >⠿</span>
                     {expandable && (
                       <span className="text-[10px] opacity-50 w-3 shrink-0">
                         {catCollapsed ? '▸' : '▾'}
@@ -419,17 +535,39 @@ export default function CashflowView() {
               </tr>
 
               {/* Named subcategory line-item rows */}
-              {!catCollapsed && namedSubs.map(sub => (
-                <tr key={`${tp}-${cat}-${sub}`} className="group/row hover:bg-slate-800/15 border-b border-slate-700/10">
-                  <td className="sticky left-0 bg-slate-950 group-hover/row:bg-slate-800/30 pl-8 pr-3 py-1 text-[11px] text-slate-400 border-r border-slate-700/20">
-                    {sub}
-                  </td>
-                  {MONTHS.map((_, mi) => renderDataCell(tp, cat, sub, mi))}
-                  <td className={`px-3 py-1 text-right text-[11px] tabular-nums ${subAnnCol} border-l border-slate-700/20`}>
-                    {fmt(subAnnual(tp, cat, sub))}
-                  </td>
-                </tr>
-              ))}
+              {!catCollapsed && orderedSubs.map(sub => {
+                const subDragKey    = `sub-${tp}-${cat}-${sub}`;
+                const isSubDragOver = dragOver === subDragKey;
+                const isSubDragging = dragging?.kind === 'sub' && dragging.tp === tp && dragging.cat === cat && dragging.sub === sub;
+
+                return (
+                  <tr
+                    key={`${tp}-${cat}-${sub}`}
+                    draggable
+                    onDragStart={e => { e.stopPropagation(); handleDragStart(e, { kind: 'sub', tp, cat, sub }); }}
+                    onDragOver={e => { e.stopPropagation(); handleDragOver(e, { kind: 'sub', tp, cat, sub }); }}
+                    onDrop={e => { e.stopPropagation(); handleDrop(e, { kind: 'sub', tp, cat, sub }); }}
+                    onDragEnd={handleDragEnd}
+                    className={`group/row hover:bg-slate-800/15 border-b border-slate-700/10 transition-colors
+                      ${isSubDragOver && !isSubDragging ? 'border-t-2 border-t-violet-400' : ''}
+                      ${isSubDragging ? 'opacity-40' : ''}`}
+                  >
+                    <td className="sticky left-0 bg-slate-950 group-hover/row:bg-slate-800/30 pl-2 pr-3 py-1 text-[11px] text-slate-400 border-r border-slate-700/20">
+                      <span className="flex items-center gap-1">
+                        <span
+                          className="text-slate-700 hover:text-slate-500 cursor-grab active:cursor-grabbing text-[13px] leading-none select-none shrink-0"
+                          title="Drag to reorder"
+                        >⠿</span>
+                        <span className="pl-3">{sub}</span>
+                      </span>
+                    </td>
+                    {MONTHS.map((_, mi) => renderDataCell(tp, cat, sub, mi))}
+                    <td className={`px-3 py-1 text-right text-[11px] tabular-nums ${subAnnCol} border-l border-slate-700/20`}>
+                      {fmt(subAnnual(tp, cat, sub))}
+                    </td>
+                  </tr>
+                );
+              })}
 
               {/* "General" row: empty-sub transactions when named subs also exist */}
               {!catCollapsed && expandable && subsSet.has('') && (
@@ -543,13 +681,13 @@ export default function CashflowView() {
         </div>
 
         <span className="text-[11px] text-violet-400 hidden lg:block shrink-0 ml-auto">
-          Tap future cells to project
+          Tap future cells to project · drag ⠿ to reorder
         </span>
       </div>
 
       {/* Scrollable table */}
       <div className="flex-1 overflow-auto">
-        <table className="border-collapse" style={{ minWidth: '900px', width: '100%' }}>
+        <table className="border-collapse" style={{ minWidth: '1200px', width: '100%' }}>
 
           {/* Sticky column headers */}
           <thead className="sticky top-0 z-20 bg-slate-900">
@@ -559,7 +697,7 @@ export default function CashflowView() {
               </th>
               {MONTHS.map((name, mi) => (
                 <th key={mi} className={[
-                  'px-2 py-2 text-center text-[11px] font-semibold border-b border-slate-700/50 min-w-[60px]',
+                  'px-2 py-2 text-center text-[11px] font-semibold border-b border-slate-700/50 min-w-[110px]',
                   isCurrent(mi) ? 'text-violet-300 bg-violet-900/25'
                                 : isFuture(mi) ? 'text-slate-500' : 'text-slate-300',
                 ].join(' ')}>
@@ -569,7 +707,7 @@ export default function CashflowView() {
                   </div>
                 </th>
               ))}
-              <th className="px-3 py-2 text-right text-[11px] font-semibold text-slate-400 uppercase border-b border-l border-slate-700/50 min-w-[68px]">
+              <th className="px-3 py-2 text-right text-[11px] font-semibold text-slate-400 uppercase border-b border-l border-slate-700/50 min-w-[120px]">
                 Full Yr
               </th>
             </tr>
