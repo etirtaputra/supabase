@@ -1,8 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMoney } from '@/context/MoneyContext';
 import type { AccountCategory, UserAccount } from '@/types/money';
+import {
+  DISPLAY_DEFAULTS,
+  loadDisplay,
+  saveDisplay,
+  fmtAmount,
+  type DisplaySettings,
+} from '@/lib/money-display';
 
 const CATEGORIES: { id: AccountCategory; label: string; icon: string; desc: string }[] = [
   { id: 'cash',       label: 'Cash',       icon: '💵', desc: 'Physical cash on hand' },
@@ -121,6 +128,17 @@ export default function SettingsView() {
   // ── Which group is showing the "add subaccount" form
   const [addingSubFor, setAddingSubFor] = useState<string | null>(null);
 
+  // ── Display settings state
+  const [display, setDisplay] = useState<DisplaySettings>(DISPLAY_DEFAULTS);
+
+  useEffect(() => { setDisplay(loadDisplay()); }, []);
+
+  const updateDisplay = (patch: Partial<DisplaySettings>) => {
+    const next = { ...display, ...patch };
+    setDisplay(next);
+    saveDisplay(next);
+  };
+
   // ── Reset all data state
   const [resetConfirm, setResetConfirm] = useState(false);
   const [resetting,    setResetting]    = useState(false);
@@ -196,6 +214,97 @@ export default function SettingsView() {
   // ── Render ───────────────────────────────────────────────────
   return (
     <div className="px-4 pb-24 lg:pb-4 space-y-6 mt-2">
+
+      {/* ── Display & Currency ── */}
+      <section>
+        <h2 className="text-white font-bold text-base mb-3">Display &amp; Currency</h2>
+        <div className="bg-slate-800 rounded-2xl p-4 space-y-4">
+
+          {/* Currency symbol */}
+          <div>
+            <label className="block text-xs text-slate-400 mb-1.5">Currency Symbol</label>
+            <div className="flex items-center gap-2">
+              {['Rp', 'IDR', '$', '€', '£'].map(sym => (
+                <button
+                  key={sym}
+                  onClick={() => updateDisplay({ currencySymbol: sym })}
+                  className={`px-3 py-1.5 rounded-xl text-sm font-semibold border transition-colors
+                    ${display.currencySymbol === sym
+                      ? 'bg-violet-600 border-violet-500 text-white'
+                      : 'border-slate-600 text-slate-400 hover:text-white hover:border-slate-500'}`}
+                >
+                  {sym}
+                </button>
+              ))}
+              <input
+                type="text"
+                value={display.currencySymbol}
+                onChange={e => updateDisplay({ currencySymbol: e.target.value })}
+                placeholder="custom"
+                className="w-20 bg-slate-900 border border-slate-700 text-white text-sm rounded-xl px-3 py-1.5 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          {/* Number format */}
+          <div>
+            <label className="block text-xs text-slate-400 mb-1.5">Number Format</label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => updateDisplay({ useFullNumbers: true })}
+                className={`flex-1 py-2 rounded-xl text-sm font-semibold border transition-colors
+                  ${display.useFullNumbers
+                    ? 'bg-violet-600 border-violet-500 text-white'
+                    : 'border-slate-600 text-slate-400 hover:text-white hover:border-slate-500'}`}
+              >
+                Full (3.000.000)
+              </button>
+              <button
+                onClick={() => updateDisplay({ useFullNumbers: false })}
+                className={`flex-1 py-2 rounded-xl text-sm font-semibold border transition-colors
+                  ${!display.useFullNumbers
+                    ? 'bg-violet-600 border-violet-500 text-white'
+                    : 'border-slate-600 text-slate-400 hover:text-white hover:border-slate-500'}`}
+              >
+                Short (3.0M)
+              </button>
+            </div>
+          </div>
+
+          {/* Locale */}
+          <div>
+            <label className="block text-xs text-slate-400 mb-1.5">Locale (thousand/decimal separator)</label>
+            <div className="flex gap-2">
+              {[
+                { locale: 'id-ID', label: 'ID  1.000,00' },
+                { locale: 'en-US', label: 'US  1,000.00' },
+              ].map(({ locale, label }) => (
+                <button
+                  key={locale}
+                  onClick={() => updateDisplay({ locale })}
+                  className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-colors
+                    ${display.locale === locale
+                      ? 'bg-violet-600 border-violet-500 text-white'
+                      : 'border-slate-600 text-slate-400 hover:text-white hover:border-slate-500'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Preview */}
+          <div className="bg-slate-900/60 rounded-xl px-4 py-3">
+            <p className="text-xs text-slate-500 mb-1.5">Preview</p>
+            <div className="flex gap-6 text-sm tabular-nums">
+              <span className="text-emerald-400">{fmtAmount(3_500_000_000, display, true)}</span>
+              <span className="text-rose-400">{fmtAmount(750_000, display, true)}</span>
+              <span className="text-slate-500">{fmtAmount(0, display, true)}</span>
+            </div>
+          </div>
+
+        </div>
+      </section>
 
       {/* ── Account Groups & Subaccounts ── */}
       <section>
