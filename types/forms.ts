@@ -63,6 +63,7 @@ export interface BatchLineItemsFormProps {
   allQuotes?: any[]; // All quotes for lookup
   allPurchases?: any[]; // All purchases for getting linked quote_id
   components?: any[]; // Components for display in import modal
+  gridLayout?: boolean; // Use grid layout for item fields instead of flex row
 }
 
 // Field renderer props

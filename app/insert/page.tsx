@@ -189,6 +189,7 @@ function MasterInsertPage() {
                   />
                   <BatchLineItemsForm
                     title="Add New Component"
+                    gridLayout
                     itemFields={[
                       { name: 'supplier_model', label: 'Supplier Model / SKU', type: 'text', req: true, suggestions: suggestions.modelSkus },
                       { name: 'internal_description', label: 'Internal Description', type: 'text', req: true, suggestions: suggestions.descriptions },
