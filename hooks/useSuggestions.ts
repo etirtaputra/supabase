@@ -13,7 +13,7 @@ export function useSuggestions(data: DatabaseData): Suggestions {
   return useMemo(() => {
     const getUniqueCombined = (key: string, ...arrays: any[][]) => {
       const allValues = arrays
-        .flatMap((arr) => (arr || []).map((item) => item[key]))
+        .flatMap((arr) => (arr || []).map((item) => item[key]?.toString().trim()))
         .filter(Boolean);
       return Array.from(new Set(allValues)).sort();
     };
