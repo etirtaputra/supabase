@@ -260,7 +260,7 @@ function MasterInsertPage() {
                       { name: 'quote_date', label: 'Date', type: 'date', req: true, default: pdfData?.quote_date || pdfData?.pi_date || new Date().toISOString().split('T')[0] },
                       { name: 'pi_number', label: 'Quote Ref', type: 'text', suggestions: suggestions.quoteNumbers, default: pdfData?.quote_number || pdfData?.pi_number },
                       { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true, default: pdfData?.currency },
-                      { name: 'total_value', label: 'Total Value', type: 'number', req: true, default: pdfData?.total_value },
+                      { name: 'total_value', label: 'Total Value', type: 'number', default: pdfData?.total_value },
                       { name: 'status', label: 'Status', type: 'select', options: ENUMS.price_quotes_status, default: 'Open' },
                       { name: 'estimated_lead_time_days', label: 'Lead Time', type: 'select', options: ENUMS.lead_time, default: pdfData?.lead_time_days },
                       { name: 'replaces_quote_id', label: 'Replaces', type: 'select', options: options.quotes },
