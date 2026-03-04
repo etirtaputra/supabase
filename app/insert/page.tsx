@@ -187,16 +187,16 @@ function MasterInsertPage() {
                     onSubmit={(d) => handleInsert('2.0_suppliers', d)}
                     loading={loading}
                   />
-                  <SimpleForm
+                  <BatchLineItemsForm
                     title="Add New Component"
-                    fields={[
+                    itemFields={[
                       { name: 'supplier_model', label: 'Supplier Model / SKU', type: 'text', req: true, suggestions: suggestions.modelSkus },
                       { name: 'internal_description', label: 'Internal Description', type: 'text', req: true, suggestions: suggestions.descriptions },
                       { name: 'brand', label: 'Brand', type: 'text', suggestions: suggestions.brands },
                       { name: 'category', label: 'Category', type: 'select', options: ENUMS.product_category },
                       { name: 'specifications', label: 'Specs (JSON)', type: 'textarea', placeholder: '{"watts": 100}' },
                     ]}
-                    onSubmit={(d) => handleInsert('3.0_components', d)}
+                    onSubmit={(items) => handleInsert('3.0_components', items)}
                     loading={loading}
                   />
                 </div>
