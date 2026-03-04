@@ -28,7 +28,9 @@ export default function Autocomplete({
 }: AutocompleteProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([]);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (value) {
@@ -39,6 +41,7 @@ export default function Autocomplete({
     } else {
       setFilteredSuggestions(suggestions.slice(0, 20));
     }
+    setActiveIndex(-1);
   }, [value, suggestions]);
 
   useEffect(() => {
@@ -51,9 +54,43 @@ export default function Autocomplete({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Scroll active item into view
+  useEffect(() => {
+    if (activeIndex >= 0 && listRef.current) {
+      const item = listRef.current.children[activeIndex] as HTMLElement;
+      item?.scrollIntoView({ block: 'nearest' });
+    }
+  }, [activeIndex]);
+
   const handleSelect = (suggestion: string) => {
     onChange(suggestion);
     setIsOpen(false);
+    setActiveIndex(-1);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!isOpen || filteredSuggestions.length === 0) {
+      if (e.key === 'ArrowDown') {
+        setIsOpen(true);
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIndex((i) => Math.min(i + 1, filteredSuggestions.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex((i) => Math.max(i - 1, -1));
+    } else if (e.key === 'Enter') {
+      if (activeIndex >= 0) {
+        e.preventDefault();
+        handleSelect(filteredSuggestions[activeIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      setIsOpen(false);
+      setActiveIndex(-1);
+    }
   };
 
   return (
@@ -65,6 +102,7 @@ export default function Autocomplete({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onFocus={() => setIsOpen(true)}
+        onKeyDown={handleKeyDown}
         placeholder={placeholder}
         disabled={disabled}
         required={required}
@@ -73,12 +111,16 @@ export default function Autocomplete({
 
       {isOpen && filteredSuggestions.length > 0 && (
         <div className="absolute z-50 top-full left-0 w-full bg-slate-900 border border-emerald-500/50 rounded-b-lg shadow-2xl overflow-hidden mt-1 animate-in fade-in zoom-in-95 duration-75">
-          <div className="max-h-60 overflow-y-auto custom-scrollbar">
+          <div className="max-h-60 overflow-y-auto custom-scrollbar" ref={listRef}>
             {filteredSuggestions.map((suggestion, index) => (
               <div
                 key={index}
                 onClick={() => handleSelect(suggestion)}
-                className="px-4 py-2.5 cursor-pointer hover:bg-slate-800 transition-colors text-sm text-slate-300 hover:text-white border-b border-slate-800/50 last:border-0"
+                className={`px-4 py-2.5 cursor-pointer transition-colors text-sm border-b border-slate-800/50 last:border-0 ${
+                  index === activeIndex
+                    ? 'bg-emerald-600/30 text-white'
+                    : 'hover:bg-slate-800 text-slate-300 hover:text-white'
+                }`}
               >
                 {suggestion}
               </div>

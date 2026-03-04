@@ -23,6 +23,7 @@ export default function BatchLineItemsForm({
   allQuotes = [],
   allPurchases = [],
   components = [],
+  gridLayout = false,
 }: BatchLineItemsFormProps) {
   const uniqueFormId = useId();
   const formId = customFormId || uniqueFormId;
@@ -117,6 +118,24 @@ export default function BatchLineItemsForm({
       setEditingId(null);
       setEditingData({});
     }
+  };
+
+  const handleEditChange = (field: string, value: any) => {
+    const updated = { ...editingData, [field]: value };
+
+    if (field === 'component_id' && value) {
+      const componentField = itemFields.find(f => f.name === 'component_id');
+      if (componentField?.options) {
+        const selected = componentField.options.find(
+          (c: any) => c[componentField.config?.valueKey || 'component_id'] === value
+        );
+        if (selected) {
+          updated.supplier_description = selected.internal_description || selected.supplier_model || '';
+        }
+      }
+    }
+
+    setEditingData(updated);
   };
 
   const cancelEdit = () => {
@@ -458,36 +477,65 @@ export default function BatchLineItemsForm({
           )}
 
           {/* Variable Fields */}
-          <div className="flex flex-col md:flex-row flex-wrap items-end gap-4">
-            {itemFields
-              .filter((f) => !isHeaderField(f.name))
-              .map((f) => (
-                <div
-                  key={f.name}
-                  className={`w-full ${
-                    f.name.includes('description') || f.name.includes('component')
-                      ? 'md:flex-[2]'
-                      : 'md:flex-1'
-                  } min-w-[140px]`}
-                >
-                  <FieldRenderer
-                    field={f}
-                    value={draft[f.name]}
-                    onChange={handleDraftChange}
-                    formId={formId}
-                  />
-                </div>
-              ))}
+          {gridLayout ? (
+            <div className="flex flex-col gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {itemFields
+                  .filter((f) => !isHeaderField(f.name))
+                  .map((f) => (
+                    <div
+                      key={f.name}
+                      className={f.type === 'textarea' ? 'sm:col-span-2' : ''}
+                    >
+                      <FieldRenderer
+                        field={f}
+                        value={draft[f.name]}
+                        onChange={handleDraftChange}
+                        formId={formId}
+                      />
+                    </div>
+                  ))}
+              </div>
+              <button
+                type="button"
+                onClick={addItem}
+                className="w-full h-[46px] bg-emerald-600 hover:bg-emerald-500 text-white px-8 rounded-xl text-sm font-bold shadow-lg shadow-emerald-900/20 border border-emerald-500/50 transition-all active:scale-[0.98] flex items-center justify-center"
+              >
+                Add Item +
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col md:flex-row flex-wrap items-end gap-4">
+              {itemFields
+                .filter((f) => !isHeaderField(f.name))
+                .map((f) => (
+                  <div
+                    key={f.name}
+                    className={`w-full ${
+                      f.name.includes('description') || f.name.includes('component')
+                        ? 'md:flex-[2]'
+                        : 'md:flex-1'
+                    } min-w-[140px]`}
+                  >
+                    <FieldRenderer
+                      field={f}
+                      value={draft[f.name]}
+                      onChange={handleDraftChange}
+                      formId={formId}
+                    />
+                  </div>
+                ))}
 
-            {/* Add Button */}
-            <button
-              type="button"
-              onClick={addItem}
-              className="w-full md:w-auto h-[46px] bg-emerald-600 hover:bg-emerald-500 text-white px-8 rounded-xl text-sm font-bold shadow-lg shadow-emerald-900/20 border border-emerald-500/50 transition-all active:scale-[0.98] flex items-center justify-center"
-            >
-              Add Item +
-            </button>
-          </div>
+              {/* Add Button */}
+              <button
+                type="button"
+                onClick={addItem}
+                className="w-full md:w-auto h-[46px] bg-emerald-600 hover:bg-emerald-500 text-white px-8 rounded-xl text-sm font-bold shadow-lg shadow-emerald-900/20 border border-emerald-500/50 transition-all active:scale-[0.98] flex items-center justify-center"
+              >
+                Add Item +
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -528,7 +576,7 @@ export default function BatchLineItemsForm({
                             <FieldRenderer
                               field={f}
                               value={displayData[f.name]}
-                              onChange={(name, value) => setEditingData({ ...editingData, [name]: value })}
+                              onChange={handleEditChange}
                               formId={`${formId}-edit-${item._id}`}
                             />
                           </div>
