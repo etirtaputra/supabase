@@ -247,6 +247,9 @@ function MasterInsertPage() {
                 <ComponentEditor
                   components={data.components}
                   brandSuggestions={suggestions.brands}
+                  quoteItems={data.quoteItems}
+                  quotes={data.quotes}
+                  pos={data.pos}
                   onSave={handleComponentUpdates}
                   onDelete={handleComponentDelete}
                 />
