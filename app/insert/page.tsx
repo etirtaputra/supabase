@@ -11,6 +11,7 @@ import Sidebar from '@/components/layout/Sidebar';
 import MobileNav from '@/components/layout/MobileNav';
 import SimpleForm from '@/components/forms/SimpleForm';
 import BatchLineItemsForm from '@/components/forms/BatchLineItemsForm';
+import ComponentEditor from '@/components/ui/ComponentEditor';
 import { ToastContainer } from '@/components/ui/Toast';
 import { ToastProvider } from '@/hooks/useToast';
 import { FormSkeleton } from '@/components/ui/LoadingSkeleton';
@@ -24,6 +25,7 @@ import type { Tab, MenuItem } from '@/types/forms';
 // Menu configuration (removed database tab and history import)
 const MENU_ITEMS: MenuItem[] = [
   { id: 'foundation', label: 'Suppliers & Components', icon: '🏢' },
+  { id: 'components', label: 'Edit Components', icon: '✏️' },
   { id: 'quoting', label: 'Quotes', icon: '📝' },
   { id: 'ordering', label: 'PI / PO', icon: '📦' },
   { id: 'financials', label: 'Financials', icon: '💰' },
@@ -107,6 +109,25 @@ function MasterInsertPage() {
       showToast(`Error: ${error.message}`, 'error');
     } else {
       showToast(`✅ Added ${cleanPayload.length} record(s)!`, 'success');
+      refetch();
+    }
+  };
+  // Component bulk-update handler (used by ComponentEditor)
+  const handleComponentUpdates = async (
+    updates: { component_id: number; changes: Record<string, any> }[]
+  ) => {
+    const errors: string[] = [];
+    for (const { component_id, changes } of updates) {
+      const { error } = await supabase
+        .from('3.0_components')
+        .update(changes)
+        .eq('component_id', component_id);
+      if (error) errors.push(`#${component_id}: ${error.message}`);
+    }
+    if (errors.length > 0) {
+      showToast(`Error(s): ${errors.join(' | ')}`, 'error');
+    } else {
+      showToast(`Updated ${updates.length} component(s)!`, 'success');
       refetch();
     }
   };
@@ -201,6 +222,14 @@ function MasterInsertPage() {
                     loading={loading}
                   />
                 </div>
+              )}
+              {/* Edit Components Tab */}
+              {activeTab === 'components' && (
+                <ComponentEditor
+                  components={data.components}
+                  brandSuggestions={suggestions.brands}
+                  onSave={handleComponentUpdates}
+                />
               )}
               {/* Quoting Tab */}
               {activeTab === 'quoting' && (
