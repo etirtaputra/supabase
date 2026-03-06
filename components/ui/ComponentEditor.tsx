@@ -14,9 +14,10 @@ interface ComponentEditorProps {
   components: Component[];
   brandSuggestions: string[];
   onSave: (updates: { component_id: string; changes: Partial<Component> }[]) => Promise<void>;
+  onDelete?: (component_id: string) => Promise<void>;
 }
 
-type SortCol = 'supplier_model' | 'internal_description' | 'brand' | 'category' | 'created_at' | 'updated_at';
+type SortCol = 'supplier_model' | 'internal_description' | 'brand' | 'category' | 'updated_at';
 // Key components by their string ID to avoid Number(key)=NaN edge cases
 type PendingEdits = Record<string, Partial<Component>>;
 
@@ -146,7 +147,7 @@ function BrandInput({ value, onChange, suggestions, isDirty }: BrandInputProps) 
 }
 
 // --- Main Component Editor ---
-export default function ComponentEditor({ components, brandSuggestions, onSave }: ComponentEditorProps) {
+export default function ComponentEditor({ components, brandSuggestions, onSave, onDelete }: ComponentEditorProps) {
   const [search, setSearch] = useState('');
   const [filterBrand, setFilterBrand] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
@@ -155,9 +156,11 @@ export default function ComponentEditor({ components, brandSuggestions, onSave }
   const [editingIds, setEditingIds] = useState<Set<string>>(new Set());
   const [pending, setPending] = useState<PendingEdits>({});
   const [saving, setSaving] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const uniqueBrands = useMemo(
-    () => [...new Set(components.map((c) => c.brand).filter(Boolean))].sort() as string[],
+    () => [...new Set(components.map((c) => c.brand?.trim()).filter(Boolean))].sort() as string[],
     [components]
   );
 
@@ -175,7 +178,7 @@ export default function ComponentEditor({ components, brandSuggestions, onSave }
     if (filterBrand) result = result.filter((c) => c.brand === filterBrand);
     if (filterCategory) result = result.filter((c) => c.category === filterCategory);
     return [...result].sort((a, b) => {
-      if (sortCol === 'created_at' || sortCol === 'updated_at') {
+      if (sortCol === 'updated_at') {
         const av = a[sortCol] ? new Date(a[sortCol] as string).getTime() : 0;
         const bv = b[sortCol] ? new Date(b[sortCol] as string).getTime() : 0;
         return sortDir === 'asc' ? av - bv : bv - av;
@@ -230,6 +233,18 @@ export default function ComponentEditor({ components, brandSuggestions, onSave }
   };
 
   const discardAll = () => { setPending({}); setEditingIds(new Set()); };
+
+  const handleDelete = async (id: string) => {
+    if (!onDelete) return;
+    setDeleting(true);
+    try {
+      await onDelete(id);
+      discardRow(id);
+    } finally {
+      setDeleting(false);
+      setConfirmDeleteId(null);
+    }
+  };
 
   // Derive dirty state from string keys — consistent with isDirty check below
   const dirtyKeys = useMemo(() => Object.keys(pending), [pending]);
@@ -398,7 +413,6 @@ export default function ComponentEditor({ components, brandSuggestions, onSave }
                 <SortTh col="internal_description" label="Description" />
                 <SortTh col="brand" label="Brand" className="min-w-[160px]" />
                 <SortTh col="category" label="Category" />
-                <SortTh col="created_at" label="Created" className="min-w-[110px]" />
                 <SortTh col="updated_at" label="Updated" className="min-w-[110px]" />
                 <th className="px-4 py-3 w-28 text-right text-xs font-bold uppercase tracking-wider text-slate-600">Actions</th>
               </tr>
@@ -421,7 +435,7 @@ export default function ComponentEditor({ components, brandSuggestions, onSave }
                     }`}
                   >
                     {/* Model / SKU */}
-                    <td className="px-4 py-3 align-top max-w-[200px]">
+                    <td className="px-4 py-3 align-top min-w-[260px]">
                       {isEditing ? (
                         <div>
                           <input
@@ -510,13 +524,6 @@ export default function ComponentEditor({ components, brandSuggestions, onSave }
                       )}
                     </td>
 
-                    {/* Created At */}
-                    <td className="px-4 py-3 align-top">
-                      <span className={`text-xs ${sortCol === 'created_at' ? 'text-emerald-400 font-semibold' : 'text-slate-500'}`}>
-                        {fmtDate(c.created_at)}
-                      </span>
-                    </td>
-
                     {/* Updated At */}
                     <td className="px-4 py-3 align-top">
                       <span className={`text-xs ${sortCol === 'updated_at' ? 'text-emerald-400 font-semibold' : 'text-slate-500'}`}>
@@ -526,7 +533,7 @@ export default function ComponentEditor({ components, brandSuggestions, onSave }
 
                     {/* Row actions */}
                     <td className="px-4 py-3 align-top">
-                      <div className="flex gap-1.5 justify-end">
+                      <div className="flex gap-1.5 justify-end items-center">
                         {isEditing ? (
                           <button
                             onClick={() => toggleEdit(c.component_id)}
@@ -556,6 +563,36 @@ export default function ComponentEditor({ components, brandSuggestions, onSave }
                           >
                             ✕
                           </button>
+                        )}
+                        {onDelete && (
+                          confirmDeleteId === c.component_id ? (
+                            <div className="flex gap-1 items-center">
+                              <span className="text-[11px] text-red-400">Delete?</span>
+                              <button
+                                onClick={() => handleDelete(c.component_id)}
+                                disabled={deleting}
+                                className="px-2 py-1 text-xs font-bold text-white bg-red-600 hover:bg-red-500 rounded-lg transition-all disabled:opacity-50"
+                                title="Confirm delete"
+                              >
+                                {deleting ? '…' : 'Yes'}
+                              </button>
+                              <button
+                                onClick={() => setConfirmDeleteId(null)}
+                                disabled={deleting}
+                                className="px-2 py-1 text-xs font-semibold text-slate-400 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-all disabled:opacity-50"
+                              >
+                                No
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setConfirmDeleteId(c.component_id)}
+                              className="px-2.5 py-1 text-xs font-semibold text-red-400/70 bg-transparent border border-transparent rounded-lg hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400 transition-all"
+                              title="Delete component"
+                            >
+                              🗑
+                            </button>
+                          )
                         )}
                       </div>
                     </td>

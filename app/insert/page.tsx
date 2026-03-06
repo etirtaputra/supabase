@@ -112,6 +112,19 @@ function MasterInsertPage() {
       refetch();
     }
   };
+  // Component delete handler (used by ComponentEditor)
+  const handleComponentDelete = async (component_id: string) => {
+    const { error } = await supabase
+      .from('3.0_components')
+      .delete()
+      .eq('component_id', component_id);
+    if (error) {
+      showToast(`Error deleting component: ${error.message}`, 'error');
+      throw error;
+    }
+    showToast('Component deleted.', 'success');
+    refetch();
+  };
   // Component bulk-update handler (used by ComponentEditor)
   const handleComponentUpdates = async (
     updates: { component_id: string; changes: Record<string, any> }[]
@@ -235,6 +248,7 @@ function MasterInsertPage() {
                   components={data.components}
                   brandSuggestions={suggestions.brands}
                   onSave={handleComponentUpdates}
+                  onDelete={handleComponentDelete}
                 />
               )}
               {/* Quoting Tab */}
