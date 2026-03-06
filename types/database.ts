@@ -156,7 +156,7 @@ export interface PurchaseHistory extends BaseEntity {
   po_date?: string;
   po_number?: string;
   supplier_id?: number;
-  component_id?: number;
+  component_id?: string; // UUID
   brand?: string;
   description?: string;
   quantity?: number;
@@ -170,7 +170,7 @@ export interface QuoteHistory extends BaseEntity {
   quote_date?: string;
   quote_number?: string;
   supplier_id?: number;
-  component_id?: number;
+  component_id?: string; // UUID
   brand?: string;
   description?: string;
   quantity?: number;
