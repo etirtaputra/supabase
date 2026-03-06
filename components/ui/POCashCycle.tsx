@@ -89,9 +89,9 @@ export default function POCashCycle({
   suppliers,
   isLoading,
 }: Props) {
-  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
-  const toggleExpand = (id: number) =>
+  const toggleExpand = (id: string) =>
     setExpandedIds((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
@@ -141,7 +141,7 @@ export default function POCashCycle({
   // ── Core computation: group poItems by component, then by settled PO ─────
   const cycles = useMemo<ComponentCycle[]>(() => {
     // component_id → list of (settled) PO entries
-    const byComponent = new Map<number, SettledPOEntry[]>();
+    const byComponent = new Map<string, SettledPOEntry[]>();
 
     poItems.forEach((item) => {
       const settledDate = poSettledDate.get(item.po_id);

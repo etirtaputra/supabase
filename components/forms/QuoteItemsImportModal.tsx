@@ -41,7 +41,7 @@ export default function QuoteItemsImportModal({
   }, [isOpen, quoteItems]);
 
   // Helper to get component details
-  const getComponent = (componentId: number) => {
+  const getComponent = (componentId: string) => {
     return components.find(c => c.component_id === componentId);
   };
 

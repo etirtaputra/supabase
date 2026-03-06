@@ -61,7 +61,7 @@ export interface Supplier extends BaseEntity {
 
 // 3.0 Components
 export interface Component extends BaseEntity {
-  component_id: number;
+  component_id: string; // UUID
   supplier_model: string;
   internal_description: string;
   brand?: string;
@@ -87,7 +87,7 @@ export interface PriceQuote extends BaseEntity {
 export interface PriceQuoteLineItem extends BaseEntity {
   quote_line_id: number;
   quote_id: number;
-  component_id: number;
+  component_id: string; // UUID
   supplier_description?: string;
   quantity: number;
   unit_price: number;
@@ -132,7 +132,7 @@ export interface PurchaseOrder extends BaseEntity {
 export interface PurchaseLineItem extends BaseEntity {
   po_item_id: number;
   po_id: number;
-  component_id: number;
+  component_id: string; // UUID
   supplier_description?: string;
   quantity: number;
   unit_cost: number;
@@ -156,7 +156,7 @@ export interface PurchaseHistory extends BaseEntity {
   po_date?: string;
   po_number?: string;
   supplier_id?: number;
-  component_id?: number;
+  component_id?: string; // UUID
   brand?: string;
   description?: string;
   quantity?: number;
@@ -170,7 +170,7 @@ export interface QuoteHistory extends BaseEntity {
   quote_date?: string;
   quote_number?: string;
   supplier_id?: number;
-  component_id?: number;
+  component_id?: string; // UUID
   brand?: string;
   description?: string;
   quantity?: number;
