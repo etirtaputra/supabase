@@ -16,7 +16,7 @@ interface ComponentEditorProps {
   onSave: (updates: { component_id: number; changes: Partial<Component> }[]) => Promise<void>;
 }
 
-type SortCol = 'supplier_model' | 'internal_description' | 'brand' | 'category';
+type SortCol = 'supplier_model' | 'internal_description' | 'brand' | 'category' | 'created_at' | 'updated_at';
 type PendingEdits = Record<number, Partial<Component>>;
 
 // --- Brand Autocomplete (fixed-position dropdown to escape table overflow) ---
@@ -174,6 +174,11 @@ export default function ComponentEditor({ components, brandSuggestions, onSave }
     if (filterBrand) result = result.filter((c) => c.brand === filterBrand);
     if (filterCategory) result = result.filter((c) => c.category === filterCategory);
     return [...result].sort((a, b) => {
+      if (sortCol === 'created_at' || sortCol === 'updated_at') {
+        const av = a[sortCol] ? new Date(a[sortCol] as string).getTime() : 0;
+        const bv = b[sortCol] ? new Date(b[sortCol] as string).getTime() : 0;
+        return sortDir === 'asc' ? av - bv : bv - av;
+      }
       const av = ((a[sortCol] as string) || '').toLowerCase();
       const bv = ((b[sortCol] as string) || '').toLowerCase();
       return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
@@ -226,10 +231,15 @@ export default function ComponentEditor({ components, brandSuggestions, onSave }
   const handleSaveAll = async () => {
     if (!dirtyCount || saving) return;
     setSaving(true);
-    await onSave(dirtyIds.map((id) => ({ component_id: id, changes: pending[id] })));
-    setPending({});
-    setEditingIds(new Set());
-    setSaving(false);
+    try {
+      await onSave(dirtyIds.map((id) => ({ component_id: id, changes: pending[id] })));
+      setPending({});
+      setEditingIds(new Set());
+    } catch {
+      // errors already surfaced via toast in onSave; keep pending so user can retry
+    } finally {
+      setSaving(false);
+    }
   };
 
   const toggleEdit = (id: number) => {
@@ -238,6 +248,11 @@ export default function ComponentEditor({ components, brandSuggestions, onSave }
       n.has(id) ? n.delete(id) : n.add(id);
       return n;
     });
+  };
+
+  const fmtDate = (ts?: string) => {
+    if (!ts) return '—';
+    return new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
   const SortTh = ({ col, label, className = '' }: { col: SortCol; label: string; className?: string }) => (
@@ -373,6 +388,8 @@ export default function ComponentEditor({ components, brandSuggestions, onSave }
                 <SortTh col="internal_description" label="Description" />
                 <SortTh col="brand" label="Brand" className="min-w-[160px]" />
                 <SortTh col="category" label="Category" />
+                <SortTh col="created_at" label="Created" className="min-w-[110px]" />
+                <SortTh col="updated_at" label="Updated" className="min-w-[110px]" />
                 <th className="px-4 py-3 w-28 text-right text-xs font-bold uppercase tracking-wider text-slate-600">Actions</th>
               </tr>
             </thead>
@@ -480,6 +497,20 @@ export default function ComponentEditor({ components, brandSuggestions, onSave }
                           {c.category || <span className="text-slate-600">—</span>}
                         </span>
                       )}
+                    </td>
+
+                    {/* Created At */}
+                    <td className="px-4 py-3 align-top">
+                      <span className={`text-xs ${sortCol === 'created_at' ? 'text-emerald-400 font-semibold' : 'text-slate-500'}`}>
+                        {fmtDate(c.created_at)}
+                      </span>
+                    </td>
+
+                    {/* Updated At */}
+                    <td className="px-4 py-3 align-top">
+                      <span className={`text-xs ${sortCol === 'updated_at' ? 'text-emerald-400 font-semibold' : 'text-slate-500'}`}>
+                        {fmtDate(c.updated_at)}
+                      </span>
                     </td>
 
                     {/* Row actions */}
