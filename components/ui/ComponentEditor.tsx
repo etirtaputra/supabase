@@ -5,6 +5,7 @@
 'use client';
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Spinner } from './LoadingSkeleton';
 import type { Component } from '../../types/database';
 import { ENUMS } from '../../constants/enums';
@@ -138,7 +139,7 @@ function BrandInput({ value, onChange, suggestions, isDirty }: BrandInputProps) 
         }`}
       />
       {typeof document !== 'undefined' &&
-        React.createPortal(dropContent, document.body)}
+        createPortal(dropContent, document.body)}
     </>
   );
 }
