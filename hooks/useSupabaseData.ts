@@ -33,18 +33,37 @@ export function useSupabaseData() {
       if (!silent) setLoading(true);
       setError(null);
 
+      // Fetch all components with range pagination (PostgREST caps at 1000/page)
+      const fetchAllComponents = async () => {
+        const PAGE = 1000;
+        let all: any[] = [];
+        let from = 0;
+        while (true) {
+          const { data: page, error } = await supabase
+            .from(TABLE_NAMES.COMPONENTS)
+            .select('*')
+            .order('supplier_model', { ascending: true })
+            .range(from, from + PAGE - 1);
+          if (error || !page || page.length === 0) break;
+          all = all.concat(page);
+          if (page.length < PAGE) break;
+          from += PAGE;
+        }
+        return all;
+      };
+
       // Fetch foundation data (critical)
-      const [compRows, sup, comp] = await Promise.all([
+      const [compRows, sup, allComponents] = await Promise.all([
         supabase.from(TABLE_NAMES.COMPANIES).select('company_id, legal_name'),
         supabase.from(TABLE_NAMES.SUPPLIERS).select('*'),
-        supabase.from(TABLE_NAMES.COMPONENTS).select('*').order('supplier_model', { ascending: true }).limit(5000),
+        fetchAllComponents(),
       ]);
 
       setData((prev) => ({
         ...prev,
         companies: compRows.data || [],
         suppliers: sup.data || [],
-        components: comp.data || [],
+        components: allComponents,
       }));
 
       // Fetch transactional data (independent, non-blocking)
