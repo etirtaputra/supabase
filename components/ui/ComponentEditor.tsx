@@ -7,12 +7,22 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Spinner } from './LoadingSkeleton';
-import type { Component } from '../../types/database';
+import type { Component, PriceQuoteLineItem, PriceQuote, PurchaseOrder } from '../../types/database';
 import { ENUMS } from '../../constants/enums';
+
+interface ComponentUsage {
+  quoteCount: number;
+  lineItemCount: number;
+  piNumbers: string[];
+  poNumbers: string[];
+}
 
 interface ComponentEditorProps {
   components: Component[];
   brandSuggestions: string[];
+  quoteItems?: PriceQuoteLineItem[];
+  quotes?: PriceQuote[];
+  pos?: PurchaseOrder[];
   onSave: (updates: { component_id: string; changes: Partial<Component> }[]) => Promise<void>;
   onDelete?: (component_id: string) => Promise<void>;
 }
@@ -147,7 +157,7 @@ function BrandInput({ value, onChange, suggestions, isDirty }: BrandInputProps) 
 }
 
 // --- Main Component Editor ---
-export default function ComponentEditor({ components, brandSuggestions, onSave, onDelete }: ComponentEditorProps) {
+export default function ComponentEditor({ components, brandSuggestions, quoteItems = [], quotes = [], pos = [], onSave, onDelete }: ComponentEditorProps) {
   const [search, setSearch] = useState('');
   const [filterBrand, setFilterBrand] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
@@ -158,6 +168,50 @@ export default function ComponentEditor({ components, brandSuggestions, onSave, 
   const [saving, setSaving] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // ── Per-component usage stats ──────────────────────────────────────────────
+  const usageMap = useMemo<Map<string, ComponentUsage>>(() => {
+    // Build lookup: quote_id → pi_number
+    const piByQuote = new Map<number, string>();
+    quotes.forEach((q) => { if (q.pi_number) piByQuote.set(q.quote_id, q.pi_number); });
+
+    // Build lookup: quote_id → po_numbers[]
+    const posByQuote = new Map<number, string[]>();
+    pos.forEach((po) => {
+      if (po.quote_id == null) return;
+      const arr = posByQuote.get(po.quote_id) ?? [];
+      arr.push(po.po_number);
+      posByQuote.set(po.quote_id, arr);
+    });
+
+    // Accumulate per-component using Sets for deduplication
+    const quoteIds = new Map<string, Set<number>>();
+    const piNums = new Map<string, Set<string>>();
+    const poNums = new Map<string, Set<string>>();
+    const lineCounts = new Map<string, number>();
+
+    quoteItems.forEach((item) => {
+      const cid = item.component_id;
+      if (!cid) return;
+      if (!quoteIds.has(cid)) { quoteIds.set(cid, new Set()); piNums.set(cid, new Set()); poNums.set(cid, new Set()); }
+      quoteIds.get(cid)!.add(item.quote_id);
+      lineCounts.set(cid, (lineCounts.get(cid) ?? 0) + 1);
+      const pi = piByQuote.get(item.quote_id);
+      if (pi) piNums.get(cid)!.add(pi);
+      posByQuote.get(item.quote_id)?.forEach((p) => poNums.get(cid)!.add(p));
+    });
+
+    const map = new Map<string, ComponentUsage>();
+    quoteIds.forEach((qids, cid) => {
+      map.set(cid, {
+        quoteCount: qids.size,
+        lineItemCount: lineCounts.get(cid) ?? 0,
+        piNumbers: [...(piNums.get(cid) ?? [])].sort(),
+        poNumbers: [...(poNums.get(cid) ?? [])].sort(),
+      });
+    });
+    return map;
+  }, [quoteItems, quotes, pos]);
 
   const uniqueBrands = useMemo(
     () => [...new Set(components.map((c) => c.brand?.trim()).filter(Boolean))].sort() as string[],
@@ -413,6 +467,7 @@ export default function ComponentEditor({ components, brandSuggestions, onSave, 
                 <SortTh col="internal_description" label="Description" />
                 <SortTh col="brand" label="Brand" className="min-w-[160px]" />
                 <SortTh col="category" label="Category" />
+                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-400 min-w-[180px]">Usage</th>
                 <SortTh col="updated_at" label="Updated" className="min-w-[110px]" />
                 <th className="px-4 py-3 w-28 text-right text-xs font-bold uppercase tracking-wider text-slate-600">Actions</th>
               </tr>
@@ -522,6 +577,56 @@ export default function ComponentEditor({ components, brandSuggestions, onSave, 
                           {c.category || <span className="text-slate-600">—</span>}
                         </span>
                       )}
+                    </td>
+
+                    {/* Usage */}
+                    <td className="px-4 py-3 align-top min-w-[180px]">
+                      {(() => {
+                        const u = usageMap.get(c.component_id);
+                        if (!u) return <span className="text-xs text-slate-700">—</span>;
+                        const MAX_TAGS = 3;
+                        const allPis = u.piNumbers;
+                        const allPos = u.poNumbers;
+                        const visiblePis = allPis.slice(0, MAX_TAGS);
+                        const visiblePos = allPos.slice(0, MAX_TAGS);
+                        const extraPis = allPis.length - visiblePis.length;
+                        const extraPos = allPos.length - visiblePos.length;
+                        return (
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                              <span className="font-semibold text-slate-300">{u.quoteCount}</span>
+                              {u.quoteCount === 1 ? 'quote' : 'quotes'}
+                              <span className="text-slate-700">·</span>
+                              <span className="font-semibold text-slate-300">{u.lineItemCount}</span>
+                              {u.lineItemCount === 1 ? 'line item' : 'line items'}
+                            </div>
+                            {allPis.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {visiblePis.map((pi) => (
+                                  <span key={pi} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-blue-500/10 text-blue-300 border border-blue-500/20">
+                                    {pi}
+                                  </span>
+                                ))}
+                                {extraPis > 0 && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] text-slate-500">+{extraPis}</span>
+                                )}
+                              </div>
+                            )}
+                            {allPos.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {visiblePos.map((po) => (
+                                  <span key={po} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                                    {po}
+                                  </span>
+                                ))}
+                                {extraPos > 0 && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] text-slate-500">+{extraPos}</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
 
                     {/* Updated At */}
