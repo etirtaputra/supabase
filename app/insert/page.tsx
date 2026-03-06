@@ -114,25 +114,27 @@ function MasterInsertPage() {
   };
   // Component bulk-update handler (used by ComponentEditor)
   const handleComponentUpdates = async (
-    updates: { component_id: number; changes: Record<string, any> }[]
+    updates: { component_id: string; changes: Record<string, any> }[]
   ) => {
     const errors: string[] = [];
+    let saved = 0;
     for (const { component_id, changes } of updates) {
-      if (!component_id || isNaN(component_id)) continue;
+      if (!component_id) continue;
       if (!changes || Object.keys(changes).length === 0) continue;
       const { data: updated, error } = await supabase
         .from('3.0_components')
         .update(changes)
         .eq('component_id', component_id)
         .select();
-      if (error) errors.push(`#${component_id}: ${error.message}`);
-      else if (!updated || updated.length === 0) errors.push(`#${component_id}: update failed — no rows matched (check RLS policies)`);
+      if (error) errors.push(`${component_id}: ${error.message}`);
+      else if (!updated || updated.length === 0) errors.push(`${component_id}: no rows matched`);
+      else saved++;
     }
     if (errors.length > 0) {
       showToast(`Error(s): ${errors.join(' | ')}`, 'error');
       throw new Error('One or more updates failed');
     }
-    showToast(`Updated ${updates.length} component(s)!`, 'success');
+    showToast(`Updated ${saved} component(s)!`, 'success');
     refetch();
   };
   // PDF upload handler

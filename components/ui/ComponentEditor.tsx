@@ -13,7 +13,7 @@ import { ENUMS } from '../../constants/enums';
 interface ComponentEditorProps {
   components: Component[];
   brandSuggestions: string[];
-  onSave: (updates: { component_id: number; changes: Partial<Component> }[]) => Promise<void>;
+  onSave: (updates: { component_id: string; changes: Partial<Component> }[]) => Promise<void>;
 }
 
 type SortCol = 'supplier_model' | 'internal_description' | 'brand' | 'category' | 'created_at' | 'updated_at';
@@ -152,7 +152,7 @@ export default function ComponentEditor({ components, brandSuggestions, onSave }
   const [filterCategory, setFilterCategory] = useState('');
   const [sortCol, setSortCol] = useState<SortCol>('supplier_model');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-  const [editingIds, setEditingIds] = useState<Set<number>>(new Set());
+  const [editingIds, setEditingIds] = useState<Set<string>>(new Set());
   const [pending, setPending] = useState<PendingEdits>({});
   const [saving, setSaving] = useState(false);
 
@@ -224,9 +224,8 @@ export default function ComponentEditor({ components, brandSuggestions, onSave }
     });
   };
 
-  const discardRow = (id: number) => {
-    const k = String(id);
-    setPending((prev) => { const n = { ...prev }; delete n[k]; return n; });
+  const discardRow = (id: string) => {
+    setPending((prev) => { const n = { ...prev }; delete n[id]; return n; });
     setEditingIds((prev) => { const n = new Set(prev); n.delete(id); return n; });
   };
 
@@ -241,7 +240,7 @@ export default function ComponentEditor({ components, brandSuggestions, onSave }
     setSaving(true);
     try {
       await onSave(
-        dirtyKeys.map((k) => ({ component_id: Number(k), changes: pending[k] }))
+        dirtyKeys.map((k) => ({ component_id: k, changes: pending[k] }))
       );
       setPending({});
       setEditingIds(new Set());
@@ -253,7 +252,7 @@ export default function ComponentEditor({ components, brandSuggestions, onSave }
     }
   };
 
-  const toggleEdit = (id: number) => {
+  const toggleEdit = (id: string) => {
     setEditingIds((prev) => {
       const n = new Set(prev);
       n.has(id) ? n.delete(id) : n.add(id);
