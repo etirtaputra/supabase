@@ -118,6 +118,8 @@ function MasterInsertPage() {
   ) => {
     const errors: string[] = [];
     for (const { component_id, changes } of updates) {
+      if (!component_id || isNaN(component_id)) continue;
+      if (!changes || Object.keys(changes).length === 0) continue;
       const { error } = await supabase
         .from('3.0_components')
         .update(changes)

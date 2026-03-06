@@ -220,7 +220,7 @@ export default function ComponentEditor({ components, brandSuggestions, onSave }
 
   const discardAll = () => { setPending({}); setEditingIds(new Set()); };
 
-  const dirtyIds = useMemo(() => Object.keys(pending).map(Number), [pending]);
+  const dirtyIds = useMemo(() => Object.keys(pending).map(Number).filter((n) => !isNaN(n)), [pending]);
   const dirtyCount = dirtyIds.length;
 
   const handleSaveAll = async () => {
