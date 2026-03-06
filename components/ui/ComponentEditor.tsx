@@ -17,7 +17,8 @@ interface ComponentEditorProps {
 }
 
 type SortCol = 'supplier_model' | 'internal_description' | 'brand' | 'category' | 'created_at' | 'updated_at';
-type PendingEdits = Record<number, Partial<Component>>;
+// Key components by their string ID to avoid Number(key)=NaN edge cases
+type PendingEdits = Record<string, Partial<Component>>;
 
 // --- Brand Autocomplete (fixed-position dropdown to escape table overflow) ---
 interface BrandInputProps {
@@ -190,19 +191,24 @@ export default function ComponentEditor({ components, brandSuggestions, onSave }
     else { setSortCol(col); setSortDir('asc'); }
   };
 
-  const getVal = (c: Component, field: keyof Component): any =>
-    pending[c.component_id] !== undefined && field in pending[c.component_id]
-      ? pending[c.component_id][field]
-      : c[field];
+  // Use string key consistently to avoid Number('undefined'|'null') = NaN edge cases
+  const rowKey = (c: Component) => String(c.component_id);
+
+  const getVal = (c: Component, field: keyof Component): any => {
+    const k = rowKey(c);
+    return k in pending && field in pending[k] ? pending[k][field] : c[field];
+  };
 
   const isDirtyField = (c: Component, field: keyof Component) => {
-    const p = pending[c.component_id];
+    const k = rowKey(c);
+    const p = pending[k];
     return p !== undefined && field in p && p[field] !== c[field];
   };
 
   const setField = (c: Component, field: keyof Component, value: any) => {
+    const k = rowKey(c);
     setPending((prev) => {
-      const cur: Partial<Component> = { ...(prev[c.component_id] || {}) };
+      const cur: Partial<Component> = { ...(prev[k] || {}) };
       const original = c[field];
       if (value === original || (value === '' && original == null) || (value === null && original == null)) {
         delete (cur as any)[field];
@@ -211,32 +217,37 @@ export default function ComponentEditor({ components, brandSuggestions, onSave }
       }
       if (Object.keys(cur).length === 0) {
         const next = { ...prev };
-        delete next[c.component_id];
+        delete next[k];
         return next;
       }
-      return { ...prev, [c.component_id]: cur };
+      return { ...prev, [k]: cur };
     });
   };
 
   const discardRow = (id: number) => {
-    setPending((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    const k = String(id);
+    setPending((prev) => { const n = { ...prev }; delete n[k]; return n; });
     setEditingIds((prev) => { const n = new Set(prev); n.delete(id); return n; });
   };
 
   const discardAll = () => { setPending({}); setEditingIds(new Set()); };
 
-  const dirtyIds = useMemo(() => Object.keys(pending).map(Number).filter((n) => !isNaN(n)), [pending]);
-  const dirtyCount = dirtyIds.length;
+  // Derive dirty state from string keys — consistent with isDirty check below
+  const dirtyKeys = useMemo(() => Object.keys(pending), [pending]);
+  const dirtyCount = dirtyKeys.length;
 
   const handleSaveAll = async () => {
     if (!dirtyCount || saving) return;
     setSaving(true);
     try {
-      await onSave(dirtyIds.map((id) => ({ component_id: id, changes: pending[id] })));
+      await onSave(
+        dirtyKeys.map((k) => ({ component_id: Number(k), changes: pending[k] }))
+      );
       setPending({});
       setEditingIds(new Set());
-    } catch {
-      // errors already surfaced via toast in onSave; keep pending so user can retry
+    } catch (err: any) {
+      console.error('[ComponentEditor] save error:', err);
+      // errors are already shown via toast in onSave; keep pending so user can retry
     } finally {
       setSaving(false);
     }
@@ -395,8 +406,9 @@ export default function ComponentEditor({ components, brandSuggestions, onSave }
             </thead>
             <tbody className="divide-y divide-slate-800/50">
               {filtered.map((c) => {
+                const k = rowKey(c);
                 const isEditing = editingIds.has(c.component_id);
-                const isDirty = c.component_id in pending;
+                const isDirty = k in pending;
 
                 return (
                   <tr
@@ -516,7 +528,6 @@ export default function ComponentEditor({ components, brandSuggestions, onSave }
                     {/* Row actions */}
                     <td className="px-4 py-3 align-top">
                       <div className="flex gap-1.5 justify-end">
-                        {/* Edit / Done toggle */}
                         {isEditing ? (
                           <button
                             onClick={() => toggleEdit(c.component_id)}
@@ -538,7 +549,6 @@ export default function ComponentEditor({ components, brandSuggestions, onSave }
                             ✎
                           </button>
                         )}
-                        {/* Discard row changes */}
                         {isDirty && (
                           <button
                             onClick={() => discardRow(c.component_id)}
@@ -558,7 +568,7 @@ export default function ComponentEditor({ components, brandSuggestions, onSave }
         )}
       </div>
 
-      {/* Sticky save footer — only visible when there are pending edits */}
+      {/* Sticky save footer */}
       {dirtyCount > 0 && (
         <div className="border-t border-amber-500/20 bg-amber-500/5 px-5 py-4 flex items-center justify-between rounded-b-2xl flex-wrap gap-3">
           <p className="text-sm text-amber-300 font-semibold">
