@@ -120,11 +120,13 @@ function MasterInsertPage() {
     for (const { component_id, changes } of updates) {
       if (!component_id || isNaN(component_id)) continue;
       if (!changes || Object.keys(changes).length === 0) continue;
-      const { error } = await supabase
+      const { data: updated, error } = await supabase
         .from('3.0_components')
         .update(changes)
-        .eq('component_id', component_id);
+        .eq('component_id', component_id)
+        .select();
       if (error) errors.push(`#${component_id}: ${error.message}`);
+      else if (!updated || updated.length === 0) errors.push(`#${component_id}: update failed — no rows matched (check RLS policies)`);
     }
     if (errors.length > 0) {
       showToast(`Error(s): ${errors.join(' | ')}`, 'error');
