@@ -843,7 +843,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       )}
     </div>
 
-      {/* ── Line-item association modal (portal, sibling to main div) */} ─────────────────────────────────────── */}
+      {/* ── Line-item association modal (portal, sibling to main div) ─────── */}
       {lineItemModalId && typeof document !== 'undefined' && createPortal(
         (() => {
           const comp = components.find((c) => c.component_id === lineItemModalId);
