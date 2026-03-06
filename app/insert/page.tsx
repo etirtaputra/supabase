@@ -128,10 +128,10 @@ function MasterInsertPage() {
     }
     if (errors.length > 0) {
       showToast(`Error(s): ${errors.join(' | ')}`, 'error');
-    } else {
-      showToast(`Updated ${updates.length} component(s)!`, 'success');
-      refetch();
+      throw new Error('One or more updates failed');
     }
+    showToast(`Updated ${updates.length} component(s)!`, 'success');
+    refetch();
   };
   // PDF upload handler
   const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
