@@ -158,8 +158,15 @@ function BrandInput({ value, onChange, suggestions, isDirty }: BrandInputProps) 
 
 // --- Main Component Editor ---
 export default function ComponentEditor({ components, brandSuggestions, quoteItems = [], quotes = [], pos = [], onSave, onDelete }: ComponentEditorProps) {
+  const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [filterBrand, setFilterBrand] = useState('');
+
+  // Debounce search so heavy filtering doesn't block every keystroke
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput), 150);
+    return () => clearTimeout(t);
+  }, [searchInput]);
   const [filterCategory, setFilterCategory] = useState('');
   const [sortCol, setSortCol] = useState<SortCol>('supplier_model');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -229,7 +236,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
           c.brand?.toLowerCase().includes(q)
       );
     }
-    if (filterBrand) result = result.filter((c) => c.brand === filterBrand);
+    if (filterBrand) result = result.filter((c) => c.brand?.trim() === filterBrand);
     if (filterCategory) result = result.filter((c) => c.category === filterCategory);
     return [...result].sort((a, b) => {
       if (sortCol === 'updated_at') {
@@ -380,13 +387,13 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
             <input
               type="text"
               placeholder="Search model, description, brand..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               className="w-full pl-9 pr-8 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none placeholder-slate-600"
             />
-            {search && (
+            {searchInput && (
               <button
-                onClick={() => setSearch('')}
+                onClick={() => { setSearchInput(''); setSearch(''); }}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -505,6 +512,11 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           />
                           {isDirtyField(c, 'supplier_model') && <DirtyBadge original={c.supplier_model} />}
                         </div>
+                      ) : isDirtyField(c, 'supplier_model') ? (
+                        <div>
+                          <span className="text-sm text-emerald-300 font-medium">{(getVal(c, 'supplier_model') as string) || '—'}</span>
+                          <DirtyBadge original={c.supplier_model} />
+                        </div>
                       ) : (
                         <span className="text-sm text-white font-medium">{c.supplier_model}</span>
                       )}
@@ -528,6 +540,11 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                             <DirtyBadge original={c.internal_description} />
                           )}
                         </div>
+                      ) : isDirtyField(c, 'internal_description') ? (
+                        <div>
+                          <span className="text-sm text-emerald-300">{(getVal(c, 'internal_description') as string) || '—'}</span>
+                          <DirtyBadge original={c.internal_description} />
+                        </div>
                       ) : (
                         <span className="text-sm text-slate-300">{c.internal_description}</span>
                       )}
@@ -544,6 +561,11 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                             isDirty={isDirtyField(c, 'brand')}
                           />
                           {isDirtyField(c, 'brand') && <DirtyBadge original={c.brand} />}
+                        </div>
+                      ) : isDirtyField(c, 'brand') ? (
+                        <div>
+                          <span className="text-sm text-emerald-300">{(getVal(c, 'brand') as string) || '—'}</span>
+                          <DirtyBadge original={c.brand} />
                         </div>
                       ) : (
                         <span className="text-sm text-slate-300">
@@ -571,6 +593,11 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                             ))}
                           </select>
                           {isDirtyField(c, 'category') && <DirtyBadge original={c.category} />}
+                        </div>
+                      ) : isDirtyField(c, 'category') ? (
+                        <div>
+                          <span className="text-sm text-emerald-300">{(getVal(c, 'category') as string) || '—'}</span>
+                          <DirtyBadge original={c.category} />
                         </div>
                       ) : (
                         <span className="text-sm text-slate-300">
