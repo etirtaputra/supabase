@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useIntake } from '@/context/IntakeContext';
 import { CATEGORY_META } from '@/types/intake';
 
@@ -33,13 +33,27 @@ function getCalendarDays(year: number, month: number): (string | null)[] {
 
 // ── History View ──────────────────────────────────────────────
 
+function currentTimeStr(): string {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+}
+
 export default function HistoryView() {
-  const { logs, items, handleDeleteLog } = useIntake();
+  const { logs, items, handleDeleteLog, handleAddLog } = useIntake();
 
   const today = useMemo(() => new Date(), []);
   const [anchor,    setAnchor]    = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
   const [selected,  setSelected]  = useState<string | null>(toDateStr(today));
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [copyingId,  setCopyingId]  = useState<string | null>(null);
+  const [toast,      setToast]      = useState<string | null>(null);
+
+  // Auto-dismiss toast
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 2000);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   const year  = anchor.getFullYear();
   const month = anchor.getMonth();
@@ -64,8 +78,30 @@ export default function HistoryView() {
     finally { setDeletingId(null); }
   };
 
+  const handleCopyToNow = async (log: typeof logs[number]) => {
+    setCopyingId(log.id);
+    try {
+      await handleAddLog({
+        item_id: log.item_id,
+        date: toDateStr(today),
+        amount: log.amount,
+        unit: log.unit,
+        notes: log.notes,
+        time_of_day: currentTimeStr(),
+      });
+      const item = log.item ?? items.find(i => i.id === log.item_id);
+      setToast(`Copied ${item?.name ?? 'entry'} to today`);
+    } finally { setCopyingId(null); }
+  };
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
+      {/* Toast */}
+      {toast && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-slate-700 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-lg pointer-events-none">
+          ✓ {toast}
+        </div>
+      )}
       <div className="overflow-y-auto flex-1 pb-24">
         {/* Month navigator */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700/50 bg-slate-900/60">
@@ -175,7 +211,7 @@ export default function HistoryView() {
                   const cat  = item?.category ?? 'other';
                   const meta = CATEGORY_META[cat];
                   return (
-                    <div key={log.id} className="bg-slate-800/70 rounded-xl px-4 py-3 flex items-center gap-3">
+                    <div key={log.id} className="bg-slate-800/70 rounded-xl px-4 py-3 flex items-center gap-2">
                       <span className="text-lg shrink-0">{meta.icon}</span>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-white truncate">{item?.name ?? 'Unknown'}</p>
@@ -185,6 +221,22 @@ export default function HistoryView() {
                           {log.notes ? ` · ${log.notes}` : ''}
                         </p>
                       </div>
+                      {/* Copy to now */}
+                      <button onClick={() => handleCopyToNow(log)} disabled={!!copyingId}
+                        title="Copy to today"
+                        className="p-1.5 text-slate-600 hover:text-violet-400 disabled:opacity-30 transition-colors shrink-0">
+                        {copyingId === log.id
+                          ? <div className="w-4 h-4 rounded-full border border-violet-500 border-t-transparent animate-spin" />
+                          : (
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                              <path d="M17 1l4 4-4 4"/>
+                              <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+                              <path d="M7 23l-4-4 4-4"/>
+                              <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+                            </svg>
+                          )}
+                      </button>
+                      {/* Delete */}
                       <button onClick={() => handleDelete(log.id)} disabled={deletingId === log.id}
                         className="p-1.5 text-slate-600 hover:text-rose-400 disabled:opacity-30 transition-colors shrink-0">
                         {deletingId === log.id

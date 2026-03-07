@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useIntake } from '@/context/IntakeContext';
-import { CATEGORY_META, COMMON_UNITS, ITEM_COLORS } from '@/types/intake';
+import { CATEGORY_META, COMMON_UNITS, ITEM_COLORS, SERVING_LABELS } from '@/types/intake';
 import type { IntakeItem, Category } from '@/types/intake';
 import { signOut } from '@/lib/intake-supabase';
 
@@ -12,20 +12,23 @@ interface ItemFormProps {
   initial?: IntakeItem;
   onSave: (data: {
     name: string; category: Category;
-    default_unit: string; default_amount: number; color: string;
+    default_unit: string; default_amount: number;
+    serving_count: number; serving_label: string; color: string;
   }) => Promise<void>;
   onCancel: () => void;
   existingNames: string[];
 }
 
 function ItemForm({ initial, onSave, onCancel, existingNames }: ItemFormProps) {
-  const [name,     setName]     = useState(initial?.name          ?? '');
-  const [category, setCategory] = useState<Category>(initial?.category ?? 'supplement');
-  const [unit,     setUnit]     = useState(initial?.default_unit  ?? 'mg');
-  const [amount,   setAmount]   = useState(String(initial?.default_amount ?? 1));
-  const [color,    setColor]    = useState(initial?.color         ?? '#8b5cf6');
-  const [saving,   setSaving]   = useState(false);
-  const [error,    setError]    = useState('');
+  const [name,      setName]      = useState(initial?.name           ?? '');
+  const [category,  setCategory]  = useState<Category>(initial?.category ?? 'supplement');
+  const [unit,      setUnit]      = useState(initial?.default_unit   ?? 'mg');
+  const [amount,    setAmount]    = useState(String(initial?.default_amount ?? 1));
+  const [servLabel, setServLabel] = useState(initial?.serving_label  ?? '');
+  const [servCount, setServCount] = useState(String(initial?.serving_count ?? 1));
+  const [color,     setColor]     = useState(initial?.color          ?? '#8b5cf6');
+  const [saving,    setSaving]    = useState(false);
+  const [error,     setError]     = useState('');
 
   const handleSave = async () => {
     const n = name.trim();
@@ -35,9 +38,10 @@ function ItemForm({ initial, onSave, onCancel, existingNames }: ItemFormProps) {
     }
     const amt = parseFloat(amount);
     if (isNaN(amt) || amt <= 0) { setError('Enter a valid default amount.'); return; }
+    const sc = servLabel ? (parseFloat(servCount) || 1) : 1;
     setSaving(true); setError('');
     try {
-      await onSave({ name: n, category, default_unit: unit, default_amount: amt, color });
+      await onSave({ name: n, category, default_unit: unit, default_amount: amt, serving_count: sc, serving_label: servLabel, color });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to save');
     } finally { setSaving(false); }
@@ -86,6 +90,30 @@ function ItemForm({ initial, onSave, onCancel, existingNames }: ItemFormProps) {
             {unit && !COMMON_UNITS.includes(unit) && <option value={unit}>{unit}</option>}
           </select>
         </div>
+      </div>
+
+      <div>
+        <label className="block text-xs text-slate-400 mb-1.5">Serving size <span className="text-slate-600">(optional)</span></label>
+        <div className="grid grid-cols-2 gap-3">
+          <select value={servLabel} onChange={e => setServLabel(e.target.value)}
+            className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500">
+            <option value="">No serving size</option>
+            {SERVING_LABELS.map(l => <option key={l} value={l}>{l}</option>)}
+          </select>
+          {servLabel && (
+            <div className="flex items-center gap-2">
+              <input type="number" value={servCount} onChange={e => setServCount(e.target.value)} min="1" step="any"
+                className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                placeholder="count" />
+              <span className="text-xs text-slate-500 shrink-0">{servLabel}s</span>
+            </div>
+          )}
+        </div>
+        {servLabel && amount && (
+          <p className="text-[11px] text-slate-500 mt-1.5 bg-slate-900/50 rounded-lg px-3 py-1.5">
+            1 {servLabel} = {parseFloat(amount) && parseFloat(servCount) ? (parseFloat(amount) / (parseFloat(servCount) || 1)).toFixed(2) : '?'} {unit}
+          </p>
+        )}
       </div>
 
       <div>
@@ -200,6 +228,7 @@ export default function SettingsView() {
                           <p className="text-[11px] text-slate-400">
                             <span className={meta.color}>{meta.label}</span>
                             {' · '}{item.default_amount} {item.default_unit}
+                            {item.serving_label ? ` · ${item.serving_count} ${item.serving_label}` : ''}
                             {logCount > 0 && ` · ${logCount} log${logCount !== 1 ? 's' : ''}`}
                           </p>
                         </div>

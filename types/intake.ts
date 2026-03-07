@@ -9,13 +9,7 @@ export const CATEGORY_META: Record<Category, { label: string; icon: string; colo
 
 export const COMMON_UNITS = ['mg', 'g', 'mcg', 'IU', 'ml', 'tablet', 'capsule', 'cup', 'serving', 'drop', 'oz', 'tsp', 'tbsp'];
 
-export const TIME_OF_DAY_OPTIONS = [
-  { value: '',          label: 'Any time' },
-  { value: 'morning',   label: 'Morning' },
-  { value: 'afternoon', label: 'Afternoon' },
-  { value: 'evening',   label: 'Evening' },
-  { value: 'night',     label: 'Night' },
-];
+export const SERVING_LABELS = ['capsule', 'tablet', 'pill', 'softgel', 'gummy', 'scoop', 'packet', 'drop', 'spray', 'piece'];
 
 export const ITEM_COLORS = [
   '#8b5cf6', // violet
@@ -37,6 +31,8 @@ export interface IntakeItem {
   category: Category;
   default_unit: string;
   default_amount: number;
+  serving_count: number;   // how many serving_label units = default_amount (default: 1)
+  serving_label: string;   // e.g. 'capsule', '' means use direct amount input
   color: string;
   created_at: string;
 }

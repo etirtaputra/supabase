@@ -76,7 +76,7 @@ interface IntakeContextType {
   // Item CRUD
   handleAddItem: (data: {
     name: string; category: Category; default_unit: string;
-    default_amount: number; color: string;
+    default_amount: number; serving_count: number; serving_label: string; color: string;
   }) => Promise<void>;
   handleUpdateItem: (id: string, patch: Partial<Omit<IntakeItem, 'id' | 'user_id' | 'created_at'>>) => Promise<void>;
   handleDeleteItem: (id: string) => Promise<void>;

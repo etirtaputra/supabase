@@ -43,6 +43,8 @@ export async function addItem(item: {
   category: Category;
   default_unit: string;
   default_amount: number;
+  serving_count: number;
+  serving_label: string;
   color: string;
 }): Promise<IntakeItem> {
   const user = await getUser();
@@ -105,7 +107,7 @@ export async function addLog(log: {
       notes: log.notes ?? '',
       time_of_day: log.time_of_day ?? '',
     })
-    .select('*, item:intake_items(*)')
+    .select('*')
     .single();
   if (error) throw error;
   return data as IntakeLog;

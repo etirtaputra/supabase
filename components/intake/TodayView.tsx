@@ -2,18 +2,23 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useIntake } from '@/context/IntakeContext';
-import { CATEGORY_META, COMMON_UNITS, TIME_OF_DAY_OPTIONS } from '@/types/intake';
-import type { IntakeItem } from '@/types/intake';
+import { CATEGORY_META, COMMON_UNITS, SERVING_LABELS, ITEM_COLORS } from '@/types/intake';
+import type { IntakeItem, IntakeLog } from '@/types/intake';
 
-// ── Date helpers ──────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────
 
 function toDateStr(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+function currentTimeStr(): string {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+}
+
 function formatDisplayDate(dateStr: string): string {
   const d = new Date(dateStr + 'T12:00:00');
-  const today = toDateStr(new Date());
+  const today     = toDateStr(new Date());
   const yesterday = toDateStr(new Date(Date.now() - 86400000));
   if (dateStr === today)     return 'Today';
   if (dateStr === yesterday) return 'Yesterday';
@@ -26,68 +31,112 @@ function addDays(dateStr: string, n: number): string {
   return toDateStr(d);
 }
 
-// ── Log sheet (bottom sheet for adding a log) ─────────────────
+// ── Prefill type ──────────────────────────────────────────────
+
+interface PrefillData {
+  itemId: string;
+  amount: number;
+  unit: string;
+  time: string;
+  notes: string;
+}
+
+// ── Log sheet ────────────────────────────────────────────────
 
 interface LogSheetProps {
   date: string;
+  prefill?: PrefillData;
   onClose: () => void;
 }
 
-function LogSheet({ date, onClose }: LogSheetProps) {
+function LogSheet({ date, prefill, onClose }: LogSheetProps) {
   const { items, handleAddItem, handleAddLog } = useIntake();
 
-  const [query,       setQuery]       = useState('');
-  const [selectedItem, setSelected]  = useState<IntakeItem | null>(null);
-  const [amount,      setAmount]      = useState('');
-  const [unit,        setUnit]        = useState('');
-  const [timeOfDay,   setTimeOfDay]   = useState('');
-  const [notes,       setNotes]       = useState('');
-  const [saving,      setSaving]      = useState(false);
-  const [error,       setError]       = useState('');
-  const [showDrop,    setShowDrop]    = useState(false);
+  const [query,        setQuery]        = useState('');
+  const [selectedItem, setSelected]     = useState<IntakeItem | null>(null);
+  const [amount,       setAmount]       = useState('');
+  const [servings,     setServings]     = useState('');
+  const [unit,         setUnit]         = useState('');
+  const [logTime,      setLogTime]      = useState(currentTimeStr());
+  const [notes,        setNotes]        = useState('');
+  const [saving,       setSaving]       = useState(false);
+  const [error,        setError]        = useState('');
+  const [showDrop,     setShowDrop]     = useState(false);
 
-  // New item creation inline
-  const [creatingNew, setCreatingNew] = useState(false);
-  const [newCat,      setNewCat]      = useState<keyof typeof CATEGORY_META>('supplement');
-  const [newUnit,     setNewUnit]     = useState('mg');
-  const [newAmt,      setNewAmt]      = useState('1');
-  const [newColor,    setNewColor]    = useState('#8b5cf6');
-  const [newSaving,   setNewSaving]   = useState(false);
+  // Inline new item creation
+  const [creatingNew,  setCreatingNew]  = useState(false);
+  const [newCat,       setNewCat]       = useState<keyof typeof CATEGORY_META>('supplement');
+  const [newUnit,      setNewUnit]      = useState('mg');
+  const [newAmt,       setNewAmt]       = useState('1');
+  const [newServLabel, setNewServLabel] = useState('');
+  const [newServCount, setNewServCount] = useState('1');
+  const [newColor,     setNewColor]     = useState('#8b5cf6');
+  const [newSaving,    setNewSaving]    = useState(false);
 
   const queryRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { queryRef.current?.focus(); }, []);
-
-  const filtered = query.trim()
-    ? items.filter(i => i.name.toLowerCase().includes(query.toLowerCase()))
-    : items;
-
-  const exactMatch = items.some(i => i.name.toLowerCase() === query.toLowerCase().trim());
-
-  const selectItem = (item: IntakeItem) => {
+  const selectItem = (item: IntakeItem, amt?: number, u?: string, time?: string, n?: string) => {
     setSelected(item);
     setQuery(item.name);
-    setUnit(item.default_unit);
-    setAmount(String(item.default_amount));
+    setUnit(u ?? item.default_unit);
+    if (item.serving_label) {
+      const a = amt ?? item.default_amount;
+      const s = (a / item.default_amount) * item.serving_count;
+      setServings(String(parseFloat(s.toFixed(3))));
+      setAmount('');
+    } else {
+      setAmount(String(amt ?? item.default_amount));
+      setServings('');
+    }
+    if (time !== undefined) setLogTime(time);
+    if (n    !== undefined) setNotes(n);
     setShowDrop(false);
     setCreatingNew(false);
   };
+
+  // Apply prefill or focus on mount
+  useEffect(() => {
+    if (prefill) {
+      const item = items.find(i => i.id === prefill.itemId);
+      if (item) selectItem(item, prefill.amount, prefill.unit, prefill.time, prefill.notes);
+    } else {
+      queryRef.current?.focus();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // After items update (new item created), auto-select by name
+  useEffect(() => {
+    if (!creatingNew && query && !selectedItem) {
+      const found = items.find(i => i.name.toLowerCase() === query.toLowerCase());
+      if (found) selectItem(found);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items]);
+
+  const filtered   = query.trim() ? items.filter(i => i.name.toLowerCase().includes(query.toLowerCase())) : items;
+  const exactMatch = items.some(i => i.name.toLowerCase() === query.toLowerCase().trim());
+
+  // Computed amount when in serving mode
+  const computedAmount = selectedItem?.serving_label
+    ? (parseFloat(servings || '0') / selectedItem.serving_count) * selectedItem.default_amount
+    : null;
 
   const handleCreateNew = async () => {
     const name = query.trim();
     if (!name) return;
     setNewSaving(true);
     try {
-      const newItem = await handleAddItem({ // handleAddItem now returns void; need refetch or use local
+      await handleAddItem({
         name, category: newCat, default_unit: newUnit,
-        default_amount: parseFloat(newAmt) || 1, color: newColor,
+        default_amount: parseFloat(newAmt) || 1,
+        serving_count: parseFloat(newServCount) || 1,
+        serving_label: newServLabel,
+        color: newColor,
       });
-      // handleAddItem returns void and updates items state — find newly added item
-      // We optimistically pick unit/amount from form
       setUnit(newUnit);
       setAmount(newAmt);
       setCreatingNew(false);
-      // The item will appear in items after state update; select it by name
       setQuery(name);
       setShowDrop(false);
     } catch (e: unknown) {
@@ -95,25 +144,23 @@ function LogSheet({ date, onClose }: LogSheetProps) {
     } finally { setNewSaving(false); }
   };
 
-  // After items updates (after creating new), auto-select if name matches
-  useEffect(() => {
-    if (!creatingNew && query) {
-      const found = items.find(i => i.name.toLowerCase() === query.toLowerCase());
-      if (found && !selectedItem) selectItem(found);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items]);
-
   const handleSave = async () => {
-    const n = parseFloat(amount);
     if (!selectedItem) { setError('Please select an item.'); return; }
-    if (isNaN(n) || n <= 0) { setError('Enter a valid amount.'); return; }
+    let finalAmount: number;
+    if (selectedItem.serving_label) {
+      const s = parseFloat(servings);
+      if (isNaN(s) || s <= 0) { setError('Enter a valid number of servings.'); return; }
+      finalAmount = (s / selectedItem.serving_count) * selectedItem.default_amount;
+    } else {
+      finalAmount = parseFloat(amount);
+      if (isNaN(finalAmount) || finalAmount <= 0) { setError('Enter a valid amount.'); return; }
+    }
     setSaving(true); setError('');
     try {
       await handleAddLog({
         item_id: selectedItem.id,
-        date, amount: n, unit: unit || selectedItem.default_unit,
-        notes, time_of_day: timeOfDay,
+        date, amount: finalAmount, unit: unit || selectedItem.default_unit,
+        notes, time_of_day: logTime,
       });
       onClose();
     } catch (e: unknown) {
@@ -154,7 +201,6 @@ function LogSheet({ date, onClose }: LogSheetProps) {
               className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-4 py-3 text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             />
 
-            {/* Dropdown */}
             {showDrop && !selectedItem && (
               <div className="absolute z-10 top-full mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl shadow-lg overflow-hidden max-h-52 overflow-y-auto">
                 {filtered.length === 0 && !query && (
@@ -168,13 +214,15 @@ function LogSheet({ date, onClose }: LogSheetProps) {
                       <span className="text-lg">{meta.icon}</span>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-white font-medium truncate">{item.name}</p>
-                        <p className="text-[11px] text-slate-400">{meta.label} · {item.default_amount} {item.default_unit}</p>
+                        <p className="text-[11px] text-slate-400">
+                          {meta.label} · {item.default_amount} {item.default_unit}
+                          {item.serving_label ? ` · ${item.serving_count} ${item.serving_label}` : ''}
+                        </p>
                       </div>
                       <div className="w-2 h-2 rounded-full shrink-0" style={{ background: item.color }} />
                     </button>
                   );
                 })}
-                {/* Create new option */}
                 {query.trim() && !exactMatch && (
                   <button onClick={() => { setCreatingNew(true); setShowDrop(false); }}
                     className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-violet-900/30 border-t border-slate-700/50 transition-colors text-left">
@@ -222,10 +270,34 @@ function LogSheet({ date, onClose }: LogSheetProps) {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1.5">Serving type</label>
+                  <select value={newServLabel} onChange={e => setNewServLabel(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500">
+                    <option value="">None</option>
+                    {SERVING_LABELS.map(l => <option key={l} value={l}>{l}</option>)}
+                  </select>
+                </div>
+                {newServLabel && (
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1.5">{newServLabel}s per dose</label>
+                    <input type="number" value={newServCount} onChange={e => setNewServCount(e.target.value)} min="1"
+                      className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                  </div>
+                )}
+              </div>
+
+              {newServLabel && (
+                <p className="text-[11px] text-slate-500 bg-slate-900/50 rounded-lg px-3 py-1.5">
+                  1 {newServLabel} = {newAmt && newServCount ? (parseFloat(newAmt) / (parseFloat(newServCount) || 1)).toFixed(2) : '?'} {newUnit}
+                </p>
+              )}
+
               <div>
                 <label className="block text-xs text-slate-400 mb-1.5">Color</label>
                 <div className="flex gap-2 flex-wrap">
-                  {['#8b5cf6','#3b82f6','#f59e0b','#10b981','#f43f5e','#0ea5e9','#f97316','#14b8a6'].map(c => (
+                  {ITEM_COLORS.map(c => (
                     <button key={c} onClick={() => setNewColor(c)}
                       className={`w-7 h-7 rounded-full transition-transform ${newColor === c ? 'ring-2 ring-white scale-110' : ''}`}
                       style={{ background: c }} />
@@ -250,7 +322,12 @@ function LogSheet({ date, onClose }: LogSheetProps) {
               <span className="text-xl">{CATEGORY_META[selectedItem.category].icon}</span>
               <div className="flex-1">
                 <p className="text-sm font-semibold text-white">{selectedItem.name}</p>
-                <p className="text-[11px] text-slate-400">{CATEGORY_META[selectedItem.category].label}</p>
+                <p className="text-[11px] text-slate-400">
+                  {CATEGORY_META[selectedItem.category].label}
+                  {selectedItem.serving_label
+                    ? ` · ${selectedItem.serving_count} ${selectedItem.serving_label} = ${selectedItem.default_amount} ${selectedItem.default_unit}`
+                    : ''}
+                </p>
               </div>
               <button onClick={() => { setSelected(null); setQuery(''); setShowDrop(true); }}
                 className="text-slate-500 hover:text-white p-1">
@@ -261,40 +338,49 @@ function LogSheet({ date, onClose }: LogSheetProps) {
             </div>
           )}
 
-          {/* Amount + Unit */}
-          {(selectedItem || creatingNew) && !creatingNew && (
-            <div className="grid grid-cols-5 gap-3">
-              <div className="col-span-3">
-                <label className="block text-xs text-slate-400 mb-1.5">Amount</label>
-                <input type="number" value={amount} onChange={e => setAmount(e.target.value)} min="0" step="any"
+          {/* Serving input OR direct amount input */}
+          {selectedItem && !creatingNew && (
+            selectedItem.serving_label ? (
+              <div>
+                <label className="block text-xs text-slate-400 mb-1.5">
+                  How many {selectedItem.serving_label}s?
+                </label>
+                <input type="number" value={servings} onChange={e => setServings(e.target.value)} min="0" step="any"
                   className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                   placeholder="0" />
+                {computedAmount !== null && computedAmount > 0 && (
+                  <p className="text-[11px] text-violet-400 mt-1.5 ml-1">
+                    = {parseFloat(computedAmount.toFixed(2))} {selectedItem.default_unit}
+                  </p>
+                )}
               </div>
-              <div className="col-span-2">
-                <label className="block text-xs text-slate-400 mb-1.5">Unit</label>
-                <select value={unit} onChange={e => setUnit(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500">
-                  {COMMON_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-                  {unit && !COMMON_UNITS.includes(unit) && <option value={unit}>{unit}</option>}
-                </select>
+            ) : (
+              <div className="grid grid-cols-5 gap-3">
+                <div className="col-span-3">
+                  <label className="block text-xs text-slate-400 mb-1.5">Amount</label>
+                  <input type="number" value={amount} onChange={e => setAmount(e.target.value)} min="0" step="any"
+                    className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                    placeholder="0" />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-xs text-slate-400 mb-1.5">Unit</label>
+                  <select value={unit} onChange={e => setUnit(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500">
+                    {COMMON_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                    {unit && !COMMON_UNITS.includes(unit) && <option value={unit}>{unit}</option>}
+                  </select>
+                </div>
               </div>
-            </div>
+            )
           )}
 
           {selectedItem && !creatingNew && (
             <>
-              {/* Time of day */}
+              {/* Time */}
               <div>
-                <label className="block text-xs text-slate-400 mb-1.5">Time of day</label>
-                <div className="flex gap-2 flex-wrap">
-                  {TIME_OF_DAY_OPTIONS.map(({ value, label }) => (
-                    <button key={value} onClick={() => setTimeOfDay(value)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors
-                        ${timeOfDay === value ? 'bg-violet-600 border-violet-500 text-white' : 'border-slate-700 text-slate-400 hover:text-white hover:border-slate-500'}`}>
-                      {label}
-                    </button>
-                  ))}
-                </div>
+                <label className="block text-xs text-slate-400 mb-1.5">Time</label>
+                <input type="time" value={logTime} onChange={e => setLogTime(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent" />
               </div>
 
               {/* Notes */}
@@ -322,19 +408,35 @@ function LogSheet({ date, onClose }: LogSheetProps) {
 // ── Main TodayView ────────────────────────────────────────────
 
 export default function TodayView() {
-  const { getLogsForDate, handleDeleteLog, items } = useIntake();
+  const { getLogsForDate, handleDeleteLog, handleAddLog, items } = useIntake();
 
   const [date,       setDate]       = useState(toDateStr(new Date()));
   const [showSheet,  setShowSheet]  = useState(false);
+  const [prefill,    setPrefill]    = useState<PrefillData | undefined>(undefined);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [copyingId,  setCopyingId]  = useState<string | null>(null);
 
-  const logs = getLogsForDate(date);
+  const logs  = getLogsForDate(date);
   const today = toDateStr(new Date());
 
   const handleDelete = async (id: string) => {
     setDeletingId(id);
     try { await handleDeleteLog(id); }
     finally { setDeletingId(null); }
+  };
+
+  const handleCopyToNow = async (log: IntakeLog) => {
+    setCopyingId(log.id);
+    try {
+      await handleAddLog({
+        item_id: log.item_id,
+        date: today,
+        amount: log.amount,
+        unit: log.unit,
+        notes: log.notes,
+        time_of_day: currentTimeStr(),
+      });
+    } finally { setCopyingId(null); }
   };
 
   return (
@@ -393,7 +495,7 @@ export default function TodayView() {
               const cat  = item?.category ?? 'other';
               const meta = CATEGORY_META[cat];
               return (
-                <div key={log.id} className="bg-slate-800/70 rounded-2xl px-4 py-3 flex items-start gap-3">
+                <div key={log.id} className="bg-slate-800/70 rounded-2xl px-4 py-3 flex items-start gap-2">
                   <div className="w-8 h-8 rounded-xl flex items-center justify-center text-lg shrink-0 mt-0.5"
                     style={{ background: (item?.color ?? '#6366f1') + '33' }}>
                     {meta.icon}
@@ -413,8 +515,24 @@ export default function TodayView() {
                       )}
                     </div>
                   </div>
+                  {/* Copy to now */}
+                  <button onClick={() => handleCopyToNow(log)} disabled={!!copyingId}
+                    title="Copy to now"
+                    className="p-1.5 text-slate-600 hover:text-violet-400 disabled:opacity-30 transition-colors shrink-0 mt-0.5">
+                    {copyingId === log.id
+                      ? <div className="w-4 h-4 rounded-full border border-violet-500 border-t-transparent animate-spin" />
+                      : (
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                          <path d="M17 1l4 4-4 4"/>
+                          <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+                          <path d="M7 23l-4-4 4-4"/>
+                          <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+                        </svg>
+                      )}
+                  </button>
+                  {/* Delete */}
                   <button onClick={() => handleDelete(log.id)} disabled={deletingId === log.id}
-                    className="p-1.5 text-slate-600 hover:text-rose-400 disabled:opacity-30 transition-colors shrink-0">
+                    className="p-1.5 text-slate-600 hover:text-rose-400 disabled:opacity-30 transition-colors shrink-0 mt-0.5">
                     {deletingId === log.id
                       ? <div className="w-4 h-4 rounded-full border border-slate-500 border-t-transparent animate-spin" />
                       : (
@@ -435,14 +553,20 @@ export default function TodayView() {
 
       {/* FAB */}
       <button
-        onClick={() => setShowSheet(true)}
+        onClick={() => { setPrefill(undefined); setShowSheet(true); }}
         className="fixed right-5 bottom-20 lg:bottom-8 z-30 w-14 h-14 bg-violet-600 hover:bg-violet-500 text-white rounded-full shadow-lg shadow-violet-900/40 flex items-center justify-center transition-all active:scale-95">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
           <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
         </svg>
       </button>
 
-      {showSheet && <LogSheet date={date} onClose={() => setShowSheet(false)} />}
+      {showSheet && (
+        <LogSheet
+          date={date}
+          prefill={prefill}
+          onClose={() => { setShowSheet(false); setPrefill(undefined); }}
+        />
+      )}
     </div>
   );
 }
