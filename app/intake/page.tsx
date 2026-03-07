@@ -98,7 +98,7 @@ function Sidebar() {
 // ── Inner app ─────────────────────────────────────────────────
 
 function IntakeApp() {
-  const { activeView, loading } = useIntake();
+  const { activeView, loading, error, refresh } = useIntake();
 
   return (
     <div className="flex h-dvh bg-slate-950 text-white overflow-hidden">
@@ -116,10 +116,24 @@ function IntakeApp() {
 
         {/* Main content */}
         <main className="flex-1 overflow-hidden">
-          {activeView === 'today'    && <TodayView   />}
-          {activeView === 'history'  && <HistoryView />}
-          {activeView === 'stats'    && <StatsView   />}
-          {activeView === 'settings' && <SettingsView />}
+          {error ? (
+            <div className="flex flex-col items-center justify-center h-full px-6 text-center">
+              <div className="text-4xl mb-3">⚠️</div>
+              <p className="text-white font-semibold text-base mb-1">Failed to load data</p>
+              <p className="text-slate-400 text-sm mb-4 font-mono bg-slate-800 rounded-xl px-4 py-2 max-w-sm break-all">{error}</p>
+              <button onClick={refresh}
+                className="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-sm font-semibold">
+                Retry
+              </button>
+            </div>
+          ) : (
+            <>
+              {activeView === 'today'    && <TodayView   />}
+              {activeView === 'history'  && <HistoryView />}
+              {activeView === 'stats'    && <StatsView   />}
+              {activeView === 'settings' && <SettingsView />}
+            </>
+          )}
         </main>
       </div>
 

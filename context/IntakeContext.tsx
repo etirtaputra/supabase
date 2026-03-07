@@ -70,6 +70,7 @@ interface IntakeContextType {
   logs: IntakeLog[];
   activeView: ViewType;
   loading: boolean;
+  error: string | null;
   setActiveView: (v: ViewType) => void;
   refresh: () => Promise<void>;
   // Item CRUD
@@ -106,13 +107,17 @@ export function IntakeProvider({ children }: { children: React.ReactNode }) {
   const [logs,       setLogs]       = useState<IntakeLog[]>([]);
   const [activeView, setActiveView] = useState<ViewType>('today');
   const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const [i, l] = await Promise.all([fetchItems(), fetchLogs()]);
       setItems(i);
       setLogs(l);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to load data');
     } finally {
       setLoading(false);
     }
@@ -159,7 +164,7 @@ export function IntakeProvider({ children }: { children: React.ReactNode }) {
     calcAverage(logs, itemId, days), [logs]);
 
   const value: IntakeContextType = {
-    items, logs, activeView, loading,
+    items, logs, activeView, loading, error,
     setActiveView, refresh,
     handleAddItem, handleUpdateItem, handleDeleteItem,
     handleAddLog, handleDeleteLog,
