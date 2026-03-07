@@ -125,6 +125,37 @@ function MasterInsertPage() {
     showToast('Component deleted.', 'success');
     refetch();
   };
+  // Quote line-item save (upsert) handler
+  const handleSaveLineItem = async (item: Record<string, any>) => {
+    const { quote_line_id, ...fields } = item;
+    if (quote_line_id) {
+      // update existing
+      const { error } = await supabase
+        .from('4.1_price_quote_line_items')
+        .update(fields)
+        .eq('quote_line_id', quote_line_id);
+      if (error) { showToast(`Error updating line item: ${error.message}`, 'error'); throw error; }
+      showToast('Line item updated.', 'success');
+    } else {
+      // insert new
+      const { error } = await supabase
+        .from('4.1_price_quote_line_items')
+        .insert(fields);
+      if (error) { showToast(`Error adding line item: ${error.message}`, 'error'); throw error; }
+      showToast('Line item added.', 'success');
+    }
+    refetch();
+  };
+  // Quote line-item delete handler
+  const handleDeleteLineItem = async (quote_line_id: number) => {
+    const { error } = await supabase
+      .from('4.1_price_quote_line_items')
+      .delete()
+      .eq('quote_line_id', quote_line_id);
+    if (error) { showToast(`Error deleting line item: ${error.message}`, 'error'); throw error; }
+    showToast('Line item deleted.', 'success');
+    refetch();
+  };
   // Component bulk-update handler (used by ComponentEditor)
   const handleComponentUpdates = async (
     updates: { component_id: string; changes: Record<string, any> }[]
@@ -252,6 +283,8 @@ function MasterInsertPage() {
                   pos={data.pos}
                   onSave={handleComponentUpdates}
                   onDelete={handleComponentDelete}
+                  onSaveLineItem={handleSaveLineItem}
+                  onDeleteLineItem={handleDeleteLineItem}
                 />
               )}
               {/* Quoting Tab */}

@@ -25,9 +25,11 @@ interface ComponentEditorProps {
   pos?: PurchaseOrder[];
   onSave: (updates: { component_id: string; changes: Partial<Component> }[]) => Promise<void>;
   onDelete?: (component_id: string) => Promise<void>;
+  onSaveLineItem?: (item: Omit<PriceQuoteLineItem, 'quote_line_id' | 'created_at' | 'updated_at'> & { quote_line_id?: number }) => Promise<void>;
+  onDeleteLineItem?: (quote_line_id: number) => Promise<void>;
 }
 
-type SortCol = 'supplier_model' | 'internal_description' | 'brand' | 'category' | 'updated_at';
+type SortCol = 'supplier_model' | 'internal_description' | 'brand' | 'category' | 'updated_at' | 'quoteCount' | 'lineItemCount';
 // Key components by their string ID to avoid Number(key)=NaN edge cases
 type PendingEdits = Record<string, Partial<Component>>;
 
@@ -157,7 +159,7 @@ function BrandInput({ value, onChange, suggestions, isDirty }: BrandInputProps) 
 }
 
 // --- Main Component Editor ---
-export default function ComponentEditor({ components, brandSuggestions, quoteItems = [], quotes = [], pos = [], onSave, onDelete }: ComponentEditorProps) {
+export default function ComponentEditor({ components, brandSuggestions, quoteItems = [], quotes = [], pos = [], onSave, onDelete, onSaveLineItem, onDeleteLineItem }: ComponentEditorProps) {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [filterBrand, setFilterBrand] = useState('');
@@ -175,6 +177,10 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [saving, setSaving] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [lineItemModalId, setLineItemModalId] = useState<string | null>(null);
+  const [lineItemDraft, setLineItemDraft] = useState<Record<number | string, Partial<PriceQuoteLineItem>>>({});
+  const [newLineItem, setNewLineItem] = useState<{ quote_id: string; quantity: string; unit_price: string; currency: string; supplier_description: string } | null>(null);
+  const [lineItemSaving, setLineItemSaving] = useState(false);
 
   // ── Per-component usage stats ──────────────────────────────────────────────
   const usageMap = useMemo<Map<string, ComponentUsage>>(() => {
@@ -244,8 +250,15 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         const bv = b[sortCol] ? new Date(b[sortCol] as string).getTime() : 0;
         return sortDir === 'asc' ? av - bv : bv - av;
       }
-      const av = ((a[sortCol] as string) || '').toLowerCase();
-      const bv = ((b[sortCol] as string) || '').toLowerCase();
+      if (sortCol === 'quoteCount' || sortCol === 'lineItemCount') {
+        const au = usageMap.get(String(a.component_id));
+        const bu = usageMap.get(String(b.component_id));
+        const av = au ? au[sortCol] : 0;
+        const bv = bu ? bu[sortCol] : 0;
+        return sortDir === 'asc' ? av - bv : bv - av;
+      }
+      const av = ((a[sortCol as keyof Component] as string) || '').toLowerCase();
+      const bv = ((b[sortCol as keyof Component] as string) || '').toLowerCase();
       return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
     });
   }, [components, search, filterBrand, filterCategory, sortCol, sortDir]);
@@ -307,6 +320,41 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     }
   };
 
+  const openLineItemModal = (componentId: string) => {
+    setLineItemModalId(componentId);
+    setLineItemDraft({});
+    setNewLineItem(null);
+  };
+
+  const handleSaveLineItemDraft = async (original: PriceQuoteLineItem, draft: Partial<PriceQuoteLineItem>) => {
+    if (!onSaveLineItem) return;
+    setLineItemSaving(true);
+    try {
+      await onSaveLineItem({ ...original, ...draft });
+      setLineItemDraft((prev) => { const n = { ...prev }; delete n[original.quote_line_id]; return n; });
+    } finally { setLineItemSaving(false); }
+  };
+
+  const handleAddNewLineItem = async (componentId: string) => {
+    if (!onSaveLineItem || !newLineItem) return;
+    const qid = parseInt(newLineItem.quote_id);
+    const qty = parseFloat(newLineItem.quantity);
+    const price = parseFloat(newLineItem.unit_price);
+    if (!qid || isNaN(qty) || isNaN(price)) return;
+    setLineItemSaving(true);
+    try {
+      await onSaveLineItem({
+        component_id: componentId,
+        quote_id: qid,
+        quantity: qty,
+        unit_price: price,
+        currency: (newLineItem.currency as any) || 'USD',
+        supplier_description: newLineItem.supplier_description || undefined,
+      });
+      setNewLineItem(null);
+    } finally { setLineItemSaving(false); }
+  };
+
   // Derive dirty state from string keys — consistent with isDirty check below
   const dirtyKeys = useMemo(() => Object.keys(pending), [pending]);
   const dirtyCount = dirtyKeys.length;
@@ -364,6 +412,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   );
 
   return (
+    <>
     <div className="bg-slate-900/40 backdrop-blur-sm rounded-2xl border border-slate-800/80 shadow-xl ring-1 ring-white/5">
       {/* Header */}
       <div className="flex items-center gap-3 border-b border-slate-800/80 p-5 md:p-6">
@@ -474,7 +523,25 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                 <SortTh col="internal_description" label="Description" />
                 <SortTh col="brand" label="Brand" className="min-w-[160px]" />
                 <SortTh col="category" label="Category" />
-                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-400 min-w-[180px]">Usage</th>
+                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-400 min-w-[200px]">
+                  <div className="flex items-center gap-2">
+                    <span>Usage</span>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => toggleSort('quoteCount')}
+                        className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${sortCol === 'quoteCount' ? 'text-emerald-300 border-emerald-500/40 bg-emerald-500/10' : 'text-slate-600 border-slate-700 hover:text-slate-400'}`}
+                      >
+                        Quotes{sortCol === 'quoteCount' ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+                      </button>
+                      <button
+                        onClick={() => toggleSort('lineItemCount')}
+                        className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${sortCol === 'lineItemCount' ? 'text-emerald-300 border-emerald-500/40 bg-emerald-500/10' : 'text-slate-600 border-slate-700 hover:text-slate-400'}`}
+                      >
+                        Items{sortCol === 'lineItemCount' ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+                      </button>
+                    </div>
+                  </div>
+                </th>
                 <SortTh col="updated_at" label="Updated" className="min-w-[110px]" />
                 <th className="px-4 py-3 w-28 text-right text-xs font-bold uppercase tracking-wider text-slate-600">Actions</th>
               </tr>
@@ -654,6 +721,16 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           </div>
                         );
                       })()}
+                      {(onSaveLineItem || onDeleteLineItem) && (
+                        <button
+                          onClick={() => openLineItemModal(c.component_id)}
+                          className="mt-1.5 text-[10px] text-slate-600 hover:text-blue-300 transition-colors flex items-center gap-1"
+                          title="Manage quote/PO associations"
+                        >
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                          Edit associations
+                        </button>
+                      )}
                     </td>
 
                     {/* Updated At */}
@@ -765,5 +842,206 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         </div>
       )}
     </div>
+
+      {/* ── Line-item association modal (portal, sibling to main div) ─────── */}
+      {lineItemModalId && typeof document !== 'undefined' && createPortal(
+        (() => {
+          const comp = components.find((c) => c.component_id === lineItemModalId);
+          if (!comp) return null;
+          const items = quoteItems.filter((i) => i.component_id === lineItemModalId);
+          const posByQuote = new Map<number, string[]>();
+          pos.forEach((po) => {
+            if (po.quote_id == null) return;
+            posByQuote.set(po.quote_id, [...(posByQuote.get(po.quote_id) ?? []), po.po_number]);
+          });
+
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+              onClick={(e) => { if (e.target === e.currentTarget) setLineItemModalId(null); }}>
+              <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col">
+                {/* Modal header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+                  <div>
+                    <h3 className="text-base font-bold text-white">Quote Associations</h3>
+                    <p className="text-xs text-slate-500 mt-0.5 font-mono">{comp.supplier_model}</p>
+                  </div>
+                  <button onClick={() => setLineItemModalId(null)} className="text-slate-500 hover:text-white transition-colors">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+
+                {/* Modal body */}
+                <div className="overflow-y-auto flex-1 px-6 py-4 space-y-3">
+                  {/* Existing line items */}
+                  {items.length === 0 && !newLineItem && (
+                    <p className="text-sm text-slate-500 py-6 text-center">No quote associations yet.</p>
+                  )}
+                  {items.map((item) => {
+                    const draft = (lineItemDraft[item.quote_line_id] ?? {}) as Partial<PriceQuoteLineItem>;
+                    const eff = { ...item, ...draft };
+                    const isDraftDirty = Object.keys(draft).length > 0;
+                    const linkedPos = posByQuote.get(eff.quote_id) ?? [];
+                    return (
+                      <div key={item.quote_line_id} className={`rounded-xl border p-3 space-y-2 ${isDraftDirty ? 'border-amber-500/40 bg-amber-500/5' : 'border-slate-800 bg-slate-800/30'}`}>
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                          {/* Quote / PI */}
+                          <div className="col-span-2 sm:col-span-1">
+                            <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Quote (PI)</label>
+                            <select
+                              value={eff.quote_id}
+                              onChange={(e) => setLineItemDraft((prev) => ({ ...prev, [item.quote_line_id]: { ...prev[item.quote_line_id], quote_id: Number(e.target.value) } }))}
+                              className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500"
+                            >
+                              {quotes.map((q) => (
+                                <option key={q.quote_id} value={q.quote_id}>{q.pi_number ?? `Quote #${q.quote_id}`}</option>
+                              ))}
+                            </select>
+                          </div>
+                          {/* Qty */}
+                          <div>
+                            <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Qty</label>
+                            <input type="number" min={0} step="any"
+                              value={eff.quantity}
+                              onChange={(e) => setLineItemDraft((prev) => ({ ...prev, [item.quote_line_id]: { ...prev[item.quote_line_id], quantity: parseFloat(e.target.value) || 0 } }))}
+                              className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500"
+                            />
+                          </div>
+                          {/* Unit price */}
+                          <div>
+                            <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Unit Price</label>
+                            <input type="number" min={0} step="any"
+                              value={eff.unit_price}
+                              onChange={(e) => setLineItemDraft((prev) => ({ ...prev, [item.quote_line_id]: { ...prev[item.quote_line_id], unit_price: parseFloat(e.target.value) || 0 } }))}
+                              className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500"
+                            />
+                          </div>
+                          {/* Currency */}
+                          <div>
+                            <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Currency</label>
+                            <select
+                              value={eff.currency}
+                              onChange={(e) => setLineItemDraft((prev) => ({ ...prev, [item.quote_line_id]: { ...prev[item.quote_line_id], currency: e.target.value as any } }))}
+                              className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500"
+                            >
+                              {ENUMS.currency.map((c) => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                        {/* Supplier description */}
+                        <div>
+                          <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Supplier Description</label>
+                          <input type="text"
+                            value={eff.supplier_description ?? ''}
+                            onChange={(e) => setLineItemDraft((prev) => ({ ...prev, [item.quote_line_id]: { ...prev[item.quote_line_id], supplier_description: e.target.value || undefined } }))}
+                            placeholder="Optional"
+                            className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500"
+                          />
+                        </div>
+                        {/* Linked POs (read-only) + actions */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1 flex-wrap">
+                            {linkedPos.length > 0 ? linkedPos.map((p) => (
+                              <span key={p} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">{p}</span>
+                            )) : <span className="text-[10px] text-slate-600">No PO linked</span>}
+                          </div>
+                          <div className="flex gap-1.5">
+                            {isDraftDirty && (
+                              <>
+                                <button
+                                  onClick={() => setLineItemDraft((prev) => { const n = { ...prev }; delete n[item.quote_line_id]; return n; })}
+                                  className="px-2 py-1 text-[10px] text-slate-400 bg-slate-800 border border-slate-700 rounded hover:bg-slate-700 transition-all"
+                                >Discard</button>
+                                <button
+                                  disabled={lineItemSaving}
+                                  onClick={() => handleSaveLineItemDraft(item, draft)}
+                                  className="px-2 py-1 text-[10px] font-semibold text-white bg-amber-600 hover:bg-amber-500 rounded transition-all disabled:opacity-50"
+                                >Save</button>
+                              </>
+                            )}
+                            {onDeleteLineItem && (
+                              <button
+                                disabled={lineItemSaving}
+                                onClick={async () => { setLineItemSaving(true); try { await onDeleteLineItem(item.quote_line_id); } finally { setLineItemSaving(false); } }}
+                                className="px-2 py-1 text-[10px] text-red-400/70 hover:text-red-400 hover:bg-red-500/10 rounded transition-all disabled:opacity-50"
+                                title="Delete this line item"
+                              >🗑</button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* New line item row */}
+                  {newLineItem ? (
+                    <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-3 space-y-2">
+                      <p className="text-[11px] text-blue-400 font-semibold uppercase tracking-wide">New line item</p>
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        <div className="col-span-2 sm:col-span-1">
+                          <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Quote (PI)</label>
+                          <select value={newLineItem.quote_id}
+                            onChange={(e) => setNewLineItem((p) => p && { ...p, quote_id: e.target.value })}
+                            className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500">
+                            <option value="">— select —</option>
+                            {quotes.map((q) => <option key={q.quote_id} value={q.quote_id}>{q.pi_number ?? `Quote #${q.quote_id}`}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Qty</label>
+                          <input type="number" min={0} step="any" placeholder="0"
+                            value={newLineItem.quantity}
+                            onChange={(e) => setNewLineItem((p) => p && { ...p, quantity: e.target.value })}
+                            className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500" />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Unit Price</label>
+                          <input type="number" min={0} step="any" placeholder="0"
+                            value={newLineItem.unit_price}
+                            onChange={(e) => setNewLineItem((p) => p && { ...p, unit_price: e.target.value })}
+                            className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500" />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Currency</label>
+                          <select value={newLineItem.currency}
+                            onChange={(e) => setNewLineItem((p) => p && { ...p, currency: e.target.value })}
+                            className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500">
+                            {ENUMS.currency.map((c) => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <input type="text" placeholder="Supplier description (optional)"
+                        value={newLineItem.supplier_description}
+                        onChange={(e) => setNewLineItem((p) => p && { ...p, supplier_description: e.target.value })}
+                        className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500" />
+                      <div className="flex gap-1.5 justify-end">
+                        <button onClick={() => setNewLineItem(null)} className="px-3 py-1.5 text-xs text-slate-400 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-all">Cancel</button>
+                        <button
+                          disabled={lineItemSaving || !newLineItem.quote_id || !newLineItem.quantity || !newLineItem.unit_price}
+                          onClick={() => handleAddNewLineItem(lineItemModalId)}
+                          className="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                        >{lineItemSaving ? 'Saving…' : 'Add'}</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setNewLineItem({ quote_id: '', quantity: '', unit_price: '', currency: 'USD', supplier_description: '' })}
+                      className="w-full py-2.5 text-xs text-slate-500 hover:text-blue-300 border border-dashed border-slate-800 hover:border-blue-500/40 rounded-xl transition-all"
+                    >
+                      + Add to a quote
+                    </button>
+                  )}
+                </div>
+
+                {/* Modal footer */}
+                <div className="px-6 py-3 border-t border-slate-800 flex justify-end">
+                  <button onClick={() => setLineItemModalId(null)} className="px-4 py-2 text-sm font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-all">Close</button>
+                </div>
+              </div>
+            </div>
+          );
+        })(),
+        document.body
+      )}
+    </>
   );
 }
