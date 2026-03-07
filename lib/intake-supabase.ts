@@ -80,7 +80,7 @@ export async function deleteItem(id: string): Promise<void> {
 export async function fetchLogs(): Promise<IntakeLog[]> {
   const { data, error } = await getClient()
     .from('intake_logs')
-    .select('*, item:intake_items(*)')
+    .select('*')
     .order('date', { ascending: false })
     .order('created_at', { ascending: false });
   if (error) throw error;
