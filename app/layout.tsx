@@ -3,15 +3,15 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Money Manager",
-    template: "%s | Money Manager",
+    default: "Intake Tracker",
+    template: "%s | Intake Tracker",
   },
-  description: "Personal finance tracker powered by Supabase",
+  description: "Track your daily supplements, medicine, and caffeine intake",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Money Manager",
+    title: "Intake Tracker",
   },
   formatDetection: { telephone: false },
   other: {
