@@ -226,8 +226,8 @@ function MasterInsertPage() {
       {/* Desktop Sidebar */}
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} menuItems={MENU_ITEMS} />
       {/* Main Content */}
-      <main className="flex-1 md:ml-64 p-4 md:p-8 min-h-screen overflow-x-hidden">
-        <div className="max-w-[1600px] mx-auto pb-24 md:pb-0 animate-in fade-in duration-300">
+      <main className={`flex-1 md:ml-64 min-h-screen overflow-x-hidden ${activeTab === 'components' ? 'p-3 md:p-4' : 'p-4 md:p-8'}`}>
+        <div className={`pb-24 md:pb-0 animate-in fade-in duration-300 ${activeTab === 'components' ? 'w-full' : 'max-w-[1600px] mx-auto'}`}>
           {/* Page Header (Desktop) */}
           <div className="hidden md:flex mb-8 justify-between items-center h-10">
             <h2 className="text-2xl font-extrabold text-white tracking-tight border-l-4 border-emerald-500 pl-4">
