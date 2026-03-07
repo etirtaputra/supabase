@@ -395,7 +395,7 @@ export default function TodayView() {
               return (
                 <div key={log.id} className="bg-slate-800/70 rounded-2xl px-4 py-3 flex items-start gap-3">
                   <div className="w-8 h-8 rounded-xl flex items-center justify-center text-lg shrink-0 mt-0.5"
-                    style={{ background: item?.color + '33' ?? '#6366f133' }}>
+                    style={{ background: (item?.color ?? '#6366f1') + '33' }}>
                     {meta.icon}
                   </div>
                   <div className="flex-1 min-w-0">
