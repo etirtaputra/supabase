@@ -84,8 +84,8 @@ function LogSheet({ date, prefill, onClose }: LogSheetProps) {
   const [saving,      setSaving]      = useState(false);
   const [error,       setError]       = useState('');
   const [showNewForm, setShowNewForm] = useState(false);
-  const [editingUid,  setEditingUid]  = useState<string | null>(null);
-  const [editRaw,     setEditRaw]     = useState('');
+  // Raw string per entry uid — lets user type freely without snapping
+  const [qtyRaw,      setQtyRaw]      = useState<Record<string, string>>({});
 
   // New-item sub-form state
   const [newCat,       setNewCat]       = useState<keyof typeof CATEGORY_META>('supplement');
@@ -103,7 +103,10 @@ function LogSheet({ date, prefill, onClose }: LogSheetProps) {
     if (prefill) {
       const item = items.find(i => i.id === prefill.itemId);
       if (item) {
-        setQueue([{ uid: uid(), item, qty: defaultQty(item) }]);
+        const newUid = uid();
+        const dqty = defaultQty(item);
+        setQueue([{ uid: newUid, item, qty: dqty }]);
+        setQtyRaw({ [newUid]: String(dqty) });
         if (prefill.time) setLogTime(prefill.time);
       }
     }
@@ -115,7 +118,10 @@ function LogSheet({ date, prefill, onClose }: LogSheetProps) {
     if (!showNewForm && filter) {
       const found = items.find(i => i.name.toLowerCase() === filter.toLowerCase());
       if (found && queue.every(e => e.item.id !== found.id)) {
-        setQueue(q => [...q, { uid: uid(), item: found, qty: defaultQty(found) }]);
+        const newUid = uid();
+        const dqty = defaultQty(found);
+        setQueue(q => [...q, { uid: newUid, item: found, qty: dqty }]);
+        setQtyRaw(r => ({ ...r, [newUid]: String(dqty) }));
         setFilter('');
       }
     }
@@ -128,16 +134,28 @@ function LogSheet({ date, prefill, onClose }: LogSheetProps) {
     const idx = inQueue(item.id);
     if (idx >= 0) {
       // Already in queue — bump qty by one step
-      setQueue(q => q.map((e, i) => i === idx ? { ...e, qty: e.qty + qtyStep(item) } : e));
+      const entry = queue[idx];
+      const newQty = entry.qty + qtyStep(item);
+      setQueue(q => q.map((e, i) => i === idx ? { ...e, qty: newQty } : e));
+      setQtyRaw(r => ({ ...r, [entry.uid]: String(newQty) }));
     } else {
-      setQueue(q => [...q, { uid: uid(), item, qty: defaultQty(item) }]);
+      const newUid = uid();
+      const dqty = defaultQty(item);
+      setQueue(q => [...q, { uid: newUid, item, qty: dqty }]);
+      setQtyRaw(r => ({ ...r, [newUid]: String(dqty) }));
     }
   };
 
-  const setQty = (entryUid: string, qty: number) =>
-    setQueue(q => q.map(e => e.uid === entryUid ? { ...e, qty: Math.max(0, qty) } : e));
+  const setQty = (entryUid: string, qty: number) => {
+    const clamped = Math.max(0, qty);
+    setQueue(q => q.map(e => e.uid === entryUid ? { ...e, qty: clamped } : e));
+    setQtyRaw(r => ({ ...r, [entryUid]: String(clamped) }));
+  };
 
-  const removeEntry = (entryUid: string) => setQueue(q => q.filter(e => e.uid !== entryUid));
+  const removeEntry = (entryUid: string) => {
+    setQueue(q => q.filter(e => e.uid !== entryUid));
+    setQtyRaw(r => { const next = { ...r }; delete next[entryUid]; return next; });
+  };
 
   const filteredItems = filter.trim()
     ? items.filter(i => i.name.toLowerCase().includes(filter.toLowerCase()))
@@ -211,10 +229,13 @@ function LogSheet({ date, prefill, onClose }: LogSheetProps) {
               {queue.map(entry => {
                 const meta = CATEGORY_META[entry.item.category];
                 const step = qtyStep(entry.item);
-                const label = qtyLabel(entry.item, entry.qty);
+                const unit = entry.item.serving_label
+                  ? `${entry.item.serving_label}${entry.qty !== 1 ? 's' : ''}`
+                  : entry.item.default_unit;
                 const computed = entry.item.serving_label && entry.qty > 0
                   ? parseFloat(resolveAmount(entry.item, entry.qty).toFixed(2))
                   : null;
+                const rawVal = qtyRaw[entry.uid] ?? String(entry.qty);
                 return (
                   <div key={entry.uid} className="flex items-center gap-3 px-4 py-3 border-b border-white/5">
                     <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg shrink-0"
@@ -227,38 +248,33 @@ function LogSheet({ date, prefill, onClose }: LogSheetProps) {
                         <p className="text-[10px] text-slate-500 leading-tight">= {computed} {entry.item.default_unit}</p>
                       )}
                     </div>
-                    {/* Stepper */}
-                    <div className="flex items-center gap-0 bg-slate-800 rounded-xl overflow-hidden shrink-0">
+                    {/* Stepper with always-editable qty */}
+                    <div className="flex items-center gap-1 shrink-0">
                       <button onClick={() => entry.qty <= step ? removeEntry(entry.uid) : setQty(entry.uid, entry.qty - step)}
-                        className="w-9 h-9 flex items-center justify-center text-slate-300 hover:bg-slate-700 active:bg-slate-600 transition-colors text-lg font-light">
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-300 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 transition-colors text-lg font-light shrink-0">
                         {entry.qty <= step ? '×' : '−'}
                       </button>
-                      {editingUid === entry.uid ? (
+                      <div className="flex items-center bg-slate-800 rounded-lg px-2 py-1 gap-1">
                         <input
-                          type="number" inputMode="decimal" autoFocus
-                          value={editRaw}
-                          onChange={e => setEditRaw(e.target.value)}
-                          onBlur={() => {
-                            const v = parseFloat(editRaw);
-                            if (!isNaN(v) && v > 0) setQty(entry.uid, v);
-                            setEditingUid(null);
+                          type="number" inputMode="decimal"
+                          value={rawVal}
+                          onChange={e => {
+                            setQtyRaw(r => ({ ...r, [entry.uid]: e.target.value }));
+                            const v = parseFloat(e.target.value);
+                            if (!isNaN(v) && v > 0) setQueue(q => q.map(en => en.uid === entry.uid ? { ...en, qty: v } : en));
                           }}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                            if (e.key === 'Escape') setEditingUid(null);
+                          onBlur={e => {
+                            const v = parseFloat(e.target.value);
+                            const final = (!isNaN(v) && v > 0) ? v : entry.qty;
+                            setQty(entry.uid, final);
                           }}
-                          className="w-20 bg-transparent text-xs font-semibold text-white text-center focus:outline-none border-b border-violet-400 py-1"
+                          onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                          className="w-14 bg-transparent text-sm font-semibold text-white text-right focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         />
-                      ) : (
-                        <button
-                          onClick={() => { setEditingUid(entry.uid); setEditRaw(String(entry.qty)); }}
-                          className="px-2 text-xs font-semibold text-white whitespace-nowrap min-w-[4.5rem] text-center hover:text-violet-300 transition-colors"
-                          title="Tap to type custom amount">
-                          {label}
-                        </button>
-                      )}
+                        <span className="text-[10px] text-slate-400 whitespace-nowrap">{unit}</span>
+                      </div>
                       <button onClick={() => setQty(entry.uid, entry.qty + step)}
-                        className="w-9 h-9 flex items-center justify-center text-slate-300 hover:bg-slate-700 active:bg-slate-600 transition-colors text-lg font-light">
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-300 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 transition-colors text-lg font-light shrink-0">
                         +
                       </button>
                     </div>
@@ -293,37 +309,36 @@ function LogSheet({ date, prefill, onClose }: LogSheetProps) {
                     </p>
                   </div>
                   {entry ? (
-                    <div className="flex items-center gap-0 bg-slate-800 rounded-xl overflow-hidden shrink-0">
+                    <div className="flex items-center gap-1 shrink-0">
                       <button onClick={() => entry.qty <= step ? removeEntry(entry.uid) : setQty(entry.uid, entry.qty - step)}
-                        className="w-8 h-8 flex items-center justify-center text-slate-300 hover:bg-slate-700 transition-colors">
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 bg-slate-800 hover:bg-slate-700 transition-colors shrink-0">
                         {entry.qty <= step ? '×' : '−'}
                       </button>
-                      {editingUid === entry.uid ? (
+                      <div className="flex items-center bg-slate-800 rounded-lg px-2 py-0.5 gap-1">
                         <input
-                          type="number" inputMode="decimal" autoFocus
-                          value={editRaw}
-                          onChange={e => setEditRaw(e.target.value)}
-                          onBlur={() => {
-                            const v = parseFloat(editRaw);
-                            if (!isNaN(v) && v > 0) setQty(entry.uid, v);
-                            setEditingUid(null);
+                          type="number" inputMode="decimal"
+                          value={qtyRaw[entry.uid] ?? String(entry.qty)}
+                          onChange={e => {
+                            setQtyRaw(r => ({ ...r, [entry.uid]: e.target.value }));
+                            const v = parseFloat(e.target.value);
+                            if (!isNaN(v) && v > 0) setQueue(q => q.map(en => en.uid === entry.uid ? { ...en, qty: v } : en));
                           }}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                            if (e.key === 'Escape') setEditingUid(null);
+                          onBlur={e => {
+                            const v = parseFloat(e.target.value);
+                            const final = (!isNaN(v) && v > 0) ? v : entry.qty;
+                            setQty(entry.uid, final);
                           }}
-                          className="w-16 bg-transparent text-xs font-semibold text-violet-300 text-center focus:outline-none border-b border-violet-400 py-0.5"
+                          onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                          className="w-12 bg-transparent text-xs font-semibold text-violet-300 text-right focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         />
-                      ) : (
-                        <button
-                          onClick={() => { setEditingUid(entry.uid); setEditRaw(String(entry.qty)); }}
-                          className="px-1.5 text-xs font-semibold text-violet-300 whitespace-nowrap hover:text-violet-200 transition-colors"
-                          title="Tap to type custom amount">
-                          {qtyLabel(item, entry.qty)}
-                        </button>
-                      )}
+                        <span className="text-[10px] text-slate-500 whitespace-nowrap">
+                          {item.serving_label
+                            ? `${item.serving_label}${entry.qty !== 1 ? 's' : ''}`
+                            : item.default_unit}
+                        </span>
+                      </div>
                       <button onClick={() => setQty(entry.uid, entry.qty + step)}
-                        className="w-8 h-8 flex items-center justify-center text-slate-300 hover:bg-slate-700 transition-colors">
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 bg-slate-800 hover:bg-slate-700 transition-colors shrink-0">
                         +
                       </button>
                     </div>
