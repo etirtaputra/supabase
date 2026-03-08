@@ -122,86 +122,64 @@ export default function StatsView() {
           </section>
         )}
 
-        {/* Per-item cards */}
+        {/* Per-item cards — compact single-row */}
         <section>
           <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Per item</h2>
-          <div className="space-y-3">
+          <div className="space-y-1.5">
             {sortedItems.map(item => {
               const { current, best } = getStreak(item.id);
               const meta = CATEGORY_META[item.category];
-              const avg7   = getAverage(item.id, 7);
-              const avg30  = getAverage(item.id, 30);
-              const avgAll = getAverage(item.id, 0); // all-time
+              const avgAll = getAverage(item.id, 0);
 
-              // Logs for this item in selected period
               const cutoff = new Date(Date.now() - period * 86400000).toISOString().slice(0, 10);
               const periodLogs = logs.filter(l => l.item_id === item.id && l.date >= cutoff);
               const totalInPeriod = periodLogs.reduce((s, l) => s + l.amount, 0);
               const daysInPeriod  = new Set(periodLogs.map(l => l.date)).size;
 
               return (
-                <div key={item.id} className="bg-slate-800 rounded-2xl overflow-hidden">
-                  {/* Header */}
-                  <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-700/40">
-                    <div className="w-9 h-9 rounded-xl flex items-center justify-center text-xl shrink-0"
-                      style={{ background: item.color + '33' }}>
-                      {meta.icon}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-white text-sm truncate">{item.name}</p>
-                      <p className={`text-[11px] ${meta.color}`}>{meta.label}</p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-lg font-bold text-amber-400">
-                        {current > 0 ? `🔥 ${current}` : '—'}
-                      </p>
-                      <p className="text-[10px] text-slate-500">current streak</p>
-                    </div>
+                <div key={item.id} className="bg-slate-800/70 rounded-xl px-3 py-2.5 flex items-center gap-2.5 min-w-0">
+                  {/* Color dot + icon */}
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center text-base shrink-0"
+                    style={{ background: item.color + '25' }}>
+                    {meta.icon}
                   </div>
 
-                  {/* Stats grid */}
-                  <div className="grid grid-cols-2 divide-x divide-slate-700/40">
-                    <div className="px-4 py-3">
-                      <p className="text-[11px] text-slate-500 mb-2">Streak</p>
-                      <div className="flex gap-4">
-                        <div>
-                          <p className="text-lg font-bold text-amber-400">{current}</p>
-                          <p className="text-[10px] text-slate-600">current</p>
-                        </div>
-                        <div>
-                          <p className="text-lg font-bold text-white">{best}</p>
-                          <p className="text-[10px] text-slate-600">best</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="px-4 py-3">
-                      <p className="text-[11px] text-slate-500 mb-2">Last {period} days</p>
-                      <div>
-                        <p className="text-lg font-bold text-white">
-                          {fmtNum(totalInPeriod)} <span className="text-xs text-slate-500 font-normal">{item.default_unit}</span>
-                        </p>
-                        <p className="text-[10px] text-slate-600">{daysInPeriod} day{daysInPeriod !== 1 ? 's' : ''} · {periodLogs.length} entr{periodLogs.length !== 1 ? 'ies' : 'y'}</p>
-                      </div>
-                    </div>
+                  {/* Name + category */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-white truncate leading-tight">{item.name}</p>
+                    <p className={`text-[10px] ${meta.color} leading-tight`}>{meta.label}</p>
                   </div>
 
-                  {/* Daily averages — denominator = actual days tracked, not fixed window */}
-                  <div className="grid grid-cols-3 divide-x divide-slate-700/40 border-t border-slate-700/40">
-                    {[
-                      { label: 'Daily avg',    sub: `last 7d · ${avg7.daysTracked}d tracked`,   val: avg7.avg,   tracked: avg7.daysTracked   },
-                      { label: 'Daily avg',    sub: `last 30d · ${avg30.daysTracked}d tracked`,  val: avg30.avg,  tracked: avg30.daysTracked  },
-                      { label: 'Daily avg',    sub: `all time · ${avgAll.daysTracked}d tracked`, val: avgAll.avg, tracked: avgAll.daysTracked },
-                    ].map(({ label, sub, val, tracked }) => (
-                      <div key={sub} className="px-3 py-2.5 text-center">
-                        <p className="text-sm font-semibold text-white">
-                          {tracked > 0 ? fmtNum(val) : '—'}
-                          {tracked > 0 && <span className="text-[10px] text-slate-500 font-normal ml-0.5">{item.default_unit}</span>}
-                        </p>
-                        <p className="text-[10px] text-slate-600 mt-0.5 leading-tight">{label}</p>
-                        <p className="text-[9px] text-slate-700 leading-tight">{sub}</p>
-                      </div>
-                    ))}
+                  {/* Streak */}
+                  <div className="shrink-0 text-right min-w-[2.5rem]">
+                    <p className="text-sm font-bold text-amber-400 leading-tight">
+                      {current > 0 ? <>🔥{current}</> : <span className="text-slate-600">—</span>}
+                    </p>
+                    <p className="text-[9px] text-slate-600 leading-tight">best {best}</p>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="w-px h-7 bg-slate-700/60 shrink-0" />
+
+                  {/* Period total */}
+                  <div className="shrink-0 text-right min-w-[3.5rem]">
+                    <p className="text-sm font-bold text-white leading-tight">
+                      {daysInPeriod > 0 ? fmtNum(totalInPeriod) : <span className="text-slate-600">—</span>}
+                      {daysInPeriod > 0 && <span className="text-[10px] text-slate-500 font-normal ml-0.5">{item.default_unit}</span>}
+                    </p>
+                    <p className="text-[9px] text-slate-600 leading-tight">{daysInPeriod}d · {periodLogs.length} logs</p>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="w-px h-7 bg-slate-700/60 shrink-0" />
+
+                  {/* All-time daily avg */}
+                  <div className="shrink-0 text-right min-w-[3.5rem]">
+                    <p className="text-sm font-bold text-violet-300 leading-tight">
+                      {avgAll.daysTracked > 0 ? fmtNum(avgAll.avg) : <span className="text-slate-600">—</span>}
+                      {avgAll.daysTracked > 0 && <span className="text-[10px] text-slate-500 font-normal ml-0.5">{item.default_unit}</span>}
+                    </p>
+                    <p className="text-[9px] text-slate-600 leading-tight">avg/day</p>
                   </div>
                 </div>
               );
