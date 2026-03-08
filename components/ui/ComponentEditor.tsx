@@ -163,6 +163,8 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [filterBrand, setFilterBrand] = useState('');
+  const [filterPI, setFilterPI] = useState('');
+  const [filterPO, setFilterPO] = useState('');
 
   // Debounce search so heavy filtering doesn't block every keystroke
   useEffect(() => {
@@ -231,6 +233,18 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     [components]
   );
 
+  const uniquePINumbers = useMemo(() => {
+    const all = new Set<string>();
+    usageMap.forEach((u) => u.piNumbers.forEach((p) => all.add(p)));
+    return [...all].sort();
+  }, [usageMap]);
+
+  const uniquePONumbers = useMemo(() => {
+    const all = new Set<string>();
+    usageMap.forEach((u) => u.poNumbers.forEach((p) => all.add(p)));
+    return [...all].sort();
+  }, [usageMap]);
+
   const filtered = useMemo(() => {
     let result = components;
     if (search) {
@@ -244,6 +258,8 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     }
     if (filterBrand) result = result.filter((c) => c.brand?.trim() === filterBrand);
     if (filterCategory) result = result.filter((c) => c.category === filterCategory);
+    if (filterPI) result = result.filter((c) => usageMap.get(String(c.component_id))?.piNumbers.includes(filterPI));
+    if (filterPO) result = result.filter((c) => usageMap.get(String(c.component_id))?.poNumbers.includes(filterPO));
     return [...result].sort((a, b) => {
       if (sortCol === 'updated_at') {
         const av = a[sortCol] ? new Date(a[sortCol] as string).getTime() : 0;
@@ -261,7 +277,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       const bv = ((b[sortCol as keyof Component] as string) || '').toLowerCase();
       return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
     });
-  }, [components, search, filterBrand, filterCategory, sortCol, sortDir]);
+  }, [components, search, filterBrand, filterCategory, filterPI, filterPO, sortCol, sortDir, usageMap]);
 
   const toggleSort = (col: SortCol) => {
     if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -469,6 +485,28 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
             <option value="">All Categories</option>
             {ENUMS.product_category.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
+          {/* PI filter */}
+          {uniquePINumbers.length > 0 && (
+            <select
+              value={filterPI}
+              onChange={(e) => setFilterPI(e.target.value)}
+              className="py-2.5 px-3 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:outline-none min-w-[150px]"
+            >
+              <option value="">All PIs</option>
+              {uniquePINumbers.map((pi) => <option key={pi} value={pi}>{pi}</option>)}
+            </select>
+          )}
+          {/* PO filter */}
+          {uniquePONumbers.length > 0 && (
+            <select
+              value={filterPO}
+              onChange={(e) => setFilterPO(e.target.value)}
+              className="py-2.5 px-3 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:outline-none min-w-[150px]"
+            >
+              <option value="">All POs</option>
+              {uniquePONumbers.map((po) => <option key={po} value={po}>{po}</option>)}
+            </select>
+          )}
         </div>
 
         {/* Stats + action buttons */}
