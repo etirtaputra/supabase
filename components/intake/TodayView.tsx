@@ -171,7 +171,7 @@ function LogSheet({ date, prefill, onClose }: LogSheetProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-end" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative w-full max-h-[92dvh] bg-slate-900 rounded-t-2xl border-t border-slate-700/50 flex flex-col overflow-hidden">
+      <div className="relative w-full max-h-[92dvh] bg-slate-900 rounded-t-2xl border-t border-slate-700/50 flex flex-col">
         {/* Handle */}
         <div className="flex-shrink-0 flex justify-center pt-3 pb-1">
           <div className="w-10 h-1 bg-slate-600 rounded-full" />
@@ -186,10 +186,11 @@ function LogSheet({ date, prefill, onClose }: LogSheetProps) {
           </button>
         </div>
 
-        <div className="overflow-y-auto flex-1 px-4 pb-6 space-y-4">
+        {/* Scrollable body */}
+        <div className="overflow-y-auto flex-1 px-4 space-y-4 pb-4">
 
           {/* Item search */}
-          <div className="relative">
+          <div>
             <label className="block text-xs text-slate-400 mb-1.5">What did you take?</label>
             <input
               ref={queryRef}
@@ -200,39 +201,40 @@ function LogSheet({ date, prefill, onClose }: LogSheetProps) {
               placeholder="Search supplements, meds, caffeine…"
               className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-4 py-3 text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             />
-
-            {showDrop && !selectedItem && (
-              <div className="absolute z-10 top-full mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl shadow-lg overflow-hidden max-h-52 overflow-y-auto">
-                {filtered.length === 0 && !query && (
-                  <p className="px-4 py-3 text-sm text-slate-500">Start typing to search…</p>
-                )}
-                {filtered.map(item => {
-                  const meta = CATEGORY_META[item.category];
-                  return (
-                    <button key={item.id} onClick={() => selectItem(item)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-slate-700 transition-colors text-left">
-                      <span className="text-lg">{meta.icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-white font-medium truncate">{item.name}</p>
-                        <p className="text-[11px] text-slate-400">
-                          {meta.label} · {item.default_amount} {item.default_unit}
-                          {item.serving_label ? ` · ${item.serving_count} ${item.serving_label}` : ''}
-                        </p>
-                      </div>
-                      <div className="w-2 h-2 rounded-full shrink-0" style={{ background: item.color }} />
-                    </button>
-                  );
-                })}
-                {query.trim() && !exactMatch && (
-                  <button onClick={() => { setCreatingNew(true); setShowDrop(false); }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-violet-900/30 border-t border-slate-700/50 transition-colors text-left">
-                    <span className="text-lg">➕</span>
-                    <p className="text-sm text-violet-400">Add &ldquo;{query.trim()}&rdquo; as new item</p>
-                  </button>
-                )}
-              </div>
-            )}
           </div>
+
+          {/* Inline results list — no absolute dropdown so nothing gets clipped */}
+          {showDrop && !selectedItem && (
+            <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+              {filtered.length === 0 && !query && (
+                <p className="px-4 py-3 text-sm text-slate-500">Start typing to search…</p>
+              )}
+              {filtered.map(item => {
+                const meta = CATEGORY_META[item.category];
+                return (
+                  <button key={item.id} onClick={() => selectItem(item)}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-700 active:bg-slate-600 transition-colors text-left border-b border-slate-700/50 last:border-0">
+                    <span className="text-xl shrink-0">{meta.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white font-medium truncate">{item.name}</p>
+                      <p className="text-[11px] text-slate-400">
+                        {meta.label} · {item.default_amount} {item.default_unit}
+                        {item.serving_label ? ` · ${item.serving_count} ${item.serving_label}` : ''}
+                      </p>
+                    </div>
+                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: item.color }} />
+                  </button>
+                );
+              })}
+              {query.trim() && !exactMatch && (
+                <button onClick={() => { setCreatingNew(true); setShowDrop(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-violet-900/30 active:bg-violet-900/50 border-t border-slate-700/50 transition-colors text-left">
+                  <span className="text-xl">➕</span>
+                  <p className="text-sm text-violet-400">Add &ldquo;{query.trim()}&rdquo; as new item</p>
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Inline new item form */}
           {creatingNew && (
@@ -392,14 +394,19 @@ function LogSheet({ date, prefill, onClose }: LogSheetProps) {
               </div>
 
               {error && <p className="text-rose-400 text-xs bg-rose-500/10 border border-rose-500/20 rounded-lg px-3 py-2">{error}</p>}
-
-              <button onClick={handleSave} disabled={saving}
-                className="w-full py-3.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white rounded-xl font-bold text-sm transition-colors">
-                {saving ? 'Saving…' : 'Log Intake'}
-              </button>
             </>
           )}
         </div>
+
+        {/* Sticky save button — always visible at bottom of sheet */}
+        {selectedItem && !creatingNew && (
+          <div className="flex-shrink-0 px-4 py-3 border-t border-slate-800 bg-slate-900">
+            <button onClick={handleSave} disabled={saving}
+              className="w-full py-4 bg-violet-600 hover:bg-violet-500 active:bg-violet-700 disabled:opacity-50 text-white rounded-xl font-bold text-base transition-colors">
+              {saving ? 'Saving…' : 'Log Intake'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
