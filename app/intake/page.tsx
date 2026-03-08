@@ -4,36 +4,21 @@ export const dynamic = 'force-dynamic';
 import { IntakeProvider, useIntake } from '@/context/IntakeContext';
 import AuthGate from '@/components/intake/AuthGate';
 import BottomNav from '@/components/intake/BottomNav';
-import TodayView from '@/components/intake/TodayView';
-import HistoryView from '@/components/intake/HistoryView';
+import LogsView from '@/components/intake/LogsView';
 import StatsView from '@/components/intake/StatsView';
 import SettingsView from '@/components/intake/SettingsView';
 import type { ViewType } from '@/types/intake';
 
-// ── Constants ─────────────────────────────────────────────────
-
 const VIEW_TITLES: Record<ViewType, string> = {
-  today:    'Today',
-  history:  'History',
-  stats:    'Statistics',
+  logs:     'Logs',
+  streaks:  'Streaks',
   settings: 'Settings',
 };
 
 const NAV_ITEMS: { view: ViewType; label: string; icon: React.ReactNode }[] = [
   {
-    view: 'today',
-    label: 'Today',
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-        stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-        <polyline points="9 22 9 12 15 12 15 22"/>
-      </svg>
-    ),
-  },
-  {
-    view: 'history',
-    label: 'History',
+    view: 'logs',
+    label: 'Logs',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
         stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
@@ -44,8 +29,8 @@ const NAV_ITEMS: { view: ViewType; label: string; icon: React.ReactNode }[] = [
     ),
   },
   {
-    view: 'stats',
-    label: 'Statistics',
+    view: 'streaks',
+    label: 'Streaks',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
         stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
@@ -67,8 +52,6 @@ const NAV_ITEMS: { view: ViewType; label: string; icon: React.ReactNode }[] = [
     ),
   },
 ];
-
-// ── Desktop sidebar ───────────────────────────────────────────
 
 function Sidebar() {
   const { activeView, setActiveView } = useIntake();
@@ -95,54 +78,39 @@ function Sidebar() {
   );
 }
 
-// ── Inner app ─────────────────────────────────────────────────
-
 function IntakeApp() {
   const { activeView, loading, error, refresh } = useIntake();
 
   return (
     <div className="flex h-dvh bg-slate-950 text-white overflow-hidden">
       <Sidebar />
-
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Header */}
         <header className="flex items-center gap-3 px-4 py-3 border-b border-slate-700/50 bg-slate-900/80 backdrop-blur-sm shrink-0">
           <div className="lg:hidden w-8 h-8 rounded-lg bg-violet-600 flex items-center justify-center text-lg">💊</div>
           <h1 className="text-white font-bold text-base lg:text-lg">{VIEW_TITLES[activeView]}</h1>
-          {loading && (
-            <div className="ml-auto w-4 h-4 rounded-full border border-violet-500 border-t-transparent animate-spin" />
-          )}
+          {loading && <div className="ml-auto w-4 h-4 rounded-full border border-violet-500 border-t-transparent animate-spin" />}
         </header>
-
-        {/* Main content */}
         <main className="flex-1 overflow-hidden">
           {error ? (
             <div className="flex flex-col items-center justify-center h-full px-6 text-center">
               <div className="text-4xl mb-3">⚠️</div>
               <p className="text-white font-semibold text-base mb-1">Failed to load data</p>
               <p className="text-slate-400 text-sm mb-4 font-mono bg-slate-800 rounded-xl px-4 py-2 max-w-sm break-all">{error}</p>
-              <button onClick={refresh}
-                className="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-sm font-semibold">
-                Retry
-              </button>
+              <button onClick={refresh} className="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-sm font-semibold">Retry</button>
             </div>
           ) : (
             <>
-              {activeView === 'today'    && <TodayView   />}
-              {activeView === 'history'  && <HistoryView />}
-              {activeView === 'stats'    && <StatsView   />}
+              {activeView === 'logs'     && <LogsView     />}
+              {activeView === 'streaks'  && <StatsView    />}
               {activeView === 'settings' && <SettingsView />}
             </>
           )}
         </main>
       </div>
-
       <BottomNav />
     </div>
   );
 }
-
-// ── Page ──────────────────────────────────────────────────────
 
 export default function IntakePage() {
   return (

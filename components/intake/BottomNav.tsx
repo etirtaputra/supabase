@@ -5,19 +5,8 @@ import type { ViewType } from '@/types/intake';
 
 const ITEMS: { view: ViewType; label: string; icon: React.ReactNode }[] = [
   {
-    view: 'today',
-    label: 'Today',
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-        stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-        <polyline points="9 22 9 12 15 12 15 22"/>
-      </svg>
-    ),
-  },
-  {
-    view: 'history',
-    label: 'History',
+    view: 'logs',
+    label: 'Logs',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
         stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
@@ -28,8 +17,8 @@ const ITEMS: { view: ViewType; label: string; icon: React.ReactNode }[] = [
     ),
   },
   {
-    view: 'stats',
-    label: 'Stats',
+    view: 'streaks',
+    label: 'Streaks',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
         stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
@@ -61,19 +50,15 @@ export default function BottomNav() {
         {ITEMS.map(({ view, label, icon }) => {
           const active = activeView === view;
           return (
-            <button
-              key={view}
-              onClick={() => setActiveView(view)}
+            <button key={view} onClick={() => setActiveView(view)}
               className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 transition-colors
-                ${active ? 'text-violet-400' : 'text-slate-500 hover:text-slate-300'}`}
-            >
+                ${active ? 'text-violet-400' : 'text-slate-500 hover:text-slate-300'}`}>
               {icon}
               <span className="text-[10px] font-medium">{label}</span>
             </button>
           );
         })}
       </div>
-      {/* Safe area for home indicator on iOS */}
       <div className="h-safe-area-inset-bottom" />
     </nav>
   );

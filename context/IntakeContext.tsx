@@ -108,7 +108,7 @@ export function useIntake() {
 export function IntakeProvider({ children }: { children: React.ReactNode }) {
   const [items,      setItems]      = useState<IntakeItem[]>([]);
   const [logs,       setLogs]       = useState<IntakeLog[]>([]);
-  const [activeView, setActiveView] = useState<ViewType>('today');
+  const [activeView, setActiveView] = useState<ViewType>('logs');
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState<string | null>(null);
 

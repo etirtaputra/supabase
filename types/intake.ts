@@ -50,4 +50,4 @@ export interface IntakeLog {
   item?: IntakeItem;    // joined from DB
 }
 
-export type ViewType = 'today' | 'history' | 'stats' | 'settings';
+export type ViewType = 'logs' | 'streaks' | 'settings';
