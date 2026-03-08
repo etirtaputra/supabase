@@ -137,49 +137,35 @@ export default function StatsView() {
               const daysInPeriod  = new Set(periodLogs.map(l => l.date)).size;
 
               return (
-                <div key={item.id} className="bg-slate-800/70 rounded-xl px-3 py-2.5 flex items-center gap-2.5 min-w-0">
-                  {/* Color dot + icon */}
-                  <div className="w-7 h-7 rounded-lg flex items-center justify-center text-base shrink-0"
+                <div key={item.id} className="bg-slate-800/70 rounded-xl px-3 py-2 flex items-start gap-2.5 min-w-0">
+                  {/* Icon */}
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center text-base shrink-0 mt-0.5"
                     style={{ background: item.color + '25' }}>
                     {meta.icon}
                   </div>
 
-                  {/* Name + category */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-white truncate leading-tight">{item.name}</p>
-                    <p className={`text-[10px] ${meta.color} leading-tight`}>{meta.label}</p>
-                  </div>
+                    {/* Line 1: full name + category */}
+                    <p className="text-sm font-semibold text-white leading-snug">{item.name}</p>
+                    <p className={`text-[10px] ${meta.color} leading-tight mb-1`}>{meta.label}</p>
 
-                  {/* Streak */}
-                  <div className="shrink-0 text-right min-w-[2.5rem]">
-                    <p className="text-sm font-bold text-amber-400 leading-tight">
-                      {current > 0 ? <>🔥{current}</> : <span className="text-slate-600">—</span>}
-                    </p>
-                    <p className="text-[9px] text-slate-600 leading-tight">best {best}</p>
-                  </div>
-
-                  {/* Divider */}
-                  <div className="w-px h-7 bg-slate-700/60 shrink-0" />
-
-                  {/* Period total */}
-                  <div className="shrink-0 text-right min-w-[3.5rem]">
-                    <p className="text-sm font-bold text-white leading-tight">
-                      {daysInPeriod > 0 ? fmtNum(totalInPeriod) : <span className="text-slate-600">—</span>}
-                      {daysInPeriod > 0 && <span className="text-[10px] text-slate-500 font-normal ml-0.5">{item.default_unit}</span>}
-                    </p>
-                    <p className="text-[9px] text-slate-600 leading-tight">{daysInPeriod}d · {periodLogs.length} logs</p>
-                  </div>
-
-                  {/* Divider */}
-                  <div className="w-px h-7 bg-slate-700/60 shrink-0" />
-
-                  {/* All-time daily avg */}
-                  <div className="shrink-0 text-right min-w-[3.5rem]">
-                    <p className="text-sm font-bold text-violet-300 leading-tight">
-                      {avgAll.daysTracked > 0 ? fmtNum(avgAll.avg) : <span className="text-slate-600">—</span>}
-                      {avgAll.daysTracked > 0 && <span className="text-[10px] text-slate-500 font-normal ml-0.5">{item.default_unit}</span>}
-                    </p>
-                    <p className="text-[9px] text-slate-600 leading-tight">avg/day</p>
+                    {/* Line 2: streak | total | avg — all inline */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-bold text-amber-400">
+                        {current > 0 ? `🔥${current}` : '—'}
+                        <span className="text-[9px] text-slate-600 font-normal ml-0.5">best {best}</span>
+                      </span>
+                      <span className="text-slate-700 text-[10px]">·</span>
+                      <span className="text-xs font-semibold text-white">
+                        {daysInPeriod > 0 ? fmtNum(totalInPeriod) : '—'}
+                        {daysInPeriod > 0 && <span className="text-[9px] text-slate-500 font-normal ml-0.5">{item.default_unit} · {daysInPeriod}d · {periodLogs.length} logs</span>}
+                      </span>
+                      <span className="text-slate-700 text-[10px]">·</span>
+                      <span className="text-xs font-semibold text-violet-300">
+                        {avgAll.daysTracked > 0 ? fmtNum(avgAll.avg) : '—'}
+                        {avgAll.daysTracked > 0 && <span className="text-[9px] text-slate-500 font-normal ml-0.5">{item.default_unit}/day</span>}
+                      </span>
+                    </div>
                   </div>
                 </div>
               );

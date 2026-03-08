@@ -374,25 +374,45 @@ function LogRow({ log, copyingId, deletingId, onCopy, onDelete }: LogRowProps) {
   const meta   = CATEGORY_META[cat];
   const streak = getStreak(log.item_id).current;
 
+  // Format the date label for the left column
+  const logDate = new Date(log.date + 'T12:00:00');
+  const dayAbbr = logDate.toLocaleDateString('en-US', { weekday: 'short' });
+  const dateNum = logDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
   return (
-    <div className="bg-slate-800/70 rounded-xl px-3 py-2.5 flex items-center gap-2.5">
+    <div className="bg-slate-800/70 rounded-xl px-3 py-2 flex items-center gap-2.5">
+      {/* Left: time + day/date */}
+      <div className="shrink-0 text-right w-11">
+        <p className="text-xs font-mono font-semibold text-white leading-tight">
+          {log.time_of_day || '—'}
+        </p>
+        <p className="text-[9px] text-slate-600 leading-tight">{dayAbbr}</p>
+        <p className="text-[9px] text-slate-600 leading-tight">{dateNum}</p>
+      </div>
+
+      {/* Thin divider */}
+      <div className="w-px self-stretch bg-slate-700/60 shrink-0" />
+
+      {/* Icon */}
       <div className="w-7 h-7 rounded-lg flex items-center justify-center text-base shrink-0"
         style={{ background: (item?.color ?? '#6366f1') + '25' }}>
         {meta.icon}
       </div>
+
+      {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
-          <p className="text-sm font-semibold text-white leading-tight truncate">{item?.name ?? 'Unknown'}</p>
+          <p className="text-sm font-semibold text-white leading-tight">{item?.name ?? 'Unknown'}</p>
           {streak > 0 && (
-            <span className="text-[10px] font-bold text-amber-400 leading-tight shrink-0">🔥{streak}d</span>
+            <span className="text-[10px] font-bold text-amber-400 shrink-0">🔥{streak}d</span>
           )}
         </div>
         <p className="text-[11px] text-slate-400 leading-tight">
-          {log.amount} {log.unit}
-          {log.time_of_day ? ` · ${log.time_of_day}` : ''}
-          {log.notes ? ` · ${log.notes}` : ''}
+          {log.amount} {log.unit}{log.notes ? ` · ${log.notes}` : ''}
         </p>
       </div>
+
+      {/* Actions */}
       <button onClick={() => onCopy(log)} disabled={!!copyingId} title="Copy to now"
         className="p-1.5 text-slate-600 hover:text-violet-400 disabled:opacity-30 transition-colors shrink-0">
         {copyingId === log.id
