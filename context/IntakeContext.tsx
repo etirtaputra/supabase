@@ -55,12 +55,15 @@ function calcStreak(logs: IntakeLog[], itemId: string): { current: number; best:
   return { current, best };
 }
 
-function calcAverage(logs: IntakeLog[], itemId: string, days: number): number {
-  const cutoff = toDay(new Date(Date.now() - days * 86400000));
-  const total = logs
-    .filter(l => l.item_id === itemId && l.date >= cutoff)
-    .reduce((s, l) => s + l.amount, 0);
-  return total / days;
+// Returns { avg, daysTracked } where daysTracked = distinct days with logs in the window.
+// days=0 means all-time (no cutoff).
+function calcAverage(logs: IntakeLog[], itemId: string, days: number): { avg: number; daysTracked: number } {
+  const cutoff = days > 0 ? toDay(new Date(Date.now() - days * 86400000)) : null;
+  const relevant = logs.filter(l => l.item_id === itemId && (cutoff === null || l.date >= cutoff));
+  const daysTracked = new Set(relevant.map(l => l.date)).size;
+  if (daysTracked === 0) return { avg: 0, daysTracked: 0 };
+  const total = relevant.reduce((s, l) => s + l.amount, 0);
+  return { avg: total / daysTracked, daysTracked };
 }
 
 // ── Context type ──────────────────────────────────────────────
@@ -89,7 +92,7 @@ interface IntakeContextType {
   // Computed
   getLogsForDate: (date: string) => IntakeLog[];
   getStreak: (itemId: string) => { current: number; best: number };
-  getAverage: (itemId: string, days: number) => number;
+  getAverage: (itemId: string, days: number) => { avg: number; daysTracked: number };
 }
 
 const IntakeContext = createContext<IntakeContextType | null>(null);

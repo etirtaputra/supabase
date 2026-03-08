@@ -131,7 +131,7 @@ export default function StatsView() {
               const meta = CATEGORY_META[item.category];
               const avg7   = getAverage(item.id, 7);
               const avg30  = getAverage(item.id, 30);
-              const avg365 = getAverage(item.id, 365);
+              const avgAll = getAverage(item.id, 0); // all-time
 
               // Logs for this item in selected period
               const cutoff = new Date(Date.now() - period * 86400000).toISOString().slice(0, 10);
@@ -186,19 +186,20 @@ export default function StatsView() {
                     </div>
                   </div>
 
-                  {/* Daily averages */}
+                  {/* Daily averages — denominator = actual days tracked, not fixed window */}
                   <div className="grid grid-cols-3 divide-x divide-slate-700/40 border-t border-slate-700/40">
                     {[
-                      { label: 'Daily avg (7d)',  val: avg7   },
-                      { label: 'Daily avg (30d)', val: avg30  },
-                      { label: 'Daily avg (1yr)', val: avg365 },
-                    ].map(({ label, val }) => (
-                      <div key={label} className="px-3 py-2.5 text-center">
+                      { label: 'Daily avg',    sub: `last 7d · ${avg7.daysTracked}d tracked`,   val: avg7.avg,   tracked: avg7.daysTracked   },
+                      { label: 'Daily avg',    sub: `last 30d · ${avg30.daysTracked}d tracked`,  val: avg30.avg,  tracked: avg30.daysTracked  },
+                      { label: 'Daily avg',    sub: `all time · ${avgAll.daysTracked}d tracked`, val: avgAll.avg, tracked: avgAll.daysTracked },
+                    ].map(({ label, sub, val, tracked }) => (
+                      <div key={sub} className="px-3 py-2.5 text-center">
                         <p className="text-sm font-semibold text-white">
-                          {val > 0 ? fmtNum(val) : '—'}
-                          {val > 0 && <span className="text-[10px] text-slate-500 font-normal ml-0.5">{item.default_unit}</span>}
+                          {tracked > 0 ? fmtNum(val) : '—'}
+                          {tracked > 0 && <span className="text-[10px] text-slate-500 font-normal ml-0.5">{item.default_unit}</span>}
                         </p>
                         <p className="text-[10px] text-slate-600 mt-0.5 leading-tight">{label}</p>
+                        <p className="text-[9px] text-slate-700 leading-tight">{sub}</p>
                       </div>
                     ))}
                   </div>
