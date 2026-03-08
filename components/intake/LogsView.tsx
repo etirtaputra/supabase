@@ -84,6 +84,8 @@ function LogSheet({ date, prefill, onClose }: LogSheetProps) {
   const [saving,      setSaving]      = useState(false);
   const [error,       setError]       = useState('');
   const [showNewForm, setShowNewForm] = useState(false);
+  const [editingUid,  setEditingUid]  = useState<string | null>(null);
+  const [editRaw,     setEditRaw]     = useState('');
 
   // New-item sub-form state
   const [newCat,       setNewCat]       = useState<keyof typeof CATEGORY_META>('supplement');
@@ -231,7 +233,30 @@ function LogSheet({ date, prefill, onClose }: LogSheetProps) {
                         className="w-9 h-9 flex items-center justify-center text-slate-300 hover:bg-slate-700 active:bg-slate-600 transition-colors text-lg font-light">
                         {entry.qty <= step ? '×' : '−'}
                       </button>
-                      <span className="px-2 text-xs font-semibold text-white whitespace-nowrap min-w-[4.5rem] text-center">{label}</span>
+                      {editingUid === entry.uid ? (
+                        <input
+                          type="number" inputMode="decimal" autoFocus
+                          value={editRaw}
+                          onChange={e => setEditRaw(e.target.value)}
+                          onBlur={() => {
+                            const v = parseFloat(editRaw);
+                            if (!isNaN(v) && v > 0) setQty(entry.uid, v);
+                            setEditingUid(null);
+                          }}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                            if (e.key === 'Escape') setEditingUid(null);
+                          }}
+                          className="w-20 bg-transparent text-xs font-semibold text-white text-center focus:outline-none border-b border-violet-400 py-1"
+                        />
+                      ) : (
+                        <button
+                          onClick={() => { setEditingUid(entry.uid); setEditRaw(String(entry.qty)); }}
+                          className="px-2 text-xs font-semibold text-white whitespace-nowrap min-w-[4.5rem] text-center hover:text-violet-300 transition-colors"
+                          title="Tap to type custom amount">
+                          {label}
+                        </button>
+                      )}
                       <button onClick={() => setQty(entry.uid, entry.qty + step)}
                         className="w-9 h-9 flex items-center justify-center text-slate-300 hover:bg-slate-700 active:bg-slate-600 transition-colors text-lg font-light">
                         +
@@ -273,7 +298,30 @@ function LogSheet({ date, prefill, onClose }: LogSheetProps) {
                         className="w-8 h-8 flex items-center justify-center text-slate-300 hover:bg-slate-700 transition-colors">
                         {entry.qty <= step ? '×' : '−'}
                       </button>
-                      <span className="px-1.5 text-xs font-semibold text-violet-300 whitespace-nowrap">{qtyLabel(item, entry.qty)}</span>
+                      {editingUid === entry.uid ? (
+                        <input
+                          type="number" inputMode="decimal" autoFocus
+                          value={editRaw}
+                          onChange={e => setEditRaw(e.target.value)}
+                          onBlur={() => {
+                            const v = parseFloat(editRaw);
+                            if (!isNaN(v) && v > 0) setQty(entry.uid, v);
+                            setEditingUid(null);
+                          }}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                            if (e.key === 'Escape') setEditingUid(null);
+                          }}
+                          className="w-16 bg-transparent text-xs font-semibold text-violet-300 text-center focus:outline-none border-b border-violet-400 py-0.5"
+                        />
+                      ) : (
+                        <button
+                          onClick={() => { setEditingUid(entry.uid); setEditRaw(String(entry.qty)); }}
+                          className="px-1.5 text-xs font-semibold text-violet-300 whitespace-nowrap hover:text-violet-200 transition-colors"
+                          title="Tap to type custom amount">
+                          {qtyLabel(item, entry.qty)}
+                        </button>
+                      )}
                       <button onClick={() => setQty(entry.uid, entry.qty + step)}
                         className="w-8 h-8 flex items-center justify-center text-slate-300 hover:bg-slate-700 transition-colors">
                         +
