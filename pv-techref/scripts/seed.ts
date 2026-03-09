@@ -1,4 +1,17 @@
 import { createClient } from "@supabase/supabase-js";
+import { readFileSync } from "fs";
+import { resolve } from "path";
+
+// Load .env.local if present
+try {
+  const envFile = readFileSync(resolve(process.cwd(), ".env.local"), "utf-8");
+  for (const line of envFile.split("\n")) {
+    const match = line.match(/^([^#=]+)=(.*)$/);
+    if (match) process.env[match[1].trim()] = match[2].trim();
+  }
+} catch {
+  // .env.local not found, rely on environment variables
+}
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
