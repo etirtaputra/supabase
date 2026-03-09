@@ -46,11 +46,14 @@ interface PrefillData {
 interface LogSheetProps {
   date: string;
   prefill?: PrefillData;
+  editingLog?: IntakeLog;   // if set, we're editing an existing log
   onClose: () => void;
 }
 
-function LogSheet({ date, prefill, onClose }: LogSheetProps) {
-  const { items, handleAddItem, handleAddLog } = useIntake();
+function LogSheet({ date, prefill, editingLog, onClose }: LogSheetProps) {
+  const { items, handleAddItem, handleAddLog, handleUpdateLog } = useIntake();
+
+  const isEditMode = !!editingLog;
 
   const [query,        setQuery]        = useState('');
   const [selectedItem, setSelected]     = useState<IntakeItem | null>(null);
@@ -58,6 +61,7 @@ function LogSheet({ date, prefill, onClose }: LogSheetProps) {
   const [servings,     setServings]     = useState('');
   const [unit,         setUnit]         = useState('');
   const [logTime,      setLogTime]      = useState(currentTimeStr());
+  const [editDate,     setEditDate]     = useState(editingLog?.date ?? date);
   const [notes,        setNotes]        = useState('');
   const [saving,       setSaving]       = useState(false);
   const [error,        setError]        = useState('');
@@ -94,9 +98,12 @@ function LogSheet({ date, prefill, onClose }: LogSheetProps) {
     setCreatingNew(false);
   };
 
-  // Apply prefill or focus on mount
+  // Apply prefill / edit data or focus on mount
   useEffect(() => {
-    if (prefill) {
+    if (editingLog) {
+      const item = items.find(i => i.id === editingLog.item_id);
+      if (item) selectItem(item, editingLog.amount, editingLog.unit, editingLog.time_of_day, editingLog.notes);
+    } else if (prefill) {
       const item = items.find(i => i.id === prefill.itemId);
       if (item) selectItem(item, prefill.amount, prefill.unit, prefill.time, prefill.notes);
     } else {
@@ -122,6 +129,13 @@ function LogSheet({ date, prefill, onClose }: LogSheetProps) {
     ? (parseFloat(servings || '0') / selectedItem.serving_count) * selectedItem.default_amount
     : null;
 
+  // Computed ml when item has serving_ml
+  const computedMl = selectedItem?.serving_ml && selectedItem.serving_ml > 0
+    ? selectedItem.serving_label
+      ? (parseFloat(servings || '0') / selectedItem.serving_count) * selectedItem.serving_ml
+      : (parseFloat(amount || '0') / selectedItem.default_amount) * selectedItem.serving_ml
+    : null;
+
   const handleCreateNew = async () => {
     const name = query.trim();
     if (!name) return;
@@ -132,6 +146,7 @@ function LogSheet({ date, prefill, onClose }: LogSheetProps) {
         default_amount: parseFloat(newAmt) || 1,
         serving_count: parseFloat(newServCount) || 1,
         serving_label: newServLabel,
+        serving_ml: 0,
         color: newColor,
       });
       setUnit(newUnit);
@@ -157,16 +172,31 @@ function LogSheet({ date, prefill, onClose }: LogSheetProps) {
     }
     setSaving(true); setError('');
     try {
-      await handleAddLog({
-        item_id: selectedItem.id,
-        date, amount: finalAmount, unit: unit || selectedItem.default_unit,
-        notes, time_of_day: logTime,
-      });
+      if (isEditMode && editingLog) {
+        await handleUpdateLog(editingLog.id, {
+          date: editDate,
+          amount: finalAmount,
+          unit: unit || selectedItem.default_unit,
+          notes,
+          time_of_day: logTime,
+        });
+      } else {
+        await handleAddLog({
+          item_id: selectedItem.id,
+          date: editDate,
+          amount: finalAmount,
+          unit: unit || selectedItem.default_unit,
+          notes,
+          time_of_day: logTime,
+        });
+      }
       onClose();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to save');
     } finally { setSaving(false); }
   };
+
+  const today = toDateStr(new Date());
 
   return (
     <div className="fixed inset-0 z-50 flex items-end" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -178,7 +208,9 @@ function LogSheet({ date, prefill, onClose }: LogSheetProps) {
         </div>
 
         <div className="px-4 pb-2 flex items-center justify-between flex-shrink-0">
-          <h2 className="text-white font-bold text-base">Log Intake · {formatDisplayDate(date)}</h2>
+          <h2 className="text-white font-bold text-base">
+            {isEditMode ? 'Edit Log' : `Log Intake · ${formatDisplayDate(date)}`}
+          </h2>
           <button onClick={onClose} className="p-1.5 text-slate-500 hover:text-white">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -189,22 +221,34 @@ function LogSheet({ date, prefill, onClose }: LogSheetProps) {
         {/* Scrollable body */}
         <div className="overflow-y-auto flex-1 px-4 space-y-4 pb-4">
 
-          {/* Item search */}
-          <div>
-            <label className="block text-xs text-slate-400 mb-1.5">What did you take?</label>
-            <input
-              ref={queryRef}
-              type="text"
-              value={query}
-              onChange={e => { setQuery(e.target.value); setShowDrop(true); setSelected(null); }}
-              onFocus={() => setShowDrop(true)}
-              placeholder="Search supplements, meds, caffeine…"
-              className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-4 py-3 text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-            />
-          </div>
+          {/* Date picker — always shown in edit mode, hidden otherwise */}
+          {isEditMode && (
+            <div>
+              <label className="block text-xs text-slate-400 mb-1.5">Date</label>
+              <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
+                max={today}
+                className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent" />
+            </div>
+          )}
 
-          {/* Inline results list — no absolute dropdown so nothing gets clipped */}
-          {showDrop && !selectedItem && (
+          {/* Item search — locked in edit mode */}
+          {!isEditMode && (
+            <div>
+              <label className="block text-xs text-slate-400 mb-1.5">What did you take?</label>
+              <input
+                ref={queryRef}
+                type="text"
+                value={query}
+                onChange={e => { setQuery(e.target.value); setShowDrop(true); setSelected(null); }}
+                onFocus={() => setShowDrop(true)}
+                placeholder="Search supplements, meds, caffeine…"
+                className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-4 py-3 text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+              />
+            </div>
+          )}
+
+          {/* Inline results list */}
+          {showDrop && !selectedItem && !isEditMode && (
             <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
               {filtered.length === 0 && !query && (
                 <p className="px-4 py-3 text-sm text-slate-500">Start typing to search…</p>
@@ -220,6 +264,7 @@ function LogSheet({ date, prefill, onClose }: LogSheetProps) {
                       <p className="text-[11px] text-slate-400">
                         {meta.label} · {item.default_amount} {item.default_unit}
                         {item.serving_label ? ` · ${item.serving_count} ${item.serving_label}` : ''}
+                        {item.serving_ml > 0 ? ` · ${item.serving_ml}ml` : ''}
                       </p>
                     </div>
                     <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: item.color }} />
@@ -329,14 +374,17 @@ function LogSheet({ date, prefill, onClose }: LogSheetProps) {
                   {selectedItem.serving_label
                     ? ` · ${selectedItem.serving_count} ${selectedItem.serving_label} = ${selectedItem.default_amount} ${selectedItem.default_unit}`
                     : ''}
+                  {selectedItem.serving_ml > 0 ? ` · ${selectedItem.serving_ml}ml/serving` : ''}
                 </p>
               </div>
-              <button onClick={() => { setSelected(null); setQuery(''); setShowDrop(true); }}
-                className="text-slate-500 hover:text-white p-1">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-              </button>
+              {!isEditMode && (
+                <button onClick={() => { setSelected(null); setQuery(''); setShowDrop(true); }}
+                  className="text-slate-500 hover:text-white p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              )}
             </div>
           )}
 
@@ -353,6 +401,9 @@ function LogSheet({ date, prefill, onClose }: LogSheetProps) {
                 {computedAmount !== null && computedAmount > 0 && (
                   <p className="text-[11px] text-violet-400 mt-1.5 ml-1">
                     = {parseFloat(computedAmount.toFixed(2))} {selectedItem.default_unit}
+                    {computedMl !== null && computedMl > 0 && (
+                      <span className="text-amber-400/70"> · {parseFloat(computedMl.toFixed(1))}ml</span>
+                    )}
                   </p>
                 )}
               </div>
@@ -363,6 +414,9 @@ function LogSheet({ date, prefill, onClose }: LogSheetProps) {
                   <input type="number" value={amount} onChange={e => setAmount(e.target.value)} min="0" step="any"
                     className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                     placeholder="0" />
+                  {computedMl !== null && computedMl > 0 && (
+                    <p className="text-[11px] text-amber-400/70 mt-1.5 ml-1">= {parseFloat(computedMl.toFixed(1))}ml</p>
+                  )}
                 </div>
                 <div className="col-span-2">
                   <label className="block text-xs text-slate-400 mb-1.5">Unit</label>
@@ -398,12 +452,12 @@ function LogSheet({ date, prefill, onClose }: LogSheetProps) {
           )}
         </div>
 
-        {/* Sticky save button — always visible at bottom of sheet */}
+        {/* Sticky save button */}
         {selectedItem && !creatingNew && (
           <div className="flex-shrink-0 px-4 py-3 border-t border-slate-800 bg-slate-900">
             <button onClick={handleSave} disabled={saving}
               className="w-full py-4 bg-violet-600 hover:bg-violet-500 active:bg-violet-700 disabled:opacity-50 text-white rounded-xl font-bold text-base transition-colors">
-              {saving ? 'Saving…' : 'Log Intake'}
+              {saving ? 'Saving…' : isEditMode ? 'Save Changes' : 'Log Intake'}
             </button>
           </div>
         )}
@@ -417,14 +471,18 @@ function LogSheet({ date, prefill, onClose }: LogSheetProps) {
 export default function TodayView() {
   const { getLogsForDate, handleDeleteLog, handleAddLog, items } = useIntake();
 
-  const [date,       setDate]       = useState(toDateStr(new Date()));
-  const [showSheet,  setShowSheet]  = useState(false);
-  const [prefill,    setPrefill]    = useState<PrefillData | undefined>(undefined);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [copyingId,  setCopyingId]  = useState<string | null>(null);
+  const [date,        setDate]        = useState(toDateStr(new Date()));
+  const [showSheet,   setShowSheet]   = useState(false);
+  const [prefill,     setPrefill]     = useState<PrefillData | undefined>(undefined);
+  const [editingLog,  setEditingLog]  = useState<IntakeLog | undefined>(undefined);
+  const [deletingId,  setDeletingId]  = useState<string | null>(null);
+  const [copyingId,   setCopyingId]   = useState<string | null>(null);
 
   const logs  = getLogsForDate(date);
   const today = toDateStr(new Date());
+
+  const openNew = () => { setPrefill(undefined); setEditingLog(undefined); setShowSheet(true); };
+  const openEdit = (log: IntakeLog) => { setEditingLog(log); setPrefill(undefined); setShowSheet(true); };
 
   const handleDelete = async (id: string) => {
     setDeletingId(id);
@@ -481,17 +539,23 @@ export default function TodayView() {
             {/* Summary bar */}
             <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
               {Object.entries(
-                logs.reduce<Record<string, number>>((acc, l) => {
+                logs.reduce<Record<string, { count: number; totalMg: number }>>((acc, l) => {
                   const cat = (l.item ?? items.find(i => i.id === l.item_id))?.category ?? 'other';
-                  acc[cat] = (acc[cat] ?? 0) + 1;
+                  if (!acc[cat]) acc[cat] = { count: 0, totalMg: 0 };
+                  acc[cat].count++;
+                  if (cat === 'caffeine' && l.unit === 'mg') acc[cat].totalMg += l.amount;
                   return acc;
                 }, {})
-              ).map(([cat, count]) => {
+              ).map(([cat, { count, totalMg }]) => {
                 const meta = CATEGORY_META[cat as keyof typeof CATEGORY_META];
                 return (
                   <div key={cat} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl ${meta.bg} ${meta.border} border shrink-0`}>
                     <span className="text-sm">{meta.icon}</span>
-                    <span className={`text-xs font-semibold ${meta.color}`}>{count} {meta.label}</span>
+                    <span className={`text-xs font-semibold ${meta.color}`}>
+                      {cat === 'caffeine' && totalMg > 0
+                        ? `${totalMg}mg caffeine`
+                        : `${count} ${meta.label}`}
+                    </span>
                   </div>
                 );
               })}
@@ -501,6 +565,12 @@ export default function TodayView() {
               const item = log.item ?? items.find(i => i.id === log.item_id);
               const cat  = item?.category ?? 'other';
               const meta = CATEGORY_META[cat];
+
+              // ml display for caffeine items with serving_ml set
+              const mlDisplay = item?.serving_ml && item.serving_ml > 0 && log.unit === 'mg'
+                ? parseFloat(((log.amount / item.default_amount) * item.serving_ml).toFixed(1))
+                : null;
+
               return (
                 <div key={log.id} className="bg-slate-800/70 rounded-2xl px-4 py-3 flex items-start gap-2">
                   <div className="w-8 h-8 rounded-xl flex items-center justify-center text-lg shrink-0 mt-0.5"
@@ -510,7 +580,12 @@ export default function TodayView() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-baseline gap-2 flex-wrap">
                       <p className="text-sm font-semibold text-white">{item?.name ?? 'Unknown'}</p>
-                      <p className="text-sm text-slate-300">{log.amount} {log.unit}</p>
+                      <p className="text-sm text-slate-300">
+                        {log.amount} {log.unit}
+                        {mlDisplay !== null && (
+                          <span className="text-slate-500 text-xs"> · {mlDisplay}ml</span>
+                        )}
+                      </p>
                     </div>
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <span className={`text-[11px] ${meta.color}`}>{meta.label}</span>
@@ -537,6 +612,15 @@ export default function TodayView() {
                         </svg>
                       )}
                   </button>
+                  {/* Edit */}
+                  <button onClick={() => openEdit(log)}
+                    title="Edit"
+                    className="p-1.5 text-slate-600 hover:text-amber-400 transition-colors shrink-0 mt-0.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                  </button>
                   {/* Delete */}
                   <button onClick={() => handleDelete(log.id)} disabled={deletingId === log.id}
                     className="p-1.5 text-slate-600 hover:text-rose-400 disabled:opacity-30 transition-colors shrink-0 mt-0.5">
@@ -560,7 +644,7 @@ export default function TodayView() {
 
       {/* FAB */}
       <button
-        onClick={() => { setPrefill(undefined); setShowSheet(true); }}
+        onClick={openNew}
         className="fixed right-5 bottom-20 lg:bottom-8 z-30 w-14 h-14 bg-violet-600 hover:bg-violet-500 text-white rounded-full shadow-lg shadow-violet-900/40 flex items-center justify-center transition-all active:scale-95">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
           <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -571,7 +655,8 @@ export default function TodayView() {
         <LogSheet
           date={date}
           prefill={prefill}
-          onClose={() => { setShowSheet(false); setPrefill(undefined); }}
+          editingLog={editingLog}
+          onClose={() => { setShowSheet(false); setPrefill(undefined); setEditingLog(undefined); }}
         />
       )}
     </div>

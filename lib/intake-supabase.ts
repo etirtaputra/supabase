@@ -45,6 +45,7 @@ export async function addItem(item: {
   default_amount: number;
   serving_count: number;
   serving_label: string;
+  serving_ml: number;
   color: string;
 }): Promise<IntakeItem> {
   const user = await getUser();
@@ -107,6 +108,20 @@ export async function addLog(log: {
       notes: log.notes ?? '',
       time_of_day: log.time_of_day ?? '',
     })
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data as IntakeLog;
+}
+
+export async function updateLog(
+  id: string,
+  patch: { date?: string; amount?: number; unit?: string; notes?: string; time_of_day?: string }
+): Promise<IntakeLog> {
+  const { data, error } = await getClient()
+    .from('intake_logs')
+    .update(patch)
+    .eq('id', id)
     .select('*')
     .single();
   if (error) throw error;

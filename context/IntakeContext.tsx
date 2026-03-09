@@ -9,6 +9,7 @@ import {
   updateItem,
   deleteItem,
   addLog,
+  updateLog,
   deleteLog,
 } from '@/lib/intake-supabase';
 
@@ -88,6 +89,9 @@ interface IntakeContextType {
     item_id: string; date: string; amount: number;
     unit: string; notes?: string; time_of_day?: string;
   }) => Promise<void>;
+  handleUpdateLog: (id: string, patch: {
+    date?: string; amount?: number; unit?: string; notes?: string; time_of_day?: string;
+  }) => Promise<void>;
   handleDeleteLog: (id: string) => Promise<void>;
   // Computed
   getLogsForDate: (date: string) => IntakeLog[];
@@ -151,6 +155,11 @@ export function IntakeProvider({ children }: { children: React.ReactNode }) {
     setLogs(prev => [log, ...prev]);
   }, []);
 
+  const handleUpdateLog = useCallback(async (id: string, patch: Parameters<typeof updateLog>[1]) => {
+    const updated = await updateLog(id, patch);
+    setLogs(prev => prev.map(l => l.id === id ? { ...l, ...updated } : l));
+  }, []);
+
   const handleDeleteLog = useCallback(async (id: string) => {
     await deleteLog(id);
     setLogs(prev => prev.filter(l => l.id !== id));
@@ -170,7 +179,7 @@ export function IntakeProvider({ children }: { children: React.ReactNode }) {
     items, logs, activeView, loading, error,
     setActiveView, refresh,
     handleAddItem, handleUpdateItem, handleDeleteItem,
-    handleAddLog, handleDeleteLog,
+    handleAddLog, handleUpdateLog, handleDeleteLog,
     getLogsForDate, getStreak, getAverage,
   };
 

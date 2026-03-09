@@ -13,7 +13,8 @@ interface ItemFormProps {
   onSave: (data: {
     name: string; category: Category;
     default_unit: string; default_amount: number;
-    serving_count: number; serving_label: string; color: string;
+    serving_count: number; serving_label: string;
+    serving_ml: number; color: string;
   }) => Promise<void>;
   onCancel: () => void;
   existingNames: string[];
@@ -26,6 +27,7 @@ function ItemForm({ initial, onSave, onCancel, existingNames }: ItemFormProps) {
   const [amount,    setAmount]    = useState(String(initial?.default_amount ?? 1));
   const [servLabel, setServLabel] = useState(initial?.serving_label  ?? '');
   const [servCount, setServCount] = useState(String(initial?.serving_count ?? 1));
+  const [servMl,    setServMl]    = useState(String(initial?.serving_ml ?? 0));
   const [color,     setColor]     = useState(initial?.color          ?? '#8b5cf6');
   const [saving,    setSaving]    = useState(false);
   const [error,     setError]     = useState('');
@@ -39,9 +41,10 @@ function ItemForm({ initial, onSave, onCancel, existingNames }: ItemFormProps) {
     const amt = parseFloat(amount);
     if (isNaN(amt) || amt <= 0) { setError('Enter a valid default amount.'); return; }
     const sc = servLabel ? (parseFloat(servCount) || 1) : 1;
+    const ml = parseFloat(servMl) || 0;
     setSaving(true); setError('');
     try {
-      await onSave({ name: n, category, default_unit: unit, default_amount: amt, serving_count: sc, serving_label: servLabel, color });
+      await onSave({ name: n, category, default_unit: unit, default_amount: amt, serving_count: sc, serving_label: servLabel, serving_ml: ml, color });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to save');
     } finally { setSaving(false); }
@@ -115,6 +118,22 @@ function ItemForm({ initial, onSave, onCancel, existingNames }: ItemFormProps) {
           </p>
         )}
       </div>
+
+      {category === 'caffeine' && (
+        <div>
+          <label className="block text-xs text-slate-400 mb-1.5">
+            Volume per serving (ml) <span className="text-slate-600">(optional)</span>
+          </label>
+          <input type="number" value={servMl} onChange={e => setServMl(e.target.value)} min="0" step="any"
+            placeholder="e.g. 40 for a 40ml espresso shot"
+            className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2.5 text-sm placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-violet-500" />
+          {servMl && parseFloat(servMl) > 0 && amount && (
+            <p className="text-[11px] text-amber-400/70 mt-1.5 bg-amber-500/10 rounded-lg px-3 py-1.5">
+              {servMl}ml → {amount} {unit} caffeine per serving
+            </p>
+          )}
+        </div>
+      )}
 
       <div>
         <label className="block text-xs text-slate-400 mb-1.5">Color</label>
