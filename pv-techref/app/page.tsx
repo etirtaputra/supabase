@@ -75,7 +75,8 @@ async function getAllProducts(): Promise<SearchResult[]> {
 
   await Promise.all(
     fetches.map(async ({ table, category, getSummary }) => {
-      const { data } = await supabase.from(table).select("*").order("model");
+      const { data, error } = await supabase.from(table).select("*").order("model");
+      if (error) console.error(`[pv-techref] ${table} error:`, error.message, error.code);
       if (data) {
         data.forEach((row) => {
           results.push({
