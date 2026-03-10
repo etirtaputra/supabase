@@ -83,6 +83,14 @@ function buildPVModuleSections(product: PVModule): SpecSection[] {
       ],
     },
     {
+      title: "Packaging & Logistics",
+      rows: [
+        { key: "packing_pcs_per_pallet", label: "Pcs per Pallet", value: product.packing_pcs_per_pallet },
+        { key: "packing_pallets_per_container", label: "Pallets per 40ft Container", value: product.packing_pallets_per_container },
+        { key: "packing_total_pcs_per_container", label: "Total Pcs per 40ft Container", value: product.packing_total_pcs_per_container },
+      ],
+    },
+    {
       title: "Certifications",
       rows: [
         { key: "certifications", label: "Certifications", value: product.certifications },
