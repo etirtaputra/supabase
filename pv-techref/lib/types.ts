@@ -111,6 +111,9 @@ export interface PVModule {
   connector_type: string | null;
   cable_cross_section_mm2: number | null;
   cable_length_mm: string | null;
+  packing_pcs_per_pallet: number | null;
+  packing_pallets_per_container: number | null;
+  packing_total_pcs_per_container: number | null;
   certifications: string[] | null;
   selling_price_idr: number | null;
   created_at: string;
