@@ -281,6 +281,7 @@ function MasterInsertPage() {
                   quoteItems={data.quoteItems}
                   quotes={data.quotes}
                   pos={data.pos}
+                  poItems={data.poItems}
                   onSave={handleComponentUpdates}
                   onDelete={handleComponentDelete}
                   onSaveLineItem={handleSaveLineItem}

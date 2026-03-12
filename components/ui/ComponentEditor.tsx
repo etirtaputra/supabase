@@ -7,7 +7,7 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Spinner } from './LoadingSkeleton';
-import type { Component, PriceQuoteLineItem, PriceQuote, PurchaseOrder } from '../../types/database';
+import type { Component, PriceQuoteLineItem, PriceQuote, PurchaseOrder, PurchaseLineItem } from '../../types/database';
 import { ENUMS } from '../../constants/enums';
 
 interface ComponentUsage {
@@ -23,6 +23,7 @@ interface ComponentEditorProps {
   quoteItems?: PriceQuoteLineItem[];
   quotes?: PriceQuote[];
   pos?: PurchaseOrder[];
+  poItems?: PurchaseLineItem[];
   onSave: (updates: { component_id: string; changes: Partial<Component> }[]) => Promise<void>;
   onDelete?: (component_id: string) => Promise<void>;
   onSaveLineItem?: (item: Omit<PriceQuoteLineItem, 'quote_line_id' | 'created_at' | 'updated_at'> & { quote_line_id?: number }) => Promise<void>;
@@ -158,8 +159,73 @@ function BrandInput({ value, onChange, suggestions, isDirty }: BrandInputProps) 
   );
 }
 
+// --- Usage Tooltip (portal-based to escape table overflow) ---
+interface TooltipQuoteLine { pi_number?: string; quote_date?: string; quantity: number; unit_price: number; currency: string; }
+interface TooltipPOLine { po_number: string; po_date?: string; quantity: number; unit_cost: number; currency: string; }
+interface UsageTooltipProps { quoteLines: TooltipQuoteLine[]; poLines: TooltipPOLine[]; style: React.CSSProperties; }
+function UsageTooltip({ quoteLines, poLines, style }: UsageTooltipProps) {
+  const fmtPrice = (n: number, cur: string) =>
+    `${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${cur}`;
+  const fmtD = (d?: string) =>
+    d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '—';
+  const content = (
+    <div style={style} className="bg-slate-950 border border-slate-700/80 rounded-xl shadow-2xl shadow-black/70 p-3.5 w-[380px] text-xs pointer-events-none z-[9999]">
+      {/* Quote lines */}
+      <div className="mb-3">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-blue-400 mb-2 flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block flex-shrink-0"></span>
+          Recent Quote Lines {quoteLines.length > 0 && <span className="text-slate-600 font-normal normal-case tracking-normal">({quoteLines.length} most recent)</span>}
+        </p>
+        {quoteLines.length === 0 ? (
+          <p className="text-slate-600 italic pl-3">No quote line items</p>
+        ) : (
+          <div>
+            <div className="grid grid-cols-[1fr_72px_44px_90px] gap-x-2 text-[10px] text-slate-500 pb-1.5 border-b border-slate-800 mb-1">
+              <span>PI #</span><span>Date</span><span className="text-right">Qty</span><span className="text-right">Unit Price</span>
+            </div>
+            {quoteLines.map((ql, i) => (
+              <div key={i} className="grid grid-cols-[1fr_72px_44px_90px] gap-x-2 py-1 border-b border-slate-800/40 last:border-0">
+                <span className="font-mono text-blue-300 truncate">{ql.pi_number || '—'}</span>
+                <span className="text-slate-400">{fmtD(ql.quote_date)}</span>
+                <span className="text-right text-slate-300">{ql.quantity}</span>
+                <span className="text-right text-emerald-300 font-semibold tabular-nums">{fmtPrice(ql.unit_price, ql.currency)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {/* PO lines */}
+      <div className="border-t border-slate-800 pt-3">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 mb-2 flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block flex-shrink-0"></span>
+          Recent PO Lines {poLines.length > 0 && <span className="text-slate-600 font-normal normal-case tracking-normal">({poLines.length} most recent)</span>}
+        </p>
+        {poLines.length === 0 ? (
+          <p className="text-slate-600 italic pl-3">No PO line items</p>
+        ) : (
+          <div>
+            <div className="grid grid-cols-[1fr_72px_44px_90px] gap-x-2 text-[10px] text-slate-500 pb-1.5 border-b border-slate-800 mb-1">
+              <span>PO #</span><span>Date</span><span className="text-right">Qty</span><span className="text-right">Unit Cost</span>
+            </div>
+            {poLines.map((pl, i) => (
+              <div key={i} className="grid grid-cols-[1fr_72px_44px_90px] gap-x-2 py-1 border-b border-slate-800/40 last:border-0">
+                <span className="font-mono text-emerald-300 truncate">{pl.po_number}</span>
+                <span className="text-slate-400">{fmtD(pl.po_date)}</span>
+                <span className="text-right text-slate-300">{pl.quantity}</span>
+                <span className="text-right text-amber-300 font-semibold tabular-nums">{fmtPrice(pl.unit_cost, pl.currency)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+  if (typeof document === 'undefined') return null;
+  return createPortal(content, document.body);
+}
+
 // --- Main Component Editor ---
-export default function ComponentEditor({ components, brandSuggestions, quoteItems = [], quotes = [], pos = [], onSave, onDelete, onSaveLineItem, onDeleteLineItem }: ComponentEditorProps) {
+export default function ComponentEditor({ components, brandSuggestions, quoteItems = [], quotes = [], pos = [], poItems = [], onSave, onDelete, onSaveLineItem, onDeleteLineItem }: ComponentEditorProps) {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [filterBrand, setFilterBrand] = useState('');
@@ -183,6 +249,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [lineItemDraft, setLineItemDraft] = useState<Record<number | string, Partial<PriceQuoteLineItem>>>({});
   const [newLineItem, setNewLineItem] = useState<{ quote_id: string; quantity: string; unit_price: string; currency: string; supplier_description: string } | null>(null);
   const [lineItemSaving, setLineItemSaving] = useState(false);
+  const [hoveredTooltip, setHoveredTooltip] = useState<{ id: string; style: React.CSSProperties } | null>(null);
 
   // ── Per-component usage stats ──────────────────────────────────────────────
   const usageMap = useMemo<Map<string, ComponentUsage>>(() => {
@@ -227,6 +294,50 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     });
     return map;
   }, [quoteItems, quotes, pos]);
+
+  // ── Hover tooltip: enriched quote lines & PO lines per component ───────────
+  const quoteLinesByComponent = useMemo(() => {
+    const quoteMap = new Map(quotes.map((q) => [q.quote_id, q]));
+    const map = new Map<string, TooltipQuoteLine[]>();
+    quoteItems.forEach((item) => {
+      if (!item.component_id) return;
+      const q = quoteMap.get(item.quote_id);
+      if (!map.has(item.component_id)) map.set(item.component_id, []);
+      map.get(item.component_id)!.push({
+        pi_number: q?.pi_number,
+        quote_date: q?.quote_date,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        currency: item.currency,
+      });
+    });
+    map.forEach((lines, cid) => {
+      map.set(cid, [...lines].sort((a, b) => (b.quote_date || '').localeCompare(a.quote_date || '')).slice(0, 5));
+    });
+    return map;
+  }, [quoteItems, quotes]);
+
+  const poLinesByComponent = useMemo(() => {
+    const poMap = new Map(pos.map((p) => [p.po_id, p]));
+    const map = new Map<string, TooltipPOLine[]>();
+    poItems.forEach((item) => {
+      if (!item.component_id) return;
+      const po = poMap.get(item.po_id);
+      if (!po) return;
+      if (!map.has(item.component_id)) map.set(item.component_id, []);
+      map.get(item.component_id)!.push({
+        po_number: po.po_number,
+        po_date: po.po_date,
+        quantity: item.quantity,
+        unit_cost: item.unit_cost,
+        currency: item.currency,
+      });
+    });
+    map.forEach((lines, cid) => {
+      map.set(cid, [...lines].sort((a, b) => (b.po_date || '').localeCompare(a.po_date || '')).slice(0, 5));
+    });
+    return map;
+  }, [poItems, pos]);
 
   const uniqueBrands = useMemo(
     () => [...new Set(components.map((c) => c.brand?.trim()).filter(Boolean))].sort() as string[],
@@ -712,7 +823,19 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                     </td>
 
                     {/* Usage */}
-                    <td className="px-4 py-3 align-top min-w-[180px]">
+                    <td
+                      className="px-4 py-3 align-top min-w-[180px] cursor-default"
+                      onMouseEnter={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const tooltipW = 388;
+                        const tooltipH = 260;
+                        const spaceBelow = window.innerHeight - rect.bottom;
+                        const top = spaceBelow > tooltipH ? rect.bottom + 4 : rect.top - tooltipH - 4;
+                        const left = Math.min(rect.left, window.innerWidth - tooltipW - 8);
+                        setHoveredTooltip({ id: c.component_id, style: { position: 'fixed', top: Math.max(8, top), left: Math.max(8, left), zIndex: 9999 } });
+                      }}
+                      onMouseLeave={() => setHoveredTooltip(null)}
+                    >
                       {(() => {
                         const u = usageMap.get(c.component_id);
                         if (!u) return <span className="text-xs text-slate-700">—</span>;
@@ -1079,6 +1202,14 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
           );
         })(),
         document.body
+      )}
+      {/* Hover tooltip */}
+      {hoveredTooltip && (
+        <UsageTooltip
+          quoteLines={quoteLinesByComponent.get(hoveredTooltip.id) ?? []}
+          poLines={poLinesByComponent.get(hoveredTooltip.id) ?? []}
+          style={hoveredTooltip.style}
+        />
       )}
     </>
   );
