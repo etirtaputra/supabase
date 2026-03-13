@@ -7,6 +7,7 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Spinner } from './LoadingSkeleton';
+import SpecRenderer from './SpecRenderer';
 import type { Component, PriceQuoteLineItem, PriceQuote, PurchaseOrder, PurchaseLineItem } from '../../types/database';
 import { ENUMS } from '../../constants/enums';
 
@@ -245,6 +246,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [saving, setSaving] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [specsOpenIds, setSpecsOpenIds] = useState<Set<string>>(new Set());
   const [lineItemModalId, setLineItemModalId] = useState<string | null>(null);
   const [lineItemDraft, setLineItemDraft] = useState<Record<number | string, Partial<PriceQuoteLineItem>>>({});
   const [newLineItem, setNewLineItem] = useState<{ quote_id: string; quantity: string; unit_price: string; currency: string; supplier_description: string } | null>(null);
@@ -511,6 +513,14 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     });
   };
 
+  const toggleSpecs = (id: string) => {
+    setSpecsOpenIds((prev) => {
+      const n = new Set(prev);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+  };
+
   const fmtDate = (ts?: string) => {
     if (!ts) return '—';
     return new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -700,10 +710,12 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                 const k = rowKey(c);
                 const isEditing = editingIds.has(c.component_id);
                 const isDirty = k in pending;
+                const isSpecsOpen = specsOpenIds.has(c.component_id);
+                const hasSpecs = c.specifications && typeof c.specifications === 'object' && Object.keys(c.specifications).length > 0;
 
                 return (
+                  <React.Fragment key={c.component_id}>
                   <tr
-                    key={c.component_id}
                     className={`transition-colors ${
                       isDirty
                         ? 'bg-amber-500/5 border-l-2 border-amber-500/40'
@@ -904,6 +916,19 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                     {/* Row actions */}
                     <td className="px-4 py-3 align-top">
                       <div className="flex gap-1.5 justify-end items-center">
+                        {hasSpecs && (
+                          <button
+                            onClick={() => toggleSpecs(c.component_id)}
+                            className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all ${
+                              isSpecsOpen
+                                ? 'text-amber-300 bg-amber-500/10 border-amber-500/30 hover:bg-amber-500/20'
+                                : 'text-slate-400 bg-slate-800/60 border-slate-700/60 hover:bg-slate-700 hover:text-amber-300'
+                            }`}
+                            title={isSpecsOpen ? 'Hide specifications' : 'View specifications'}
+                          >
+                            ⚡
+                          </button>
+                        )}
                         {isEditing ? (
                           <button
                             onClick={() => toggleEdit(c.component_id)}
@@ -967,6 +992,18 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                       </div>
                     </td>
                   </tr>
+                  {/* ── Inline spec sheet row ── */}
+                  {isSpecsOpen && hasSpecs && (
+                    <tr className="bg-slate-900/40 border-t border-amber-500/10">
+                      <td colSpan={7} className="px-6 py-5">
+                        <SpecRenderer
+                          specs={c.specifications as Record<string, unknown>}
+                          modelName={c.supplier_model}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
                 );
               })}
             </tbody>
