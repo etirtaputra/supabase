@@ -107,4 +107,6 @@ export interface MenuItem {
   id: Tab;
   label: string;
   icon: string;
+  color?: string;
+  activeColor?: string;
 }
