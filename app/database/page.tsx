@@ -8,10 +8,12 @@ import { useSupabaseData } from '@/hooks/useSupabaseData';
 import SearchableTable from '@/components/ui/SearchableTable';
 import ProductCostLookup from '@/components/ui/ProductCostLookup';
 import POCashCycle from '@/components/ui/POCashCycle';
+import PricingIntelligence from '@/components/ui/PricingIntelligence';
 import { ToastProvider } from '@/hooks/useToast';
-type TabId = 'lookup' | 'quotes' | 'orders' | 'financials' | 'cash' | 'reference';
+type TabId = 'lookup' | 'pricing' | 'quotes' | 'orders' | 'financials' | 'cash' | 'reference';
 const TABS: { id: TabId; label: string; color: string; activeColor: string }[] = [
   { id: 'lookup',     label: 'Cost Lookup',  color: 'text-slate-400 hover:text-sky-300 hover:bg-slate-800/50',      activeColor: 'bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30' },
+  { id: 'pricing',    label: 'Pricing',      color: 'text-slate-400 hover:text-amber-300 hover:bg-slate-800/50',    activeColor: 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30' },
   { id: 'quotes',     label: 'Quotes',       color: 'text-slate-400 hover:text-emerald-300 hover:bg-slate-800/50',  activeColor: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30' },
   { id: 'orders',     label: 'Orders',       color: 'text-slate-400 hover:text-amber-300 hover:bg-slate-800/50',    activeColor: 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30' },
   { id: 'financials', label: 'Financials',   color: 'text-slate-400 hover:text-rose-300 hover:bg-slate-800/50',     activeColor: 'bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30' },
@@ -75,6 +77,28 @@ export default function DatabaseViewPage() {
               isLoading={loading}
             />
           </div>
+          {/* Pricing Intelligence */}
+          <div className={activeTab !== 'pricing' ? 'hidden' : 'space-y-6'}>
+            <div className="mb-6">
+              <h2 className="text-lg md:text-xl font-bold text-amber-400 tracking-tight">Pricing Intelligence</h2>
+              <p className="text-slate-400 text-xs mt-1 max-w-2xl">
+                Connect <span className="text-slate-200 font-medium">True Unit Cost</span> with{' '}
+                <span className="text-slate-200 font-medium">market / competitor prices</span> to set margin-aware sell prices.
+                Gross margin = (Sell − TUC) / Sell. Exchange rate from the most recent paid PO.
+              </p>
+            </div>
+            <PricingIntelligence
+              components={data.components}
+              poItems={data.poItems}
+              pos={data.pos}
+              quoteItems={data.quoteItems}
+              quotes={data.quotes}
+              poCosts={data.poCosts}
+              competitorPrices={data.competitorPrices}
+              isLoading={loading}
+            />
+          </div>
+
           {/* Quotes */}
           <div className={activeTab !== 'quotes' ? 'hidden' : 'space-y-8'}>
             <div className="mb-2">
