@@ -101,6 +101,40 @@ export const ENUMS = {
     '60 working days',
     '90 working days',
   ] as const,
+
+  // ── Competitor / Market Intelligence ───────────────────────────────────
+  competitor_price_type: [
+    'listed',        // Public website / catalogue price
+    'quoted',        // Received formal quote
+    'contracted',    // Known contracted / deal price
+    'estimated',     // Derived / estimated from other data
+    'market_report', // Industry report (PVInfoLink, BloombergNEF, etc.)
+  ] as const,
+
+  competitor_source_type: [
+    'website',
+    'supplier_quote',
+    'customer_info',
+    'industry_report',
+    'trade_show',
+    'distributor_list',
+    'other',
+  ] as const,
+
+  competitor_confidence: ['high', 'medium', 'low'] as const,
+
+  market_region: [
+    'Indonesia',
+    'Philippines',
+    'Vietnam',
+    'Malaysia',
+    'Thailand',
+    'Singapore',
+    'Southeast Asia',
+    'Australia',
+    'China',
+    'Global',
+  ] as const,
 } as const;
 
 // Export type-safe enum value types
@@ -113,3 +147,7 @@ export type PriceQuotesStatus = typeof ENUMS.price_quotes_status[number];
 export type ProformaStatus = typeof ENUMS.proforma_status[number];
 export type PurchasesStatus = typeof ENUMS.purchases_status[number];
 export type LeadTime = typeof ENUMS.lead_time[number];
+export type CompetitorPriceType = typeof ENUMS.competitor_price_type[number];
+export type CompetitorSourceType = typeof ENUMS.competitor_source_type[number];
+export type CompetitorConfidence = typeof ENUMS.competitor_confidence[number];
+export type MarketRegion = typeof ENUMS.market_region[number];

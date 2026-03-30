@@ -11,6 +11,9 @@ import type {
   ProformaStatus,
   PurchasesStatus,
   LeadTime,
+  CompetitorPriceType,
+  CompetitorSourceType,
+  CompetitorConfidence,
 } from '../constants/enums';
 
 // Unified cost category type (replaces PaymentCategory + LandedCostsType)
@@ -150,6 +153,36 @@ export interface POCost extends BaseEntity {
   notes?: string;
 }
 
+// 7.0 Competitor Prices (Market Intelligence)
+export interface CompetitorPrice extends BaseEntity {
+  competitor_price_id: string;        // UUID
+  // Competitor product
+  competitor_brand?: string;
+  competitor_model?: string;
+  competitor_description?: string;
+  category?: ProductCategory;
+  capacity_w?: number;                // Wp or kWh — enables price-per-unit normalisation
+  // Price
+  unit_price: number;
+  currency: Currency;
+  min_quantity?: number;              // Volume threshold for this price
+  incoterms?: string;
+  price_type?: CompetitorPriceType;
+  // Our reference component
+  component_id?: string;              // FK → 3.0_components
+  // Source
+  source_type?: CompetitorSourceType;
+  source_name?: string;
+  source_url?: string;
+  region?: string;
+  // Dates
+  observed_at: string;                // Manually editable; when the price was seen
+  valid_until?: string;
+  // Analysis
+  confidence?: CompetitorConfidence;
+  notes?: string;
+}
+
 // Purchase History
 export interface PurchaseHistory extends BaseEntity {
   history_id: number;
@@ -191,6 +224,7 @@ export interface DatabaseData {
   poCosts: POCost[];
   poHistory: PurchaseHistory[];
   quoteHistory: QuoteHistory[];
+  competitorPrices: CompetitorPrice[];
 }
 
 // Autocomplete suggestions structure

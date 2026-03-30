@@ -10,6 +10,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 import SimpleForm from '@/components/forms/SimpleForm';
 import BatchLineItemsForm from '@/components/forms/BatchLineItemsForm';
 import ComponentEditor from '@/components/ui/ComponentEditor';
+import CompetitorPriceForm from '@/components/forms/CompetitorPriceForm';
 import { ToastContainer } from '@/components/ui/Toast';
 import { ToastProvider } from '@/hooks/useToast';
 import { FormSkeleton } from '@/components/ui/LoadingSkeleton';
@@ -37,6 +38,9 @@ const MENU_ITEMS: MenuItem[] = [
   { id: 'financials', label: 'Financials', icon: '💰',
     color: 'text-slate-400 hover:text-rose-300 hover:bg-slate-800/50',
     activeColor: 'bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30' },
+  { id: 'market-intel', label: 'Market Intel', icon: '📊',
+    color: 'text-slate-400 hover:text-sky-300 hover:bg-slate-800/50',
+    activeColor: 'bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30' },
 ];
 
 function MasterInsertPage() {
@@ -458,6 +462,20 @@ function MasterInsertPage() {
                     loading={loading}
                   />
                 </div>
+              )}
+
+              {/* Market Intel Tab */}
+              {activeTab === 'market-intel' && (
+                <CompetitorPriceForm
+                  components={data.components}
+                  poItems={data.poItems}
+                  pos={data.pos}
+                  quoteItems={data.quoteItems}
+                  quotes={data.quotes}
+                  competitorPrices={data.competitorPrices}
+                  onSubmit={(d) => handleInsert('7.0_competitor_prices', d)}
+                  loading={loading}
+                />
               )}
             </>
           )}
