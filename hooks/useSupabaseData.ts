@@ -24,6 +24,7 @@ export function useSupabaseData() {
     poCosts: [],
     poHistory: [],
     quoteHistory: [],
+    competitorPrices: [],
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -127,6 +128,14 @@ export function useSupabaseData() {
         .order('quote_date', { ascending: false })
         .then(({ data: quoteHistory }) => {
           if (quoteHistory) setData((prev) => ({ ...prev, quoteHistory }));
+        });
+
+      supabase
+        .from(TABLE_NAMES.COMPETITOR_PRICES)
+        .select('*')
+        .order('observed_at', { ascending: false })
+        .then(({ data: competitorPrices }) => {
+          if (competitorPrices) setData((prev) => ({ ...prev, competitorPrices }));
         });
 
       setLoading(false);

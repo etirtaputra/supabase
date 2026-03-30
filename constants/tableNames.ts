@@ -15,6 +15,7 @@ export const TABLE_NAMES = {
   PO_COSTS: '6.0_po_costs', // Unified costs table (replaces payment_details + landed_costs)
   PURCHASE_HISTORY: 'purchase_history',
   QUOTE_HISTORY: 'quote_history',
+  COMPETITOR_PRICES: '7.0_competitor_prices',
 } as const;
 
 export type TableName = typeof TABLE_NAMES[keyof typeof TABLE_NAMES];
