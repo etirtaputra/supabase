@@ -156,7 +156,9 @@ export default function PricingIntelligence({
 
     const myItems = poItems.filter((i) => i.component_id === selected.component_id);
 
-    const allocs = myItems.map((item) => {
+    type AllocRow = { tuc: number; qty: number; hasBalance: boolean; po: PurchaseOrder };
+
+    const allocs = myItems.map((item): AllocRow | null => {
       const po = pos.find((p) => p.po_id === item.po_id);
       if (!po) return null;
       const allPoItems = poItems.filter((i) => i.po_id === item.po_id && i.quantity > 0);
@@ -170,7 +172,7 @@ export default function PricingIntelligence({
       const landed     = costs.filter((c) => !PRINCIPAL_CATS.has(c.cost_category) && !BANK_FEE_CATS.has(c.cost_category) && !TAX_CATS.has(c.cost_category)).reduce((s, c) => s + c.amount, 0);
       const tuc        = item.quantity > 0 ? (share * (principal + bankFees + landed)) / item.quantity : 0;
       return { tuc, qty: item.quantity, hasBalance, po };
-    }).filter((a): a is NonNullable<typeof allocs[0]> => a !== null);
+    }).filter((a): a is AllocRow => a !== null);
 
     const paidAllocs = allocs.filter((a) => a.hasBalance && a.tuc > 0);
     if (paidAllocs.length === 0) return { tucIdr: null, xrUsd: null, latestPoDate: null };
