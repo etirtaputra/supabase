@@ -62,11 +62,18 @@ CREATE INDEX IF NOT EXISTS idx_competitor_prices_category
   ON "7.0_competitor_prices" (category);
 
 -- ── Auto-update updated_at ────────────────────────────────────────────────────
--- Requires the moddatetime extension (available in Supabase by default):
---   https://supabase.com/docs/guides/database/extensions/moddatetime
+-- Plain trigger function — no extension required
+CREATE OR REPLACE FUNCTION set_updated_at()
+  RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
 CREATE OR REPLACE TRIGGER competitor_prices_updated_at
   BEFORE UPDATE ON "7.0_competitor_prices"
-  FOR EACH ROW EXECUTE FUNCTION moddatetime(updated_at);
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- ── Row Level Security ────────────────────────────────────────────────────────
 ALTER TABLE "7.0_competitor_prices" ENABLE ROW LEVEL SECURITY;
