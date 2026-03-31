@@ -103,10 +103,10 @@ function StatCard({ label, value, sub, accent }: { label: string; value: string;
 }
 
 // ─── Pricing tier row ─────────────────────────────────────────────────────────
-function TierRow({ label, desc, sellUsd, xr, tucIdr, marketAvgUsd, dimmed }: {
+function TierRow({ label, desc, sellUsd, xr, tucIdr, marketAvgUsd, dimmed, primaryIdr }: {
   label: string; desc: string;
   sellUsd: number; xr: number; tucIdr: number;
-  marketAvgUsd: number | null; dimmed?: boolean;
+  marketAvgUsd: number | null; dimmed?: boolean; primaryIdr?: boolean;
 }) {
   const sellIdr  = sellUsd * xr;
   const gm       = tucIdr > 0 ? ((sellIdr - tucIdr) / sellIdr) * 100 : null;
@@ -119,8 +119,21 @@ function TierRow({ label, desc, sellUsd, xr, tucIdr, marketAvgUsd, dimmed }: {
         <div className="text-sm font-bold text-white">{label}</div>
         <div className="text-[11px] text-slate-500">{desc}</div>
       </td>
-      <td className="py-3 pr-4 text-sm font-semibold text-white">{fmtNum(sellUsd, 2)}</td>
-      <td className="py-3 pr-4 text-sm text-slate-400">{fmtIdr(sellIdr)}</td>
+      {primaryIdr ? (
+        <>
+          <td className="py-3 pr-4">
+            <div className="text-sm font-semibold text-white">{fmtIdr(sellIdr)}</div>
+            <div className="text-[11px] text-slate-600">USD {fmtNum(sellUsd)}</div>
+          </td>
+        </>
+      ) : (
+        <>
+          <td className="py-3 pr-4">
+            <div className="text-sm font-semibold text-white">USD {fmtNum(sellUsd, 2)}</div>
+            <div className="text-[11px] text-slate-600">{fmtIdr(sellIdr)}</div>
+          </td>
+        </>
+      )}
       <td className="py-3 pr-4">
         {gm !== null ? (
           <span className={`text-sm font-bold ${marginColor(gm)}`}>{pct(gm)}</span>
@@ -208,12 +221,15 @@ function PriceBand({ tucIdr, xrUsd, floorUsd, market }: {
 export default function PricingIntelligence({
   components, poItems, pos, quoteItems, quotes, poCosts, competitorPrices, isLoading,
 }: Props) {
-  const [query,        setQuery]        = useState('');
-  const [selected,     setSelected]     = useState<Component | null>(null);
-  const [showDrop,     setShowDrop]     = useState(false);
-  const [simPrice,     setSimPrice]     = useState('');
-  const [minMarginPct, setMinMarginPct] = useState('15');
-  const [recencyDays,  setRecencyDays]  = useState<number | null>(90);
+  const [query,          setQuery]          = useState('');
+  const [selected,       setSelected]       = useState<Component | null>(null);
+  const [showDrop,       setShowDrop]       = useState(false);
+  const [simPriceIdr,    setSimPriceIdr]    = useState('');
+  const [simXrStr,       setSimXrStr]       = useState('');
+  const [targetMarginPct, setTargetMarginPct] = useState('');
+  const [minMarginPct,   setMinMarginPct]   = useState('15');
+  const [recencyDays,    setRecencyDays]    = useState<number | null>(90);
+  const [tierShowIdr,    setTierShowIdr]    = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -239,7 +255,9 @@ export default function PricingIntelligence({
     setSelected(c);
     setQuery(c.internal_description || c.supplier_model);
     setShowDrop(false);
-    setSimPrice('');
+    setSimPriceIdr('');
+    setSimXrStr('');
+    setTargetMarginPct('');
   };
 
   // ── TUC calculation (mirrors ProductCostLookup) ──────────────────────
@@ -339,17 +357,33 @@ export default function PricingIntelligence({
     return { minIdr, maxIdr, weightedAvgIdr, avgWpIdr, count: normalized.length, rmbSkipped };
   }, [filteredCompPrices, xrUsd]);
 
-  // ── Sell price simulator ─────────────────────────────────────────────
+  // ── Simulator effective exchange rate (manual override or PO-derived) ──
+  const effectiveXr = useMemo(() => {
+    const manual = parseFloat(simXrStr);
+    if (manual > 0) return manual;
+    return xrUsd;
+  }, [simXrStr, xrUsd]);
+
+  // ── Sell price simulator (IDR input) ────────────────────────────────
   const sim = useMemo(() => {
-    const price = parseFloat(simPrice);
-    if (!price || isNaN(price) || !xrUsd) return null;
-    const sellIdr   = price * xrUsd;
-    const gm        = tucIdr ? ((sellIdr - tucIdr) / sellIdr) * 100 : null;
-    const markup     = tucIdr ? ((sellIdr - tucIdr) / tucIdr) * 100 : null;
-    const mktAvgUsd  = market?.weightedAvgIdr && xrUsd ? market.weightedAvgIdr / xrUsd : null;
-    const vsMarket   = mktAvgUsd ? ((price - mktAvgUsd) / mktAvgUsd) * 100 : null;
-    return { sellIdr, gm, markup, vsMarket };
-  }, [simPrice, xrUsd, tucIdr, market]);
+    const priceIdr = parseFloat(simPriceIdr);
+    if (!priceIdr || isNaN(priceIdr) || !effectiveXr) return null;
+    const priceUsd  = priceIdr / effectiveXr;
+    const gm        = tucIdr ? ((priceIdr - tucIdr) / priceIdr) * 100 : null;
+    const markup    = tucIdr ? ((priceIdr - tucIdr) / tucIdr) * 100 : null;
+    const mktAvgIdr = market?.weightedAvgIdr ?? null;
+    const vsMarket  = mktAvgIdr ? ((priceIdr - mktAvgIdr) / mktAvgIdr) * 100 : null;
+    return { priceIdr, priceUsd, gm, markup, vsMarket };
+  }, [simPriceIdr, effectiveXr, tucIdr, market]);
+
+  // ── Target margin reverse calculator ────────────────────────────────
+  const targetPriceIdr = useMemo(() => {
+    const margin = parseFloat(targetMarginPct) / 100;
+    if (!margin || isNaN(margin) || margin >= 1 || !tucIdr || !effectiveXr) return null;
+    const priceIdr = tucIdr / (1 - margin);
+    const priceUsd = priceIdr / effectiveXr;
+    return { priceIdr, priceUsd };
+  }, [targetMarginPct, tucIdr, effectiveXr]);
 
   // ── Pricing tiers ────────────────────────────────────────────────────
   const minMargin = parseFloat(minMarginPct) / 100 || 0.15;
@@ -468,16 +502,29 @@ export default function PricingIntelligence({
                   <h3 className="text-sm font-bold text-white">Pricing Tiers</h3>
                   <p className="text-xs text-slate-500 mt-0.5">Based on TUC + market data. Gross margin = (Sell − TUC) / Sell.</p>
                 </div>
-                <label className="flex items-center gap-2 text-xs text-slate-400 flex-shrink-0">
-                  <span className="font-semibold">Min. margin floor:</span>
-                  <input
-                    type="number" min="0" max="100" step="1"
-                    value={minMarginPct}
-                    onChange={(e) => setMinMarginPct(e.target.value)}
-                    className="w-16 px-2 py-1 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs focus:outline-none focus:ring-2 focus:ring-sky-500/30"
-                  />
-                  <span>%</span>
-                </label>
+                <div className="flex items-center gap-3 flex-wrap justify-end">
+                  {/* IDR / USD toggle */}
+                  <div className="flex rounded-lg overflow-hidden border border-slate-700 text-[11px] font-semibold">
+                    <button
+                      onClick={() => setTierShowIdr(false)}
+                      className={`px-3 py-1.5 transition-colors ${!tierShowIdr ? 'bg-sky-500/20 text-sky-300' : 'bg-slate-800/60 text-slate-400 hover:text-slate-300'}`}
+                    >USD</button>
+                    <button
+                      onClick={() => setTierShowIdr(true)}
+                      className={`px-3 py-1.5 transition-colors ${tierShowIdr ? 'bg-sky-500/20 text-sky-300' : 'bg-slate-800/60 text-slate-400 hover:text-slate-300'}`}
+                    >IDR</button>
+                  </div>
+                  <label className="flex items-center gap-2 text-xs text-slate-400 flex-shrink-0">
+                    <span className="font-semibold">Min. margin:</span>
+                    <input
+                      type="number" min="0" max="100" step="1"
+                      value={minMarginPct}
+                      onChange={(e) => setMinMarginPct(e.target.value)}
+                      className="w-14 px-2 py-1 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+                    />
+                    <span>%</span>
+                  </label>
+                </div>
               </div>
               <PriceBand tucIdr={tucIdr} xrUsd={xrUsd} floorUsd={tiers.floor} market={market} />
               <div className="overflow-x-auto">
@@ -485,8 +532,9 @@ export default function PricingIntelligence({
                   <thead>
                     <tr className="border-b border-slate-700">
                       <th className="text-left py-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-slate-500">Tier</th>
-                      <th className="text-left py-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-slate-500">USD/unit</th>
-                      <th className="text-left py-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-slate-500">IDR equiv.</th>
+                      <th className="text-left py-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                        {tierShowIdr ? 'IDR / unit' : 'USD / unit'}
+                      </th>
                       <th className="text-left py-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-slate-500">Gross Margin</th>
                       <th className="text-left py-2 pr-4 text-[11px] font-bold uppercase tracking-wider text-slate-500">Markup</th>
                       <th className="text-left py-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">vs Market</th>
@@ -500,22 +548,23 @@ export default function PricingIntelligence({
                       xr={xrUsd}
                       tucIdr={tucIdr}
                       marketAvgUsd={marketAvgUsd}
+                      primaryIdr={tierShowIdr}
                     />
                     {tiers.economy !== null && (
-                      <TierRow label="Economy" desc="Match market low" sellUsd={tiers.economy} xr={xrUsd} tucIdr={tucIdr} marketAvgUsd={marketAvgUsd} />
+                      <TierRow label="Economy" desc="Match market low" sellUsd={tiers.economy} xr={xrUsd} tucIdr={tucIdr} marketAvgUsd={marketAvgUsd} primaryIdr={tierShowIdr} />
                     )}
                     {tiers.competitive !== null && (
-                      <TierRow label="Competitive" desc="3% below market avg" sellUsd={tiers.competitive} xr={xrUsd} tucIdr={tucIdr} marketAvgUsd={marketAvgUsd} />
+                      <TierRow label="Competitive" desc="3% below market avg" sellUsd={tiers.competitive} xr={xrUsd} tucIdr={tucIdr} marketAvgUsd={marketAvgUsd} primaryIdr={tierShowIdr} />
                     )}
                     {tiers.standard !== null && (
-                      <TierRow label="Standard" desc="At market avg (+2%)" sellUsd={tiers.standard} xr={xrUsd} tucIdr={tucIdr} marketAvgUsd={marketAvgUsd} />
+                      <TierRow label="Standard" desc="At market avg (+2%)" sellUsd={tiers.standard} xr={xrUsd} tucIdr={tucIdr} marketAvgUsd={marketAvgUsd} primaryIdr={tierShowIdr} />
                     )}
                     {tiers.premium !== null && (
-                      <TierRow label="Premium" desc="Above market high (+5%)" sellUsd={tiers.premium} xr={xrUsd} tucIdr={tucIdr} marketAvgUsd={marketAvgUsd} />
+                      <TierRow label="Premium" desc="Above market high (+5%)" sellUsd={tiers.premium} xr={xrUsd} tucIdr={tucIdr} marketAvgUsd={marketAvgUsd} primaryIdr={tierShowIdr} />
                     )}
                     {!market && (
                       <tr>
-                        <td colSpan={6} className="py-4 text-center text-xs text-slate-600">
+                        <td colSpan={5} className="py-4 text-center text-xs text-slate-600">
                           Add competitor prices in Market Intel to unlock Economy / Competitive / Standard / Premium tiers
                         </td>
                       </tr>
@@ -530,48 +579,118 @@ export default function PricingIntelligence({
             </div>
           )}
 
-          {/* ── Sell price simulator ── */}
+          {/* ── Sell price simulator + target margin calculator ── */}
           {tucIdr && xrUsd && (
-            <div className="bg-[#0d1829] border border-slate-800/80 rounded-2xl p-5 md:p-6">
-              <h3 className="text-sm font-bold text-white mb-1">Sell Price Simulator</h3>
-              <p className="text-xs text-slate-500 mb-4">Enter any sell price to instantly see your margin and market positioning.</p>
-              <div className="flex flex-col sm:flex-row gap-4 items-start">
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-slate-400 font-semibold">USD</span>
+            <div className="bg-[#0d1829] border border-slate-800/80 rounded-2xl p-5 md:p-6 space-y-5">
+              <div>
+                <h3 className="text-sm font-bold text-white mb-0.5">Sell Price Tools</h3>
+                <p className="text-xs text-slate-500">Simulate any sell price in IDR, or reverse-calculate from a target margin.</p>
+              </div>
+
+              {/* FX rate override */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-xs text-slate-400 font-semibold flex-shrink-0">USD/IDR rate:</span>
+                <div className="flex items-center gap-2">
                   <input
-                    type="number" min="0" step="0.01"
-                    value={simPrice}
-                    onChange={(e) => setSimPrice(e.target.value)}
-                    placeholder="0.00"
-                    className="w-36 px-4 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-base font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500"
+                    type="number" min="1" step="1"
+                    value={simXrStr}
+                    onChange={(e) => setSimXrStr(e.target.value)}
+                    placeholder={xrUsd ? xrUsd.toLocaleString() : '—'}
+                    className="w-32 px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs font-mono focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500/50"
                   />
+                  {simXrStr && parseFloat(simXrStr) > 0 && (
+                    <>
+                      <span className="text-[11px] text-amber-400 font-semibold">custom rate active</span>
+                      <button onClick={() => setSimXrStr('')} className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors">reset</button>
+                    </>
+                  )}
+                  {(!simXrStr || !(parseFloat(simXrStr) > 0)) && (
+                    <span className="text-[11px] text-slate-600">from PO — override for scenario planning</span>
+                  )}
                 </div>
-                {sim ? (
-                  <div className="flex flex-wrap gap-3">
-                    <div className={`rounded-xl border px-4 py-2 ${marginBg(sim.gm ?? 0)}`}>
-                      <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">Gross Margin</p>
-                      <p className={`text-lg font-extrabold ${marginColor(sim.gm ?? 0)}`}>{sim.gm !== null ? pct(sim.gm) : '—'}</p>
-                    </div>
-                    <div className="rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-2">
-                      <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">Markup</p>
-                      <p className="text-lg font-extrabold text-white">{sim.markup !== null ? pct(sim.markup) : '—'}</p>
-                    </div>
-                    <div className="rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-2">
-                      <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">≈ IDR</p>
-                      <p className="text-sm font-bold text-slate-300">{fmtIdr(sim.sellIdr)}</p>
-                    </div>
-                    {sim.vsMarket !== null && (
-                      <div className={`rounded-xl border px-4 py-2 ${sim.vsMarket < -5 ? 'bg-sky-500/10 border-sky-500/20' : sim.vsMarket > 10 ? 'bg-violet-500/10 border-violet-500/20' : 'bg-slate-900/60 border-slate-700'}`}>
-                        <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">vs Market Avg</p>
-                        <p className={`text-lg font-extrabold ${sim.vsMarket < -5 ? 'text-sky-400' : sim.vsMarket > 10 ? 'text-violet-400' : 'text-slate-300'}`}>
-                          {pct(sim.vsMarket)}
-                        </p>
-                      </div>
-                    )}
+              </div>
+
+              {/* Simulator: IDR input */}
+              <div>
+                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-2">Price Simulator</p>
+                <div className="flex flex-col sm:flex-row gap-4 items-start">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-slate-400 font-semibold w-8">IDR</span>
+                    <input
+                      type="number" min="0" step="1000"
+                      value={simPriceIdr}
+                      onChange={(e) => setSimPriceIdr(e.target.value)}
+                      placeholder="e.g. 1,200,000"
+                      className="w-44 px-4 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-base font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500"
+                    />
                   </div>
-                ) : (
-                  <p className="text-slate-600 text-sm self-center">Enter a price to see results</p>
-                )}
+                  {sim ? (
+                    <div className="flex flex-wrap gap-3">
+                      <div className={`rounded-xl border px-4 py-2 ${marginBg(sim.gm ?? 0)}`}>
+                        <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">Gross Margin</p>
+                        <p className={`text-lg font-extrabold ${marginColor(sim.gm ?? 0)}`}>{sim.gm !== null ? pct(sim.gm) : '—'}</p>
+                      </div>
+                      <div className="rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-2">
+                        <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">Markup</p>
+                        <p className="text-lg font-extrabold text-white">{sim.markup !== null ? pct(sim.markup) : '—'}</p>
+                      </div>
+                      <div className="rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-2">
+                        <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">≈ USD</p>
+                        <p className="text-sm font-bold text-slate-300">USD {fmtNum(sim.priceUsd)}</p>
+                        <p className="text-[10px] text-slate-600">@ {(effectiveXr ?? xrUsd)?.toLocaleString()}/USD</p>
+                      </div>
+                      {sim.vsMarket !== null && (
+                        <div className={`rounded-xl border px-4 py-2 ${sim.vsMarket < -5 ? 'bg-sky-500/10 border-sky-500/20' : sim.vsMarket > 10 ? 'bg-violet-500/10 border-violet-500/20' : 'bg-slate-900/60 border-slate-700'}`}>
+                          <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">vs Market Avg</p>
+                          <p className={`text-lg font-extrabold ${sim.vsMarket < -5 ? 'text-sky-400' : sim.vsMarket > 10 ? 'text-violet-400' : 'text-slate-300'}`}>
+                            {pct(sim.vsMarket)}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-slate-600 text-sm self-center">Enter an IDR price to see results</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Target margin reverse calculator */}
+              <div className="border-t border-slate-800 pt-4">
+                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-2">Target Margin → Price</p>
+                <div className="flex flex-col sm:flex-row gap-4 items-start">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number" min="1" max="99" step="1"
+                      value={targetMarginPct}
+                      onChange={(e) => setTargetMarginPct(e.target.value)}
+                      placeholder="e.g. 30"
+                      className="w-24 px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white text-base font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500/50"
+                    />
+                    <span className="text-sm text-slate-400 font-semibold">% margin</span>
+                  </div>
+                  {targetPriceIdr ? (
+                    <div className="flex flex-wrap gap-3">
+                      <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2">
+                        <p className="text-[10px] text-emerald-600 uppercase font-bold tracking-wider mb-0.5">Sell Price (IDR)</p>
+                        <p className="text-lg font-extrabold text-emerald-300">{fmtIdr(targetPriceIdr.priceIdr)}</p>
+                      </div>
+                      <div className="rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-2">
+                        <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">≈ USD</p>
+                        <p className="text-sm font-bold text-slate-300">USD {fmtNum(targetPriceIdr.priceUsd)}</p>
+                      </div>
+                      {market?.weightedAvgIdr && (
+                        <div className="rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-2">
+                          <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">vs Market Avg</p>
+                          <p className={`text-sm font-bold ${vsTucColor(((targetPriceIdr.priceIdr - market.weightedAvgIdr) / market.weightedAvgIdr) * 100)}`}>
+                            {pct(((targetPriceIdr.priceIdr - market.weightedAvgIdr) / market.weightedAvgIdr) * 100)}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-slate-600 text-sm self-center">Enter a target gross margin % to get the required price</p>
+                  )}
+                </div>
               </div>
             </div>
           )}
