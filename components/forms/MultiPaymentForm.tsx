@@ -52,7 +52,7 @@ export default function MultiPaymentForm({ pos, onSuccess, onError }: Props) {
   }, [pos, poSearch]);
 
   const selectedPos = useMemo(
-    () => pos.filter((p) => selectedIds.includes(p.po_id)),
+    () => pos.filter((p) => selectedIds.includes(String(p.po_id))),
     [pos, selectedIds]
   );
 
@@ -62,7 +62,7 @@ export default function MultiPaymentForm({ pos, onSuccess, onError }: Props) {
     for (const po of selectedPos) {
       const val = Number(po.total_value) || 0;
       const xr  = Number(po.exchange_rate) || 1;
-      r[po.po_id] = po.currency === 'IDR' ? val : val * xr;
+      r[String(po.po_id)] = po.currency === 'IDR' ? val : val * xr;
     }
     return r;
   }, [selectedPos]);
@@ -78,13 +78,14 @@ export default function MultiPaymentForm({ pos, onSuccess, onError }: Props) {
   const allocations = useMemo(() => {
     const r: Record<string, number> = {};
     for (const po of selectedPos) {
-      if (overrides[po.po_id] !== undefined) {
-        r[po.po_id] = parseFloat(overrides[po.po_id]) || 0;
+      const key = String(po.po_id);
+      if (overrides[key] !== undefined) {
+        r[key] = parseFloat(overrides[key]) || 0;
       } else {
         const share = totalIdrValue > 0
-          ? (poIdrValues[po.po_id] ?? 0) / totalIdrValue
+          ? (poIdrValues[key] ?? 0) / totalIdrValue
           : 1 / (selectedPos.length || 1);
-        r[po.po_id] = Math.round(totalAmount * share);
+        r[key] = Math.round(totalAmount * share);
       }
     }
     return r;
@@ -100,10 +101,11 @@ export default function MultiPaymentForm({ pos, onSuccess, onError }: Props) {
       const feeTotal = parseFloat(fee.amountStr) || 0;
       r[fee.uid] = {};
       for (const po of selectedPos) {
+        const key = String(po.po_id);
         const share = totalIdrValue > 0
-          ? (poIdrValues[po.po_id] ?? 0) / totalIdrValue
+          ? (poIdrValues[key] ?? 0) / totalIdrValue
           : 1 / (selectedPos.length || 1);
-        r[fee.uid][po.po_id] = Math.round(feeTotal * share);
+        r[fee.uid][key] = Math.round(feeTotal * share);
       }
     }
     return r;
@@ -163,7 +165,8 @@ export default function MultiPaymentForm({ pos, onSuccess, onError }: Props) {
     const costRows: Record<string, unknown>[] = [];
 
     for (const po of selectedPos) {
-      const amount = allocations[po.po_id] ?? 0;
+      const key    = String(po.po_id);
+      const amount = allocations[key] ?? 0;
       if (amount > 0) {
         costRows.push({ po_id: po.po_id, cost_category: costCategory, amount, currency: 'IDR', payment_date: paymentDate, notes: bankRef || null, batch_id: batchId });
       }
@@ -173,7 +176,8 @@ export default function MultiPaymentForm({ pos, onSuccess, onError }: Props) {
       const feeTotal = parseFloat(fee.amountStr) || 0;
       if (feeTotal <= 0) continue;
       for (const po of selectedPos) {
-        const amount = feeAllocations[fee.uid]?.[po.po_id] ?? 0;
+        const key    = String(po.po_id);
+        const amount = feeAllocations[fee.uid]?.[key] ?? 0;
         if (amount > 0) {
           costRows.push({ po_id: po.po_id, cost_category: fee.category, amount, currency: 'IDR', payment_date: paymentDate, notes: bankRef || null, batch_id: batchId });
         }
@@ -212,11 +216,12 @@ export default function MultiPaymentForm({ pos, onSuccess, onError }: Props) {
         />
         <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
           {filteredPos.map((po) => {
-            const idrVal   = poIdrValues[po.po_id] ?? (po.currency === 'IDR' ? Number(po.total_value) : 0);
-            const selected = selectedIds.includes(po.po_id);
+            const key      = String(po.po_id);
+            const idrVal   = poIdrValues[key] ?? (po.currency === 'IDR' ? Number(po.total_value) : 0);
+            const selected = selectedIds.includes(key);
             return (
-              <label key={po.po_id} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-colors border ${selected ? 'bg-rose-500/10 border-rose-500/30' : 'bg-slate-800/40 border-transparent hover:bg-slate-800/60'}`}>
-                <input type="checkbox" checked={selected} onChange={() => togglePo(po.po_id)} className="accent-rose-500 flex-shrink-0" />
+              <label key={key} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-colors border ${selected ? 'bg-rose-500/10 border-rose-500/30' : 'bg-slate-800/40 border-transparent hover:bg-slate-800/60'}`}>
+                <input type="checkbox" checked={selected} onChange={() => togglePo(key)} className="accent-rose-500 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-white">{po.po_number}</div>
                   {po.pi_number && <div className="text-xs text-slate-400">{po.pi_number}</div>}
@@ -296,27 +301,28 @@ export default function MultiPaymentForm({ pos, onSuccess, onError }: Props) {
               </thead>
               <tbody>
                 {selectedPos.map((po) => {
-                  const share      = totalIdrValue > 0 ? ((poIdrValues[po.po_id] ?? 0) / totalIdrValue) * 100 : 100 / selectedPos.length;
-                  const allocated  = allocations[po.po_id] ?? 0;
-                  const overridden = overrides[po.po_id] !== undefined;
+                  const key        = String(po.po_id);
+                  const share      = totalIdrValue > 0 ? ((poIdrValues[key] ?? 0) / totalIdrValue) * 100 : 100 / selectedPos.length;
+                  const allocated  = allocations[key] ?? 0;
+                  const overridden = overrides[key] !== undefined;
                   return (
-                    <tr key={po.po_id} className="border-b border-slate-800/60">
+                    <tr key={key} className="border-b border-slate-800/60">
                       <td className="py-2.5 pr-4">
                         <div className="font-semibold text-white text-xs">{po.po_number}</div>
                         {po.pi_number && <div className="text-[10px] text-slate-500">{po.pi_number}</div>}
                       </td>
-                      <td className="py-2.5 pr-4 text-xs text-slate-400">{fmtIdr(poIdrValues[po.po_id] ?? 0)}</td>
+                      <td className="py-2.5 pr-4 text-xs text-slate-400">{fmtIdr(poIdrValues[key] ?? 0)}</td>
                       <td className="py-2.5 pr-4 text-xs text-slate-400">{share.toFixed(1)}%</td>
                       <td className="py-2.5">
                         <div className="flex items-center gap-2">
                           <input
                             type="number" min="0" step="1000"
-                            value={overridden ? overrides[po.po_id] : String(allocated)}
-                            onChange={(e) => setOverrides((prev) => ({ ...prev, [po.po_id]: e.target.value }))}
+                            value={overridden ? overrides[key] : String(allocated)}
+                            onChange={(e) => setOverrides((prev) => ({ ...prev, [key]: e.target.value }))}
                             className={`w-44 px-2 py-1 bg-slate-950 border rounded-lg text-xs text-white focus:outline-none focus:ring-2 focus:ring-rose-500/30 ${overridden ? 'border-amber-500/60' : 'border-slate-700'}`}
                           />
                           {overridden && (
-                            <button onClick={() => clearOverride(po.po_id)} className="text-[10px] text-slate-500 hover:text-slate-300 whitespace-nowrap">
+                            <button onClick={() => clearOverride(key)} className="text-[10px] text-slate-500 hover:text-slate-300 whitespace-nowrap">
                               ↺ auto
                             </button>
                           )}
@@ -380,9 +386,9 @@ export default function MultiPaymentForm({ pos, onSuccess, onError }: Props) {
                 {parseFloat(fee.amountStr) > 0 && selectedPos.length > 1 && (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-0.5 mt-1">
                     {selectedPos.map((po) => (
-                      <div key={po.po_id} className="flex justify-between text-[11px]">
+                      <div key={String(po.po_id)} className="flex justify-between text-[11px]">
                         <span className="text-slate-500 truncate mr-2">{po.po_number}</span>
-                        <span className="text-slate-300">{fmtIdr(feeAllocations[fee.uid]?.[po.po_id] ?? 0)}</span>
+                        <span className="text-slate-300">{fmtIdr(feeAllocations[fee.uid]?.[String(po.po_id)] ?? 0)}</span>
                       </div>
                     ))}
                   </div>
