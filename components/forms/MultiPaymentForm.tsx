@@ -11,9 +11,9 @@
 import React, { useState, useMemo } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 import type { PurchaseOrder, Supplier, PriceQuote } from '@/types/database';
+import { ENUMS } from '@/constants/enums';
 
-const PRINCIPAL_CATS = ['down_payment', 'balance_payment', 'additional_balance_payment', 'overpayment_credit'];
-const BANK_FEE_CATS  = ['full_amount_bank_fee', 'telex_bank_fee', 'value_today_bank_fee', 'admin_bank_fee', 'inter_bank_transfer_fee'];
+const ALL_COST_CATS = ENUMS.po_cost_category as readonly string[];
 
 const fmtIdr = (n: number) => 'IDR ' + Math.round(n).toLocaleString('en-US');
 
@@ -279,7 +279,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, onSuccess, on
                 value={costCategory} onChange={(e) => setCostCategory(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-rose-500/30"
               >
-                {PRINCIPAL_CATS.map((c) => <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>)}
+                {ALL_COST_CATS.map((c) => <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>)}
               </select>
             </div>
             <div>
@@ -406,7 +406,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, onSuccess, on
                     value={fee.category} onChange={(e) => updateFee(fee.uid, { category: e.target.value })}
                     className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none"
                   >
-                    {BANK_FEE_CATS.map((c) => <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>)}
+                    {ALL_COST_CATS.map((c) => <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>)}
                   </select>
                   <input
                     type="number" min="0" step="500" value={fee.amountStr}
