@@ -142,6 +142,16 @@ export interface PurchaseLineItem extends BaseEntity {
   currency: Currency;
 }
 
+// payment_batches: one row per bank wire / remittance (may cover multiple POs)
+export interface PaymentBatch extends BaseEntity {
+  batch_id: string;       // UUID
+  batch_date: string;
+  total_amount: number;
+  currency: Currency;
+  bank_reference?: string;
+  notes?: string;
+}
+
 // Unified PO Costs (replaces 7.0 Payment Details + 7.1 Landed Costs)
 export interface POCost extends BaseEntity {
   cost_id: string;
@@ -151,6 +161,7 @@ export interface POCost extends BaseEntity {
   currency: Currency;
   payment_date?: string;
   notes?: string;
+  batch_id?: string;      // FK → payment_batches (set when part of a multi-PO remittance)
 }
 
 // 7.0 Competitor Prices (Market Intelligence)
