@@ -72,7 +72,12 @@ function MasterInsertPage() {
         txt: `${q.pi_number || 'No Ref'} | ${q.currency} ${q.total_value}`,
       })),
       pis: data.pis.map((p) => ({ val: p.pi_id, txt: `${p.pi_number} (${p.pi_date})` })),
-      pos: data.pos.map((p) => ({ val: p.po_id, txt: `${p.po_number} - ${p.po_date}${p.pi_number ? ` | PI: ${p.pi_number}` : ''}` })),
+      pos: data.pos.map((p) => {
+        const quote    = p.quote_id ? data.quotes.find((q) => String(q.quote_id) === String(p.quote_id)) : null;
+        const supplier = quote ? data.suppliers.find((s) => s.supplier_id === quote.supplier_id) : null;
+        const code     = supplier?.supplier_code ? `[${supplier.supplier_code}] ` : '';
+        return { val: p.po_id, txt: `${code}${p.po_number} - ${p.po_date}${p.pi_number ? ` | PI: ${p.pi_number}` : ''}` };
+      }),
     }),
     [data]
   );
@@ -488,6 +493,8 @@ function MasterInsertPage() {
                   {paymentMode === 'batch' && (
                     <MultiPaymentForm
                       pos={data.pos}
+                      suppliers={data.suppliers}
+                      quotes={data.quotes}
                       onSuccess={() => { showToast('✅ Batch payment saved!', 'success'); refetch(); }}
                       onError={(msg) => showToast(`Error: ${msg}`, 'error')}
                     />
