@@ -304,6 +304,24 @@ export default function PricingIntelligence({
     return { tucIdr: avgTuc, xrUsd: xr, latestPoDate: latestDate };
   }, [selected, poItems, pos, poCosts]);
 
+  // ── Supplier quote history for this component ───────────────────────
+  const quoteHistory = useMemo(() => {
+    if (!selected) return [];
+
+    interface QuoteRow extends PriceQuoteLineItem {
+      quote: PriceQuote;
+    }
+
+    return quoteItems
+      .filter((qi) => qi.component_id === selected.component_id)
+      .map((qi): QuoteRow | null => {
+        const q = quotes.find((qr) => qr.quote_id === qi.quote_id);
+        return q ? { ...qi, quote: q } : null;
+      })
+      .filter((qi): qi is QuoteRow => qi !== null)
+      .sort((a, b) => b.quote.quote_date.localeCompare(a.quote.quote_date));
+  }, [selected, quoteItems, quotes]);
+
   // ── All competitor prices for this component (raw, sorted by date) ───
   const compPrices = useMemo(() => {
     if (!selected) return [];
@@ -817,6 +835,80 @@ export default function PricingIntelligence({
               </div>
             )}
           </div>
+
+          {/* ── Supplier quote history ── */}
+          {quoteHistory.length > 0 && (
+            <div className="bg-[#0d1829] border border-slate-800/80 rounded-2xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-800">
+                <h3 className="text-sm font-bold text-white">Supplier Quote History ({quoteHistory.length})</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Prices quoted by suppliers for this component · IDR equiv. uses current PO rate
+                  {xrUsd ? ` @ ${xrUsd.toLocaleString()}/USD` : ''}
+                </p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-xs">
+                  <thead className="bg-slate-900/60">
+                    <tr>
+                      {['Date', 'PI / Quote #', 'Quoted Price', 'IDR Equiv.', 'vs TUC', 'Qty', 'Status'].map((h) => (
+                        <th key={h} className="px-4 py-2.5 text-left font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {quoteHistory.map((qi) => {
+                      const idrEquiv = qi.currency === 'IDR'
+                        ? qi.unit_price
+                        : qi.currency === 'USD' && xrUsd
+                          ? qi.unit_price * xrUsd
+                          : null;
+                      const vsTucPct = tucIdr && idrEquiv ? (idrEquiv / tucIdr) * 100 - 100 : null;
+                      const statusColor =
+                        qi.quote.status === 'Accepted' ? 'text-emerald-400' :
+                        qi.quote.status === 'Rejected' || qi.quote.status === 'Expired' ? 'text-slate-600' :
+                        qi.quote.status === 'Replaced' ? 'text-slate-500' :
+                        'text-amber-400';
+
+                      return (
+                        <tr key={qi.quote_line_id} className="hover:bg-slate-800/20 transition-colors">
+                          <td className="px-4 py-3 text-slate-400 whitespace-nowrap">
+                            {fmtDate(qi.quote.quote_date)}
+                          </td>
+                          <td className="px-4 py-3">
+                            {qi.quote.pi_number
+                              ? <div className="font-semibold text-white">{qi.quote.pi_number}</div>
+                              : <div className="text-slate-500">Quote #{qi.quote_id}</div>
+                            }
+                          </td>
+                          <td className="px-4 py-3 font-semibold text-white whitespace-nowrap">
+                            {qi.currency} {fmtNum(qi.unit_price)}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            {idrEquiv !== null ? (
+                              <span className="text-slate-400">{fmtIdr(idrEquiv)}</span>
+                            ) : (
+                              <span className="text-slate-600">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            {vsTucPct !== null ? (
+                              <span className={`font-semibold ${vsTucColor(vsTucPct)}`}>{pct(vsTucPct)}</span>
+                            ) : <span className="text-slate-600">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-slate-400 text-right tabular-nums">
+                            {qi.quantity.toLocaleString()}
+                          </td>
+                          <td className={`px-4 py-3 font-semibold ${statusColor}`}>
+                            {qi.quote.status ?? '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

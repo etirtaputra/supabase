@@ -10,6 +10,7 @@ export const ENUMS = {
     'accessories',
     'batteries',
     'box_bsp',
+    'ev_charger',
     'inverter_charger',
     'mounting',
     'non_stock',
