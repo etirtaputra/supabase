@@ -10,7 +10,7 @@
 'use client';
 import React, { useState, useMemo } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
-import type { PurchaseOrder } from '@/types/database';
+import type { PurchaseOrder, Supplier, PriceQuote } from '@/types/database';
 
 const PRINCIPAL_CATS = ['down_payment', 'balance_payment', 'additional_balance_payment', 'overpayment_credit'];
 const BANK_FEE_CATS  = ['full_amount_bank_fee', 'telex_bank_fee', 'value_today_bank_fee', 'admin_bank_fee', 'inter_bank_transfer_fee'];
@@ -25,11 +25,13 @@ interface FeeItem {
 
 interface Props {
   pos: PurchaseOrder[];
+  suppliers: Supplier[];
+  quotes: PriceQuote[];
   onSuccess: () => void;
   onError: (msg: string) => void;
 }
 
-export default function MultiPaymentForm({ pos, onSuccess, onError }: Props) {
+export default function MultiPaymentForm({ pos, suppliers, quotes, onSuccess, onError }: Props) {
   const [poSearch,       setPoSearch]       = useState('');
   const [selectedIds,    setSelectedIds]    = useState<string[]>([]);
   const [costCategory,   setCostCategory]   = useState('balance_payment');
@@ -40,16 +42,33 @@ export default function MultiPaymentForm({ pos, onSuccess, onError }: Props) {
   const [fees,           setFees]           = useState<FeeItem[]>([]);
   const [submitting,     setSubmitting]     = useState(false);
 
+  // ── Supplier code lookup: po_id → supplier_code ───────────────────────
+  const poSupplierCode = useMemo(() => {
+    const r: Record<string, string> = {};
+    for (const po of pos) {
+      if (!po.quote_id) continue;
+      const quote = quotes.find((q) => String(q.quote_id) === String(po.quote_id));
+      if (!quote) continue;
+      const supplier = suppliers.find((s) => s.supplier_id === quote.supplier_id);
+      if (supplier?.supplier_code) r[String(po.po_id)] = supplier.supplier_code;
+    }
+    return r;
+  }, [pos, quotes, suppliers]);
+
   // ── PO list (filtered) ────────────────────────────────────────────────
   const filteredPos = useMemo(() => {
     const q = poSearch.toLowerCase().trim();
     const sorted = [...pos].sort((a, b) => b.po_date.localeCompare(a.po_date));
     if (!q) return sorted.slice(0, 40);
-    return sorted.filter((p) =>
-      p.po_number?.toLowerCase().includes(q) ||
-      p.pi_number?.toLowerCase().includes(q)
-    ).slice(0, 40);
-  }, [pos, poSearch]);
+    return sorted.filter((p) => {
+      const code = poSupplierCode[String(p.po_id)]?.toLowerCase() ?? '';
+      return (
+        p.po_number?.toLowerCase().includes(q) ||
+        p.pi_number?.toLowerCase().includes(q) ||
+        code.includes(q)
+      );
+    }).slice(0, 40);
+  }, [pos, poSearch, poSupplierCode]);
 
   const selectedPos = useMemo(
     () => pos.filter((p) => selectedIds.includes(String(p.po_id))),
@@ -223,7 +242,14 @@ export default function MultiPaymentForm({ pos, onSuccess, onError }: Props) {
               <label key={key} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-colors border ${selected ? 'bg-rose-500/10 border-rose-500/30' : 'bg-slate-800/40 border-transparent hover:bg-slate-800/60'}`}>
                 <input type="checkbox" checked={selected} onChange={() => togglePo(key)} className="accent-rose-500 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-white">{po.po_number}</div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {poSupplierCode[key] && (
+                      <span className="inline-block px-1.5 py-0.5 bg-sky-500/15 border border-sky-500/30 text-sky-300 text-[10px] font-bold rounded leading-none flex-shrink-0">
+                        {poSupplierCode[key]}
+                      </span>
+                    )}
+                    <span className="text-sm font-semibold text-white">{po.po_number}</span>
+                  </div>
                   {po.pi_number && <div className="text-xs text-slate-400">{po.pi_number}</div>}
                 </div>
                 <div className="text-right flex-shrink-0">
@@ -308,7 +334,14 @@ export default function MultiPaymentForm({ pos, onSuccess, onError }: Props) {
                   return (
                     <tr key={key} className="border-b border-slate-800/60">
                       <td className="py-2.5 pr-4">
-                        <div className="font-semibold text-white text-xs">{po.po_number}</div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {poSupplierCode[key] && (
+                            <span className="inline-block px-1.5 py-0.5 bg-sky-500/15 border border-sky-500/30 text-sky-300 text-[10px] font-bold rounded leading-none flex-shrink-0">
+                              {poSupplierCode[key]}
+                            </span>
+                          )}
+                          <span className="font-semibold text-white text-xs">{po.po_number}</span>
+                        </div>
                         {po.pi_number && <div className="text-[10px] text-slate-500">{po.pi_number}</div>}
                       </td>
                       <td className="py-2.5 pr-4 text-xs text-slate-400">{fmtIdr(poIdrValues[key] ?? 0)}</td>
