@@ -11,6 +11,7 @@ import SimpleForm from '@/components/forms/SimpleForm';
 import BatchLineItemsForm from '@/components/forms/BatchLineItemsForm';
 import ComponentEditor from '@/components/ui/ComponentEditor';
 import CompetitorPriceForm from '@/components/forms/CompetitorPriceForm';
+import MultiPaymentForm from '@/components/forms/MultiPaymentForm';
 import { ToastContainer } from '@/components/ui/Toast';
 import { ToastProvider } from '@/hooks/useToast';
 import { FormSkeleton } from '@/components/ui/LoadingSkeleton';
@@ -51,6 +52,7 @@ function MasterInsertPage() {
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [loading, setLoading] = useState(false);
   const [pdfData, setPdfData] = useState<any>(null);
+  const [paymentMode, setPaymentMode] = useState<'single' | 'batch'>('single');
   const [pdfUploading, setPdfUploading] = useState(false);
 
   const { data, loading: dataLoading, refetch } = useSupabaseData();
@@ -446,21 +448,50 @@ function MasterInsertPage() {
 
               {/* Financials Tab */}
               {activeTab === 'financials' && (
-                <div className="max-w-3xl">
-                  <BatchLineItemsForm
-                    title="PO Costs (Payments, Bank Fees & Landed Costs)"
-                    parentField={{ name: 'po_id', label: 'Select PO', options: options.pos }}
-                    itemFields={[
-                      { name: 'cost_category', label: 'Cost Category', type: 'select', options: ENUMS.po_cost_category, req: true },
-                      { name: 'amount', label: 'Amount', type: 'number', req: true },
-                      { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true },
-                      { name: 'payment_date', label: 'Date', type: 'date' },
-                      { name: 'notes', label: 'Notes', type: 'text' },
-                    ]}
-                    stickyFields={['currency', 'payment_date']}
-                    onSubmit={(items) => handleInsert('6.0_po_costs', items)}
-                    loading={loading}
-                  />
+                <div className="max-w-4xl">
+                  {/* Single / Batch toggle */}
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="flex rounded-xl overflow-hidden border border-slate-700 text-xs font-semibold">
+                      <button
+                        onClick={() => setPaymentMode('single')}
+                        className={`px-4 py-2 transition-colors ${paymentMode === 'single' ? 'bg-rose-500/20 text-rose-300' : 'bg-slate-800/60 text-slate-400 hover:text-slate-300'}`}
+                      >Single PO</button>
+                      <button
+                        onClick={() => setPaymentMode('batch')}
+                        className={`px-4 py-2 transition-colors ${paymentMode === 'batch' ? 'bg-rose-500/20 text-rose-300' : 'bg-slate-800/60 text-slate-400 hover:text-slate-300'}`}
+                      >Multi-PO Batch</button>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      {paymentMode === 'batch'
+                        ? 'One bank transfer covering multiple POs — amounts split proportionally.'
+                        : 'Log payments, bank fees, or landed costs for a single PO.'}
+                    </p>
+                  </div>
+
+                  {paymentMode === 'single' && (
+                    <BatchLineItemsForm
+                      title="PO Costs (Payments, Bank Fees & Landed Costs)"
+                      parentField={{ name: 'po_id', label: 'Select PO', options: options.pos }}
+                      itemFields={[
+                        { name: 'cost_category', label: 'Cost Category', type: 'select', options: ENUMS.po_cost_category, req: true },
+                        { name: 'amount', label: 'Amount', type: 'number', req: true },
+                        { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true },
+                        { name: 'payment_date', label: 'Date', type: 'date' },
+                        { name: 'notes', label: 'Notes', type: 'text' },
+                      ]}
+                      stickyFields={['currency', 'payment_date']}
+                      onSubmit={(items) => handleInsert('6.0_po_costs', items)}
+                      loading={loading}
+                    />
+                  )}
+
+                  {paymentMode === 'batch' && (
+                    <MultiPaymentForm
+                      pos={data.pos}
+                      onSuccess={() => { showToast('✅ Batch payment saved!', 'success'); refetch(); }}
+                      onError={(msg) => showToast(`Error: ${msg}`, 'error')}
+                    />
+                  )}
                 </div>
               )}
 
