@@ -99,7 +99,7 @@ function ComponentSearch({ components, value, onChange }: CompSearchProps) {
           onChange={(e) => { setQ(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
           placeholder="Search our components…"
-          className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500"
+          className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
         />
       )}
       {open && !selected && (
@@ -152,7 +152,7 @@ function Field({ label, req, children }: { label: string; req?: boolean; childre
   );
 }
 
-const inputCls = 'w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-all';
+const inputCls = 'w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all';
 const selectCls = inputCls + ' appearance-none cursor-pointer';
 
 // ─── Comparison panel ───────────────────────────────────────────────────────
@@ -453,7 +453,7 @@ export default function CompetitorPriceForm({
       {/* ── Form ── */}
       <form
         onSubmit={handleSubmit}
-        className="bg-[#0d1829] border border-slate-800/80 rounded-2xl shadow-xl p-5 md:p-6 space-y-6"
+        className="bg-slate-900/40 backdrop-blur-sm border border-slate-800/80 rounded-2xl shadow-xl ring-1 ring-white/5 p-5 md:p-6 space-y-6"
       >
         <div>
           <h2 className="text-base font-bold text-white">Log Competitor / Market Price</h2>
@@ -616,7 +616,7 @@ export default function CompetitorPriceForm({
         <button
           type="submit"
           disabled={loading}
-          className="w-full flex items-center justify-center gap-2 px-6 py-3 text-sm font-bold bg-sky-600 hover:bg-sky-500 text-white rounded-xl shadow-lg shadow-sky-900/20 transition-all disabled:opacity-50 active:scale-[0.98]"
+          className="w-full flex items-center justify-center gap-2 px-6 py-3 text-sm font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow-lg shadow-emerald-900/20 border border-emerald-500/50 transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:transform-none disabled:cursor-not-allowed"
         >
           {loading ? (
             <><span className="animate-spin">⏳</span> Saving…</>

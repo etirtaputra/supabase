@@ -8,7 +8,7 @@ import React, { useState, useEffect, useId } from 'react';
 import FieldRenderer from './FieldRenderer';
 import { Spinner } from '../ui/LoadingSkeleton';
 import type { SimpleFormProps } from '../../types/forms';
-export default function SimpleForm({ title, fields, onSubmit, loading }: SimpleFormProps) {
+export default function SimpleForm({ title, fields, onSubmit, loading, onFieldChange }: SimpleFormProps) {
   const [data, setData] = useState<Record<string, any>>({});
   const formId = useId();
   // Initialize form with default values
@@ -20,7 +20,12 @@ export default function SimpleForm({ title, fields, onSubmit, loading }: SimpleF
     setData(defaults);
   }, [fields]);
   const handleChange = (name: string, value: any) => {
-    setData({ ...data, [name]: value });
+    const updated = { ...data, [name]: value };
+    if (onFieldChange) {
+      const overrides = onFieldChange(name, value, updated);
+      Object.assign(updated, overrides);
+    }
+    setData(updated);
   };
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

@@ -39,6 +39,8 @@ export interface SimpleFormProps {
   fields: FieldConfig[];
   onSubmit: (data: Record<string, any>) => void;
   loading: boolean;
+  /** Called on every field change; return a partial record of fields to auto-update. */
+  onFieldChange?: (name: string, value: any, current: Record<string, any>) => Partial<Record<string, any>>;
 }
 
 // Parent field configuration for BatchLineItemsForm

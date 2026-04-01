@@ -67,10 +67,11 @@ function MasterInsertPage() {
   const options = useMemo(
     () => ({
       companies: data.companies.map((c) => ({ val: c.company_id, txt: c.legal_name })),
-      quotes: data.quotes.map((q) => ({
-        val: q.quote_id,
-        txt: `${q.pi_number || 'No Ref'} | ${q.currency} ${q.total_value}`,
-      })),
+      quotes: data.quotes.map((q) => {
+        const supplier = data.suppliers.find((s) => s.supplier_id === q.supplier_id);
+        const code = supplier?.supplier_code ? `[${supplier.supplier_code}] ` : '';
+        return { val: q.quote_id, txt: `${code}${q.pi_number || 'No Ref'} | ${q.currency} ${q.total_value}` };
+      }),
       pis: data.pis.map((p) => ({ val: p.pi_id, txt: `${p.pi_number} (${p.pi_date})` })),
       pos: data.pos.map((p) => {
         const quote    = p.quote_id ? data.quotes.find((q) => String(q.quote_id) === String(p.quote_id)) : null;
@@ -404,6 +405,13 @@ function MasterInsertPage() {
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 items-start">
                     <SimpleForm
                       title="1. Purchase Order (with PI fields)"
+                      onFieldChange={(name, value) => {
+                        if (name === 'quote_id' && value) {
+                          const q = data.quotes.find((q) => String(q.quote_id) === String(value));
+                          if (q) return { pi_number: q.pi_number || '', pi_date: q.quote_date || '' };
+                        }
+                        return {};
+                      }}
                       fields={[
                         { name: 'quote_id', label: 'Link Quote', type: 'select', options: options.quotes },
                         { name: 'pi_number', label: 'PI #', type: 'text', default: pdfData?.pi_number },

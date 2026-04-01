@@ -222,12 +222,12 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, onSuccess, on
     <div className="space-y-5 max-w-4xl">
 
       {/* ── Step 1: Select POs ── */}
-      <div className="bg-slate-900/60 border border-slate-700/60 rounded-2xl p-5">
+      <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-5">
         <h4 className="text-sm font-bold text-white mb-3">1 · Select POs</h4>
         <input
           type="text" value={poSearch} onChange={(e) => setPoSearch(e.target.value)}
           placeholder="Filter by PO number, PI / reference, or supplier code…"
-          className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-rose-500/30 mb-3"
+          className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 mb-3"
         />
         <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
           {filteredPos.map((po) => {
@@ -266,14 +266,14 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, onSuccess, on
 
       {/* ── Step 2: Batch details ── */}
       {selectedIds.length > 0 && (
-        <div className="bg-slate-900/60 border border-slate-700/60 rounded-2xl p-5">
+        <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-5">
           <h4 className="text-sm font-bold text-white mb-4">2 · Batch Details</h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Payment Date</label>
               <input
                 type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-rose-500/30"
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
               />
             </div>
             <div>
@@ -281,7 +281,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, onSuccess, on
               <input
                 type="text" value={bankRef} onChange={(e) => setBankRef(e.target.value)}
                 placeholder="Wire / TT reference number"
-                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-rose-500/30"
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
               />
             </div>
           </div>
@@ -290,7 +290,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, onSuccess, on
 
       {/* ── Step 3: Cost entries ── */}
       {selectedIds.length > 0 && (
-        <div className="bg-slate-900/60 border border-slate-700/60 rounded-2xl p-5">
+        <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-5">
           <div className="flex items-center justify-between mb-1">
             <h4 className="text-sm font-bold text-white">3 · Cost Entries</h4>
             <button
@@ -315,7 +315,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, onSuccess, on
                 <select
                   value={item.category}
                   onChange={(e) => updateCostItem(item.uid, { category: e.target.value })}
-                  className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-rose-500/30"
+                  className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                 >
                   {ALL_COST_CATS.map((c) => (
                     <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>
@@ -329,7 +329,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, onSuccess, on
                     setOverrides({});
                   }}
                   placeholder="e.g. 350000000"
-                  className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-rose-500/30"
+                  className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                 />
                 <button
                   onClick={() => removeCostItem(item.uid)}
@@ -355,7 +355,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, onSuccess, on
 
       {/* ── Step 4: Allocation ── */}
       {selectedIds.length > 0 && totalAmount > 0 && (
-        <div className="bg-slate-900/60 border border-slate-700/60 rounded-2xl p-5">
+        <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-5">
           <h4 className="text-sm font-bold text-white mb-0.5">4 · Allocation</h4>
           <p className="text-xs text-slate-500 mb-4">
             Split is proportional by PO IDR value. Edit any amount to override — the delta indicator shows if totals don&apos;t balance.
@@ -397,7 +397,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, onSuccess, on
                             type="number" min="0" step="1000"
                             value={overridden ? overrides[key] : String(allocated)}
                             onChange={(e) => setOverrides((prev) => ({ ...prev, [key]: e.target.value }))}
-                            className={`w-44 px-2 py-1 bg-slate-950 border rounded-lg text-xs text-white focus:outline-none focus:ring-2 focus:ring-rose-500/30 ${overridden ? 'border-amber-500/60' : 'border-slate-700'}`}
+                            className={`w-44 px-2 py-1 bg-slate-950 border rounded-lg text-xs text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 ${overridden ? 'border-amber-500/60' : 'border-slate-700'}`}
                           />
                           {overridden && (
                             <button onClick={() => clearOverride(key)} className="text-[10px] text-slate-500 hover:text-slate-300 whitespace-nowrap">
