@@ -29,7 +29,7 @@ export const RelationshipForm: React.FC<RelationshipFormProps> = ({
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLTextAreaElement | HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData({
       ...formData,
