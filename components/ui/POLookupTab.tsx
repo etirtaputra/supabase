@@ -41,16 +41,18 @@ function costToIdr(cost: POCost, po: PurchaseOrder): number {
 
 function statusBadge(status?: string) {
   const map: Record<string, string> = {
-    Draft:     'bg-slate-700 text-slate-300',
-    Confirmed: 'bg-blue-500/20 text-blue-300 border border-blue-500/30',
-    Shipped:   'bg-violet-500/20 text-violet-300 border border-violet-500/30',
-    Received:  'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',
-    Cancelled: 'bg-red-500/20 text-red-300 border border-red-500/30',
+    Draft:               'bg-slate-700 text-slate-300',
+    Sent:                'bg-blue-500/20 text-blue-300 border border-blue-500/30',
+    Confirmed:           'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30',
+    Replaced:            'bg-slate-600/40 text-slate-400 border border-slate-600/40',
+    'Partially Received': 'bg-amber-500/20 text-amber-300 border border-amber-500/30',
+    'Fully Received':    'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',
+    Cancelled:           'bg-red-500/20 text-red-300 border border-red-500/30',
   };
   return map[status ?? ''] ?? 'bg-slate-700/60 text-slate-400';
 }
 
-const PO_STATUSES = ['Draft', 'Confirmed', 'Shipped', 'Received', 'Cancelled'] as const;
+const PO_STATUSES = ['Draft', 'Sent', 'Confirmed', 'Replaced', 'Partially Received', 'Fully Received', 'Cancelled'] as const;
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 

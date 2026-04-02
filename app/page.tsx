@@ -63,7 +63,7 @@ export default function Home() {
       componentCount: data.components.length,
       // Attention lists
       noPayments: activePOs
-        .filter((p) => p.status !== 'Received' && !(poStatus[String(p.po_id)]?.paidIdr > 0))
+        .filter((p) => p.status !== 'Fully Received' && p.status !== 'Partially Received' && !(poStatus[String(p.po_id)]?.paidIdr > 0))
         .slice(0, 5),
       overdue: activePOs
         .filter((p) =>
