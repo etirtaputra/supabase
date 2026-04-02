@@ -25,39 +25,38 @@ import { ENUMS } from '@/constants/enums';
 import type { Tab, MenuItem } from '@/types/forms';
 
 const MENU_ITEMS: MenuItem[] = [
-  { id: 'foundation', label: 'Suppliers & Components', icon: '🏢',
+  { id: 'catalog', label: 'Catalog', icon: '🗂️',
     color: 'text-slate-400 hover:text-emerald-300 hover:bg-slate-800/50',
     activeColor: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30' },
-  { id: 'components', label: 'Edit Components', icon: '✏️',
-    color: 'text-slate-400 hover:text-amber-300 hover:bg-slate-800/50',
-    activeColor: 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30' },
   { id: 'quoting', label: 'Quotes', icon: '📝',
     color: 'text-slate-400 hover:text-blue-300 hover:bg-slate-800/50',
     activeColor: 'bg-blue-500/15 text-blue-300 ring-1 ring-blue-500/30' },
   { id: 'ordering', label: 'PI / PO', icon: '📦',
     color: 'text-slate-400 hover:text-violet-300 hover:bg-slate-800/50',
     activeColor: 'bg-violet-500/15 text-violet-300 ring-1 ring-violet-500/30' },
-  { id: 'financials', label: 'Financials', icon: '💰',
+  { id: 'financials', label: 'Payment', icon: '💰',
     color: 'text-slate-400 hover:text-rose-300 hover:bg-slate-800/50',
     activeColor: 'bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30' },
-  { id: 'market-intel', label: 'Market Intel', icon: '📊',
+  { id: 'lookup', label: 'PO / PI Lookup', icon: '🔍',
     color: 'text-slate-400 hover:text-sky-300 hover:bg-slate-800/50',
     activeColor: 'bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30' },
-  { id: 'lookup', label: 'PO / PI Lookup', icon: '🔍',
-    color: 'text-slate-400 hover:text-emerald-300 hover:bg-slate-800/50',
-    activeColor: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30' },
+  { id: 'market-intel', label: 'Market Intel', icon: '📊',
+    color: 'text-slate-400 hover:text-slate-300 hover:bg-slate-800/50',
+    activeColor: 'bg-slate-700/60 text-slate-200 ring-1 ring-slate-500/30' },
 ];
 
 function MasterInsertPage() {
   const supabase = createSupabaseClient();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialTab = (searchParams.get('tab') as Tab) || 'foundation';
+  const initialTab = (searchParams.get('tab') as Tab) || 'catalog';
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
+  const [catalogMode, setCatalogMode] = useState<'add' | 'edit'>('add');
   const [loading, setLoading] = useState(false);
   const [pdfData, setPdfData] = useState<any>(null);
   const [paymentMode, setPaymentMode] = useState<'single' | 'batch'>('single');
   const [singlePoId, setSinglePoId] = useState('');
+  const [lastSaved, setLastSaved] = useState<{ message: string; cta: string; nextTab: Tab } | null>(null);
   const [pdfUploading, setPdfUploading] = useState(false);
 
   const { data, loading: dataLoading, refetch } = useSupabaseData();
@@ -66,6 +65,7 @@ function MasterInsertPage() {
 
   const handleTabChange = (tab: Tab) => {
     setActiveTab(tab);
+    setLastSaved(null);
     router.replace(`/insert?tab=${tab}`, { scroll: false });
   };
 
@@ -83,7 +83,8 @@ function MasterInsertPage() {
         const supplier = quote ? data.suppliers.find((s) => s.supplier_id === quote.supplier_id) : null;
         const code     = supplier?.supplier_code ? `[${supplier.supplier_code}] ` : '';
         const value    = p.total_value ? ` | ${p.currency || 'IDR'} ${Number(p.total_value).toLocaleString()}` : '';
-        return { val: p.po_id, txt: `${code}${p.po_number} - ${p.po_date}${p.pi_number ? ` | PI: ${p.pi_number}` : ''}${value}` };
+        const piPart   = p.pi_number ? `${p.pi_number} · ` : '';
+        return { val: p.po_id, txt: `${code}${piPart}${p.po_number} - ${p.po_date}${value}` };
       }),
     }),
     [data]
@@ -134,6 +135,11 @@ function MasterInsertPage() {
     } else {
       showToast(`✅ Added ${cleanPayload.length} record(s)!`, 'success');
       refetch();
+      if (table === '4.0_price_quotes') {
+        setLastSaved({ message: 'Quote saved!', cta: 'Create PO →', nextTab: 'ordering' });
+      } else if (table === '5.0_purchases') {
+        setLastSaved({ message: 'PO saved!', cta: 'Log payment →', nextTab: 'financials' });
+      }
     }
   };
 
@@ -240,7 +246,7 @@ function MasterInsertPage() {
 
       {/* ── Main content ── */}
       <main className={`max-w-[1800px] mx-auto animate-in fade-in duration-300 ${
-        activeTab === 'components' ? 'p-3 md:p-4' : 'p-4 md:p-6'
+        activeTab === 'catalog' && catalogMode === 'edit' ? 'p-3 md:p-4' : 'p-4 md:p-6'
       }`}>
         <div className="pb-8 md:pb-4">
           {dataLoading ? (
@@ -250,57 +256,85 @@ function MasterInsertPage() {
             </div>
           ) : (
             <>
-              {/* Foundation Tab */}
-              {activeTab === 'foundation' && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-                  <SimpleForm
-                    title="Add New Supplier"
-                    fields={[
-                      { name: 'supplier_name', label: 'Supplier Name', type: 'text', req: true, suggestions: suggestions.supplierNames },
-                      { name: 'supplier_code', label: 'Supplier Code', type: 'text', placeholder: 'SUP-001' },
-                      { name: 'location', label: 'Location', type: 'text', suggestions: suggestions.locations },
-                      { name: 'primary_contact_email', label: 'Email', type: 'email' },
-                      { name: 'payment_terms_default', label: 'Pay Terms', type: 'text', suggestions: suggestions.paymentTerms },
-                      { name: 'supplier_bank_details', label: 'Bank Details', type: 'textarea' },
-                    ]}
-                    onSubmit={(d) => handleInsert('2.0_suppliers', d)}
-                    loading={loading}
-                  />
-                  <BatchLineItemsForm
-                    title="Add New Component"
-                    gridLayout
-                    itemFields={[
-                      { name: 'supplier_model', label: 'Supplier Model / SKU', type: 'text', req: true, suggestions: suggestions.modelSkus },
-                      { name: 'internal_description', label: 'Internal Description', type: 'text', req: true, suggestions: suggestions.descriptions },
-                      { name: 'brand', label: 'Brand', type: 'text', suggestions: suggestions.brands },
-                      { name: 'category', label: 'Category', type: 'select', options: ENUMS.product_category },
-                      { name: 'specifications', label: 'Specs (JSON)', type: 'textarea', placeholder: '{"watts": 100}' },
-                    ]}
-                    onSubmit={(items) => handleInsert('3.0_components', items)}
-                    loading={loading}
-                  />
-                </div>
-              )}
+              {/* Catalog Tab */}
+              {activeTab === 'catalog' && (
+                <>
+                  {/* Add / Edit toggle */}
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className="flex rounded-xl overflow-hidden border border-slate-700 text-xs font-semibold">
+                      <button
+                        onClick={() => setCatalogMode('add')}
+                        className={`px-4 py-2 transition-colors ${catalogMode === 'add' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800/60 text-slate-400 hover:text-slate-300'}`}
+                      >Add New</button>
+                      <button
+                        onClick={() => setCatalogMode('edit')}
+                        className={`px-4 py-2 transition-colors ${catalogMode === 'edit' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800/60 text-slate-400 hover:text-slate-300'}`}
+                      >Edit Components</button>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      {catalogMode === 'add' ? 'Add suppliers and components to your catalog.' : 'Search, edit, and manage existing components.'}
+                    </p>
+                  </div>
 
-              {/* Edit Components Tab */}
-              {activeTab === 'components' && (
-                <ComponentEditor
-                  components={data.components}
-                  brandSuggestions={suggestions.brands}
-                  quoteItems={data.quoteItems}
-                  quotes={data.quotes}
-                  pos={data.pos}
-                  poItems={data.poItems}
-                  onSave={handleComponentUpdates}
-                  onDelete={handleComponentDelete}
-                  onSaveLineItem={handleSaveLineItem}
-                  onDeleteLineItem={handleDeleteLineItem}
-                />
+                  {catalogMode === 'add' && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+                      <SimpleForm
+                        title="Add New Supplier"
+                        fields={[
+                          { name: 'supplier_name', label: 'Supplier Name', type: 'text', req: true, suggestions: suggestions.supplierNames },
+                          { name: 'supplier_code', label: 'Supplier Code', type: 'text', placeholder: 'SUP-001' },
+                          { name: 'location', label: 'Location', type: 'text', suggestions: suggestions.locations },
+                          { name: 'primary_contact_email', label: 'Email', type: 'email' },
+                          { name: 'payment_terms_default', label: 'Pay Terms', type: 'text', suggestions: suggestions.paymentTerms },
+                          { name: 'supplier_bank_details', label: 'Bank Details', type: 'textarea' },
+                        ]}
+                        onSubmit={(d) => handleInsert('2.0_suppliers', d)}
+                        loading={loading}
+                      />
+                      <BatchLineItemsForm
+                        title="Add New Component"
+                        gridLayout
+                        itemFields={[
+                          { name: 'supplier_model', label: 'Supplier Model / SKU', type: 'text', req: true, suggestions: suggestions.modelSkus },
+                          { name: 'internal_description', label: 'Internal Description', type: 'text', req: true, suggestions: suggestions.descriptions },
+                          { name: 'brand', label: 'Brand', type: 'text', suggestions: suggestions.brands },
+                          { name: 'category', label: 'Category', type: 'select', options: ENUMS.product_category },
+                          { name: 'specifications', label: 'Specs (JSON)', type: 'textarea', placeholder: '{"watts": 100}' },
+                        ]}
+                        onSubmit={(items) => handleInsert('3.0_components', items)}
+                        loading={loading}
+                      />
+                    </div>
+                  )}
+
+                  {catalogMode === 'edit' && (
+                    <ComponentEditor
+                      components={data.components}
+                      brandSuggestions={suggestions.brands}
+                      quoteItems={data.quoteItems}
+                      quotes={data.quotes}
+                      pos={data.pos}
+                      poItems={data.poItems}
+                      onSave={handleComponentUpdates}
+                      onDelete={handleComponentDelete}
+                      onSaveLineItem={handleSaveLineItem}
+                      onDeleteLineItem={handleDeleteLineItem}
+                    />
+                  )}
+                </>
               )}
 
               {/* Quoting Tab */}
               {activeTab === 'quoting' && (
                 <>
+                  {/* What's next banner */}
+                  {lastSaved?.nextTab === 'quoting' && (
+                    <div className="mb-4 flex items-center gap-3 px-4 py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                      <span className="text-emerald-400 text-sm font-semibold">{lastSaved.message}</span>
+                      <button onClick={() => handleTabChange(lastSaved.nextTab)} className="ml-auto px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-colors">{lastSaved.cta}</button>
+                      <button onClick={() => setLastSaved(null)} className="text-slate-500 hover:text-slate-300 text-sm leading-none">✕</button>
+                    </div>
+                  )}
                   {/* PDF Upload Banner */}
                   <div className="mb-6 bg-gradient-to-br from-blue-900/40 via-slate-900/40 to-indigo-900/40 backdrop-blur-sm border border-blue-500/30 rounded-2xl p-5 md:p-6 shadow-2xl ring-1 ring-white/5 relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
@@ -374,6 +408,14 @@ function MasterInsertPage() {
               {/* Ordering Tab */}
               {activeTab === 'ordering' && (
                 <>
+                  {/* What's next banner */}
+                  {lastSaved && (
+                    <div className="mb-4 flex items-center gap-3 px-4 py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                      <span className="text-emerald-400 text-sm font-semibold">{lastSaved.message}</span>
+                      <button onClick={() => handleTabChange(lastSaved.nextTab)} className="ml-auto px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-colors">{lastSaved.cta}</button>
+                      <button onClick={() => setLastSaved(null)} className="text-slate-500 hover:text-slate-300 text-sm leading-none">✕</button>
+                    </div>
+                  )}
                   {/* PDF Upload Banner */}
                   <div className="mb-6 bg-gradient-to-br from-blue-900/40 via-slate-900/40 to-indigo-900/40 backdrop-blur-sm border border-blue-500/30 rounded-2xl p-5 md:p-6 shadow-2xl ring-1 ring-white/5 relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
