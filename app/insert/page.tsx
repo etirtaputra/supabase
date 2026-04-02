@@ -77,7 +77,8 @@ function MasterInsertPage() {
         const quote    = p.quote_id ? data.quotes.find((q) => String(q.quote_id) === String(p.quote_id)) : null;
         const supplier = quote ? data.suppliers.find((s) => s.supplier_id === quote.supplier_id) : null;
         const code     = supplier?.supplier_code ? `[${supplier.supplier_code}] ` : '';
-        return { val: p.po_id, txt: `${code}${p.po_number} - ${p.po_date}${p.pi_number ? ` | PI: ${p.pi_number}` : ''}` };
+        const value    = p.total_value ? ` | ${p.currency || 'IDR'} ${Number(p.total_value).toLocaleString()}` : '';
+        return { val: p.po_id, txt: `${code}${p.po_number} - ${p.po_date}${p.pi_number ? ` | PI: ${p.pi_number}` : ''}${value}` };
       }),
     }),
     [data]
