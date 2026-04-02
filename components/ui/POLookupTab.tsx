@@ -187,8 +187,9 @@ export default function POLookupTab({
                     </span>
                   )}
                 </div>
-                <div className="text-[11px] text-slate-500 mt-0.5">
-                  {p.po_date}{p.pi_number ? ` · ${p.pi_number}` : ''}
+                <div className="text-[11px] mt-0.5 flex flex-wrap gap-x-2">
+                  {p.pi_number && <span className="text-slate-200 font-medium">{p.pi_number}</span>}
+                  <span className="text-slate-500">{p.po_date}</span>
                 </div>
                 {pTotal > 0 && (
                   <div className="mt-1.5 flex items-center gap-2">
@@ -226,14 +227,18 @@ export default function POLookupTab({
                       {poSupplierCode[String(po.po_id)]}
                     </span>
                   )}
-                  <h2 className="text-lg font-bold text-white">{po.po_number}</h2>
                   {po.status && (
                     <span className={`inline-block px-2 py-1 text-xs font-bold rounded ${statusBadge(po.status)}`}>
                       {po.status}
                     </span>
                   )}
                 </div>
-                {po.pi_number && <p className="text-sm text-slate-400 mt-0.5">PI: {po.pi_number}</p>}
+                {/* PI# is the primary vendor reference — lead with it */}
+                {po.pi_number
+                  ? <h2 className="text-xl font-bold text-white mt-1">{po.pi_number}</h2>
+                  : <h2 className="text-xl font-bold text-white mt-1">{po.po_number}</h2>
+                }
+                <p className="text-sm text-slate-400 mt-0.5">{po.pi_number ? `PO: ${po.po_number}` : ''}</p>
               </div>
               <div className="text-right flex-shrink-0">
                 {po.total_value && (

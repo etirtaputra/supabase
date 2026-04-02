@@ -267,7 +267,9 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
                     )}
                     <span className="text-sm font-semibold text-white">{po.po_number}</span>
                   </div>
-                  {po.pi_number && <div className="text-xs text-slate-400">{po.pi_number}</div>}
+                  {po.pi_number && (
+                    <div className="text-xs font-semibold text-slate-200 mt-0.5">{po.pi_number}</div>
+                  )}
                 </div>
                 <div className="text-right flex-shrink-0 min-w-[90px]">
                   <div className="text-xs font-semibold text-slate-300">{po.currency} {Number(po.total_value).toLocaleString()}</div>
@@ -419,7 +421,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
                           )}
                           <span className="font-semibold text-white text-xs">{po.po_number}</span>
                         </div>
-                        {po.pi_number && <div className="text-[10px] text-slate-500">{po.pi_number}</div>}
+                        {po.pi_number && <div className="text-[11px] font-medium text-slate-300 mt-0.5">{po.pi_number}</div>}
                       </td>
                       <td className="py-2.5 pr-4 text-xs text-slate-400">{fmtIdr(poIdrValues[key] ?? 0)}</td>
                       <td className="py-2.5 pr-4 text-xs text-slate-400">{share.toFixed(1)}%</td>
