@@ -59,13 +59,15 @@ export interface BatchLineItemsFormProps {
   onSubmit: (items: Record<string, any>[]) => void;
   loading: boolean;
   formId?: string;
-  enablePdfUpload?: boolean; // Enable PDF upload to pre-fill form
-  enableQuoteImport?: boolean; // Enable import from quote
-  allQuoteItems?: any[]; // All quote line items available
-  allQuotes?: any[]; // All quotes for lookup
-  allPurchases?: any[]; // All purchases for getting linked quote_id
-  components?: any[]; // Components for display in import modal
-  gridLayout?: boolean; // Use grid layout for item fields instead of flex row
+  enablePdfUpload?: boolean;
+  enableQuoteImport?: boolean;
+  allQuoteItems?: any[];
+  allQuotes?: any[];
+  allPurchases?: any[];
+  components?: any[];
+  gridLayout?: boolean;
+  /** Called whenever the parent (e.g. PO) selection changes. */
+  onParentChange?: (id: string) => void;
 }
 
 // Field renderer props
@@ -102,7 +104,7 @@ export interface Toast {
 }
 
 // Tab types
-export type Tab = 'foundation' | 'quoting' | 'ordering' | 'financials' | 'history' | 'database' | 'components' | 'market-intel';
+export type Tab = 'foundation' | 'quoting' | 'ordering' | 'financials' | 'history' | 'database' | 'components' | 'market-intel' | 'lookup';
 
 // Menu item configuration
 export interface MenuItem {

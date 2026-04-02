@@ -10,7 +10,7 @@
 'use client';
 import React, { useState, useMemo } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
-import type { PurchaseOrder, Supplier, PriceQuote } from '@/types/database';
+import type { PurchaseOrder, Supplier, PriceQuote, POCost } from '@/types/database';
 import { ENUMS } from '@/constants/enums';
 
 const ALL_COST_CATS = ENUMS.po_cost_category as readonly string[];
@@ -23,15 +23,20 @@ interface CostItem {
   amountStr: string;
 }
 
+const PRINCIPAL_CATS = new Set([
+  'down_payment', 'balance_payment', 'additional_balance_payment',
+]);
+
 interface Props {
   pos: PurchaseOrder[];
   suppliers: Supplier[];
   quotes: PriceQuote[];
+  poCosts: POCost[];
   onSuccess: () => void;
   onError: (msg: string) => void;
 }
 
-export default function MultiPaymentForm({ pos, suppliers, quotes, onSuccess, onError }: Props) {
+export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSuccess, onError }: Props) {
   const [poSearch,    setPoSearch]    = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
@@ -41,6 +46,22 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, onSuccess, on
   ]);
   const [overrides,   setOverrides]   = useState<Record<string, string>>({});
   const [submitting,  setSubmitting]  = useState(false);
+
+  // ── Payment status per PO: po_id → { paidIdr, totalIdr, pct } ──────────
+  const poPaymentStatus = useMemo(() => {
+    const r: Record<string, { paidIdr: number; totalIdr: number; pct: number }> = {};
+    for (const po of pos) {
+      const key = String(po.po_id);
+      const val = Number(po.total_value) || 0;
+      const xr  = Number(po.exchange_rate) || 1;
+      const totalIdr = po.currency === 'IDR' ? val : val * xr;
+      const paidIdr = poCosts
+        .filter((c) => String(c.po_id) === String(po.po_id) && PRINCIPAL_CATS.has(c.cost_category))
+        .reduce((s, c) => s + (c.currency === 'IDR' ? Number(c.amount) : Number(c.amount) * xr), 0);
+      r[key] = { paidIdr, totalIdr, pct: totalIdr > 0 ? Math.min(100, (paidIdr / totalIdr) * 100) : 0 };
+    }
+    return r;
+  }, [pos, poCosts]);
 
   // ── Supplier code lookup: po_id → supplier_code ───────────────────────
   const poSupplierCode = useMemo(() => {
@@ -248,10 +269,21 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, onSuccess, on
                   </div>
                   {po.pi_number && <div className="text-xs text-slate-400">{po.pi_number}</div>}
                 </div>
-                <div className="text-right flex-shrink-0">
+                <div className="text-right flex-shrink-0 min-w-[90px]">
                   <div className="text-xs font-semibold text-slate-300">{po.currency} {Number(po.total_value).toLocaleString()}</div>
                   {po.currency !== 'IDR' && idrVal > 0 && <div className="text-[10px] text-slate-500">≈ {fmtIdr(idrVal)}</div>}
                   {po.currency !== 'IDR' && !po.exchange_rate && <div className="text-[10px] text-amber-500">no XR — add to PO</div>}
+                  {poPaymentStatus[key]?.totalIdr > 0 && (
+                    <div className="flex items-center gap-1.5 mt-1 justify-end">
+                      <div className="w-16 h-1 bg-slate-700 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${poPaymentStatus[key].pct >= 100 ? 'bg-emerald-500' : poPaymentStatus[key].pct > 0 ? 'bg-amber-400' : 'bg-slate-600'}`}
+                          style={{ width: `${poPaymentStatus[key].pct}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-slate-500">{poPaymentStatus[key].pct.toFixed(0)}%</span>
+                    </div>
+                  )}
                 </div>
               </label>
             );

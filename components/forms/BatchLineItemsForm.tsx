@@ -24,6 +24,7 @@ export default function BatchLineItemsForm({
   allPurchases = [],
   components = [],
   gridLayout = false,
+  onParentChange,
 }: BatchLineItemsFormProps) {
   const uniqueFormId = useId();
   const formId = customFormId || uniqueFormId;
@@ -444,7 +445,7 @@ export default function BatchLineItemsForm({
           <select
             className="w-full md:w-1/2 p-3 bg-slate-950/70 border border-slate-700/80 rounded-xl text-sm text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
             value={parentId}
-            onChange={(e) => setParentId(e.target.value)}
+            onChange={(e) => { setParentId(e.target.value); onParentChange?.(e.target.value); }}
           >
             <option value="">-- Select --</option>
             {parentField.options.map((o) => (
