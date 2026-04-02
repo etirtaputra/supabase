@@ -12,6 +12,7 @@ import BatchLineItemsForm from '@/components/forms/BatchLineItemsForm';
 import ComponentEditor from '@/components/ui/ComponentEditor';
 import CompetitorPriceForm from '@/components/forms/CompetitorPriceForm';
 import MultiPaymentForm from '@/components/forms/MultiPaymentForm';
+import POLookupTab from '@/components/ui/POLookupTab';
 import { ToastContainer } from '@/components/ui/Toast';
 import { ToastProvider } from '@/hooks/useToast';
 import { FormSkeleton } from '@/components/ui/LoadingSkeleton';
@@ -42,6 +43,9 @@ const MENU_ITEMS: MenuItem[] = [
   { id: 'market-intel', label: 'Market Intel', icon: '📊',
     color: 'text-slate-400 hover:text-sky-300 hover:bg-slate-800/50',
     activeColor: 'bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30' },
+  { id: 'lookup', label: 'PO / PI Lookup', icon: '🔍',
+    color: 'text-slate-400 hover:text-emerald-300 hover:bg-slate-800/50',
+    activeColor: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30' },
 ];
 
 function MasterInsertPage() {
@@ -53,6 +57,7 @@ function MasterInsertPage() {
   const [loading, setLoading] = useState(false);
   const [pdfData, setPdfData] = useState<any>(null);
   const [paymentMode, setPaymentMode] = useState<'single' | 'batch'>('single');
+  const [singlePoId, setSinglePoId] = useState('');
   const [pdfUploading, setPdfUploading] = useState(false);
 
   const { data, loading: dataLoading, refetch } = useSupabaseData();
@@ -482,9 +487,19 @@ function MasterInsertPage() {
                     </p>
                   </div>
 
-                  {paymentMode === 'single' && (
+                  {paymentMode === 'single' && (() => {
+                    const selPo = singlePoId ? data.pos.find((p) => String(p.po_id) === singlePoId) : null;
+                    const selCosts = singlePoId ? data.poCosts.filter((c) => String(c.po_id) === singlePoId) : [];
+                    const PRIN = new Set(['down_payment','balance_payment','additional_balance_payment']);
+                    const totalIdr = selPo ? (selPo.currency === 'IDR' ? Number(selPo.total_value) : Number(selPo.total_value) * (Number(selPo.exchange_rate) || 1)) : 0;
+                    const paidIdr  = selCosts.filter((c) => PRIN.has(c.cost_category)).reduce((s, c) => s + (c.currency === 'IDR' ? Number(c.amount) : Number(c.amount) * (Number(selPo?.exchange_rate) || 1)), 0);
+                    const outIdr   = Math.max(0, totalIdr - paidIdr);
+                    const pct      = totalIdr > 0 ? Math.min(100, (paidIdr / totalIdr) * 100) : 0;
+                    const fmt      = (n: number) => 'IDR ' + Math.round(n).toLocaleString('en-US');
+                    return (<>
                     <BatchLineItemsForm
                       title="PO Costs (Payments, Bank Fees & Landed Costs)"
+                      onParentChange={(id) => setSinglePoId(id)}
                       parentField={{ name: 'po_id', label: 'Select PO', options: options.pos }}
                       itemFields={[
                         { name: 'cost_category', label: 'Cost Category', type: 'select', options: ENUMS.po_cost_category, req: true },
@@ -497,13 +512,40 @@ function MasterInsertPage() {
                       onSubmit={(items) => handleInsert('6.0_po_costs', items)}
                       loading={loading}
                     />
-                  )}
+                    {selPo && totalIdr > 0 && (
+                      <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-4 mt-1">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">Payment Status — {selPo.po_number}</p>
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full transition-all ${pct >= 100 ? 'bg-emerald-500' : 'bg-amber-400'}`} style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className={`text-xs font-bold flex-shrink-0 ${pct >= 100 ? 'text-emerald-400' : 'text-amber-300'}`}>{pct.toFixed(1)}%</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-xs">
+                          <div className="bg-slate-800/40 rounded-lg p-2.5">
+                            <p className="text-[10px] text-slate-500 mb-0.5">PO Total</p>
+                            <p className="font-bold text-white">{fmt(totalIdr)}</p>
+                          </div>
+                          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2.5">
+                            <p className="text-[10px] text-slate-500 mb-0.5">Paid</p>
+                            <p className="font-bold text-emerald-300">{fmt(paidIdr)}</p>
+                          </div>
+                          <div className={`rounded-lg p-2.5 ${outIdr > 0 ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-slate-800/40'}`}>
+                            <p className="text-[10px] text-slate-500 mb-0.5">Outstanding</p>
+                            <p className={`font-bold ${outIdr > 0 ? 'text-amber-300' : 'text-slate-400'}`}>{fmt(outIdr)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    </>);
+                  })()}
 
                   {paymentMode === 'batch' && (
                     <MultiPaymentForm
                       pos={data.pos}
                       suppliers={data.suppliers}
                       quotes={data.quotes}
+                      poCosts={data.poCosts}
                       onSuccess={() => { showToast('✅ Batch payment saved!', 'success'); refetch(); }}
                       onError={(msg) => showToast(`Error: ${msg}`, 'error')}
                     />
@@ -522,6 +564,18 @@ function MasterInsertPage() {
                   competitorPrices={data.competitorPrices}
                   onSubmit={(d) => handleInsert('7.0_competitor_prices', d)}
                   loading={loading}
+                />
+              )}
+
+              {/* Lookup Tab */}
+              {activeTab === 'lookup' && (
+                <POLookupTab
+                  pos={data.pos}
+                  poItems={data.poItems}
+                  poCosts={data.poCosts}
+                  suppliers={data.suppliers}
+                  quotes={data.quotes}
+                  components={data.components}
                 />
               )}
             </>
