@@ -58,6 +58,8 @@ function MasterInsertPage() {
   const [singlePoId, setSinglePoId] = useState('');
   const [lastSaved, setLastSaved] = useState<{ message: string; cta: string; nextTab: Tab } | null>(null);
   const [pdfUploading, setPdfUploading] = useState(false);
+  const [dupWarning, setDupWarning] = useState<string | null>(null);
+  const [orderingPoId, setOrderingPoId] = useState('');
 
   const { data, loading: dataLoading, refetch } = useSupabaseData();
   const suggestions = useSuggestions(data);
@@ -66,7 +68,15 @@ function MasterInsertPage() {
   const handleTabChange = (tab: Tab) => {
     setActiveTab(tab);
     setLastSaved(null);
+    setDupWarning(null);
     router.replace(`/insert?tab=${tab}`, { scroll: false });
+  };
+
+  const handleStatusChange = async (poId: string, status: string) => {
+    const { error } = await supabase.from('5.0_purchases').update({ status }).eq('po_id', poId);
+    if (error) { showToast(`Error updating status: ${error.message}`, 'error'); throw error; }
+    showToast(`Status updated to ${status}`, 'success');
+    refetch();
   };
 
   const options = useMemo(
@@ -450,15 +460,53 @@ function MasterInsertPage() {
                       </div>
                     </div>
                   </div>
+                  {dupWarning && (
+                    <div className="mb-4 flex items-start gap-3 px-4 py-3 bg-amber-500/10 border border-amber-500/30 rounded-xl">
+                      <span className="text-amber-400 text-sm flex-shrink-0 mt-0.5">⚠️</span>
+                      <span className="text-amber-300 text-xs leading-relaxed">{dupWarning.replace('⚠️ ', '')}</span>
+                      <button onClick={() => setDupWarning(null)} className="ml-auto text-slate-500 hover:text-slate-300 text-sm leading-none flex-shrink-0">✕</button>
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 items-start">
                     <SimpleForm
                       title="1. Purchase Order (with PI fields)"
                       onFieldChange={(name, value) => {
-                        if (name === 'quote_id' && value) {
-                          const q = data.quotes.find((q) => String(q.quote_id) === String(value));
-                          if (q) return { pi_number: q.pi_number || '', pi_date: q.quote_date || '' };
+                        const overrides: Record<string, any> = {};
+                        if (name === 'quote_id') {
+                          if (value) {
+                            const q = data.quotes.find((q) => String(q.quote_id) === String(value));
+                            if (q) {
+                              overrides.pi_number = q.pi_number || '';
+                              overrides.pi_date   = q.quote_date || '';
+                              // Exchange rate memory: find most recent PO for same supplier with same currency
+                              if (q.currency && q.currency !== 'IDR') {
+                                const sameCurrencyPOs = data.pos
+                                  .filter((p) => {
+                                    const pq = p.quote_id ? data.quotes.find((pqq) => String(pqq.quote_id) === String(p.quote_id)) : null;
+                                    return pq?.supplier_id === q.supplier_id && p.currency === q.currency && p.exchange_rate;
+                                  })
+                                  .sort((a, b) => b.po_date.localeCompare(a.po_date));
+                                if (sameCurrencyPOs[0]?.exchange_rate) {
+                                  overrides.exchange_rate = sameCurrencyPOs[0].exchange_rate;
+                                }
+                              }
+                            }
+                            // Duplicate detection: quote already linked to a PO?
+                            const existingPO = data.pos.find((p) => p.quote_id && String(p.quote_id) === String(value));
+                            setDupWarning(existingPO
+                              ? `⚠️ This quote is already linked to PO ${existingPO.po_number}${existingPO.pi_number ? ` / ${existingPO.pi_number}` : ''} (${existingPO.po_date}). Creating another PO may be a duplicate.`
+                              : null);
+                          } else {
+                            setDupWarning(null);
+                          }
                         }
-                        return {};
+                        if (name === 'pi_number' && value) {
+                          const existingPO = data.pos.find((p) => p.pi_number && p.pi_number.toLowerCase() === String(value).toLowerCase());
+                          if (existingPO) {
+                            setDupWarning(`⚠️ PI# "${value}" is already recorded on PO ${existingPO.po_number} (${existingPO.po_date}). Check before saving.`);
+                          }
+                        }
+                        return overrides;
                       }}
                       fields={[
                         { name: 'quote_id', label: 'Link Quote', type: 'select', options: options.quotes },
@@ -483,26 +531,64 @@ function MasterInsertPage() {
                       onSubmit={(d) => handleInsert('5.0_purchases', d)}
                       loading={loading}
                     />
-                    <BatchLineItemsForm
-                      title="2. PO Items"
-                      enablePdfUpload={true}
-                      enableQuoteImport={true}
-                      parentField={{ name: 'po_id', label: 'Select PO', options: options.pos }}
-                      itemFields={[
-                        { name: 'component_id', label: 'Component', type: 'rich-select', options: data.components, config: { labelKey: 'supplier_model', valueKey: 'component_id', subLabelKey: 'internal_description' }, req: true },
-                        { name: 'supplier_description', label: 'Supplier Desc', type: 'text' },
-                        { name: 'quantity', label: 'Qty', type: 'number', req: true },
-                        { name: 'unit_cost', label: 'Cost', type: 'number', req: true },
-                        { name: 'currency', label: 'Curr', type: 'select', options: ENUMS.currency, req: true },
-                      ]}
-                      stickyFields={['currency']}
-                      allQuoteItems={data.quoteItems}
-                      allQuotes={data.quotes}
-                      allPurchases={data.pos}
-                      components={data.components}
-                      onSubmit={(items) => handleInsert('5.1_purchase_line_items', items)}
-                      loading={loading}
-                    />
+                    {(() => {
+                      const selPo   = orderingPoId ? data.pos.find((p) => String(p.po_id) === orderingPoId) : null;
+                      const selCosts = orderingPoId ? data.poCosts.filter((c) => String(c.po_id) === orderingPoId) : [];
+                      const PRIN     = new Set(['down_payment','balance_payment','additional_balance_payment']);
+                      const totIdr   = selPo ? (selPo.currency === 'IDR' ? Number(selPo.total_value) : Number(selPo.total_value) * (Number(selPo.exchange_rate) || 1)) : 0;
+                      const paidIdr2 = selCosts.filter((c) => PRIN.has(c.cost_category)).reduce((s, c) => s + (c.currency === 'IDR' ? Number(c.amount) : Number(c.amount) * (Number(selPo?.exchange_rate) || 1)), 0);
+                      const outIdr2  = Math.max(0, totIdr - paidIdr2);
+                      const pct2     = totIdr > 0 ? Math.min(100, (paidIdr2 / totIdr) * 100) : 0;
+                      const fmt2     = (n: number) => 'IDR ' + Math.round(n).toLocaleString('en-US');
+                      return (<>
+                        <BatchLineItemsForm
+                          title="2. PO Items"
+                          enablePdfUpload={true}
+                          enableQuoteImport={true}
+                          parentField={{ name: 'po_id', label: 'Select PO', options: options.pos }}
+                          onParentChange={(id) => setOrderingPoId(id)}
+                          itemFields={[
+                            { name: 'component_id', label: 'Component', type: 'rich-select', options: data.components, config: { labelKey: 'supplier_model', valueKey: 'component_id', subLabelKey: 'internal_description' }, req: true },
+                            { name: 'supplier_description', label: 'Supplier Desc', type: 'text' },
+                            { name: 'quantity', label: 'Qty', type: 'number', req: true },
+                            { name: 'unit_cost', label: 'Cost', type: 'number', req: true },
+                            { name: 'currency', label: 'Curr', type: 'select', options: ENUMS.currency, req: true },
+                          ]}
+                          stickyFields={['currency']}
+                          allQuoteItems={data.quoteItems}
+                          allQuotes={data.quotes}
+                          allPurchases={data.pos}
+                          components={data.components}
+                          onSubmit={(items) => handleInsert('5.1_purchase_line_items', items)}
+                          loading={loading}
+                        />
+                        {selPo && totIdr > 0 && (
+                          <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-4 mt-1">
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">Payment Status — {selPo.po_number}</p>
+                            <div className="flex items-center gap-3 mb-2">
+                              <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
+                                <div className={`h-full rounded-full transition-all ${pct2 >= 100 ? 'bg-emerald-500' : 'bg-amber-400'}`} style={{ width: `${pct2}%` }} />
+                              </div>
+                              <span className={`text-xs font-bold flex-shrink-0 ${pct2 >= 100 ? 'text-emerald-400' : 'text-amber-300'}`}>{pct2.toFixed(1)}%</span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-xs">
+                              <div className="bg-slate-800/40 rounded-lg p-2.5">
+                                <p className="text-[10px] text-slate-500 mb-0.5">PO Total</p>
+                                <p className="font-bold text-white">{fmt2(totIdr)}</p>
+                              </div>
+                              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2.5">
+                                <p className="text-[10px] text-slate-500 mb-0.5">Paid</p>
+                                <p className="font-bold text-emerald-300">{fmt2(paidIdr2)}</p>
+                              </div>
+                              <div className={`rounded-lg p-2.5 ${outIdr2 > 0 ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-slate-800/40'}`}>
+                                <p className="text-[10px] text-slate-500 mb-0.5">Outstanding</p>
+                                <p className={`font-bold ${outIdr2 > 0 ? 'text-amber-300' : 'text-slate-400'}`}>{fmt2(outIdr2)}</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </>);
+                    })()}
                   </div>
                 </>
               )}
@@ -618,6 +704,7 @@ function MasterInsertPage() {
                   suppliers={data.suppliers}
                   quotes={data.quotes}
                   components={data.components}
+                  onStatusChange={handleStatusChange}
                 />
               )}
             </>

@@ -46,12 +46,12 @@ export default function DatabaseViewPage() {
               </p>
             </div>
           </header>
-          <nav className="px-4 md:px-8 pb-3 max-w-[1600px] mx-auto flex overflow-x-auto gap-2 scrollbar-none snap-x">
+          <nav className="px-4 md:px-8 pb-3 max-w-[1600px] mx-auto flex overflow-x-auto gap-2 scrollbar-none snap-x snap-mandatory">
             {TABS.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`snap-start px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200 flex items-center gap-1.5 ${
+                className={`snap-start px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200 flex items-center gap-1.5 flex-shrink-0 ${
                   activeTab === tab.id ? tab.activeColor : tab.color
                 }`}
               >

@@ -41,14 +41,18 @@ function costToIdr(cost: POCost, po: PurchaseOrder): number {
 
 function statusBadge(status?: string) {
   const map: Record<string, string> = {
-    Draft:     'bg-slate-700 text-slate-300',
-    Confirmed: 'bg-blue-500/20 text-blue-300 border border-blue-500/30',
-    Shipped:   'bg-violet-500/20 text-violet-300 border border-violet-500/30',
-    Received:  'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',
-    Cancelled: 'bg-red-500/20 text-red-300 border border-red-500/30',
+    Draft:               'bg-slate-700 text-slate-300',
+    Sent:                'bg-blue-500/20 text-blue-300 border border-blue-500/30',
+    Confirmed:           'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30',
+    Replaced:            'bg-slate-600/40 text-slate-400 border border-slate-600/40',
+    'Partially Received': 'bg-amber-500/20 text-amber-300 border border-amber-500/30',
+    'Fully Received':    'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',
+    Cancelled:           'bg-red-500/20 text-red-300 border border-red-500/30',
   };
   return map[status ?? ''] ?? 'bg-slate-700/60 text-slate-400';
 }
+
+const PO_STATUSES = ['Draft', 'Sent', 'Confirmed', 'Replaced', 'Partially Received', 'Fully Received', 'Cancelled'] as const;
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -59,15 +63,17 @@ interface Props {
   suppliers: Supplier[];
   quotes: PriceQuote[];
   components: Component[];
+  onStatusChange?: (poId: string, status: string) => Promise<void>;
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function POLookupTab({
-  pos, poItems, poCosts, suppliers, quotes, components,
+  pos, poItems, poCosts, suppliers, quotes, components, onStatusChange,
 }: Props) {
   const [search, setSearch]   = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
 
   // ── Supplier code map ─────────────────────────────────────────────────────
   const poSupplierCode = useMemo(() => {
@@ -165,44 +171,67 @@ export default function POLookupTab({
             const pTotal   = poTotalIdr(p);
             const pPaidPct = pTotal > 0 ? Math.min(100, (pPaid / pTotal) * 100) : 0;
             return (
-              <button
+              <div
                 key={key}
-                onClick={() => setSelectedId(sel ? null : key)}
-                className={`w-full text-left px-3 py-2.5 rounded-xl transition-colors border ${
+                className={`w-full px-3 py-2.5 rounded-xl transition-colors border ${
                   sel
                     ? 'bg-emerald-500/10 border-emerald-500/30 text-white'
                     : 'bg-slate-800/30 border-transparent hover:bg-slate-800/60 text-slate-300'
                 }`}
               >
-                <div className="flex items-center gap-2 flex-wrap">
-                  {code && (
-                    <span className="inline-block px-1.5 py-0.5 bg-sky-500/15 border border-sky-500/30 text-sky-300 text-[10px] font-bold rounded leading-none flex-shrink-0">
-                      {code}
-                    </span>
-                  )}
-                  <span className="text-xs font-semibold truncate">{p.po_number}</span>
-                  {p.status && (
-                    <span className={`inline-block px-1.5 py-0.5 text-[10px] font-bold rounded leading-none flex-shrink-0 ${statusBadge(p.status)}`}>
-                      {p.status}
-                    </span>
-                  )}
-                </div>
-                <div className="text-[11px] mt-0.5 flex flex-wrap gap-x-2">
-                  {p.pi_number && <span className="text-slate-200 font-medium">{p.pi_number}</span>}
-                  <span className="text-slate-500">{p.po_date}</span>
-                </div>
-                {pTotal > 0 && (
-                  <div className="mt-1.5 flex items-center gap-2">
-                    <div className="flex-1 h-1 bg-slate-700 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${pPaidPct >= 100 ? 'bg-emerald-500' : pPaidPct > 0 ? 'bg-amber-400' : 'bg-slate-600'}`}
-                        style={{ width: `${pPaidPct}%` }}
-                      />
+                {/* Clickable header row */}
+                <button
+                  className="w-full text-left"
+                  onClick={() => setSelectedId(sel ? null : key)}
+                >
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {code && (
+                      <span className="inline-block px-1.5 py-0.5 bg-sky-500/15 border border-sky-500/30 text-sky-300 text-[10px] font-bold rounded leading-none flex-shrink-0">
+                        {code}
+                      </span>
+                    )}
+                    <span className="text-xs font-semibold truncate">{p.po_number}</span>
+                  </div>
+                  <div className="text-[11px] mt-0.5 flex flex-wrap gap-x-2">
+                    {p.pi_number && <span className="text-slate-200 font-medium">{p.pi_number}</span>}
+                    <span className="text-slate-500">{p.po_date}</span>
+                  </div>
+                  {pTotal > 0 && (
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <div className="flex-1 h-1 bg-slate-700 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${pPaidPct >= 100 ? 'bg-emerald-500' : pPaidPct > 0 ? 'bg-amber-400' : 'bg-slate-600'}`}
+                          style={{ width: `${pPaidPct}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-slate-500 flex-shrink-0">{pPaidPct.toFixed(0)}% paid</span>
                     </div>
-                    <span className="text-[10px] text-slate-500 flex-shrink-0">{pPaidPct.toFixed(0)}% paid</span>
+                  )}
+                </button>
+                {/* Inline status selector */}
+                {onStatusChange && (
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    <select
+                      value={p.status ?? ''}
+                      disabled={updatingStatus === key}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={async (e) => {
+                        e.stopPropagation();
+                        setUpdatingStatus(key);
+                        try { await onStatusChange(key, e.target.value); } finally { setUpdatingStatus(null); }
+                      }}
+                      className={`flex-1 text-[11px] font-semibold rounded-lg px-2 py-1 border bg-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 cursor-pointer disabled:opacity-60 ${statusBadge(p.status)}`}
+                    >
+                      {PO_STATUSES.map((s) => (
+                        <option key={s} value={s} className="bg-slate-900 text-slate-200">{s}</option>
+                      ))}
+                    </select>
+                    {updatingStatus === key && (
+                      <span className="text-[10px] text-slate-500 animate-pulse flex-shrink-0">saving…</span>
+                    )}
                   </div>
                 )}
-              </button>
+              </div>
             );
           })}
         </div>
