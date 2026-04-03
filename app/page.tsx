@@ -82,7 +82,7 @@ export default function Home() {
 
   // ── Recent POs ────────────────────────────────────────────────────────
   const recentPos = useMemo(
-    () => [...data.pos].sort((a, b) => b.po_date.localeCompare(a.po_date)).slice(0, 8),
+    () => [...data.pos].sort((a, b) => b.po_date.localeCompare(a.po_date)).slice(0, 15),
     [data.pos]
   );
 
@@ -92,9 +92,9 @@ export default function Home() {
     <div className="min-h-screen bg-[#0B1120] text-slate-200 font-sans text-sm">
       {/* ── Header ── */}
       <div className="border-b border-slate-800/60 bg-[#0B1120]/80 backdrop-blur-md">
-        <div className="max-w-[1600px] mx-auto px-4 md:px-8 py-5 flex flex-col sm:flex-row sm:items-end justify-between gap-2">
+        <div className="max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12 py-5 xl:py-6 flex flex-col sm:flex-row sm:items-end justify-between gap-2">
           <div>
-            <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
+            <h1 className="text-2xl md:text-3xl xl:text-4xl font-extrabold text-white tracking-tight">
               ICA Supply Chain{' '}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-sky-400">
                 Dashboard
@@ -121,17 +121,17 @@ export default function Home() {
         </div>
       </div>
 
-      <main className="max-w-[1600px] mx-auto px-4 md:px-8 py-6 space-y-6">
+      <main className="max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12 py-6 xl:py-8 space-y-6 xl:space-y-8">
 
         {/* ── Stats row ── */}
         {loading ? (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 xl:gap-6">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-5 animate-pulse h-24" />
+              <div key={i} className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-5 xl:p-7 animate-pulse h-24 xl:h-32" />
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 xl:gap-6">
             {[
               {
                 label: 'Outstanding',
@@ -162,22 +162,22 @@ export default function Home() {
                 bg: 'border-violet-500/20',
               },
             ].map(({ label, value, sub, color, bg }) => (
-              <div key={label} className={`bg-slate-900/40 border ${bg} rounded-2xl p-5 ring-1 ring-white/5`}>
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">{label}</p>
-                <p className={`text-2xl font-extrabold ${color} leading-none`}>{value}</p>
-                <p className="text-[11px] text-slate-600 mt-1">{sub}</p>
+              <div key={label} className={`bg-slate-900/40 border ${bg} rounded-2xl p-5 xl:p-7 ring-1 ring-white/5`}>
+                <p className="text-[11px] xl:text-xs font-bold uppercase tracking-wider text-slate-500 mb-1 xl:mb-2">{label}</p>
+                <p className={`text-2xl xl:text-3xl 2xl:text-4xl font-extrabold ${color} leading-none`}>{value}</p>
+                <p className="text-[11px] xl:text-xs text-slate-600 mt-1 xl:mt-2">{sub}</p>
               </div>
             ))}
           </div>
         )}
 
         {/* ── Main grid ── */}
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-5">
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_400px] 2xl:grid-cols-[1fr_520px] gap-5 xl:gap-7">
 
           {/* Needs Attention */}
-          <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold text-white">Needs Attention</h2>
+          <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-5 xl:p-6">
+            <div className="flex items-center justify-between mb-4 xl:mb-5">
+              <h2 className="text-sm xl:text-base font-bold text-white">Needs Attention</h2>
               {attentionCount === 0 && !loading && (
                 <span className="text-xs text-emerald-400 font-semibold">✓ All clear</span>
               )}
@@ -189,40 +189,38 @@ export default function Home() {
               <p className="text-slate-600 text-xs italic">No issues found.</p>
             )}
 
-            {!loading && stats.noPayments.length > 0 && (
-              <AttentionGroup
-                icon="💳"
-                label="No payments logged"
-                color="text-amber-300"
-                items={stats.noPayments}
-                poCode={poCode}
-              />
-            )}
-            {!loading && stats.overdue.length > 0 && (
-              <AttentionGroup
-                icon="🚨"
-                label="Overdue delivery"
-                color="text-red-400"
-                items={stats.overdue}
-                poCode={poCode}
-                sub={(po) => po.estimated_delivery_date ? `Est. ${po.estimated_delivery_date}` : ''}
-              />
-            )}
-            {!loading && stats.noItems.length > 0 && (
-              <AttentionGroup
-                icon="📋"
-                label="No line items added"
-                color="text-slate-400"
-                items={stats.noItems}
-                poCode={poCode}
-              />
+            {/* On 2xl: show 3 groups side-by-side; smaller: stacked */}
+            {!loading && attentionCount > 0 && (
+              <div className="2xl:grid 2xl:grid-cols-3 2xl:gap-6 space-y-4 2xl:space-y-0">
+                <div>
+                  {stats.noPayments.length > 0 ? (
+                    <AttentionGroup icon="💳" label="No payments logged" color="text-amber-300" items={stats.noPayments} poCode={poCode} />
+                  ) : (
+                    <p className="hidden 2xl:block text-[11px] text-emerald-500/70 font-semibold">💳 No payments — ✓ all logged</p>
+                  )}
+                </div>
+                <div>
+                  {stats.overdue.length > 0 ? (
+                    <AttentionGroup icon="🚨" label="Overdue delivery" color="text-red-400" items={stats.overdue} poCode={poCode} sub={(po) => po.estimated_delivery_date ? `Est. ${po.estimated_delivery_date}` : ''} />
+                  ) : (
+                    <p className="hidden 2xl:block text-[11px] text-emerald-500/70 font-semibold">🚨 Overdue — ✓ none</p>
+                  )}
+                </div>
+                <div>
+                  {stats.noItems.length > 0 ? (
+                    <AttentionGroup icon="📋" label="No line items" color="text-slate-400" items={stats.noItems} poCode={poCode} />
+                  ) : (
+                    <p className="hidden 2xl:block text-[11px] text-emerald-500/70 font-semibold">📋 Line items — ✓ all present</p>
+                  )}
+                </div>
+              </div>
             )}
           </div>
 
           {/* Recent POs */}
-          <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold text-white">Recent POs</h2>
+          <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-5 xl:p-6">
+            <div className="flex items-center justify-between mb-4 xl:mb-5">
+              <h2 className="text-sm xl:text-base font-bold text-white">Recent POs</h2>
               <Link href="/insert?tab=lookup" className="text-xs text-slate-500 hover:text-sky-300 transition-colors">
                 View all →
               </Link>
@@ -235,7 +233,7 @@ export default function Home() {
                   const { totalIdr, paidIdr, pct } = poStatus[key] ?? { totalIdr: 0, paidIdr: 0, pct: 0 };
                   const code = poCode[key];
                   return (
-                    <div key={key} className="flex items-center gap-3 px-3 py-2.5 bg-slate-800/30 rounded-xl hover:bg-slate-800/50 transition-colors">
+                    <div key={key} className="flex items-center gap-3 px-3 py-2.5 xl:py-3 bg-slate-800/30 rounded-xl hover:bg-slate-800/50 transition-colors">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           {code && (
@@ -251,7 +249,7 @@ export default function Home() {
                       </div>
                       {totalIdr > 0 ? (
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                          <div className="w-16 xl:w-24 h-1.5 bg-slate-700 rounded-full overflow-hidden">
                             <div
                               className={`h-full rounded-full ${pct >= 100 ? 'bg-emerald-500' : pct > 0 ? 'bg-amber-400' : 'bg-slate-600'}`}
                               style={{ width: `${pct}%` }}
@@ -273,7 +271,7 @@ export default function Home() {
         </div>
 
         {/* ── Quick access ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 xl:gap-6">
           {[
             { href: '/insert?tab=quoting',    icon: '📝', label: 'New Quote',   sub: 'Enter supplier quote / PI',     color: 'hover:border-blue-500/40' },
             { href: '/insert?tab=ordering',   icon: '📦', label: 'New PO',      sub: 'Create purchase order',         color: 'hover:border-violet-500/40' },
@@ -282,14 +280,14 @@ export default function Home() {
             <Link
               key={href}
               href={href}
-              className={`flex items-center gap-4 px-4 py-4 bg-slate-900/40 border border-slate-800/80 ${color} rounded-2xl ring-1 ring-white/5 transition-colors group`}
+              className={`flex items-center gap-4 px-4 py-4 xl:px-6 xl:py-5 bg-slate-900/40 border border-slate-800/80 ${color} rounded-2xl ring-1 ring-white/5 transition-colors group`}
             >
-              <span className="text-2xl flex-shrink-0">{icon}</span>
+              <span className="text-2xl xl:text-3xl flex-shrink-0">{icon}</span>
               <div>
-                <p className="text-sm font-bold text-white group-hover:text-slate-100">{label}</p>
-                <p className="text-xs text-slate-500">{sub}</p>
+                <p className="text-sm xl:text-base font-bold text-white group-hover:text-slate-100">{label}</p>
+                <p className="text-xs xl:text-sm text-slate-500">{sub}</p>
               </div>
-              <span className="ml-auto text-slate-600 group-hover:text-slate-400 text-lg">→</span>
+              <span className="ml-auto text-slate-600 group-hover:text-slate-400 text-lg xl:text-xl">→</span>
             </Link>
           ))}
         </div>

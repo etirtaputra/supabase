@@ -226,9 +226,9 @@ function MasterInsertPage() {
     <div className="min-h-screen bg-[#0B1120] text-slate-200 font-sans text-sm selection:bg-emerald-500/30">
       {/* ── Sticky top header + tab bar ── */}
       <div className="sticky top-0 z-50 bg-[#0B1120]/80 backdrop-blur-md border-b border-slate-800/60 shadow-lg shadow-black/20">
-        <header className="px-4 md:px-8 pt-4 pb-2 max-w-[1800px] mx-auto flex flex-col sm:flex-row sm:items-end justify-between gap-1">
+        <header className="px-4 md:px-8 xl:px-12 pt-4 xl:pt-5 pb-2 max-w-[1800px] mx-auto flex flex-col sm:flex-row sm:items-end justify-between gap-1">
           <div>
-            <h1 className="text-lg md:text-2xl font-extrabold text-white tracking-tight leading-tight">
+            <h1 className="text-lg md:text-2xl xl:text-3xl font-extrabold text-white tracking-tight leading-tight">
               ICA Supply Chain{' '}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-sky-400">Data Entry</span>
             </h1>
@@ -238,16 +238,16 @@ function MasterInsertPage() {
           </div>
         </header>
         {/* Tab bar — scrollable pill tabs, works on both mobile & desktop */}
-        <nav className="px-4 md:px-8 pb-3 max-w-[1800px] mx-auto flex overflow-x-auto gap-2 scrollbar-none snap-x snap-mandatory">
+        <nav className="px-4 md:px-8 xl:px-12 pb-3 xl:pb-4 max-w-[1800px] mx-auto flex overflow-x-auto gap-2 xl:gap-3 scrollbar-none snap-x snap-mandatory">
           {MENU_ITEMS.map((item) => (
             <button
               key={item.id}
               onClick={() => handleTabChange(item.id)}
-              className={`snap-start px-3.5 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200 flex items-center gap-1.5 flex-shrink-0 ${
+              className={`snap-start px-3.5 py-2 xl:px-5 xl:py-2.5 rounded-full text-xs xl:text-sm font-semibold whitespace-nowrap transition-all duration-200 flex items-center gap-1.5 flex-shrink-0 ${
                 activeTab === item.id ? item.activeColor : item.color
               }`}
             >
-              <span className="text-sm leading-none">{item.icon}</span>
+              <span className="text-sm xl:text-base leading-none">{item.icon}</span>
               {item.label}
             </button>
           ))}
@@ -256,11 +256,11 @@ function MasterInsertPage() {
 
       {/* ── Main content ── */}
       <main className={`max-w-[1800px] mx-auto animate-in fade-in duration-300 ${
-        activeTab === 'catalog' && catalogMode === 'edit' ? 'p-3 md:p-4' : 'p-4 md:p-6'
+        activeTab === 'catalog' && catalogMode === 'edit' ? 'p-3 md:p-4 xl:p-5' : 'p-4 md:p-6 xl:p-8 2xl:p-10'
       }`}>
         <div className="pb-8 md:pb-4">
           {dataLoading ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 xl:gap-8 2xl:gap-10">
               <FormSkeleton />
               <FormSkeleton />
             </div>
@@ -287,7 +287,7 @@ function MasterInsertPage() {
                   </div>
 
                   {catalogMode === 'add' && (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 xl:gap-8 2xl:gap-10">
                       <SimpleForm
                         title="Add New Supplier"
                         fields={[
