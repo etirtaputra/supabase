@@ -479,7 +479,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
             : `Submit Batch Payment · ${selectedPos.length} PO${selectedPos.length > 1 ? 's' : ''} · ${costItems.filter((i) => parseFloat(i.amountStr) > 0).length} entr${costItems.filter((i) => parseFloat(i.amountStr) > 0).length === 1 ? 'y' : 'ies'} · ${fmtIdr(totalAmount)}`}
         </button>
       )}
-      </div>{/* end right column */}
-    </div>{/* end outer grid */}
+      </div>
+    </div>
   );
 }
