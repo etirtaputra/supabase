@@ -299,7 +299,7 @@ export default function POLookupTab({
               >✕</button>
             </div>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3 text-xs">
             {[
               { label: 'PO Date',         value: po.po_date },
               { label: 'PI Date',         value: po.pi_date },
@@ -454,7 +454,7 @@ export default function POLookupTab({
 
       {/* ══════════════ ALL MODE ══════════════ */}
       {viewMode === 'all' && (
-        <div className="grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-5 items-start">
+        <div className="grid grid-cols-1 xl:grid-cols-[360px_1fr] 2xl:grid-cols-[440px_1fr] gap-5 xl:gap-7 items-start">
 
           {/* Left: search + list */}
           <div className="bg-slate-900/40 backdrop-blur-sm border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-4">
@@ -466,7 +466,7 @@ export default function POLookupTab({
               placeholder="PO #, PI #, or supplier code…"
               className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 mb-3"
             />
-            <div className="space-y-1 max-h-[calc(100vh-280px)] overflow-y-auto pr-0.5">
+            <div className="space-y-1 max-h-[calc(100vh-280px)] xl:max-h-[calc(100vh-220px)] overflow-y-auto pr-0.5">
               {filtered.length === 0 && <p className="text-xs text-slate-600 italic px-1 py-4 text-center">No results</p>}
               {filtered.map((p) => renderPoRow(p))}
             </div>
@@ -484,12 +484,12 @@ export default function POLookupTab({
 
       {/* ══════════════ BY VENDOR MODE ══════════════ */}
       {viewMode === 'by-vendor' && (
-        <div className="grid grid-cols-1 xl:grid-cols-[300px_1fr] gap-5 items-start">
+        <div className="grid grid-cols-1 xl:grid-cols-[340px_1fr] 2xl:grid-cols-[420px_1fr] gap-5 xl:gap-7 items-start">
 
           {/* Left: vendor list */}
           <div className="bg-slate-900/40 backdrop-blur-sm border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-4">
             <h3 className="text-sm font-bold text-white mb-3">Vendors</h3>
-            <div className="space-y-1.5 max-h-[calc(100vh-260px)] overflow-y-auto pr-0.5">
+            <div className="space-y-1.5 max-h-[calc(100vh-240px)] xl:max-h-[calc(100vh-200px)] overflow-y-auto pr-0.5">
               {vendorStats.length === 0 && (
                 <p className="text-xs text-slate-600 italic px-1 py-4 text-center">No vendors with linked POs</p>
               )}

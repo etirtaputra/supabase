@@ -35,9 +35,9 @@ export default function DatabaseViewPage() {
 
         {/* ── Sticky header + tab bar ── */}
         <div className="sticky top-0 z-50 bg-[#0B1120]/80 backdrop-blur-md border-b border-slate-800/60 shadow-lg shadow-black/20">
-          <header className="px-4 md:px-8 pt-5 pb-3 max-w-[1600px] mx-auto flex flex-col sm:flex-row sm:items-end justify-between gap-2">
+          <header className="px-4 md:px-8 xl:px-12 pt-5 xl:pt-6 pb-3 max-w-[1800px] mx-auto flex flex-col sm:flex-row sm:items-end justify-between gap-2">
             <div>
-              <h1 className="text-xl md:text-3xl font-extrabold text-white tracking-tight leading-tight">
+              <h1 className="text-xl md:text-3xl xl:text-4xl font-extrabold text-white tracking-tight leading-tight">
                 Supply Chain{' '}
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-rose-400">Intelligence</span>
               </h1>
@@ -46,16 +46,16 @@ export default function DatabaseViewPage() {
               </p>
             </div>
           </header>
-          <nav className="px-4 md:px-8 pb-3 max-w-[1600px] mx-auto flex overflow-x-auto gap-2 scrollbar-none snap-x snap-mandatory">
+          <nav className="px-4 md:px-8 xl:px-12 pb-3 xl:pb-4 max-w-[1800px] mx-auto flex overflow-x-auto gap-2 xl:gap-3 scrollbar-none snap-x snap-mandatory">
             {TABS.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`snap-start px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200 flex items-center gap-1.5 flex-shrink-0 ${
+                className={`snap-start px-4 py-2 xl:px-6 xl:py-2.5 rounded-full text-xs xl:text-sm font-semibold whitespace-nowrap transition-all duration-200 flex items-center gap-1.5 flex-shrink-0 ${
                   activeTab === tab.id ? tab.activeColor : tab.color
                 }`}
               >
-                <span className="text-sm leading-none">{tab.icon}</span>
+                <span className="text-sm xl:text-base leading-none">{tab.icon}</span>
                 {tab.label}
               </button>
             ))}
@@ -63,7 +63,7 @@ export default function DatabaseViewPage() {
         </div>
 
         {/* ── Tab content ── */}
-        <main className="p-4 md:p-8 max-w-[1600px] mx-auto animate-in fade-in duration-300">
+        <main className="p-4 md:p-8 xl:p-10 2xl:p-12 max-w-[1800px] mx-auto animate-in fade-in duration-300">
 
           {/* Cost Lookup */}
           <div className={activeTab !== 'lookup' ? 'hidden' : 'space-y-6'}>
