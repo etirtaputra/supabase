@@ -240,63 +240,68 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
   const canSubmit = selectedPos.length > 0 && hasValidCosts && Math.abs(delta) <= 1 && !submitting;
 
   return (
-    <div className="space-y-5 max-w-4xl">
+    <div className="xl:grid xl:grid-cols-[1fr_1fr] xl:gap-8 xl:items-start">
 
-      {/* ── Step 1: Select POs ── */}
-      <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-5">
-        <h4 className="text-sm font-bold text-white mb-3">1 · Select POs</h4>
-        <input
-          type="text" value={poSearch} onChange={(e) => setPoSearch(e.target.value)}
-          placeholder="Filter by PO number, PI / reference, or supplier code…"
-          className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 mb-3"
-        />
-        <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
-          {filteredPos.map((po) => {
-            const key      = String(po.po_id);
-            const idrVal   = poIdrValues[key] ?? (po.currency === 'IDR' ? Number(po.total_value) : 0);
-            const selected = selectedIds.includes(key);
-            return (
-              <label key={key} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-colors border ${selected ? 'bg-rose-500/10 border-rose-500/30' : 'bg-slate-800/40 border-transparent hover:bg-slate-800/60'}`}>
-                <input type="checkbox" checked={selected} onChange={() => togglePo(key)} className="accent-rose-500 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {poSupplierCode[key] && (
-                      <span className="inline-block px-1.5 py-0.5 bg-sky-500/15 border border-sky-500/30 text-sky-300 text-[10px] font-bold rounded leading-none flex-shrink-0">
-                        {poSupplierCode[key]}
-                      </span>
-                    )}
-                    <span className="text-sm font-semibold text-white">{po.po_number}</span>
-                  </div>
-                  {po.pi_number && (
-                    <div className="text-xs font-semibold text-slate-200 mt-0.5">{po.pi_number}</div>
-                  )}
-                </div>
-                <div className="text-right flex-shrink-0 min-w-[90px]">
-                  <div className="text-xs font-semibold text-slate-300">{po.currency} {Number(po.total_value).toLocaleString()}</div>
-                  {po.currency !== 'IDR' && idrVal > 0 && <div className="text-[10px] text-slate-500">≈ {fmtIdr(idrVal)}</div>}
-                  {po.currency !== 'IDR' && !po.exchange_rate && <div className="text-[10px] text-amber-500">no XR — add to PO</div>}
-                  {poPaymentStatus[key]?.totalIdr > 0 && (
-                    <div className="flex items-center gap-1.5 mt-1 justify-end">
-                      <div className="w-16 h-1 bg-slate-700 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${poPaymentStatus[key].pct >= 100 ? 'bg-emerald-500' : poPaymentStatus[key].pct > 0 ? 'bg-amber-400' : 'bg-slate-600'}`}
-                          style={{ width: `${poPaymentStatus[key].pct}%` }}
-                        />
-                      </div>
-                      <span className="text-[10px] text-slate-500">{poPaymentStatus[key].pct.toFixed(0)}%</span>
+      {/* ── LEFT COLUMN: Step 1 Select POs ── */}
+      <div className="mb-5 xl:mb-0">
+        <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-5 xl:p-6">
+          <h4 className="text-sm font-bold text-white mb-3">1 · Select POs</h4>
+          <input
+            type="text" value={poSearch} onChange={(e) => setPoSearch(e.target.value)}
+            placeholder="Filter by PO number, PI / reference, or supplier code…"
+            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 mb-3"
+          />
+          <div className="space-y-1.5 max-h-64 xl:max-h-[calc(100vh-300px)] overflow-y-auto pr-1">
+            {filteredPos.map((po) => {
+              const key      = String(po.po_id);
+              const idrVal   = poIdrValues[key] ?? (po.currency === 'IDR' ? Number(po.total_value) : 0);
+              const selected = selectedIds.includes(key);
+              return (
+                <label key={key} className={`flex items-center gap-3 px-3 py-3 xl:py-3.5 rounded-xl cursor-pointer transition-colors border ${selected ? 'bg-rose-500/10 border-rose-500/30' : 'bg-slate-800/40 border-transparent hover:bg-slate-800/60'}`}>
+                  <input type="checkbox" checked={selected} onChange={() => togglePo(key)} className="accent-rose-500 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {poSupplierCode[key] && (
+                        <span className="inline-block px-1.5 py-0.5 bg-sky-500/15 border border-sky-500/30 text-sky-300 text-[10px] font-bold rounded leading-none flex-shrink-0">
+                          {poSupplierCode[key]}
+                        </span>
+                      )}
+                      <span className="text-sm font-semibold text-white">{po.po_number}</span>
                     </div>
-                  )}
-                </div>
-              </label>
-            );
-          })}
+                    {po.pi_number && (
+                      <div className="text-xs font-semibold text-slate-200 mt-0.5">{po.pi_number}</div>
+                    )}
+                  </div>
+                  <div className="text-right flex-shrink-0 min-w-[90px]">
+                    <div className="text-xs font-semibold text-slate-300">{po.currency} {Number(po.total_value).toLocaleString()}</div>
+                    {po.currency !== 'IDR' && idrVal > 0 && <div className="text-[10px] text-slate-500">≈ {fmtIdr(idrVal)}</div>}
+                    {po.currency !== 'IDR' && !po.exchange_rate && <div className="text-[10px] text-amber-500">no XR — add to PO</div>}
+                    {poPaymentStatus[key]?.totalIdr > 0 && (
+                      <div className="flex items-center gap-1.5 mt-1 justify-end">
+                        <div className="w-16 h-1 bg-slate-700 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${poPaymentStatus[key].pct >= 100 ? 'bg-emerald-500' : poPaymentStatus[key].pct > 0 ? 'bg-amber-400' : 'bg-slate-600'}`}
+                            style={{ width: `${poPaymentStatus[key].pct}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] text-slate-500">{poPaymentStatus[key].pct.toFixed(0)}%</span>
+                      </div>
+                    )}
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+          {selectedIds.length > 0 && (
+            <p className="text-xs text-rose-300 font-semibold mt-3">
+              {selectedIds.length} PO{selectedIds.length > 1 ? 's' : ''} selected · combined IDR value: {fmtIdr(totalIdrValue)}
+            </p>
+          )}
         </div>
-        {selectedIds.length > 0 && (
-          <p className="text-xs text-rose-300 font-semibold mt-2">
-            {selectedIds.length} PO{selectedIds.length > 1 ? 's' : ''} selected · combined IDR value: {fmtIdr(totalIdrValue)}
-          </p>
-        )}
       </div>
+
+      {/* ── RIGHT COLUMN: Steps 2, 3, 4 ── */}
+      <div className="space-y-5">
 
       {/* ── Step 2: Batch details ── */}
       {selectedIds.length > 0 && (
@@ -352,7 +357,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
                   className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                 >
                   {ALL_COST_CATS.map((c) => (
-                    <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>
+                    <option key={c} value={c} className="bg-[#020617] text-white">{c.replace(/_/g, ' ')}</option>
                   ))}
                 </select>
                 <input
@@ -474,6 +479,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
             : `Submit Batch Payment · ${selectedPos.length} PO${selectedPos.length > 1 ? 's' : ''} · ${costItems.filter((i) => parseFloat(i.amountStr) > 0).length} entr${costItems.filter((i) => parseFloat(i.amountStr) > 0).length === 1 ? 'y' : 'ies'} · ${fmtIdr(totalAmount)}`}
         </button>
       )}
+      </div>
     </div>
   );
 }

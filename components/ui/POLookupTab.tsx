@@ -83,11 +83,12 @@ export default function POLookupTab({
   pos, poItems, poCosts, suppliers, quotes, components, onStatusChange,
 }: Props) {
 
-  const [viewMode, setViewMode]             = useState<'all' | 'by-vendor'>('all');
-  const [search, setSearch]                 = useState('');
-  const [selectedId, setSelectedId]         = useState<string | null>(null);
-  const [selectedSuppId, setSelectedSuppId] = useState<string | null>(null);
-  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
+  const [viewMode, setViewMode]                   = useState<'all' | 'by-vendor'>('all');
+  const [search, setSearch]                       = useState('');
+  const [selectedId, setSelectedId]               = useState<string | null>(null);
+  const [selectedSuppId, setSelectedSuppId]       = useState<string | null>(null);
+  const [expandedVendorPoId, setExpandedVendorPoId] = useState<string | null>(null);
+  const [updatingStatus, setUpdatingStatus]       = useState<string | null>(null);
 
   // ── Derived: po_id → supplier_id + supplier_code ──────────────────────────
   const poSupplierMap = useMemo(() => {
@@ -185,6 +186,107 @@ export default function POLookupTab({
   const poQuote    = po?.quote_id ? quotes.find((q) => String(q.quote_id) === String(po.quote_id)) : null;
   const poSupplier = poQuote ? suppliers.find((s) => s.supplier_id === poQuote.supplier_id) : null;
 
+  // ── Inline detail renderer for accordion (by-vendor mode) ────────────────
+  const renderInlineDetail = (p: PurchaseOrder) => {
+    const iItems    = poItems.filter((i) => String(i.po_id) === String(p.po_id));
+    const iCosts    = poCosts.filter((c) => String(c.po_id) === String(p.po_id));
+    const iPrin     = iCosts.filter((c) => PRINCIPAL_CATS.has(c.cost_category));
+    const iBankFees = iCosts.filter((c) => BANK_FEE_CATS.has(c.cost_category));
+    const iLanded   = iCosts.filter((c) => !PRINCIPAL_CATS.has(c.cost_category) && !BANK_FEE_CATS.has(c.cost_category));
+    const iTot      = poTotalIdr(p);
+    const iPaid     = iPrin.filter((c) => c.cost_category !== 'overpayment_credit').reduce((s, c) => s + costToIdr(c, p), 0);
+    const iOut      = iTot > 0 ? Math.max(0, iTot - iPaid) : 0;
+    const iPct      = iTot > 0 ? Math.min(100, (iPaid / iTot) * 100) : 0;
+    const iSupplier = (p.quote_id ? quotes.find((q) => String(q.quote_id) === String(p.quote_id)) : null);
+    const iSupp     = iSupplier ? suppliers.find((s) => s.supplier_id === iSupplier.supplier_id) : null;
+    return (
+      <div className="mt-3 pt-3 border-t border-slate-700/40 space-y-3">
+        {/* Payment status */}
+        {iTot > 0 && (
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
+                <div className={`h-full rounded-full transition-all ${iPct >= 100 ? 'bg-emerald-500' : 'bg-amber-400'}`} style={{ width: `${iPct}%` }} />
+              </div>
+              <span className={`text-xs font-bold flex-shrink-0 ${iPct >= 100 ? 'text-emerald-400' : 'text-amber-300'}`}>{iPct.toFixed(1)}%</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              <div className="bg-slate-800/40 rounded-lg p-2">
+                <p className="text-[10px] text-slate-500 mb-0.5">Total</p>
+                <p className="font-bold text-white">{fmtIdr(iTot)}</p>
+              </div>
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2">
+                <p className="text-[10px] text-slate-500 mb-0.5">Paid</p>
+                <p className="font-bold text-emerald-300">{fmtIdr(iPaid)}</p>
+              </div>
+              <div className={`rounded-lg p-2 ${iOut > 0 ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-slate-800/40'}`}>
+                <p className="text-[10px] text-slate-500 mb-0.5">Outstanding</p>
+                <p className={`font-bold ${iOut > 0 ? 'text-amber-300' : 'text-slate-400'}`}>{fmtIdr(iOut)}</p>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Meta */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+          {[
+            { label: 'PO Date',       value: p.po_date },
+            { label: 'Supplier',      value: iSupp?.supplier_name },
+            { label: 'Est. Delivery', value: p.estimated_delivery_date },
+            { label: 'Received',      value: p.actual_received_date },
+          ].map(({ label, value }) => value ? (
+            <div key={label}>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">{label}</p>
+              <p className="text-slate-300 mt-0.5">{value}</p>
+            </div>
+          ) : null)}
+        </div>
+        {/* Line items */}
+        {iItems.length > 0 && (
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Line Items ({iItems.length})</p>
+            <div className="space-y-1">
+              {iItems.map((item) => {
+                const comp = components.find((c) => c.component_id === item.component_id);
+                const lineTotal = (Number(item.quantity) || 0) * (Number(item.unit_cost) || 0);
+                return (
+                  <div key={item.po_item_id} className="flex items-center justify-between gap-3 py-1 border-b border-slate-800/40 last:border-0 text-xs">
+                    <div className="min-w-0">
+                      <span className="font-medium text-white">{comp?.supplier_model ?? '—'}</span>
+                      {comp?.internal_description && <span className="text-slate-500 ml-2 text-[11px]">{comp.internal_description}</span>}
+                    </div>
+                    <div className="flex gap-3 flex-shrink-0 text-slate-400">
+                      <span>×{Number(item.quantity).toLocaleString()}</span>
+                      <span className="font-semibold text-white">{fmtCcy(lineTotal, item.currency)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        {/* Costs */}
+        {[
+          { label: 'Principal Payments', rows: iPrin },
+          { label: 'Bank Fees', rows: iBankFees },
+          { label: 'Landed Costs', rows: iLanded },
+        ].map(({ label, rows }) => rows.length === 0 ? null : (
+          <div key={label}>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">{label}</p>
+            {rows.map((c) => (
+              <div key={c.cost_id} className="flex justify-between text-xs py-1 border-b border-slate-800/30 last:border-0">
+                <span className="text-slate-400 capitalize">{c.cost_category.replace(/_/g, ' ')}{c.notes ? ` · ${c.notes}` : ''}</span>
+                <span className="text-white font-semibold flex-shrink-0 ml-3">{fmtCcy(c.amount, c.currency)}</span>
+              </div>
+            ))}
+          </div>
+        ))}
+        {iItems.length === 0 && iCosts.length === 0 && (
+          <p className="text-[11px] text-slate-600 italic">No line items or payments yet.</p>
+        )}
+      </div>
+    );
+  };
+
   // ── Shared: PO row renderer (used in both modes' lists) ──────────────────
   const renderPoRow = (p: PurchaseOrder, compact = false) => {
     const key    = String(p.po_id);
@@ -248,7 +350,7 @@ export default function POLookupTab({
               className={`flex-1 text-[11px] font-semibold rounded-lg px-2 py-1 border bg-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 cursor-pointer disabled:opacity-60 ${statusBadge(p.status)}`}
             >
               {PO_STATUSES.map((s) => (
-                <option key={s} value={s} className="bg-slate-900 text-slate-200">{s}</option>
+                <option key={s} value={s} className="bg-[#0B1120] text-slate-200">{s}</option>
               ))}
             </select>
             {updatingStatus === key && <span className="text-[10px] text-slate-500 animate-pulse flex-shrink-0">saving…</span>}
@@ -538,24 +640,12 @@ export default function POLookupTab({
             </div>
           </div>
 
-          {/* Right: vendor detail or PO detail */}
+          {/* Right: vendor detail */}
           <div>
             {!selectedSuppId ? (
               <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-10 flex flex-col items-center justify-center text-center min-h-[300px]">
                 <span className="text-4xl mb-3 opacity-40">🏭</span>
                 <p className="text-slate-500 text-sm">Select a vendor to view their orders</p>
-              </div>
-            ) : po ? (
-              <div>
-                {/* Back to vendor breadcrumb */}
-                <button
-                  onClick={() => setSelectedId(null)}
-                  className="flex items-center gap-1.5 text-xs text-sky-400 hover:text-sky-300 mb-4 transition-colors"
-                >
-                  <span>←</span>
-                  <span>Back to {selectedVendorStat?.supplier.supplier_name ?? 'vendor'}</span>
-                </button>
-                {renderPoDetail()}
               </div>
             ) : selectedVendorStat ? (
               <div className="space-y-4">
@@ -593,7 +683,7 @@ export default function POLookupTab({
                   </div>
                 </div>
 
-                {/* Vendor's PO list */}
+                {/* Vendor's PO list — accordion */}
                 <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-4">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
                     Purchase Orders
@@ -602,7 +692,75 @@ export default function POLookupTab({
                     <p className="text-xs text-slate-600 italic py-4 text-center">No POs found for this vendor</p>
                   ) : (
                     <div className="space-y-1.5">
-                      {vendorPos.map((p) => renderPoRow(p, true))}
+                      {vendorPos.map((p) => {
+                        const key      = String(p.po_id);
+                        const expanded = expandedVendorPoId === key;
+                        const pCosts   = poCosts.filter((c) => String(c.po_id) === key);
+                        const pPaid    = pCosts
+                          .filter((c) => PRINCIPAL_CATS.has(c.cost_category) && c.cost_category !== 'overpayment_credit')
+                          .reduce((s, c) => s + costToIdr(c, p), 0);
+                        const pTotal   = poTotalIdr(p);
+                        const pPaidPct = pTotal > 0 ? Math.min(100, (pPaid / pTotal) * 100) : 0;
+                        return (
+                          <div
+                            key={key}
+                            className={`rounded-xl border transition-colors ${expanded ? 'bg-slate-800/40 border-slate-600/50' : 'bg-slate-800/20 border-transparent hover:bg-slate-800/40'}`}
+                          >
+                            <button
+                              className="w-full text-left px-3 py-2.5"
+                              onClick={() => setExpandedVendorPoId(expanded ? null : key)}
+                            >
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-slate-500 text-[10px] w-3 flex-shrink-0">{expanded ? '▼' : '▶'}</span>
+                                <span className="text-xs font-semibold text-slate-200">{p.po_number}</span>
+                                {p.status && (
+                                  <span className={`inline-block px-1.5 py-0.5 text-[10px] font-bold rounded leading-none flex-shrink-0 ${statusBadge(p.status)}`}>
+                                    {p.status}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[11px] mt-0.5 flex flex-wrap gap-x-2 pl-5">
+                                {p.pi_number && <span className="text-slate-200 font-medium">{p.pi_number}</span>}
+                                <span className="text-slate-500">{p.po_date}</span>
+                                {p.total_value && <span className="text-slate-500">{fmtCcy(Number(p.total_value), p.currency)}</span>}
+                              </div>
+                              {pTotal > 0 && (
+                                <div className="mt-1.5 flex items-center gap-2 pl-5">
+                                  <div className="flex-1 h-1 bg-slate-700 rounded-full overflow-hidden">
+                                    <div className={`h-full rounded-full transition-all ${pPaidPct >= 100 ? 'bg-emerald-500' : pPaidPct > 0 ? 'bg-amber-400' : 'bg-slate-600'}`} style={{ width: `${pPaidPct}%` }} />
+                                  </div>
+                                  <span className="text-[10px] text-slate-500 flex-shrink-0">{pPaidPct.toFixed(0)}% paid</span>
+                                </div>
+                              )}
+                            </button>
+                            {onStatusChange && (
+                              <div className="px-3 pb-2 flex items-center gap-1.5">
+                                <select
+                                  value={p.status ?? ''}
+                                  disabled={updatingStatus === key}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={async (e) => {
+                                    e.stopPropagation();
+                                    setUpdatingStatus(key);
+                                    try { await onStatusChange(key, e.target.value); } finally { setUpdatingStatus(null); }
+                                  }}
+                                  className={`flex-1 text-[11px] font-semibold rounded-lg px-2 py-1 border bg-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 cursor-pointer disabled:opacity-60 ${statusBadge(p.status)}`}
+                                >
+                                  {PO_STATUSES.map((s) => (
+                                    <option key={s} value={s} className="bg-[#0B1120] text-slate-200">{s}</option>
+                                  ))}
+                                </select>
+                                {updatingStatus === key && <span className="text-[10px] text-slate-500 animate-pulse flex-shrink-0">saving…</span>}
+                              </div>
+                            )}
+                            {expanded && (
+                              <div className="px-3 pb-3">
+                                {renderInlineDetail(p)}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
