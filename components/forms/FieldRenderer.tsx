@@ -58,14 +58,14 @@ export default function FieldRenderer({
             required={field.req}
             disabled={disabled}
           >
-            <option value="">- Select -</option>
+            <option value="" className="bg-[#020617] text-slate-400">- Select -</option>
             {field.options?.map((o: any) =>
               typeof o === 'string' ? (
-                <option key={o} value={o}>
+                <option key={o} value={o} className="bg-[#020617] text-white">
                   {o}
                 </option>
               ) : (
-                <option key={o.val} value={o.val}>
+                <option key={o.val} value={o.val} className="bg-[#020617] text-white">
                   {o.txt}
                 </option>
               )
