@@ -20,10 +20,8 @@ import type {
   POCost,
   Supplier,
 } from '@/types/database';
-const PRINCIPAL_CATS = new Set(['down_payment','balance_payment','additional_balance_payment','overpayment_credit']);
-const BANK_FEE_CATS = new Set(['full_amount_bank_fee','telex_bank_fee','value_today_bank_fee','admin_bank_fee','inter_bank_transfer_fee']);
-const TAX_CATS = new Set(['local_vat', 'local_income_tax']);
-const BALANCE_CATS = new Set(['balance_payment', 'additional_balance_payment']);
+import { PRINCIPAL_CATS, BANK_FEE_CATS, TAX_CATS, BALANCE_CATS } from '@/constants/costCategories';
+import { fmtIdr, fmtNum } from '@/lib/formatters';
 const COST_LABELS: Record<string, string> = {
   down_payment: 'Down Payment', balance_payment: 'Balance Payment',
   additional_balance_payment: 'Additional Balance', overpayment_credit: 'Overpayment Credit',
@@ -34,8 +32,6 @@ const COST_LABELS: Record<string, string> = {
   local_delivery: 'Local Delivery', demurrage_fee: 'Demurrage', penalty_fee: 'Penalty',
   dhl_advance_payment_fee: 'DHL Advance Fee', local_import_tax: 'Import Tax',
 };
-const fmtIdr = (n: number) => 'IDR ' + Math.round(n).toLocaleString('en-US');
-const fmtNum = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 interface Props {
   components: Component[]; quotes: PriceQuote[]; quoteItems: PriceQuoteLineItem[];
   pos: PurchaseOrder[]; poItems: PurchaseLineItem[]; poCosts: POCost[];
