@@ -12,20 +12,16 @@ import React, { useState, useMemo } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 import type { PurchaseOrder, Supplier, PriceQuote, POCost } from '@/types/database';
 import { ENUMS } from '@/constants/enums';
+import { PRINCIPAL_CATS } from '@/constants/costCategories';
+import { fmtIdr } from '@/lib/formatters';
 
 const ALL_COST_CATS = ENUMS.po_cost_category as readonly string[];
-
-const fmtIdr = (n: number) => 'IDR ' + Math.round(n).toLocaleString('en-US');
 
 interface CostItem {
   uid: string;
   category: string;
   amountStr: string;
 }
-
-const PRINCIPAL_CATS = new Set([
-  'down_payment', 'balance_payment', 'additional_balance_payment',
-]);
 
 interface Props {
   pos: PurchaseOrder[];

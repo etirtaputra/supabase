@@ -13,24 +13,14 @@ import type {
   PurchaseOrder, PurchaseLineItem, POCost,
   Supplier, PriceQuote, Component,
 } from '@/types/database';
+import { PRINCIPAL_CATS, BANK_FEE_CATS } from '@/constants/costCategories';
+import { fmtIdr, fmtCcy } from '@/lib/formatters';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-
-const PRINCIPAL_CATS = new Set([
-  'down_payment', 'balance_payment', 'additional_balance_payment', 'overpayment_credit',
-]);
-const BANK_FEE_CATS = new Set([
-  'full_amount_bank_fee', 'telex_bank_fee', 'value_today_bank_fee',
-  'admin_bank_fee', 'inter_bank_transfer_fee',
-]);
 
 const PO_STATUSES = ['Draft', 'Sent', 'Confirmed', 'Replaced', 'Partially Received', 'Fully Received', 'Cancelled'] as const;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-const fmtIdr = (n: number) => 'IDR ' + Math.round(n).toLocaleString('en-US');
-const fmtCcy = (n: number, ccy: string) =>
-  `${ccy} ${Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
 function poTotalIdr(po: PurchaseOrder): number {
   const val = Number(po.total_value) || 0;

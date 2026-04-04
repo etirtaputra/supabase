@@ -23,11 +23,8 @@ import type {
   CompetitorPrice,
 } from '@/types/database';
 
-// ─── Cost allocation constants (mirrors ProductCostLookup) ───────────────────
-const PRINCIPAL_CATS = new Set(['down_payment', 'balance_payment', 'additional_balance_payment', 'overpayment_credit']);
-const BANK_FEE_CATS  = new Set(['full_amount_bank_fee', 'telex_bank_fee', 'value_today_bank_fee', 'admin_bank_fee', 'inter_bank_transfer_fee']);
-const TAX_CATS       = new Set(['local_vat', 'local_income_tax']);
-const BALANCE_CATS   = new Set(['balance_payment', 'additional_balance_payment']);
+import { PRINCIPAL_CATS, BANK_FEE_CATS, TAX_CATS, BALANCE_CATS } from '@/constants/costCategories';
+import { fmtIdr, fmtNum } from '@/lib/formatters';
 
 const CONFIDENCE_WEIGHT: Record<string, number> = { high: 1.0, medium: 0.6, low: 0.3 };
 
@@ -39,8 +36,6 @@ const RECENCY_OPTIONS: { label: string; days: number | null }[] = [
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-const fmtIdr  = (n: number) => 'IDR ' + Math.round(n).toLocaleString('en-US');
-const fmtNum  = (n: number, dp = 2) => n.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
 const fmtDate = (ts?: string) => ts ? new Date(ts).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
 const pct     = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`;
 

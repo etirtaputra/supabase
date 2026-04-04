@@ -24,8 +24,7 @@ import type {
   Supplier,
 } from '@/types/database';
 
-// ─── Constants ───────────────────────────────────────────────────────────────
-const BALANCE_CATS = new Set(['balance_payment', 'additional_balance_payment']);
+import { BALANCE_CATS } from '@/constants/costCategories';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function daysBetween(a: string, b: string): number {

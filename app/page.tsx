@@ -2,8 +2,7 @@
 import { useMemo } from 'react';
 import Link from 'next/link';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
-
-const PRINCIPAL_CATS = new Set(['down_payment', 'balance_payment', 'additional_balance_payment']);
+import { PRINCIPAL_CATS } from '@/constants/costCategories';
 const fmtIdr = (n: number) =>
   n >= 1_000_000_000
     ? `IDR ${(n / 1_000_000_000).toFixed(2)}B`
