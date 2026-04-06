@@ -66,6 +66,8 @@ export interface BatchLineItemsFormProps {
   allPurchases?: any[];
   components?: any[];
   gridLayout?: boolean;
+  /** Pre-select a parent on mount/change (e.g. after creating a quote/PO). */
+  defaultParentId?: string;
   /** Called whenever the parent (e.g. PO) selection changes. */
   onParentChange?: (id: string) => void;
 }

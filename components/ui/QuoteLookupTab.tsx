@@ -42,12 +42,13 @@ interface Props {
   components: Component[];
   pos: PurchaseOrder[];
   onStatusChange?: (quoteId: string, status: string) => Promise<void>;
+  onCreatePO?: (quoteId: string) => void;
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────────
 
 export default function QuoteLookupTab({
-  quotes, quoteItems, suppliers, companies, components, pos, onStatusChange,
+  quotes, quoteItems, suppliers, companies, components, pos, onStatusChange, onCreatePO,
 }: Props) {
 
   const [viewMode, setViewMode]       = useState<'all' | 'by-vendor' | 'by-company'>('all');
@@ -311,6 +312,19 @@ export default function QuoteLookupTab({
             {updatingStatus === key && (
               <span className="text-[10px] text-slate-500 animate-pulse flex-shrink-0">saving…</span>
             )}
+          </div>
+        )}
+
+        {/* Create PO shortcut — only for open quotes with no PO yet */}
+        {onCreatePO && !hasPO && (qt.status === 'Open' || !qt.status) && (
+          <div className="px-3 pb-2">
+            <button
+              onClick={(e) => { e.stopPropagation(); onCreatePO(key); }}
+              className="w-full text-left px-3 py-2 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/30 text-violet-300 text-xs font-semibold rounded-lg transition-colors flex items-center gap-2"
+            >
+              <span>📦</span>
+              <span>Create PO from this quote →</span>
+            </button>
           </div>
         )}
 
