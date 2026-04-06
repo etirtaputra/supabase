@@ -161,10 +161,10 @@ export default function Home() {
                 bg: 'border-violet-500/20',
               },
             ].map(({ label, value, sub, color, bg }) => (
-              <div key={label} className={`bg-slate-900/40 border ${bg} rounded-2xl p-5 xl:p-7 ring-1 ring-white/5`}>
-                <p className="text-[11px] xl:text-xs font-bold uppercase tracking-wider text-slate-500 mb-1 xl:mb-2">{label}</p>
-                <p className={`text-2xl xl:text-3xl 2xl:text-4xl font-extrabold ${color} leading-none`}>{value}</p>
-                <p className="text-[11px] xl:text-xs text-slate-600 mt-1 xl:mt-2">{sub}</p>
+              <div key={label} className={`bg-slate-900 border ${bg} rounded-2xl p-5 xl:p-7`}>
+                <p className="text-[11px] xl:text-xs font-semibold uppercase tracking-widest text-slate-400 mb-1 xl:mb-2">{label}</p>
+                <p className={`text-2xl xl:text-3xl 2xl:text-4xl font-extrabold tabular-nums ${color} leading-none`}>{value}</p>
+                <p className="text-[11px] xl:text-xs text-slate-500 mt-1 xl:mt-2">{sub}</p>
               </div>
             ))}
           </div>

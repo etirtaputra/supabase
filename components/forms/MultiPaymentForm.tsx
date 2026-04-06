@@ -240,7 +240,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
 
       {/* ── LEFT COLUMN: Step 1 Select POs ── */}
       <div className="mb-5 xl:mb-0">
-        <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-5 xl:p-6">
+        <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-5 xl:p-6">
           <h4 className="text-sm font-bold text-white mb-3">1 · Select POs</h4>
           <input
             type="text" value={poSearch} onChange={(e) => setPoSearch(e.target.value)}
@@ -301,18 +301,18 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
 
       {/* ── Step 2: Batch details ── */}
       {selectedIds.length > 0 && (
-        <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-5">
+        <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-5">
           <h4 className="text-sm font-bold text-white mb-4">2 · Batch Details</h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Payment Date</label>
+              <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-1.5">Payment Date</label>
               <input
                 type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Bank Reference</label>
+              <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-1.5">Bank Reference</label>
               <input
                 type="text" value={bankRef} onChange={(e) => setBankRef(e.target.value)}
                 placeholder="Wire / TT reference number"
@@ -325,7 +325,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
 
       {/* ── Step 3: Cost entries ── */}
       {selectedIds.length > 0 && (
-        <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-5">
+        <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-5">
           <div className="flex items-center justify-between mb-1">
             <h4 className="text-sm font-bold text-white">3 · Cost Entries</h4>
             <button
@@ -340,8 +340,8 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
           <div className="space-y-2">
             {/* Header */}
             <div className="grid grid-cols-[1fr_180px_32px] gap-3 px-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Cost Category</span>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Amount (IDR)</span>
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Cost Category</span>
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Amount (IDR)</span>
               <span />
             </div>
 
@@ -382,7 +382,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
           {totalAmount > 0 && (
             <div className="mt-4 pt-3 border-t border-slate-700/60 flex justify-between items-center">
               <span className="text-xs font-bold text-slate-400">Total</span>
-              <span className="text-sm font-bold text-white">{fmtIdr(totalAmount)}</span>
+              <span className="text-sm font-bold text-white tabular-nums">{fmtIdr(totalAmount)}</span>
             </div>
           )}
         </div>
@@ -390,7 +390,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
 
       {/* ── Step 4: Allocation ── */}
       {selectedIds.length > 0 && totalAmount > 0 && (
-        <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-5">
+        <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-5">
           <h4 className="text-sm font-bold text-white mb-0.5">4 · Allocation</h4>
           <p className="text-xs text-slate-500 mb-4">
             Split is proportional by PO IDR value. Edit any amount to override — the delta indicator shows if totals don&apos;t balance.
@@ -447,7 +447,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
                 <tr className="border-t border-slate-600">
                   <td colSpan={3} className="pt-3 text-xs font-bold text-slate-400">Total allocated</td>
                   <td className="pt-3">
-                    <span className={`text-sm font-bold ${Math.abs(delta) <= 1 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    <span className={`text-sm font-bold tabular-nums ${Math.abs(delta) <= 1 ? 'text-emerald-400' : 'text-red-400'}`}>
                       {fmtIdr(allocatedTotal)}
                     </span>
                     {Math.abs(delta) > 1 && (

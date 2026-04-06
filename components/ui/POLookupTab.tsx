@@ -203,15 +203,15 @@ export default function POLookupTab({
             <div className="grid grid-cols-3 gap-2 text-xs">
               <div className="bg-slate-800/40 rounded-lg p-2">
                 <p className="text-[10px] text-slate-500 mb-0.5">Total</p>
-                <p className="font-bold text-white">{fmtIdr(iTot)}</p>
+                <p className="font-bold text-white tabular-nums">{fmtIdr(iTot)}</p>
               </div>
               <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2">
                 <p className="text-[10px] text-slate-500 mb-0.5">Paid</p>
-                <p className="font-bold text-emerald-300">{fmtIdr(iPaid)}</p>
+                <p className="font-bold text-emerald-300 tabular-nums">{fmtIdr(iPaid)}</p>
               </div>
               <div className={`rounded-lg p-2 ${iOut > 0 ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-slate-800/40'}`}>
                 <p className="text-[10px] text-slate-500 mb-0.5">Outstanding</p>
-                <p className={`font-bold ${iOut > 0 ? 'text-amber-300' : 'text-slate-400'}`}>{fmtIdr(iOut)}</p>
+                <p className={`font-bold tabular-nums ${iOut > 0 ? 'text-amber-300' : 'text-slate-400'}`}>{fmtIdr(iOut)}</p>
               </div>
             </div>
           </div>
@@ -225,7 +225,7 @@ export default function POLookupTab({
             { label: 'Received',      value: p.actual_received_date },
           ].map(({ label, value }) => value ? (
             <div key={label}>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">{label}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">{label}</p>
               <p className="text-slate-300 mt-0.5">{value}</p>
             </div>
           ) : null)}
@@ -233,7 +233,7 @@ export default function POLookupTab({
         {/* Line items */}
         {iItems.length > 0 && (
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Line Items ({iItems.length})</p>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1.5">Line Items ({iItems.length})</p>
             <div className="space-y-1">
               {iItems.map((item) => {
                 const comp = components.find((c) => c.component_id === item.component_id);
@@ -261,7 +261,7 @@ export default function POLookupTab({
           { label: 'Landed Costs', rows: iLanded },
         ].map(({ label, rows }) => rows.length === 0 ? null : (
           <div key={label}>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">{label}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">{label}</p>
             {rows.map((c) => (
               <div key={c.cost_id} className="flex justify-between text-xs py-1 border-b border-slate-800/30 last:border-0">
                 <span className="text-slate-400 capitalize">{c.cost_category.replace(/_/g, ' ')}{c.notes ? ` · ${c.notes}` : ''}</span>
@@ -356,7 +356,7 @@ export default function POLookupTab({
     return (
       <div className="space-y-4">
         {/* Header card */}
-        <div className="bg-slate-900/40 backdrop-blur-sm border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-5">
+        <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-5">
           <div className="flex items-start justify-between gap-3 flex-wrap mb-4">
             <div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -404,7 +404,7 @@ export default function POLookupTab({
             ].map(({ label, value }) =>
               value ? (
                 <div key={label}>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{label}</p>
                   <p className="text-slate-200 mt-0.5">{value}</p>
                 </div>
               ) : null
@@ -414,8 +414,8 @@ export default function POLookupTab({
 
         {/* Payment balance */}
         {totalIdr > 0 && (
-          <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-5">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Payment Status</h4>
+          <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-5">
+            <h4 className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-3">Payment Status</h4>
             <div className="flex items-center gap-3 mb-3">
               <div className="flex-1 h-3 bg-slate-800 rounded-full overflow-hidden">
                 <div className={`h-full rounded-full transition-all ${paidPct >= 100 ? 'bg-emerald-500' : 'bg-amber-400'}`} style={{ width: `${paidPct}%` }} />
@@ -424,16 +424,16 @@ export default function POLookupTab({
             </div>
             <div className="grid grid-cols-3 gap-3 text-xs">
               <div className="bg-slate-800/40 rounded-xl p-3">
-                <p className="text-[10px] font-bold uppercase text-slate-500 mb-1">PO Total</p>
-                <p className="font-bold text-white">{fmtIdr(totalIdr)}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">PO Total</p>
+                <p className="font-bold text-white tabular-nums">{fmtIdr(totalIdr)}</p>
               </div>
               <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3">
-                <p className="text-[10px] font-bold uppercase text-slate-500 mb-1">Paid</p>
-                <p className="font-bold text-emerald-300">{fmtIdr(paidIdr)}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">Paid</p>
+                <p className="font-bold text-emerald-300 tabular-nums">{fmtIdr(paidIdr)}</p>
               </div>
               <div className={`rounded-xl p-3 ${outstandingIdr > 0 ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-slate-800/40'}`}>
-                <p className="text-[10px] font-bold uppercase text-slate-500 mb-1">Outstanding</p>
-                <p className={`font-bold ${outstandingIdr > 0 ? 'text-amber-300' : 'text-slate-400'}`}>{fmtIdr(outstandingIdr)}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">Outstanding</p>
+                <p className={`font-bold tabular-nums ${outstandingIdr > 0 ? 'text-amber-300' : 'text-slate-400'}`}>{fmtIdr(outstandingIdr)}</p>
               </div>
             </div>
           </div>
@@ -441,8 +441,8 @@ export default function POLookupTab({
 
         {/* Line items */}
         {items.length > 0 && (
-          <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-5">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+          <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-5">
+            <h4 className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-3">
               Line Items <span className="text-slate-600 font-normal normal-case">({items.length})</span>
             </h4>
             <div className="overflow-x-auto">
@@ -480,8 +480,8 @@ export default function POLookupTab({
 
         {/* Costs & payments */}
         {costs.length > 0 && (
-          <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-5">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+          <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-5">
+            <h4 className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-3">
               Payments & Costs <span className="text-slate-600 font-normal normal-case">({costs.length} entries)</span>
             </h4>
             <div className="space-y-4">
@@ -492,7 +492,7 @@ export default function POLookupTab({
               ].map(({ label, rows }) =>
                 rows.length === 0 ? null : (
                   <div key={label}>
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">{label}</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-1.5">{label}</p>
                     <div className="space-y-1">
                       {rows.map((c) => (
                         <div key={c.cost_id} className="flex items-center justify-between gap-3 text-xs py-1.5 border-b border-slate-800/40 last:border-0">
@@ -515,7 +515,7 @@ export default function POLookupTab({
         )}
 
         {items.length === 0 && costs.length === 0 && (
-          <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-8 text-center">
+          <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-8 text-center">
             <p className="text-slate-600 text-sm">No line items or payment records yet for this PO.</p>
           </div>
         )}
@@ -549,7 +549,7 @@ export default function POLookupTab({
         <div className="grid grid-cols-1 xl:grid-cols-[360px_1fr] 2xl:grid-cols-[440px_1fr] gap-5 xl:gap-7 items-start">
 
           {/* Left: search + list */}
-          <div className="bg-slate-900/40 backdrop-blur-sm border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-4">
+          <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-4">
             <h3 className="text-sm font-bold text-white mb-3">Find a PO / PI</h3>
             <input
               type="text"
@@ -566,7 +566,7 @@ export default function POLookupTab({
 
           {/* Right: PO detail */}
           {!po ? (
-            <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-10 flex flex-col items-center justify-center text-center min-h-[300px]">
+            <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-10 flex flex-col items-center justify-center text-center min-h-[300px]">
               <span className="text-4xl mb-3 opacity-40">📋</span>
               <p className="text-slate-500 text-sm">Select a PO from the list to view its details</p>
             </div>
@@ -579,7 +579,7 @@ export default function POLookupTab({
         <div className="grid grid-cols-1 xl:grid-cols-[340px_1fr] 2xl:grid-cols-[420px_1fr] gap-5 xl:gap-7 items-start">
 
           {/* Left: vendor list */}
-          <div className="bg-slate-900/40 backdrop-blur-sm border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-4">
+          <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-4">
             <h3 className="text-sm font-bold text-white mb-3">Vendors</h3>
             <div className="space-y-1.5 max-h-[calc(100vh-240px)] xl:max-h-[calc(100vh-200px)] overflow-y-auto pr-0.5">
               {vendorStats.length === 0 && (
@@ -633,14 +633,14 @@ export default function POLookupTab({
           {/* Right: vendor detail */}
           <div>
             {!selectedSuppId ? (
-              <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-10 flex flex-col items-center justify-center text-center min-h-[300px]">
+              <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-10 flex flex-col items-center justify-center text-center min-h-[300px]">
                 <span className="text-4xl mb-3 opacity-40">🏭</span>
                 <p className="text-slate-500 text-sm">Select a vendor to view their orders</p>
               </div>
             ) : selectedVendorStat ? (
               <div className="space-y-4">
                 {/* Vendor header */}
-                <div className="bg-slate-900/40 backdrop-blur-sm border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-5">
+                <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-5">
                   <div className="flex items-start justify-between gap-3 flex-wrap mb-4">
                     <div>
                       {selectedVendorStat.supplier.supplier_code && (
@@ -657,16 +657,16 @@ export default function POLookupTab({
                   </div>
                   <div className="grid grid-cols-3 gap-3 text-xs">
                     <div className="bg-slate-800/40 rounded-xl p-3">
-                      <p className="text-[10px] font-bold uppercase text-slate-500 mb-1">Total Ordered</p>
-                      <p className="font-bold text-white">{fmtIdr(selectedVendorStat.totalIdr)}</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">Total Ordered</p>
+                      <p className="font-bold text-white tabular-nums">{fmtIdr(selectedVendorStat.totalIdr)}</p>
                     </div>
                     <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3">
-                      <p className="text-[10px] font-bold uppercase text-slate-500 mb-1">Paid</p>
-                      <p className="font-bold text-emerald-300">{fmtIdr(selectedVendorStat.paidIdr)}</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">Paid</p>
+                      <p className="font-bold text-emerald-300 tabular-nums">{fmtIdr(selectedVendorStat.paidIdr)}</p>
                     </div>
                     <div className={`rounded-xl p-3 ${selectedVendorStat.outstandingIdr > 0 ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-slate-800/40'}`}>
-                      <p className="text-[10px] font-bold uppercase text-slate-500 mb-1">Outstanding</p>
-                      <p className={`font-bold ${selectedVendorStat.outstandingIdr > 0 ? 'text-amber-300' : 'text-slate-400'}`}>
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">Outstanding</p>
+                      <p className={`font-bold tabular-nums ${selectedVendorStat.outstandingIdr > 0 ? 'text-amber-300' : 'text-slate-400'}`}>
                         {fmtIdr(selectedVendorStat.outstandingIdr)}
                       </p>
                     </div>
@@ -674,8 +674,8 @@ export default function POLookupTab({
                 </div>
 
                 {/* Vendor's PO list — accordion */}
-                <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-4">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+                <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-4">
+                  <h4 className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-3">
                     Purchase Orders
                   </h4>
                   {vendorPos.length === 0 ? (

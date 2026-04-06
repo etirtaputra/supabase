@@ -265,7 +265,9 @@ function MasterInsertPage() {
               key={item.id}
               onClick={() => handleTabChange(item.id)}
               className={`snap-start px-3.5 py-2 xl:px-5 xl:py-2.5 rounded-full text-xs xl:text-sm font-semibold whitespace-nowrap transition-all duration-200 flex items-center gap-1.5 flex-shrink-0 ${
-                activeTab === item.id ? item.activeColor : item.color
+                activeTab === item.id
+                  ? 'bg-slate-700 text-white'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
               }`}
             >
               <span className="text-sm xl:text-base leading-none">{item.icon}</span>
