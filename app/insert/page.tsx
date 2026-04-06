@@ -13,6 +13,7 @@ import ComponentEditor from '@/components/ui/ComponentEditor';
 import CompetitorPriceForm from '@/components/forms/CompetitorPriceForm';
 import MultiPaymentForm from '@/components/forms/MultiPaymentForm';
 import POLookupTab from '@/components/ui/POLookupTab';
+import QuoteLookupTab from '@/components/ui/QuoteLookupTab';
 import { ToastContainer } from '@/components/ui/Toast';
 import { ToastProvider } from '@/hooks/useToast';
 import { FormSkeleton } from '@/components/ui/LoadingSkeleton';
@@ -37,6 +38,9 @@ const MENU_ITEMS: MenuItem[] = [
   { id: 'financials', label: 'Payment', icon: '💰',
     color: 'text-slate-400 hover:text-rose-300 hover:bg-slate-800/50',
     activeColor: 'bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30' },
+  { id: 'quote-lookup', label: 'Quote Lookup', icon: '📋',
+    color: 'text-slate-400 hover:text-indigo-300 hover:bg-slate-800/50',
+    activeColor: 'bg-indigo-500/15 text-indigo-300 ring-1 ring-indigo-500/30' },
   { id: 'lookup', label: 'PO / PI Lookup', icon: '🔍',
     color: 'text-slate-400 hover:text-sky-300 hover:bg-slate-800/50',
     activeColor: 'bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30' },
@@ -76,6 +80,13 @@ function MasterInsertPage() {
     const { error } = await supabase.from('5.0_purchases').update({ status }).eq('po_id', poId);
     if (error) { showToast(`Error updating status: ${error.message}`, 'error'); throw error; }
     showToast(`Status updated to ${status}`, 'success');
+    refetch();
+  };
+
+  const handleQuoteStatusChange = async (quoteId: string, status: string) => {
+    const { error } = await supabase.from('4.0_price_quotes').update({ status }).eq('quote_id', quoteId);
+    if (error) { showToast(`Error updating quote status: ${error.message}`, 'error'); throw error; }
+    showToast(`Quote status updated to ${status}`, 'success');
     refetch();
   };
 
@@ -695,7 +706,20 @@ function MasterInsertPage() {
                 />
               )}
 
-              {/* Lookup Tab */}
+              {/* Quote Lookup Tab */}
+              {activeTab === 'quote-lookup' && (
+                <QuoteLookupTab
+                  quotes={data.quotes}
+                  quoteItems={data.quoteItems}
+                  suppliers={data.suppliers}
+                  companies={data.companies}
+                  components={data.components}
+                  pos={data.pos}
+                  onStatusChange={handleQuoteStatusChange}
+                />
+              )}
+
+              {/* PO/PI Lookup Tab */}
               {activeTab === 'lookup' && (
                 <POLookupTab
                   pos={data.pos}
