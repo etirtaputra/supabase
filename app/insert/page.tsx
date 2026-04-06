@@ -14,6 +14,7 @@ import CompetitorPriceForm from '@/components/forms/CompetitorPriceForm';
 import MultiPaymentForm from '@/components/forms/MultiPaymentForm';
 import POLookupTab from '@/components/ui/POLookupTab';
 import QuoteLookupTab from '@/components/ui/QuoteLookupTab';
+import PDFUploadBanner from '@/components/ui/PDFUploadBanner';
 import { ToastContainer } from '@/components/ui/Toast';
 import { ToastProvider } from '@/hooks/useToast';
 import { FormSkeleton } from '@/components/ui/LoadingSkeleton';
@@ -23,6 +24,8 @@ import { useSuggestions } from '@/hooks/useSuggestions';
 import { useToast } from '@/hooks/useToast';
 // Constants & Types
 import { ENUMS } from '@/constants/enums';
+import { PRINCIPAL_CATS } from '@/constants/costCategories';
+import { fmtIdr } from '@/lib/formatters';
 import type { Tab, MenuItem } from '@/types/forms';
 
 const MENU_ITEMS: MenuItem[] = [
@@ -60,10 +63,13 @@ function MasterInsertPage() {
   const [pdfData, setPdfData] = useState<any>(null);
   const [paymentMode, setPaymentMode] = useState<'single' | 'batch'>('single');
   const [singlePoId, setSinglePoId] = useState('');
-  const [lastSaved, setLastSaved] = useState<{ message: string; cta: string; nextTab: Tab } | null>(null);
+  const [lastSaved, setLastSaved] = useState<{ message: string; cta: string; nextTab: Tab; quoteId?: string; poId?: string } | null>(null);
   const [pdfUploading, setPdfUploading] = useState(false);
   const [dupWarning, setDupWarning] = useState<string | null>(null);
   const [orderingPoId, setOrderingPoId] = useState('');
+  const [newQuoteId, setNewQuoteId] = useState('');
+  const [newPoId, setNewPoId] = useState('');
+  const [pendingQuoteForPO, setPendingQuoteForPO] = useState('');
 
   const { data, loading: dataLoading, refetch } = useSupabaseData();
   const suggestions = useSuggestions(data);
@@ -149,17 +155,21 @@ function MasterInsertPage() {
         })
       )
     );
-    const { error } = await supabase.from(table).insert(cleanPayload);
+    const { data: insertedRows, error } = await supabase.from(table).insert(cleanPayload).select();
     setLoading(false);
     if (error) {
       showToast(`Error: ${error.message}`, 'error');
     } else {
       showToast(`✅ Added ${cleanPayload.length} record(s)!`, 'success');
       refetch();
-      if (table === '4.0_price_quotes') {
-        setLastSaved({ message: 'Quote saved!', cta: 'Create PO →', nextTab: 'ordering' });
-      } else if (table === '5.0_purchases') {
-        setLastSaved({ message: 'PO saved!', cta: 'Log payment →', nextTab: 'financials' });
+      if (table === '4.0_price_quotes' && insertedRows?.[0]) {
+        const qId = String(insertedRows[0].quote_id);
+        setNewQuoteId(qId);
+        setLastSaved({ message: 'Quote saved!', cta: 'Create PO →', nextTab: 'ordering', quoteId: qId });
+      } else if (table === '5.0_purchases' && insertedRows?.[0]) {
+        const pId = String(insertedRows[0].po_id);
+        setNewPoId(pId);
+        setLastSaved({ message: 'PO saved!', cta: 'Log payment →', nextTab: 'financials', poId: pId });
       }
     }
   };
@@ -352,44 +362,18 @@ function MasterInsertPage() {
                   {lastSaved?.nextTab === 'quoting' && (
                     <div className="mb-4 flex items-center gap-3 px-4 py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
                       <span className="text-emerald-400 text-sm font-semibold">{lastSaved.message}</span>
-                      <button onClick={() => handleTabChange(lastSaved.nextTab)} className="ml-auto px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-colors">{lastSaved.cta}</button>
+                      <button onClick={() => { if (lastSaved.quoteId) setPendingQuoteForPO(lastSaved.quoteId); if (lastSaved.poId) setSinglePoId(lastSaved.poId); handleTabChange(lastSaved.nextTab); }} className="ml-auto px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-colors">{lastSaved.cta}</button>
                       <button onClick={() => setLastSaved(null)} className="text-slate-500 hover:text-slate-300 text-sm leading-none">✕</button>
                     </div>
                   )}
-                  {/* PDF Upload Banner */}
-                  <div className="mb-6 bg-gradient-to-br from-blue-900/40 via-slate-900/40 to-indigo-900/40 backdrop-blur-sm border border-blue-500/30 rounded-2xl p-5 md:p-6 shadow-2xl ring-1 ring-white/5 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
-                      <div className="flex items-start sm:items-center gap-4">
-                        <div className="p-2.5 bg-blue-500/20 rounded-xl border border-blue-500/30 shadow-inner flex-shrink-0">
-                          <span className="text-2xl block leading-none">📄</span>
-                        </div>
-                        <div>
-                          <h3 className="text-base font-bold text-white mb-0.5 tracking-tight">Upload Quote/PI PDF</h3>
-                          <p className="text-xs text-blue-200/80 font-medium">AI extracts supplier info, quote details, and line items automatically.</p>
-                          {pdfData && (
-                            <div className="mt-2 inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-3 py-1 rounded-lg text-xs font-bold">
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                              Extracted {pdfData.line_items?.length || 0} items from {pdfData.supplier_name || 'PDF'}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex gap-2 w-full sm:w-auto">
-                        {pdfData && (
-                          <button onClick={() => setPdfData(null)} className="px-4 py-2 bg-slate-800/80 hover:bg-slate-700 border border-slate-600/50 text-white rounded-xl text-xs font-bold transition-all w-full sm:w-auto">
-                            Clear
-                          </button>
-                        )}
-                        <label className="cursor-pointer w-full sm:w-auto">
-                          <input type="file" accept="application/pdf" onChange={handlePdfUpload} disabled={pdfUploading} className="hidden" />
-                          <span className={`flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-xl text-xs font-bold shadow-lg shadow-blue-900/20 transition-all active:scale-[0.98] w-full sm:w-auto border border-blue-500 ${pdfUploading ? 'opacity-70 cursor-not-allowed' : ''}`}>
-                            {pdfUploading ? <><span className="animate-spin text-base leading-none">⏳</span> Extracting...</> : <><span className="text-base leading-none">📤</span> Upload PDF</>}
-                          </span>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
+                  <PDFUploadBanner
+                    title="Upload Quote/PI PDF"
+                    description="AI extracts supplier info, quote details, and line items automatically."
+                    pdfData={pdfData}
+                    uploading={pdfUploading}
+                    onUpload={handlePdfUpload}
+                    onClear={() => setPdfData(null)}
+                  />
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 items-start">
                     <SimpleForm
                       title="Step 1: Quote Header"
@@ -410,6 +394,7 @@ function MasterInsertPage() {
                     <BatchLineItemsForm
                       title="Step 2: Quote Items"
                       enablePdfUpload={true}
+                      defaultParentId={newQuoteId}
                       parentField={{ name: 'quote_id', label: 'Select Quote', options: options.quotes }}
                       itemFields={[
                         { name: 'component_id', label: 'Component', type: 'rich-select', options: data.components, config: { labelKey: 'supplier_model', valueKey: 'component_id', subLabelKey: 'internal_description' }, req: true },
@@ -433,44 +418,18 @@ function MasterInsertPage() {
                   {lastSaved && (
                     <div className="mb-4 flex items-center gap-3 px-4 py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
                       <span className="text-emerald-400 text-sm font-semibold">{lastSaved.message}</span>
-                      <button onClick={() => handleTabChange(lastSaved.nextTab)} className="ml-auto px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-colors">{lastSaved.cta}</button>
+                      <button onClick={() => { if (lastSaved.quoteId) setPendingQuoteForPO(lastSaved.quoteId); if (lastSaved.poId) setSinglePoId(lastSaved.poId); handleTabChange(lastSaved.nextTab); }} className="ml-auto px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-colors">{lastSaved.cta}</button>
                       <button onClick={() => setLastSaved(null)} className="text-slate-500 hover:text-slate-300 text-sm leading-none">✕</button>
                     </div>
                   )}
-                  {/* PDF Upload Banner */}
-                  <div className="mb-6 bg-gradient-to-br from-blue-900/40 via-slate-900/40 to-indigo-900/40 backdrop-blur-sm border border-blue-500/30 rounded-2xl p-5 md:p-6 shadow-2xl ring-1 ring-white/5 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
-                      <div className="flex items-start sm:items-center gap-4">
-                        <div className="p-2.5 bg-blue-500/20 rounded-xl border border-blue-500/30 shadow-inner flex-shrink-0">
-                          <span className="text-2xl block leading-none">📄</span>
-                        </div>
-                        <div>
-                          <h3 className="text-base font-bold text-white mb-0.5 tracking-tight">Upload PI/PO PDF</h3>
-                          <p className="text-xs text-blue-200/80 font-medium">AI extracts PI details, PO information, and all line items automatically.</p>
-                          {pdfData && (
-                            <div className="mt-2 inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-3 py-1 rounded-lg text-xs font-bold">
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                              Extracted {pdfData.line_items?.length || 0} items from PDF
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex gap-2 w-full sm:w-auto">
-                        {pdfData && (
-                          <button onClick={() => setPdfData(null)} className="px-4 py-2 bg-slate-800/80 hover:bg-slate-700 border border-slate-600/50 text-white rounded-xl text-xs font-bold transition-all w-full sm:w-auto">
-                            Clear
-                          </button>
-                        )}
-                        <label className="cursor-pointer w-full sm:w-auto">
-                          <input type="file" accept="application/pdf" onChange={handlePdfUpload} disabled={pdfUploading} className="hidden" />
-                          <span className={`flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-xl text-xs font-bold shadow-lg shadow-blue-900/20 transition-all active:scale-[0.98] w-full sm:w-auto border border-blue-500 ${pdfUploading ? 'opacity-70 cursor-not-allowed' : ''}`}>
-                            {pdfUploading ? <><span className="animate-spin text-base leading-none">⏳</span> Extracting...</> : <><span className="text-base leading-none">📤</span> Upload PDF</>}
-                          </span>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
+                  <PDFUploadBanner
+                    title="Upload PI/PO PDF"
+                    description="AI extracts PI details, PO information, and all line items automatically."
+                    pdfData={pdfData}
+                    uploading={pdfUploading}
+                    onUpload={handlePdfUpload}
+                    onClear={() => setPdfData(null)}
+                  />
                   {dupWarning && (
                     <div className="mb-4 flex items-start gap-3 px-4 py-3 bg-amber-500/10 border border-amber-500/30 rounded-xl">
                       <span className="text-amber-400 text-sm flex-shrink-0 mt-0.5">⚠️</span>
@@ -480,6 +439,7 @@ function MasterInsertPage() {
                   )}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 items-start">
                     <SimpleForm
+                      key={`po-form-${pendingQuoteForPO}`}
                       title="1. Purchase Order (with PI fields)"
                       onFieldChange={(name, value) => {
                         const overrides: Record<string, any> = {};
@@ -520,7 +480,7 @@ function MasterInsertPage() {
                         return overrides;
                       }}
                       fields={[
-                        { name: 'quote_id', label: 'Link Quote', type: 'select', options: options.quotes },
+                        { name: 'quote_id', label: 'Link Quote', type: 'select', options: options.quotes, default: pendingQuoteForPO || undefined },
                         { name: 'pi_number', label: 'PI #', type: 'text', default: pdfData?.pi_number },
                         { name: 'pi_date', label: 'PI Date', type: 'date', default: pdfData?.pi_date },
                         { name: 'pi_status', label: 'PI Status', type: 'select', options: ENUMS.proforma_status },
@@ -545,17 +505,16 @@ function MasterInsertPage() {
                     {(() => {
                       const selPo   = orderingPoId ? data.pos.find((p) => String(p.po_id) === orderingPoId) : null;
                       const selCosts = orderingPoId ? data.poCosts.filter((c) => String(c.po_id) === orderingPoId) : [];
-                      const PRIN     = new Set(['down_payment','balance_payment','additional_balance_payment']);
                       const totIdr   = selPo ? (selPo.currency === 'IDR' ? Number(selPo.total_value) : Number(selPo.total_value) * (Number(selPo.exchange_rate) || 1)) : 0;
-                      const paidIdr2 = selCosts.filter((c) => PRIN.has(c.cost_category)).reduce((s, c) => s + (c.currency === 'IDR' ? Number(c.amount) : Number(c.amount) * (Number(selPo?.exchange_rate) || 1)), 0);
+                      const paidIdr2 = selCosts.filter((c) => PRINCIPAL_CATS.has(c.cost_category)).reduce((s, c) => s + (c.currency === 'IDR' ? Number(c.amount) : Number(c.amount) * (Number(selPo?.exchange_rate) || 1)), 0);
                       const outIdr2  = Math.max(0, totIdr - paidIdr2);
                       const pct2     = totIdr > 0 ? Math.min(100, (paidIdr2 / totIdr) * 100) : 0;
-                      const fmt2     = (n: number) => 'IDR ' + Math.round(n).toLocaleString('en-US');
                       return (<>
                         <BatchLineItemsForm
                           title="2. PO Items"
                           enablePdfUpload={true}
                           enableQuoteImport={true}
+                          defaultParentId={newPoId}
                           parentField={{ name: 'po_id', label: 'Select PO', options: options.pos }}
                           onParentChange={(id) => setOrderingPoId(id)}
                           itemFields={[
@@ -585,15 +544,15 @@ function MasterInsertPage() {
                             <div className="grid grid-cols-3 gap-2 text-xs">
                               <div className="bg-slate-800/40 rounded-lg p-2.5">
                                 <p className="text-[10px] text-slate-500 mb-0.5">PO Total</p>
-                                <p className="font-bold text-white">{fmt2(totIdr)}</p>
+                                <p className="font-bold text-white">{fmtIdr(totIdr)}</p>
                               </div>
                               <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2.5">
                                 <p className="text-[10px] text-slate-500 mb-0.5">Paid</p>
-                                <p className="font-bold text-emerald-300">{fmt2(paidIdr2)}</p>
+                                <p className="font-bold text-emerald-300">{fmtIdr(paidIdr2)}</p>
                               </div>
                               <div className={`rounded-lg p-2.5 ${outIdr2 > 0 ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-slate-800/40'}`}>
                                 <p className="text-[10px] text-slate-500 mb-0.5">Outstanding</p>
-                                <p className={`font-bold ${outIdr2 > 0 ? 'text-amber-300' : 'text-slate-400'}`}>{fmt2(outIdr2)}</p>
+                                <p className={`font-bold ${outIdr2 > 0 ? 'text-amber-300' : 'text-slate-400'}`}>{fmtIdr(outIdr2)}</p>
                               </div>
                             </div>
                           </div>
@@ -629,15 +588,14 @@ function MasterInsertPage() {
                   {paymentMode === 'single' && (() => {
                     const selPo = singlePoId ? data.pos.find((p) => String(p.po_id) === singlePoId) : null;
                     const selCosts = singlePoId ? data.poCosts.filter((c) => String(c.po_id) === singlePoId) : [];
-                    const PRIN = new Set(['down_payment','balance_payment','additional_balance_payment']);
                     const totalIdr = selPo ? (selPo.currency === 'IDR' ? Number(selPo.total_value) : Number(selPo.total_value) * (Number(selPo.exchange_rate) || 1)) : 0;
-                    const paidIdr  = selCosts.filter((c) => PRIN.has(c.cost_category)).reduce((s, c) => s + (c.currency === 'IDR' ? Number(c.amount) : Number(c.amount) * (Number(selPo?.exchange_rate) || 1)), 0);
+                    const paidIdr  = selCosts.filter((c) => PRINCIPAL_CATS.has(c.cost_category)).reduce((s, c) => s + (c.currency === 'IDR' ? Number(c.amount) : Number(c.amount) * (Number(selPo?.exchange_rate) || 1)), 0);
                     const outIdr   = Math.max(0, totalIdr - paidIdr);
                     const pct      = totalIdr > 0 ? Math.min(100, (paidIdr / totalIdr) * 100) : 0;
-                    const fmt      = (n: number) => 'IDR ' + Math.round(n).toLocaleString('en-US');
                     return (<>
                     <BatchLineItemsForm
                       title="PO Costs (Payments, Bank Fees & Landed Costs)"
+                      defaultParentId={singlePoId}
                       onParentChange={(id) => setSinglePoId(id)}
                       parentField={{ name: 'po_id', label: 'Select PO', options: options.pos }}
                       itemFields={[
@@ -663,15 +621,15 @@ function MasterInsertPage() {
                         <div className="grid grid-cols-3 gap-2 text-xs">
                           <div className="bg-slate-800/40 rounded-lg p-2.5">
                             <p className="text-[10px] text-slate-500 mb-0.5">PO Total</p>
-                            <p className="font-bold text-white">{fmt(totalIdr)}</p>
+                            <p className="font-bold text-white">{fmtIdr(totalIdr)}</p>
                           </div>
                           <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2.5">
                             <p className="text-[10px] text-slate-500 mb-0.5">Paid</p>
-                            <p className="font-bold text-emerald-300">{fmt(paidIdr)}</p>
+                            <p className="font-bold text-emerald-300">{fmtIdr(paidIdr)}</p>
                           </div>
                           <div className={`rounded-lg p-2.5 ${outIdr > 0 ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-slate-800/40'}`}>
                             <p className="text-[10px] text-slate-500 mb-0.5">Outstanding</p>
-                            <p className={`font-bold ${outIdr > 0 ? 'text-amber-300' : 'text-slate-400'}`}>{fmt(outIdr)}</p>
+                            <p className={`font-bold ${outIdr > 0 ? 'text-amber-300' : 'text-slate-400'}`}>{fmtIdr(outIdr)}</p>
                           </div>
                         </div>
                       </div>
@@ -716,6 +674,7 @@ function MasterInsertPage() {
                   components={data.components}
                   pos={data.pos}
                   onStatusChange={handleQuoteStatusChange}
+                  onCreatePO={(quoteId) => { setPendingQuoteForPO(quoteId); handleTabChange('ordering'); }}
                 />
               )}
 

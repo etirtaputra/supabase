@@ -4,7 +4,7 @@
  * Supports sticky fields and mobile-optimized layout
  */
 'use client';
-import React, { useState, useId } from 'react';
+import React, { useState, useEffect, useId } from 'react';
 import FieldRenderer from './FieldRenderer';
 import { Spinner } from '../ui/LoadingSkeleton';
 import QuoteItemsImportModal from './QuoteItemsImportModal';
@@ -24,12 +24,22 @@ export default function BatchLineItemsForm({
   allPurchases = [],
   components = [],
   gridLayout = false,
+  defaultParentId,
   onParentChange,
 }: BatchLineItemsFormProps) {
   const uniqueFormId = useId();
   const formId = customFormId || uniqueFormId;
 
-  const [parentId, setParentId] = useState('');
+  const [parentId, setParentId] = useState(defaultParentId ?? '');
+
+  // Sync when parent pre-selects a new ID (e.g. after creating a quote/PO)
+  useEffect(() => {
+    if (defaultParentId && defaultParentId !== parentId) {
+      setParentId(defaultParentId);
+      onParentChange?.(defaultParentId);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultParentId]);
   const [items, setItems] = useState<any[]>([]);
   const [draft, setDraft] = useState<Record<string, any>>({});
   const [pdfUploading, setPdfUploading] = useState(false);
