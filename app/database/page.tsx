@@ -52,7 +52,9 @@ export default function DatabaseViewPage() {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`snap-start px-4 py-2 xl:px-6 xl:py-2.5 rounded-full text-xs xl:text-sm font-semibold whitespace-nowrap transition-all duration-200 flex items-center gap-1.5 flex-shrink-0 ${
-                  activeTab === tab.id ? tab.activeColor : tab.color
+                  activeTab === tab.id
+                    ? 'bg-slate-700 text-white'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                 }`}
               >
                 <span className="text-sm xl:text-base leading-none">{tab.icon}</span>

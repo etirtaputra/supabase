@@ -167,7 +167,7 @@ export default function QuoteLookupTab({
             { label: 'Lead Time',  value: qt.estimated_lead_time_days },
           ].map(({ label, value }) => value ? (
             <div key={label}>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">{label}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">{label}</p>
               <p className="text-slate-300 mt-0.5">{value}</p>
             </div>
           ) : null)}
@@ -203,10 +203,10 @@ export default function QuoteLookupTab({
               <table className="w-full text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-slate-700/60">
-                    <th className="text-left py-1.5 pr-4 text-[11px] font-bold uppercase text-slate-500">Component</th>
-                    <th className="text-right py-1.5 pr-4 text-[11px] font-bold uppercase text-slate-500">Qty</th>
-                    <th className="text-right py-1.5 pr-4 text-[11px] font-bold uppercase text-slate-500">Unit Price</th>
-                    <th className="text-right py-1.5 text-[11px] font-bold uppercase text-slate-500">Line Total</th>
+                    <th className="text-left py-1.5 pr-4 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Component</th>
+                    <th className="text-right py-1.5 pr-4 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Qty</th>
+                    <th className="text-right py-1.5 pr-4 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Unit Price</th>
+                    <th className="text-right py-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Line Total</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -435,7 +435,7 @@ export default function QuoteLookupTab({
         <div className="grid grid-cols-1 xl:grid-cols-[340px_1fr] 2xl:grid-cols-[420px_1fr] gap-5 xl:gap-7 items-start">
 
           {/* Left: vendor list */}
-          <div className="bg-slate-900/40 backdrop-blur-sm border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-4">
+          <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-4">
             <h3 className="text-sm font-bold text-white mb-3">Vendors</h3>
             <div className="space-y-1.5 max-h-[calc(100vh-240px)] xl:max-h-[calc(100vh-200px)] overflow-y-auto pr-0.5">
               {vendorStats.length === 0 && (
@@ -456,7 +456,7 @@ export default function QuoteLookupTab({
           {/* Right: quotes for selected vendor */}
           <div>
             {!selectedSuppId ? (
-              <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-10 flex flex-col items-center justify-center text-center min-h-[260px]">
+              <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-10 flex flex-col items-center justify-center text-center min-h-[260px]">
                 <span className="text-4xl mb-3 opacity-40">🏭</span>
                 <p className="text-slate-500 text-sm">Select a vendor to view their quotes</p>
               </div>
@@ -467,7 +467,7 @@ export default function QuoteLookupTab({
                   const stat = vendorStats.find((v) => String(v.supplier.supplier_id) === selectedSuppId);
                   if (!stat) return null;
                   return (
-                    <div className="bg-slate-900/40 backdrop-blur-sm border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-5">
+                    <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-5">
                       <div className="flex items-start justify-between gap-3 flex-wrap">
                         <div>
                           {stat.supplier.supplier_code && (
@@ -492,8 +492,8 @@ export default function QuoteLookupTab({
                   );
                 })()}
                 {/* Quote list */}
-                <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-4">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Quotes</h4>
+                <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-4">
+                  <h4 className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-3">Quotes</h4>
                   {vendorQuotes.length === 0 ? (
                     <p className="text-xs text-slate-600 italic py-4 text-center">No quotes for this vendor</p>
                   ) : (
@@ -513,7 +513,7 @@ export default function QuoteLookupTab({
         <div className="grid grid-cols-1 xl:grid-cols-[340px_1fr] 2xl:grid-cols-[420px_1fr] gap-5 xl:gap-7 items-start">
 
           {/* Left: company list */}
-          <div className="bg-slate-900/40 backdrop-blur-sm border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-4">
+          <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-4">
             <h3 className="text-sm font-bold text-white mb-3">Companies</h3>
             <div className="space-y-1.5 max-h-[calc(100vh-240px)] xl:max-h-[calc(100vh-200px)] overflow-y-auto pr-0.5">
               {companyStats.length === 0 && (
@@ -534,7 +534,7 @@ export default function QuoteLookupTab({
           {/* Right: quotes for selected company */}
           <div>
             {!selectedCompId ? (
-              <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-10 flex flex-col items-center justify-center text-center min-h-[260px]">
+              <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-10 flex flex-col items-center justify-center text-center min-h-[260px]">
                 <span className="text-4xl mb-3 opacity-40">🏢</span>
                 <p className="text-slate-500 text-sm">Select a company to view addressed quotes</p>
               </div>
@@ -545,7 +545,7 @@ export default function QuoteLookupTab({
                   const stat = companyStats.find((c) => String(c.company.company_id) === selectedCompId);
                   if (!stat) return null;
                   return (
-                    <div className="bg-slate-900/40 backdrop-blur-sm border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-5">
+                    <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-5">
                       <div className="flex items-start justify-between gap-3 flex-wrap">
                         <div>
                           <h2 className="text-xl font-bold text-white">{stat.company.legal_name}</h2>
@@ -561,8 +561,8 @@ export default function QuoteLookupTab({
                   );
                 })()}
                 {/* Quote list */}
-                <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-4">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Quotes</h4>
+                <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-4">
+                  <h4 className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-3">Quotes</h4>
                   {companyQuotes.length === 0 ? (
                     <p className="text-xs text-slate-600 italic py-4 text-center">No quotes for this company</p>
                   ) : (
