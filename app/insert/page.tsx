@@ -481,16 +481,18 @@ function MasterInsertPage() {
                         }
                         return overrides;
                       }}
-                      fields={[
+                      fields={(() => {
+                        const pq = pendingQuoteForPO ? data.quotes.find((q) => String(q.quote_id) === pendingQuoteForPO) : null;
+                        return [
                         { name: 'quote_id', label: 'Link Quote', type: 'select', options: options.quotes, default: pendingQuoteForPO || undefined },
-                        { name: 'pi_number', label: 'PI #', type: 'text', default: pdfData?.pi_number },
-                        { name: 'pi_date', label: 'PI Date', type: 'date', default: pdfData?.pi_date },
+                        { name: 'pi_number', label: 'PI #', type: 'text', default: pq?.pi_number || pdfData?.pi_number },
+                        { name: 'pi_date', label: 'PI Date', type: 'date', default: pq?.quote_date || pdfData?.pi_date },
                         { name: 'pi_status', label: 'PI Status', type: 'select', options: ENUMS.proforma_status },
                         { name: 'po_number', label: 'PO #', type: 'text', req: true, suggestions: suggestions.poNumbers, default: pdfData?.po_number },
                         { name: 'po_date', label: 'PO Date', type: 'date', req: true, default: pdfData?.po_date || new Date().toISOString().split('T')[0] },
                         { name: 'incoterms', label: 'Incoterms', type: 'text', suggestions: ['FOB', 'EXW', 'CIF', 'DDP', ...suggestions.incoterms] },
                         { name: 'method_of_shipment', label: 'Ship Via', type: 'select', options: ENUMS.method_of_shipment },
-                        { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true, default: pdfData?.currency },
+                        { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true, default: pq?.currency || pdfData?.currency },
                         { name: 'exchange_rate', label: 'Exch Rate', type: 'number' },
                         { name: 'total_value', label: 'Total Value', type: 'number', default: pdfData?.total_value },
                         { name: 'payment_terms', label: 'Terms', type: 'text', suggestions: suggestions.paymentTerms, default: pdfData?.payment_terms },
@@ -500,7 +502,7 @@ function MasterInsertPage() {
                         { name: 'actual_received_date', label: 'Received', type: 'date' },
                         { name: 'status', label: 'Status', type: 'select', options: ENUMS.purchases_status, default: 'Draft' },
                         { name: 'replaces_po_id', label: 'Replaces PO', type: 'select', options: options.pos },
-                      ]}
+                        ]; })()}
                       onSubmit={(d) => handleInsert('5.0_purchases', d)}
                       loading={loading}
                     />
