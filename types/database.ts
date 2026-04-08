@@ -159,6 +159,7 @@ export interface POCost extends BaseEntity {
   cost_category: POCostCategory;
   amount: number;
   currency: Currency;
+  exchange_rate?: number;  // actual bank rate on payment date (overrides PO rate for FX variance)
   payment_date?: string;
   notes?: string;
   batch_id?: string;      // FK → payment_batches (set when part of a multi-PO remittance)

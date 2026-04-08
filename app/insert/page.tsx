@@ -78,6 +78,19 @@ function MasterInsertPage() {
     router.replace(`/insert?tab=${tab}`, { scroll: false });
   };
 
+  const handleMarkFullyPaid = async (poId: string, outstandingIdr: number) => {
+    const { error } = await supabase.from('6.0_po_costs').insert({
+      po_id: Number(poId),
+      cost_category: 'additional_balance_payment',
+      amount: outstandingIdr,
+      currency: 'IDR',
+      notes: 'Final payment — marked as fully paid',
+    });
+    if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
+    showToast('Marked as fully paid', 'success');
+    refetch();
+  };
+
   const handleStatusChange = async (poId: string, status: string) => {
     const { error } = await supabase.from('5.0_purchases').update({ status }).eq('po_id', poId);
     if (error) { showToast(`Error updating status: ${error.message}`, 'error'); throw error; }
@@ -602,6 +615,7 @@ function MasterInsertPage() {
                         { name: 'cost_category', label: 'Cost Category', type: 'select', options: ENUMS.po_cost_category, req: true },
                         { name: 'amount', label: 'Amount', type: 'number', req: true },
                         { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true },
+                        { name: 'exchange_rate', label: 'Exchange Rate (if ≠ PO rate)', type: 'number', placeholder: selPo?.exchange_rate ? String(selPo.exchange_rate) : undefined },
                         { name: 'payment_date', label: 'Date', type: 'date' },
                         { name: 'notes', label: 'Notes', type: 'text' },
                       ]}
@@ -677,6 +691,7 @@ function MasterInsertPage() {
                   components={data.components}
                   onQuoteStatusChange={handleQuoteStatusChange}
                   onPoStatusChange={handleStatusChange}
+                  onMarkFullyPaid={handleMarkFullyPaid}
                   onCreatePO={(quoteId) => { setPendingQuoteForPO(quoteId); handleTabChange('ordering'); }}
                 />
               )}

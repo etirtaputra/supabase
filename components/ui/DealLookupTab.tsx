@@ -73,6 +73,7 @@ interface Props {
   components: Component[];
   onQuoteStatusChange?: (quoteId: string, status: string) => Promise<void>;
   onPoStatusChange?: (poId: string, status: string) => Promise<void>;
+  onMarkFullyPaid?: (poId: string, outstandingIdr: number) => Promise<void>;
   onCreatePO?: (quoteId: string) => void;
 }
 
@@ -81,7 +82,7 @@ interface Props {
 export default function DealLookupTab({
   quotes, quoteItems, pos, poItems, poCosts,
   suppliers, companies, components,
-  onQuoteStatusChange, onPoStatusChange, onCreatePO,
+  onQuoteStatusChange, onPoStatusChange, onMarkFullyPaid, onCreatePO,
 }: Props) {
 
   const [viewMode, setViewMode]               = useState<'all' | 'by-vendor' | 'by-company'>('all');
@@ -93,6 +94,7 @@ export default function DealLookupTab({
   const [selectedCompId, setSelectedCompId]   = useState<string | null>(null);
   const [updatingQuote, setUpdatingQuote]     = useState<string | null>(null);
   const [updatingPo, setUpdatingPo]           = useState<string | null>(null);
+  const [markingPaid, setMarkingPaid]         = useState<string | null>(null);
 
   // ── Deal groups ──────────────────────────────────────────────────────────
   const allGroups = useMemo(
@@ -312,11 +314,24 @@ export default function DealLookupTab({
                 const fees    = costs.filter((c) => BANK_FEE_CATS.has(c.cost_category));
                 const landed  = costs.filter((c) => !PRINCIPAL_CATS.has(c.cost_category) && !BANK_FEE_CATS.has(c.cost_category));
                 const tIdr    = Number(po.total_value || 0) * (po.currency === 'IDR' ? 1 : (Number(po.exchange_rate) || 1));
-                const paidIdr = princ
-                  .filter((c) => c.cost_category !== 'overpayment_credit')
-                  .reduce((s, c) => s + (c.currency === 'IDR' ? Number(c.amount) : Number(c.amount) * (Number(po.exchange_rate) || 1)), 0);
+                const princPay = princ.filter((c) => c.cost_category !== 'overpayment_credit');
+                // Use cost-level exchange_rate when available (actual bank rate), else PO rate
+                const paidIdr = princPay.reduce((s, c) => {
+                  if (c.currency === 'IDR') return s + Number(c.amount);
+                  const rate = Number(c.exchange_rate) || Number(po.exchange_rate) || 1;
+                  return s + Number(c.amount) * rate;
+                }, 0);
                 const outIdr  = Math.max(0, tIdr - paidIdr);
                 const pct     = tIdr > 0 ? Math.min(100, (paidIdr / tIdr) * 100) : 0;
+                // FX variance: actual paid IDR (at payment rate) vs. committed IDR (at PO rate)
+                const fxVariance = po.currency !== 'IDR' && Number(po.exchange_rate) > 0
+                  ? princPay.filter((c) => c.currency !== 'IDR' && c.exchange_rate != null).reduce((s, c) => {
+                      const atPayRate = Number(c.amount) * (Number(c.exchange_rate) || 0);
+                      const atPORate  = Number(c.amount) * (Number(po.exchange_rate) || 0);
+                      return s + (atPayRate - atPORate);
+                    }, 0)
+                  : 0;
+                const hasFxVariance = Math.abs(fxVariance) > 0;
 
                 return (
                   <div key={pKey} className="bg-slate-800/30 rounded-xl p-3 space-y-2.5">
@@ -341,10 +356,12 @@ export default function DealLookupTab({
 
                     {/* PO value */}
                     {po.total_value && (
-                      <div className="flex items-center gap-3 text-xs">
+                      <div className="flex items-center gap-3 text-xs flex-wrap">
                         <span className="font-semibold text-white tabular-nums">{fmtCcy(Number(po.total_value), po.currency)}</span>
                         {po.currency !== 'IDR' && po.exchange_rate && (
-                          <span className="text-slate-500 tabular-nums">≈ {fmtIdr(tIdr)}</span>
+                          <span className="text-slate-500 tabular-nums">
+                            @ {Number(po.exchange_rate).toLocaleString()} = {fmtIdr(tIdr)}
+                          </span>
                         )}
                       </div>
                     )}
@@ -380,6 +397,36 @@ export default function DealLookupTab({
                       </div>
                     )}
 
+                    {/* FX variance */}
+                    {hasFxVariance && (
+                      <div className={`rounded-lg px-3 py-2 text-xs flex items-center gap-3 flex-wrap ${
+                        fxVariance > 0
+                          ? 'bg-red-500/10 border border-red-500/20'
+                          : 'bg-emerald-500/10 border border-emerald-500/20'
+                      }`}>
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-0.5">
+                            FX {fxVariance > 0 ? 'Loss' : 'Gain'}
+                          </p>
+                          <p className={`font-bold tabular-nums ${fxVariance > 0 ? 'text-red-300' : 'text-emerald-300'}`}>
+                            {fxVariance > 0 ? '+' : ''}{fmtIdr(fxVariance)}
+                          </p>
+                        </div>
+                        <div className="text-slate-500 text-[11px]">
+                          <p>PO rate: <span className="tabular-nums text-slate-400">{Number(po.exchange_rate).toLocaleString()}</span></p>
+                          <p>Effective paid rate: <span className="tabular-nums text-slate-400">
+                            {(() => {
+                              const fxPaid = princPay.filter((c) => c.currency !== 'IDR' && c.exchange_rate != null);
+                              if (fxPaid.length === 0) return '—';
+                              const totalForeign = fxPaid.reduce((s, c) => s + Number(c.amount), 0);
+                              const totalIdrPaid = fxPaid.reduce((s, c) => s + Number(c.amount) * (Number(c.exchange_rate) || 0), 0);
+                              return totalForeign > 0 ? (totalIdrPaid / totalForeign).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—';
+                            })()}
+                          </span></p>
+                        </div>
+                      </div>
+                    )}
+
                     {/* PO status selector */}
                     {onPoStatusChange && (
                       <div className="flex items-center gap-1.5">
@@ -399,6 +446,30 @@ export default function DealLookupTab({
                           ))}
                         </select>
                         {updatingPo === pKey && <span className="text-[10px] text-slate-500 animate-pulse">saving…</span>}
+                      </div>
+                    )}
+
+                    {/* Mark as Fully Paid */}
+                    {onMarkFullyPaid && po.status === 'Fully Received' && outIdr > 0 && (
+                      <div className="flex items-center gap-2 pt-1">
+                        <button
+                          disabled={markingPaid === pKey}
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            setMarkingPaid(pKey);
+                            try { await onMarkFullyPaid(pKey, outIdr); } finally { setMarkingPaid(null); }
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                          Mark as Fully Paid
+                        </button>
+                        <span className="text-[10px] text-slate-500">
+                          records {fmtIdr(outIdr)} final payment
+                        </span>
+                        {markingPaid === pKey && <span className="text-[10px] text-slate-500 animate-pulse">saving…</span>}
                       </div>
                     )}
 
@@ -566,7 +637,9 @@ export default function DealLookupTab({
                   style={{ width: `${paidPct}%` }}
                 />
               </div>
-              <span className="text-[10px] text-slate-500 flex-shrink-0 tabular-nums">{paidPct.toFixed(0)}% paid</span>
+              <span className="text-[10px] text-slate-500 flex-shrink-0 tabular-nums">
+                {g.outstandingIdr > 0 ? paidPct.toFixed(1) : '100'}% paid
+              </span>
             </div>
           )}
         </button>
