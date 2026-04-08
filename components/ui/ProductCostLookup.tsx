@@ -101,9 +101,16 @@ export default function ProductCostLookup({ components, quotes, quoteItems, pos,
       const lineShare = totalPoValueForeign > 0 ? lineValueForeign / totalPoValueForeign : 0;
       const costs = poCosts.filter((c) => c.po_id === item.po_id);
       const hasBalancePayment = costs.some((c) => BALANCE_CATS.has(c.cost_category));
-      const principal = costs.filter((c) => PRINCIPAL_CATS.has(c.cost_category)).reduce((s, c) => s + c.amount, 0);
-      const bankFees = costs.filter((c) => BANK_FEE_CATS.has(c.cost_category)).reduce((s, c) => s + c.amount, 0);
-      const landed = costs.filter((c) => !PRINCIPAL_CATS.has(c.cost_category) && !BANK_FEE_CATS.has(c.cost_category) && !TAX_CATS.has(c.cost_category)).reduce((s, c) => s + c.amount, 0);
+      // Convert every cost to IDR at the actual payment rate (cost.exchange_rate if recorded,
+      // else PO rate). This makes TUC reflect what was truly paid in IDR, not the committed rate.
+      const toIdr = (c: typeof costs[number]) => {
+        if (c.currency === 'IDR') return Number(c.amount);
+        const rate = Number(c.exchange_rate) || Number(po.exchange_rate) || 1;
+        return Number(c.amount) * rate;
+      };
+      const principal = costs.filter((c) => PRINCIPAL_CATS.has(c.cost_category)).reduce((s, c) => s + toIdr(c), 0);
+      const bankFees = costs.filter((c) => BANK_FEE_CATS.has(c.cost_category)).reduce((s, c) => s + toIdr(c), 0);
+      const landed = costs.filter((c) => !PRINCIPAL_CATS.has(c.cost_category) && !BANK_FEE_CATS.has(c.cost_category) && !TAX_CATS.has(c.cost_category)).reduce((s, c) => s + toIdr(c), 0);
       const allocPrincipal = lineShare * principal, allocBankFees = lineShare * bankFees, allocLanded = lineShare * landed;
       const totalAllocated = allocPrincipal + allocBankFees + allocLanded;
       const trueUnitCostIdr = item.quantity > 0 ? totalAllocated / item.quantity : 0;
