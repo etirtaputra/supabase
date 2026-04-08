@@ -73,7 +73,7 @@ interface Props {
   components: Component[];
   onQuoteStatusChange?: (quoteId: string, status: string) => Promise<void>;
   onPoStatusChange?: (poId: string, status: string) => Promise<void>;
-  onMarkFullyPaid?: (poId: string, outstandingIdr: number) => Promise<void>;
+  onMarkFullyPaid?: (poId: string, payment: { amount: number; currency: string; exchange_rate?: number }) => Promise<void>;
   onCreatePO?: (quoteId: string) => void;
 }
 
@@ -95,6 +95,9 @@ export default function DealLookupTab({
   const [updatingQuote, setUpdatingQuote]     = useState<string | null>(null);
   const [updatingPo, setUpdatingPo]           = useState<string | null>(null);
   const [markingPaid, setMarkingPaid]         = useState<string | null>(null);
+  const [markPaidPoId, setMarkPaidPoId]       = useState<string | null>(null);
+  const [markPaidAmount, setMarkPaidAmount]   = useState('');
+  const [markPaidRate, setMarkPaidRate]       = useState('');
 
   // ── Deal groups ──────────────────────────────────────────────────────────
   const allGroups = useMemo(
@@ -450,28 +453,95 @@ export default function DealLookupTab({
                     )}
 
                     {/* Mark as Fully Paid */}
-                    {onMarkFullyPaid && po.status === 'Fully Received' && outIdr > 0 && (
-                      <div className="flex items-center gap-2 pt-1">
-                        <button
-                          disabled={markingPaid === pKey}
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            setMarkingPaid(pKey);
-                            try { await onMarkFullyPaid(pKey, outIdr); } finally { setMarkingPaid(null); }
-                          }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold rounded-lg transition-colors disabled:opacity-50"
-                        >
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
-                          Mark as Fully Paid
-                        </button>
-                        <span className="text-[10px] text-slate-500">
-                          records {fmtIdr(outIdr)} final payment
-                        </span>
-                        {markingPaid === pKey && <span className="text-[10px] text-slate-500 animate-pulse">saving…</span>}
-                      </div>
-                    )}
+                    {onMarkFullyPaid && po.status === 'Fully Received' && outIdr > 0 && (() => {
+                      // Outstanding in PO's original currency (sum already-recorded payments)
+                      const paidForeign = po.currency !== 'IDR'
+                        ? princPay.filter((c) => c.currency === po.currency).reduce((s, c) => s + Number(c.amount), 0)
+                        : 0;
+                      const outForeign = po.currency !== 'IDR' && po.total_value
+                        ? Math.max(0, Number(po.total_value) - paidForeign)
+                        : 0;
+                      const isOpen = markPaidPoId === pKey;
+
+                      return (
+                        <div className="pt-1">
+                          {!isOpen ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setMarkPaidPoId(pKey);
+                                setMarkPaidAmount(po.currency !== 'IDR' ? outForeign.toFixed(2) : String(Math.round(outIdr)));
+                                setMarkPaidRate(po.exchange_rate ? String(po.exchange_rate) : '');
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold rounded-lg transition-colors"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                              Mark as Fully Paid
+                            </button>
+                          ) : (
+                            <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3 space-y-2.5" onClick={(e) => e.stopPropagation()}>
+                              <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Record final payment</p>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="number"
+                                    value={markPaidAmount}
+                                    onChange={(e) => setMarkPaidAmount(e.target.value)}
+                                    className="w-36 px-2 py-1.5 bg-slate-900 border border-slate-600 rounded-lg text-xs text-white tabular-nums focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
+                                    placeholder="Amount"
+                                  />
+                                  <span className="text-xs font-bold text-slate-400">{po.currency}</span>
+                                </div>
+                                {po.currency !== 'IDR' && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[11px] text-slate-500">@</span>
+                                    <input
+                                      type="number"
+                                      value={markPaidRate}
+                                      onChange={(e) => setMarkPaidRate(e.target.value)}
+                                      className="w-28 px-2 py-1.5 bg-slate-900 border border-slate-600 rounded-lg text-xs text-white tabular-nums focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
+                                      placeholder={po.exchange_rate ? String(po.exchange_rate) : 'Rate'}
+                                    />
+                                    {markPaidAmount && markPaidRate && (
+                                      <span className="text-[11px] text-slate-500 tabular-nums">
+                                        = {fmtIdr(Number(markPaidAmount) * Number(markPaidRate))}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  disabled={!markPaidAmount || markingPaid === pKey}
+                                  onClick={async () => {
+                                    setMarkingPaid(pKey);
+                                    try {
+                                      await onMarkFullyPaid(pKey, {
+                                        amount: Number(markPaidAmount),
+                                        currency: po.currency,
+                                        exchange_rate: po.currency !== 'IDR' && markPaidRate ? Number(markPaidRate) : undefined,
+                                      });
+                                      setMarkPaidPoId(null);
+                                    } finally { setMarkingPaid(null); }
+                                  }}
+                                  className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold rounded-lg transition-colors disabled:opacity-50"
+                                >
+                                  {markingPaid === pKey ? 'Saving…' : 'Confirm Payment'}
+                                </button>
+                                <button
+                                  onClick={() => setMarkPaidPoId(null)}
+                                  className="px-3 py-1.5 text-slate-400 hover:text-slate-300 text-[11px] transition-colors"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* PO line items */}
                     {items.length > 0 && (

@@ -78,16 +78,18 @@ function MasterInsertPage() {
     router.replace(`/insert?tab=${tab}`, { scroll: false });
   };
 
-  const handleMarkFullyPaid = async (poId: string, outstandingIdr: number) => {
-    const { error } = await supabase.from('6.0_po_costs').insert({
+  const handleMarkFullyPaid = async (poId: string, payment: { amount: number; currency: string; exchange_rate?: number }) => {
+    const row: Record<string, unknown> = {
       po_id: Number(poId),
       cost_category: 'additional_balance_payment',
-      amount: outstandingIdr,
-      currency: 'IDR',
+      amount: payment.amount,
+      currency: payment.currency,
       notes: 'Final payment — marked as fully paid',
-    });
+    };
+    if (payment.exchange_rate) row.exchange_rate = payment.exchange_rate;
+    const { error } = await supabase.from('6.0_po_costs').insert(row);
     if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
-    showToast('Marked as fully paid', 'success');
+    showToast('Final payment recorded', 'success');
     refetch();
   };
 
