@@ -106,7 +106,7 @@ export interface Toast {
 }
 
 // Tab types
-export type Tab = 'catalog' | 'quoting' | 'ordering' | 'financials' | 'history' | 'database' | 'market-intel' | 'lookup' | 'quote-lookup';
+export type Tab = 'catalog' | 'quoting' | 'ordering' | 'financials' | 'history' | 'database' | 'market-intel' | 'lookup';
 
 // Menu item configuration
 export interface MenuItem {
