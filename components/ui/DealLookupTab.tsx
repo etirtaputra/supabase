@@ -15,7 +15,7 @@ import type {
   Supplier, Company, Component,
 } from '@/types/database';
 import { buildDealGroups, type DealGroup } from '@/lib/dealGroups';
-import { PRINCIPAL_CATS, BANK_FEE_CATS } from '@/constants/costCategories';
+import { PRINCIPAL_CATS, BANK_FEE_CATS, TAX_CATS } from '@/constants/costCategories';
 import { fmtIdr, fmtCcy, fmtDate } from '@/lib/formatters';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -73,7 +73,7 @@ interface Props {
   components: Component[];
   onQuoteStatusChange?: (quoteId: string, status: string) => Promise<void>;
   onPoStatusChange?: (poId: string, status: string) => Promise<void>;
-  onMarkFullyPaid?: (poId: string, payment: { amount: number; currency: string; exchange_rate?: number }) => Promise<void>;
+  onMarkFullyPaid?: (poId: string, amount: number, currency: string) => Promise<void>;
   onCreatePO?: (quoteId: string) => void;
 }
 
@@ -95,9 +95,6 @@ export default function DealLookupTab({
   const [updatingQuote, setUpdatingQuote]     = useState<string | null>(null);
   const [updatingPo, setUpdatingPo]           = useState<string | null>(null);
   const [markingPaid, setMarkingPaid]         = useState<string | null>(null);
-  const [markPaidPoId, setMarkPaidPoId]       = useState<string | null>(null);
-  const [markPaidAmount, setMarkPaidAmount]   = useState('');
-  const [markPaidRate, setMarkPaidRate]       = useState('');
 
   // ── Deal groups ──────────────────────────────────────────────────────────
   const allGroups = useMemo(
@@ -315,7 +312,8 @@ export default function DealLookupTab({
                 const costs   = poCosts.filter((c) => String(c.po_id) === pKey);
                 const princ   = costs.filter((c) => PRINCIPAL_CATS.has(c.cost_category));
                 const fees    = costs.filter((c) => BANK_FEE_CATS.has(c.cost_category));
-                const landed  = costs.filter((c) => !PRINCIPAL_CATS.has(c.cost_category) && !BANK_FEE_CATS.has(c.cost_category));
+                const taxes   = costs.filter((c) => TAX_CATS.has(c.cost_category));
+                const landed  = costs.filter((c) => !PRINCIPAL_CATS.has(c.cost_category) && !BANK_FEE_CATS.has(c.cost_category) && !TAX_CATS.has(c.cost_category));
                 const tIdr     = Number(po.total_value || 0) * (po.currency === 'IDR' ? 1 : (Number(po.exchange_rate) || 1));
                 const princPay = princ.filter((c) => c.cost_category !== 'overpayment_credit');
                 // Actual IDR paid — uses cost-level rate when available, else PO rate
@@ -344,6 +342,14 @@ export default function DealLookupTab({
                 // FX variance: only meaningful when obligation met (rate diff, not missing payment)
                 const fxVariance   = isObligationMet ? paidIdr - tIdr : 0;
                 const hasFxVariance = isObligationMet && Math.abs(fxVariance) >= 1;
+
+                // Total cash out = every cost converted to IDR at actual rate
+                const toIdrLocal = (c: typeof costs[number]) => {
+                  if (c.currency === 'IDR') return Number(c.amount);
+                  return Number(c.amount) * (Number(c.exchange_rate) || Number(po.exchange_rate) || 1);
+                };
+                const totalCashOutIdr        = costs.reduce((s, c) => s + toIdrLocal(c), 0);
+                const totalCashOutExclTaxIdr = costs.filter((c) => !TAX_CATS.has(c.cost_category)).reduce((s, c) => s + toIdrLocal(c), 0);
 
                 return (
                   <div key={pKey} className="bg-slate-800/30 rounded-xl p-3 space-y-2.5">
@@ -416,6 +422,17 @@ export default function DealLookupTab({
                             </p>
                           </div>
                         </div>
+                        {/* Total cash out row */}
+                        {totalCashOutIdr > 0 && (
+                          <div className="mt-2 pt-2 border-t border-slate-700/40 flex items-center gap-3 flex-wrap text-[11px]">
+                            <span className="text-slate-500 font-semibold uppercase tracking-widest">Total Cash Out</span>
+                            <span className="font-bold text-slate-200 tabular-nums">{fmtIdr(totalCashOutExclTaxIdr)}</span>
+                            <span className="text-slate-600">excl. tax</span>
+                            {totalCashOutIdr !== totalCashOutExclTaxIdr && (
+                              <span className="text-slate-600 tabular-nums">{fmtIdr(totalCashOutIdr)} incl. tax</span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -471,90 +488,32 @@ export default function DealLookupTab({
                       </div>
                     )}
 
-                    {/* Mark as Fully Paid — only when obligation (foreign units) is truly outstanding */}
-                    {onMarkFullyPaid && po.status === 'Fully Received' && !isObligationMet && (hasForeignTracking ? foreignOut > 0.005 : outIdr > 0) && (() => {
-                      const outForeign = hasForeignTracking ? foreignOut : 0;
-                      const isOpen = markPaidPoId === pKey;
-
-                      return (
-                        <div className="pt-1">
-                          {!isOpen ? (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setMarkPaidPoId(pKey);
-                                setMarkPaidAmount(po.currency !== 'IDR' ? outForeign.toFixed(2) : String(Math.round(outIdr)));
-                                setMarkPaidRate(po.exchange_rate ? String(po.exchange_rate) : '');
-                              }}
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold rounded-lg transition-colors"
-                            >
-                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                              </svg>
-                              Mark as Fully Paid
-                            </button>
-                          ) : (
-                            <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3 space-y-2.5" onClick={(e) => e.stopPropagation()}>
-                              <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Record final payment</p>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <div className="flex items-center gap-1.5">
-                                  <input
-                                    type="number"
-                                    value={markPaidAmount}
-                                    onChange={(e) => setMarkPaidAmount(e.target.value)}
-                                    className="w-36 px-2 py-1.5 bg-slate-900 border border-slate-600 rounded-lg text-xs text-white tabular-nums focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
-                                    placeholder="Amount"
-                                  />
-                                  <span className="text-xs font-bold text-slate-400">{po.currency}</span>
-                                </div>
-                                {po.currency !== 'IDR' && (
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-[11px] text-slate-500">@</span>
-                                    <input
-                                      type="number"
-                                      value={markPaidRate}
-                                      onChange={(e) => setMarkPaidRate(e.target.value)}
-                                      className="w-28 px-2 py-1.5 bg-slate-900 border border-slate-600 rounded-lg text-xs text-white tabular-nums focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
-                                      placeholder={po.exchange_rate ? String(po.exchange_rate) : 'Rate'}
-                                    />
-                                    {markPaidAmount && markPaidRate && (
-                                      <span className="text-[11px] text-slate-500 tabular-nums">
-                                        = {fmtIdr(Number(markPaidAmount) * Number(markPaidRate))}
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <button
-                                  disabled={!markPaidAmount || markingPaid === pKey}
-                                  onClick={async () => {
-                                    setMarkingPaid(pKey);
-                                    try {
-                                      await onMarkFullyPaid(pKey, {
-                                        amount: Number(markPaidAmount),
-                                        currency: po.currency,
-                                        exchange_rate: po.currency !== 'IDR' && markPaidRate ? Number(markPaidRate) : undefined,
-                                      });
-                                      setMarkPaidPoId(null);
-                                    } finally { setMarkingPaid(null); }
-                                  }}
-                                  className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold rounded-lg transition-colors disabled:opacity-50"
-                                >
-                                  {markingPaid === pKey ? 'Saving…' : 'Confirm Payment'}
-                                </button>
-                                <button
-                                  onClick={() => setMarkPaidPoId(null)}
-                                  className="px-3 py-1.5 text-slate-400 hover:text-slate-300 text-[11px] transition-colors"
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
+                    {/* Mark as Fully Paid — single click, system auto-computes the gap */}
+                    {onMarkFullyPaid && po.status === 'Fully Received' && !isObligationMet && (hasForeignTracking ? foreignOut > 0.005 : outIdr > 0) && (
+                      <div className="flex items-center gap-2 pt-1">
+                        <button
+                          disabled={markingPaid === pKey}
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            setMarkingPaid(pKey);
+                            // System derives amount and currency — no user input needed
+                            const amount   = hasForeignTracking ? foreignOut : outIdr;
+                            const currency = hasForeignTracking ? po.currency : 'IDR';
+                            try { await onMarkFullyPaid(pKey, amount, currency); }
+                            finally { setMarkingPaid(null); }
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                          {markingPaid === pKey ? 'Saving…' : 'Mark as Fully Paid'}
+                        </button>
+                        <span className="text-[10px] text-slate-600 tabular-nums">
+                          closes {hasForeignTracking ? `${po.currency} ${foreignOut.toFixed(2)}` : fmtIdr(outIdr)} gap
+                        </span>
+                      </div>
+                    )}
 
                     {/* PO line items */}
                     {items.length > 0 && (
@@ -594,14 +553,15 @@ export default function DealLookupTab({
 
                     {/* PO costs */}
                     {[
-                      { label: 'Principal Payments', rows: princ },
-                      { label: 'Bank Fees',          rows: fees },
-                      { label: 'Landed Costs',        rows: landed },
-                    ].map(({ label, rows }) => rows.length === 0 ? null : (
+                      { label: 'Principal Payments', rows: princ,   dim: false },
+                      { label: 'Bank Fees',          rows: fees,    dim: false },
+                      { label: 'Landed Costs',       rows: landed,  dim: false },
+                      { label: 'Taxes (excl. TUC)',  rows: taxes,   dim: true  },
+                    ].map(({ label, rows, dim }) => rows.length === 0 ? null : (
                       <div key={label}>
-                        <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-1">{label}</p>
+                        <p className={`text-[10px] font-semibold uppercase tracking-widest mb-1 ${dim ? 'text-slate-600' : 'text-slate-500'}`}>{label}</p>
                         {rows.map((c) => (
-                          <div key={c.cost_id} className="flex justify-between text-xs py-1 border-b border-slate-800/30 last:border-0">
+                          <div key={c.cost_id} className={`flex justify-between text-xs py-1 border-b border-slate-800/30 last:border-0 ${dim ? 'opacity-50' : ''}`}>
                             <span className="text-slate-400 capitalize">{c.cost_category.replace(/_/g, ' ')}{c.notes ? ` · ${c.notes}` : ''}</span>
                             <span className="text-white font-semibold flex-shrink-0 ml-3 tabular-nums">{fmtCcy(c.amount, c.currency)}</span>
                           </div>

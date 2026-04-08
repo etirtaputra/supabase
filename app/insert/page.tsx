@@ -78,18 +78,20 @@ function MasterInsertPage() {
     router.replace(`/insert?tab=${tab}`, { scroll: false });
   };
 
-  const handleMarkFullyPaid = async (poId: string, payment: { amount: number; currency: string; exchange_rate?: number }) => {
+  const handleMarkFullyPaid = async (poId: string, amount: number, currency: string) => {
+    const po = data.pos.find((p) => String(p.po_id) === poId);
     const row: Record<string, unknown> = {
       po_id: Number(poId),
       cost_category: 'additional_balance_payment',
-      amount: payment.amount,
-      currency: payment.currency,
+      amount,
+      currency,
       notes: 'Final payment — marked as fully paid',
     };
-    if (payment.exchange_rate) row.exchange_rate = payment.exchange_rate;
+    // For non-IDR gap closures, use PO exchange rate — system-derived, no user input needed
+    if (currency !== 'IDR' && po?.exchange_rate) row.exchange_rate = po.exchange_rate;
     const { error } = await supabase.from('6.0_po_costs').insert(row);
     if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
-    showToast('Final payment recorded', 'success');
+    showToast('Marked as fully paid', 'success');
     refetch();
   };
 
