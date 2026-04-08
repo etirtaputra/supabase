@@ -20,3 +20,13 @@ export const fmtNum = (n: number, dp = 2): string =>
  */
 export const fmtCcy = (n: number, ccy: string): string =>
   `${ccy} ${Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+
+/**
+ * Format an ISO date string compactly: "5 Mar '26"
+ * Returns '—' for empty/null input.
+ */
+export const fmtDate = (iso?: string | null): string => {
+  if (!iso) return '—';
+  const d = new Date(iso + 'T00:00:00');
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' }).replace(/ /g, '\u00A0');
+};

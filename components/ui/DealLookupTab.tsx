@@ -16,7 +16,7 @@ import type {
 } from '@/types/database';
 import { buildDealGroups, type DealGroup } from '@/lib/dealGroups';
 import { PRINCIPAL_CATS, BANK_FEE_CATS } from '@/constants/costCategories';
-import { fmtIdr, fmtCcy } from '@/lib/formatters';
+import { fmtIdr, fmtCcy, fmtDate } from '@/lib/formatters';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -49,6 +49,17 @@ function poBadge(status?: string | null) {
   return map[status ?? ''] ?? 'bg-slate-700/60 text-slate-400';
 }
 
+// ── Deal stage (module-level so useMemos can reference it) ────────────────────
+
+function dealStage(g: DealGroup): 'quote' | 'active' | 'received' | 'completed' {
+  if (g.pos.length === 0) return 'quote';
+  if (g.poStatus === 'Cancelled' || g.poStatus === 'Replaced') return 'quote';
+  if (g.poStatus === 'Fully Received') {
+    return (g.totalIdr > 0 && g.outstandingIdr === 0) ? 'completed' : 'received';
+  }
+  return 'active';
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -75,6 +86,8 @@ export default function DealLookupTab({
 
   const [viewMode, setViewMode]               = useState<'all' | 'by-vendor' | 'by-company'>('all');
   const [search, setSearch]                   = useState('');
+  const [stageFilter, setStageFilter]         = useState<'all' | 'quote' | 'active' | 'received' | 'completed'>('all');
+  const [tableView, setTableView]             = useState(false);
   const [expandedKey, setExpandedKey]         = useState<string | null>(null);
   const [selectedSuppId, setSelectedSuppId]   = useState<string | null>(null);
   const [selectedCompId, setSelectedCompId]   = useState<string | null>(null);
@@ -87,17 +100,32 @@ export default function DealLookupTab({
     [quotes, pos, suppliers, companies, poCosts]
   );
 
-  // ── All-mode filtered list ────────────────────────────────────────────────
+  // ── Portfolio summary counts ──────────────────────────────────────────────
+  const summary = useMemo(() => {
+    let openQuotes = 0, activePOs = 0, received = 0, completed = 0, outstandingTotal = 0;
+    for (const g of allGroups) {
+      const s = dealStage(g);
+      if (s === 'quote')     openQuotes++;
+      else if (s === 'active')    activePOs++;
+      else if (s === 'received')  received++;
+      else if (s === 'completed') completed++;
+      outstandingTotal += g.outstandingIdr;
+    }
+    return { openQuotes, activePOs, received, completed, outstandingTotal, total: allGroups.length };
+  }, [allGroups]);
+
+  // ── All-mode filtered list (respects stageFilter) ─────────────────────────
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
-    if (!q) return allGroups.slice(0, 80);
-    return allGroups.filter((g) => {
+    const base = stageFilter === 'all' ? allGroups : allGroups.filter((g) => dealStage(g) === stageFilter);
+    if (!q) return base.slice(0, 80);
+    return base.filter((g) => {
       const code = g.supplier?.supplier_code?.toLowerCase() ?? '';
       const name = g.supplier?.supplier_name?.toLowerCase() ?? '';
       const pi   = (g.piNumber ?? '').toLowerCase();
       return pi.includes(q) || code.includes(q) || name.includes(q);
     });
-  }, [allGroups, search]);
+  }, [allGroups, search, stageFilter]);
 
   // ── By-vendor stats ───────────────────────────────────────────────────────
   const vendorStats = useMemo(() => {
@@ -106,15 +134,17 @@ export default function DealLookupTab({
       dealCount: number;
       openQuotes: number;
       outstandingIdr: number;
+      totalIdr: number;
       lastDate: string;
     }> = {};
     for (const g of allGroups) {
       if (!g.supplier) continue;
       const id = String(g.supplier.supplier_id);
-      if (!map[id]) map[id] = { supplier: g.supplier, dealCount: 0, openQuotes: 0, outstandingIdr: 0, lastDate: '' };
+      if (!map[id]) map[id] = { supplier: g.supplier, dealCount: 0, openQuotes: 0, outstandingIdr: 0, totalIdr: 0, lastDate: '' };
       map[id].dealCount++;
       if (g.quoteStatus === 'Open' || (!g.quoteStatus && g.quotes.length > 0)) map[id].openQuotes++;
       map[id].outstandingIdr += g.outstandingIdr;
+      map[id].totalIdr += g.totalIdr;
       if (!map[id].lastDate || g.latestDate > map[id].lastDate) map[id].lastDate = g.latestDate;
     }
     return Object.values(map).sort((a, b) => b.outstandingIdr - a.outstandingIdr || b.dealCount - a.dealCount);
@@ -434,15 +464,6 @@ export default function DealLookupTab({
 
   // ── Deal stage → background colors ──────────────────────────────────────
 
-  function dealStage(g: DealGroup): 'quote' | 'active' | 'received' | 'completed' {
-    if (g.pos.length === 0) return 'quote';
-    if (g.poStatus === 'Cancelled' || g.poStatus === 'Replaced') return 'quote';
-    if (g.poStatus === 'Fully Received') {
-      return (g.totalIdr > 0 && g.outstandingIdr === 0) ? 'completed' : 'received';
-    }
-    return 'active';
-  }
-
   const STAGE_CLS = {
     quote:     { row: 'bg-slate-800/20 border-transparent hover:bg-slate-800/40',     open: 'bg-slate-800/40 border-slate-600/50' },
     active:    { row: 'bg-indigo-500/10 border-indigo-500/15 hover:bg-indigo-500/15', open: 'bg-indigo-500/15 border-indigo-500/30' },
@@ -466,7 +487,13 @@ export default function DealLookupTab({
           onClick={() => setExpandedKey(expanded ? null : g.key)}
         >
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-slate-500 text-[10px] w-3 flex-shrink-0">{expanded ? '▼' : '▶'}</span>
+            {/* SVG chevron */}
+            <svg
+              className={`w-3 h-3 text-slate-500 flex-shrink-0 transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`}
+              fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
 
             {/* Supplier code badge */}
             {showSupplier && g.supplier?.supplier_code && (
@@ -494,30 +521,42 @@ export default function DealLookupTab({
               </span>
             )}
 
-            {/* No PO yet indicator */}
-            {g.quotes.length > 0 && g.pos.length === 0 && (
-              <span className="inline-block px-1.5 py-0.5 bg-slate-700/60 text-slate-500 text-[10px] font-bold rounded leading-none flex-shrink-0">
-                No PO
-              </span>
-            )}
+            {/* No PO: show Create PO button if an open quote exists, otherwise muted label */}
+            {g.quotes.length > 0 && g.pos.length === 0 && (() => {
+              const openQ = g.quotes.find((q) => q.status === 'Open' || !q.status);
+              return onCreatePO && openQ ? (
+                <button
+                  onMouseDown={(e) => { e.stopPropagation(); onCreatePO(String(openQ.quote_id)); }}
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-violet-500/15 border border-violet-500/30 text-violet-300 text-[10px] font-bold rounded leading-none flex-shrink-0 hover:bg-violet-500/25 transition-colors"
+                >
+                  <span>+</span><span>Create PO</span>
+                </button>
+              ) : (
+                <span className="inline-block px-1.5 py-0.5 bg-slate-700/60 text-slate-500 text-[10px] font-bold rounded leading-none flex-shrink-0">
+                  No PO
+                </span>
+              );
+            })()}
           </div>
 
           {/* Sub-line */}
-          <div className="text-[11px] mt-0.5 flex flex-wrap gap-x-3 pl-5 text-slate-500">
+          <div className="text-[11px] mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 pl-5 text-slate-500">
             {showSupplier && g.supplier && <span className="text-slate-400">{g.supplier.supplier_name}</span>}
-            <span>{g.latestDate}</span>
+            <span>{fmtDate(g.latestDate)}</span>
             {g.totalIdr > 0 && (
               <span className="font-medium text-slate-400 tabular-nums">{fmtIdr(g.totalIdr)}</span>
             )}
             {g.outstandingIdr > 0 && (
-              <span className="text-amber-400 font-semibold tabular-nums">{fmtIdr(g.outstandingIdr)} out</span>
+              <span className="inline-flex items-center px-1.5 py-0.5 bg-amber-500/15 border border-amber-500/25 text-amber-300 text-[10px] font-bold rounded tabular-nums">
+                {fmtIdr(g.outstandingIdr)} out
+              </span>
             )}
           </div>
 
           {/* Payment bar */}
           {g.totalIdr > 0 && (
             <div className="mt-1.5 flex items-center gap-2 pl-5">
-              <div className="flex-1 h-1 bg-slate-700 rounded-full overflow-hidden">
+              <div className="flex-1 h-1.5 bg-slate-700/80 rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all ${paidPct >= 100 ? 'bg-emerald-500' : paidPct > 0 ? 'bg-amber-400' : 'bg-slate-600'}`}
                   style={{ width: `${paidPct}%` }}
@@ -538,42 +577,139 @@ export default function DealLookupTab({
     );
   };
 
+  // ── Compact table view ───────────────────────────────────────────────────
+
+  const renderDealTable = (groups: DealGroup[]) => (
+    <div className="overflow-x-auto rounded-xl border border-slate-800/80">
+      <table className="w-full text-xs border-collapse">
+        <thead>
+          <tr className="border-b border-slate-700/60 bg-slate-900/80">
+            <th className="text-left py-2 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap">PI #</th>
+            <th className="text-left py-2 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap">Supplier</th>
+            <th className="text-left py-2 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap">Date</th>
+            <th className="text-left py-2 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap">Stage</th>
+            <th className="text-right py-2 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap">Total</th>
+            <th className="text-right py-2 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap">Paid</th>
+            <th className="text-right py-2 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap">Outstanding</th>
+          </tr>
+        </thead>
+        <tbody>
+          {groups.map((g) => {
+            const stage   = dealStage(g);
+            const paidPct = g.totalIdr > 0 ? Math.min(100, (g.paidIdr / g.totalIdr) * 100) : 0;
+            const stageLabel: Record<string, string> = {
+              quote: 'Quote', active: 'Active PO', received: 'Received', completed: 'Completed',
+            };
+            const stageTxtCls: Record<string, string> = {
+              quote: 'text-slate-400', active: 'text-indigo-300', received: 'text-emerald-300', completed: 'text-emerald-400',
+            };
+            return (
+              <tr
+                key={g.key}
+                onClick={() => setExpandedKey(expandedKey === g.key ? null : g.key)}
+                className={`border-b border-slate-800/40 last:border-0 cursor-pointer transition-colors hover:bg-slate-800/30 ${
+                  stage === 'active' ? 'bg-indigo-500/5' :
+                  stage === 'received' ? 'bg-emerald-500/5' :
+                  stage === 'completed' ? 'bg-emerald-500/8' : ''
+                }`}
+              >
+                <td className="py-2 px-3 font-semibold text-white whitespace-nowrap">
+                  {g.piNumber ?? (g.quotes[0] ? `Q#${g.quotes[0].quote_id}` : `PO#${g.pos[0]?.po_number ?? g.key}`)}
+                </td>
+                <td className="py-2 px-3 whitespace-nowrap">
+                  {g.supplier?.supplier_code && (
+                    <span className="inline-block px-1.5 py-0.5 bg-sky-500/15 border border-sky-500/30 text-sky-300 text-[10px] font-bold rounded leading-none mr-1.5">
+                      {g.supplier.supplier_code}
+                    </span>
+                  )}
+                  <span className="text-slate-400">{g.supplier?.supplier_name ?? '—'}</span>
+                </td>
+                <td className="py-2 px-3 text-slate-400 whitespace-nowrap tabular-nums">{fmtDate(g.latestDate)}</td>
+                <td className="py-2 px-3 whitespace-nowrap">
+                  <span className={`text-[10px] font-bold uppercase tracking-wide ${stageTxtCls[stage]}`}>
+                    {stageLabel[stage]}
+                  </span>
+                </td>
+                <td className="py-2 px-3 text-right text-slate-300 tabular-nums whitespace-nowrap">
+                  {g.totalIdr > 0 ? fmtIdr(g.totalIdr) : '—'}
+                </td>
+                <td className="py-2 px-3 text-right tabular-nums whitespace-nowrap">
+                  <div className="flex items-center justify-end gap-2">
+                    {g.totalIdr > 0 && (
+                      <div className="w-10 h-1 bg-slate-700 rounded-full overflow-hidden flex-shrink-0">
+                        <div
+                          className={`h-full rounded-full ${paidPct >= 100 ? 'bg-emerald-500' : 'bg-amber-400'}`}
+                          style={{ width: `${paidPct}%` }}
+                        />
+                      </div>
+                    )}
+                    <span className="text-emerald-300">{g.paidIdr > 0 ? fmtIdr(g.paidIdr) : '—'}</span>
+                  </div>
+                </td>
+                <td className="py-2 px-3 text-right tabular-nums whitespace-nowrap">
+                  {g.outstandingIdr > 0
+                    ? <span className="text-amber-300 font-bold">{fmtIdr(g.outstandingIdr)}</span>
+                    : <span className="text-slate-600">—</span>}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+
   // ── Left-panel item (vendor or company) ───────────────────────────────────
 
   const renderLeftItem = (
     id: string, name: string, code: string | undefined,
     dealCount: number, openQuotes: number, outstandingIdr: number,
-    lastDate: string | undefined, selected: boolean, onClick: () => void,
-  ) => (
-    <button
-      key={id}
-      onClick={onClick}
-      className={`w-full text-left px-3 py-3 rounded-xl transition-colors border ${
-        selected
-          ? 'bg-sky-500/10 border-sky-500/30 text-white'
-          : 'bg-slate-800/30 border-transparent hover:bg-slate-800/60 text-slate-300'
-      }`}
-    >
-      <div className="flex items-center justify-between gap-2 mb-0.5">
-        <div className="flex items-center gap-2 min-w-0">
-          {code && (
-            <span className="inline-block px-1.5 py-0.5 bg-sky-500/15 border border-sky-500/30 text-sky-300 text-[10px] font-bold rounded leading-none flex-shrink-0">
-              {code}
-            </span>
-          )}
-          <span className="text-xs font-semibold truncate">{name}</span>
+    totalIdr: number, lastDate: string | undefined, selected: boolean, onClick: () => void,
+  ) => {
+    const paidIdr   = Math.max(0, totalIdr - outstandingIdr);
+    const paidPct   = totalIdr > 0 ? Math.min(100, (paidIdr / totalIdr) * 100) : 0;
+    return (
+      <button
+        key={id}
+        onClick={onClick}
+        className={`w-full text-left px-3 py-3 rounded-xl transition-colors border ${
+          selected
+            ? 'bg-sky-500/10 border-sky-500/30 text-white'
+            : 'bg-slate-800/30 border-transparent hover:bg-slate-800/60 text-slate-300'
+        }`}
+      >
+        <div className="flex items-center justify-between gap-2 mb-0.5">
+          <div className="flex items-center gap-2 min-w-0">
+            {code && (
+              <span className="inline-block px-1.5 py-0.5 bg-sky-500/15 border border-sky-500/30 text-sky-300 text-[10px] font-bold rounded leading-none flex-shrink-0">
+                {code}
+              </span>
+            )}
+            <span className="text-xs font-semibold truncate">{name}</span>
+          </div>
+          <span className="text-[10px] text-slate-500 flex-shrink-0">{dealCount} deal{dealCount !== 1 ? 's' : ''}</span>
         </div>
-        <span className="text-[10px] text-slate-500 flex-shrink-0">{dealCount} deal{dealCount !== 1 ? 's' : ''}</span>
-      </div>
-      {outstandingIdr > 0 && (
-        <p className="text-[11px] font-bold text-amber-300 tabular-nums">{fmtIdr(outstandingIdr)} outstanding</p>
-      )}
-      {openQuotes > 0 && outstandingIdr === 0 && (
-        <p className="text-[11px] text-sky-400 font-semibold">{openQuotes} open quote{openQuotes !== 1 ? 's' : ''}</p>
-      )}
-      {lastDate && <p className="text-[10px] text-slate-600 mt-0.5">Last: {lastDate}</p>}
-    </button>
-  );
+        {outstandingIdr > 0 && (
+          <p className="text-[11px] font-bold text-amber-300 tabular-nums">{fmtIdr(outstandingIdr)} outstanding</p>
+        )}
+        {openQuotes > 0 && outstandingIdr === 0 && (
+          <p className="text-[11px] text-sky-400 font-semibold">{openQuotes} open quote{openQuotes !== 1 ? 's' : ''}</p>
+        )}
+        {totalIdr > 0 && (
+          <div className="mt-1.5 flex items-center gap-2">
+            <div className="flex-1 h-1 bg-slate-700/80 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${paidPct >= 100 ? 'bg-emerald-500' : paidPct > 0 ? 'bg-amber-400' : 'bg-slate-600'}`}
+                style={{ width: `${paidPct}%` }}
+              />
+            </div>
+            <span className="text-[10px] text-slate-600 flex-shrink-0 tabular-nums">{paidPct.toFixed(0)}%</span>
+          </div>
+        )}
+        {lastDate && <p className="text-[10px] text-slate-600 mt-0.5">Last: {fmtDate(lastDate)}</p>}
+      </button>
+    );
+  };
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -613,6 +749,94 @@ export default function DealLookupTab({
       {/* ══ ALL MODE ══ */}
       {viewMode === 'all' && (
         <div>
+
+          {/* ── Portfolio summary bar ── */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+            {[
+              { label: 'Open Quotes', value: summary.openQuotes, color: 'text-slate-300',   bg: 'bg-slate-800/40 border border-slate-700/40' },
+              { label: 'Active POs',  value: summary.activePOs,  color: 'text-indigo-300',  bg: 'bg-indigo-500/10 border border-indigo-500/15' },
+              { label: 'Received',    value: summary.received,   color: 'text-emerald-300', bg: 'bg-emerald-500/10 border border-emerald-500/15' },
+              { label: 'Completed',   value: summary.completed,  color: 'text-emerald-400', bg: 'bg-emerald-500/20 border border-emerald-500/25' },
+            ].map(({ label, value, color, bg }) => (
+              <div key={label} className={`rounded-xl p-3 ${bg}`}>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-0.5">{label}</p>
+                <p className={`text-xl font-bold tabular-nums ${color}`}>{value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* ── Outstanding total banner ── */}
+          {summary.outstandingTotal > 0 && (
+            <div className="mb-4 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Total Outstanding</span>
+              <span className="text-sm font-bold text-amber-300 tabular-nums ml-auto">{fmtIdr(summary.outstandingTotal)}</span>
+            </div>
+          )}
+
+          {/* ── Color legend ── */}
+          <div className="flex flex-wrap items-center gap-3 mb-4 text-[11px] text-slate-500">
+            <span className="font-semibold uppercase tracking-widest text-slate-600">Legend</span>
+            {[
+              { label: 'Quote only', cls: 'bg-slate-600/70' },
+              { label: 'Active PO',  cls: 'bg-indigo-500/60' },
+              { label: 'Received',   cls: 'bg-emerald-500/40' },
+              { label: 'Completed',  cls: 'bg-emerald-500/80' },
+            ].map(({ label, cls }) => (
+              <span key={label} className="flex items-center gap-1.5">
+                <span className={`inline-block w-2.5 h-2.5 rounded-sm ${cls}`} />
+                {label}
+              </span>
+            ))}
+          </div>
+
+          {/* ── Controls: filter chips + view toggle ── */}
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <div className="flex flex-wrap gap-1">
+              {[
+                { key: 'all' as const,       label: `All (${summary.total})` },
+                { key: 'quote' as const,     label: `Quotes (${summary.openQuotes})` },
+                { key: 'active' as const,    label: `Active (${summary.activePOs})` },
+                { key: 'received' as const,  label: `Received (${summary.received})` },
+                { key: 'completed' as const, label: `Done (${summary.completed})` },
+              ].map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setStageFilter(key)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors border ${
+                    stageFilter === key
+                      ? 'bg-sky-500/20 text-sky-300 border-sky-500/30'
+                      : 'bg-slate-800/60 text-slate-400 hover:text-slate-300 border-transparent'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <span className="flex-1" />
+            {/* Table / card toggle */}
+            <button
+              onClick={() => setTableView(!tableView)}
+              title={tableView ? 'Card view' : 'Table view'}
+              className={`p-1.5 rounded-lg border transition-colors ${
+                tableView
+                  ? 'bg-sky-500/20 border-sky-500/30 text-sky-300'
+                  : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:text-slate-300'
+              }`}
+            >
+              {tableView ? (
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
+                  <rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
+                </svg>
+              ) : (
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 14h18M10 3v18" />
+                </svg>
+              )}
+            </button>
+          </div>
+
+          {/* ── Search ── */}
           <input
             type="text"
             value={search}
@@ -620,8 +844,12 @@ export default function DealLookupTab({
             placeholder="Search by PI number, supplier code or name…"
             className="w-full max-w-lg px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 mb-4"
           />
+
+          {/* ── Deal list or table ── */}
           {filtered.length === 0 ? (
             <p className="text-xs text-slate-600 italic py-6 text-center">No deals found</p>
+          ) : tableView ? (
+            renderDealTable(filtered)
           ) : (
             <div className="space-y-1.5">
               {filtered.map((g) => renderDealRow(g))}
@@ -641,11 +869,11 @@ export default function DealLookupTab({
               {vendorStats.length === 0 && (
                 <p className="text-xs text-slate-600 italic px-1 py-4 text-center">No vendors found</p>
               )}
-              {vendorStats.map(({ supplier, dealCount, openQuotes, outstandingIdr, lastDate }) => {
+              {vendorStats.map(({ supplier, dealCount, openQuotes, outstandingIdr, totalIdr, lastDate }) => {
                 const id = String(supplier.supplier_id);
                 return renderLeftItem(
                   id, supplier.supplier_name, supplier.supplier_code,
-                  dealCount, openQuotes, outstandingIdr, lastDate,
+                  dealCount, openQuotes, outstandingIdr, totalIdr, lastDate,
                   selectedSuppId === id,
                   () => { setSelectedSuppId(selectedSuppId === id ? null : id); setExpandedKey(null); },
                 );
@@ -733,7 +961,7 @@ export default function DealLookupTab({
                 const id = String(company.company_id);
                 return renderLeftItem(
                   id, company.legal_name, undefined,
-                  dealCount, openQuotes, 0, undefined,
+                  dealCount, openQuotes, 0, 0, undefined,
                   selectedCompId === id,
                   () => { setSelectedCompId(selectedCompId === id ? null : id); setExpandedKey(null); },
                 );
