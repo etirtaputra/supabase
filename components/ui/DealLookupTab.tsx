@@ -432,6 +432,24 @@ export default function DealLookupTab({
     );
   };
 
+  // ── Deal stage → background colors ──────────────────────────────────────
+
+  function dealStage(g: DealGroup): 'quote' | 'active' | 'received' | 'completed' {
+    if (g.pos.length === 0) return 'quote';
+    if (g.poStatus === 'Cancelled' || g.poStatus === 'Replaced') return 'quote';
+    if (g.poStatus === 'Fully Received') {
+      return (g.totalIdr > 0 && g.outstandingIdr === 0) ? 'completed' : 'received';
+    }
+    return 'active';
+  }
+
+  const STAGE_CLS = {
+    quote:     { row: 'bg-slate-800/20 border-transparent hover:bg-slate-800/40',     open: 'bg-slate-800/40 border-slate-600/50' },
+    active:    { row: 'bg-indigo-500/10 border-indigo-500/15 hover:bg-indigo-500/15', open: 'bg-indigo-500/15 border-indigo-500/30' },
+    received:  { row: 'bg-emerald-500/10 border-emerald-500/15 hover:bg-emerald-500/15', open: 'bg-emerald-500/15 border-emerald-500/25' },
+    completed: { row: 'bg-emerald-500/20 border-emerald-500/30 hover:bg-emerald-500/25', open: 'bg-emerald-500/25 border-emerald-500/40' },
+  };
+
   // ── Deal row renderer ─────────────────────────────────────────────────────
 
   const renderDealRow = (g: DealGroup, showSupplier = true) => {
@@ -441,7 +459,7 @@ export default function DealLookupTab({
     return (
       <div
         key={g.key}
-        className={`rounded-xl border transition-colors ${expanded ? 'bg-slate-800/40 border-slate-600/50' : 'bg-slate-800/20 border-transparent hover:bg-slate-800/40'}`}
+        className={`rounded-xl border transition-colors ${expanded ? STAGE_CLS[dealStage(g)].open : STAGE_CLS[dealStage(g)].row}`}
       >
         <button
           className="w-full text-left px-3 py-2.5"
