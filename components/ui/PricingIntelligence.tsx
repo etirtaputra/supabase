@@ -12,6 +12,7 @@
  */
 'use client';
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { useSearchHistory } from '@/hooks/useSearchHistory';
 import Link from 'next/link';
 import type {
   Component,
@@ -219,6 +220,7 @@ export default function PricingIntelligence({
   const [query,          setQuery]          = useState('');
   const [selected,       setSelected]       = useState<Component | null>(null);
   const [showDrop,       setShowDrop]       = useState(false);
+  const { history, push: pushHistory, clear: clearHistory } = useSearchHistory('pricing-lookup-history');
   const [simPriceIdr,    setSimPriceIdr]    = useState('');
   const [simXrStr,       setSimXrStr]       = useState('');
   const [targetMarginPct, setTargetMarginPct] = useState('');
@@ -253,7 +255,26 @@ export default function PricingIntelligence({
     setSimPriceIdr('');
     setSimXrStr('');
     setTargetMarginPct('');
+    pushHistory({ componentId: c.component_id, label: c.internal_description || c.supplier_model, sublabel: c.supplier_model });
   };
+
+  // ── Components that have competitor price data (for empty-state suggestions) ──
+  const withCompetitorData = useMemo(() => {
+    const latestByComp: Record<string, string> = {};
+    const countByComp: Record<string, number>  = {};
+    for (const cp of competitorPrices) {
+      if (!cp.component_id) continue;
+      countByComp[cp.component_id] = (countByComp[cp.component_id] ?? 0) + 1;
+      if (!latestByComp[cp.component_id] || cp.observed_at > latestByComp[cp.component_id]) {
+        latestByComp[cp.component_id] = cp.observed_at;
+      }
+    }
+    return components
+      .filter((c) => countByComp[c.component_id] > 0)
+      .sort((a, b) => (latestByComp[b.component_id] ?? '').localeCompare(latestByComp[a.component_id] ?? ''))
+      .slice(0, 6)
+      .map((c) => ({ comp: c, count: countByComp[c.component_id], latestDate: latestByComp[c.component_id] }));
+  }, [components, competitorPrices]);
 
   // ── TUC calculation (mirrors ProductCostLookup) ──────────────────────
   const { tucIdr, xrUsd, latestPoDate } = useMemo(() => {
@@ -429,7 +450,7 @@ export default function PricingIntelligence({
           <input
             type="text" value={query} disabled={isLoading}
             onChange={(e) => { setQuery(e.target.value); setShowDrop(true); if (!e.target.value) { setSelected(null); } }}
-            onFocus={() => query && setShowDrop(true)}
+            onFocus={() => setShowDrop(true)}
             placeholder="Search by SKU, description, or brand…"
             className="w-full bg-slate-900/80 border border-slate-700/80 rounded-2xl px-5 py-4 pl-12 text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-500/20 transition-all text-sm md:text-base"
           />
@@ -437,9 +458,11 @@ export default function PricingIntelligence({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
         </div>
-        {showDrop && candidates.length > 0 && (
-          <ul className="absolute z-50 mt-2 w-full bg-slate-800/95 border border-slate-700 rounded-xl shadow-2xl overflow-auto max-h-72">
-            {candidates.map((c) => (
+        {showDrop && (candidates.length > 0 || (!query.trim() && (withCompetitorData.length > 0 || history.length > 0))) && (
+          <ul className="absolute z-50 mt-2 w-full bg-slate-800/95 border border-slate-700 rounded-xl shadow-2xl overflow-auto max-h-80 ring-1 ring-white/10">
+
+            {/* ── Search results ── */}
+            {query.trim() && candidates.map((c) => (
               <li key={c.component_id} onMouseDown={() => selectComp(c)}
                 className="px-5 py-3.5 hover:bg-slate-700/50 cursor-pointer border-b border-slate-700/50 last:border-0 transition-colors group"
               >
@@ -447,6 +470,58 @@ export default function PricingIntelligence({
                 <div className="text-slate-400 text-xs mt-0.5">{c.supplier_model}{c.brand ? ` · ${c.brand}` : ''}</div>
               </li>
             ))}
+
+            {/* ── Empty state: competitor data + recent searches ── */}
+            {!query.trim() && (
+              <>
+                {withCompetitorData.length > 0 && (
+                  <>
+                    <li className="px-4 pt-3 pb-1.5">
+                      <span className="text-[10px] font-semibold uppercase tracking-widest text-amber-500/80">Has Competitor Data</span>
+                    </li>
+                    {withCompetitorData.map(({ comp, count, latestDate }) => (
+                      <li key={comp.component_id} onMouseDown={() => selectComp(comp)}
+                        className="px-4 py-3 hover:bg-slate-700/50 cursor-pointer border-b border-slate-700/50 last:border-0 transition-colors group flex items-start gap-3"
+                      >
+                        <span className="text-amber-500/60 text-xs mt-0.5 flex-shrink-0">📈</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white text-sm font-semibold group-hover:text-sky-300 transition-colors truncate">{comp.internal_description}</p>
+                          <p className="text-slate-400 text-xs mt-0.5">{comp.supplier_model}{comp.brand ? ` · ${comp.brand}` : ''}</p>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-[10px] text-amber-400 font-semibold">{count} price{count !== 1 ? 's' : ''}</p>
+                          {latestDate && <p className="text-[10px] text-slate-600">{latestDate.slice(0, 10)}</p>}
+                        </div>
+                      </li>
+                    ))}
+                  </>
+                )}
+
+                {history.length > 0 && (
+                  <>
+                    <li className="px-4 pt-3 pb-1.5 flex items-center justify-between">
+                      <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Recent Searches</span>
+                      <button onMouseDown={clearHistory} className="text-[10px] text-slate-600 hover:text-slate-400 transition-colors">Clear</button>
+                    </li>
+                    {history.map((h) => {
+                      const comp = components.find((c) => c.component_id === h.componentId);
+                      if (!comp) return null;
+                      return (
+                        <li key={h.componentId} onMouseDown={() => selectComp(comp)}
+                          className="px-4 py-3 hover:bg-slate-700/50 cursor-pointer border-b border-slate-700/50 last:border-0 transition-colors group flex items-start gap-3"
+                        >
+                          <span className="text-slate-500 text-xs mt-0.5 flex-shrink-0">🕐</span>
+                          <div>
+                            <p className="text-white text-sm font-semibold group-hover:text-sky-300 transition-colors">{h.label}</p>
+                            {h.sublabel && h.sublabel !== h.label && <p className="text-slate-400 text-xs mt-0.5">{h.sublabel}</p>}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </>
+                )}
+              </>
+            )}
           </ul>
         )}
       </div>
