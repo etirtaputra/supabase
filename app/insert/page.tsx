@@ -12,8 +12,7 @@ import BatchLineItemsForm from '@/components/forms/BatchLineItemsForm';
 import ComponentEditor from '@/components/ui/ComponentEditor';
 import CompetitorPriceForm from '@/components/forms/CompetitorPriceForm';
 import MultiPaymentForm from '@/components/forms/MultiPaymentForm';
-import POLookupTab from '@/components/ui/POLookupTab';
-import QuoteLookupTab from '@/components/ui/QuoteLookupTab';
+import DealLookupTab from '@/components/ui/DealLookupTab';
 import PDFUploadBanner from '@/components/ui/PDFUploadBanner';
 import { ToastContainer } from '@/components/ui/Toast';
 import { ToastProvider } from '@/hooks/useToast';
@@ -41,10 +40,7 @@ const MENU_ITEMS: MenuItem[] = [
   { id: 'financials', label: 'Payment', icon: '💰',
     color: 'text-slate-400 hover:text-rose-300 hover:bg-slate-800/50',
     activeColor: 'bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30' },
-  { id: 'quote-lookup', label: 'Quote Lookup', icon: '📋',
-    color: 'text-slate-400 hover:text-indigo-300 hover:bg-slate-800/50',
-    activeColor: 'bg-indigo-500/15 text-indigo-300 ring-1 ring-indigo-500/30' },
-  { id: 'lookup', label: 'PO / PI Lookup', icon: '🔍',
+  { id: 'lookup', label: 'Deal Lookup', icon: '🔍',
     color: 'text-slate-400 hover:text-sky-300 hover:bg-slate-800/50',
     activeColor: 'bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30' },
   { id: 'market-intel', label: 'Market Intel', icon: '📊',
@@ -481,16 +477,18 @@ function MasterInsertPage() {
                         }
                         return overrides;
                       }}
-                      fields={[
+                      fields={(() => {
+                        const pq = pendingQuoteForPO ? data.quotes.find((q) => String(q.quote_id) === pendingQuoteForPO) : null;
+                        return [
                         { name: 'quote_id', label: 'Link Quote', type: 'select', options: options.quotes, default: pendingQuoteForPO || undefined },
-                        { name: 'pi_number', label: 'PI #', type: 'text', default: pdfData?.pi_number },
-                        { name: 'pi_date', label: 'PI Date', type: 'date', default: pdfData?.pi_date },
+                        { name: 'pi_number', label: 'PI #', type: 'text', default: pq?.pi_number || pdfData?.pi_number },
+                        { name: 'pi_date', label: 'PI Date', type: 'date', default: pq?.quote_date || pdfData?.pi_date },
                         { name: 'pi_status', label: 'PI Status', type: 'select', options: ENUMS.proforma_status },
                         { name: 'po_number', label: 'PO #', type: 'text', req: true, suggestions: suggestions.poNumbers, default: pdfData?.po_number },
                         { name: 'po_date', label: 'PO Date', type: 'date', req: true, default: pdfData?.po_date || new Date().toISOString().split('T')[0] },
                         { name: 'incoterms', label: 'Incoterms', type: 'text', suggestions: ['FOB', 'EXW', 'CIF', 'DDP', ...suggestions.incoterms] },
                         { name: 'method_of_shipment', label: 'Ship Via', type: 'select', options: ENUMS.method_of_shipment },
-                        { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true, default: pdfData?.currency },
+                        { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true, default: pq?.currency || pdfData?.currency },
                         { name: 'exchange_rate', label: 'Exch Rate', type: 'number' },
                         { name: 'total_value', label: 'Total Value', type: 'number', default: pdfData?.total_value },
                         { name: 'payment_terms', label: 'Terms', type: 'text', suggestions: suggestions.paymentTerms, default: pdfData?.payment_terms },
@@ -500,7 +498,7 @@ function MasterInsertPage() {
                         { name: 'actual_received_date', label: 'Received', type: 'date' },
                         { name: 'status', label: 'Status', type: 'select', options: ENUMS.purchases_status, default: 'Draft' },
                         { name: 'replaces_po_id', label: 'Replaces PO', type: 'select', options: options.pos },
-                      ]}
+                        ]; })()}
                       onSubmit={(d) => handleInsert('5.0_purchases', d)}
                       loading={loading}
                     />
@@ -666,30 +664,20 @@ function MasterInsertPage() {
                 />
               )}
 
-              {/* Quote Lookup Tab */}
-              {activeTab === 'quote-lookup' && (
-                <QuoteLookupTab
+              {/* Deal Lookup Tab */}
+              {activeTab === 'lookup' && (
+                <DealLookupTab
                   quotes={data.quotes}
                   quoteItems={data.quoteItems}
-                  suppliers={data.suppliers}
-                  companies={data.companies}
-                  components={data.components}
-                  pos={data.pos}
-                  onStatusChange={handleQuoteStatusChange}
-                  onCreatePO={(quoteId) => { setPendingQuoteForPO(quoteId); handleTabChange('ordering'); }}
-                />
-              )}
-
-              {/* PO/PI Lookup Tab */}
-              {activeTab === 'lookup' && (
-                <POLookupTab
                   pos={data.pos}
                   poItems={data.poItems}
                   poCosts={data.poCosts}
                   suppliers={data.suppliers}
-                  quotes={data.quotes}
+                  companies={data.companies}
                   components={data.components}
-                  onStatusChange={handleStatusChange}
+                  onQuoteStatusChange={handleQuoteStatusChange}
+                  onPoStatusChange={handleStatusChange}
+                  onCreatePO={(quoteId) => { setPendingQuoteForPO(quoteId); handleTabChange('ordering'); }}
                 />
               )}
             </>
