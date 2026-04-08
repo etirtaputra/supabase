@@ -182,9 +182,11 @@ export default function DealLookupTab({
     const gPoItems    = poItems.filter((i) => g.pos.some((p) => String(p.po_id) === String(i.po_id)));
     const gPoCosts    = poCosts.filter((c) => g.pos.some((p) => String(p.po_id) === String(c.po_id)));
 
-    const openQuote = g.quotes.find((q) => q.status === 'Open' || !q.status);
+    const targetQuote = g.quotes.find((q) => q.status === 'Accepted')
+                     ?? g.quotes.find((q) => q.status === 'Open' || !q.status)
+                     ?? g.quotes[0];
     const hasLinkedPO = g.pos.length > 0;
-    const showCreatePO = onCreatePO && openQuote && !hasLinkedPO;
+    const showCreatePO = onCreatePO && targetQuote && !hasLinkedPO;
 
     return (
       <div className="mt-3 pt-3 border-t border-slate-700/40 space-y-5">
@@ -285,7 +287,7 @@ export default function DealLookupTab({
             {/* Create PO CTA */}
             {showCreatePO && (
               <button
-                onClick={(e) => { e.stopPropagation(); onCreatePO(String(openQuote.quote_id)); }}
+                onClick={(e) => { e.stopPropagation(); onCreatePO(String(targetQuote.quote_id)); }}
                 className="mt-2 w-full text-left px-3 py-2 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/30 text-violet-300 text-xs font-semibold rounded-lg transition-colors flex items-center gap-2"
               >
                 <span>📦</span>
@@ -521,12 +523,14 @@ export default function DealLookupTab({
               </span>
             )}
 
-            {/* No PO: show Create PO button if an open quote exists, otherwise muted label */}
+            {/* No PO: show Create PO button for any quote-only deal */}
             {g.quotes.length > 0 && g.pos.length === 0 && (() => {
-              const openQ = g.quotes.find((q) => q.status === 'Open' || !q.status);
-              return onCreatePO && openQ ? (
+              const tq = g.quotes.find((q) => q.status === 'Accepted')
+                      ?? g.quotes.find((q) => q.status === 'Open' || !q.status)
+                      ?? g.quotes[0];
+              return onCreatePO && tq ? (
                 <button
-                  onMouseDown={(e) => { e.stopPropagation(); onCreatePO(String(openQ.quote_id)); }}
+                  onMouseDown={(e) => { e.stopPropagation(); onCreatePO(String(tq.quote_id)); }}
                   className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-violet-500/15 border border-violet-500/30 text-violet-300 text-[10px] font-bold rounded leading-none flex-shrink-0 hover:bg-violet-500/25 transition-colors"
                 >
                   <span>+</span><span>Create PO</span>
