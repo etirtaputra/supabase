@@ -73,7 +73,7 @@ interface Props {
   components: Component[];
   onQuoteStatusChange?: (quoteId: string, status: string) => Promise<void>;
   onPoStatusChange?: (poId: string, status: string) => Promise<void>;
-  onMarkFullyPaid?: (poId: string, outstandingIdr: number) => Promise<void>;
+  onMarkFullyPaid?: (poId: string, payment: { amount: number; currency: string; exchange_rate?: number }) => Promise<void>;
   onCreatePO?: (quoteId: string) => void;
 }
 
@@ -95,6 +95,9 @@ export default function DealLookupTab({
   const [updatingQuote, setUpdatingQuote]     = useState<string | null>(null);
   const [updatingPo, setUpdatingPo]           = useState<string | null>(null);
   const [markingPaid, setMarkingPaid]         = useState<string | null>(null);
+  const [markPaidPoId, setMarkPaidPoId]       = useState<string | null>(null);
+  const [markPaidAmount, setMarkPaidAmount]   = useState('');
+  const [markPaidRate, setMarkPaidRate]       = useState('');
 
   // ── Deal groups ──────────────────────────────────────────────────────────
   const allGroups = useMemo(
@@ -313,25 +316,34 @@ export default function DealLookupTab({
                 const princ   = costs.filter((c) => PRINCIPAL_CATS.has(c.cost_category));
                 const fees    = costs.filter((c) => BANK_FEE_CATS.has(c.cost_category));
                 const landed  = costs.filter((c) => !PRINCIPAL_CATS.has(c.cost_category) && !BANK_FEE_CATS.has(c.cost_category));
-                const tIdr    = Number(po.total_value || 0) * (po.currency === 'IDR' ? 1 : (Number(po.exchange_rate) || 1));
+                const tIdr     = Number(po.total_value || 0) * (po.currency === 'IDR' ? 1 : (Number(po.exchange_rate) || 1));
                 const princPay = princ.filter((c) => c.cost_category !== 'overpayment_credit');
-                // Use cost-level exchange_rate when available (actual bank rate), else PO rate
-                const paidIdr = princPay.reduce((s, c) => {
+                // Actual IDR paid — uses cost-level rate when available, else PO rate
+                const paidIdr  = princPay.reduce((s, c) => {
                   if (c.currency === 'IDR') return s + Number(c.amount);
                   const rate = Number(c.exchange_rate) || Number(po.exchange_rate) || 1;
                   return s + Number(c.amount) * rate;
                 }, 0);
-                const outIdr  = Math.max(0, tIdr - paidIdr);
-                const pct     = tIdr > 0 ? Math.min(100, (paidIdr / tIdr) * 100) : 0;
-                // FX variance: actual paid IDR (at payment rate) vs. committed IDR (at PO rate)
-                const fxVariance = po.currency !== 'IDR' && Number(po.exchange_rate) > 0
-                  ? princPay.filter((c) => c.currency !== 'IDR' && c.exchange_rate != null).reduce((s, c) => {
-                      const atPayRate = Number(c.amount) * (Number(c.exchange_rate) || 0);
-                      const atPORate  = Number(c.amount) * (Number(po.exchange_rate) || 0);
-                      return s + (atPayRate - atPORate);
-                    }, 0)
+
+                // Foreign obligation tracking (rate-agnostic: obligation = units, not IDR)
+                const foreignPaid    = po.currency !== 'IDR'
+                  ? princPay.filter((c) => c.currency === po.currency).reduce((s, c) => s + Number(c.amount), 0)
                   : 0;
-                const hasFxVariance = Math.abs(fxVariance) > 0;
+                const hasForeignTracking = po.currency !== 'IDR' && foreignPaid > 0;
+                const foreignTotal       = hasForeignTracking ? (Number(po.total_value) || 0) : 0;
+                const foreignOut         = hasForeignTracking ? Math.max(0, foreignTotal - foreignPaid) : 0;
+                const isObligationMet    = hasForeignTracking && foreignOut < 0.005;
+
+                // Progress % — track in original currency when possible
+                const pct = hasForeignTracking && foreignTotal > 0
+                  ? Math.min(100, (foreignPaid / foreignTotal) * 100)
+                  : tIdr > 0 ? Math.min(100, (paidIdr / tIdr) * 100) : 0;
+
+                // What to show as "outstanding obligation"
+                const outIdr       = isObligationMet ? 0 : Math.max(0, tIdr - paidIdr);
+                // FX variance: only meaningful when obligation met (rate diff, not missing payment)
+                const fxVariance   = isObligationMet ? paidIdr - tIdr : 0;
+                const hasFxVariance = isObligationMet && Math.abs(fxVariance) >= 1;
 
                 return (
                   <div key={pKey} className="bg-slate-800/30 rounded-xl p-3 space-y-2.5">
@@ -377,21 +389,31 @@ export default function DealLookupTab({
                             />
                           </div>
                           <span className={`text-xs font-bold flex-shrink-0 tabular-nums ${pct >= 100 ? 'text-emerald-400' : 'text-amber-300'}`}>
-                            {pct.toFixed(1)}%
+                            {pct >= 100 ? '100' : pct.toFixed(1)}%
+                            {hasForeignTracking && <span className="text-[10px] font-normal text-slate-500 ml-1">({po.currency})</span>}
                           </span>
                         </div>
                         <div className="grid grid-cols-3 gap-2">
                           <div className="bg-slate-800/60 rounded-lg p-2">
-                            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-0.5">Total</p>
-                            <p className="text-xs font-bold text-white tabular-nums">{fmtIdr(tIdr)}</p>
+                            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-0.5">
+                              {isObligationMet && hasForeignTracking ? 'Actual Cost' : 'Total'}
+                            </p>
+                            <p className="text-xs font-bold text-white tabular-nums">
+                              {fmtIdr(isObligationMet && hasForeignTracking ? paidIdr : tIdr)}
+                            </p>
+                            {isObligationMet && hasForeignTracking && (
+                              <p className="text-[10px] text-slate-600 tabular-nums mt-0.5">Committed {fmtIdr(tIdr)}</p>
+                            )}
                           </div>
                           <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2">
                             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-0.5">Paid</p>
                             <p className="text-xs font-bold text-emerald-300 tabular-nums">{fmtIdr(paidIdr)}</p>
                           </div>
-                          <div className={`rounded-lg p-2 ${outIdr > 0 ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-slate-800/60'}`}>
+                          <div className={`rounded-lg p-2 ${outIdr > 0 ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-emerald-500/10 border border-emerald-500/20'}`}>
                             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-0.5">Outstanding</p>
-                            <p className={`text-xs font-bold tabular-nums ${outIdr > 0 ? 'text-amber-300' : 'text-slate-400'}`}>{fmtIdr(outIdr)}</p>
+                            <p className={`text-xs font-bold tabular-nums ${outIdr > 0 ? 'text-amber-300' : 'text-emerald-300'}`}>
+                              {outIdr > 0 ? fmtIdr(outIdr) : '✓ Settled'}
+                            </p>
                           </div>
                         </div>
                       </div>
@@ -449,29 +471,90 @@ export default function DealLookupTab({
                       </div>
                     )}
 
-                    {/* Mark as Fully Paid */}
-                    {onMarkFullyPaid && po.status === 'Fully Received' && outIdr > 0 && (
-                      <div className="flex items-center gap-2 pt-1">
-                        <button
-                          disabled={markingPaid === pKey}
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            setMarkingPaid(pKey);
-                            try { await onMarkFullyPaid(pKey, outIdr); } finally { setMarkingPaid(null); }
-                          }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold rounded-lg transition-colors disabled:opacity-50"
-                        >
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
-                          Mark as Fully Paid
-                        </button>
-                        <span className="text-[10px] text-slate-500">
-                          records {fmtIdr(outIdr)} final payment
-                        </span>
-                        {markingPaid === pKey && <span className="text-[10px] text-slate-500 animate-pulse">saving…</span>}
-                      </div>
-                    )}
+                    {/* Mark as Fully Paid — only when obligation (foreign units) is truly outstanding */}
+                    {onMarkFullyPaid && po.status === 'Fully Received' && !isObligationMet && (hasForeignTracking ? foreignOut > 0.005 : outIdr > 0) && (() => {
+                      const outForeign = hasForeignTracking ? foreignOut : 0;
+                      const isOpen = markPaidPoId === pKey;
+
+                      return (
+                        <div className="pt-1">
+                          {!isOpen ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setMarkPaidPoId(pKey);
+                                setMarkPaidAmount(po.currency !== 'IDR' ? outForeign.toFixed(2) : String(Math.round(outIdr)));
+                                setMarkPaidRate(po.exchange_rate ? String(po.exchange_rate) : '');
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold rounded-lg transition-colors"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                              Mark as Fully Paid
+                            </button>
+                          ) : (
+                            <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3 space-y-2.5" onClick={(e) => e.stopPropagation()}>
+                              <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Record final payment</p>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="number"
+                                    value={markPaidAmount}
+                                    onChange={(e) => setMarkPaidAmount(e.target.value)}
+                                    className="w-36 px-2 py-1.5 bg-slate-900 border border-slate-600 rounded-lg text-xs text-white tabular-nums focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
+                                    placeholder="Amount"
+                                  />
+                                  <span className="text-xs font-bold text-slate-400">{po.currency}</span>
+                                </div>
+                                {po.currency !== 'IDR' && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[11px] text-slate-500">@</span>
+                                    <input
+                                      type="number"
+                                      value={markPaidRate}
+                                      onChange={(e) => setMarkPaidRate(e.target.value)}
+                                      className="w-28 px-2 py-1.5 bg-slate-900 border border-slate-600 rounded-lg text-xs text-white tabular-nums focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
+                                      placeholder={po.exchange_rate ? String(po.exchange_rate) : 'Rate'}
+                                    />
+                                    {markPaidAmount && markPaidRate && (
+                                      <span className="text-[11px] text-slate-500 tabular-nums">
+                                        = {fmtIdr(Number(markPaidAmount) * Number(markPaidRate))}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  disabled={!markPaidAmount || markingPaid === pKey}
+                                  onClick={async () => {
+                                    setMarkingPaid(pKey);
+                                    try {
+                                      await onMarkFullyPaid(pKey, {
+                                        amount: Number(markPaidAmount),
+                                        currency: po.currency,
+                                        exchange_rate: po.currency !== 'IDR' && markPaidRate ? Number(markPaidRate) : undefined,
+                                      });
+                                      setMarkPaidPoId(null);
+                                    } finally { setMarkingPaid(null); }
+                                  }}
+                                  className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold rounded-lg transition-colors disabled:opacity-50"
+                                >
+                                  {markingPaid === pKey ? 'Saving…' : 'Confirm Payment'}
+                                </button>
+                                <button
+                                  onClick={() => setMarkPaidPoId(null)}
+                                  className="px-3 py-1.5 text-slate-400 hover:text-slate-300 text-[11px] transition-colors"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* PO line items */}
                     {items.length > 0 && (

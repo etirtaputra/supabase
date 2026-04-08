@@ -29,9 +29,10 @@ export interface DealGroup {
   // derived
   quoteStatus: string | null;    // status of most recent quote
   poStatus: string | null;       // status of most recent PO
-  totalIdr: number;
-  paidIdr: number;
-  outstandingIdr: number;
+  totalIdr: number;       // committed (PO rate × total_value)
+  paidIdr: number;        // actual IDR paid (at payment rates)
+  outstandingIdr: number; // 0 when foreign obligation is met, even if paidIdr ≠ totalIdr
+  fxVarianceIdr: number;  // paidIdr − totalIdr when obligation met (neg = gain, pos = loss)
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -89,6 +90,7 @@ export function buildDealGroups(
         totalIdr: 0,
         paidIdr: 0,
         outstandingIdr: 0,
+        fxVarianceIdr: 0,
       };
     }
     return map[key];
@@ -160,14 +162,24 @@ export function buildDealGroups(
     }
     // Financial totals
     for (const po of g.pos) {
-      const tIdr  = poTotalIdr(po);
-      const costs = poCosts.filter((c) => String(c.po_id) === String(po.po_id));
-      const paid  = costs
-        .filter((c) => PRINCIPAL_CATS.has(c.cost_category) && c.cost_category !== 'overpayment_credit')
-        .reduce((s, c) => s + costToIdr(c, po), 0);
+      const tIdr       = poTotalIdr(po);
+      const costs      = poCosts.filter((c) => String(c.po_id) === String(po.po_id));
+      const princCosts = costs.filter((c) => PRINCIPAL_CATS.has(c.cost_category) && c.cost_category !== 'overpayment_credit');
+      const paidActual = princCosts.reduce((s, c) => s + costToIdr(c, po), 0);
+
+      // Foreign obligation check: if payments are in PO currency, track via foreign units
+      // (handles rate-up and rate-down equally — obligation = units, not IDR)
+      const foreignPaid = po.currency !== 'IDR'
+        ? princCosts.filter((c) => c.currency === po.currency).reduce((s, c) => s + Number(c.amount), 0)
+        : 0;
+      const hasForeignTracking = po.currency !== 'IDR' && foreignPaid > 0;
+      const foreignTotal       = hasForeignTracking ? (Number(po.total_value) || 0) : 0;
+      const isObligationMet    = hasForeignTracking && (foreignTotal - foreignPaid) < 0.005;
+
       g.totalIdr       += tIdr;
-      g.paidIdr        += paid;
-      g.outstandingIdr += Math.max(0, tIdr - paid);
+      g.paidIdr        += paidActual;
+      g.outstandingIdr += isObligationMet ? 0 : Math.max(0, tIdr - paidActual);
+      g.fxVarianceIdr  += isObligationMet ? (paidActual - tIdr) : 0;
     }
   }
 
