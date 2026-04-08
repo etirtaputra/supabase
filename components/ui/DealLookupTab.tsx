@@ -73,6 +73,7 @@ interface Props {
   components: Component[];
   onQuoteStatusChange?: (quoteId: string, status: string) => Promise<void>;
   onPoStatusChange?: (poId: string, status: string) => Promise<void>;
+  onMarkFullyPaid?: (poId: string, outstandingIdr: number) => Promise<void>;
   onCreatePO?: (quoteId: string) => void;
 }
 
@@ -81,7 +82,7 @@ interface Props {
 export default function DealLookupTab({
   quotes, quoteItems, pos, poItems, poCosts,
   suppliers, companies, components,
-  onQuoteStatusChange, onPoStatusChange, onCreatePO,
+  onQuoteStatusChange, onPoStatusChange, onMarkFullyPaid, onCreatePO,
 }: Props) {
 
   const [viewMode, setViewMode]               = useState<'all' | 'by-vendor' | 'by-company'>('all');
@@ -93,6 +94,7 @@ export default function DealLookupTab({
   const [selectedCompId, setSelectedCompId]   = useState<string | null>(null);
   const [updatingQuote, setUpdatingQuote]     = useState<string | null>(null);
   const [updatingPo, setUpdatingPo]           = useState<string | null>(null);
+  const [markingPaid, setMarkingPaid]         = useState<string | null>(null);
 
   // ── Deal groups ──────────────────────────────────────────────────────────
   const allGroups = useMemo(
@@ -402,6 +404,30 @@ export default function DealLookupTab({
                       </div>
                     )}
 
+                    {/* Mark as Fully Paid */}
+                    {onMarkFullyPaid && po.status === 'Fully Received' && outIdr > 0 && (
+                      <div className="flex items-center gap-2 pt-1">
+                        <button
+                          disabled={markingPaid === pKey}
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            setMarkingPaid(pKey);
+                            try { await onMarkFullyPaid(pKey, outIdr); } finally { setMarkingPaid(null); }
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                          Mark as Fully Paid
+                        </button>
+                        <span className="text-[10px] text-slate-500">
+                          records {fmtIdr(outIdr)} final payment
+                        </span>
+                        {markingPaid === pKey && <span className="text-[10px] text-slate-500 animate-pulse">saving…</span>}
+                      </div>
+                    )}
+
                     {/* PO line items */}
                     {items.length > 0 && (
                       <div className="overflow-x-auto">
@@ -566,7 +592,9 @@ export default function DealLookupTab({
                   style={{ width: `${paidPct}%` }}
                 />
               </div>
-              <span className="text-[10px] text-slate-500 flex-shrink-0 tabular-nums">{paidPct.toFixed(0)}% paid</span>
+              <span className="text-[10px] text-slate-500 flex-shrink-0 tabular-nums">
+                {g.outstandingIdr > 0 ? paidPct.toFixed(1) : '100'}% paid
+              </span>
             </div>
           )}
         </button>

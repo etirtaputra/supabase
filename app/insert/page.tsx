@@ -78,6 +78,19 @@ function MasterInsertPage() {
     router.replace(`/insert?tab=${tab}`, { scroll: false });
   };
 
+  const handleMarkFullyPaid = async (poId: string, outstandingIdr: number) => {
+    const { error } = await supabase.from('6.0_po_costs').insert({
+      po_id: Number(poId),
+      cost_category: 'additional_balance_payment',
+      amount: outstandingIdr,
+      currency: 'IDR',
+      notes: 'Final payment — marked as fully paid',
+    });
+    if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
+    showToast('Marked as fully paid', 'success');
+    refetch();
+  };
+
   const handleStatusChange = async (poId: string, status: string) => {
     const { error } = await supabase.from('5.0_purchases').update({ status }).eq('po_id', poId);
     if (error) { showToast(`Error updating status: ${error.message}`, 'error'); throw error; }
@@ -677,6 +690,7 @@ function MasterInsertPage() {
                   components={data.components}
                   onQuoteStatusChange={handleQuoteStatusChange}
                   onPoStatusChange={handleStatusChange}
+                  onMarkFullyPaid={handleMarkFullyPaid}
                   onCreatePO={(quoteId) => { setPendingQuoteForPO(quoteId); handleTabChange('ordering'); }}
                 />
               )}
