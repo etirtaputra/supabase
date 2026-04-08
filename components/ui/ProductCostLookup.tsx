@@ -47,6 +47,7 @@ interface Allocation {
 interface POCostGroup {
   po: PurchaseOrder; costs: POCost[]; hasBalancePayment: boolean;
   subtotalByCurrency: Record<string, number>;
+  principalIdr: number; bankFeesIdr: number; landedIdr: number; totalExclTaxIdr: number;
 }
 function StatusBadge({ status }: { status?: string }) {
   const cls =
@@ -157,7 +158,16 @@ export default function ProductCostLookup({ components, quotes, quoteItems, pos,
       costs.filter((c) => !TAX_CATS.has(c.cost_category)).forEach((c) => {
         subtotalByCurrency[c.currency] = (subtotalByCurrency[c.currency] || 0) + c.amount;
       });
-      return [{ po, costs, hasBalancePayment, subtotalByCurrency }];
+      // IDR equivalents for % breakdown (using actual payment rate)
+      const toIdrG = (c: POCost) => {
+        if (c.currency === 'IDR') return Number(c.amount);
+        return Number(c.amount) * (Number(c.exchange_rate) || Number(po.exchange_rate) || 1);
+      };
+      const principalIdr     = costs.filter((c) => PRINCIPAL_CATS.has(c.cost_category)).reduce((s, c) => s + toIdrG(c), 0);
+      const bankFeesIdr      = costs.filter((c) => BANK_FEE_CATS.has(c.cost_category)).reduce((s, c) => s + toIdrG(c), 0);
+      const landedIdr        = costs.filter((c) => !PRINCIPAL_CATS.has(c.cost_category) && !BANK_FEE_CATS.has(c.cost_category) && !TAX_CATS.has(c.cost_category)).reduce((s, c) => s + toIdrG(c), 0);
+      const totalExclTaxIdr  = principalIdr + bankFeesIdr + landedIdr;
+      return [{ po, costs, hasBalancePayment, subtotalByCurrency, principalIdr, bankFeesIdr, landedIdr, totalExclTaxIdr }];
     });
   }, [relatedPoIds, pos, poCosts]);
   const getQuote = (id: number) => quotes.find((q) => q.quote_id === id);
@@ -477,7 +487,57 @@ export default function ProductCostLookup({ components, quotes, quoteItems, pos,
               </h3>
             </div>
           </div>
-          <p className="text-slate-500 text-xs font-medium mb-6">Grouped by PO. Tax rows (PPN / PPh) are greyed out — excluded from true cost.</p>
+          <p className="text-slate-500 text-xs font-medium mb-4">Grouped by PO. Tax rows (PPN / PPh) are greyed out — excluded from true cost.</p>
+
+          {/* Aggregate cost breakdown across all POs */}
+          {(() => {
+            const aggPrincipal = poCostGroups.reduce((s, g) => s + g.principalIdr, 0);
+            const aggBankFees  = poCostGroups.reduce((s, g) => s + g.bankFeesIdr, 0);
+            const aggLanded    = poCostGroups.reduce((s, g) => s + g.landedIdr, 0);
+            const aggTotal     = poCostGroups.reduce((s, g) => s + g.totalExclTaxIdr, 0);
+            if (aggTotal === 0 || (aggBankFees === 0 && aggLanded === 0)) return null;
+            const bfPct  = (aggBankFees  / aggTotal) * 100;
+            const ldPct  = (aggLanded    / aggTotal) * 100;
+            const prPct  = (aggPrincipal / aggTotal) * 100;
+            return (
+              <div className="mb-6 bg-slate-900/60 border border-slate-700/60 rounded-xl p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-3">
+                  Aggregate cost breakdown across {poCostGroups.length} PO{poCostGroups.length !== 1 ? 's' : ''} (excl. VAT &amp; import tax)
+                </p>
+                <div className="flex flex-wrap gap-3 items-center">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-sm bg-sky-500/70 flex-shrink-0" />
+                    <span className="text-[11px] text-slate-400">Principal</span>
+                    <span className="text-xs font-bold text-white tabular-nums">{prPct.toFixed(1)}%</span>
+                    <span className="text-[10px] text-slate-600 tabular-nums">{fmtIdr(aggPrincipal)}</span>
+                  </div>
+                  {aggBankFees > 0 && (
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-sm bg-purple-500/70 flex-shrink-0" />
+                      <span className="text-[11px] text-slate-400">Bank Fees</span>
+                      <span className="text-xs font-bold text-purple-300 tabular-nums">{bfPct.toFixed(2)}%</span>
+                      <span className="text-[10px] text-slate-600 tabular-nums">{fmtIdr(aggBankFees)}</span>
+                    </div>
+                  )}
+                  {aggLanded > 0 && (
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-sm bg-orange-500/70 flex-shrink-0" />
+                      <span className="text-[11px] text-slate-400">Landed Costs</span>
+                      <span className="text-xs font-bold text-orange-300 tabular-nums">{ldPct.toFixed(2)}%</span>
+                      <span className="text-[10px] text-slate-600 tabular-nums">{fmtIdr(aggLanded)}</span>
+                    </div>
+                  )}
+                  {/* Stacked bar */}
+                  <div className="flex-1 min-w-[120px] h-2 bg-slate-800 rounded-full overflow-hidden flex ml-2">
+                    <div className="h-full bg-sky-500/60"    style={{ width: `${prPct}%` }} />
+                    <div className="h-full bg-purple-500/70" style={{ width: `${bfPct}%` }} />
+                    <div className="h-full bg-orange-500/70" style={{ width: `${ldPct}%` }} />
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           <div className="space-y-6">
             {poCostGroups.map((group) => {
               const poStatusCls = group.po.status === 'Fully Received' ? 'text-emerald-400' : group.po.status === 'Partially Received' ? 'text-amber-400' : group.po.status === 'Cancelled' ? 'text-red-400' : 'text-slate-400';
@@ -530,6 +590,41 @@ export default function ProductCostLookup({ components, quotes, quoteItems, pos,
                             </td>
                             <td className="hidden md:table-cell" />
                           </tr>
+                          {group.totalExclTaxIdr > 0 && (group.bankFeesIdr > 0 || group.landedIdr > 0) && (
+                            <tr className="bg-slate-950/60 border-t border-slate-800/60">
+                              <td colSpan={5} className="px-5 py-3">
+                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                                  <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-600">Cost mix</span>
+                                  {group.bankFeesIdr > 0 && (
+                                    <span className="flex items-center gap-1.5 text-[11px]">
+                                      <span className="w-2 h-2 rounded-sm bg-purple-500/70 flex-shrink-0" />
+                                      <span className="text-slate-500">Bank Fees</span>
+                                      <span className="font-bold text-purple-300 tabular-nums">
+                                        {((group.bankFeesIdr / group.totalExclTaxIdr) * 100).toFixed(2)}%
+                                      </span>
+                                      <span className="text-slate-600 tabular-nums text-[10px]">{fmtIdr(group.bankFeesIdr)}</span>
+                                    </span>
+                                  )}
+                                  {group.landedIdr > 0 && (
+                                    <span className="flex items-center gap-1.5 text-[11px]">
+                                      <span className="w-2 h-2 rounded-sm bg-orange-500/70 flex-shrink-0" />
+                                      <span className="text-slate-500">Landed</span>
+                                      <span className="font-bold text-orange-300 tabular-nums">
+                                        {((group.landedIdr / group.totalExclTaxIdr) * 100).toFixed(2)}%
+                                      </span>
+                                      <span className="text-slate-600 tabular-nums text-[10px]">{fmtIdr(group.landedIdr)}</span>
+                                    </span>
+                                  )}
+                                  {/* Mini stacked bar */}
+                                  <div className="flex h-1.5 w-24 bg-slate-800 rounded-full overflow-hidden ml-1">
+                                    <div className="h-full bg-sky-500/50" style={{ width: `${(group.principalIdr / group.totalExclTaxIdr) * 100}%` }} />
+                                    <div className="h-full bg-purple-500/70" style={{ width: `${(group.bankFeesIdr / group.totalExclTaxIdr) * 100}%` }} />
+                                    <div className="h-full bg-orange-500/70" style={{ width: `${(group.landedIdr / group.totalExclTaxIdr) * 100}%` }} />
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
                         </tfoot>
                       )}
                     </table>
