@@ -314,11 +314,24 @@ export default function DealLookupTab({
                 const fees    = costs.filter((c) => BANK_FEE_CATS.has(c.cost_category));
                 const landed  = costs.filter((c) => !PRINCIPAL_CATS.has(c.cost_category) && !BANK_FEE_CATS.has(c.cost_category));
                 const tIdr    = Number(po.total_value || 0) * (po.currency === 'IDR' ? 1 : (Number(po.exchange_rate) || 1));
-                const paidIdr = princ
-                  .filter((c) => c.cost_category !== 'overpayment_credit')
-                  .reduce((s, c) => s + (c.currency === 'IDR' ? Number(c.amount) : Number(c.amount) * (Number(po.exchange_rate) || 1)), 0);
+                const princPay = princ.filter((c) => c.cost_category !== 'overpayment_credit');
+                // Use cost-level exchange_rate when available (actual bank rate), else PO rate
+                const paidIdr = princPay.reduce((s, c) => {
+                  if (c.currency === 'IDR') return s + Number(c.amount);
+                  const rate = Number(c.exchange_rate) || Number(po.exchange_rate) || 1;
+                  return s + Number(c.amount) * rate;
+                }, 0);
                 const outIdr  = Math.max(0, tIdr - paidIdr);
                 const pct     = tIdr > 0 ? Math.min(100, (paidIdr / tIdr) * 100) : 0;
+                // FX variance: actual paid IDR (at payment rate) vs. committed IDR (at PO rate)
+                const fxVariance = po.currency !== 'IDR' && Number(po.exchange_rate) > 0
+                  ? princPay.filter((c) => c.currency !== 'IDR' && c.exchange_rate != null).reduce((s, c) => {
+                      const atPayRate = Number(c.amount) * (Number(c.exchange_rate) || 0);
+                      const atPORate  = Number(c.amount) * (Number(po.exchange_rate) || 0);
+                      return s + (atPayRate - atPORate);
+                    }, 0)
+                  : 0;
+                const hasFxVariance = Math.abs(fxVariance) > 0;
 
                 return (
                   <div key={pKey} className="bg-slate-800/30 rounded-xl p-3 space-y-2.5">
@@ -343,10 +356,12 @@ export default function DealLookupTab({
 
                     {/* PO value */}
                     {po.total_value && (
-                      <div className="flex items-center gap-3 text-xs">
+                      <div className="flex items-center gap-3 text-xs flex-wrap">
                         <span className="font-semibold text-white tabular-nums">{fmtCcy(Number(po.total_value), po.currency)}</span>
                         {po.currency !== 'IDR' && po.exchange_rate && (
-                          <span className="text-slate-500 tabular-nums">≈ {fmtIdr(tIdr)}</span>
+                          <span className="text-slate-500 tabular-nums">
+                            @ {Number(po.exchange_rate).toLocaleString()} = {fmtIdr(tIdr)}
+                          </span>
                         )}
                       </div>
                     )}
@@ -378,6 +393,36 @@ export default function DealLookupTab({
                             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-0.5">Outstanding</p>
                             <p className={`text-xs font-bold tabular-nums ${outIdr > 0 ? 'text-amber-300' : 'text-slate-400'}`}>{fmtIdr(outIdr)}</p>
                           </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* FX variance */}
+                    {hasFxVariance && (
+                      <div className={`rounded-lg px-3 py-2 text-xs flex items-center gap-3 flex-wrap ${
+                        fxVariance > 0
+                          ? 'bg-red-500/10 border border-red-500/20'
+                          : 'bg-emerald-500/10 border border-emerald-500/20'
+                      }`}>
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-0.5">
+                            FX {fxVariance > 0 ? 'Loss' : 'Gain'}
+                          </p>
+                          <p className={`font-bold tabular-nums ${fxVariance > 0 ? 'text-red-300' : 'text-emerald-300'}`}>
+                            {fxVariance > 0 ? '+' : ''}{fmtIdr(fxVariance)}
+                          </p>
+                        </div>
+                        <div className="text-slate-500 text-[11px]">
+                          <p>PO rate: <span className="tabular-nums text-slate-400">{Number(po.exchange_rate).toLocaleString()}</span></p>
+                          <p>Effective paid rate: <span className="tabular-nums text-slate-400">
+                            {(() => {
+                              const fxPaid = princPay.filter((c) => c.currency !== 'IDR' && c.exchange_rate != null);
+                              if (fxPaid.length === 0) return '—';
+                              const totalForeign = fxPaid.reduce((s, c) => s + Number(c.amount), 0);
+                              const totalIdrPaid = fxPaid.reduce((s, c) => s + Number(c.amount) * (Number(c.exchange_rate) || 0), 0);
+                              return totalForeign > 0 ? (totalIdrPaid / totalForeign).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—';
+                            })()}
+                          </span></p>
                         </div>
                       </div>
                     )}

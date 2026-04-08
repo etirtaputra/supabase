@@ -49,7 +49,9 @@ function poTotalIdr(po: PurchaseOrder): number {
 
 function costToIdr(cost: POCost, po: PurchaseOrder): number {
   if (cost.currency === 'IDR') return Number(cost.amount) || 0;
-  return (Number(cost.amount) || 0) * (Number(po.exchange_rate) || 1);
+  // Prefer cost-level rate (actual bank rate on payment date) over PO rate
+  const rate = Number(cost.exchange_rate) || Number(po.exchange_rate) || 1;
+  return (Number(cost.amount) || 0) * rate;
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────

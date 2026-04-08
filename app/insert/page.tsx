@@ -615,6 +615,7 @@ function MasterInsertPage() {
                         { name: 'cost_category', label: 'Cost Category', type: 'select', options: ENUMS.po_cost_category, req: true },
                         { name: 'amount', label: 'Amount', type: 'number', req: true },
                         { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true },
+                        { name: 'exchange_rate', label: 'Exchange Rate (if ≠ PO rate)', type: 'number', placeholder: selPo?.exchange_rate ? String(selPo.exchange_rate) : undefined },
                         { name: 'payment_date', label: 'Date', type: 'date' },
                         { name: 'notes', label: 'Notes', type: 'text' },
                       ]}
