@@ -550,8 +550,8 @@ export default function DealLookupTab({
                       </div>
                     )}
 
-                    {/* Mark as Fully Paid — single click, system auto-computes the gap */}
-                    {onMarkFullyPaid && po.status !== 'Cancelled' && po.status !== 'Replaced' && !isObligationMet && (hasForeignTracking ? foreignOut > 0.005 : outIdr > 0) && (
+                    {/* Mark as Fully Paid — only show when ≥80% paid (final gap close, not mid-payment) */}
+                    {onMarkFullyPaid && po.status !== 'Cancelled' && po.status !== 'Replaced' && !isObligationMet && pct >= 80 && (hasForeignTracking ? foreignOut > 0.005 : outIdr > 0) && (
                       <div className="flex items-center gap-2 pt-1">
                         <button
                           disabled={markingPaid === pKey}
