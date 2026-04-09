@@ -401,19 +401,20 @@ export default function DealLookupTab({
                         </div>
                         <div className="grid grid-cols-3 gap-2">
                           <div className="bg-slate-800/60 rounded-lg p-2">
-                            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-0.5">
-                              {isObligationMet && hasForeignTracking ? 'Actual Cost' : 'Total'}
-                            </p>
-                            <p className="text-xs font-bold text-white tabular-nums">
-                              {fmtIdr(isObligationMet && hasForeignTracking ? paidIdr : tIdr)}
-                            </p>
-                            {isObligationMet && hasForeignTracking && (
-                              <p className="text-[10px] text-slate-600 tabular-nums mt-0.5">Committed {fmtIdr(tIdr)}</p>
+                            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-0.5">PO Committed</p>
+                            <p className="text-xs font-bold text-white tabular-nums">{fmtIdr(tIdr)}</p>
+                            {isObligationMet && hasForeignTracking && paidIdr !== tIdr && (
+                              <p className={`text-[10px] tabular-nums mt-0.5 ${paidIdr < tIdr ? 'text-emerald-500' : 'text-red-400'}`}>
+                                {paidIdr < tIdr ? 'FX gain' : 'FX loss'}
+                              </p>
                             )}
                           </div>
                           <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2">
-                            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-0.5">Paid</p>
+                            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-0.5">Principal Paid</p>
                             <p className="text-xs font-bold text-emerald-300 tabular-nums">{fmtIdr(paidIdr)}</p>
+                            {totalCashOutExclTaxIdr > paidIdr && (
+                              <p className="text-[10px] text-slate-600 tabular-nums mt-0.5">+{fmtIdr(totalCashOutExclTaxIdr - paidIdr)} fees/landed</p>
+                            )}
                           </div>
                           <div className={`rounded-lg p-2 ${outIdr > 0 ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-emerald-500/10 border border-emerald-500/20'}`}>
                             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-0.5">Outstanding</p>
@@ -422,15 +423,16 @@ export default function DealLookupTab({
                             </p>
                           </div>
                         </div>
-                        {/* Total cash out row */}
+                        {/* Total spend row */}
                         {totalCashOutIdr > 0 && (
                           <div className="mt-2 pt-2 border-t border-slate-700/40 flex items-center gap-3 flex-wrap text-[11px]">
-                            <span className="text-slate-500 font-semibold uppercase tracking-widest">Total Cash Out</span>
+                            <span className="text-slate-500 font-semibold uppercase tracking-widest">Total Spend</span>
                             <span className="font-bold text-slate-200 tabular-nums">{fmtIdr(totalCashOutExclTaxIdr)}</span>
                             <span className="text-slate-600">excl. tax</span>
                             {totalCashOutIdr !== totalCashOutExclTaxIdr && (
-                              <span className="text-slate-600 tabular-nums">{fmtIdr(totalCashOutIdr)} incl. tax</span>
+                              <span className="text-slate-600 tabular-nums">({fmtIdr(totalCashOutIdr)} incl. tax)</span>
                             )}
+                            <span className="text-slate-700">= principal + fees + landed</span>
                           </div>
                         )}
                       </div>
@@ -560,12 +562,27 @@ export default function DealLookupTab({
                     ].map(({ label, rows, dim }) => rows.length === 0 ? null : (
                       <div key={label}>
                         <p className={`text-[10px] font-semibold uppercase tracking-widest mb-1 ${dim ? 'text-slate-600' : 'text-slate-500'}`}>{label}</p>
-                        {rows.map((c) => (
-                          <div key={c.cost_id} className={`flex justify-between text-xs py-1 border-b border-slate-800/30 last:border-0 ${dim ? 'opacity-50' : ''}`}>
-                            <span className="text-slate-400 capitalize">{c.cost_category.replace(/_/g, ' ')}{c.notes ? ` · ${c.notes}` : ''}</span>
-                            <span className="text-white font-semibold flex-shrink-0 ml-3 tabular-nums">{fmtCcy(c.amount, c.currency)}</span>
+                        {rows.map((c) => {
+                          const rowIdr = toIdrLocal(c);
+                          return (
+                            <div key={c.cost_id} className={`flex justify-between text-xs py-1 border-b border-slate-800/30 last:border-0 ${dim ? 'opacity-50' : ''}`}>
+                              <span className="text-slate-400 capitalize">{c.cost_category.replace(/_/g, ' ')}{c.notes ? ` · ${c.notes}` : ''}</span>
+                              <span className="text-right flex-shrink-0 ml-3">
+                                <span className="text-white font-semibold tabular-nums">{fmtCcy(Number(c.amount), c.currency)}</span>
+                                {c.currency !== 'IDR' && (
+                                  <span className="block text-[10px] text-slate-500 tabular-nums">= {fmtIdr(rowIdr)}</span>
+                                )}
+                              </span>
+                            </div>
+                          );
+                        })}
+                        {/* Section subtotal (IDR) */}
+                        {rows.length > 1 && (
+                          <div className="flex justify-between text-[10px] pt-1 text-slate-500">
+                            <span className="uppercase tracking-widest">Subtotal</span>
+                            <span className="tabular-nums font-semibold">{fmtIdr(rows.reduce((s, c) => s + toIdrLocal(c), 0))}</span>
                           </div>
-                        ))}
+                        )}
                       </div>
                     ))}
                   </div>
