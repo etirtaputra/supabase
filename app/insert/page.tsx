@@ -665,6 +665,90 @@ function MasterInsertPage() {
                       onError={(msg) => showToast(`Error: ${msg}`, 'error')}
                     />
                   )}
+
+                  {/* ── Recent Payment Activity ── */}
+                  {(() => {
+                    // Collect unique po_ids in order of most-recent payment_date
+                    const seen = new Set<string>();
+                    const recentPoIds: string[] = [];
+                    for (const c of data.poCosts) {
+                      const id = String(c.po_id);
+                      if (!seen.has(id)) { seen.add(id); recentPoIds.push(id); }
+                      if (recentPoIds.length >= 8) break;
+                    }
+                    if (recentPoIds.length === 0) return null;
+
+                    return (
+                      <div className="mt-8">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-3">Recent Payment Activity</p>
+                        <div className="space-y-2">
+                          {recentPoIds.map((poId) => {
+                            const po = data.pos.find((p) => String(p.po_id) === poId);
+                            if (!po) return null;
+                            const costs   = data.poCosts.filter((c) => String(c.po_id) === poId);
+                            const tIdr    = po.currency === 'IDR' ? Number(po.total_value) : Number(po.total_value) * (Number(po.exchange_rate) || 1);
+                            const paid    = costs.filter((c) => PRINCIPAL_CATS.has(c.cost_category)).reduce((s, c) => {
+                              const rate = Number(c.exchange_rate) || Number(po.exchange_rate) || 1;
+                              return s + (c.currency === 'IDR' ? Number(c.amount) : Number(c.amount) * rate);
+                            }, 0);
+                            const out     = Math.max(0, tIdr - paid);
+                            const pct     = tIdr > 0 ? Math.min(100, (paid / tIdr) * 100) : 0;
+                            const latest  = costs.reduce<string>((d, c) => (c.payment_date && c.payment_date > d ? c.payment_date : d), '');
+
+                            // Resolve supplier via linked quote
+                            const quote    = po.quote_id ? data.quotes.find((q) => String(q.quote_id) === String(po.quote_id)) : null;
+                            const supplier = quote ? data.suppliers.find((s) => s.supplier_id === quote.supplier_id) : null;
+
+                            const isSelected = singlePoId === poId;
+                            return (
+                              <button
+                                key={poId}
+                                onClick={() => { setPaymentMode('single'); setSinglePoId(poId); }}
+                                className={`w-full text-left px-3 py-2.5 rounded-xl border transition-colors ${
+                                  isSelected
+                                    ? 'bg-rose-500/15 border-rose-500/30'
+                                    : 'bg-slate-800/30 border-slate-700/30 hover:bg-slate-800/60 hover:border-slate-600/40'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="min-w-0 flex items-center gap-2">
+                                    {supplier?.supplier_code && (
+                                      <span className="inline-block px-1.5 py-0.5 bg-sky-500/15 border border-sky-500/30 text-sky-300 text-[10px] font-bold rounded leading-none flex-shrink-0">
+                                        {supplier.supplier_code}
+                                      </span>
+                                    )}
+                                    <span className="text-xs font-semibold text-slate-200 truncate">
+                                      {po.pi_number ? `${po.pi_number} · ` : ''}{po.po_number}
+                                    </span>
+                                    <span className={`inline-block px-1 py-0.5 text-[10px] font-bold rounded leading-none flex-shrink-0 ${
+                                      po.status === 'Fully Received' ? 'bg-emerald-500/20 text-emerald-300' :
+                                      po.status === 'Partially Received' ? 'bg-amber-500/20 text-amber-300' :
+                                      po.status === 'Confirmed' ? 'bg-indigo-500/20 text-indigo-300' :
+                                      'bg-slate-700 text-slate-400'
+                                    }`}>{po.status}</span>
+                                  </div>
+                                  <div className="text-right flex-shrink-0">
+                                    {out > 0
+                                      ? <span className="text-[11px] font-bold text-amber-300 tabular-nums">{fmtIdr(out)} out</span>
+                                      : <span className="text-[11px] font-bold text-emerald-400">✓ Settled</span>
+                                    }
+                                    {latest && <p className="text-[10px] text-slate-600 tabular-nums">{latest}</p>}
+                                  </div>
+                                </div>
+                                <div className="mt-1.5 flex items-center gap-2">
+                                  <div className="flex-1 h-1 bg-slate-700/80 rounded-full overflow-hidden">
+                                    <div className={`h-full rounded-full ${pct >= 100 ? 'bg-emerald-500' : 'bg-amber-400'}`} style={{ width: `${pct}%` }} />
+                                  </div>
+                                  <span className="text-[10px] text-slate-600 flex-shrink-0 tabular-nums">{pct.toFixed(0)}%</span>
+                                  <span className="text-[10px] text-slate-600 tabular-nums">{fmtIdr(tIdr)}</span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
