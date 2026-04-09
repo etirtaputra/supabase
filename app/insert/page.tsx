@@ -81,7 +81,7 @@ function MasterInsertPage() {
   const handleMarkFullyPaid = async (poId: string, amount: number, currency: string) => {
     const po = data.pos.find((p) => String(p.po_id) === poId);
     const row: Record<string, unknown> = {
-      po_id: Number(poId),
+      po_id: poId,
       cost_category: 'additional_balance_payment',
       amount,
       currency,
