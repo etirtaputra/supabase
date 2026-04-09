@@ -266,6 +266,10 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [saving, setSaving] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const selectAllRef = useRef<HTMLInputElement>(null);
   const [specsOpenIds, setSpecsOpenIds] = useState<Set<string>>(new Set());
   const [lineItemModalId, setLineItemModalId] = useState<string | null>(null);
   const [lineItemDraft, setLineItemDraft] = useState<Record<number | string, Partial<PriceQuoteLineItem>>>({});
@@ -539,6 +543,43 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const dirtyKeys = useMemo(() => Object.keys(pending), [pending]);
   const dirtyCount = dirtyKeys.length;
 
+  // ── Bulk selection ────────────────────────────────────────────────────────
+  const allFilteredSelected = filtered.length > 0 && filtered.every((c) => selectedIds.has(String(c.component_id)));
+  const someFilteredSelected = filtered.some((c) => selectedIds.has(String(c.component_id)));
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someFilteredSelected && !allFilteredSelected;
+    }
+  }, [someFilteredSelected, allFilteredSelected]);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  };
+
+  const toggleSelectAll = () => {
+    if (allFilteredSelected) {
+      setSelectedIds((prev) => { const n = new Set(prev); filtered.forEach((c) => n.delete(String(c.component_id))); return n; });
+    } else {
+      setSelectedIds((prev) => { const n = new Set(prev); filtered.forEach((c) => n.add(String(c.component_id))); return n; });
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!onDelete || selectedIds.size === 0) return;
+    setBulkDeleting(true);
+    try {
+      for (const id of selectedIds) {
+        await onDelete(id);
+        discardRow(id);
+      }
+      setSelectedIds(new Set());
+      setConfirmBulkDelete(false);
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   const handleSaveAll = async () => {
     if (!dirtyCount || saving) return;
     setSaving(true);
@@ -708,13 +749,48 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <p className="text-xs text-slate-500">
             Showing <span className="text-slate-300 font-semibold">{filtered.length}</span> of {components.length} components
+            {selectedIds.size > 0 && (
+              <span className="ml-2 text-sky-400 font-semibold">· {selectedIds.size} selected</span>
+            )}
             {dirtyCount > 0 && (
               <span className="ml-2 text-amber-400 font-semibold">
                 · {dirtyCount} unsaved {dirtyCount === 1 ? 'edit' : 'edits'}
               </span>
             )}
           </p>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center flex-wrap">
+            {/* Bulk delete controls */}
+            {onDelete && selectedIds.size > 0 && (
+              confirmBulkDelete ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-red-400">Delete {selectedIds.size} component{selectedIds.size !== 1 ? 's' : ''}?</span>
+                  <button
+                    onClick={handleBulkDelete}
+                    disabled={bulkDeleting}
+                    className="px-3 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-500 rounded-lg transition-all disabled:opacity-50"
+                  >
+                    {bulkDeleting ? 'Deleting…' : 'Confirm'}
+                  </button>
+                  <button
+                    onClick={() => setConfirmBulkDelete(false)}
+                    disabled={bulkDeleting}
+                    className="px-3 py-1.5 text-xs font-semibold text-slate-400 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-all disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmBulkDelete(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-400 bg-red-500/10 border border-red-500/25 rounded-lg hover:bg-red-500/20 transition-all"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Delete {selectedIds.size}
+                </button>
+              )
+            )}
             {dirtyCount > 0 && (
               <button
                 onClick={discardAll}
@@ -752,6 +828,16 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
           <table className="w-full">
             <thead className="bg-slate-900/80 border-b border-slate-800">
               <tr>
+                <th className="pl-4 pr-2 py-3 w-9">
+                  <input
+                    ref={selectAllRef}
+                    type="checkbox"
+                    checked={allFilteredSelected}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 rounded border-white/20 bg-white/5 cursor-pointer accent-sky-400"
+                    title={allFilteredSelected ? 'Deselect all' : 'Select all visible'}
+                  />
+                </th>
                 <SortTh col="supplier_model" label="Model / SKU" />
                 <SortTh col="internal_description" label="Description" />
                 <SortTh col="brand" label="Brand" className="min-w-[160px]" />
@@ -793,13 +879,25 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                   <tr
                     onDoubleClick={() => { if (!isEditing) toggleEdit(c.component_id); }}
                     className={`transition-colors cursor-pointer ${
-                      isDirty
+                      selectedIds.has(String(c.component_id))
+                        ? 'bg-sky-500/5'
+                        : isDirty
                         ? 'bg-amber-500/5 border-l-2 border-amber-500/40'
                         : isEditing
                         ? 'bg-slate-800/25'
                         : 'hover:bg-slate-800/15'
                     }`}
                   >
+                    {/* Select checkbox */}
+                    <td className="pl-4 pr-2 py-3 align-top">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(String(c.component_id))}
+                        onChange={(e) => { e.stopPropagation(); toggleSelect(String(c.component_id)); }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-4 h-4 rounded border-white/20 bg-white/5 cursor-pointer accent-sky-400 mt-0.5"
+                      />
+                    </td>
                     {/* Model / SKU */}
                     <td className="px-4 py-3 align-top min-w-[260px]">
                       {isEditing ? (
@@ -1102,7 +1200,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                   {/* ── Inline spec sheet row ── */}
                   {isSpecsOpen && hasSpecs && (
                     <tr className="bg-slate-900/40 border-t border-amber-500/10">
-                      <td colSpan={8} className="px-6 py-5">
+                      <td colSpan={9} className="px-6 py-5">
                         <SpecRenderer
                           specs={c.specifications as Record<string, unknown>}
                           modelName={c.supplier_model}
