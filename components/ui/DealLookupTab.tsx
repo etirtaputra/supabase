@@ -491,7 +491,7 @@ export default function DealLookupTab({
                     )}
 
                     {/* Mark as Fully Paid — single click, system auto-computes the gap */}
-                    {onMarkFullyPaid && po.status === 'Fully Received' && !isObligationMet && (hasForeignTracking ? foreignOut > 0.005 : outIdr > 0) && (
+                    {onMarkFullyPaid && po.status !== 'Cancelled' && po.status !== 'Replaced' && !isObligationMet && (hasForeignTracking ? foreignOut > 0.005 : outIdr > 0) && (
                       <div className="flex items-center gap-2 pt-1">
                         <button
                           disabled={markingPaid === pKey}
@@ -681,11 +681,6 @@ export default function DealLookupTab({
             {g.totalIdr > 0 && (
               <span className="font-medium text-slate-400 tabular-nums">{fmtIdr(g.totalIdr)}</span>
             )}
-            {g.outstandingIdr > 0 && (
-              <span className="inline-flex items-center px-1.5 py-0.5 bg-amber-500/15 border border-amber-500/25 text-amber-300 text-[10px] font-bold rounded tabular-nums">
-                {fmtIdr(g.outstandingIdr)} out
-              </span>
-            )}
           </div>
 
           {/* Payment bar */}
@@ -700,6 +695,11 @@ export default function DealLookupTab({
               <span className="text-[10px] text-slate-500 flex-shrink-0 tabular-nums">
                 {g.outstandingIdr > 0 ? paidPct.toFixed(1) : '100'}% paid
               </span>
+              {g.outstandingIdr > 0 && (
+                <span className="inline-flex items-center px-1.5 py-0.5 bg-amber-500/15 border border-amber-500/25 text-amber-300 text-[10px] font-bold rounded tabular-nums flex-shrink-0">
+                  {fmtIdr(g.outstandingIdr)} out
+                </span>
+              )}
             </div>
           )}
         </button>
