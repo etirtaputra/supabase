@@ -35,6 +35,24 @@ type SortCol = 'supplier_model' | 'internal_description' | 'brand' | 'category' 
 // Key components by their string ID to avoid Number(key)=NaN edge cases
 type PendingEdits = Record<string, Partial<Component>>;
 
+// ── Copy button ────────────────────────────────────────────────────────────────
+function CopyBtn({ text }: { text: string | null | undefined }) {
+  const [copied, setCopied] = React.useState(false);
+  if (!text) return null;
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1400); }); }}
+      title="Copy"
+      className="inline-flex items-center justify-center w-5 h-5 rounded text-slate-600 hover:text-slate-300 hover:bg-white/10 transition-colors flex-shrink-0 ml-1 align-middle"
+    >
+      {copied
+        ? <svg className="w-3 h-3 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+        : <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>
+      }
+    </button>
+  );
+}
+
 // --- Brand Autocomplete (fixed-position dropdown to escape table overflow) ---
 interface BrandInputProps {
   value: string;
@@ -804,7 +822,10 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           <DirtyBadge original={c.supplier_model} />
                         </div>
                       ) : (
-                        <span className="text-sm text-white font-medium">{c.supplier_model}</span>
+                        <span className="inline-flex items-center gap-0.5 text-sm text-white font-medium">
+                          {c.supplier_model}
+                          <CopyBtn text={c.supplier_model} />
+                        </span>
                       )}
                     </td>
 
@@ -832,7 +853,10 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           <DirtyBadge original={c.internal_description} />
                         </div>
                       ) : (
-                        <span className="text-sm text-slate-300">{c.internal_description}</span>
+                        <span className="inline-flex items-center gap-0.5 text-sm text-slate-300">
+                          {c.internal_description}
+                          <CopyBtn text={c.internal_description} />
+                        </span>
                       )}
                     </td>
 

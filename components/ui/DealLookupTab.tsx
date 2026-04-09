@@ -23,7 +23,33 @@ import { fmtIdr, fmtCcy, fmtDate } from '@/lib/formatters';
 const QUOTE_STATUSES = ['Open', 'Accepted', 'Replaced', 'Rejected', 'Expired'] as const;
 const PO_STATUSES    = ['Draft', 'Sent', 'Confirmed', 'Replaced', 'Partially Received', 'Fully Received', 'Cancelled'] as const;
 
-// ── Badge helpers ─────────────────────────────────────────────────────────────
+// ── Status color helpers (text only — for inline display) ─────────────────────
+
+function quoteColor(status?: string | null): string {
+  const map: Record<string, string> = {
+    Open:     'text-sky-400',
+    Accepted: 'text-emerald-400',
+    Replaced: 'text-slate-500',
+    Rejected: 'text-red-400',
+    Expired:  'text-amber-400',
+  };
+  return map[status ?? ''] ?? 'text-slate-500';
+}
+
+function poColor(status?: string | null): string {
+  const map: Record<string, string> = {
+    Draft:                'text-slate-500',
+    Sent:                 'text-blue-400',
+    Confirmed:            'text-blue-300',
+    Replaced:             'text-slate-500',
+    'Partially Received': 'text-amber-400',
+    'Fully Received':     'text-emerald-400',
+    Cancelled:            'text-red-400',
+  };
+  return map[status ?? ''] ?? 'text-slate-500';
+}
+
+// ── Badge helpers (full pill — for <select> elements only) ────────────────────
 
 function quoteBadge(status?: string | null) {
   const map: Record<string, string> = {
@@ -40,13 +66,38 @@ function poBadge(status?: string | null) {
   const map: Record<string, string> = {
     Draft:                'bg-slate-700 text-slate-300',
     Sent:                 'bg-blue-500/20 text-blue-300 border border-blue-500/30',
-    Confirmed:            'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30',
+    Confirmed:            'bg-blue-500/20 text-blue-300 border border-blue-500/30',
     Replaced:             'bg-slate-600/40 text-slate-400 border border-slate-600/40',
     'Partially Received': 'bg-amber-500/20 text-amber-300 border border-amber-500/30',
     'Fully Received':     'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',
     Cancelled:            'bg-red-500/20 text-red-300 border border-red-500/30',
   };
   return map[status ?? ''] ?? 'bg-slate-700/60 text-slate-400';
+}
+
+// ── Copy button ───────────────────────────────────────────────────────────────
+
+function CopyBtn({ text, className = '' }: { text: string; className?: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+  return (
+    <button
+      onClick={copy}
+      title="Copy"
+      className={`inline-flex items-center justify-center w-5 h-5 rounded text-slate-600 hover:text-slate-300 hover:bg-white/10 transition-colors flex-shrink-0 ${className}`}
+    >
+      {copied
+        ? <svg className="w-3 h-3 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+        : <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>
+      }
+    </button>
+  );
 }
 
 // ── Deal stage (module-level so useMemos can reference it) ────────────────────
@@ -207,7 +258,7 @@ export default function DealLookupTab({
                 const sup   = suppliers.find((s) => s.supplier_id === qt.supplier_id);
                 const co    = companies.find((c) => c.company_id === qt.company_id);
                 return (
-                  <div key={qKey} className="bg-slate-800/30 rounded-xl p-3 space-y-2.5">
+                  <div key={qKey} className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-2.5">
                     {/* Quote meta */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                       {[
@@ -353,11 +404,19 @@ export default function DealLookupTab({
                 const totalCashOutExclTaxIdr = costs.filter((c) => !TAX_CATS.has(c.cost_category)).reduce((s, c) => s + toIdrLocal(c), 0);
 
                 return (
-                  <div key={pKey} className="bg-slate-800/30 rounded-xl p-3 space-y-2.5">
+                  <div key={pKey} className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-2.5">
                     {/* PO meta */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                      {po.po_number && (
+                        <div key="PO #">
+                          <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">PO #</p>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <p className="text-slate-300">{po.po_number}</p>
+                            <CopyBtn text={po.po_number} />
+                          </div>
+                        </div>
+                      )}
                       {[
-                        { label: 'PO #',        value: po.po_number },
                         { label: 'PO Date',      value: po.po_date },
                         { label: 'PI Date',      value: po.pi_date },
                         { label: 'Incoterms',    value: po.incoterms },
@@ -367,7 +426,7 @@ export default function DealLookupTab({
                         { label: 'Ship Via',     value: po.method_of_shipment },
                       ].map(({ label, value }) => value ? (
                         <div key={label}>
-                          <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">{label}</p>
+                          <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">{label}</p>
                           <p className="text-slate-300 mt-0.5">{value}</p>
                         </div>
                       ) : null)}
@@ -401,25 +460,25 @@ export default function DealLookupTab({
                           </span>
                         </div>
                         <div className="grid grid-cols-3 gap-2">
-                          <div className="bg-slate-800/60 rounded-lg p-2">
-                            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-0.5">PO Committed</p>
+                          <div className="bg-white/5 border border-white/10 rounded-lg p-2">
+                            <p className="text-[10px] font-medium text-slate-500 mb-0.5">PO Committed</p>
                             <p className="text-xs font-bold text-white tabular-nums">{fmtIdr(tIdr)}</p>
                             {isObligationMet && hasForeignTracking && paidIdr !== tIdr && (
-                              <p className={`text-[10px] tabular-nums mt-0.5 ${paidIdr < tIdr ? 'text-emerald-500' : 'text-red-400'}`}>
+                              <p className={`text-[10px] tabular-nums mt-0.5 ${paidIdr < tIdr ? 'text-emerald-400' : 'text-red-400'}`}>
                                 {paidIdr < tIdr ? 'FX gain' : 'FX loss'}
                               </p>
                             )}
                           </div>
-                          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2">
-                            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-0.5">Principal Paid</p>
-                            <p className="text-xs font-bold text-emerald-300 tabular-nums">{fmtIdr(paidIdr)}</p>
+                          <div className="bg-white/5 border border-white/10 rounded-lg p-2">
+                            <p className="text-[10px] font-medium text-slate-500 mb-0.5">Principal Paid</p>
+                            <p className="text-xs font-bold text-emerald-400 tabular-nums">{fmtIdr(paidIdr)}</p>
                             {totalCashOutExclTaxIdr > paidIdr && (
                               <p className="text-[10px] text-slate-600 tabular-nums mt-0.5">+{fmtIdr(totalCashOutExclTaxIdr - paidIdr)} fees/landed</p>
                             )}
                           </div>
-                          <div className={`rounded-lg p-2 ${outIdr > 0 ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-emerald-500/10 border border-emerald-500/20'}`}>
-                            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-0.5">Outstanding</p>
-                            <p className={`text-xs font-bold tabular-nums ${outIdr > 0 ? 'text-amber-300' : 'text-emerald-300'}`}>
+                          <div className="bg-white/5 border border-white/10 rounded-lg p-2">
+                            <p className="text-[10px] font-medium text-slate-500 mb-0.5">Outstanding</p>
+                            <p className={`text-xs font-bold tabular-nums ${outIdr > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
                               {outIdr > 0 ? fmtIdr(outIdr) : '✓ Settled'}
                             </p>
                           </div>
@@ -599,11 +658,11 @@ export default function DealLookupTab({
   // ── Deal stage → background colors ──────────────────────────────────────
 
   const STAGE_CLS = {
-    quote:      { row: 'bg-slate-800/20 border-transparent hover:bg-slate-800/40',      open: 'bg-slate-800/40 border-slate-600/50' },
-    active:     { row: 'bg-indigo-500/10 border-indigo-500/15 hover:bg-indigo-500/15',  open: 'bg-indigo-500/15 border-indigo-500/30' },
-    received:   { row: 'bg-emerald-500/10 border-emerald-500/15 hover:bg-emerald-500/15', open: 'bg-emerald-500/15 border-emerald-500/25' },
-    completed:  { row: 'bg-emerald-500/20 border-emerald-500/30 hover:bg-emerald-500/25', open: 'bg-emerald-500/25 border-emerald-500/40' },
-    superseded: { row: 'bg-slate-800/10 border-slate-700/15 hover:bg-slate-800/25 opacity-50', open: 'bg-slate-800/25 border-slate-600/25 opacity-60' },
+    quote:      { row: 'border-white/10 hover:bg-white/5',                               open: 'bg-white/5 border-white/15' },
+    active:     { row: 'bg-blue-500/5 border-blue-500/10 hover:bg-blue-500/10',          open: 'bg-blue-500/10 border-blue-500/20' },
+    received:   { row: 'bg-emerald-500/5 border-emerald-500/10 hover:bg-emerald-500/10', open: 'bg-emerald-500/10 border-emerald-500/15' },
+    completed:  { row: 'bg-emerald-500/10 border-emerald-500/15 hover:bg-emerald-500/15', open: 'bg-emerald-500/15 border-emerald-500/25' },
+    superseded: { row: 'border-white/5 hover:bg-white/5 opacity-40',                    open: 'bg-white/5 border-white/10 opacity-50' },
   };
 
   // ── Deal row renderer ─────────────────────────────────────────────────────
@@ -624,7 +683,7 @@ export default function DealLookupTab({
           <div className="flex items-center gap-2 flex-wrap">
             {/* SVG chevron */}
             <svg
-              className={`w-3 h-3 text-slate-500 flex-shrink-0 transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`}
+              className={`w-3 h-3 text-slate-600 flex-shrink-0 transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`}
               fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"
             >
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
@@ -632,27 +691,28 @@ export default function DealLookupTab({
 
             {/* Supplier code badge */}
             {showSupplier && g.supplier?.supplier_code && (
-              <span className="inline-block px-1.5 py-0.5 bg-sky-500/15 border border-sky-500/30 text-sky-300 text-[10px] font-bold rounded leading-none flex-shrink-0">
+              <span className="inline-block px-1.5 py-0.5 bg-white/10 text-slate-300 text-[10px] font-semibold rounded leading-none flex-shrink-0">
                 {g.supplier.supplier_code}
               </span>
             )}
 
-            {/* PI number or fallback */}
-            <span className="text-xs font-semibold text-slate-200">
+            {/* PI number or fallback + copy */}
+            <span className="text-xs font-semibold text-white">
               {g.piNumber ?? (g.quotes[0] ? `Q#${g.quotes[0].quote_id}` : `PO#${g.pos[0]?.po_number ?? g.key}`)}
             </span>
+            <CopyBtn text={g.piNumber ?? g.pos[0]?.po_number ?? g.key} />
 
-            {/* Quote status badge */}
+            {/* Quote status — inline text, no pill */}
             {g.quoteStatus && (
-              <span className={`inline-block px-1.5 py-0.5 text-[10px] font-bold rounded leading-none flex-shrink-0 ${quoteBadge(g.quoteStatus)}`}>
-                Q: {g.quoteStatus}
+              <span className={`text-[11px] font-medium flex-shrink-0 ${quoteColor(g.quoteStatus)}`}>
+                Q · {g.quoteStatus}
               </span>
             )}
 
-            {/* PO status badge */}
+            {/* PO status — inline text, no pill */}
             {g.poStatus && (
-              <span className={`inline-block px-1.5 py-0.5 text-[10px] font-bold rounded leading-none flex-shrink-0 ${poBadge(g.poStatus)}`}>
-                PO: {g.poStatus}
+              <span className={`text-[11px] font-medium flex-shrink-0 ${poColor(g.poStatus)}`}>
+                PO · {g.poStatus}
               </span>
             )}
 
@@ -664,14 +724,12 @@ export default function DealLookupTab({
               return onCreatePO && tq ? (
                 <button
                   onMouseDown={(e) => { e.stopPropagation(); onCreatePO(String(tq.quote_id)); }}
-                  className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-violet-500/15 border border-violet-500/30 text-violet-300 text-[10px] font-bold rounded leading-none flex-shrink-0 hover:bg-violet-500/25 transition-colors"
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-white/10 text-slate-300 text-[10px] font-semibold rounded leading-none flex-shrink-0 hover:bg-white/15 transition-colors"
                 >
                   <span>+</span><span>Create PO</span>
                 </button>
               ) : (
-                <span className="inline-block px-1.5 py-0.5 bg-slate-700/60 text-slate-500 text-[10px] font-bold rounded leading-none flex-shrink-0">
-                  No PO
-                </span>
+                <span className="text-[11px] text-slate-600 flex-shrink-0">No PO</span>
               );
             })()}
           </div>
@@ -704,7 +762,7 @@ export default function DealLookupTab({
                 {g.outstandingIdr > 0 ? paidPct.toFixed(1) : '100'}% paid
               </span>
               {g.outstandingIdr > 0 && (
-                <span className="inline-flex items-center px-1.5 py-0.5 bg-amber-500/15 border border-amber-500/25 text-amber-300 text-[10px] font-bold rounded tabular-nums flex-shrink-0">
+                <span className="text-[11px] font-semibold text-amber-400 tabular-nums flex-shrink-0">
                   {fmtIdr(g.outstandingIdr)} out
                 </span>
               )}
@@ -820,8 +878,8 @@ export default function DealLookupTab({
         onClick={onClick}
         className={`w-full text-left px-3 py-3 rounded-xl transition-colors border ${
           selected
-            ? 'bg-sky-500/10 border-sky-500/30 text-white'
-            : 'bg-slate-800/30 border-transparent hover:bg-slate-800/60 text-slate-300'
+            ? 'bg-white/10 border-white/20 text-white'
+            : 'bg-white/5 border-transparent hover:bg-white/10 text-slate-300'
         }`}
       >
         <div className="flex items-center justify-between gap-2 mb-0.5">
@@ -875,8 +933,8 @@ export default function DealLookupTab({
               }}
               className={`px-4 py-2 transition-colors ${
                 viewMode === mode
-                  ? 'bg-sky-500/20 text-sky-300'
-                  : 'bg-slate-800/60 text-slate-400 hover:text-slate-300'
+                  ? 'bg-white/10 text-white'
+                  : 'text-slate-500 hover:text-slate-300'
               }`}
             >
               {mode === 'all' ? 'All Deals' : mode === 'by-vendor' ? 'By Vendor' : 'By Company'}
@@ -899,13 +957,13 @@ export default function DealLookupTab({
           {/* ── Portfolio summary bar ── */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
             {[
-              { label: 'Open Quotes', value: summary.openQuotes, color: 'text-slate-300',   bg: 'bg-slate-800/40 border border-slate-700/40' },
-              { label: 'Active POs',  value: summary.activePOs,  color: 'text-indigo-300',  bg: 'bg-indigo-500/10 border border-indigo-500/15' },
-              { label: 'Received',    value: summary.received,   color: 'text-emerald-300', bg: 'bg-emerald-500/10 border border-emerald-500/15' },
-              { label: 'Completed',   value: summary.completed,  color: 'text-emerald-400', bg: 'bg-emerald-500/20 border border-emerald-500/25' },
-            ].map(({ label, value, color, bg }) => (
-              <div key={label} className={`rounded-xl p-3 ${bg}`}>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-0.5">{label}</p>
+              { label: 'Open Quotes', value: summary.openQuotes, color: 'text-slate-300' },
+              { label: 'Active POs',  value: summary.activePOs,  color: 'text-blue-300'  },
+              { label: 'Received',    value: summary.received,   color: 'text-emerald-300' },
+              { label: 'Completed',   value: summary.completed,  color: 'text-emerald-400' },
+            ].map(({ label, value, color }) => (
+              <div key={label} className="rounded-xl p-3 bg-white/5 border border-white/10">
+                <p className="text-[10px] font-medium text-slate-500 mb-0.5">{label}</p>
                 <p className={`text-xl font-bold tabular-nums ${color}`}>{value}</p>
               </div>
             ))}
@@ -913,24 +971,23 @@ export default function DealLookupTab({
 
           {/* ── Outstanding total banner ── */}
           {summary.outstandingTotal > 0 && (
-            <div className="mb-4 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center gap-2">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Total Outstanding</span>
-              <span className="text-sm font-bold text-amber-300 tabular-nums ml-auto">{fmtIdr(summary.outstandingTotal)}</span>
+            <div className="mb-4 px-3 py-2 bg-white/5 border border-white/10 rounded-xl flex items-center gap-2">
+              <span className="text-[11px] font-medium text-slate-500">Total Outstanding</span>
+              <span className="text-sm font-bold text-amber-400 tabular-nums ml-auto">{fmtIdr(summary.outstandingTotal)}</span>
             </div>
           )}
 
           {/* ── Color legend ── */}
-          <div className="flex flex-wrap items-center gap-3 mb-4 text-[11px] text-slate-500">
-            <span className="font-semibold uppercase tracking-widest text-slate-600">Legend</span>
+          <div className="flex flex-wrap items-center gap-3 mb-4 text-[11px] text-slate-600">
             {[
-              { label: 'Quote only',  cls: 'bg-slate-600/70' },
-              { label: 'Active PO',   cls: 'bg-indigo-500/60' },
-              { label: 'Received',    cls: 'bg-emerald-500/40' },
-              { label: 'Completed',   cls: 'bg-emerald-500/80' },
-              { label: 'Void/Replaced', cls: 'bg-slate-700/40 border border-slate-600/30' },
+              { label: 'Quote',     cls: 'bg-white/15' },
+              { label: 'Active PO', cls: 'bg-blue-500/50' },
+              { label: 'Received',  cls: 'bg-emerald-500/40' },
+              { label: 'Completed', cls: 'bg-emerald-500/70' },
+              { label: 'Void',      cls: 'bg-white/10' },
             ].map(({ label, cls }) => (
               <span key={label} className="flex items-center gap-1.5">
-                <span className={`inline-block w-2.5 h-2.5 rounded-sm ${cls}`} />
+                <span className={`inline-block w-2 h-2 rounded-sm ${cls}`} />
                 {label}
               </span>
             ))}
@@ -950,10 +1007,10 @@ export default function DealLookupTab({
                 <button
                   key={key}
                   onClick={() => setStageFilter(key)}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors border ${
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors border ${
                     stageFilter === key
-                      ? 'bg-sky-500/20 text-sky-300 border-sky-500/30'
-                      : 'bg-slate-800/60 text-slate-400 hover:text-slate-300 border-transparent'
+                      ? 'bg-white/10 text-white border-white/20'
+                      : 'text-slate-500 border-transparent hover:text-slate-300 hover:bg-white/5'
                   }`}
                 >
                   {label}
@@ -967,8 +1024,8 @@ export default function DealLookupTab({
               title={tableView ? 'Card view' : 'Table view'}
               className={`p-1.5 rounded-lg border transition-colors ${
                 tableView
-                  ? 'bg-sky-500/20 border-sky-500/30 text-sky-300'
-                  : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:text-slate-300'
+                  ? 'bg-white/10 border-white/20 text-white'
+                  : 'border-white/10 text-slate-500 hover:text-slate-300 hover:bg-white/5'
               }`}
             >
               {tableView ? (
@@ -990,7 +1047,7 @@ export default function DealLookupTab({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by PI number, supplier code or name…"
-            className="w-full max-w-lg px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 mb-4"
+            className="w-full max-w-lg px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-white/25 focus:bg-white/8 transition-colors mb-4"
           />
 
           {/* ── Deal list or table ── */}
@@ -1011,7 +1068,7 @@ export default function DealLookupTab({
         <div className="grid grid-cols-1 xl:grid-cols-[340px_1fr] 2xl:grid-cols-[420px_1fr] gap-5 xl:gap-7 items-start">
 
           {/* Left: vendor list */}
-          <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-4">
+          <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
             <h3 className="text-sm font-bold text-white mb-3">Vendors</h3>
             <div className="space-y-1.5 max-h-[calc(100vh-240px)] xl:max-h-[calc(100vh-200px)] overflow-y-auto pr-0.5">
               {vendorStats.length === 0 && (
@@ -1032,7 +1089,7 @@ export default function DealLookupTab({
           {/* Right: deals for selected vendor */}
           <div>
             {!selectedSuppId ? (
-              <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-10 flex flex-col items-center justify-center text-center min-h-[260px]">
+              <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-10 flex flex-col items-center justify-center text-center min-h-[260px]">
                 <span className="text-4xl mb-3 opacity-40">🏭</span>
                 <p className="text-slate-500 text-sm">Select a vendor to view their deals</p>
               </div>
@@ -1044,7 +1101,7 @@ export default function DealLookupTab({
               return (
                 <div className="space-y-4">
                   {/* Vendor header */}
-                  <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-5">
+                  <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-5">
                     <div className="flex items-start justify-between gap-3 flex-wrap mb-4">
                       <div>
                         {stat.supplier.supplier_code && (
@@ -1077,7 +1134,7 @@ export default function DealLookupTab({
                     )}
                   </div>
                   {/* Deal list */}
-                  <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-4">
+                  <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
                     <h4 className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-3">Deals</h4>
                     {vendorGroups.length === 0 ? (
                       <p className="text-xs text-slate-600 italic py-4 text-center">No deals for this vendor</p>
@@ -1099,7 +1156,7 @@ export default function DealLookupTab({
         <div className="grid grid-cols-1 xl:grid-cols-[340px_1fr] 2xl:grid-cols-[420px_1fr] gap-5 xl:gap-7 items-start">
 
           {/* Left: company list */}
-          <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-4">
+          <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
             <h3 className="text-sm font-bold text-white mb-3">Companies</h3>
             <div className="space-y-1.5 max-h-[calc(100vh-240px)] xl:max-h-[calc(100vh-200px)] overflow-y-auto pr-0.5">
               {companyStats.length === 0 && (
@@ -1120,7 +1177,7 @@ export default function DealLookupTab({
           {/* Right: deals for selected company */}
           <div>
             {!selectedCompId ? (
-              <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-10 flex flex-col items-center justify-center text-center min-h-[260px]">
+              <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-10 flex flex-col items-center justify-center text-center min-h-[260px]">
                 <span className="text-4xl mb-3 opacity-40">🏢</span>
                 <p className="text-slate-500 text-sm">Select a company to view addressed deals</p>
               </div>
@@ -1130,7 +1187,7 @@ export default function DealLookupTab({
               return (
                 <div className="space-y-4">
                   {/* Company header */}
-                  <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-5">
+                  <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-5">
                     <div className="flex items-start justify-between gap-3 flex-wrap">
                       <h2 className="text-xl font-bold text-white">{stat.company.legal_name}</h2>
                       <div className="text-right text-xs text-slate-400">
@@ -1142,7 +1199,7 @@ export default function DealLookupTab({
                     </div>
                   </div>
                   {/* Deal list */}
-                  <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-4">
+                  <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
                     <h4 className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-3">Deals</h4>
                     {companyGroups.length === 0 ? (
                       <p className="text-xs text-slate-600 italic py-4 text-center">No deals for this company</p>
