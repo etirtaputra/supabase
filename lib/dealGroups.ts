@@ -29,10 +29,12 @@ export interface DealGroup {
   // derived
   quoteStatus: string | null;    // status of most recent quote
   poStatus: string | null;       // status of most recent PO
-  totalIdr: number;       // committed (PO rate × total_value)
-  paidIdr: number;        // actual IDR paid (at payment rates)
-  outstandingIdr: number; // 0 when foreign obligation is met, even if paidIdr ≠ totalIdr
-  fxVarianceIdr: number;  // paidIdr − totalIdr when obligation met (neg = gain, pos = loss)
+  totalIdr: number;              // committed (PO rate × total_value), excluding Replaced/Cancelled POs
+  paidIdr: number;               // actual IDR paid (at payment rates)
+  outstandingIdr: number;        // 0 when foreign obligation is met, even if paidIdr ≠ totalIdr
+  fxVarianceIdr: number;         // paidIdr − totalIdr when obligation met (neg = gain, pos = loss)
+  totalForeignCurrency: string | null; // non-IDR currency if all active POs share one currency
+  totalForeignAmount: number;          // sum of total_value in that foreign currency
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -91,6 +93,8 @@ export function buildDealGroups(
         paidIdr: 0,
         outstandingIdr: 0,
         fxVarianceIdr: 0,
+        totalForeignCurrency: null,
+        totalForeignAmount: 0,
       };
     }
     return map[key];
@@ -160,8 +164,15 @@ export function buildDealGroups(
       const newest = g.pos.reduce((a, b) => (a.po_date >= b.po_date ? a : b));
       g.poStatus = newest.status ?? null;
     }
-    // Financial totals
+    // Financial totals — skip Replaced/Cancelled POs (superseded obligations)
+    // Track whether all active POs share a single non-IDR currency for display
+    let foreignCurrencySeen: string | null = null;
+    let foreignCurrencyMixed = false;
+
     for (const po of g.pos) {
+      // Voided POs don't contribute to outstanding balance
+      if (po.status === 'Replaced' || po.status === 'Cancelled') continue;
+
       const tIdr       = poTotalIdr(po);
       const costs      = poCosts.filter((c) => String(c.po_id) === String(po.po_id));
       const princCosts = costs.filter((c) => PRINCIPAL_CATS.has(c.cost_category) && c.cost_category !== 'overpayment_credit');
@@ -180,6 +191,22 @@ export function buildDealGroups(
       g.paidIdr        += paidActual;
       g.outstandingIdr += isObligationMet ? 0 : Math.max(0, tIdr - paidActual);
       g.fxVarianceIdr  += isObligationMet ? (paidActual - tIdr) : 0;
+
+      // Track original currency (only if all active POs share the same non-IDR currency)
+      if (po.currency !== 'IDR' && Number(po.total_value) > 0) {
+        if (!foreignCurrencySeen) {
+          foreignCurrencySeen = po.currency;
+        } else if (foreignCurrencySeen !== po.currency) {
+          foreignCurrencyMixed = true;
+        }
+        if (!foreignCurrencyMixed) {
+          g.totalForeignAmount += Number(po.total_value) || 0;
+        }
+      }
+    }
+
+    if (!foreignCurrencyMixed && foreignCurrencySeen) {
+      g.totalForeignCurrency = foreignCurrencySeen;
     }
   }
 

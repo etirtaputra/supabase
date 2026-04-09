@@ -51,9 +51,9 @@ function poBadge(status?: string | null) {
 
 // ── Deal stage (module-level so useMemos can reference it) ────────────────────
 
-function dealStage(g: DealGroup): 'quote' | 'active' | 'received' | 'completed' {
+function dealStage(g: DealGroup): 'quote' | 'active' | 'received' | 'completed' | 'superseded' {
   if (g.pos.length === 0) return 'quote';
-  if (g.poStatus === 'Cancelled' || g.poStatus === 'Replaced') return 'quote';
+  if (g.poStatus === 'Cancelled' || g.poStatus === 'Replaced') return 'superseded';
   if (g.poStatus === 'Fully Received') {
     return (g.totalIdr > 0 && g.outstandingIdr === 0) ? 'completed' : 'received';
   }
@@ -87,7 +87,7 @@ export default function DealLookupTab({
 
   const [viewMode, setViewMode]               = useState<'all' | 'by-vendor' | 'by-company'>('all');
   const [search, setSearch]                   = useState('');
-  const [stageFilter, setStageFilter]         = useState<'all' | 'quote' | 'active' | 'received' | 'completed'>('all');
+  const [stageFilter, setStageFilter]         = useState<'all' | 'quote' | 'active' | 'received' | 'completed' | 'superseded'>('all');
   const [tableView, setTableView]             = useState(false);
   const [expandedKey, setExpandedKey]         = useState<string | null>(null);
   const [selectedSuppId, setSelectedSuppId]   = useState<string | null>(null);
@@ -104,16 +104,17 @@ export default function DealLookupTab({
 
   // ── Portfolio summary counts ──────────────────────────────────────────────
   const summary = useMemo(() => {
-    let openQuotes = 0, activePOs = 0, received = 0, completed = 0, outstandingTotal = 0;
+    let openQuotes = 0, activePOs = 0, received = 0, completed = 0, superseded = 0, outstandingTotal = 0;
     for (const g of allGroups) {
       const s = dealStage(g);
-      if (s === 'quote')     openQuotes++;
+      if (s === 'quote')          openQuotes++;
       else if (s === 'active')    activePOs++;
       else if (s === 'received')  received++;
       else if (s === 'completed') completed++;
+      else if (s === 'superseded') superseded++;
       outstandingTotal += g.outstandingIdr;
     }
-    return { openQuotes, activePOs, received, completed, outstandingTotal, total: allGroups.length };
+    return { openQuotes, activePOs, received, completed, superseded, outstandingTotal, total: allGroups.length };
   }, [allGroups]);
 
   // ── All-mode filtered list (respects stageFilter) ─────────────────────────
@@ -598,10 +599,11 @@ export default function DealLookupTab({
   // ── Deal stage → background colors ──────────────────────────────────────
 
   const STAGE_CLS = {
-    quote:     { row: 'bg-slate-800/20 border-transparent hover:bg-slate-800/40',     open: 'bg-slate-800/40 border-slate-600/50' },
-    active:    { row: 'bg-indigo-500/10 border-indigo-500/15 hover:bg-indigo-500/15', open: 'bg-indigo-500/15 border-indigo-500/30' },
-    received:  { row: 'bg-emerald-500/10 border-emerald-500/15 hover:bg-emerald-500/15', open: 'bg-emerald-500/15 border-emerald-500/25' },
-    completed: { row: 'bg-emerald-500/20 border-emerald-500/30 hover:bg-emerald-500/25', open: 'bg-emerald-500/25 border-emerald-500/40' },
+    quote:      { row: 'bg-slate-800/20 border-transparent hover:bg-slate-800/40',      open: 'bg-slate-800/40 border-slate-600/50' },
+    active:     { row: 'bg-indigo-500/10 border-indigo-500/15 hover:bg-indigo-500/15',  open: 'bg-indigo-500/15 border-indigo-500/30' },
+    received:   { row: 'bg-emerald-500/10 border-emerald-500/15 hover:bg-emerald-500/15', open: 'bg-emerald-500/15 border-emerald-500/25' },
+    completed:  { row: 'bg-emerald-500/20 border-emerald-500/30 hover:bg-emerald-500/25', open: 'bg-emerald-500/25 border-emerald-500/40' },
+    superseded: { row: 'bg-slate-800/10 border-slate-700/15 hover:bg-slate-800/25 opacity-50', open: 'bg-slate-800/25 border-slate-600/25 opacity-60' },
   };
 
   // ── Deal row renderer ─────────────────────────────────────────────────────
@@ -679,7 +681,13 @@ export default function DealLookupTab({
             {showSupplier && g.supplier && <span className="text-slate-400">{g.supplier.supplier_name}</span>}
             <span>{fmtDate(g.latestDate)}</span>
             {g.totalIdr > 0 && (
-              <span className="font-medium text-slate-400 tabular-nums">{fmtIdr(g.totalIdr)}</span>
+              g.totalForeignCurrency && g.totalForeignAmount > 0 ? (
+                <span className="font-medium text-slate-400 tabular-nums">
+                  {fmtCcy(g.totalForeignAmount, g.totalForeignCurrency)} = {fmtIdr(g.totalIdr)}
+                </span>
+              ) : (
+                <span className="font-medium text-slate-400 tabular-nums">{fmtIdr(g.totalIdr)}</span>
+              )
             )}
           </div>
 
@@ -735,19 +743,20 @@ export default function DealLookupTab({
             const stage   = dealStage(g);
             const paidPct = g.totalIdr > 0 ? Math.min(100, (g.paidIdr / g.totalIdr) * 100) : 0;
             const stageLabel: Record<string, string> = {
-              quote: 'Quote', active: 'Active PO', received: 'Received', completed: 'Completed',
+              quote: 'Quote', active: 'Active PO', received: 'Received', completed: 'Completed', superseded: 'Void',
             };
             const stageTxtCls: Record<string, string> = {
-              quote: 'text-slate-400', active: 'text-indigo-300', received: 'text-emerald-300', completed: 'text-emerald-400',
+              quote: 'text-slate-400', active: 'text-indigo-300', received: 'text-emerald-300', completed: 'text-emerald-400', superseded: 'text-slate-600',
             };
             return (
               <tr
                 key={g.key}
                 onClick={() => setExpandedKey(expandedKey === g.key ? null : g.key)}
                 className={`border-b border-slate-800/40 last:border-0 cursor-pointer transition-colors hover:bg-slate-800/30 ${
-                  stage === 'active' ? 'bg-indigo-500/5' :
-                  stage === 'received' ? 'bg-emerald-500/5' :
-                  stage === 'completed' ? 'bg-emerald-500/8' : ''
+                  stage === 'active'     ? 'bg-indigo-500/5' :
+                  stage === 'received'   ? 'bg-emerald-500/5' :
+                  stage === 'completed'  ? 'bg-emerald-500/8' :
+                  stage === 'superseded' ? 'opacity-40' : ''
                 }`}
               >
                 <td className="py-2 px-3 font-semibold text-white whitespace-nowrap">
@@ -914,10 +923,11 @@ export default function DealLookupTab({
           <div className="flex flex-wrap items-center gap-3 mb-4 text-[11px] text-slate-500">
             <span className="font-semibold uppercase tracking-widest text-slate-600">Legend</span>
             {[
-              { label: 'Quote only', cls: 'bg-slate-600/70' },
-              { label: 'Active PO',  cls: 'bg-indigo-500/60' },
-              { label: 'Received',   cls: 'bg-emerald-500/40' },
-              { label: 'Completed',  cls: 'bg-emerald-500/80' },
+              { label: 'Quote only',  cls: 'bg-slate-600/70' },
+              { label: 'Active PO',   cls: 'bg-indigo-500/60' },
+              { label: 'Received',    cls: 'bg-emerald-500/40' },
+              { label: 'Completed',   cls: 'bg-emerald-500/80' },
+              { label: 'Void/Replaced', cls: 'bg-slate-700/40 border border-slate-600/30' },
             ].map(({ label, cls }) => (
               <span key={label} className="flex items-center gap-1.5">
                 <span className={`inline-block w-2.5 h-2.5 rounded-sm ${cls}`} />
@@ -930,11 +940,12 @@ export default function DealLookupTab({
           <div className="flex flex-wrap items-center gap-2 mb-4">
             <div className="flex flex-wrap gap-1">
               {[
-                { key: 'all' as const,       label: `All (${summary.total})` },
-                { key: 'quote' as const,     label: `Quotes (${summary.openQuotes})` },
-                { key: 'active' as const,    label: `Active (${summary.activePOs})` },
-                { key: 'received' as const,  label: `Received (${summary.received})` },
-                { key: 'completed' as const, label: `Done (${summary.completed})` },
+                { key: 'all' as const,        label: `All (${summary.total})` },
+                { key: 'quote' as const,      label: `Quotes (${summary.openQuotes})` },
+                { key: 'active' as const,     label: `Active (${summary.activePOs})` },
+                { key: 'received' as const,   label: `Received (${summary.received})` },
+                { key: 'completed' as const,  label: `Done (${summary.completed})` },
+                { key: 'superseded' as const, label: `Void (${summary.superseded})` },
               ].map(({ key, label }) => (
                 <button
                   key={key}
