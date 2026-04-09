@@ -239,6 +239,8 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     return () => clearTimeout(t);
   }, [searchInput]);
   const [filterCategory, setFilterCategory] = useState('');
+  const [filterUnused, setFilterUnused]     = useState(false);
+  const [filterDuplicates, setFilterDuplicates] = useState(false);
   const [sortCol, setSortCol] = useState<SortCol>('supplier_model');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [editingIds, setEditingIds] = useState<Set<string>>(new Set());
@@ -341,6 +343,34 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     return map;
   }, [poItems, pos]);
 
+  // ── Last quoted price per component ──────────────────────────────────────
+  const lastQuoteByComponent = useMemo(() => {
+    const quoteMap = new Map(quotes.map((q) => [q.quote_id, q]));
+    const map = new Map<string, { price: number; currency: string; date: string }>();
+    quoteItems.forEach((item) => {
+      if (!item.component_id) return;
+      const q = quoteMap.get(item.quote_id);
+      if (!q) return;
+      const existing = map.get(item.component_id);
+      if (!existing || q.quote_date > existing.date) {
+        map.set(item.component_id, { price: item.unit_price, currency: item.currency, date: q.quote_date });
+      }
+    });
+    return map;
+  }, [quoteItems, quotes]);
+
+  // ── Duplicate supplier_model detection ────────────────────────────────────
+  const duplicateModels = useMemo(() => {
+    const counts = new Map<string, number>();
+    components.forEach((c) => {
+      const m = c.supplier_model?.toLowerCase().trim();
+      if (m) counts.set(m, (counts.get(m) || 0) + 1);
+    });
+    const dups = new Set<string>();
+    counts.forEach((cnt, m) => { if (cnt > 1) dups.add(m); });
+    return dups;
+  }, [components]);
+
   const uniqueBrands = useMemo(
     () => [...new Set(components.map((c) => c.brand?.trim()).filter(Boolean))].sort() as string[],
     [components]
@@ -366,13 +396,16 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         (c) =>
           c.supplier_model?.toLowerCase().includes(q) ||
           c.internal_description?.toLowerCase().includes(q) ||
-          c.brand?.toLowerCase().includes(q)
+          c.brand?.toLowerCase().includes(q) ||
+          c.category?.toLowerCase().includes(q)
       );
     }
     if (filterBrand) result = result.filter((c) => c.brand?.trim() === filterBrand);
     if (filterCategory) result = result.filter((c) => c.category === filterCategory);
     if (filterPI) result = result.filter((c) => usageMap.get(String(c.component_id))?.piNumbers.includes(filterPI));
     if (filterPO) result = result.filter((c) => usageMap.get(String(c.component_id))?.poNumbers.includes(filterPO));
+    if (filterUnused) result = result.filter((c) => !usageMap.has(String(c.component_id)));
+    if (filterDuplicates) result = result.filter((c) => duplicateModels.has(c.supplier_model?.toLowerCase().trim() ?? ''));
     return [...result].sort((a, b) => {
       if (sortCol === 'updated_at') {
         const av = a[sortCol] ? new Date(a[sortCol] as string).getTime() : 0;
@@ -390,7 +423,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       const bv = ((b[sortCol as keyof Component] as string) || '').toLowerCase();
       return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
     });
-  }, [components, search, filterBrand, filterCategory, filterPI, filterPO, sortCol, sortDir, usageMap]);
+  }, [components, search, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, sortCol, sortDir, usageMap, duplicateModels]);
 
   const toggleSort = (col: SortCol) => {
     if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -628,6 +661,29 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
               {uniquePONumbers.map((po) => <option key={po} value={po}>{po}</option>)}
             </select>
           )}
+          {/* Quick-filter toggles */}
+          <button
+            onClick={() => { setFilterUnused((v) => !v); setFilterDuplicates(false); }}
+            className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all flex-shrink-0 ${
+              filterUnused
+                ? 'bg-orange-500/20 border-orange-500/40 text-orange-300'
+                : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-orange-300 hover:border-orange-500/30'
+            }`}
+            title="Show components never used in any quote"
+          >
+            Unused{filterUnused ? ` (${filtered.length})` : ''}
+          </button>
+          <button
+            onClick={() => { setFilterDuplicates((v) => !v); setFilterUnused(false); }}
+            className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all flex-shrink-0 ${
+              filterDuplicates
+                ? 'bg-red-500/20 border-red-500/40 text-red-300'
+                : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-red-300 hover:border-red-500/30'
+            }`}
+            title="Show components with duplicate model numbers"
+          >
+            Duplicates{filterDuplicates ? ` (${filtered.length})` : ''}
+          </button>
         </div>
 
         {/* Stats + action buttons */}
@@ -682,6 +738,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                 <SortTh col="internal_description" label="Description" />
                 <SortTh col="brand" label="Brand" className="min-w-[160px]" />
                 <SortTh col="category" label="Category" />
+                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-400 min-w-[120px]">Last Price</th>
                 <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-400 min-w-[200px]">
                   <div className="flex items-center gap-2">
                     <span>Usage</span>
@@ -716,7 +773,8 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                 return (
                   <React.Fragment key={c.component_id}>
                   <tr
-                    className={`transition-colors ${
+                    onDoubleClick={() => { if (!isEditing) toggleEdit(c.component_id); }}
+                    className={`transition-colors cursor-pointer ${
                       isDirty
                         ? 'bg-amber-500/5 border-l-2 border-amber-500/40'
                         : isEditing
@@ -832,6 +890,31 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           {c.category || <span className="text-slate-600">—</span>}
                         </span>
                       )}
+                    </td>
+
+                    {/* Last Price */}
+                    <td className="px-4 py-3 align-top min-w-[120px]">
+                      {(() => {
+                        const lq = lastQuoteByComponent.get(c.component_id);
+                        const isDup = duplicateModels.has(c.supplier_model?.toLowerCase().trim() ?? '');
+                        return (
+                          <div>
+                            {lq ? (
+                              <>
+                                <p className="text-sm font-semibold text-slate-200 tabular-nums">
+                                  {lq.currency} {lq.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </p>
+                                <p className="text-[10px] text-slate-600 mt-0.5">{new Date(lq.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}</p>
+                              </>
+                            ) : (
+                              <span className="text-xs text-slate-700">—</span>
+                            )}
+                            {isDup && (
+                              <span className="mt-1 inline-block px-1.5 py-0.5 bg-red-500/15 border border-red-500/25 text-red-400 text-[10px] font-bold rounded">dup</span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
 
                     {/* Usage */}
@@ -995,7 +1078,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                   {/* ── Inline spec sheet row ── */}
                   {isSpecsOpen && hasSpecs && (
                     <tr className="bg-slate-900/40 border-t border-amber-500/10">
-                      <td colSpan={7} className="px-6 py-5">
+                      <td colSpan={8} className="px-6 py-5">
                         <SpecRenderer
                           specs={c.specifications as Record<string, unknown>}
                           modelName={c.supplier_model}
