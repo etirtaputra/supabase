@@ -365,19 +365,7 @@ function MasterInsertPage() {
                         </svg>
                       </button>
                     </div>
-                  ) : (
-                    <div className="flex justify-end">
-                      <button
-                        onClick={() => setShowSupplierForm(true)}
-                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-400 bg-slate-800/60 border border-slate-700 rounded-lg hover:text-sky-300 hover:border-sky-500/30 transition-all"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                        </svg>
-                        Add Supplier
-                      </button>
-                    </div>
-                  )}
+                  ) : null}
                   <ComponentEditor
                     components={data.components}
                     brandSuggestions={suggestions.brands}
@@ -387,6 +375,7 @@ function MasterInsertPage() {
                     poItems={data.poItems}
                     onSave={handleComponentUpdates}
                     onAdd={(fields) => handleInsert('3.0_components', [fields])}
+                    onAddSupplier={() => setShowSupplierForm(true)}
                     onDelete={handleComponentDelete}
                     onSaveLineItem={handleSaveLineItem}
                     onDeleteLineItem={handleDeleteLineItem}
