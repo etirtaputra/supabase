@@ -26,6 +26,8 @@ interface ComponentEditorProps {
   pos?: PurchaseOrder[];
   poItems?: PurchaseLineItem[];
   onSave: (updates: { component_id: string; changes: Partial<Component> }[]) => Promise<void>;
+  onAdd?: (fields: Omit<Component, 'component_id' | 'created_at' | 'updated_at'>) => Promise<void>;
+  onAddSupplier?: () => void;
   onDelete?: (component_id: string) => Promise<void>;
   onSaveLineItem?: (item: Omit<PriceQuoteLineItem, 'quote_line_id' | 'created_at' | 'updated_at'> & { quote_line_id?: number }) => Promise<void>;
   onDeleteLineItem?: (quote_line_id: number) => Promise<void>;
