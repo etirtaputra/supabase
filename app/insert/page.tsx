@@ -54,6 +54,7 @@ function MasterInsertPage() {
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get('tab') as Tab) || 'catalog';
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
+  const [showSupplierForm, setShowSupplierForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [pdfData, setPdfData] = useState<any>(null);
   const [paymentMode, setPaymentMode] = useState<'single' | 'batch'>('single');
@@ -338,19 +339,45 @@ function MasterInsertPage() {
               {/* Catalog Tab */}
               {activeTab === 'catalog' && (
                 <div className="space-y-4">
-                  <SimpleForm
-                    title="Add New Supplier"
-                    fields={[
-                      { name: 'supplier_name', label: 'Supplier Name', type: 'text', req: true, suggestions: suggestions.supplierNames },
-                      { name: 'supplier_code', label: 'Supplier Code', type: 'text', placeholder: 'SUP-001' },
-                      { name: 'location', label: 'Location', type: 'text', suggestions: suggestions.locations },
-                      { name: 'primary_contact_email', label: 'Email', type: 'email' },
-                      { name: 'payment_terms_default', label: 'Pay Terms', type: 'text', suggestions: suggestions.paymentTerms },
-                      { name: 'supplier_bank_details', label: 'Bank Details', type: 'textarea' },
-                    ]}
-                    onSubmit={(d) => handleInsert('2.0_suppliers', d)}
-                    loading={loading}
-                  />
+                  {/* Add New Supplier — hidden by default */}
+                  {showSupplierForm ? (
+                    <div className="relative">
+                      <SimpleForm
+                        title="Add New Supplier"
+                        fields={[
+                          { name: 'supplier_name', label: 'Supplier Name', type: 'text', req: true, suggestions: suggestions.supplierNames },
+                          { name: 'supplier_code', label: 'Supplier Code', type: 'text', placeholder: 'SUP-001' },
+                          { name: 'location', label: 'Location', type: 'text', suggestions: suggestions.locations },
+                          { name: 'primary_contact_email', label: 'Email', type: 'email' },
+                          { name: 'payment_terms_default', label: 'Pay Terms', type: 'text', suggestions: suggestions.paymentTerms },
+                          { name: 'supplier_bank_details', label: 'Bank Details', type: 'textarea' },
+                        ]}
+                        onSubmit={async (d) => { await handleInsert('2.0_suppliers', d); setShowSupplierForm(false); }}
+                        loading={loading}
+                      />
+                      <button
+                        onClick={() => setShowSupplierForm(false)}
+                        className="absolute top-5 right-5 text-slate-500 hover:text-slate-300 transition-colors"
+                        title="Hide"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => setShowSupplierForm(true)}
+                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-400 bg-slate-800/60 border border-slate-700 rounded-lg hover:text-sky-300 hover:border-sky-500/30 transition-all"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                        </svg>
+                        Add Supplier
+                      </button>
+                    </div>
+                  )}
                   <ComponentEditor
                     components={data.components}
                     brandSuggestions={suggestions.brands}
