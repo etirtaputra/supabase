@@ -262,19 +262,23 @@ function UsageTooltip({ quoteLines, poLines, style }: UsageTooltipProps) {
 }
 
 // --- Main Component Editor ---
-export default function ComponentEditor({ components, brandSuggestions, quoteItems = [], quotes = [], pos = [], poItems = [], onSave, onDelete, onSaveLineItem, onDeleteLineItem }: ComponentEditorProps) {
+const EMPTY_ADD = { supplier_model: '', internal_description: '', brand: '', category: '', specifications: '' };
+
+export default function ComponentEditor({ components, brandSuggestions, quoteItems = [], quotes = [], pos = [], poItems = [], onSave, onAdd, onAddSupplier, onDelete, onSaveLineItem, onDeleteLineItem }: ComponentEditorProps) {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [filterBrand, setFilterBrand] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
   const [filterPI, setFilterPI] = useState('');
   const [filterPO, setFilterPO] = useState('');
+  const [filterUnused, setFilterUnused] = useState(false);
+  const [filterDuplicates, setFilterDuplicates] = useState(false);
 
   // Debounce search so heavy filtering doesn't block every keystroke
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput), 150);
     return () => clearTimeout(t);
   }, [searchInput]);
-  const [filterCategory, setFilterCategory] = useState('');
   const [sortCol, setSortCol] = useState<SortCol>('supplier_model');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [editingIds, setEditingIds] = useState<Set<string>>(new Set());
@@ -293,6 +297,9 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [newLineItem, setNewLineItem] = useState<{ quote_id: string; quantity: string; unit_price: string; currency: string; supplier_description: string } | null>(null);
   const [lineItemSaving, setLineItemSaving] = useState(false);
   const [hoveredTooltip, setHoveredTooltip] = useState<{ id: string; style: React.CSSProperties } | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addDraft, setAddDraft] = useState(EMPTY_ADD);
+  const [addSaving, setAddSaving] = useState(false);
 
   // ── Per-component usage stats ──────────────────────────────────────────────
   const usageMap = useMemo<Map<string, ComponentUsage>>(() => {
@@ -382,6 +389,18 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     return map;
   }, [poItems, pos]);
 
+  // ── Duplicate supplier_model detection ────────────────────────────────────
+  const duplicateModels = useMemo(() => {
+    const counts = new Map<string, number>();
+    components.forEach((c) => {
+      const m = c.supplier_model?.toLowerCase().trim();
+      if (m) counts.set(m, (counts.get(m) || 0) + 1);
+    });
+    const dups = new Set<string>();
+    counts.forEach((cnt, m) => { if (cnt > 1) dups.add(m); });
+    return dups;
+  }, [components]);
+
   const uniqueBrands = useMemo(
     () => [...new Set(components.map((c) => c.brand?.trim()).filter(Boolean))].sort() as string[],
     [components]
@@ -407,13 +426,16 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         (c) =>
           c.supplier_model?.toLowerCase().includes(q) ||
           c.internal_description?.toLowerCase().includes(q) ||
-          c.brand?.toLowerCase().includes(q)
+          c.brand?.toLowerCase().includes(q) ||
+          c.category?.toLowerCase().includes(q)
       );
     }
     if (filterBrand) result = result.filter((c) => c.brand?.trim() === filterBrand);
     if (filterCategory) result = result.filter((c) => c.category === filterCategory);
     if (filterPI) result = result.filter((c) => usageMap.get(String(c.component_id))?.piNumbers.includes(filterPI));
     if (filterPO) result = result.filter((c) => usageMap.get(String(c.component_id))?.poNumbers.includes(filterPO));
+    if (filterUnused) result = result.filter((c) => !usageMap.has(String(c.component_id)));
+    if (filterDuplicates) result = result.filter((c) => duplicateModels.has(c.supplier_model?.toLowerCase().trim() ?? ''));
     return [...result].sort((a, b) => {
       if (sortCol === 'updated_at') {
         const av = a[sortCol] ? new Date(a[sortCol] as string).getTime() : 0;
@@ -431,7 +453,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       const bv = ((b[sortCol as keyof Component] as string) || '').toLowerCase();
       return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
     });
-  }, [components, search, filterBrand, filterCategory, filterPI, filterPO, sortCol, sortDir, usageMap]);
+  }, [components, search, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, sortCol, sortDir, usageMap, duplicateModels]);
 
   const toggleSort = (col: SortCol) => {
     if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -490,6 +512,65 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     }
   };
 
+  // ── Bulk selection ────────────────────────────────────────────────────────
+  const allFilteredSelected = filtered.length > 0 && filtered.every((c) => selectedIds.has(String(c.component_id)));
+  const someFilteredSelected = filtered.some((c) => selectedIds.has(String(c.component_id)));
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someFilteredSelected && !allFilteredSelected;
+    }
+  }, [someFilteredSelected, allFilteredSelected]);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  };
+
+  const toggleSelectAll = () => {
+    if (allFilteredSelected) {
+      setSelectedIds((prev) => { const n = new Set(prev); filtered.forEach((c) => n.delete(String(c.component_id))); return n; });
+    } else {
+      setSelectedIds((prev) => { const n = new Set(prev); filtered.forEach((c) => n.add(String(c.component_id))); return n; });
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!onDelete || selectedIds.size === 0) return;
+    setBulkDeleting(true);
+    try {
+      for (const id of selectedIds) {
+        await onDelete(id);
+        discardRow(id);
+      }
+      setSelectedIds(new Set());
+      setConfirmBulkDelete(false);
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  const handleAdd = async () => {
+    if (!onAdd || !addDraft.supplier_model.trim() || !addDraft.internal_description.trim()) return;
+    setAddSaving(true);
+    try {
+      let specs: any = undefined;
+      if (addDraft.specifications.trim()) {
+        try { specs = JSON.parse(addDraft.specifications); } catch { specs = addDraft.specifications; }
+      }
+      await onAdd({
+        supplier_model: addDraft.supplier_model.trim(),
+        internal_description: addDraft.internal_description.trim(),
+        brand: addDraft.brand.trim() || null as any,
+        category: (addDraft.category || null) as any,
+        specifications: specs,
+      });
+      setAddDraft(EMPTY_ADD);
+      setShowAddForm(false);
+    } finally {
+      setAddSaving(false);
+    }
+  };
+
   const openLineItemModal = (componentId: string) => {
     setLineItemModalId(componentId);
     setLineItemDraft({});
@@ -507,7 +588,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
 
   const handleAddNewLineItem = async (componentId: string) => {
     if (!onSaveLineItem || !newLineItem) return;
-    const qid = parseInt(newLineItem.quote_id);
+    const qid = newLineItem.quote_id;
     const qty = parseFloat(newLineItem.quantity);
     const price = parseFloat(newLineItem.unit_price);
     if (!qid || isNaN(qty) || isNaN(price)) return;
@@ -515,7 +596,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     try {
       await onSaveLineItem({
         component_id: componentId,
-        quote_id: qid,
+        quote_id: qid as any,
         quantity: qty,
         unit_price: price,
         currency: (newLineItem.currency as any) || 'USD',
@@ -642,9 +723,37 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
           <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.8)]"></span>
         </div>
-        <div>
+        <div className="flex-1">
           <h3 className="text-lg font-bold text-white tracking-tight">Component Editor</h3>
           <p className="text-xs text-slate-500 mt-0.5">Click ✎ to edit · <kbd className="px-1 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Ctrl+S</kbd> to save · <kbd className="px-1 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">/</kbd> to search</p>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {onAddSupplier && (
+            <button
+              onClick={onAddSupplier}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border transition-all bg-slate-800/60 border-slate-700 text-slate-400 hover:text-sky-300 hover:border-sky-500/30"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Add Supplier
+            </button>
+          )}
+          {onAdd && (
+            <button
+              onClick={() => setShowAddForm((v) => !v)}
+              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border transition-all ${
+                showAddForm
+                  ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                  : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:text-emerald-300 hover:border-emerald-500/30'
+              }`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Add Component
+            </button>
+          )}
         </div>
       </div>
 
@@ -779,58 +888,88 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
             )}
           </div>
           {/* Brand filter */}
-          <select
-            value={filterBrand}
-            onChange={(e) => setFilterBrand(e.target.value)}
-            className="py-2.5 px-3 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:outline-none min-w-[140px]"
-          >
-            <option value="">All Brands</option>
-            {uniqueBrands.map((b) => <option key={b} value={b}>{b}</option>)}
-          </select>
+          <FilterCombobox options={uniqueBrands} value={filterBrand} onChange={setFilterBrand} placeholder="All Brands" minWidth={140} className="min-w-[140px]" />
           {/* Category filter */}
-          <select
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="py-2.5 px-3 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:outline-none min-w-[160px]"
-          >
-            <option value="">All Categories</option>
-            {ENUMS.product_category.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
+          <FilterCombobox options={ENUMS.product_category} value={filterCategory} onChange={setFilterCategory} placeholder="All Categories" minWidth={180} className="min-w-[160px]" />
           {/* PI filter */}
           {uniquePINumbers.length > 0 && (
-            <select
-              value={filterPI}
-              onChange={(e) => setFilterPI(e.target.value)}
-              className="py-2.5 px-3 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:outline-none min-w-[150px]"
-            >
-              <option value="">All PIs</option>
-              {uniquePINumbers.map((pi) => <option key={pi} value={pi}>{pi}</option>)}
-            </select>
+            <FilterCombobox options={uniquePINumbers} value={filterPI} onChange={setFilterPI} placeholder="All PIs" minWidth={150} className="min-w-[150px]" />
           )}
           {/* PO filter */}
           {uniquePONumbers.length > 0 && (
-            <select
-              value={filterPO}
-              onChange={(e) => setFilterPO(e.target.value)}
-              className="py-2.5 px-3 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:outline-none min-w-[150px]"
-            >
-              <option value="">All POs</option>
-              {uniquePONumbers.map((po) => <option key={po} value={po}>{po}</option>)}
-            </select>
+            <FilterCombobox options={uniquePONumbers} value={filterPO} onChange={setFilterPO} placeholder="All POs" minWidth={150} className="min-w-[150px]" />
           )}
+          {/* Quick-filter toggles */}
+          <button
+            onClick={() => { setFilterUnused((v) => !v); setFilterDuplicates(false); }}
+            className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all flex-shrink-0 ${
+              filterUnused
+                ? 'bg-orange-500/20 border-orange-500/40 text-orange-300'
+                : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-orange-300 hover:border-orange-500/30'
+            }`}
+            title="Show components never used in any quote"
+          >
+            Unused{filterUnused ? ` (${filtered.length})` : ''}
+          </button>
+          <button
+            onClick={() => { setFilterDuplicates((v) => !v); setFilterUnused(false); }}
+            className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all flex-shrink-0 ${
+              filterDuplicates
+                ? 'bg-red-500/20 border-red-500/40 text-red-300'
+                : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-red-300 hover:border-red-500/30'
+            }`}
+            title="Show components with duplicate model numbers"
+          >
+            Duplicates{filterDuplicates ? ` (${filtered.length})` : ''}
+          </button>
         </div>
 
         {/* Stats + action buttons */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <p className="text-xs text-slate-500">
             Showing <span className="text-slate-300 font-semibold">{filtered.length}</span> of {components.length} components
+            {selectedIds.size > 0 && (
+              <span className="ml-2 text-sky-400 font-semibold">· {selectedIds.size} selected</span>
+            )}
             {dirtyCount > 0 && (
               <span className="ml-2 text-amber-400 font-semibold">
                 · {dirtyCount} unsaved {dirtyCount === 1 ? 'edit' : 'edits'}
               </span>
             )}
           </p>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center flex-wrap">
+            {/* Bulk delete controls */}
+            {onDelete && selectedIds.size > 0 && (
+              confirmBulkDelete ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-red-400">Delete {selectedIds.size} component{selectedIds.size !== 1 ? 's' : ''}?</span>
+                  <button
+                    onClick={handleBulkDelete}
+                    disabled={bulkDeleting}
+                    className="px-3 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-500 rounded-lg transition-all disabled:opacity-50"
+                  >
+                    {bulkDeleting ? 'Deleting…' : 'Confirm'}
+                  </button>
+                  <button
+                    onClick={() => setConfirmBulkDelete(false)}
+                    disabled={bulkDeleting}
+                    className="px-3 py-1.5 text-xs font-semibold text-slate-400 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-all disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmBulkDelete(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-400 bg-red-500/10 border border-red-500/25 rounded-lg hover:bg-red-500/20 transition-all"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Delete {selectedIds.size}
+                </button>
+              )
+            )}
             {dirtyCount > 0 && (
               <button
                 onClick={discardAll}
