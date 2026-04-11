@@ -246,6 +246,83 @@ function UsageTooltip({ quoteLines, poLines, style }: UsageTooltipProps) {
 // --- Quote Combobox ---
 // Searchable autocomplete replacing the native <select> in the new-line-item form.
 // Uses a portal dropdown so it's never clipped by overflow-hidden ancestors.
+// ── Generic filter combobox (string value = display label) ──────────────────
+interface FilterComboboxProps {
+  options: string[];
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  minWidth?: number;
+}
+function FilterCombobox({ options, value, onChange, placeholder, minWidth = 140 }: FilterComboboxProps) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [dropStyle, setDropStyle] = useState<React.CSSProperties>({});
+
+  const inputDisplay = open ? query : value;
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    if (!q) return options;
+    return options.filter((o) => o.toLowerCase().includes(q));
+  }, [options, query]);
+
+  const openDrop = () => {
+    if (!inputRef.current) return;
+    const r = inputRef.current.getBoundingClientRect();
+    setDropStyle({ position: 'fixed', top: r.bottom + 4, left: r.left, width: Math.max(r.width, minWidth), zIndex: 9999 });
+    setOpen(true);
+  };
+
+  const select = (v: string) => { onChange(v); setQuery(''); setOpen(false); };
+  const handleBlur = () => setTimeout(() => setOpen(false), 160);
+
+  return (
+    <div className="relative w-full">
+      <input
+        ref={inputRef}
+        type="text"
+        value={inputDisplay}
+        onFocus={() => { openDrop(); setQuery(''); }}
+        onChange={(e) => { setQuery(e.target.value); if (!open) openDrop(); }}
+        onBlur={handleBlur}
+        placeholder={placeholder}
+        className="w-full py-2.5 px-3 pr-7 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:outline-none placeholder-slate-500"
+      />
+      {value ? (
+        <button onMouseDown={(e) => { e.preventDefault(); onChange(''); setQuery(''); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+      ) : (
+        <svg className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-600 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+      )}
+      {open && typeof document !== 'undefined' && createPortal(
+        <div style={dropStyle} className="bg-[#0D1424] border border-white/10 rounded-xl shadow-2xl overflow-hidden">
+          <div className="px-3 py-1.5 border-b border-white/5 flex items-center justify-between">
+            <span className="text-[10px] text-slate-500">{filtered.length} option{filtered.length !== 1 ? 's' : ''}</span>
+            {query && <span className="text-[10px] text-blue-400">"{query}"</span>}
+          </div>
+          <div className="max-h-60 overflow-y-auto">
+            <button onMouseDown={() => select('')} className={`w-full text-left px-3 py-2 text-sm transition-colors border-b border-white/[0.04] ${value === '' ? 'bg-blue-500/15 text-blue-300' : 'text-slate-400 hover:bg-white/10'}`}>
+              {placeholder}
+            </button>
+            {filtered.length === 0 ? (
+              <p className="px-3 py-3 text-sm text-slate-500 italic">No matches</p>
+            ) : filtered.map((opt) => (
+              <button key={opt} onMouseDown={() => select(opt)}
+                className={`w-full text-left px-3 py-2 text-sm transition-colors border-b border-white/[0.04] last:border-0 ${opt === value ? 'bg-blue-500/15 text-blue-300' : 'text-slate-300 hover:bg-white/10'}`}>
+                {opt}
+              </button>
+            ))}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
 interface QuoteComboboxProps {
   quotes: PriceQuote[];
   value: string;          // selected quote_id as string
@@ -637,7 +714,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
 
   const handleAddNewLineItem = async (componentId: string) => {
     if (!onSaveLineItem || !newLineItem) return;
-    const qid = parseInt(newLineItem.quote_id);
+    const qid = newLineItem.quote_id;
     const qty = parseFloat(newLineItem.quantity);
     const price = parseFloat(newLineItem.unit_price);
     if (!qid || isNaN(qty) || isNaN(price)) return;
@@ -645,7 +722,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     try {
       await onSaveLineItem({
         component_id: componentId,
-        quote_id: qid,
+        quote_id: qid as any,
         quantity: qty,
         unit_price: price,
         currency: (newLineItem.currency as any) || 'USD',
@@ -797,44 +874,24 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
             )}
           </div>
           {/* Brand filter */}
-          <select
-            value={filterBrand}
-            onChange={(e) => setFilterBrand(e.target.value)}
-            className="py-2.5 px-3 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:outline-none min-w-[140px]"
-          >
-            <option value="">All Brands</option>
-            {uniqueBrands.map((b) => <option key={b} value={b}>{b}</option>)}
-          </select>
+          <div className="min-w-[140px]">
+            <FilterCombobox options={uniqueBrands} value={filterBrand} onChange={setFilterBrand} placeholder="All Brands" minWidth={140} />
+          </div>
           {/* Category filter */}
-          <select
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="py-2.5 px-3 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:outline-none min-w-[160px]"
-          >
-            <option value="">All Categories</option>
-            {ENUMS.product_category.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
+          <div className="min-w-[160px]">
+            <FilterCombobox options={ENUMS.product_category} value={filterCategory} onChange={setFilterCategory} placeholder="All Categories" minWidth={180} />
+          </div>
           {/* PI filter */}
           {uniquePINumbers.length > 0 && (
-            <select
-              value={filterPI}
-              onChange={(e) => setFilterPI(e.target.value)}
-              className="py-2.5 px-3 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:outline-none min-w-[150px]"
-            >
-              <option value="">All PIs</option>
-              {uniquePINumbers.map((pi) => <option key={pi} value={pi}>{pi}</option>)}
-            </select>
+            <div className="min-w-[150px]">
+              <FilterCombobox options={uniquePINumbers} value={filterPI} onChange={setFilterPI} placeholder="All PIs" minWidth={150} />
+            </div>
           )}
           {/* PO filter */}
           {uniquePONumbers.length > 0 && (
-            <select
-              value={filterPO}
-              onChange={(e) => setFilterPO(e.target.value)}
-              className="py-2.5 px-3 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:outline-none min-w-[150px]"
-            >
-              <option value="">All POs</option>
-              {uniquePONumbers.map((po) => <option key={po} value={po}>{po}</option>)}
-            </select>
+            <div className="min-w-[150px]">
+              <FilterCombobox options={uniquePONumbers} value={filterPO} onChange={setFilterPO} placeholder="All POs" minWidth={150} />
+            </div>
           )}
           {/* Quick-filter toggles */}
           <button
@@ -1406,15 +1463,11 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           {/* Quote / PI */}
                           <div className="col-span-2 sm:col-span-1">
                             <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Quote (PI)</label>
-                            <select
-                              value={eff.quote_id}
-                              onChange={(e) => setLineItemDraft((prev) => ({ ...prev, [item.quote_line_id]: { ...prev[item.quote_line_id], quote_id: Number(e.target.value) } }))}
-                              className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500"
-                            >
-                              {quotes.map((q) => (
-                                <option key={q.quote_id} value={q.quote_id}>{q.pi_number ?? `Quote #${q.quote_id}`}</option>
-                              ))}
-                            </select>
+                            <QuoteCombobox
+                              quotes={quotes}
+                              value={String(eff.quote_id)}
+                              onChange={(id) => setLineItemDraft((prev) => ({ ...prev, [item.quote_line_id]: { ...prev[item.quote_line_id], quote_id: id as any } }))}
+                            />
                           </div>
                           {/* Qty */}
                           <div>
