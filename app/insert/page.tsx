@@ -54,7 +54,7 @@ function MasterInsertPage() {
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get('tab') as Tab) || 'catalog';
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
-  const [catalogMode, setCatalogMode] = useState<'add' | 'edit'>('add');
+  const [showSupplierForm, setShowSupplierForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [pdfData, setPdfData] = useState<any>(null);
   const [paymentMode, setPaymentMode] = useState<'single' | 'batch'>('single');
@@ -256,34 +256,68 @@ function MasterInsertPage() {
 
   const activeItem = MENU_ITEMS.find((m) => m.id === activeTab);
 
+  // ── Tab SVG icons ───────────────────────────────────────────────────────────
+  const TAB_ICONS: Record<string, React.ReactNode> = {
+    catalog: (
+      <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+        <rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" />
+        <rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" />
+      </svg>
+    ),
+    quoting: (
+      <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    ),
+    ordering: (
+      <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+      </svg>
+    ),
+    financials: (
+      <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+      </svg>
+    ),
+    lookup: (
+      <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      </svg>
+    ),
+    'market-intel': (
+      <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+      </svg>
+    ),
+  };
+
   return (
-    <div className="min-h-screen bg-[#0B1120] text-slate-200 font-sans text-sm selection:bg-emerald-500/30">
+    <div className="min-h-screen bg-[#0B1120] text-slate-200 font-sans text-sm selection:bg-white/20">
       {/* ── Sticky top header + tab bar ── */}
-      <div className="sticky top-0 z-50 bg-[#0B1120]/80 backdrop-blur-md border-b border-slate-800/60 shadow-lg shadow-black/20">
+      <div className="sticky top-0 z-50 bg-[#0B1120]/90 backdrop-blur-xl border-b border-white/[0.07]">
         <header className="px-4 md:px-8 xl:px-12 pt-4 xl:pt-5 pb-2 max-w-[1800px] mx-auto flex flex-col sm:flex-row sm:items-end justify-between gap-1">
           <div>
-            <h1 className="text-lg md:text-2xl xl:text-3xl font-extrabold text-white tracking-tight leading-tight">
-              ICA Supply Chain{' '}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-sky-400">Data Entry</span>
+            <h1 className="text-lg md:text-xl xl:text-2xl font-bold text-white tracking-tight">
+              ICA Supply Chain
             </h1>
-            <p className="text-slate-500 text-[11px] mt-0.5 hidden sm:block font-medium">
-              {activeItem?.icon} {activeItem?.label}
+            <p className="text-slate-500 text-[11px] mt-0.5 hidden sm:block">
+              {activeItem?.label}
             </p>
           </div>
         </header>
-        {/* Tab bar — scrollable pill tabs, works on both mobile & desktop */}
-        <nav className="px-4 md:px-8 xl:px-12 pb-3 xl:pb-4 max-w-[1800px] mx-auto flex overflow-x-auto gap-2 xl:gap-3 scrollbar-none snap-x snap-mandatory">
+        {/* Tab bar */}
+        <nav className="px-4 md:px-8 xl:px-12 pb-3 xl:pb-4 max-w-[1800px] mx-auto flex overflow-x-auto gap-1.5 xl:gap-2 scrollbar-none snap-x snap-mandatory">
           {MENU_ITEMS.map((item) => (
             <button
               key={item.id}
               onClick={() => handleTabChange(item.id)}
-              className={`snap-start px-3.5 py-2 xl:px-5 xl:py-2.5 rounded-full text-xs xl:text-sm font-semibold whitespace-nowrap transition-all duration-200 flex items-center gap-1.5 flex-shrink-0 ${
+              className={`snap-start px-3 py-1.5 xl:px-4 xl:py-2 rounded-full text-xs xl:text-sm font-medium whitespace-nowrap transition-all duration-150 flex items-center gap-1.5 flex-shrink-0 ${
                 activeTab === item.id
-                  ? 'bg-slate-700 text-white'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  ? 'bg-white/10 text-white'
+                  : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
               }`}
             >
-              <span className="text-sm xl:text-base leading-none">{item.icon}</span>
+              {TAB_ICONS[item.id]}
               {item.label}
             </button>
           ))}
@@ -292,7 +326,7 @@ function MasterInsertPage() {
 
       {/* ── Main content ── */}
       <main className={`max-w-[1800px] mx-auto animate-in fade-in duration-300 ${
-        activeTab === 'catalog' && catalogMode === 'edit' ? 'p-3 md:p-4 xl:p-5' : 'p-4 md:p-6 xl:p-8 2xl:p-10'
+        activeTab === 'catalog' ? 'p-3 md:p-4 xl:p-5' : 'p-4 md:p-6 xl:p-8 2xl:p-10'
       }`}>
         <div className="pb-8 md:pb-4">
           {dataLoading ? (
@@ -304,26 +338,10 @@ function MasterInsertPage() {
             <>
               {/* Catalog Tab */}
               {activeTab === 'catalog' && (
-                <>
-                  {/* Add / Edit toggle */}
-                  <div className="flex items-center gap-3 mb-5">
-                    <div className="flex rounded-xl overflow-hidden border border-slate-700 text-xs font-semibold">
-                      <button
-                        onClick={() => setCatalogMode('add')}
-                        className={`px-4 py-2 transition-colors ${catalogMode === 'add' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800/60 text-slate-400 hover:text-slate-300'}`}
-                      >Add New</button>
-                      <button
-                        onClick={() => setCatalogMode('edit')}
-                        className={`px-4 py-2 transition-colors ${catalogMode === 'edit' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800/60 text-slate-400 hover:text-slate-300'}`}
-                      >Edit Components</button>
-                    </div>
-                    <p className="text-xs text-slate-500">
-                      {catalogMode === 'add' ? 'Add suppliers and components to your catalog.' : 'Search, edit, and manage existing components.'}
-                    </p>
-                  </div>
-
-                  {catalogMode === 'add' && (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 xl:gap-8 2xl:gap-10">
+                <div className="space-y-4">
+                  {/* Add New Supplier — hidden by default */}
+                  {showSupplierForm ? (
+                    <div className="relative">
                       <SimpleForm
                         title="Add New Supplier"
                         fields={[
@@ -334,40 +352,35 @@ function MasterInsertPage() {
                           { name: 'payment_terms_default', label: 'Pay Terms', type: 'text', suggestions: suggestions.paymentTerms },
                           { name: 'supplier_bank_details', label: 'Bank Details', type: 'textarea' },
                         ]}
-                        onSubmit={(d) => handleInsert('2.0_suppliers', d)}
+                        onSubmit={async (d) => { await handleInsert('2.0_suppliers', d); setShowSupplierForm(false); }}
                         loading={loading}
                       />
-                      <BatchLineItemsForm
-                        title="Add New Component"
-                        gridLayout
-                        itemFields={[
-                          { name: 'supplier_model', label: 'Supplier Model / SKU', type: 'text', req: true, suggestions: suggestions.modelSkus },
-                          { name: 'internal_description', label: 'Internal Description', type: 'text', req: true, suggestions: suggestions.descriptions },
-                          { name: 'brand', label: 'Brand', type: 'text', suggestions: suggestions.brands },
-                          { name: 'category', label: 'Category', type: 'select', options: ENUMS.product_category },
-                          { name: 'specifications', label: 'Specs (JSON)', type: 'textarea', placeholder: '{"watts": 100}' },
-                        ]}
-                        onSubmit={(items) => handleInsert('3.0_components', items)}
-                        loading={loading}
-                      />
+                      <button
+                        onClick={() => setShowSupplierForm(false)}
+                        className="absolute top-5 right-5 text-slate-500 hover:text-slate-300 transition-colors"
+                        title="Hide"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
                     </div>
-                  )}
-
-                  {catalogMode === 'edit' && (
-                    <ComponentEditor
-                      components={data.components}
-                      brandSuggestions={suggestions.brands}
-                      quoteItems={data.quoteItems}
-                      quotes={data.quotes}
-                      pos={data.pos}
-                      poItems={data.poItems}
-                      onSave={handleComponentUpdates}
-                      onDelete={handleComponentDelete}
-                      onSaveLineItem={handleSaveLineItem}
-                      onDeleteLineItem={handleDeleteLineItem}
-                    />
-                  )}
-                </>
+                  ) : null}
+                  <ComponentEditor
+                    components={data.components}
+                    brandSuggestions={suggestions.brands}
+                    quoteItems={data.quoteItems}
+                    quotes={data.quotes}
+                    pos={data.pos}
+                    poItems={data.poItems}
+                    onSave={handleComponentUpdates}
+                    onAdd={(fields) => handleInsert('3.0_components', [fields])}
+                    onAddSupplier={() => setShowSupplierForm(true)}
+                    onDelete={handleComponentDelete}
+                    onSaveLineItem={handleSaveLineItem}
+                    onDeleteLineItem={handleDeleteLineItem}
+                  />
+                </div>
               )}
 
               {/* Quoting Tab */}
@@ -665,6 +678,90 @@ function MasterInsertPage() {
                       onError={(msg) => showToast(`Error: ${msg}`, 'error')}
                     />
                   )}
+
+                  {/* ── Recent Payment Activity ── */}
+                  {(() => {
+                    // Collect unique po_ids in order of most-recent payment_date
+                    const seen = new Set<string>();
+                    const recentPoIds: string[] = [];
+                    for (const c of data.poCosts) {
+                      const id = String(c.po_id);
+                      if (!seen.has(id)) { seen.add(id); recentPoIds.push(id); }
+                      if (recentPoIds.length >= 8) break;
+                    }
+                    if (recentPoIds.length === 0) return null;
+
+                    return (
+                      <div className="mt-8">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-3">Recent Payment Activity</p>
+                        <div className="space-y-2">
+                          {recentPoIds.map((poId) => {
+                            const po = data.pos.find((p) => String(p.po_id) === poId);
+                            if (!po) return null;
+                            const costs   = data.poCosts.filter((c) => String(c.po_id) === poId);
+                            const tIdr    = po.currency === 'IDR' ? Number(po.total_value) : Number(po.total_value) * (Number(po.exchange_rate) || 1);
+                            const paid    = costs.filter((c) => PRINCIPAL_CATS.has(c.cost_category)).reduce((s, c) => {
+                              const rate = Number(c.exchange_rate) || Number(po.exchange_rate) || 1;
+                              return s + (c.currency === 'IDR' ? Number(c.amount) : Number(c.amount) * rate);
+                            }, 0);
+                            const out     = Math.max(0, tIdr - paid);
+                            const pct     = tIdr > 0 ? Math.min(100, (paid / tIdr) * 100) : 0;
+                            const latest  = costs.reduce<string>((d, c) => (c.payment_date && c.payment_date > d ? c.payment_date : d), '');
+
+                            // Resolve supplier via linked quote
+                            const quote    = po.quote_id ? data.quotes.find((q) => String(q.quote_id) === String(po.quote_id)) : null;
+                            const supplier = quote ? data.suppliers.find((s) => s.supplier_id === quote.supplier_id) : null;
+
+                            const isSelected = singlePoId === poId;
+                            return (
+                              <button
+                                key={poId}
+                                onClick={() => { setPaymentMode('single'); setSinglePoId(poId); }}
+                                className={`w-full text-left px-3 py-2.5 rounded-xl border transition-colors ${
+                                  isSelected
+                                    ? 'bg-rose-500/15 border-rose-500/30'
+                                    : 'bg-slate-800/30 border-slate-700/30 hover:bg-slate-800/60 hover:border-slate-600/40'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="min-w-0 flex items-center gap-2">
+                                    {supplier?.supplier_code && (
+                                      <span className="inline-block px-1.5 py-0.5 bg-sky-500/15 border border-sky-500/30 text-sky-300 text-[10px] font-bold rounded leading-none flex-shrink-0">
+                                        {supplier.supplier_code}
+                                      </span>
+                                    )}
+                                    <span className="text-xs font-semibold text-slate-200 truncate">
+                                      {po.pi_number ? `${po.pi_number} · ` : ''}{po.po_number}
+                                    </span>
+                                    <span className={`inline-block px-1 py-0.5 text-[10px] font-bold rounded leading-none flex-shrink-0 ${
+                                      po.status === 'Fully Received' ? 'bg-emerald-500/20 text-emerald-300' :
+                                      po.status === 'Partially Received' ? 'bg-amber-500/20 text-amber-300' :
+                                      po.status === 'Confirmed' ? 'bg-indigo-500/20 text-indigo-300' :
+                                      'bg-slate-700 text-slate-400'
+                                    }`}>{po.status}</span>
+                                  </div>
+                                  <div className="text-right flex-shrink-0">
+                                    {out > 0
+                                      ? <span className="text-[11px] font-bold text-amber-300 tabular-nums">{fmtIdr(out)} out</span>
+                                      : <span className="text-[11px] font-bold text-emerald-400">✓ Settled</span>
+                                    }
+                                    {latest && <p className="text-[10px] text-slate-600 tabular-nums">{latest}</p>}
+                                  </div>
+                                </div>
+                                <div className="mt-1.5 flex items-center gap-2">
+                                  <div className="flex-1 h-1 bg-slate-700/80 rounded-full overflow-hidden">
+                                    <div className={`h-full rounded-full ${pct >= 100 ? 'bg-emerald-500' : 'bg-amber-400'}`} style={{ width: `${pct}%` }} />
+                                  </div>
+                                  <span className="text-[10px] text-slate-600 flex-shrink-0 tabular-nums">{pct.toFixed(0)}%</span>
+                                  <span className="text-[10px] text-slate-600 tabular-nums">{fmtIdr(tIdr)}</span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 

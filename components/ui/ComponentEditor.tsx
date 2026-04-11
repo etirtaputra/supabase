@@ -420,6 +420,196 @@ function UsageTooltip({ quoteLines, poLines, style }: UsageTooltipProps) {
   return createPortal(content, document.body);
 }
 
+// ── Portal combobox components ────────────────────────────────────────────────
+interface FilterComboboxProps {
+  options: readonly string[];
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  minWidth?: number;
+  className?: string;
+}
+function FilterCombobox({ options, value, onChange, placeholder, minWidth = 140, className = '' }: FilterComboboxProps) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [dropStyle, setDropStyle] = useState<React.CSSProperties>({});
+
+  const inputDisplay = open ? query : value;
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    if (!q) return options;
+    return options.filter((o) => o.toLowerCase().includes(q));
+  }, [options, query]);
+
+  const openDrop = () => {
+    if (!inputRef.current) return;
+    const r = inputRef.current.getBoundingClientRect();
+    setDropStyle({ position: 'fixed', top: r.bottom + 4, left: r.left, width: Math.max(r.width, minWidth), zIndex: 9999 });
+    setOpen(true);
+  };
+
+  const select = (v: string) => { onChange(v); setQuery(''); setOpen(false); };
+  const handleBlur = () => setTimeout(() => setOpen(false), 160);
+
+  return (
+    <div className={`relative w-full ${className}`}>
+      <input
+        ref={inputRef}
+        type="text"
+        value={inputDisplay}
+        onFocus={() => { openDrop(); setQuery(''); }}
+        onChange={(e) => { setQuery(e.target.value); if (!open) openDrop(); }}
+        onBlur={handleBlur}
+        placeholder={placeholder}
+        className="w-full py-2.5 px-3 pr-7 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:outline-none placeholder-slate-500"
+      />
+      {value ? (
+        <button onMouseDown={(e) => { e.preventDefault(); onChange(''); setQuery(''); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+      ) : (
+        <svg className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-600 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+      )}
+      {open && typeof document !== 'undefined' && createPortal(
+        <div style={dropStyle} className="bg-[#0D1424] border border-white/10 rounded-xl shadow-2xl overflow-hidden">
+          <div className="px-3 py-1.5 border-b border-white/5 flex items-center justify-between">
+            <span className="text-[10px] text-slate-500">{filtered.length} option{filtered.length !== 1 ? 's' : ''}</span>
+            {query && <span className="text-[10px] text-blue-400">"{query}"</span>}
+          </div>
+          <div className="max-h-60 overflow-y-auto">
+            <button onMouseDown={() => select('')} className={`w-full text-left px-3 py-2 text-sm transition-colors border-b border-white/[0.04] ${value === '' ? 'bg-blue-500/15 text-blue-300' : 'text-slate-400 hover:bg-white/10'}`}>
+              {placeholder}
+            </button>
+            {filtered.length === 0 ? (
+              <p className="px-3 py-3 text-sm text-slate-500 italic">No matches</p>
+            ) : filtered.map((opt) => (
+              <button key={opt} onMouseDown={() => select(opt)}
+                className={`w-full text-left px-3 py-2 text-sm transition-colors border-b border-white/[0.04] last:border-0 ${opt === value ? 'bg-blue-500/15 text-blue-300' : 'text-slate-300 hover:bg-white/10'}`}>
+                {opt}
+              </button>
+            ))}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+interface QuoteComboboxProps {
+  quotes: PriceQuote[];
+  value: string;          // selected quote_id as string
+  onChange: (quoteId: string) => void;
+}
+
+function QuoteCombobox({ quotes, value, onChange }: QuoteComboboxProps) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [dropStyle, setDropStyle] = useState<React.CSSProperties>({});
+
+  const selectedQuote = quotes.find((q) => String(q.quote_id) === value);
+
+  // What to show inside the input: query while typing, selected PI when closed
+  const inputDisplay = open ? query : (selectedQuote?.pi_number ?? (value ? `#${value}` : ''));
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    if (!q) return quotes; // full list when no query
+    return quotes.filter((qt) =>
+      (qt.pi_number ?? '').toLowerCase().includes(q) ||
+      String(qt.quote_id).includes(q) ||
+      (qt.quote_date ?? '').includes(q)
+    );
+  }, [quotes, query]);
+
+  const openDrop = () => {
+    if (!inputRef.current) return;
+    const r = inputRef.current.getBoundingClientRect();
+    setDropStyle({
+      position: 'fixed',
+      top: r.bottom + 4,
+      left: r.left,
+      width: Math.max(r.width, 280),
+      zIndex: 9999,
+    });
+    setOpen(true);
+  };
+
+  const select = (q: PriceQuote) => {
+    onChange(String(q.quote_id));
+    setQuery('');
+    setOpen(false);
+  };
+
+  const handleBlur = () => setTimeout(() => setOpen(false), 160);
+
+  return (
+    <div className="relative">
+      <input
+        ref={inputRef}
+        type="text"
+        value={inputDisplay}
+        onFocus={() => { openDrop(); setQuery(''); }}
+        onChange={(e) => { setQuery(e.target.value); if (!open) openDrop(); }}
+        onBlur={handleBlur}
+        placeholder="Search PI number…"
+        className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500 placeholder-slate-600"
+      />
+      {/* Clear button */}
+      {value && !open && (
+        <button
+          onMouseDown={(e) => { e.preventDefault(); onChange(''); setQuery(''); }}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-300"
+        >
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      )}
+      {open && typeof document !== 'undefined' && createPortal(
+        <div style={dropStyle} className="bg-[#0D1424] border border-white/10 rounded-xl shadow-2xl overflow-hidden">
+          {/* Search hint */}
+          <div className="px-3 py-1.5 border-b border-white/5 flex items-center justify-between">
+            <span className="text-[10px] text-slate-500">{filtered.length} of {quotes.length} quotes</span>
+            {query && <span className="text-[10px] text-blue-400">"{query}"</span>}
+          </div>
+          <div className="max-h-64 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="px-3 py-3 text-xs text-slate-500 italic">No matches</p>
+            ) : filtered.map((qt) => (
+              <button
+                key={qt.quote_id}
+                onMouseDown={() => select(qt)}
+                className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center gap-2 border-b border-white/[0.04] last:border-0 ${
+                  String(qt.quote_id) === value
+                    ? 'bg-blue-500/15 text-blue-300'
+                    : 'text-slate-300 hover:bg-white/10'
+                }`}
+              >
+                <span className="font-semibold flex-1 truncate">
+                  {qt.pi_number ?? `Quote #${qt.quote_id}`}
+                </span>
+                {qt.quote_date && (
+                  <span className="text-slate-600 text-[10px] flex-shrink-0">{qt.quote_date}</span>
+                )}
+                {qt.currency && qt.total_value != null && (
+                  <span className="text-slate-600 text-[10px] tabular-nums flex-shrink-0">
+                    {qt.currency} {Number(qt.total_value).toLocaleString()}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
 // --- Main Component Editor ---
 const EMPTY_ADD = { supplier_model: '', internal_description: '', brand: '', category: '', specifications: '' };
 
@@ -504,26 +694,33 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     return map;
   }, [quoteItems, quotes, pos]);
 
-  // ── Hover tooltip: enriched quote lines & PO lines per component ───────────
-  const quoteLinesByComponent = useMemo(() => {
+  // ── Tooltip quote lines + last quoted price (single pass over quoteItems) ───
+  const { quoteLinesByComponent, lastQuoteByComponent } = useMemo(() => {
     const quoteMap = new Map(quotes.map((q) => [q.quote_id, q]));
-    const map = new Map<string, TooltipQuoteLine[]>();
+    const linesMap = new Map<string, TooltipQuoteLine[]>();
+    const lastMap = new Map<string, { price: number; currency: string; date: string }>();
     quoteItems.forEach((item) => {
       if (!item.component_id) return;
       const q = quoteMap.get(item.quote_id);
-      if (!map.has(item.component_id)) map.set(item.component_id, []);
-      map.get(item.component_id)!.push({
+      if (!linesMap.has(item.component_id)) linesMap.set(item.component_id, []);
+      linesMap.get(item.component_id)!.push({
         pi_number: q?.pi_number,
         quote_date: q?.quote_date,
         quantity: item.quantity,
         unit_price: item.unit_price,
         currency: item.currency,
       });
+      if (q) {
+        const existing = lastMap.get(item.component_id);
+        if (!existing || q.quote_date > existing.date) {
+          lastMap.set(item.component_id, { price: item.unit_price, currency: item.currency, date: q.quote_date });
+        }
+      }
     });
-    map.forEach((lines, cid) => {
-      map.set(cid, [...lines].sort((a, b) => (b.quote_date || '').localeCompare(a.quote_date || '')).slice(0, 5));
+    linesMap.forEach((lines, cid) => {
+      linesMap.set(cid, [...lines].sort((a, b) => (b.quote_date || '').localeCompare(a.quote_date || '')).slice(0, 5));
     });
-    return map;
+    return { quoteLinesByComponent: linesMap, lastQuoteByComponent: lastMap };
   }, [quoteItems, quotes]);
 
   const poLinesByComponent = useMemo(() => {
@@ -547,6 +744,17 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     });
     return map;
   }, [poItems, pos]);
+
+  // ── PO number lookup by quote_id (used in line-item modal) ──────────────────
+  const posByQuoteId = useMemo(() => {
+    const map = new Map<number, string[]>();
+    pos.forEach((po) => {
+      if (po.quote_id == null) return;
+      map.set(po.quote_id, [...(map.get(po.quote_id) ?? []), po.po_number]);
+    });
+    return map;
+  }, [pos]);
+
 
   // ── Duplicate supplier_model detection ────────────────────────────────────
   const duplicateModels = useMemo(() => {
@@ -769,6 +977,65 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const dirtyKeys = useMemo(() => Object.keys(pending), [pending]);
   const dirtyCount = dirtyKeys.length;
 
+  // ── Bulk selection ────────────────────────────────────────────────────────
+  const allFilteredSelected = filtered.length > 0 && filtered.every((c) => selectedIds.has(String(c.component_id)));
+  const someFilteredSelected = filtered.some((c) => selectedIds.has(String(c.component_id)));
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someFilteredSelected && !allFilteredSelected;
+    }
+  }, [someFilteredSelected, allFilteredSelected]);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  };
+
+  const toggleSelectAll = () => {
+    if (allFilteredSelected) {
+      setSelectedIds((prev) => { const n = new Set(prev); filtered.forEach((c) => n.delete(String(c.component_id))); return n; });
+    } else {
+      setSelectedIds((prev) => { const n = new Set(prev); filtered.forEach((c) => n.add(String(c.component_id))); return n; });
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!onDelete || selectedIds.size === 0) return;
+    setBulkDeleting(true);
+    try {
+      for (const id of selectedIds) {
+        await onDelete(id);
+        discardRow(id);
+      }
+      setSelectedIds(new Set());
+      setConfirmBulkDelete(false);
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  const handleAdd = async () => {
+    if (!onAdd || !addDraft.supplier_model.trim() || !addDraft.internal_description.trim()) return;
+    setAddSaving(true);
+    try {
+      let specs: any = undefined;
+      if (addDraft.specifications.trim()) {
+        try { specs = JSON.parse(addDraft.specifications); } catch { specs = addDraft.specifications; }
+      }
+      await onAdd({
+        supplier_model: addDraft.supplier_model.trim(),
+        internal_description: addDraft.internal_description.trim(),
+        brand: addDraft.brand.trim() || null as any,
+        category: (addDraft.category || null) as any,
+        specifications: specs,
+      });
+      setAddDraft(EMPTY_ADD);
+      setShowAddForm(false);
+    } finally {
+      setAddSaving(false);
+    }
+  };
+
   const handleSaveAll = async () => {
     if (!dirtyCount || saving) return;
     setSaving(true);
@@ -885,6 +1152,34 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         <div className="flex-1">
           <h3 className="text-lg font-bold text-white tracking-tight">Component Editor</h3>
           <p className="text-xs text-slate-500 mt-0.5">Click ✎ to edit · <kbd className="px-1 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Ctrl+S</kbd> to save · <kbd className="px-1 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">/</kbd> to search</p>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {onAddSupplier && (
+            <button
+              onClick={onAddSupplier}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border transition-all bg-slate-800/60 border-slate-700 text-slate-400 hover:text-sky-300 hover:border-sky-500/30"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Add Supplier
+            </button>
+          )}
+          {onAdd && (
+            <button
+              onClick={() => setShowAddForm((v) => !v)}
+              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border transition-all ${
+                showAddForm
+                  ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                  : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:text-emerald-300 hover:border-emerald-500/30'
+              }`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Add Component
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           {onAddSupplier && (
@@ -1220,10 +1515,21 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
           <table className="w-full">
             <thead className="bg-slate-900/95 border-b border-slate-800 sticky top-0 z-20 backdrop-blur-sm">
               <tr>
+                <th className="pl-4 pr-2 py-3 w-9">
+                  <input
+                    ref={selectAllRef}
+                    type="checkbox"
+                    checked={allFilteredSelected}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 rounded border-white/20 bg-white/5 cursor-pointer accent-sky-400"
+                    title={allFilteredSelected ? 'Deselect all' : 'Select all visible'}
+                  />
+                </th>
                 <SortTh col="supplier_model" label="Model / SKU" />
                 <SortTh col="internal_description" label="Description" />
                 <SortTh col="brand" label="Brand" className="min-w-[160px]" />
                 <SortTh col="category" label="Category" />
+                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-400 min-w-[120px]">Last Price</th>
                 <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-400 min-w-[200px]">
                   <div className="flex items-center gap-2">
                     <span>Usage</span>
@@ -1258,14 +1564,27 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                 return (
                   <React.Fragment key={c.component_id}>
                   <tr
-                    className={`transition-colors ${
-                      isDirty
+                    onDoubleClick={() => { if (!isEditing) toggleEdit(c.component_id); }}
+                    className={`transition-colors cursor-pointer ${
+                      selectedIds.has(String(c.component_id))
+                        ? 'bg-sky-500/5'
+                        : isDirty
                         ? 'bg-amber-500/5 border-l-2 border-amber-500/40'
                         : isEditing
                         ? 'bg-slate-800/25'
                         : 'hover:bg-slate-800/15'
                     }`}
                   >
+                    {/* Select checkbox */}
+                    <td className="pl-4 pr-2 py-3 align-top">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(String(c.component_id))}
+                        onChange={(e) => { e.stopPropagation(); toggleSelect(String(c.component_id)); }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-4 h-4 rounded border-white/20 bg-white/5 cursor-pointer accent-sky-400 mt-0.5"
+                      />
+                    </td>
                     {/* Model / SKU */}
                     <td className="px-4 py-3 align-top min-w-[260px]">
                       {isEditing ? (
@@ -1288,7 +1607,10 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           <DirtyBadge original={c.supplier_model} />
                         </div>
                       ) : (
-                        <span className="text-sm text-white font-medium">{c.supplier_model}</span>
+                        <span className="inline-flex items-center gap-0.5 text-sm text-white font-medium">
+                          {c.supplier_model}
+                          <CopyBtn text={c.supplier_model} />
+                        </span>
                       )}
                     </td>
 
@@ -1316,7 +1638,10 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           <DirtyBadge original={c.internal_description} />
                         </div>
                       ) : (
-                        <span className="text-sm text-slate-300">{c.internal_description}</span>
+                        <span className="inline-flex items-center gap-0.5 text-sm text-slate-300">
+                          {c.internal_description}
+                          <CopyBtn text={c.internal_description} />
+                        </span>
                       )}
                     </td>
 
@@ -1374,6 +1699,31 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           {c.category || <span className="text-slate-600">—</span>}
                         </span>
                       )}
+                    </td>
+
+                    {/* Last Price */}
+                    <td className="px-4 py-3 align-top min-w-[120px]">
+                      {(() => {
+                        const lq = lastQuoteByComponent.get(c.component_id);
+                        const isDup = duplicateModels.has(c.supplier_model?.toLowerCase().trim() ?? '');
+                        return (
+                          <div>
+                            {lq ? (
+                              <>
+                                <p className="text-sm font-semibold text-slate-200 tabular-nums">
+                                  {lq.currency} {lq.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </p>
+                                <p className="text-[10px] text-slate-600 mt-0.5">{new Date(lq.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}</p>
+                              </>
+                            ) : (
+                              <span className="text-xs text-slate-700">—</span>
+                            )}
+                            {isDup && (
+                              <span className="mt-1 inline-block px-1.5 py-0.5 bg-red-500/15 border border-red-500/25 text-red-400 text-[10px] font-bold rounded">dup</span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
 
                     {/* Usage */}
@@ -1537,7 +1887,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                   {/* ── Inline spec sheet row ── */}
                   {isSpecsOpen && hasSpecs && (
                     <tr className="bg-slate-900/40 border-t border-amber-500/10">
-                      <td colSpan={7} className="px-6 py-5">
+                      <td colSpan={9} className="px-6 py-5">
                         <SpecRenderer
                           specs={c.specifications as Record<string, unknown>}
                           modelName={c.supplier_model}
@@ -1589,11 +1939,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
           const comp = components.find((c) => c.component_id === lineItemModalId);
           if (!comp) return null;
           const items = quoteItems.filter((i) => i.component_id === lineItemModalId);
-          const posByQuote = new Map<number, string[]>();
-          pos.forEach((po) => {
-            if (po.quote_id == null) return;
-            posByQuote.set(po.quote_id, [...(posByQuote.get(po.quote_id) ?? []), po.po_number]);
-          });
+          const posByQuote = posByQuoteId;
 
           return (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
@@ -1627,15 +1973,11 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           {/* Quote / PI */}
                           <div className="col-span-2 sm:col-span-1">
                             <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Quote (PI)</label>
-                            <select
-                              value={eff.quote_id}
-                              onChange={(e) => setLineItemDraft((prev) => ({ ...prev, [item.quote_line_id]: { ...prev[item.quote_line_id], quote_id: Number(e.target.value) } }))}
-                              className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500"
-                            >
-                              {quotes.map((q) => (
-                                <option key={q.quote_id} value={q.quote_id}>{q.pi_number ?? `Quote #${q.quote_id}`}</option>
-                              ))}
-                            </select>
+                            <QuoteCombobox
+                              quotes={quotes}
+                              value={String(eff.quote_id)}
+                              onChange={(id) => setLineItemDraft((prev) => ({ ...prev, [item.quote_line_id]: { ...prev[item.quote_line_id], quote_id: id as any } }))}
+                            />
                           </div>
                           {/* Qty */}
                           <div>
@@ -1719,12 +2061,11 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                         <div className="col-span-2 sm:col-span-1">
                           <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Quote (PI)</label>
-                          <select value={newLineItem.quote_id}
-                            onChange={(e) => setNewLineItem((p) => p && { ...p, quote_id: e.target.value })}
-                            className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500">
-                            <option value="">— select —</option>
-                            {quotes.map((q) => <option key={q.quote_id} value={q.quote_id}>{q.pi_number ?? `Quote #${q.quote_id}`}</option>)}
-                          </select>
+                          <QuoteCombobox
+                            quotes={quotes}
+                            value={newLineItem.quote_id}
+                            onChange={(id) => setNewLineItem((p) => p && { ...p, quote_id: id })}
+                          />
                         </div>
                         <div>
                           <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Qty</label>

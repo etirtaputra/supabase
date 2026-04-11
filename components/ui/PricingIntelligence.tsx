@@ -213,6 +213,15 @@ function PriceBand({ tucIdr, xrUsd, floorUsd, market }: {
   );
 }
 
+// Highlight matching substring within a string
+function hl(text: string | null | undefined, q: string): React.ReactNode {
+  if (!text) return '—';
+  if (!q) return text;
+  const idx = text.toLowerCase().indexOf(q.toLowerCase());
+  if (idx === -1) return text;
+  return <>{text.slice(0, idx)}<mark className="bg-sky-500/30 text-sky-200 rounded-sm not-italic">{text.slice(idx, idx + q.length)}</mark>{text.slice(idx + q.length)}</>;
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function PricingIntelligence({
   components, poItems, pos, quoteItems, quotes, poCosts, competitorPrices, isLoading,
@@ -237,15 +246,40 @@ export default function PricingIntelligence({
     return () => document.removeEventListener('mousedown', h);
   }, []);
 
+  // ── Last quoted price per component (for dropdown preview) ───────────
+  const lastQuoteByComp = useMemo(() => {
+    const qMap = new Map(quotes.map((q) => [q.quote_id, q]));
+    const map = new Map<string, { price: number; currency: string; date: string }>();
+    quoteItems.forEach((item) => {
+      if (!item.component_id) return;
+      const q = qMap.get(item.quote_id);
+      if (!q) return;
+      const ex = map.get(item.component_id);
+      if (!ex || q.quote_date > ex.date) map.set(item.component_id, { price: item.unit_price, currency: item.currency, date: q.quote_date });
+    });
+    return map;
+  }, [quoteItems, quotes]);
+
   // ── Component search candidates ──────────────────────────────────────
   const candidates = useMemo(() => {
     const q = query.toLowerCase().trim();
     if (!q) return [];
-    return components.filter((c) =>
-      c.supplier_model?.toLowerCase().includes(q) ||
-      c.internal_description?.toLowerCase().includes(q) ||
-      c.brand?.toLowerCase().includes(q)
-    ).slice(0, 20);
+    const scoreOf = (c: Component) => {
+      const mod  = c.supplier_model?.toLowerCase() ?? '';
+      const desc = c.internal_description?.toLowerCase() ?? '';
+      if (mod.startsWith(q) || desc.startsWith(q)) return 0;
+      if (mod.includes(q)  || desc.includes(q))  return 1;
+      return 2;
+    };
+    return components
+      .filter((c) =>
+        c.supplier_model?.toLowerCase().includes(q) ||
+        c.internal_description?.toLowerCase().includes(q) ||
+        c.brand?.toLowerCase().includes(q) ||
+        c.category?.toLowerCase().includes(q)
+      )
+      .sort((a, b) => scoreOf(a) - scoreOf(b))
+      .slice(0, 20);
   }, [query, components]);
 
   const selectComp = (c: Component) => {
@@ -462,14 +496,37 @@ export default function PricingIntelligence({
           <ul className="absolute z-50 mt-2 w-full bg-slate-800/95 border border-slate-700 rounded-xl shadow-2xl overflow-auto max-h-80 ring-1 ring-white/10">
 
             {/* ── Search results ── */}
-            {query.trim() && candidates.map((c) => (
-              <li key={c.component_id} onMouseDown={() => selectComp(c)}
-                className="px-5 py-3.5 hover:bg-slate-700/50 cursor-pointer border-b border-slate-700/50 last:border-0 transition-colors group"
-              >
-                <div className="text-white text-sm font-semibold group-hover:text-sky-300 transition-colors">{c.internal_description}</div>
-                <div className="text-slate-400 text-xs mt-0.5">{c.supplier_model}{c.brand ? ` · ${c.brand}` : ''}</div>
-              </li>
-            ))}
+            {query.trim() && (
+              <>
+                <li className="px-4 pt-2.5 pb-1">
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+                    {candidates.length === 0 ? 'No results' : `${candidates.length} result${candidates.length === 1 ? '' : 's'}`}
+                  </span>
+                </li>
+                {candidates.map((c) => {
+                  const lp = lastQuoteByComp.get(c.component_id);
+                  const q = query.trim();
+                  return (
+                    <li key={c.component_id} onMouseDown={() => selectComp(c)}
+                      className="px-5 py-3 hover:bg-slate-700/50 cursor-pointer border-b border-slate-700/50 last:border-0 transition-colors group"
+                    >
+                      <div className="text-white text-sm font-semibold group-hover:text-sky-300 transition-colors">{hl(c.internal_description, q)}</div>
+                      <div className="text-slate-400 text-xs mt-0.5">
+                        {hl(c.supplier_model, q)}
+                        {c.brand && <> · <span className="text-slate-500">{hl(c.brand, q)}</span></>}
+                        {c.category && <span className="ml-1.5 px-1.5 py-0.5 bg-slate-700/60 text-slate-400 text-[10px] rounded">{c.category}</span>}
+                      </div>
+                      {lp && (
+                        <div className="text-sky-400/80 text-[11px] mt-0.5 tabular-nums">
+                          {lp.currency} {lp.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          <span className="text-slate-600 ml-1.5">last quoted {new Date(lp.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}</span>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </>
+            )}
 
             {/* ── Empty state: competitor data + recent searches ── */}
             {!query.trim() && (
