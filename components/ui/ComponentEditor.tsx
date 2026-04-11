@@ -4,8 +4,8 @@
  */
 'use client';
 
-import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
+import React, { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
+import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { createPortal } from 'react-dom';
 import { Spinner } from './LoadingSkeleton';
 import SpecRenderer from './SpecRenderer';
@@ -477,7 +477,21 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const selectAllRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const tableBodyRef = useRef<HTMLTableSectionElement | null>(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
+
+  // Keep scroll margin current so the window virtualizer aligns correctly
+  useLayoutEffect(() => {
+    const update = () => {
+      if (tableBodyRef.current) {
+        const rect = tableBodyRef.current.getBoundingClientRect();
+        setScrollMargin(rect.top + window.scrollY);
+      }
+    };
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [specsOpenIds, setSpecsOpenIds] = useState<Set<string>>(new Set());
   const [lineItemModalId, setLineItemModalId] = useState<string | null>(null);
   const [lineItemDraft, setLineItemDraft] = useState<Record<number | string, Partial<PriceQuoteLineItem>>>({});
@@ -912,12 +926,12 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     });
   };
 
-  // ── Virtual scrolling ─────────────────────────────────────────────────────
-  const rowVirtualizer = useVirtualizer({
+  // ── Virtual scrolling (window-based — no fixed-height container) ─────────
+  const rowVirtualizer = useWindowVirtualizer({
     count: flatRows.length,
-    getScrollElement: () => scrollContainerRef.current,
     estimateSize: (i) => (flatRows[i]?.type === 'specs' ? 200 : 56),
     overscan: 8,
+    scrollMargin,
   });
 
   // ── CSV Export ────────────────────────────────────────────────────────────
@@ -1319,11 +1333,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       )}
 
       {/* Table */}
-      <div
-        ref={scrollContainerRef}
-        className="overflow-x-auto overflow-y-auto"
-        style={{ maxHeight: '72vh' }}
-      >
+      <div className="overflow-x-auto">
         {filtered.length === 0 ? (
           <div className="py-16 text-center text-slate-500">
             <svg className="w-10 h-10 mx-auto mb-3 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1375,13 +1385,15 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
             </thead>
             {(() => {
                 const virtualItems = rowVirtualizer.getVirtualItems();
-                const paddingTop = virtualItems.length > 0 ? (virtualItems[0].start ?? 0) : 0;
+                // useWindowVirtualizer: .start is absolute from doc top; subtract scrollMargin to get list-relative offset
+                const paddingTop =
+                  virtualItems.length > 0 ? Math.max(0, (virtualItems[0].start ?? 0) - scrollMargin) : 0;
                 const paddingBottom =
                   virtualItems.length > 0
-                    ? rowVirtualizer.getTotalSize() - (virtualItems[virtualItems.length - 1]?.end ?? 0)
+                    ? Math.max(0, rowVirtualizer.getTotalSize() - (virtualItems[virtualItems.length - 1]?.end ?? 0) + scrollMargin)
                     : 0;
                 return (
-            <tbody className="divide-y divide-slate-800/50">
+            <tbody ref={tableBodyRef} className="divide-y divide-slate-800/50">
               {paddingTop > 0 && (
                 <tr><td colSpan={9} style={{ height: `${paddingTop}px`, padding: 0 }} /></tr>
               )}
