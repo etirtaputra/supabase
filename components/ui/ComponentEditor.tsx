@@ -26,6 +26,7 @@ interface ComponentEditorProps {
   pos?: PurchaseOrder[];
   poItems?: PurchaseLineItem[];
   onSave: (updates: { component_id: string; changes: Partial<Component> }[]) => Promise<void>;
+  onAdd?: (fields: Omit<Component, 'component_id' | 'created_at' | 'updated_at'>) => Promise<void>;
   onDelete?: (component_id: string) => Promise<void>;
   onSaveLineItem?: (item: Omit<PriceQuoteLineItem, 'quote_line_id' | 'created_at' | 'updated_at'> & { quote_line_id?: number }) => Promise<void>;
   onDeleteLineItem?: (quote_line_id: number) => Promise<void>;
@@ -434,7 +435,9 @@ function QuoteCombobox({ quotes, value, onChange }: QuoteComboboxProps) {
 }
 
 // --- Main Component Editor ---
-export default function ComponentEditor({ components, brandSuggestions, quoteItems = [], quotes = [], pos = [], poItems = [], onSave, onDelete, onSaveLineItem, onDeleteLineItem }: ComponentEditorProps) {
+const EMPTY_ADD = { supplier_model: '', internal_description: '', brand: '', category: '', specifications: '' };
+
+export default function ComponentEditor({ components, brandSuggestions, quoteItems = [], quotes = [], pos = [], poItems = [], onSave, onAdd, onDelete, onSaveLineItem, onDeleteLineItem }: ComponentEditorProps) {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [filterBrand, setFilterBrand] = useState('');
@@ -466,6 +469,9 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [newLineItem, setNewLineItem] = useState<{ quote_id: string; quantity: string; unit_price: string; currency: string; supplier_description: string } | null>(null);
   const [lineItemSaving, setLineItemSaving] = useState(false);
   const [hoveredTooltip, setHoveredTooltip] = useState<{ id: string; style: React.CSSProperties } | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addDraft, setAddDraft] = useState(EMPTY_ADD);
+  const [addSaving, setAddSaving] = useState(false);
 
   // ── Per-component usage stats ──────────────────────────────────────────────
   const usageMap = useMemo<Map<string, ComponentUsage>>(() => {
@@ -771,6 +777,28 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     }
   };
 
+  const handleAdd = async () => {
+    if (!onAdd || !addDraft.supplier_model.trim() || !addDraft.internal_description.trim()) return;
+    setAddSaving(true);
+    try {
+      let specs: any = undefined;
+      if (addDraft.specifications.trim()) {
+        try { specs = JSON.parse(addDraft.specifications); } catch { specs = addDraft.specifications; }
+      }
+      await onAdd({
+        supplier_model: addDraft.supplier_model.trim(),
+        internal_description: addDraft.internal_description.trim(),
+        brand: addDraft.brand.trim() || null as any,
+        category: (addDraft.category || null) as any,
+        specifications: specs,
+      });
+      setAddDraft(EMPTY_ADD);
+      setShowAddForm(false);
+    } finally {
+      setAddSaving(false);
+    }
+  };
+
   const handleSaveAll = async () => {
     if (!dirtyCount || saving) return;
     setSaving(true);
@@ -839,11 +867,117 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
           <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.8)]"></span>
         </div>
-        <div>
+        <div className="flex-1">
           <h3 className="text-lg font-bold text-white tracking-tight">Component Editor</h3>
           <p className="text-xs text-slate-500 mt-0.5">Click ✎ to edit a row. Changes are staged until you save.</p>
         </div>
+        {onAdd && (
+          <button
+            onClick={() => setShowAddForm((v) => !v)}
+            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border transition-all flex-shrink-0 ${
+              showAddForm
+                ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:text-emerald-300 hover:border-emerald-500/30'
+            }`}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            Add Component
+          </button>
+        )}
       </div>
+
+      {/* Inline Add Component form */}
+      {showAddForm && onAdd && (
+        <div className="p-4 md:p-5 border-b border-emerald-500/20 bg-emerald-500/[0.04]">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">New Component</p>
+            <button
+              onClick={() => { setShowAddForm(false); setAddDraft(EMPTY_ADD); }}
+              className="text-slate-500 hover:text-slate-300 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div>
+              <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">
+                Supplier Model / SKU <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                value={addDraft.supplier_model}
+                onChange={(e) => setAddDraft((p) => ({ ...p, supplier_model: e.target.value }))}
+                placeholder="e.g. SP-400W"
+                className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500 placeholder-slate-600"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">
+                Internal Description <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                value={addDraft.internal_description}
+                onChange={(e) => setAddDraft((p) => ({ ...p, internal_description: e.target.value }))}
+                placeholder="e.g. 400W Mono Panel"
+                className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500 placeholder-slate-600"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Brand</label>
+              <BrandInput
+                value={addDraft.brand}
+                onChange={(v) => setAddDraft((p) => ({ ...p, brand: v }))}
+                suggestions={brandSuggestions}
+                isDirty={false}
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Category</label>
+              <select
+                value={addDraft.category}
+                onChange={(e) => setAddDraft((p) => ({ ...p, category: e.target.value }))}
+                className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500"
+              >
+                <option value="">— none —</option>
+                {ENUMS.product_category.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="mt-3">
+            <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Specs (JSON)</label>
+            <textarea
+              value={addDraft.specifications}
+              onChange={(e) => setAddDraft((p) => ({ ...p, specifications: e.target.value }))}
+              placeholder={'{"watts": 400, "voltage": 48}'}
+              rows={2}
+              className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white font-mono focus:outline-none focus:border-emerald-500 placeholder-slate-600 resize-none"
+            />
+          </div>
+          <div className="flex justify-end gap-2 mt-3">
+            <button
+              onClick={() => { setShowAddForm(false); setAddDraft(EMPTY_ADD); }}
+              disabled={addSaving}
+              className="px-3 py-1.5 text-xs font-semibold text-slate-400 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-all disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleAdd}
+              disabled={addSaving || !addDraft.supplier_model.trim() || !addDraft.internal_description.trim()}
+              className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {addSaving ? <><Spinner className="w-3.5 h-3.5" /> Saving…</> : 'Add Component'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Toolbar */}
       <div className="p-4 md:p-5 border-b border-slate-800/60 space-y-3">

@@ -54,7 +54,6 @@ function MasterInsertPage() {
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get('tab') as Tab) || 'catalog';
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
-  const [catalogMode, setCatalogMode] = useState<'add' | 'edit'>('add');
   const [loading, setLoading] = useState(false);
   const [pdfData, setPdfData] = useState<any>(null);
   const [paymentMode, setPaymentMode] = useState<'single' | 'batch'>('single');
@@ -326,7 +325,7 @@ function MasterInsertPage() {
 
       {/* ── Main content ── */}
       <main className={`max-w-[1800px] mx-auto animate-in fade-in duration-300 ${
-        activeTab === 'catalog' && catalogMode === 'edit' ? 'p-3 md:p-4 xl:p-5' : 'p-4 md:p-6 xl:p-8 2xl:p-10'
+        activeTab === 'catalog' ? 'p-3 md:p-4 xl:p-5' : 'p-4 md:p-6 xl:p-8 2xl:p-10'
       }`}>
         <div className="pb-8 md:pb-4">
           {dataLoading ? (
@@ -338,70 +337,34 @@ function MasterInsertPage() {
             <>
               {/* Catalog Tab */}
               {activeTab === 'catalog' && (
-                <>
-                  {/* Add / Edit toggle */}
-                  <div className="flex items-center gap-3 mb-5">
-                    <div className="flex rounded-xl overflow-hidden border border-slate-700 text-xs font-semibold">
-                      <button
-                        onClick={() => setCatalogMode('add')}
-                        className={`px-4 py-2 transition-colors ${catalogMode === 'add' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800/60 text-slate-400 hover:text-slate-300'}`}
-                      >Add New</button>
-                      <button
-                        onClick={() => setCatalogMode('edit')}
-                        className={`px-4 py-2 transition-colors ${catalogMode === 'edit' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800/60 text-slate-400 hover:text-slate-300'}`}
-                      >Edit Components</button>
-                    </div>
-                    <p className="text-xs text-slate-500">
-                      {catalogMode === 'add' ? 'Add suppliers and components to your catalog.' : 'Search, edit, and manage existing components.'}
-                    </p>
-                  </div>
-
-                  {catalogMode === 'add' && (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 xl:gap-8 2xl:gap-10">
-                      <SimpleForm
-                        title="Add New Supplier"
-                        fields={[
-                          { name: 'supplier_name', label: 'Supplier Name', type: 'text', req: true, suggestions: suggestions.supplierNames },
-                          { name: 'supplier_code', label: 'Supplier Code', type: 'text', placeholder: 'SUP-001' },
-                          { name: 'location', label: 'Location', type: 'text', suggestions: suggestions.locations },
-                          { name: 'primary_contact_email', label: 'Email', type: 'email' },
-                          { name: 'payment_terms_default', label: 'Pay Terms', type: 'text', suggestions: suggestions.paymentTerms },
-                          { name: 'supplier_bank_details', label: 'Bank Details', type: 'textarea' },
-                        ]}
-                        onSubmit={(d) => handleInsert('2.0_suppliers', d)}
-                        loading={loading}
-                      />
-                      <BatchLineItemsForm
-                        title="Add New Component"
-                        gridLayout
-                        itemFields={[
-                          { name: 'supplier_model', label: 'Supplier Model / SKU', type: 'text', req: true, suggestions: suggestions.modelSkus },
-                          { name: 'internal_description', label: 'Internal Description', type: 'text', req: true, suggestions: suggestions.descriptions },
-                          { name: 'brand', label: 'Brand', type: 'text', suggestions: suggestions.brands },
-                          { name: 'category', label: 'Category', type: 'select', options: ENUMS.product_category },
-                          { name: 'specifications', label: 'Specs (JSON)', type: 'textarea', placeholder: '{"watts": 100}' },
-                        ]}
-                        onSubmit={(items) => handleInsert('3.0_components', items)}
-                        loading={loading}
-                      />
-                    </div>
-                  )}
-
-                  {catalogMode === 'edit' && (
-                    <ComponentEditor
-                      components={data.components}
-                      brandSuggestions={suggestions.brands}
-                      quoteItems={data.quoteItems}
-                      quotes={data.quotes}
-                      pos={data.pos}
-                      poItems={data.poItems}
-                      onSave={handleComponentUpdates}
-                      onDelete={handleComponentDelete}
-                      onSaveLineItem={handleSaveLineItem}
-                      onDeleteLineItem={handleDeleteLineItem}
-                    />
-                  )}
-                </>
+                <div className="space-y-4">
+                  <SimpleForm
+                    title="Add New Supplier"
+                    fields={[
+                      { name: 'supplier_name', label: 'Supplier Name', type: 'text', req: true, suggestions: suggestions.supplierNames },
+                      { name: 'supplier_code', label: 'Supplier Code', type: 'text', placeholder: 'SUP-001' },
+                      { name: 'location', label: 'Location', type: 'text', suggestions: suggestions.locations },
+                      { name: 'primary_contact_email', label: 'Email', type: 'email' },
+                      { name: 'payment_terms_default', label: 'Pay Terms', type: 'text', suggestions: suggestions.paymentTerms },
+                      { name: 'supplier_bank_details', label: 'Bank Details', type: 'textarea' },
+                    ]}
+                    onSubmit={(d) => handleInsert('2.0_suppliers', d)}
+                    loading={loading}
+                  />
+                  <ComponentEditor
+                    components={data.components}
+                    brandSuggestions={suggestions.brands}
+                    quoteItems={data.quoteItems}
+                    quotes={data.quotes}
+                    pos={data.pos}
+                    poItems={data.poItems}
+                    onSave={handleComponentUpdates}
+                    onAdd={(fields) => handleInsert('3.0_components', [fields])}
+                    onDelete={handleComponentDelete}
+                    onSaveLineItem={handleSaveLineItem}
+                    onDeleteLineItem={handleDeleteLineItem}
+                  />
+                </div>
               )}
 
               {/* Quoting Tab */}
