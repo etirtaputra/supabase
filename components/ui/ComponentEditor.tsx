@@ -198,6 +198,163 @@ function BrandInput({ value, onChange, suggestions, isDirty }: BrandInputProps) 
   );
 }
 
+// ── Portal combobox components ────────────────────────────────────────────────
+interface FilterComboboxProps {
+  options: readonly string[];
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  minWidth?: number;
+  className?: string;
+}
+function FilterCombobox({ options, value, onChange, placeholder, minWidth = 140, className = '' }: FilterComboboxProps) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [dropStyle, setDropStyle] = useState<React.CSSProperties>({});
+
+  const inputDisplay = open ? query : value;
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    if (!q) return options;
+    return options.filter((o) => o.toLowerCase().includes(q));
+  }, [options, query]);
+
+  const openDrop = () => {
+    if (!inputRef.current) return;
+    const r = inputRef.current.getBoundingClientRect();
+    setDropStyle({ position: 'fixed', top: r.bottom + 4, left: r.left, width: Math.max(r.width, minWidth), zIndex: 9999 });
+    setOpen(true);
+  };
+
+  const select = (v: string) => { onChange(v); setQuery(''); setOpen(false); };
+  const handleBlur = () => setTimeout(() => setOpen(false), 160);
+
+  return (
+    <div className={`relative w-full ${className}`}>
+      <input
+        ref={inputRef}
+        type="text"
+        value={inputDisplay}
+        onFocus={() => { openDrop(); setQuery(''); }}
+        onChange={(e) => { setQuery(e.target.value); if (!open) openDrop(); }}
+        onBlur={handleBlur}
+        placeholder={placeholder}
+        className="w-full py-2.5 px-3 pr-7 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:outline-none placeholder-slate-500"
+      />
+      {value ? (
+        <button onMouseDown={(e) => { e.preventDefault(); onChange(''); setQuery(''); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+      ) : (
+        <svg className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-600 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+      )}
+      {open && typeof document !== 'undefined' && createPortal(
+        <div style={dropStyle} className="bg-[#0D1424] border border-white/10 rounded-xl shadow-2xl overflow-hidden">
+          <div className="px-3 py-1.5 border-b border-white/5 flex items-center justify-between">
+            <span className="text-[10px] text-slate-500">{filtered.length} option{filtered.length !== 1 ? 's' : ''}</span>
+            {query && <span className="text-[10px] text-blue-400">"{query}"</span>}
+          </div>
+          <div className="max-h-60 overflow-y-auto">
+            <button onMouseDown={() => select('')} className={`w-full text-left px-3 py-2 text-sm transition-colors border-b border-white/[0.04] ${value === '' ? 'bg-blue-500/15 text-blue-300' : 'text-slate-400 hover:bg-white/10'}`}>
+              {placeholder}
+            </button>
+            {filtered.length === 0 ? (
+              <p className="px-3 py-3 text-sm text-slate-500 italic">No matches</p>
+            ) : filtered.map((opt) => (
+              <button key={opt} onMouseDown={() => select(opt)}
+                className={`w-full text-left px-3 py-2 text-sm transition-colors border-b border-white/[0.04] last:border-0 ${opt === value ? 'bg-blue-500/15 text-blue-300' : 'text-slate-300 hover:bg-white/10'}`}>
+                {opt}
+              </button>
+            ))}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+interface QuoteComboboxProps {
+  quotes: PriceQuote[];
+  value: string;
+  onChange: (quoteId: string) => void;
+}
+function QuoteCombobox({ quotes, value, onChange }: QuoteComboboxProps) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [dropStyle, setDropStyle] = useState<React.CSSProperties>({});
+
+  const selectedQuote = quotes.find((q) => String(q.quote_id) === value);
+  const inputDisplay = open ? query : (selectedQuote?.pi_number ?? (value ? `#${value}` : ''));
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    if (!q) return quotes;
+    return quotes.filter((qt) =>
+      (qt.pi_number ?? '').toLowerCase().includes(q) ||
+      String(qt.quote_id).includes(q) ||
+      (qt.quote_date ?? '').includes(q)
+    );
+  }, [quotes, query]);
+
+  const openDrop = () => {
+    if (!inputRef.current) return;
+    const r = inputRef.current.getBoundingClientRect();
+    setDropStyle({ position: 'fixed', top: r.bottom + 4, left: r.left, width: Math.max(r.width, 280), zIndex: 9999 });
+    setOpen(true);
+  };
+
+  const select = (q: PriceQuote) => { onChange(String(q.quote_id)); setQuery(''); setOpen(false); };
+  const handleBlur = () => setTimeout(() => setOpen(false), 160);
+
+  return (
+    <div className="relative">
+      <input
+        ref={inputRef}
+        type="text"
+        value={inputDisplay}
+        onFocus={() => { openDrop(); setQuery(''); }}
+        onChange={(e) => { setQuery(e.target.value); if (!open) openDrop(); }}
+        onBlur={handleBlur}
+        placeholder="Search PI number…"
+        className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500 placeholder-slate-600"
+      />
+      {value && !open && (
+        <button onMouseDown={(e) => { e.preventDefault(); onChange(''); setQuery(''); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-300">
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+      )}
+      {open && typeof document !== 'undefined' && createPortal(
+        <div style={dropStyle} className="bg-[#0D1424] border border-white/10 rounded-xl shadow-2xl overflow-hidden">
+          <div className="px-3 py-1.5 border-b border-white/5 flex items-center justify-between">
+            <span className="text-[10px] text-slate-500">{filtered.length} of {quotes.length} quotes</span>
+            {query && <span className="text-[10px] text-blue-400">"{query}"</span>}
+          </div>
+          <div className="max-h-64 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="px-3 py-3 text-xs text-slate-500 italic">No matches</p>
+            ) : filtered.map((qt) => (
+              <button key={qt.quote_id} onMouseDown={() => select(qt)}
+                className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center gap-2 border-b border-white/[0.04] last:border-0 ${String(qt.quote_id) === value ? 'bg-blue-500/15 text-blue-300' : 'text-slate-300 hover:bg-white/10'}`}
+              >
+                <span className="font-semibold flex-1 truncate">{qt.pi_number ?? `Quote #${qt.quote_id}`}</span>
+                {qt.quote_date && <span className="text-slate-600 text-[10px] flex-shrink-0">{qt.quote_date}</span>}
+                {qt.currency && qt.total_value != null && (
+                  <span className="text-slate-600 text-[10px] tabular-nums flex-shrink-0">{qt.currency} {Number(qt.total_value).toLocaleString()}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
 // --- Usage Tooltip (portal-based to escape table overflow) ---
 interface TooltipQuoteLine { pi_number?: string; quote_date?: string; quantity: number; unit_price: number; currency: string; }
 interface TooltipPOLine { po_number: string; po_date?: string; quantity: number; unit_cost: number; currency: string; }
