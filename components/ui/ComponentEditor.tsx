@@ -5,6 +5,7 @@
 'use client';
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { createPortal } from 'react-dom';
 import { Spinner } from './LoadingSkeleton';
 import SpecRenderer from './SpecRenderer';
@@ -433,6 +434,32 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [filterUnused, setFilterUnused] = useState(false);
   const [filterDuplicates, setFilterDuplicates] = useState(false);
 
+  // ── Restore filters from localStorage on mount ────────────────────────────
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('componentEditor_filters');
+      if (saved) {
+        const f = JSON.parse(saved);
+        if (f.searchInput) { setSearchInput(f.searchInput); setSearch(f.searchInput); }
+        if (f.filterBrand) setFilterBrand(f.filterBrand);
+        if (f.filterCategory) setFilterCategory(f.filterCategory);
+        if (f.filterPI) setFilterPI(f.filterPI);
+        if (f.filterPO) setFilterPO(f.filterPO);
+        if (f.filterUnused) setFilterUnused(f.filterUnused);
+        if (f.filterDuplicates) setFilterDuplicates(f.filterDuplicates);
+      }
+    } catch {}
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Persist filters to localStorage whenever they change ─────────────────
+  useEffect(() => {
+    try {
+      localStorage.setItem('componentEditor_filters', JSON.stringify({
+        searchInput, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates,
+      }));
+    } catch {}
+  }, [searchInput, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates]);
+
   // Debounce search so heavy filtering doesn't block every keystroke
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput), 150);
@@ -450,6 +477,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const selectAllRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [specsOpenIds, setSpecsOpenIds] = useState<Set<string>>(new Set());
   const [lineItemModalId, setLineItemModalId] = useState<string | null>(null);
   const [lineItemDraft, setLineItemDraft] = useState<Record<number | string, Partial<PriceQuoteLineItem>>>({});
@@ -631,6 +659,25 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
     });
   }, [components, search, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, sortCol, sortDir, usageMap, duplicateModels]);
+
+  // Flat list for virtual scrolling: main rows + inline spec rows
+  const flatRows = useMemo(() => {
+    type FlatRow =
+      | { type: 'row'; component: Component }
+      | { type: 'specs'; component: Component };
+    const rows: FlatRow[] = [];
+    for (const c of filtered) {
+      rows.push({ type: 'row', component: c });
+      const hasSpecs =
+        c.specifications &&
+        typeof c.specifications === 'object' &&
+        Object.keys(c.specifications as object).length > 0;
+      if (specsOpenIds.has(c.component_id) && hasSpecs) {
+        rows.push({ type: 'specs', component: c });
+      }
+    }
+    return rows;
+  }, [filtered, specsOpenIds]);
 
   const toggleSort = (col: SortCol) => {
     if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -864,6 +911,41 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       return n;
     });
   };
+
+  // ── Virtual scrolling ─────────────────────────────────────────────────────
+  const rowVirtualizer = useVirtualizer({
+    count: flatRows.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: (i) => (flatRows[i]?.type === 'specs' ? 200 : 56),
+    overscan: 8,
+  });
+
+  // ── CSV Export ────────────────────────────────────────────────────────────
+  const downloadCSV = useCallback(() => {
+    const headers = ['Model/SKU', 'Description', 'Brand', 'Category', 'Quotes', 'Line Items', 'Last Price', 'Currency'];
+    const rows = filtered.map((c) => {
+      const u = usageMap.get(c.component_id);
+      const lq = lastQuoteByComponent.get(c.component_id);
+      return [
+        c.supplier_model ?? '',
+        c.internal_description ?? '',
+        c.brand ?? '',
+        c.category ?? '',
+        u?.quoteCount ?? 0,
+        u?.lineItemCount ?? 0,
+        lq ? lq.price.toFixed(2) : '',
+        lq?.currency ?? '',
+      ].map((v) => `"${String(v).replace(/"/g, '""')}"`);
+    });
+    const csv = [headers.map((h) => `"${h}"`), ...rows].map((r) => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `components_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [filtered, usageMap, lastQuoteByComponent]);
 
   const fmtDate = (ts?: string) => {
     if (!ts) return '—';
@@ -1115,6 +1197,17 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
             )}
           </p>
           <div className="flex gap-2 items-center flex-wrap">
+            {/* CSV export */}
+            <button
+              onClick={downloadCSV}
+              title="Export visible components to CSV"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-400 bg-slate-800/60 border border-slate-700 rounded-lg hover:text-emerald-300 hover:border-emerald-500/30 transition-all"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              CSV
+            </button>
             {/* Bulk delete controls */}
             {onDelete && selectedIds.size > 0 && (
               confirmBulkDelete ? (
@@ -1226,7 +1319,11 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       )}
 
       {/* Table */}
-      <div className="overflow-x-auto">
+      <div
+        ref={scrollContainerRef}
+        className="overflow-x-auto overflow-y-auto"
+        style={{ maxHeight: '72vh' }}
+      >
         {filtered.length === 0 ? (
           <div className="py-16 text-center text-slate-500">
             <svg className="w-10 h-10 mx-auto mb-3 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1276,17 +1373,54 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                 <th className="px-4 py-3 w-28 text-right text-xs font-bold uppercase tracking-wider text-slate-600">Actions</th>
               </tr>
             </thead>
+            {(() => {
+                const virtualItems = rowVirtualizer.getVirtualItems();
+                const paddingTop = virtualItems.length > 0 ? (virtualItems[0].start ?? 0) : 0;
+                const paddingBottom =
+                  virtualItems.length > 0
+                    ? rowVirtualizer.getTotalSize() - (virtualItems[virtualItems.length - 1]?.end ?? 0)
+                    : 0;
+                return (
             <tbody className="divide-y divide-slate-800/50">
-              {filtered.map((c) => {
+              {paddingTop > 0 && (
+                <tr><td colSpan={9} style={{ height: `${paddingTop}px`, padding: 0 }} /></tr>
+              )}
+              {virtualItems.map((vr) => {
+                const row = flatRows[vr.index];
+                if (!row) return null;
+                const c = row.component;
+
+                // ── Specs expansion row ──────────────────────────────────
+                if (row.type === 'specs') {
+                  return (
+                    <tr
+                      key={`specs-${c.component_id}`}
+                      data-index={vr.index}
+                      ref={rowVirtualizer.measureElement}
+                      className="bg-slate-900/40 border-t border-amber-500/10"
+                    >
+                      <td colSpan={9} className="px-6 py-5">
+                        <SpecRenderer
+                          specs={c.specifications as Record<string, unknown>}
+                          modelName={c.supplier_model}
+                        />
+                      </td>
+                    </tr>
+                  );
+                }
+
+                // ── Main component row ───────────────────────────────────
                 const k = rowKey(c);
                 const isEditing = editingIds.has(c.component_id);
                 const isDirty = k in pending;
                 const isSpecsOpen = specsOpenIds.has(c.component_id);
-                const hasSpecs = c.specifications && typeof c.specifications === 'object' && Object.keys(c.specifications).length > 0;
+                const hasSpecs = c.specifications && typeof c.specifications === 'object' && Object.keys(c.specifications as object).length > 0;
 
                 return (
-                  <React.Fragment key={c.component_id}>
                   <tr
+                    key={c.component_id}
+                    data-index={vr.index}
+                    ref={rowVirtualizer.measureElement}
                     onDoubleClick={() => { if (!isEditing) toggleEdit(c.component_id); }}
                     className={`transition-colors cursor-pointer ${
                       selectedIds.has(String(c.component_id))
@@ -1607,21 +1741,14 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                       </div>
                     </td>
                   </tr>
-                  {/* ── Inline spec sheet row ── */}
-                  {isSpecsOpen && hasSpecs && (
-                    <tr className="bg-slate-900/40 border-t border-amber-500/10">
-                      <td colSpan={9} className="px-6 py-5">
-                        <SpecRenderer
-                          specs={c.specifications as Record<string, unknown>}
-                          modelName={c.supplier_model}
-                        />
-                      </td>
-                    </tr>
-                  )}
-                  </React.Fragment>
                 );
               })}
+              {paddingBottom > 0 && (
+                <tr><td colSpan={9} style={{ height: `${paddingBottom}px`, padding: 0 }} /></tr>
+              )}
             </tbody>
+                );
+              })()}
           </table>
         )}
       </div>
@@ -1656,7 +1783,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       )}
     </div>
 
-      {/* ── Line-item association modal (portal, sibling to main div) ─────── */}
+      {/* ── Line-item association side panel (portal, sibling to main div) ─── */}
       {lineItemModalId && typeof document !== 'undefined' && createPortal(
         (() => {
           const comp = components.find((c) => c.component_id === lineItemModalId);
@@ -1665,9 +1792,16 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
           const posByQuote = posByQuoteId;
 
           return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-              onClick={(e) => { if (e.target === e.currentTarget) setLineItemModalId(null); }}>
-              <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col">
+            <>
+              {/* Backdrop */}
+              <div
+                className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+                onClick={() => setLineItemModalId(null)}
+              />
+              {/* Side panel */}
+              <div className="fixed inset-y-0 right-0 z-50 w-[540px] max-w-full flex flex-col bg-slate-900 border-l border-slate-700 shadow-2xl"
+                style={{ animation: 'slideInRight 0.2s ease-out' }}
+              >
                 {/* Modal header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
                   <div>
@@ -1836,12 +1970,12 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                   )}
                 </div>
 
-                {/* Modal footer */}
+                {/* Panel footer */}
                 <div className="px-6 py-3 border-t border-slate-800 flex justify-end">
                   <button onClick={() => setLineItemModalId(null)} className="px-4 py-2 text-sm font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-all">Close</button>
                 </div>
               </div>
-            </div>
+            </>
           );
         })(),
         document.body
