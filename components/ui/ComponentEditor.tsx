@@ -232,7 +232,7 @@ function FilterCombobox({ options, value, onChange, placeholder, minWidth = 140,
   const handleBlur = () => setTimeout(() => setOpen(false), 160);
 
   return (
-    <div className={`relative w-full ${className}`}>
+    <div className={`relative ${className}`}>
       <input
         ref={inputRef}
         type="text"
@@ -903,34 +903,6 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         <div className="flex-1">
           <h3 className="text-lg font-bold text-white tracking-tight">Component Editor</h3>
           <p className="text-xs text-slate-500 mt-0.5">Click ✎ to edit · <kbd className="px-1 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Ctrl+S</kbd> to save · <kbd className="px-1 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">/</kbd> to search</p>
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {onAddSupplier && (
-            <button
-              onClick={onAddSupplier}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border transition-all bg-slate-800/60 border-slate-700 text-slate-400 hover:text-sky-300 hover:border-sky-500/30"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-              </svg>
-              Add Supplier
-            </button>
-          )}
-          {onAdd && (
-            <button
-              onClick={() => setShowAddForm((v) => !v)}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border transition-all ${
-                showAddForm
-                  ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
-                  : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:text-emerald-300 hover:border-emerald-500/30'
-              }`}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-              </svg>
-              Add Component
-            </button>
-          )}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           {onAddSupplier && (
