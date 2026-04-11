@@ -35,6 +35,42 @@ type SortCol = 'supplier_model' | 'internal_description' | 'brand' | 'category' 
 // Key components by their string ID to avoid Number(key)=NaN edge cases
 type PendingEdits = Record<string, Partial<Component>>;
 
+// ── Active filter chip ─────────────────────────────────────────────────────────
+function ActiveChip({ label, value, onClear }: { label: string; value?: string; onClear: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 text-[11px] bg-white/5 border border-white/10 text-slate-300 rounded-full">
+      <span className="text-slate-500">{label}{value ? ':' : ''}</span>
+      {value && <span className="font-medium truncate max-w-[120px]">{value}</span>}
+      <button
+        onMouseDown={onClear}
+        className="ml-0.5 w-4 h-4 flex items-center justify-center rounded-full hover:bg-white/15 text-slate-500 hover:text-white transition-colors flex-shrink-0"
+      >
+        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </span>
+  );
+}
+
+// ── Copy button ─────────────────────────────────────────────────────────────────
+function CopyBtn({ text }: { text: string | null | undefined }) {
+  const [copied, setCopied] = React.useState(false);
+  if (!text) return null;
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1400); }); }}
+      title="Copy"
+      className="inline-flex items-center justify-center w-5 h-5 rounded text-slate-600 hover:text-slate-300 hover:bg-white/10 transition-colors flex-shrink-0 ml-1 align-middle"
+    >
+      {copied
+        ? <svg className="w-3 h-3 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+        : <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>
+      }
+    </button>
+  );
+}
+
 // --- Brand Autocomplete (fixed-position dropdown to escape table overflow) ---
 interface BrandInputProps {
   value: string;
@@ -246,6 +282,11 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [saving, setSaving] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const selectAllRef = useRef<HTMLInputElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [specsOpenIds, setSpecsOpenIds] = useState<Set<string>>(new Set());
   const [lineItemModalId, setLineItemModalId] = useState<string | null>(null);
   const [lineItemDraft, setLineItemDraft] = useState<Record<number | string, Partial<PriceQuoteLineItem>>>({});
@@ -505,6 +546,51 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     }
   };
 
+  const applyBatchField = (field: 'brand' | 'category', value: string) => {
+    filtered.forEach((c) => {
+      if (selectedIds.has(c.component_id)) setField(c, field, value || null);
+    });
+  };
+
+  const clearAllFilters = () => {
+    setSearchInput(''); setSearch('');
+    setFilterBrand(''); setFilterCategory(''); setFilterPI(''); setFilterPO('');
+    setFilterUnused(false); setFilterDuplicates(false);
+  };
+
+  // ── Keyboard shortcuts ────────────────────────────────────────────────────
+  // Use a ref so the handler always has the latest handleSaveAll without
+  // re-registering the listener on every render.
+  const handleSaveAllRef = useRef(handleSaveAll);
+  handleSaveAllRef.current = handleSaveAll;
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // Ctrl/Cmd+S → save staged edits
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        handleSaveAllRef.current();
+        return;
+      }
+      const target = e.target as HTMLElement;
+      const inInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT';
+      // / → focus search bar
+      if (e.key === '/' && !inInput) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        return;
+      }
+      // Esc → clear search when search is focused
+      if (e.key === 'Escape' && document.activeElement === searchInputRef.current) {
+        setSearchInput('');
+        setSearch('');
+        searchInputRef.current?.blur();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []); // register once; ref keeps handleSaveAll current
+
   const toggleEdit = (id: string) => {
     setEditingIds((prev) => {
       const n = new Set(prev);
@@ -558,9 +644,112 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         </div>
         <div>
           <h3 className="text-lg font-bold text-white tracking-tight">Component Editor</h3>
-          <p className="text-xs text-slate-500 mt-0.5">Click ✎ to edit a row. Changes are staged until you save.</p>
+          <p className="text-xs text-slate-500 mt-0.5">Click ✎ to edit · <kbd className="px-1 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Ctrl+S</kbd> to save · <kbd className="px-1 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">/</kbd> to search</p>
         </div>
       </div>
+
+      {/* Inline Add Component form */}
+      {showAddForm && onAdd && (
+        <div className="p-4 md:p-5 border-b border-emerald-500/20 bg-emerald-500/[0.04]">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">New Component</p>
+            <button
+              onClick={() => { setShowAddForm(false); setAddDraft(EMPTY_ADD); }}
+              className="text-slate-500 hover:text-slate-300 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div>
+              <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">
+                Supplier Model / SKU <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                value={addDraft.supplier_model}
+                onChange={(e) => setAddDraft((p) => ({ ...p, supplier_model: e.target.value }))}
+                placeholder="e.g. SP-400W"
+                className={`w-full px-2.5 py-1.5 bg-slate-950 border rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500 placeholder-slate-600 ${
+                  addDraft.supplier_model.trim() && components.some((c) => c.supplier_model?.toLowerCase().trim() === addDraft.supplier_model.toLowerCase().trim())
+                    ? 'border-amber-500/60'
+                    : 'border-slate-700'
+                }`}
+              />
+              {addDraft.supplier_model.trim() && components.some((c) => c.supplier_model?.toLowerCase().trim() === addDraft.supplier_model.toLowerCase().trim()) && (
+                <p className="mt-1 text-[11px] text-amber-400 flex items-center gap-1">
+                  <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.538-1.333-3.308 0L3.732 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  Model already exists — possible duplicate
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">
+                Internal Description <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                value={addDraft.internal_description}
+                onChange={(e) => setAddDraft((p) => ({ ...p, internal_description: e.target.value }))}
+                placeholder="e.g. 400W Mono Panel"
+                className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500 placeholder-slate-600"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Brand</label>
+              <BrandInput
+                value={addDraft.brand}
+                onChange={(v) => setAddDraft((p) => ({ ...p, brand: v }))}
+                suggestions={brandSuggestions}
+                isDirty={false}
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Category</label>
+              <select
+                value={addDraft.category}
+                onChange={(e) => setAddDraft((p) => ({ ...p, category: e.target.value }))}
+                className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500"
+              >
+                <option value="">— none —</option>
+                {ENUMS.product_category.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="mt-3">
+            <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Specs (JSON)</label>
+            <textarea
+              value={addDraft.specifications}
+              onChange={(e) => setAddDraft((p) => ({ ...p, specifications: e.target.value }))}
+              placeholder={'{"watts": 400, "voltage": 48}'}
+              rows={2}
+              className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white font-mono focus:outline-none focus:border-emerald-500 placeholder-slate-600 resize-none"
+            />
+          </div>
+          <div className="flex justify-end gap-2 mt-3">
+            <button
+              onClick={() => { setShowAddForm(false); setAddDraft(EMPTY_ADD); }}
+              disabled={addSaving}
+              className="px-3 py-1.5 text-xs font-semibold text-slate-400 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-all disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleAdd}
+              disabled={addSaving || !addDraft.supplier_model.trim() || !addDraft.internal_description.trim()}
+              className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {addSaving ? <><Spinner className="w-3.5 h-3.5" /> Saving…</> : 'Add Component'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Toolbar */}
       <div className="p-4 md:p-5 border-b border-slate-800/60 space-y-3">
@@ -571,8 +760,9 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
+              ref={searchInputRef}
               type="text"
-              placeholder="Search model, description, brand..."
+              placeholder="Search model, description, brand… (press / to focus)"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               className="w-full pl-9 pr-8 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none placeholder-slate-600"
@@ -663,7 +853,61 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
             </button>
           </div>
         </div>
+
+        {/* Batch field edit — appears when rows are selected */}
+        {selectedIds.size > 0 && (
+          <div className="flex flex-wrap items-center gap-2 pt-2.5 border-t border-white/5">
+            <span className="text-[11px] text-slate-400 flex-shrink-0">
+              Set for <span className="text-sky-300 font-semibold">{selectedIds.size}</span> selected:
+            </span>
+            <select
+              defaultValue=""
+              onChange={(e) => {
+                if (e.target.value) { applyBatchField('brand', e.target.value); e.currentTarget.value = ''; }
+              }}
+              className="py-1.5 px-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-sky-500 min-w-[120px]"
+            >
+              <option value="" disabled>Brand…</option>
+              {uniqueBrands.map((b) => <option key={b} value={b}>{b}</option>)}
+            </select>
+            <select
+              defaultValue=""
+              onChange={(e) => {
+                if (e.target.value) { applyBatchField('category', e.target.value); e.currentTarget.value = ''; }
+              }}
+              className="py-1.5 px-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-sky-500 min-w-[140px]"
+            >
+              <option value="" disabled>Category…</option>
+              {ENUMS.product_category.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+            </select>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="ml-auto text-[11px] text-slate-600 hover:text-slate-400 transition-colors"
+            >
+              Clear selection
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Active filter chips */}
+      {(search || filterBrand || filterCategory || filterPI || filterPO || filterUnused || filterDuplicates) && (
+        <div className="px-4 md:px-5 py-2.5 border-b border-slate-800/60 flex flex-wrap items-center gap-1.5 bg-slate-950/30">
+          {search && <ActiveChip label="Search" value={search} onClear={() => { setSearchInput(''); setSearch(''); }} />}
+          {filterBrand && <ActiveChip label="Brand" value={filterBrand} onClear={() => setFilterBrand('')} />}
+          {filterCategory && <ActiveChip label="Category" value={filterCategory} onClear={() => setFilterCategory('')} />}
+          {filterPI && <ActiveChip label="PI" value={filterPI} onClear={() => setFilterPI('')} />}
+          {filterPO && <ActiveChip label="PO" value={filterPO} onClear={() => setFilterPO('')} />}
+          {filterUnused && <ActiveChip label="Unused only" onClear={() => setFilterUnused(false)} />}
+          {filterDuplicates && <ActiveChip label="Duplicates only" onClear={() => setFilterDuplicates(false)} />}
+          <button
+            onMouseDown={clearAllFilters}
+            className="text-[11px] text-slate-600 hover:text-slate-300 ml-1 transition-colors"
+          >
+            Clear all
+          </button>
+        </div>
+      )}
 
       {/* Table */}
       <div className="overflow-x-auto">
@@ -676,7 +920,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
           </div>
         ) : (
           <table className="w-full">
-            <thead className="bg-slate-900/80 border-b border-slate-800">
+            <thead className="bg-slate-900/95 border-b border-slate-800 sticky top-0 z-20 backdrop-blur-sm">
               <tr>
                 <SortTh col="supplier_model" label="Model / SKU" />
                 <SortTh col="internal_description" label="Description" />
