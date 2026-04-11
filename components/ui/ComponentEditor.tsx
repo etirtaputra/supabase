@@ -243,18 +243,16 @@ function UsageTooltip({ quoteLines, poLines, style }: UsageTooltipProps) {
   return createPortal(content, document.body);
 }
 
-// --- Quote Combobox ---
-// Searchable autocomplete replacing the native <select> in the new-line-item form.
-// Uses a portal dropdown so it's never clipped by overflow-hidden ancestors.
-// ── Generic filter combobox (string value = display label) ──────────────────
+// ── Portal combobox components ────────────────────────────────────────────────
 interface FilterComboboxProps {
   options: readonly string[];
   value: string;
   onChange: (v: string) => void;
   placeholder: string;
   minWidth?: number;
+  className?: string;
 }
-function FilterCombobox({ options, value, onChange, placeholder, minWidth = 140 }: FilterComboboxProps) {
+function FilterCombobox({ options, value, onChange, placeholder, minWidth = 140, className = '' }: FilterComboboxProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -279,7 +277,7 @@ function FilterCombobox({ options, value, onChange, placeholder, minWidth = 140 
   const handleBlur = () => setTimeout(() => setOpen(false), 160);
 
   return (
-    <div className="relative w-full">
+    <div className={`relative w-full ${className}`}>
       <input
         ref={inputRef}
         type="text"
@@ -333,7 +331,6 @@ function QuoteCombobox({ quotes, value, onChange }: QuoteComboboxProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
   const [dropStyle, setDropStyle] = useState<React.CSSProperties>({});
 
   const selectedQuote = quotes.find((q) => String(q.quote_id) === value);
@@ -396,7 +393,7 @@ function QuoteCombobox({ quotes, value, onChange }: QuoteComboboxProps) {
         </button>
       )}
       {open && typeof document !== 'undefined' && createPortal(
-        <div ref={listRef} style={dropStyle} className="bg-[#0D1424] border border-white/10 rounded-xl shadow-2xl overflow-hidden">
+        <div style={dropStyle} className="bg-[#0D1424] border border-white/10 rounded-xl shadow-2xl overflow-hidden">
           {/* Search hint */}
           <div className="px-3 py-1.5 border-b border-white/5 flex items-center justify-between">
             <span className="text-[10px] text-slate-500">{filtered.length} of {quotes.length} quotes</span>
@@ -441,17 +438,17 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [filterBrand, setFilterBrand] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
   const [filterPI, setFilterPI] = useState('');
   const [filterPO, setFilterPO] = useState('');
+  const [filterUnused, setFilterUnused] = useState(false);
+  const [filterDuplicates, setFilterDuplicates] = useState(false);
 
   // Debounce search so heavy filtering doesn't block every keystroke
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput), 150);
     return () => clearTimeout(t);
   }, [searchInput]);
-  const [filterCategory, setFilterCategory] = useState('');
-  const [filterUnused, setFilterUnused]     = useState(false);
-  const [filterDuplicates, setFilterDuplicates] = useState(false);
   const [sortCol, setSortCol] = useState<SortCol>('supplier_model');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [editingIds, setEditingIds] = useState<Set<string>>(new Set());
@@ -514,26 +511,33 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     return map;
   }, [quoteItems, quotes, pos]);
 
-  // ── Hover tooltip: enriched quote lines & PO lines per component ───────────
-  const quoteLinesByComponent = useMemo(() => {
+  // ── Tooltip quote lines + last quoted price (single pass over quoteItems) ───
+  const { quoteLinesByComponent, lastQuoteByComponent } = useMemo(() => {
     const quoteMap = new Map(quotes.map((q) => [q.quote_id, q]));
-    const map = new Map<string, TooltipQuoteLine[]>();
+    const linesMap = new Map<string, TooltipQuoteLine[]>();
+    const lastMap = new Map<string, { price: number; currency: string; date: string }>();
     quoteItems.forEach((item) => {
       if (!item.component_id) return;
       const q = quoteMap.get(item.quote_id);
-      if (!map.has(item.component_id)) map.set(item.component_id, []);
-      map.get(item.component_id)!.push({
+      if (!linesMap.has(item.component_id)) linesMap.set(item.component_id, []);
+      linesMap.get(item.component_id)!.push({
         pi_number: q?.pi_number,
         quote_date: q?.quote_date,
         quantity: item.quantity,
         unit_price: item.unit_price,
         currency: item.currency,
       });
+      if (q) {
+        const existing = lastMap.get(item.component_id);
+        if (!existing || q.quote_date > existing.date) {
+          lastMap.set(item.component_id, { price: item.unit_price, currency: item.currency, date: q.quote_date });
+        }
+      }
     });
-    map.forEach((lines, cid) => {
-      map.set(cid, [...lines].sort((a, b) => (b.quote_date || '').localeCompare(a.quote_date || '')).slice(0, 5));
+    linesMap.forEach((lines, cid) => {
+      linesMap.set(cid, [...lines].sort((a, b) => (b.quote_date || '').localeCompare(a.quote_date || '')).slice(0, 5));
     });
-    return map;
+    return { quoteLinesByComponent: linesMap, lastQuoteByComponent: lastMap };
   }, [quoteItems, quotes]);
 
   const poLinesByComponent = useMemo(() => {
@@ -558,21 +562,15 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     return map;
   }, [poItems, pos]);
 
-  // ── Last quoted price per component ──────────────────────────────────────
-  const lastQuoteByComponent = useMemo(() => {
-    const quoteMap = new Map(quotes.map((q) => [q.quote_id, q]));
-    const map = new Map<string, { price: number; currency: string; date: string }>();
-    quoteItems.forEach((item) => {
-      if (!item.component_id) return;
-      const q = quoteMap.get(item.quote_id);
-      if (!q) return;
-      const existing = map.get(item.component_id);
-      if (!existing || q.quote_date > existing.date) {
-        map.set(item.component_id, { price: item.unit_price, currency: item.currency, date: q.quote_date });
-      }
+  // ── PO number lookup by quote_id (used in line-item modal) ──────────────────
+  const posByQuoteId = useMemo(() => {
+    const map = new Map<number, string[]>();
+    pos.forEach((po) => {
+      if (po.quote_id == null) return;
+      map.set(po.quote_id, [...(map.get(po.quote_id) ?? []), po.po_number]);
     });
     return map;
-  }, [quoteItems, quotes]);
+  }, [pos]);
 
   // ── Duplicate supplier_model detection ────────────────────────────────────
   const duplicateModels = useMemo(() => {
@@ -874,24 +872,16 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
             )}
           </div>
           {/* Brand filter */}
-          <div className="min-w-[140px]">
-            <FilterCombobox options={uniqueBrands} value={filterBrand} onChange={setFilterBrand} placeholder="All Brands" minWidth={140} />
-          </div>
+          <FilterCombobox options={uniqueBrands} value={filterBrand} onChange={setFilterBrand} placeholder="All Brands" minWidth={140} className="min-w-[140px]" />
           {/* Category filter */}
-          <div className="min-w-[160px]">
-            <FilterCombobox options={ENUMS.product_category} value={filterCategory} onChange={setFilterCategory} placeholder="All Categories" minWidth={180} />
-          </div>
+          <FilterCombobox options={ENUMS.product_category} value={filterCategory} onChange={setFilterCategory} placeholder="All Categories" minWidth={180} className="min-w-[160px]" />
           {/* PI filter */}
           {uniquePINumbers.length > 0 && (
-            <div className="min-w-[150px]">
-              <FilterCombobox options={uniquePINumbers} value={filterPI} onChange={setFilterPI} placeholder="All PIs" minWidth={150} />
-            </div>
+            <FilterCombobox options={uniquePINumbers} value={filterPI} onChange={setFilterPI} placeholder="All PIs" minWidth={150} className="min-w-[150px]" />
           )}
           {/* PO filter */}
           {uniquePONumbers.length > 0 && (
-            <div className="min-w-[150px]">
-              <FilterCombobox options={uniquePONumbers} value={filterPO} onChange={setFilterPO} placeholder="All POs" minWidth={150} />
-            </div>
+            <FilterCombobox options={uniquePONumbers} value={filterPO} onChange={setFilterPO} placeholder="All POs" minWidth={150} className="min-w-[150px]" />
           )}
           {/* Quick-filter toggles */}
           <button
@@ -1425,11 +1415,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
           const comp = components.find((c) => c.component_id === lineItemModalId);
           if (!comp) return null;
           const items = quoteItems.filter((i) => i.component_id === lineItemModalId);
-          const posByQuote = new Map<number, string[]>();
-          pos.forEach((po) => {
-            if (po.quote_id == null) return;
-            posByQuote.set(po.quote_id, [...(posByQuote.get(po.quote_id) ?? []), po.po_number]);
-          });
+          const posByQuote = posByQuoteId;
 
           return (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
