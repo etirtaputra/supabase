@@ -243,6 +243,122 @@ function UsageTooltip({ quoteLines, poLines, style }: UsageTooltipProps) {
   return createPortal(content, document.body);
 }
 
+// --- Quote Combobox ---
+// Searchable autocomplete replacing the native <select> in the new-line-item form.
+// Uses a portal dropdown so it's never clipped by overflow-hidden ancestors.
+interface QuoteComboboxProps {
+  quotes: PriceQuote[];
+  value: string;          // selected quote_id as string
+  onChange: (quoteId: string) => void;
+}
+
+function QuoteCombobox({ quotes, value, onChange }: QuoteComboboxProps) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const [dropStyle, setDropStyle] = useState<React.CSSProperties>({});
+
+  const selectedQuote = quotes.find((q) => String(q.quote_id) === value);
+
+  // What to show inside the input: query while typing, selected PI when closed
+  const inputDisplay = open ? query : (selectedQuote?.pi_number ?? (value ? `#${value}` : ''));
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    if (!q) return quotes; // full list when no query
+    return quotes.filter((qt) =>
+      (qt.pi_number ?? '').toLowerCase().includes(q) ||
+      String(qt.quote_id).includes(q) ||
+      (qt.quote_date ?? '').includes(q)
+    );
+  }, [quotes, query]);
+
+  const openDrop = () => {
+    if (!inputRef.current) return;
+    const r = inputRef.current.getBoundingClientRect();
+    setDropStyle({
+      position: 'fixed',
+      top: r.bottom + 4,
+      left: r.left,
+      width: Math.max(r.width, 280),
+      zIndex: 9999,
+    });
+    setOpen(true);
+  };
+
+  const select = (q: PriceQuote) => {
+    onChange(String(q.quote_id));
+    setQuery('');
+    setOpen(false);
+  };
+
+  const handleBlur = () => setTimeout(() => setOpen(false), 160);
+
+  return (
+    <div className="relative">
+      <input
+        ref={inputRef}
+        type="text"
+        value={inputDisplay}
+        onFocus={() => { openDrop(); setQuery(''); }}
+        onChange={(e) => { setQuery(e.target.value); if (!open) openDrop(); }}
+        onBlur={handleBlur}
+        placeholder="Search PI number…"
+        className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500 placeholder-slate-600"
+      />
+      {/* Clear button */}
+      {value && !open && (
+        <button
+          onMouseDown={(e) => { e.preventDefault(); onChange(''); setQuery(''); }}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-300"
+        >
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      )}
+      {open && typeof document !== 'undefined' && createPortal(
+        <div ref={listRef} style={dropStyle} className="bg-[#0D1424] border border-white/10 rounded-xl shadow-2xl overflow-hidden">
+          {/* Search hint */}
+          <div className="px-3 py-1.5 border-b border-white/5 flex items-center justify-between">
+            <span className="text-[10px] text-slate-500">{filtered.length} of {quotes.length} quotes</span>
+            {query && <span className="text-[10px] text-blue-400">"{query}"</span>}
+          </div>
+          <div className="max-h-64 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="px-3 py-3 text-xs text-slate-500 italic">No matches</p>
+            ) : filtered.map((qt) => (
+              <button
+                key={qt.quote_id}
+                onMouseDown={() => select(qt)}
+                className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center gap-2 border-b border-white/[0.04] last:border-0 ${
+                  String(qt.quote_id) === value
+                    ? 'bg-blue-500/15 text-blue-300'
+                    : 'text-slate-300 hover:bg-white/10'
+                }`}
+              >
+                <span className="font-semibold flex-1 truncate">
+                  {qt.pi_number ?? `Quote #${qt.quote_id}`}
+                </span>
+                {qt.quote_date && (
+                  <span className="text-slate-600 text-[10px] flex-shrink-0">{qt.quote_date}</span>
+                )}
+                {qt.currency && qt.total_value != null && (
+                  <span className="text-slate-600 text-[10px] tabular-nums flex-shrink-0">
+                    {qt.currency} {Number(qt.total_value).toLocaleString()}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
 // --- Main Component Editor ---
 export default function ComponentEditor({ components, brandSuggestions, quoteItems = [], quotes = [], pos = [], poItems = [], onSave, onDelete, onSaveLineItem, onDeleteLineItem }: ComponentEditorProps) {
   const [searchInput, setSearchInput] = useState('');
@@ -1382,12 +1498,11 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                         <div className="col-span-2 sm:col-span-1">
                           <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Quote (PI)</label>
-                          <select value={newLineItem.quote_id}
-                            onChange={(e) => setNewLineItem((p) => p && { ...p, quote_id: e.target.value })}
-                            className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500">
-                            <option value="">— select —</option>
-                            {quotes.map((q) => <option key={q.quote_id} value={q.quote_id}>{q.pi_number ?? `Quote #${q.quote_id}`}</option>)}
-                          </select>
+                          <QuoteCombobox
+                            quotes={quotes}
+                            value={newLineItem.quote_id}
+                            onChange={(id) => setNewLineItem((p) => p && { ...p, quote_id: id })}
+                          />
                         </div>
                         <div>
                           <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Qty</label>
