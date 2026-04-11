@@ -37,7 +37,25 @@ type SortCol = 'supplier_model' | 'internal_description' | 'brand' | 'category' 
 // Key components by their string ID to avoid Number(key)=NaN edge cases
 type PendingEdits = Record<string, Partial<Component>>;
 
-// ── Copy button ────────────────────────────────────────────────────────────────
+// ── Active filter chip ─────────────────────────────────────────────────────────
+function ActiveChip({ label, value, onClear }: { label: string; value?: string; onClear: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 text-[11px] bg-white/5 border border-white/10 text-slate-300 rounded-full">
+      <span className="text-slate-500">{label}{value ? ':' : ''}</span>
+      {value && <span className="font-medium truncate max-w-[120px]">{value}</span>}
+      <button
+        onMouseDown={onClear}
+        className="ml-0.5 w-4 h-4 flex items-center justify-center rounded-full hover:bg-white/15 text-slate-500 hover:text-white transition-colors flex-shrink-0"
+      >
+        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </span>
+  );
+}
+
+// ── Copy button ─────────────────────────────────────────────────────────────────
 function CopyBtn({ text }: { text: string | null | undefined }) {
   const [copied, setCopied] = React.useState(false);
   if (!text) return null;
@@ -180,71 +198,6 @@ function BrandInput({ value, onChange, suggestions, isDirty }: BrandInputProps) 
   );
 }
 
-// --- Usage Tooltip (portal-based to escape table overflow) ---
-interface TooltipQuoteLine { pi_number?: string; quote_date?: string; quantity: number; unit_price: number; currency: string; }
-interface TooltipPOLine { po_number: string; po_date?: string; quantity: number; unit_cost: number; currency: string; }
-interface UsageTooltipProps { quoteLines: TooltipQuoteLine[]; poLines: TooltipPOLine[]; style: React.CSSProperties; }
-function UsageTooltip({ quoteLines, poLines, style }: UsageTooltipProps) {
-  const fmtPrice = (n: number, cur: string) =>
-    `${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${cur}`;
-  const fmtD = (d?: string) =>
-    d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '—';
-  const content = (
-    <div style={style} className="bg-slate-950 border border-slate-700/80 rounded-xl shadow-2xl shadow-black/70 p-3.5 w-[380px] text-xs pointer-events-none z-[9999]">
-      {/* Quote lines */}
-      <div className="mb-3">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-blue-400 mb-2 flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block flex-shrink-0"></span>
-          Recent Quote Lines {quoteLines.length > 0 && <span className="text-slate-600 font-normal normal-case tracking-normal">({quoteLines.length} most recent)</span>}
-        </p>
-        {quoteLines.length === 0 ? (
-          <p className="text-slate-600 italic pl-3">No quote line items</p>
-        ) : (
-          <div>
-            <div className="grid grid-cols-[1fr_72px_44px_90px] gap-x-2 text-[10px] text-slate-500 pb-1.5 border-b border-slate-800 mb-1">
-              <span>PI #</span><span>Date</span><span className="text-right">Qty</span><span className="text-right">Unit Price</span>
-            </div>
-            {quoteLines.map((ql, i) => (
-              <div key={i} className="grid grid-cols-[1fr_72px_44px_90px] gap-x-2 py-1 border-b border-slate-800/40 last:border-0">
-                <span className="font-mono text-blue-300 truncate">{ql.pi_number || '—'}</span>
-                <span className="text-slate-400">{fmtD(ql.quote_date)}</span>
-                <span className="text-right text-slate-300">{ql.quantity}</span>
-                <span className="text-right text-emerald-300 font-semibold tabular-nums">{fmtPrice(ql.unit_price, ql.currency)}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-      {/* PO lines */}
-      <div className="border-t border-slate-800 pt-3">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 mb-2 flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block flex-shrink-0"></span>
-          Recent PO Lines {poLines.length > 0 && <span className="text-slate-600 font-normal normal-case tracking-normal">({poLines.length} most recent)</span>}
-        </p>
-        {poLines.length === 0 ? (
-          <p className="text-slate-600 italic pl-3">No PO line items</p>
-        ) : (
-          <div>
-            <div className="grid grid-cols-[1fr_72px_44px_90px] gap-x-2 text-[10px] text-slate-500 pb-1.5 border-b border-slate-800 mb-1">
-              <span>PO #</span><span>Date</span><span className="text-right">Qty</span><span className="text-right">Unit Cost</span>
-            </div>
-            {poLines.map((pl, i) => (
-              <div key={i} className="grid grid-cols-[1fr_72px_44px_90px] gap-x-2 py-1 border-b border-slate-800/40 last:border-0">
-                <span className="font-mono text-emerald-300 truncate">{pl.po_number}</span>
-                <span className="text-slate-400">{fmtD(pl.po_date)}</span>
-                <span className="text-right text-slate-300">{pl.quantity}</span>
-                <span className="text-right text-amber-300 font-semibold tabular-nums">{fmtPrice(pl.unit_cost, pl.currency)}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-  if (typeof document === 'undefined') return null;
-  return createPortal(content, document.body);
-}
-
 // ── Portal combobox components ────────────────────────────────────────────────
 interface FilterComboboxProps {
   options: readonly string[];
@@ -325,10 +278,9 @@ function FilterCombobox({ options, value, onChange, placeholder, minWidth = 140,
 
 interface QuoteComboboxProps {
   quotes: PriceQuote[];
-  value: string;          // selected quote_id as string
+  value: string;
   onChange: (quoteId: string) => void;
 }
-
 function QuoteCombobox({ quotes, value, onChange }: QuoteComboboxProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -336,13 +288,11 @@ function QuoteCombobox({ quotes, value, onChange }: QuoteComboboxProps) {
   const [dropStyle, setDropStyle] = useState<React.CSSProperties>({});
 
   const selectedQuote = quotes.find((q) => String(q.quote_id) === value);
-
-  // What to show inside the input: query while typing, selected PI when closed
   const inputDisplay = open ? query : (selectedQuote?.pi_number ?? (value ? `#${value}` : ''));
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
-    if (!q) return quotes; // full list when no query
+    if (!q) return quotes;
     return quotes.filter((qt) =>
       (qt.pi_number ?? '').toLowerCase().includes(q) ||
       String(qt.quote_id).includes(q) ||
@@ -353,22 +303,11 @@ function QuoteCombobox({ quotes, value, onChange }: QuoteComboboxProps) {
   const openDrop = () => {
     if (!inputRef.current) return;
     const r = inputRef.current.getBoundingClientRect();
-    setDropStyle({
-      position: 'fixed',
-      top: r.bottom + 4,
-      left: r.left,
-      width: Math.max(r.width, 280),
-      zIndex: 9999,
-    });
+    setDropStyle({ position: 'fixed', top: r.bottom + 4, left: r.left, width: Math.max(r.width, 280), zIndex: 9999 });
     setOpen(true);
   };
 
-  const select = (q: PriceQuote) => {
-    onChange(String(q.quote_id));
-    setQuery('');
-    setOpen(false);
-  };
-
+  const select = (q: PriceQuote) => { onChange(String(q.quote_id)); setQuery(''); setOpen(false); };
   const handleBlur = () => setTimeout(() => setOpen(false), 160);
 
   return (
@@ -383,20 +322,13 @@ function QuoteCombobox({ quotes, value, onChange }: QuoteComboboxProps) {
         placeholder="Search PI number…"
         className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500 placeholder-slate-600"
       />
-      {/* Clear button */}
       {value && !open && (
-        <button
-          onMouseDown={(e) => { e.preventDefault(); onChange(''); setQuery(''); }}
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-300"
-        >
-          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
+        <button onMouseDown={(e) => { e.preventDefault(); onChange(''); setQuery(''); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-300">
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
         </button>
       )}
       {open && typeof document !== 'undefined' && createPortal(
         <div style={dropStyle} className="bg-[#0D1424] border border-white/10 rounded-xl shadow-2xl overflow-hidden">
-          {/* Search hint */}
           <div className="px-3 py-1.5 border-b border-white/5 flex items-center justify-between">
             <span className="text-[10px] text-slate-500">{filtered.length} of {quotes.length} quotes</span>
             {query && <span className="text-[10px] text-blue-400">"{query}"</span>}
@@ -405,25 +337,13 @@ function QuoteCombobox({ quotes, value, onChange }: QuoteComboboxProps) {
             {filtered.length === 0 ? (
               <p className="px-3 py-3 text-xs text-slate-500 italic">No matches</p>
             ) : filtered.map((qt) => (
-              <button
-                key={qt.quote_id}
-                onMouseDown={() => select(qt)}
-                className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center gap-2 border-b border-white/[0.04] last:border-0 ${
-                  String(qt.quote_id) === value
-                    ? 'bg-blue-500/15 text-blue-300'
-                    : 'text-slate-300 hover:bg-white/10'
-                }`}
+              <button key={qt.quote_id} onMouseDown={() => select(qt)}
+                className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center gap-2 border-b border-white/[0.04] last:border-0 ${String(qt.quote_id) === value ? 'bg-blue-500/15 text-blue-300' : 'text-slate-300 hover:bg-white/10'}`}
               >
-                <span className="font-semibold flex-1 truncate">
-                  {qt.pi_number ?? `Quote #${qt.quote_id}`}
-                </span>
-                {qt.quote_date && (
-                  <span className="text-slate-600 text-[10px] flex-shrink-0">{qt.quote_date}</span>
-                )}
+                <span className="font-semibold flex-1 truncate">{qt.pi_number ?? `Quote #${qt.quote_id}`}</span>
+                {qt.quote_date && <span className="text-slate-600 text-[10px] flex-shrink-0">{qt.quote_date}</span>}
                 {qt.currency && qt.total_value != null && (
-                  <span className="text-slate-600 text-[10px] tabular-nums flex-shrink-0">
-                    {qt.currency} {Number(qt.total_value).toLocaleString()}
-                  </span>
+                  <span className="text-slate-600 text-[10px] tabular-nums flex-shrink-0">{qt.currency} {Number(qt.total_value).toLocaleString()}</span>
                 )}
               </button>
             ))}
@@ -433,6 +353,71 @@ function QuoteCombobox({ quotes, value, onChange }: QuoteComboboxProps) {
       )}
     </div>
   );
+}
+
+// --- Usage Tooltip (portal-based to escape table overflow) ---
+interface TooltipQuoteLine { pi_number?: string; quote_date?: string; quantity: number; unit_price: number; currency: string; }
+interface TooltipPOLine { po_number: string; po_date?: string; quantity: number; unit_cost: number; currency: string; }
+interface UsageTooltipProps { quoteLines: TooltipQuoteLine[]; poLines: TooltipPOLine[]; style: React.CSSProperties; }
+function UsageTooltip({ quoteLines, poLines, style }: UsageTooltipProps) {
+  const fmtPrice = (n: number, cur: string) =>
+    `${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${cur}`;
+  const fmtD = (d?: string) =>
+    d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '—';
+  const content = (
+    <div style={style} className="bg-slate-950 border border-slate-700/80 rounded-xl shadow-2xl shadow-black/70 p-3.5 w-[380px] text-xs pointer-events-none z-[9999]">
+      {/* Quote lines */}
+      <div className="mb-3">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-blue-400 mb-2 flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block flex-shrink-0"></span>
+          Recent Quote Lines {quoteLines.length > 0 && <span className="text-slate-600 font-normal normal-case tracking-normal">({quoteLines.length} most recent)</span>}
+        </p>
+        {quoteLines.length === 0 ? (
+          <p className="text-slate-600 italic pl-3">No quote line items</p>
+        ) : (
+          <div>
+            <div className="grid grid-cols-[1fr_72px_44px_90px] gap-x-2 text-[10px] text-slate-500 pb-1.5 border-b border-slate-800 mb-1">
+              <span>PI #</span><span>Date</span><span className="text-right">Qty</span><span className="text-right">Unit Price</span>
+            </div>
+            {quoteLines.map((ql, i) => (
+              <div key={i} className="grid grid-cols-[1fr_72px_44px_90px] gap-x-2 py-1 border-b border-slate-800/40 last:border-0">
+                <span className="font-mono text-blue-300 truncate">{ql.pi_number || '—'}</span>
+                <span className="text-slate-400">{fmtD(ql.quote_date)}</span>
+                <span className="text-right text-slate-300">{ql.quantity}</span>
+                <span className="text-right text-emerald-300 font-semibold tabular-nums">{fmtPrice(ql.unit_price, ql.currency)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {/* PO lines */}
+      <div className="border-t border-slate-800 pt-3">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 mb-2 flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block flex-shrink-0"></span>
+          Recent PO Lines {poLines.length > 0 && <span className="text-slate-600 font-normal normal-case tracking-normal">({poLines.length} most recent)</span>}
+        </p>
+        {poLines.length === 0 ? (
+          <p className="text-slate-600 italic pl-3">No PO line items</p>
+        ) : (
+          <div>
+            <div className="grid grid-cols-[1fr_72px_44px_90px] gap-x-2 text-[10px] text-slate-500 pb-1.5 border-b border-slate-800 mb-1">
+              <span>PO #</span><span>Date</span><span className="text-right">Qty</span><span className="text-right">Unit Cost</span>
+            </div>
+            {poLines.map((pl, i) => (
+              <div key={i} className="grid grid-cols-[1fr_72px_44px_90px] gap-x-2 py-1 border-b border-slate-800/40 last:border-0">
+                <span className="font-mono text-emerald-300 truncate">{pl.po_number}</span>
+                <span className="text-slate-400">{fmtD(pl.po_date)}</span>
+                <span className="text-right text-slate-300">{pl.quantity}</span>
+                <span className="text-right text-amber-300 font-semibold tabular-nums">{fmtPrice(pl.unit_cost, pl.currency)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+  if (typeof document === 'undefined') return null;
+  return createPortal(content, document.body);
 }
 
 // --- Main Component Editor ---
@@ -464,6 +449,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const selectAllRef = useRef<HTMLInputElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [specsOpenIds, setSpecsOpenIds] = useState<Set<string>>(new Set());
   const [lineItemModalId, setLineItemModalId] = useState<string | null>(null);
   const [lineItemDraft, setLineItemDraft] = useState<Record<number | string, Partial<PriceQuoteLineItem>>>({});
@@ -578,6 +564,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     });
     return map;
   }, [pos]);
+
 
   // ── Duplicate supplier_model detection ────────────────────────────────────
   const duplicateModels = useMemo(() => {
@@ -702,45 +689,6 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     }
   };
 
-  const openLineItemModal = (componentId: string) => {
-    setLineItemModalId(componentId);
-    setLineItemDraft({});
-    setNewLineItem(null);
-  };
-
-  const handleSaveLineItemDraft = async (original: PriceQuoteLineItem, draft: Partial<PriceQuoteLineItem>) => {
-    if (!onSaveLineItem) return;
-    setLineItemSaving(true);
-    try {
-      await onSaveLineItem({ ...original, ...draft });
-      setLineItemDraft((prev) => { const n = { ...prev }; delete n[original.quote_line_id]; return n; });
-    } finally { setLineItemSaving(false); }
-  };
-
-  const handleAddNewLineItem = async (componentId: string) => {
-    if (!onSaveLineItem || !newLineItem) return;
-    const qid = newLineItem.quote_id;
-    const qty = parseFloat(newLineItem.quantity);
-    const price = parseFloat(newLineItem.unit_price);
-    if (!qid || isNaN(qty) || isNaN(price)) return;
-    setLineItemSaving(true);
-    try {
-      await onSaveLineItem({
-        component_id: componentId,
-        quote_id: qid as any,
-        quantity: qty,
-        unit_price: price,
-        currency: (newLineItem.currency as any) || 'USD',
-        supplier_description: newLineItem.supplier_description || undefined,
-      });
-      setNewLineItem(null);
-    } finally { setLineItemSaving(false); }
-  };
-
-  // Derive dirty state from string keys — consistent with isDirty check below
-  const dirtyKeys = useMemo(() => Object.keys(pending), [pending]);
-  const dirtyCount = dirtyKeys.length;
-
   // ── Bulk selection ────────────────────────────────────────────────────────
   const allFilteredSelected = filtered.length > 0 && filtered.every((c) => selectedIds.has(String(c.component_id)));
   const someFilteredSelected = filtered.some((c) => selectedIds.has(String(c.component_id)));
@@ -800,6 +748,45 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     }
   };
 
+  const openLineItemModal = (componentId: string) => {
+    setLineItemModalId(componentId);
+    setLineItemDraft({});
+    setNewLineItem(null);
+  };
+
+  const handleSaveLineItemDraft = async (original: PriceQuoteLineItem, draft: Partial<PriceQuoteLineItem>) => {
+    if (!onSaveLineItem) return;
+    setLineItemSaving(true);
+    try {
+      await onSaveLineItem({ ...original, ...draft });
+      setLineItemDraft((prev) => { const n = { ...prev }; delete n[original.quote_line_id]; return n; });
+    } finally { setLineItemSaving(false); }
+  };
+
+  const handleAddNewLineItem = async (componentId: string) => {
+    if (!onSaveLineItem || !newLineItem) return;
+    const qid = newLineItem.quote_id;
+    const qty = parseFloat(newLineItem.quantity);
+    const price = parseFloat(newLineItem.unit_price);
+    if (!qid || isNaN(qty) || isNaN(price)) return;
+    setLineItemSaving(true);
+    try {
+      await onSaveLineItem({
+        component_id: componentId,
+        quote_id: qid as any,
+        quantity: qty,
+        unit_price: price,
+        currency: (newLineItem.currency as any) || 'USD',
+        supplier_description: newLineItem.supplier_description || undefined,
+      });
+      setNewLineItem(null);
+    } finally { setLineItemSaving(false); }
+  };
+
+  // Derive dirty state from string keys — consistent with isDirty check below
+  const dirtyKeys = useMemo(() => Object.keys(pending), [pending]);
+  const dirtyCount = dirtyKeys.length;
+
   const handleSaveAll = async () => {
     if (!dirtyCount || saving) return;
     setSaving(true);
@@ -816,6 +803,51 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       setSaving(false);
     }
   };
+
+  const applyBatchField = (field: 'brand' | 'category', value: string) => {
+    filtered.forEach((c) => {
+      if (selectedIds.has(c.component_id)) setField(c, field, value || null);
+    });
+  };
+
+  const clearAllFilters = () => {
+    setSearchInput(''); setSearch('');
+    setFilterBrand(''); setFilterCategory(''); setFilterPI(''); setFilterPO('');
+    setFilterUnused(false); setFilterDuplicates(false);
+  };
+
+  // ── Keyboard shortcuts ────────────────────────────────────────────────────
+  // Use a ref so the handler always has the latest handleSaveAll without
+  // re-registering the listener on every render.
+  const handleSaveAllRef = useRef(handleSaveAll);
+  handleSaveAllRef.current = handleSaveAll;
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // Ctrl/Cmd+S → save staged edits
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        handleSaveAllRef.current();
+        return;
+      }
+      const target = e.target as HTMLElement;
+      const inInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT';
+      // / → focus search bar
+      if (e.key === '/' && !inInput) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        return;
+      }
+      // Esc → clear search when search is focused
+      if (e.key === 'Escape' && document.activeElement === searchInputRef.current) {
+        setSearchInput('');
+        setSearch('');
+        searchInputRef.current?.blur();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []); // register once; ref keeps handleSaveAll current
 
   const toggleEdit = (id: string) => {
     setEditingIds((prev) => {
@@ -870,7 +902,35 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         </div>
         <div className="flex-1">
           <h3 className="text-lg font-bold text-white tracking-tight">Component Editor</h3>
-          <p className="text-xs text-slate-500 mt-0.5">Click ✎ to edit a row. Changes are staged until you save.</p>
+          <p className="text-xs text-slate-500 mt-0.5">Click ✎ to edit · <kbd className="px-1 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Ctrl+S</kbd> to save · <kbd className="px-1 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">/</kbd> to search</p>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {onAddSupplier && (
+            <button
+              onClick={onAddSupplier}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border transition-all bg-slate-800/60 border-slate-700 text-slate-400 hover:text-sky-300 hover:border-sky-500/30"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Add Supplier
+            </button>
+          )}
+          {onAdd && (
+            <button
+              onClick={() => setShowAddForm((v) => !v)}
+              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border transition-all ${
+                showAddForm
+                  ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                  : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:text-emerald-300 hover:border-emerald-500/30'
+              }`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Add Component
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           {onAddSupplier && (
@@ -926,8 +986,20 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                 value={addDraft.supplier_model}
                 onChange={(e) => setAddDraft((p) => ({ ...p, supplier_model: e.target.value }))}
                 placeholder="e.g. SP-400W"
-                className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500 placeholder-slate-600"
+                className={`w-full px-2.5 py-1.5 bg-slate-950 border rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500 placeholder-slate-600 ${
+                  addDraft.supplier_model.trim() && components.some((c) => c.supplier_model?.toLowerCase().trim() === addDraft.supplier_model.toLowerCase().trim())
+                    ? 'border-amber-500/60'
+                    : 'border-slate-700'
+                }`}
               />
+              {addDraft.supplier_model.trim() && components.some((c) => c.supplier_model?.toLowerCase().trim() === addDraft.supplier_model.toLowerCase().trim()) && (
+                <p className="mt-1 text-[11px] text-amber-400 flex items-center gap-1">
+                  <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.538-1.333-3.308 0L3.732 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  Model already exists — possible duplicate
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">
@@ -1002,8 +1074,9 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
+              ref={searchInputRef}
               type="text"
-              placeholder="Search model, description, brand..."
+              placeholder="Search model, description, brand… (press / to focus)"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               className="w-full pl-9 pr-8 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none placeholder-slate-600"
@@ -1124,7 +1197,61 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
             </button>
           </div>
         </div>
+
+        {/* Batch field edit — appears when rows are selected */}
+        {selectedIds.size > 0 && (
+          <div className="flex flex-wrap items-center gap-2 pt-2.5 border-t border-white/5">
+            <span className="text-[11px] text-slate-400 flex-shrink-0">
+              Set for <span className="text-sky-300 font-semibold">{selectedIds.size}</span> selected:
+            </span>
+            <select
+              defaultValue=""
+              onChange={(e) => {
+                if (e.target.value) { applyBatchField('brand', e.target.value); e.currentTarget.value = ''; }
+              }}
+              className="py-1.5 px-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-sky-500 min-w-[120px]"
+            >
+              <option value="" disabled>Brand…</option>
+              {uniqueBrands.map((b) => <option key={b} value={b}>{b}</option>)}
+            </select>
+            <select
+              defaultValue=""
+              onChange={(e) => {
+                if (e.target.value) { applyBatchField('category', e.target.value); e.currentTarget.value = ''; }
+              }}
+              className="py-1.5 px-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-sky-500 min-w-[140px]"
+            >
+              <option value="" disabled>Category…</option>
+              {ENUMS.product_category.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+            </select>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="ml-auto text-[11px] text-slate-600 hover:text-slate-400 transition-colors"
+            >
+              Clear selection
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Active filter chips */}
+      {(search || filterBrand || filterCategory || filterPI || filterPO || filterUnused || filterDuplicates) && (
+        <div className="px-4 md:px-5 py-2.5 border-b border-slate-800/60 flex flex-wrap items-center gap-1.5 bg-slate-950/30">
+          {search && <ActiveChip label="Search" value={search} onClear={() => { setSearchInput(''); setSearch(''); }} />}
+          {filterBrand && <ActiveChip label="Brand" value={filterBrand} onClear={() => setFilterBrand('')} />}
+          {filterCategory && <ActiveChip label="Category" value={filterCategory} onClear={() => setFilterCategory('')} />}
+          {filterPI && <ActiveChip label="PI" value={filterPI} onClear={() => setFilterPI('')} />}
+          {filterPO && <ActiveChip label="PO" value={filterPO} onClear={() => setFilterPO('')} />}
+          {filterUnused && <ActiveChip label="Unused only" onClear={() => setFilterUnused(false)} />}
+          {filterDuplicates && <ActiveChip label="Duplicates only" onClear={() => setFilterDuplicates(false)} />}
+          <button
+            onMouseDown={clearAllFilters}
+            className="text-[11px] text-slate-600 hover:text-slate-300 ml-1 transition-colors"
+          >
+            Clear all
+          </button>
+        </div>
+      )}
 
       {/* Table */}
       <div className="overflow-x-auto">
@@ -1137,7 +1264,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
           </div>
         ) : (
           <table className="w-full">
-            <thead className="bg-slate-900/80 border-b border-slate-800">
+            <thead className="bg-slate-900/95 border-b border-slate-800 sticky top-0 z-20 backdrop-blur-sm">
               <tr>
                 <th className="pl-4 pr-2 py-3 w-9">
                   <input
