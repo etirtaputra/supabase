@@ -248,7 +248,7 @@ function UsageTooltip({ quoteLines, poLines, style }: UsageTooltipProps) {
 // Uses a portal dropdown so it's never clipped by overflow-hidden ancestors.
 // ── Generic filter combobox (string value = display label) ──────────────────
 interface FilterComboboxProps {
-  options: string[];
+  options: readonly string[];
   value: string;
   onChange: (v: string) => void;
   placeholder: string;
