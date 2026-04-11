@@ -4,8 +4,7 @@
  */
 'use client';
 
-import React, { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
-import { useWindowVirtualizer } from '@tanstack/react-virtual';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Spinner } from './LoadingSkeleton';
 import SpecRenderer from './SpecRenderer';
@@ -477,21 +476,6 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const selectAllRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const tableBodyRef = useRef<HTMLTableSectionElement | null>(null);
-  const [scrollMargin, setScrollMargin] = useState(0);
-
-  // Keep scroll margin current so the window virtualizer aligns correctly
-  useLayoutEffect(() => {
-    const update = () => {
-      if (tableBodyRef.current) {
-        const rect = tableBodyRef.current.getBoundingClientRect();
-        setScrollMargin(rect.top + window.scrollY);
-      }
-    };
-    update();
-    window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [specsOpenIds, setSpecsOpenIds] = useState<Set<string>>(new Set());
   const [lineItemModalId, setLineItemModalId] = useState<string | null>(null);
   const [lineItemDraft, setLineItemDraft] = useState<Record<number | string, Partial<PriceQuoteLineItem>>>({});
@@ -673,25 +657,6 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
     });
   }, [components, search, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, sortCol, sortDir, usageMap, duplicateModels]);
-
-  // Flat list for virtual scrolling: main rows + inline spec rows
-  const flatRows = useMemo(() => {
-    type FlatRow =
-      | { type: 'row'; component: Component }
-      | { type: 'specs'; component: Component };
-    const rows: FlatRow[] = [];
-    for (const c of filtered) {
-      rows.push({ type: 'row', component: c });
-      const hasSpecs =
-        c.specifications &&
-        typeof c.specifications === 'object' &&
-        Object.keys(c.specifications as object).length > 0;
-      if (specsOpenIds.has(c.component_id) && hasSpecs) {
-        rows.push({ type: 'specs', component: c });
-      }
-    }
-    return rows;
-  }, [filtered, specsOpenIds]);
 
   const toggleSort = (col: SortCol) => {
     if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -925,14 +890,6 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       return n;
     });
   };
-
-  // ── Virtual scrolling (window-based — no fixed-height container) ─────────
-  const rowVirtualizer = useWindowVirtualizer({
-    count: flatRows.length,
-    estimateSize: (i) => (flatRows[i]?.type === 'specs' ? 200 : 56),
-    overscan: 8,
-    scrollMargin,
-  });
 
   // ── CSV Export ────────────────────────────────────────────────────────────
   const downloadCSV = useCallback(() => {
@@ -1383,45 +1340,8 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                 <th className="px-4 py-3 w-28 text-right text-xs font-bold uppercase tracking-wider text-slate-600">Actions</th>
               </tr>
             </thead>
-            {(() => {
-                const virtualItems = rowVirtualizer.getVirtualItems();
-                // useWindowVirtualizer: .start is absolute from doc top; subtract scrollMargin to get list-relative offset
-                const paddingTop =
-                  virtualItems.length > 0 ? Math.max(0, (virtualItems[0].start ?? 0) - scrollMargin) : 0;
-                const paddingBottom =
-                  virtualItems.length > 0
-                    ? Math.max(0, rowVirtualizer.getTotalSize() - (virtualItems[virtualItems.length - 1]?.end ?? 0) + scrollMargin)
-                    : 0;
-                return (
-            <tbody ref={tableBodyRef} className="divide-y divide-slate-800/50">
-              {paddingTop > 0 && (
-                <tr><td colSpan={9} style={{ height: `${paddingTop}px`, padding: 0 }} /></tr>
-              )}
-              {virtualItems.map((vr) => {
-                const row = flatRows[vr.index];
-                if (!row) return null;
-                const c = row.component;
-
-                // ── Specs expansion row ──────────────────────────────────
-                if (row.type === 'specs') {
-                  return (
-                    <tr
-                      key={`specs-${c.component_id}`}
-                      data-index={vr.index}
-                      ref={rowVirtualizer.measureElement}
-                      className="bg-slate-900/40 border-t border-amber-500/10"
-                    >
-                      <td colSpan={9} className="px-6 py-5">
-                        <SpecRenderer
-                          specs={c.specifications as Record<string, unknown>}
-                          modelName={c.supplier_model}
-                        />
-                      </td>
-                    </tr>
-                  );
-                }
-
-                // ── Main component row ───────────────────────────────────
+            <tbody className="divide-y divide-slate-800/50">
+              {filtered.map((c) => {
                 const k = rowKey(c);
                 const isEditing = editingIds.has(c.component_id);
                 const isDirty = k in pending;
@@ -1429,10 +1349,8 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                 const hasSpecs = c.specifications && typeof c.specifications === 'object' && Object.keys(c.specifications as object).length > 0;
 
                 return (
+                  <React.Fragment key={c.component_id}>
                   <tr
-                    key={c.component_id}
-                    data-index={vr.index}
-                    ref={rowVirtualizer.measureElement}
                     onDoubleClick={() => { if (!isEditing) toggleEdit(c.component_id); }}
                     className={`transition-colors cursor-pointer ${
                       selectedIds.has(String(c.component_id))
@@ -1753,14 +1671,21 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                       </div>
                     </td>
                   </tr>
+                  {/* Inline spec sheet */}
+                  {isSpecsOpen && hasSpecs && (
+                    <tr className="bg-slate-900/40 border-t border-amber-500/10">
+                      <td colSpan={9} className="px-6 py-5">
+                        <SpecRenderer
+                          specs={c.specifications as Record<string, unknown>}
+                          modelName={c.supplier_model}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
                 );
               })}
-              {paddingBottom > 0 && (
-                <tr><td colSpan={9} style={{ height: `${paddingBottom}px`, padding: 0 }} /></tr>
-              )}
             </tbody>
-                );
-              })()}
           </table>
         )}
       </div>
