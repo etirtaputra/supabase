@@ -79,8 +79,11 @@ interface BrandInputProps {
   onChange: (v: string) => void;
   suggestions: string[];
   isDirty: boolean;
+  onNavKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  'data-rid'?: string;
+  'data-fld'?: string;
 }
-function BrandInput({ value, onChange, suggestions, isDirty }: BrandInputProps) {
+function BrandInput({ value, onChange, suggestions, isDirty, onNavKeyDown, ...rest }: BrandInputProps) {
   const [open, setOpen] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -184,8 +187,10 @@ function BrandInput({ value, onChange, suggestions, isDirty }: BrandInputProps) 
         value={value}
         onChange={(e) => { onChange(e.target.value); if (!open) openDrop(); }}
         onFocus={openDrop}
-        onKeyDown={handleKey}
+        onKeyDown={(e) => { handleKey(e); if (!open && e.key !== 'ArrowDown') onNavKeyDown?.(e); else if (e.key === 'Tab') onNavKeyDown?.(e); }}
         autoComplete="off"
+        data-rid={(rest as any)['data-rid']}
+        data-fld={(rest as any)['data-fld']}
         className={`w-full px-2.5 py-1.5 rounded-lg text-sm text-white focus:outline-none focus:ring-2 transition-all ${
           isDirty
             ? 'bg-amber-500/10 border border-amber-500/50 focus:ring-amber-500/30'
@@ -420,6 +425,33 @@ function UsageTooltip({ quoteLines, poLines, style }: UsageTooltipProps) {
   return createPortal(content, document.body);
 }
 
+// ── Search highlight ──────────────────────────────────────────────────────
+function Highlight({ text, query }: { text: string | null | undefined; query: string }) {
+  if (!query || !text) return <>{text ?? '—'}</>;
+  const parts: React.ReactNode[] = [];
+  const lower = text.toLowerCase();
+  const q = query.toLowerCase();
+  let last = 0;
+  let idx = lower.indexOf(q);
+  while (idx !== -1) {
+    if (idx > last) parts.push(text.slice(last, idx));
+    parts.push(
+      <mark key={idx} className="bg-amber-400/30 text-amber-200 rounded-sm not-italic">
+        {text.slice(idx, idx + q.length)}
+      </mark>
+    );
+    last = idx + q.length;
+    idx = lower.indexOf(q, last);
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return <>{parts}</>;
+}
+
+// ── Column visibility ─────────────────────────────────────────────────────
+type ColKey = 'brand' | 'category' | 'lastPrice' | 'usage' | 'updated';
+const COL_LABELS: Record<ColKey, string> = { brand: 'Brand', category: 'Category', lastPrice: 'Last Price', usage: 'Usage', updated: 'Updated' };
+const DEFAULT_COLS: Record<ColKey, boolean> = { brand: true, category: true, lastPrice: true, usage: true, updated: true };
+
 // --- Main Component Editor ---
 const EMPTY_ADD = { supplier_model: '', internal_description: '', brand: '', category: '', specifications: '' };
 
@@ -432,6 +464,13 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [filterPO, setFilterPO] = useState('');
   const [filterUnused, setFilterUnused] = useState(false);
   const [filterDuplicates, setFilterDuplicates] = useState(false);
+  const [visibleCols, setVisibleCols] = useState<Record<ColKey, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('componentEditor_cols');
+      return saved ? { ...DEFAULT_COLS, ...JSON.parse(saved) } : DEFAULT_COLS;
+    } catch { return DEFAULT_COLS; }
+  });
+  const [showColPicker, setShowColPicker] = useState(false);
 
   // ── Restore filters from localStorage on mount ────────────────────────────
   useEffect(() => {
@@ -458,6 +497,11 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       }));
     } catch {}
   }, [searchInput, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates]);
+
+  // ── Persist column visibility ─────────────────────────────────────────────
+  useEffect(() => {
+    try { localStorage.setItem('componentEditor_cols', JSON.stringify(visibleCols)); } catch {}
+  }, [visibleCols]);
 
   // Debounce search so heavy filtering doesn't block every keystroke
   useEffect(() => {
@@ -891,6 +935,42 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     });
   };
 
+  // ── Row keyboard navigation (Tab / Enter / Escape while editing) ─────────
+  const NAV_FIELDS = ['supplier_model', 'internal_description', 'brand', 'category'] as const;
+  const handleCellKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>,
+    componentId: string,
+    field: typeof NAV_FIELDS[number],
+  ) => {
+    if (e.key === 'Escape') {
+      discardRow(componentId);
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      setEditingIds((prev) => { const n = new Set(prev); n.delete(componentId); return n; });
+      const idx = filtered.findIndex((c) => c.component_id === componentId);
+      if (idx >= 0 && idx < filtered.length - 1) {
+        const nextId = filtered[idx + 1].component_id;
+        setEditingIds((prev) => { const n = new Set(prev); n.add(nextId); return n; });
+        setTimeout(() => {
+          (document.querySelector(`[data-rid="${nextId}"][data-fld="supplier_model"]`) as HTMLElement)?.focus();
+        }, 0);
+      }
+      return;
+    }
+    if (e.key === 'Tab') {
+      const fi = NAV_FIELDS.indexOf(field);
+      if (!e.shiftKey && fi < NAV_FIELDS.length - 1) {
+        e.preventDefault();
+        (document.querySelector(`[data-rid="${componentId}"][data-fld="${NAV_FIELDS[fi + 1]}"]`) as HTMLElement)?.focus();
+      } else if (e.shiftKey && fi > 0) {
+        e.preventDefault();
+        (document.querySelector(`[data-rid="${componentId}"][data-fld="${NAV_FIELDS[fi - 1]}"]`) as HTMLElement)?.focus();
+      }
+    }
+  };
+
   // ── CSV Export ────────────────────────────────────────────────────────────
   const downloadCSV = useCallback(() => {
     const headers = ['Model/SKU', 'Description', 'Brand', 'Category', 'Quotes', 'Line Items', 'Last Price', 'Currency'];
@@ -917,6 +997,9 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     a.click();
     URL.revokeObjectURL(url);
   }, [filtered, usageMap, lastQuoteByComponent]);
+
+  // Total visible column count for colSpan on expanded spec rows
+  const visibleColCount = 3 + (Object.keys(visibleCols) as ColKey[]).filter((k) => visibleCols[k]).length + 1;
 
   const fmtDate = (ts?: string) => {
     if (!ts) return '—';
@@ -958,6 +1041,41 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
           <p className="text-xs text-slate-500 mt-0.5">Click ✎ to edit · <kbd className="px-1 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Ctrl+S</kbd> to save · <kbd className="px-1 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">/</kbd> to search</p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Column visibility picker */}
+          <div className="relative">
+            <button
+              onClick={() => setShowColPicker((v) => !v)}
+              title="Show / hide columns"
+              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border transition-all ${
+                showColPicker
+                  ? 'bg-slate-700 border-slate-600 text-white'
+                  : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:text-white hover:border-slate-600'
+              }`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7" />
+              </svg>
+              Columns
+            </button>
+            {showColPicker && (
+              <div className="absolute right-0 top-full mt-1.5 z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl shadow-black/50 p-2 min-w-[160px]"
+                onMouseLeave={() => setShowColPicker(false)}
+              >
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600 px-2 py-1">Visible columns</p>
+                {(Object.keys(COL_LABELS) as ColKey[]).map((key) => (
+                  <label key={key} className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-white/5 text-sm text-slate-300 select-none">
+                    <input
+                      type="checkbox"
+                      checked={visibleCols[key]}
+                      onChange={(e) => setVisibleCols((prev) => ({ ...prev, [key]: e.target.checked }))}
+                      className="w-3.5 h-3.5 rounded accent-emerald-500"
+                    />
+                    {COL_LABELS[key]}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
           {onAddSupplier && (
             <button
               onClick={onAddSupplier}
@@ -1314,29 +1432,31 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                 </th>
                 <SortTh col="supplier_model" label="Model / SKU" />
                 <SortTh col="internal_description" label="Description" />
-                <SortTh col="brand" label="Brand" className="min-w-[160px]" />
-                <SortTh col="category" label="Category" />
-                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-400 min-w-[120px]">Last Price</th>
-                <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-400 min-w-[200px]">
-                  <div className="flex items-center gap-2">
-                    <span>Usage</span>
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => toggleSort('quoteCount')}
-                        className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${sortCol === 'quoteCount' ? 'text-emerald-300 border-emerald-500/40 bg-emerald-500/10' : 'text-slate-600 border-slate-700 hover:text-slate-400'}`}
-                      >
-                        Quotes{sortCol === 'quoteCount' ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
-                      </button>
-                      <button
-                        onClick={() => toggleSort('lineItemCount')}
-                        className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${sortCol === 'lineItemCount' ? 'text-emerald-300 border-emerald-500/40 bg-emerald-500/10' : 'text-slate-600 border-slate-700 hover:text-slate-400'}`}
-                      >
-                        Items{sortCol === 'lineItemCount' ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
-                      </button>
+                {visibleCols.brand && <SortTh col="brand" label="Brand" className="min-w-[160px]" />}
+                {visibleCols.category && <SortTh col="category" label="Category" />}
+                {visibleCols.lastPrice && <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-400 min-w-[120px]">Last Price</th>}
+                {visibleCols.usage && (
+                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-400 min-w-[200px]">
+                    <div className="flex items-center gap-2">
+                      <span>Usage</span>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => toggleSort('quoteCount')}
+                          className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${sortCol === 'quoteCount' ? 'text-emerald-300 border-emerald-500/40 bg-emerald-500/10' : 'text-slate-600 border-slate-700 hover:text-slate-400'}`}
+                        >
+                          Quotes{sortCol === 'quoteCount' ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+                        </button>
+                        <button
+                          onClick={() => toggleSort('lineItemCount')}
+                          className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${sortCol === 'lineItemCount' ? 'text-emerald-300 border-emerald-500/40 bg-emerald-500/10' : 'text-slate-600 border-slate-700 hover:text-slate-400'}`}
+                        >
+                          Items{sortCol === 'lineItemCount' ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </th>
-                <SortTh col="updated_at" label="Updated" className="min-w-[110px]" />
+                  </th>
+                )}
+                {visibleCols.updated && <SortTh col="updated_at" label="Updated" className="min-w-[110px]" />}
                 <th className="px-4 py-3 w-28 text-right text-xs font-bold uppercase tracking-wider text-slate-600">Actions</th>
               </tr>
             </thead>
@@ -1378,8 +1498,12 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                         <div>
                           <input
                             type="text"
+                            autoFocus
+                            data-rid={c.component_id}
+                            data-fld="supplier_model"
                             value={(getVal(c, 'supplier_model') as string) ?? ''}
                             onChange={(e) => setField(c, 'supplier_model', e.target.value)}
+                            onKeyDown={(e) => handleCellKeyDown(e, c.component_id, 'supplier_model')}
                             className={`w-full px-2.5 py-1.5 rounded-lg text-sm text-white focus:outline-none focus:ring-2 transition-all ${
                               isDirtyField(c, 'supplier_model')
                                 ? 'bg-amber-500/10 border border-amber-500/50 focus:ring-amber-500/30'
@@ -1395,7 +1519,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                         </div>
                       ) : (
                         <span className="inline-flex items-center gap-0.5 text-sm text-white font-medium">
-                          {c.supplier_model}
+                          <Highlight text={c.supplier_model} query={search} />
                           <CopyBtn text={c.supplier_model} />
                         </span>
                       )}
@@ -1407,8 +1531,11 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                         <div>
                           <input
                             type="text"
+                            data-rid={c.component_id}
+                            data-fld="internal_description"
                             value={(getVal(c, 'internal_description') as string) ?? ''}
                             onChange={(e) => setField(c, 'internal_description', e.target.value)}
+                            onKeyDown={(e) => handleCellKeyDown(e, c.component_id, 'internal_description')}
                             className={`w-full px-2.5 py-1.5 rounded-lg text-sm text-white focus:outline-none focus:ring-2 transition-all ${
                               isDirtyField(c, 'internal_description')
                                 ? 'bg-amber-500/10 border border-amber-500/50 focus:ring-amber-500/30'
@@ -1426,95 +1553,107 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                         </div>
                       ) : (
                         <span className="inline-flex items-center gap-0.5 text-sm text-slate-300">
-                          {c.internal_description}
+                          <Highlight text={c.internal_description} query={search} />
                           <CopyBtn text={c.internal_description} />
                         </span>
                       )}
                     </td>
 
                     {/* Brand */}
-                    <td className="px-4 py-3 align-top min-w-[160px]">
-                      {isEditing ? (
-                        <div>
-                          <BrandInput
-                            value={(getVal(c, 'brand') as string) ?? ''}
-                            onChange={(v) => setField(c, 'brand', v)}
-                            suggestions={brandSuggestions}
-                            isDirty={isDirtyField(c, 'brand')}
-                          />
-                          {isDirtyField(c, 'brand') && <DirtyBadge original={c.brand} />}
-                        </div>
-                      ) : isDirtyField(c, 'brand') ? (
-                        <div>
-                          <span className="text-sm text-emerald-300">{(getVal(c, 'brand') as string) || '—'}</span>
-                          <DirtyBadge original={c.brand} />
-                        </div>
-                      ) : (
-                        <span className="text-sm text-slate-300">
-                          {c.brand || <span className="text-slate-600">—</span>}
-                        </span>
-                      )}
-                    </td>
+                    {visibleCols.brand && (
+                      <td className="px-4 py-3 align-top min-w-[160px]">
+                        {isEditing ? (
+                          <div>
+                            <BrandInput
+                              value={(getVal(c, 'brand') as string) ?? ''}
+                              onChange={(v) => setField(c, 'brand', v)}
+                              suggestions={brandSuggestions}
+                              isDirty={isDirtyField(c, 'brand')}
+                              onNavKeyDown={(e) => handleCellKeyDown(e, c.component_id, 'brand')}
+                              data-rid={c.component_id}
+                              data-fld="brand"
+                            />
+                            {isDirtyField(c, 'brand') && <DirtyBadge original={c.brand} />}
+                          </div>
+                        ) : isDirtyField(c, 'brand') ? (
+                          <div>
+                            <span className="text-sm text-emerald-300">{(getVal(c, 'brand') as string) || '—'}</span>
+                            <DirtyBadge original={c.brand} />
+                          </div>
+                        ) : (
+                          <span className="text-sm text-slate-300">
+                            {c.brand ? <Highlight text={c.brand} query={search} /> : <span className="text-slate-600">—</span>}
+                          </span>
+                        )}
+                      </td>
+                    )}
 
                     {/* Category */}
-                    <td className="px-4 py-3 align-top">
-                      {isEditing ? (
-                        <div>
-                          <select
-                            value={(getVal(c, 'category') as string) ?? ''}
-                            onChange={(e) => setField(c, 'category', e.target.value || null)}
-                            className={`w-full px-2.5 py-1.5 rounded-lg text-sm text-white focus:outline-none focus:ring-2 transition-all ${
-                              isDirtyField(c, 'category')
-                                ? 'bg-amber-500/10 border border-amber-500/50 focus:ring-amber-500/30'
-                                : 'bg-slate-950 border border-slate-700 focus:ring-emerald-500/20 focus:border-emerald-500'
-                            }`}
-                          >
-                            <option value="">— none —</option>
-                            {ENUMS.product_category.map((cat) => (
-                              <option key={cat} value={cat}>{cat}</option>
-                            ))}
-                          </select>
-                          {isDirtyField(c, 'category') && <DirtyBadge original={c.category} />}
-                        </div>
-                      ) : isDirtyField(c, 'category') ? (
-                        <div>
-                          <span className="text-sm text-emerald-300">{(getVal(c, 'category') as string) || '—'}</span>
-                          <DirtyBadge original={c.category} />
-                        </div>
-                      ) : (
-                        <span className="text-sm text-slate-300">
-                          {c.category || <span className="text-slate-600">—</span>}
-                        </span>
-                      )}
-                    </td>
+                    {visibleCols.category && (
+                      <td className="px-4 py-3 align-top">
+                        {isEditing ? (
+                          <div>
+                            <select
+                              data-rid={c.component_id}
+                              data-fld="category"
+                              value={(getVal(c, 'category') as string) ?? ''}
+                              onChange={(e) => setField(c, 'category', e.target.value || null)}
+                              onKeyDown={(e) => handleCellKeyDown(e, c.component_id, 'category')}
+                              className={`w-full px-2.5 py-1.5 rounded-lg text-sm text-white focus:outline-none focus:ring-2 transition-all ${
+                                isDirtyField(c, 'category')
+                                  ? 'bg-amber-500/10 border border-amber-500/50 focus:ring-amber-500/30'
+                                  : 'bg-slate-950 border border-slate-700 focus:ring-emerald-500/20 focus:border-emerald-500'
+                              }`}
+                            >
+                              <option value="">— none —</option>
+                              {ENUMS.product_category.map((cat) => (
+                                <option key={cat} value={cat}>{cat}</option>
+                              ))}
+                            </select>
+                            {isDirtyField(c, 'category') && <DirtyBadge original={c.category} />}
+                          </div>
+                        ) : isDirtyField(c, 'category') ? (
+                          <div>
+                            <span className="text-sm text-emerald-300">{(getVal(c, 'category') as string) || '—'}</span>
+                            <DirtyBadge original={c.category} />
+                          </div>
+                        ) : (
+                          <span className="text-sm text-slate-300">
+                            {c.category || <span className="text-slate-600">—</span>}
+                          </span>
+                        )}
+                      </td>
+                    )}
 
                     {/* Last Price */}
-                    <td className="px-4 py-3 align-top min-w-[120px]">
-                      {(() => {
-                        const lq = lastQuoteByComponent.get(c.component_id);
-                        const isDup = duplicateModels.has(c.supplier_model?.toLowerCase().trim() ?? '');
-                        return (
-                          <div>
-                            {lq ? (
-                              <>
-                                <p className="text-sm font-semibold text-slate-200 tabular-nums">
-                                  {lq.currency} {lq.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </p>
-                                <p className="text-[10px] text-slate-600 mt-0.5">{new Date(lq.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}</p>
-                              </>
-                            ) : (
-                              <span className="text-xs text-slate-700">—</span>
-                            )}
-                            {isDup && (
-                              <span className="mt-1 inline-block px-1.5 py-0.5 bg-red-500/15 border border-red-500/25 text-red-400 text-[10px] font-bold rounded">dup</span>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </td>
+                    {visibleCols.lastPrice && (
+                      <td className="px-4 py-3 align-top min-w-[120px]">
+                        {(() => {
+                          const lq = lastQuoteByComponent.get(c.component_id);
+                          const isDup = duplicateModels.has(c.supplier_model?.toLowerCase().trim() ?? '');
+                          return (
+                            <div>
+                              {lq ? (
+                                <>
+                                  <p className="text-sm font-semibold text-slate-200 tabular-nums">
+                                    {lq.currency} {lq.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </p>
+                                  <p className="text-[10px] text-slate-600 mt-0.5">{new Date(lq.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}</p>
+                                </>
+                              ) : (
+                                <span className="text-xs text-slate-700">—</span>
+                              )}
+                              {isDup && (
+                                <span className="mt-1 inline-block px-1.5 py-0.5 bg-red-500/15 border border-red-500/25 text-red-400 text-[10px] font-bold rounded">dup</span>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </td>
+                    )}
 
                     {/* Usage */}
-                    <td
+                    {visibleCols.usage && <td
                       className="px-4 py-3 align-top min-w-[180px] cursor-default"
                       onMouseEnter={(e) => {
                         const rect = e.currentTarget.getBoundingClientRect();
@@ -1583,14 +1722,16 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           Edit associations
                         </button>
                       )}
-                    </td>
+                    </td>}
 
                     {/* Updated At */}
-                    <td className="px-4 py-3 align-top">
-                      <span className={`text-xs ${sortCol === 'updated_at' ? 'text-emerald-400 font-semibold' : 'text-slate-500'}`}>
-                        {fmtDate(c.updated_at)}
-                      </span>
-                    </td>
+                    {visibleCols.updated && (
+                      <td className="px-4 py-3 align-top">
+                        <span className={`text-xs ${sortCol === 'updated_at' ? 'text-emerald-400 font-semibold' : 'text-slate-500'}`}>
+                          {fmtDate(c.updated_at)}
+                        </span>
+                      </td>
+                    )}
 
                     {/* Row actions */}
                     <td className="px-4 py-3 align-top">
@@ -1674,7 +1815,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                   {/* Inline spec sheet */}
                   {isSpecsOpen && hasSpecs && (
                     <tr className="bg-slate-900/40 border-t border-amber-500/10">
-                      <td colSpan={9} className="px-6 py-5">
+                      <td colSpan={visibleColCount} className="px-6 py-5">
                         <SpecRenderer
                           specs={c.specifications as Record<string, unknown>}
                           modelName={c.supplier_model}
