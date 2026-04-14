@@ -389,6 +389,7 @@ function MasterInsertPage() {
                     pos={data.pos}
                     poItems={data.poItems}
                     componentHistory={data.componentHistory}
+                    competitorPrices={data.competitorPrices}
                     onSave={handleComponentUpdates}
                     onAdd={(fields) => handleInsert('3.0_components', [fields])}
                     onAddSupplier={() => setShowSupplierForm(true)}

@@ -8,7 +8,7 @@ import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom';
 import { Spinner } from './LoadingSkeleton';
 import SpecRenderer from './SpecRenderer';
-import type { Component, PriceQuoteLineItem, PriceQuote, PurchaseOrder, PurchaseLineItem } from '../../types/database';
+import type { Component, PriceQuoteLineItem, PriceQuote, PurchaseOrder, PurchaseLineItem, CompetitorPrice } from '../../types/database';
 import { ENUMS } from '../../constants/enums';
 
 interface ComponentUsage {
@@ -41,6 +41,7 @@ interface ComponentEditorProps {
   onSaveLineItem?: (item: Omit<PriceQuoteLineItem, 'quote_line_id' | 'created_at' | 'updated_at'> & { quote_line_id?: number }) => Promise<void>;
   onDeleteLineItem?: (quote_line_id: number) => Promise<void>;
   componentHistory?: ComponentHistoryEntry[];
+  competitorPrices?: CompetitorPrice[];
 }
 
 type SortCol = 'supplier_model' | 'internal_description' | 'brand' | 'category' | 'updated_at' | 'quoteCount' | 'lineItemCount';
@@ -512,7 +513,7 @@ const IMPORT_HEADER_MAP: Record<string, string> = {
 // --- Main Component Editor ---
 const EMPTY_ADD = { supplier_model: '', internal_description: '', brand: '', category: '', specifications: '' };
 
-export default function ComponentEditor({ components, brandSuggestions, quoteItems = [], quotes = [], pos = [], poItems = [], componentHistory, onSave, onAdd, onAddSupplier, onDelete, onSaveLineItem, onDeleteLineItem }: ComponentEditorProps) {
+export default function ComponentEditor({ components, brandSuggestions, quoteItems = [], quotes = [], pos = [], poItems = [], componentHistory, competitorPrices, onSave, onAdd, onAddSupplier, onDelete, onSaveLineItem, onDeleteLineItem }: ComponentEditorProps) {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [filterBrand, setFilterBrand] = useState('');
@@ -594,6 +595,9 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [importDragOver, setImportDragOver] = useState(false);
   // ── Change log panel ──────────────────────────────────────────────────────
   const [historyPanelId, setHistoryPanelId] = useState<string | null>(null);
+  // ── Inspect panel ─────────────────────────────────────────────────────────
+  const [inspectId, setInspectId] = useState<string | null>(null);
+  const [inspectTab, setInspectTab] = useState<'quotes' | 'pos' | 'intel' | 'log'>('quotes');
   // ── Copy-row flash ────────────────────────────────────────────────────────
   const [copiedRowId, setCopiedRowId] = useState<string | null>(null);
 
@@ -1155,6 +1159,59 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     });
     return [...groups.entries()].sort((a, b) => b[0].localeCompare(a[0]));
   }, [historyPanelId, componentHistory]);
+
+  // ── Inspect panel data ───────────────────────────────────────────────────
+  const inspectData = useMemo(() => {
+    if (!inspectId) return null;
+    const comp = components.find((c) => c.component_id === inspectId);
+    if (!comp) return null;
+
+    const quoteMap = new Map(quotes.map((q) => [q.quote_id, q]));
+    const allQuoteLines: TooltipQuoteLine[] = [];
+    quoteItems.forEach((item) => {
+      if (item.component_id !== inspectId) return;
+      const q = quoteMap.get(item.quote_id);
+      allQuoteLines.push({
+        pi_number: q?.pi_number,
+        quote_date: q?.quote_date,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        currency: item.currency,
+      });
+    });
+    allQuoteLines.sort((a, b) => (b.quote_date || '').localeCompare(a.quote_date || ''));
+
+    const poMap = new Map(pos.map((p) => [p.po_id, p]));
+    const allPOLines: TooltipPOLine[] = [];
+    poItems.forEach((item) => {
+      if (item.component_id !== inspectId) return;
+      const po = poMap.get(item.po_id);
+      if (!po) return;
+      allPOLines.push({
+        po_number: po.po_number,
+        po_date: po.po_date,
+        quantity: item.quantity,
+        unit_cost: item.unit_cost,
+        currency: item.currency,
+      });
+    });
+    allPOLines.sort((a, b) => (b.po_date || '').localeCompare(a.po_date || ''));
+
+    const compPrices = (competitorPrices ?? [])
+      .filter((cp) => cp.component_id === inspectId)
+      .sort((a, b) => b.observed_at.localeCompare(a.observed_at));
+
+    const histEntries = (componentHistory ?? []).filter((h) => h.component_id === inspectId);
+    const histGroups = new Map<string, ComponentHistoryEntry[]>();
+    histEntries.forEach((e) => {
+      const key = e.changed_at.slice(0, 19);
+      if (!histGroups.has(key)) histGroups.set(key, []);
+      histGroups.get(key)!.push(e);
+    });
+    const histTimeline = [...histGroups.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+
+    return { comp, allQuoteLines, allPOLines, compPrices, histTimeline };
+  }, [inspectId, components, quoteItems, quotes, poItems, pos, competitorPrices, componentHistory]);
 
   // ── CSV Export ────────────────────────────────────────────────────────────
   const downloadCSV = useCallback(() => {
@@ -1935,6 +1992,16 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                     {/* Row actions */}
                     <td className="px-4 py-3 align-top">
                       <div className="flex gap-1.5 justify-end items-center">
+                        {/* Inspect panel */}
+                        <button
+                          onClick={() => { setInspectId(c.component_id); setInspectTab('quotes'); }}
+                          title="Inspect component — quotes, POs, market intel, change log"
+                          className="px-2 py-1 text-xs text-slate-600 bg-transparent border border-transparent rounded-lg hover:bg-blue-500/10 hover:border-blue-500/30 hover:text-blue-300 transition-all"
+                        >
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                            <circle cx="11" cy="11" r="8" /><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35" />
+                          </svg>
+                        </button>
                         {/* Copy row to clipboard */}
                         <button
                           onClick={() => copyRow(c)}
@@ -2546,6 +2613,220 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
             </div>
           </div>
         </>,
+        document.body
+      )}
+
+      {/* ── Inspect panel ─────────────────────────────────────────────────── */}
+      {inspectId && inspectData && typeof document !== 'undefined' && createPortal(
+        (() => {
+          const { comp, allQuoteLines, allPOLines, compPrices, histTimeline } = inspectData;
+          const fmtD = (d?: string) =>
+            d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '—';
+          const fmtP = (n: number, cur: string) =>
+            `${cur} ${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+          const tabs: { id: typeof inspectTab; label: string; count: number }[] = [
+            { id: 'quotes', label: 'Quotes', count: allQuoteLines.length },
+            { id: 'pos', label: 'POs', count: allPOLines.length },
+            { id: 'intel', label: 'Market Intel', count: compPrices.length },
+            { id: 'log', label: 'Change Log', count: histTimeline.length },
+          ];
+
+          return (
+            <>
+              {/* Backdrop */}
+              <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={() => setInspectId(null)} />
+              {/* Panel */}
+              <div
+                className="fixed inset-y-0 right-0 z-50 w-[580px] max-w-full flex flex-col bg-slate-900 border-l border-slate-700 shadow-2xl"
+                style={{ animation: 'slideInRight 0.2s ease-out' }}
+              >
+                {/* Header */}
+                <div className="flex items-start justify-between px-6 py-4 border-b border-slate-800 flex-shrink-0 gap-4">
+                  <div className="min-w-0">
+                    <h3 className="text-base font-bold text-white leading-tight truncate">{comp.internal_description || comp.supplier_model}</h3>
+                    <p className="text-xs text-slate-500 font-mono mt-0.5 truncate">{comp.supplier_model}</p>
+                    {comp.brand && <p className="text-[11px] text-slate-600 mt-0.5">{comp.brand}{comp.category ? ` · ${comp.category}` : ''}</p>}
+                  </div>
+                  <button onClick={() => setInspectId(null)} className="text-slate-500 hover:text-white transition-colors flex-shrink-0 mt-0.5">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+
+                {/* Tabs */}
+                <div className="flex border-b border-slate-800 flex-shrink-0 px-2">
+                  {tabs.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setInspectTab(t.id)}
+                      className={`px-4 py-3 text-xs font-semibold border-b-2 transition-colors flex items-center gap-1.5 ${
+                        inspectTab === t.id
+                          ? 'border-blue-400 text-blue-300'
+                          : 'border-transparent text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      {t.label}
+                      {t.count > 0 && (
+                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          inspectTab === t.id ? 'bg-blue-500/20 text-blue-300' : 'bg-slate-800 text-slate-500'
+                        }`}>{t.count}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Tab content */}
+                <div className="flex-1 overflow-y-auto px-6 py-4">
+
+                  {/* ── Quotes tab ─────────────────────────────────────────── */}
+                  {inspectTab === 'quotes' && (
+                    allQuoteLines.length === 0 ? (
+                      <p className="text-sm text-slate-600 italic py-8 text-center">No quote line items</p>
+                    ) : (
+                      <div className="rounded-xl border border-slate-800 overflow-hidden">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-slate-800 bg-slate-800/50">
+                              <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-500">PI #</th>
+                              <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-500">Date</th>
+                              <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-500">Qty</th>
+                              <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-500">Unit Price</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/60">
+                            {allQuoteLines.map((ql, i) => (
+                              <tr key={i} className="hover:bg-white/[0.02]">
+                                <td className="px-3 py-2 font-mono text-blue-300">{ql.pi_number || '—'}</td>
+                                <td className="px-3 py-2 text-slate-400">{fmtD(ql.quote_date)}</td>
+                                <td className="px-3 py-2 text-right text-slate-300 tabular-nums">{ql.quantity}</td>
+                                <td className="px-3 py-2 text-right text-emerald-300 font-semibold tabular-nums">{fmtP(ql.unit_price, ql.currency)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )
+                  )}
+
+                  {/* ── POs tab ────────────────────────────────────────────── */}
+                  {inspectTab === 'pos' && (
+                    allPOLines.length === 0 ? (
+                      <p className="text-sm text-slate-600 italic py-8 text-center">No PO line items</p>
+                    ) : (
+                      <div className="rounded-xl border border-slate-800 overflow-hidden">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-slate-800 bg-slate-800/50">
+                              <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-500">PO #</th>
+                              <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-500">Date</th>
+                              <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-500">Qty</th>
+                              <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-500">Unit Cost</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/60">
+                            {allPOLines.map((pl, i) => (
+                              <tr key={i} className="hover:bg-white/[0.02]">
+                                <td className="px-3 py-2 font-mono text-emerald-300">{pl.po_number}</td>
+                                <td className="px-3 py-2 text-slate-400">{fmtD(pl.po_date)}</td>
+                                <td className="px-3 py-2 text-right text-slate-300 tabular-nums">{pl.quantity}</td>
+                                <td className="px-3 py-2 text-right text-amber-300 font-semibold tabular-nums">{fmtP(pl.unit_cost, pl.currency)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )
+                  )}
+
+                  {/* ── Market Intel tab ───────────────────────────────────── */}
+                  {inspectTab === 'intel' && (
+                    compPrices.length === 0 ? (
+                      <p className="text-sm text-slate-600 italic py-8 text-center">No competitor prices linked to this component</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {compPrices.map((cp) => (
+                          <div key={cp.competitor_price_id} className="rounded-xl border border-slate-800 bg-slate-800/20 px-4 py-3 space-y-2">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-slate-200 leading-tight">
+                                  {cp.competitor_brand && <span className="text-slate-400 font-normal">{cp.competitor_brand} · </span>}
+                                  {cp.competitor_model || cp.competitor_description || 'Unknown model'}
+                                </p>
+                                {cp.competitor_description && cp.competitor_model && (
+                                  <p className="text-[11px] text-slate-500 mt-0.5 truncate">{cp.competitor_description}</p>
+                                )}
+                              </div>
+                              <div className="text-right flex-shrink-0">
+                                <p className="text-sm font-bold text-emerald-300 tabular-nums">{fmtP(cp.unit_price, cp.currency)}</p>
+                                {cp.min_quantity && <p className="text-[10px] text-slate-600 mt-0.5">min {cp.min_quantity} units</p>}
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500">
+                              <span>Observed: <span className="text-slate-400">{fmtD(cp.observed_at)}</span></span>
+                              {cp.incoterms && <span>Incoterms: <span className="text-slate-400">{cp.incoterms}</span></span>}
+                              {cp.region && <span>Region: <span className="text-slate-400">{cp.region}</span></span>}
+                              {cp.source_name && <span>Source: <span className="text-slate-400">{
+                                cp.source_url
+                                  ? <a href={cp.source_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{cp.source_name}</a>
+                                  : cp.source_name
+                              }</span></span>}
+                            </div>
+                            {cp.notes && <p className="text-[11px] text-slate-500 italic">{cp.notes}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  )}
+
+                  {/* ── Change Log tab ─────────────────────────────────────── */}
+                  {inspectTab === 'log' && (
+                    histTimeline.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
+                        <svg className="w-10 h-10 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2"/></svg>
+                        <p className="text-sm text-slate-600">No history yet</p>
+                        <p className="text-xs text-slate-700">Changes will appear here after the next save.</p>
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <div className="absolute left-[7px] top-2 bottom-2 w-px bg-slate-800" />
+                        <div className="space-y-6 pl-6">
+                          {histTimeline.map(([ts, entries]) => (
+                            <div key={ts} className="relative">
+                              <div className="absolute -left-6 top-1 w-3.5 h-3.5 rounded-full bg-slate-700 border-2 border-slate-900 flex items-center justify-center">
+                                <div className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+                              </div>
+                              <p className="text-[11px] text-slate-500 mb-2">
+                                {new Date(ts).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                              <div className="space-y-1.5">
+                                {entries.map((e) => (
+                                  <div key={e.id} className="rounded-lg bg-slate-800/60 border border-slate-800 px-3 py-2">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{e.field_name.replace(/_/g, ' ')}</span>
+                                    <div className="flex items-center gap-2 mt-1 text-xs flex-wrap">
+                                      <span className="font-mono text-red-400/80 line-through">{e.old_value || '—'}</span>
+                                      <span className="text-slate-600">→</span>
+                                      <span className="font-mono text-emerald-300">{e.new_value || '—'}</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  )}
+
+                </div>
+
+                {/* Footer */}
+                <div className="px-6 py-3 border-t border-slate-800 flex-shrink-0">
+                  <button onClick={() => setInspectId(null)} className="w-full py-2 text-xs font-semibold text-slate-400 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-all">Close</button>
+                </div>
+              </div>
+            </>
+          );
+        })(),
         document.body
       )}
     </>
