@@ -465,15 +465,17 @@ function PriceSparkline({ lines }: { lines: TooltipQuoteLine[] }) {
   const min = Math.min(...vals);
   const max = Math.max(...vals);
   if (min === max) return null;
-  const W = 64; const H = 18;
+  // Internal padding so circle (r=2) never clips at the edges
+  const W = 48; const H = 28; const PAD = 3;
   const range = max - min;
-  const toY = (v: number) => (H - 2 - ((v - min) / range) * (H - 4)).toFixed(1);
-  const points = vals.map((v, i) => `${((i / (vals.length - 1)) * W).toFixed(1)},${toY(v)}`).join(' ');
+  const toX = (i: number) => (PAD + (i / (vals.length - 1)) * (W - PAD * 2)).toFixed(1);
+  const toY = (v: number) => (H - PAD - ((v - min) / range) * (H - PAD * 2)).toFixed(1);
+  const points = vals.map((v, i) => `${toX(i)},${toY(v)}`).join(' ');
   const col = vals[vals.length - 1] > vals[0] ? '#f87171' : '#4ade80';
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="block mt-1 overflow-visible" aria-hidden="true">
-      <polyline points={points} fill="none" stroke={col} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.85" />
-      <circle cx={W} cy={toY(vals[vals.length - 1])} r="2" fill={col} />
+    <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="flex-shrink-0 opacity-80" aria-hidden="true">
+      <polyline points={points} fill="none" stroke={col} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={toX(vals.length - 1)} cy={toY(vals[vals.length - 1])} r="2" fill={col} />
     </svg>
   );
 }
@@ -1828,13 +1830,15 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           return (
                             <div>
                               {lq ? (
-                                <>
-                                  <p className="text-sm font-semibold text-slate-200 tabular-nums">
-                                    {lq.currency} {lq.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                  </p>
-                                  <p className="text-[10px] text-slate-600 mt-0.5">{new Date(lq.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}</p>
+                                <div className="flex items-center gap-2">
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-semibold text-slate-200 tabular-nums leading-tight">
+                                      {lq.currency} {lq.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </p>
+                                    <p className="text-[10px] text-slate-600 mt-0.5">{new Date(lq.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}</p>
+                                  </div>
                                   <PriceSparkline lines={quoteLinesByComponent.get(c.component_id) ?? []} />
-                                </>
+                                </div>
                               ) : (
                                 <span className="text-xs text-slate-700">—</span>
                               )}
