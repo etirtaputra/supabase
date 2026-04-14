@@ -449,7 +449,7 @@ function Highlight({ text, query }: { text: string | null | undefined; query: st
   while (idx !== -1) {
     if (idx > last) parts.push(text.slice(last, idx));
     parts.push(
-      <mark key={idx} className="bg-transparent text-amber-300 font-semibold not-italic">
+      <mark key={idx} className="bg-transparent text-sky-400 font-semibold not-italic">
         {text.slice(idx, idx + q.length)}
       </mark>
     );
@@ -2060,14 +2060,16 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                         {hasSpecs && (
                           <button
                             onClick={() => toggleSpecs(c.component_id)}
-                            className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all ${
+                            className={`px-2 py-1 text-xs font-semibold rounded-lg border transition-all ${
                               isSpecsOpen
-                                ? 'text-amber-300 bg-amber-500/10 border-amber-500/30 hover:bg-amber-500/20'
-                                : 'text-slate-400 bg-slate-800/60 border-slate-700/60 hover:bg-slate-700 hover:text-amber-300'
+                                ? 'text-sky-300 bg-sky-500/10 border-sky-500/30 hover:bg-sky-500/20'
+                                : 'text-slate-600 bg-transparent border-transparent hover:bg-slate-800/60 hover:border-slate-700/60 hover:text-sky-300'
                             }`}
                             title={isSpecsOpen ? 'Hide specifications' : 'View specifications'}
                           >
-                            ⚡
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                            </svg>
                           </button>
                         )}
                         {isEditing ? (
