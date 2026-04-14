@@ -785,6 +785,7 @@ function MasterInsertPage() {
               {activeTab === 'market-intel' && (
                 <CompetitorPriceForm
                   components={data.components}
+                  suppliers={data.suppliers}
                   poItems={data.poItems}
                   pos={data.pos}
                   quoteItems={data.quoteItems}

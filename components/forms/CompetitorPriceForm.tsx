@@ -15,6 +15,7 @@ import type {
   PriceQuoteLineItem,
   PriceQuote,
   CompetitorPrice,
+  Supplier,
 } from '../../types/database';
 import { ENUMS } from '../../constants/enums';
 
@@ -121,6 +122,106 @@ function ComponentSearch({ components, value, onChange }: CompSearchProps) {
                 )}
               </button>
             ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Quote / PI reference picker ────────────────────────────────────────────
+
+interface QuoteRefPickerProps {
+  quotes: PriceQuote[];
+  suppliers: Supplier[];
+  value: string;
+  onChange: (ref: string, sourceType?: string) => void;
+}
+
+function QuoteRefPicker({ quotes, suppliers, value, onChange }: QuoteRefPickerProps) {
+  const [q, setQ] = useState('');
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const hits = useMemo(() => {
+    const lq = q.toLowerCase().trim();
+    const sorted = [...quotes].sort((a, b) => b.quote_date.localeCompare(a.quote_date));
+    if (!lq) return sorted.slice(0, 30);
+    return sorted.filter((qt) =>
+      qt.pi_number?.toLowerCase().includes(lq) ||
+      suppliers.find(s => s.supplier_id === qt.supplier_id)?.supplier_name?.toLowerCase().includes(lq) ||
+      qt.quote_date?.includes(lq)
+    ).slice(0, 30);
+  }, [q, quotes, suppliers]);
+
+  const selected = value ? quotes.find(qt => qt.pi_number === value || String(qt.quote_id) === value) : null;
+  const selectedSupplier = selected ? suppliers.find(s => s.supplier_id === selected.supplier_id) : null;
+
+  const clear = () => { onChange(''); setQ(''); };
+
+  const pick = (qt: PriceQuote) => {
+    const ref = qt.pi_number || `Quote #${qt.quote_id}`;
+    const supplier = suppliers.find(s => s.supplier_id === qt.supplier_id);
+    onChange(ref, supplier?.supplier_name ?? undefined);
+    setQ('');
+    setOpen(false);
+  };
+
+  return (
+    <div ref={ref} className="relative">
+      {selected ? (
+        <div className="flex items-center gap-2 bg-violet-500/10 border border-violet-500/30 rounded-lg px-3 py-2">
+          <svg className="w-3.5 h-3.5 text-violet-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <span className="text-xs text-white font-semibold flex-1 min-w-0 truncate">
+            {selected.pi_number || `Quote #${selected.quote_id}`}
+            {selectedSupplier && <span className="text-slate-400 font-normal ml-1.5">{selectedSupplier.supplier_name}</span>}
+          </span>
+          <button type="button" onClick={clear} className="text-slate-400 hover:text-red-400 text-xs transition-colors flex-shrink-0">✕</button>
+        </div>
+      ) : (
+        <input
+          type="text"
+          value={q}
+          onChange={(e) => { setQ(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          placeholder="Search PI number or supplier…"
+          className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+        />
+      )}
+      {open && !selected && (
+        <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-xl overflow-hidden max-h-52 overflow-y-auto">
+          {hits.length === 0 ? (
+            <div className="px-3 py-3 text-xs text-slate-500">No quotes found</div>
+          ) : (
+            hits.map((qt) => {
+              const sup = suppliers.find(s => s.supplier_id === qt.supplier_id);
+              return (
+                <button
+                  key={qt.quote_id}
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => pick(qt)}
+                  className="w-full text-left px-3 py-2.5 hover:bg-slate-800 transition-colors border-b border-slate-800/50 last:border-0"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-white">{qt.pi_number || `Quote #${qt.quote_id}`}</span>
+                    <span className="text-[10px] text-slate-500 flex-shrink-0">{qt.quote_date}</span>
+                  </div>
+                  {sup && <div className="text-[11px] text-slate-400 mt-0.5 truncate">{sup.supplier_name}</div>}
+                  <div className="text-[11px] text-slate-600 mt-0.5">{qt.currency} {qt.total_value?.toLocaleString()}</div>
+                </button>
+              );
+            })
           )}
         </div>
       )}
@@ -363,6 +464,7 @@ function ComparisonPanel({
 
 interface CompetitorPriceFormProps {
   components: Component[];
+  suppliers?: Supplier[];
   poItems: PurchaseLineItem[];
   pos: PurchaseOrder[];
   quoteItems: PriceQuoteLineItem[];
@@ -395,12 +497,13 @@ const BLANK = {
 };
 
 export default function CompetitorPriceForm({
-  components, poItems, pos, quoteItems, quotes, competitorPrices,
+  components, suppliers = [], poItems, pos, quoteItems, quotes, competitorPrices,
   onSubmit, loading,
 }: CompetitorPriceFormProps) {
   const [form, setForm] = useState({ ...BLANK });
   const [linkedComponent, setLinkedComponent] = useState<Component | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [sourceMode, setSourceMode] = useState<'url' | 'quote'>('url');
 
   const set = (name: string, val: string) => {
     setForm((p) => ({ ...p, [name]: val }));
@@ -443,6 +546,7 @@ export default function CompetitorPriceForm({
     setForm({ ...BLANK, observed_at: nowLocal() });
     setLinkedComponent(null);
     setErrors({});
+    setSourceMode('url');
   };
 
   const panelUnitPrice = form.unit_price ? Number(form.unit_price) : null;
@@ -554,8 +658,45 @@ export default function CompetitorPriceForm({
             <Field label="Source Name">
               <input className={inputCls} value={form.source_name} onChange={(e) => set('source_name', e.target.value)} placeholder="e.g. Lazada, PVInfoLink, Customer ABC" />
             </Field>
-            <Field label="Source URL">
-              <input className={inputCls} type="url" value={form.source_url} onChange={(e) => set('source_url', e.target.value)} placeholder="https://…" />
+            <Field label="Source Reference">
+              {/* Toggle: external URL vs internal Quote/PI */}
+              <div className="flex gap-1 mb-1.5">
+                <button
+                  type="button"
+                  onClick={() => { setSourceMode('url'); set('source_url', ''); }}
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border transition-all ${sourceMode === 'url' ? 'bg-slate-700 border-slate-600 text-white' : 'bg-transparent border-transparent text-slate-500 hover:text-slate-300'}`}
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                  Website URL
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setSourceMode('quote'); set('source_url', ''); }}
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border transition-all ${sourceMode === 'quote' ? 'bg-violet-500/20 border-violet-500/40 text-violet-300' : 'bg-transparent border-transparent text-slate-500 hover:text-slate-300'}`}
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  Quote / PI
+                </button>
+              </div>
+              {sourceMode === 'url' ? (
+                <input
+                  className={inputCls}
+                  type="text"
+                  value={form.source_url}
+                  onChange={(e) => set('source_url', e.target.value)}
+                  placeholder="https://… or any reference"
+                />
+              ) : (
+                <QuoteRefPicker
+                  quotes={quotes}
+                  suppliers={suppliers}
+                  value={form.source_url}
+                  onChange={(ref, supplierName) => {
+                    set('source_url', ref);
+                    if (supplierName && !form.source_name) set('source_name', supplierName);
+                  }}
+                />
+              )}
             </Field>
             <Field label="Market / Region">
               <input
