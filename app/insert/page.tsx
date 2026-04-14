@@ -215,6 +215,20 @@ function MasterInsertPage() {
     refetch();
   };
 
+  const handleDeleteCompetitorPrice = async (id: string) => {
+    const { error } = await supabase.from('7.0_competitor_prices').delete().eq('competitor_price_id', id);
+    if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
+    showToast('Market intel entry deleted.', 'success');
+    refetch();
+  };
+
+  const handleUpdateCompetitorPrice = async (id: string, changes: Record<string, any>) => {
+    const { error } = await supabase.from('7.0_competitor_prices').update(changes).eq('competitor_price_id', id);
+    if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
+    showToast('Market intel entry updated.', 'success');
+    refetch();
+  };
+
   const handleComponentUpdates = async (updates: { component_id: string; changes: Record<string, any> }[]) => {
     const errors: string[] = [];
     let saved = 0;
@@ -390,6 +404,8 @@ function MasterInsertPage() {
                     poItems={data.poItems}
                     componentHistory={data.componentHistory}
                     competitorPrices={data.competitorPrices}
+                    onDeleteCompetitorPrice={handleDeleteCompetitorPrice}
+                    onUpdateCompetitorPrice={handleUpdateCompetitorPrice}
                     onSave={handleComponentUpdates}
                     onAdd={(fields) => handleInsert('3.0_components', [fields])}
                     onAddSupplier={() => setShowSupplierForm(true)}

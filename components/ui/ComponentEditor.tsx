@@ -42,6 +42,8 @@ interface ComponentEditorProps {
   onDeleteLineItem?: (quote_line_id: number) => Promise<void>;
   componentHistory?: ComponentHistoryEntry[];
   competitorPrices?: CompetitorPrice[];
+  onDeleteCompetitorPrice?: (id: string) => Promise<void>;
+  onUpdateCompetitorPrice?: (id: string, changes: Partial<CompetitorPrice>) => Promise<void>;
 }
 
 type SortCol = 'supplier_model' | 'internal_description' | 'brand' | 'category' | 'updated_at' | 'quoteCount' | 'lineItemCount';
@@ -447,7 +449,7 @@ function Highlight({ text, query }: { text: string | null | undefined; query: st
   while (idx !== -1) {
     if (idx > last) parts.push(text.slice(last, idx));
     parts.push(
-      <mark key={idx} className="bg-amber-400/25 text-amber-200 not-italic">
+      <mark key={idx} className="bg-transparent text-amber-300 font-semibold not-italic">
         {text.slice(idx, idx + q.length)}
       </mark>
     );
@@ -513,7 +515,7 @@ const IMPORT_HEADER_MAP: Record<string, string> = {
 // --- Main Component Editor ---
 const EMPTY_ADD = { supplier_model: '', internal_description: '', brand: '', category: '', specifications: '' };
 
-export default function ComponentEditor({ components, brandSuggestions, quoteItems = [], quotes = [], pos = [], poItems = [], componentHistory, competitorPrices, onSave, onAdd, onAddSupplier, onDelete, onSaveLineItem, onDeleteLineItem }: ComponentEditorProps) {
+export default function ComponentEditor({ components, brandSuggestions, quoteItems = [], quotes = [], pos = [], poItems = [], componentHistory, competitorPrices, onSave, onAdd, onAddSupplier, onDelete, onSaveLineItem, onDeleteLineItem, onDeleteCompetitorPrice, onUpdateCompetitorPrice }: ComponentEditorProps) {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [filterBrand, setFilterBrand] = useState('');
@@ -598,6 +600,10 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   // ── Inspect panel ─────────────────────────────────────────────────────────
   const [inspectId, setInspectId] = useState<string | null>(null);
   const [inspectTab, setInspectTab] = useState<'quotes' | 'pos' | 'intel' | 'log'>('quotes');
+  const [editingIntelId, setEditingIntelId] = useState<string | null>(null);
+  const [intelEditDraft, setIntelEditDraft] = useState<Partial<CompetitorPrice>>({});
+  const [confirmDeleteIntelId, setConfirmDeleteIntelId] = useState<string | null>(null);
+  const [intelSaving, setIntelSaving] = useState(false);
   // ── Copy-row flash ────────────────────────────────────────────────────────
   const [copiedRowId, setCopiedRowId] = useState<string | null>(null);
 
@@ -2744,36 +2750,149 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                       <p className="text-sm text-slate-600 italic py-8 text-center">No competitor prices linked to this component</p>
                     ) : (
                       <div className="space-y-3">
-                        {compPrices.map((cp) => (
-                          <div key={cp.competitor_price_id} className="rounded-xl border border-slate-800 bg-slate-800/20 px-4 py-3 space-y-2">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="text-sm font-semibold text-slate-200 leading-tight">
-                                  {cp.competitor_brand && <span className="text-slate-400 font-normal">{cp.competitor_brand} · </span>}
-                                  {cp.competitor_model || cp.competitor_description || 'Unknown model'}
-                                </p>
-                                {cp.competitor_description && cp.competitor_model && (
-                                  <p className="text-[11px] text-slate-500 mt-0.5 truncate">{cp.competitor_description}</p>
-                                )}
+                        {compPrices.map((cp) => {
+                          const isEditing = editingIntelId === cp.competitor_price_id;
+                          const isConfirmDelete = confirmDeleteIntelId === cp.competitor_price_id;
+
+                          if (isEditing) {
+                            const d = intelEditDraft;
+                            const fld = (k: keyof CompetitorPrice) => (k in d ? (d as any)[k] : (cp as any)[k]) ?? '';
+                            const setFld = (k: keyof CompetitorPrice, v: any) => setIntelEditDraft((prev) => ({ ...prev, [k]: v }));
+                            return (
+                              <div key={cp.competitor_price_id} className="rounded-xl border border-amber-500/40 bg-amber-500/5 px-4 py-3 space-y-3">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-400">Editing entry</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <label className="block text-[10px] text-slate-500 mb-1">Brand</label>
+                                    <input value={fld('competitor_brand')} onChange={(e) => setFld('competitor_brand', e.target.value)} className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-amber-500" />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] text-slate-500 mb-1">Model</label>
+                                    <input value={fld('competitor_model')} onChange={(e) => setFld('competitor_model', e.target.value)} className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-amber-500" />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] text-slate-500 mb-1">Unit Price</label>
+                                    <input type="number" min="0" step="any" value={fld('unit_price')} onChange={(e) => setFld('unit_price', parseFloat(e.target.value) || 0)} className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-amber-500" />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] text-slate-500 mb-1">Currency</label>
+                                    <select value={fld('currency')} onChange={(e) => setFld('currency', e.target.value)} className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-amber-500">
+                                      {ENUMS.currency.map((c) => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] text-slate-500 mb-1">Observed At</label>
+                                    <input type="date" value={fld('observed_at')?.slice(0, 10)} onChange={(e) => setFld('observed_at', e.target.value)} className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-amber-500" />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] text-slate-500 mb-1">Region</label>
+                                    <input value={fld('region')} onChange={(e) => setFld('region', e.target.value)} className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-amber-500" />
+                                  </div>
+                                  <div className="col-span-2">
+                                    <label className="block text-[10px] text-slate-500 mb-1">Source name</label>
+                                    <input value={fld('source_name')} onChange={(e) => setFld('source_name', e.target.value)} className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-amber-500" />
+                                  </div>
+                                  <div className="col-span-2">
+                                    <label className="block text-[10px] text-slate-500 mb-1">Source URL / reference</label>
+                                    <input value={fld('source_url')} onChange={(e) => setFld('source_url', e.target.value)} className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-amber-500" />
+                                  </div>
+                                  <div className="col-span-2">
+                                    <label className="block text-[10px] text-slate-500 mb-1">Notes</label>
+                                    <textarea value={fld('notes')} onChange={(e) => setFld('notes', e.target.value)} rows={2} className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-amber-500 resize-none" />
+                                  </div>
+                                </div>
+                                <div className="flex gap-2 justify-end">
+                                  <button onClick={() => { setEditingIntelId(null); setIntelEditDraft({}); }} className="px-3 py-1.5 text-xs text-slate-400 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-all">Cancel</button>
+                                  <button
+                                    disabled={intelSaving || !onUpdateCompetitorPrice}
+                                    onClick={async () => {
+                                      if (!onUpdateCompetitorPrice) return;
+                                      setIntelSaving(true);
+                                      try {
+                                        await onUpdateCompetitorPrice(cp.competitor_price_id, intelEditDraft);
+                                        setEditingIntelId(null);
+                                        setIntelEditDraft({});
+                                      } finally { setIntelSaving(false); }
+                                    }}
+                                    className="px-3 py-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-500 rounded-lg transition-all disabled:opacity-40"
+                                  >{intelSaving ? 'Saving…' : 'Save'}</button>
+                                </div>
                               </div>
-                              <div className="text-right flex-shrink-0">
-                                <p className="text-sm font-bold text-emerald-300 tabular-nums">{fmtP(cp.unit_price, cp.currency)}</p>
-                                {cp.min_quantity && <p className="text-[10px] text-slate-600 mt-0.5">min {cp.min_quantity} units</p>}
+                            );
+                          }
+
+                          return (
+                            <div key={cp.competitor_price_id} className="rounded-xl border border-slate-800 bg-slate-800/20 px-4 py-3 space-y-2">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="text-sm font-semibold text-slate-200 leading-tight">
+                                    {cp.competitor_brand && <span className="text-slate-400 font-normal">{cp.competitor_brand} · </span>}
+                                    {cp.competitor_model || cp.competitor_description || 'Unknown model'}
+                                  </p>
+                                  {cp.competitor_description && cp.competitor_model && (
+                                    <p className="text-[11px] text-slate-500 mt-0.5 truncate">{cp.competitor_description}</p>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                  <div className="text-right">
+                                    <p className="text-sm font-bold text-emerald-300 tabular-nums">{fmtP(cp.unit_price, cp.currency)}</p>
+                                    {cp.min_quantity && <p className="text-[10px] text-slate-600">min {cp.min_quantity}</p>}
+                                  </div>
+                                  {/* Edit / Delete */}
+                                  {(onUpdateCompetitorPrice || onDeleteCompetitorPrice) && (
+                                    <div className="flex gap-1 border-l border-slate-700 pl-2 ml-1">
+                                      {onUpdateCompetitorPrice && (
+                                        <button
+                                          onClick={() => { setEditingIntelId(cp.competitor_price_id); setIntelEditDraft({}); setConfirmDeleteIntelId(null); }}
+                                          title="Edit this entry"
+                                          className="px-1.5 py-1 text-slate-600 hover:text-amber-300 hover:bg-amber-500/10 rounded transition-all"
+                                        >
+                                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                        </button>
+                                      )}
+                                      {onDeleteCompetitorPrice && (
+                                        isConfirmDelete ? (
+                                          <div className="flex items-center gap-1">
+                                            <span className="text-[10px] text-red-400">Delete?</span>
+                                            <button
+                                              disabled={intelSaving}
+                                              onClick={async () => {
+                                                setIntelSaving(true);
+                                                try { await onDeleteCompetitorPrice(cp.competitor_price_id); setConfirmDeleteIntelId(null); }
+                                                finally { setIntelSaving(false); }
+                                              }}
+                                              className="px-1.5 py-1 text-[10px] font-bold text-white bg-red-600 hover:bg-red-500 rounded transition-all disabled:opacity-50"
+                                            >{intelSaving ? '…' : 'Yes'}</button>
+                                            <button onClick={() => setConfirmDeleteIntelId(null)} className="px-1.5 py-1 text-[10px] text-slate-400 bg-slate-800 rounded hover:bg-slate-700 transition-all">No</button>
+                                          </div>
+                                        ) : (
+                                          <button
+                                            onClick={() => { setConfirmDeleteIntelId(cp.competitor_price_id); setEditingIntelId(null); }}
+                                            title="Delete this entry"
+                                            className="px-1.5 py-1 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded transition-all"
+                                          >
+                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                          </button>
+                                        )
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
+                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500">
+                                <span>Observed: <span className="text-slate-400">{fmtD(cp.observed_at)}</span></span>
+                                {cp.incoterms && <span>Incoterms: <span className="text-slate-400">{cp.incoterms}</span></span>}
+                                {cp.region && <span>Region: <span className="text-slate-400">{cp.region}</span></span>}
+                                {cp.source_name && <span>Source: <span className="text-slate-400">{
+                                  cp.source_url
+                                    ? <a href={cp.source_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{cp.source_name}</a>
+                                    : cp.source_name
+                                }</span></span>}
+                              </div>
+                              {cp.notes && <p className="text-[11px] text-slate-500 italic">{cp.notes}</p>}
                             </div>
-                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500">
-                              <span>Observed: <span className="text-slate-400">{fmtD(cp.observed_at)}</span></span>
-                              {cp.incoterms && <span>Incoterms: <span className="text-slate-400">{cp.incoterms}</span></span>}
-                              {cp.region && <span>Region: <span className="text-slate-400">{cp.region}</span></span>}
-                              {cp.source_name && <span>Source: <span className="text-slate-400">{
-                                cp.source_url
-                                  ? <a href={cp.source_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{cp.source_name}</a>
-                                  : cp.source_name
-                              }</span></span>}
-                            </div>
-                            {cp.notes && <p className="text-[11px] text-slate-500 italic">{cp.notes}</p>}
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )
                   )}
