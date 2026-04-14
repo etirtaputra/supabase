@@ -449,7 +449,7 @@ function Highlight({ text, query }: { text: string | null | undefined; query: st
   while (idx !== -1) {
     if (idx > last) parts.push(text.slice(last, idx));
     parts.push(
-      <mark key={idx} className="bg-transparent text-sky-400 font-semibold not-italic">
+      <mark key={idx} className="bg-transparent text-blue-300 font-semibold not-italic">
         {text.slice(idx, idx + q.length)}
       </mark>
     );
