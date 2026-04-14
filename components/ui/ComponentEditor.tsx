@@ -1777,7 +1777,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           <DirtyBadge original={c.supplier_model} />
                         </div>
                       ) : (
-                        <span className="inline-flex items-center gap-0.5 text-sm text-white font-medium">
+                        <span className="text-sm text-white font-medium">
                           <Highlight text={c.supplier_model} query={search} />
                           <CopyBtn text={c.supplier_model} />
                         </span>
@@ -1811,7 +1811,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           <DirtyBadge original={c.internal_description} />
                         </div>
                       ) : (
-                        <span className="inline-flex items-center gap-0.5 text-sm text-slate-300">
+                        <span className="text-sm text-slate-300">
                           <Highlight text={c.internal_description} query={search} />
                           <CopyBtn text={c.internal_description} />
                         </span>
