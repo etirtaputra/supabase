@@ -18,6 +18,15 @@ interface ComponentUsage {
   poNumbers: string[];
 }
 
+interface ComponentHistoryEntry {
+  id: string;
+  component_id: string;
+  field_name: string;
+  old_value: string | null;
+  new_value: string | null;
+  changed_at: string;
+}
+
 interface ComponentEditorProps {
   components: Component[];
   brandSuggestions: string[];
@@ -31,6 +40,7 @@ interface ComponentEditorProps {
   onDelete?: (component_id: string) => Promise<void>;
   onSaveLineItem?: (item: Omit<PriceQuoteLineItem, 'quote_line_id' | 'created_at' | 'updated_at'> & { quote_line_id?: number }) => Promise<void>;
   onDeleteLineItem?: (quote_line_id: number) => Promise<void>;
+  componentHistory?: ComponentHistoryEntry[];
 }
 
 type SortCol = 'supplier_model' | 'internal_description' | 'brand' | 'category' | 'updated_at' | 'quoteCount' | 'lineItemCount';
@@ -447,15 +457,60 @@ function Highlight({ text, query }: { text: string | null | undefined; query: st
   return <>{parts}</>;
 }
 
+// ── Price history sparkline ───────────────────────────────────────────────
+function PriceSparkline({ lines }: { lines: TooltipQuoteLine[] }) {
+  if (lines.length < 2) return null;
+  const sorted = [...lines].sort((a, b) => (a.quote_date || '').localeCompare(b.quote_date || ''));
+  const vals = sorted.map((l) => l.unit_price);
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  if (min === max) return null;
+  const W = 64; const H = 18;
+  const range = max - min;
+  const toY = (v: number) => (H - 2 - ((v - min) / range) * (H - 4)).toFixed(1);
+  const points = vals.map((v, i) => `${((i / (vals.length - 1)) * W).toFixed(1)},${toY(v)}`).join(' ');
+  const col = vals[vals.length - 1] > vals[0] ? '#f87171' : '#4ade80';
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="block mt-1 overflow-visible" aria-hidden="true">
+      <polyline points={points} fill="none" stroke={col} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.85" />
+      <circle cx={W} cy={toY(vals[vals.length - 1])} r="2" fill={col} />
+    </svg>
+  );
+}
+
 // ── Column visibility ─────────────────────────────────────────────────────
 type ColKey = 'brand' | 'category' | 'lastPrice' | 'usage' | 'updated';
 const COL_LABELS: Record<ColKey, string> = { brand: 'Brand', category: 'Category', lastPrice: 'Last Price', usage: 'Usage', updated: 'Updated' };
 const DEFAULT_COLS: Record<ColKey, boolean> = { brand: true, category: true, lastPrice: true, usage: true, updated: true };
 
+// ── CSV import ─────────────────────────────────────────────────────────────
+type ImportStep = 'upload' | 'map' | 'preview';
+interface ImportPreviewRow {
+  action: 'add' | 'update' | 'skip';
+  fields: Partial<Component>;
+  existing?: Component;
+  changes?: Partial<Component>;
+}
+const IMPORT_FIELDS: Record<string, string> = {
+  '': '— ignore —',
+  supplier_model: 'Model / SKU',
+  internal_description: 'Description',
+  brand: 'Brand',
+  category: 'Category',
+};
+const IMPORT_HEADER_MAP: Record<string, string> = {
+  model: 'supplier_model', sku: 'supplier_model', 'supplier model': 'supplier_model',
+  supplier_model: 'supplier_model', 'part number': 'supplier_model', 'part no': 'supplier_model', 'part#': 'supplier_model',
+  description: 'internal_description', 'internal description': 'internal_description',
+  internal_description: 'internal_description', desc: 'internal_description',
+  brand: 'brand', manufacturer: 'brand', make: 'brand',
+  category: 'category', type: 'category', 'product type': 'category', product_type: 'category',
+};
+
 // --- Main Component Editor ---
 const EMPTY_ADD = { supplier_model: '', internal_description: '', brand: '', category: '', specifications: '' };
 
-export default function ComponentEditor({ components, brandSuggestions, quoteItems = [], quotes = [], pos = [], poItems = [], onSave, onAdd, onAddSupplier, onDelete, onSaveLineItem, onDeleteLineItem }: ComponentEditorProps) {
+export default function ComponentEditor({ components, brandSuggestions, quoteItems = [], quotes = [], pos = [], poItems = [], componentHistory, onSave, onAdd, onAddSupplier, onDelete, onSaveLineItem, onDeleteLineItem }: ComponentEditorProps) {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [filterBrand, setFilterBrand] = useState('');
@@ -529,6 +584,16 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [showAddForm, setShowAddForm] = useState(false);
   const [addDraft, setAddDraft] = useState(EMPTY_ADD);
   const [addSaving, setAddSaving] = useState(false);
+  // ── CSV import ────────────────────────────────────────────────────────────
+  const [importStep, setImportStep] = useState<ImportStep | null>(null);
+  const [importRows, setImportRows] = useState<string[][]>([]);
+  const [importMapping, setImportMapping] = useState<Record<number, string>>({});
+  const [importProcessing, setImportProcessing] = useState(false);
+  const [importDragOver, setImportDragOver] = useState(false);
+  // ── Change log panel ──────────────────────────────────────────────────────
+  const [historyPanelId, setHistoryPanelId] = useState<string | null>(null);
+  // ── Copy-row flash ────────────────────────────────────────────────────────
+  const [copiedRowId, setCopiedRowId] = useState<string | null>(null);
 
   // ── Per-component usage stats ──────────────────────────────────────────────
   const usageMap = useMemo<Map<string, ComponentUsage>>(() => {
@@ -971,6 +1036,124 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     }
   };
 
+  // ── CSV parser (handles quoted fields + CRLF) ─────────────────────────────
+  const parseCSV = (text: string): string[][] => {
+    const rows: string[][] = [];
+    let cur = ''; let inQ = false; let row: string[] = [];
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (inQ) {
+        if (ch === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else inQ = false; }
+        else cur += ch;
+      } else if (ch === '"') { inQ = true; }
+      else if (ch === ',') { row.push(cur); cur = ''; }
+      else if (ch === '\n' || ch === '\r') {
+        if (ch === '\r' && text[i + 1] === '\n') i++;
+        row.push(cur); cur = '';
+        if (row.some((c) => c.trim())) rows.push(row);
+        row = [];
+      } else { cur += ch; }
+    }
+    row.push(cur);
+    if (row.some((c) => c.trim())) rows.push(row);
+    return rows;
+  };
+
+  const handleImportFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = (e.target?.result as string) || '';
+      const rows = parseCSV(text);
+      if (rows.length < 2) return;
+      const headers = rows[0];
+      const autoMap: Record<number, string> = {};
+      headers.forEach((h, i) => { autoMap[i] = IMPORT_HEADER_MAP[h.toLowerCase().trim()] || ''; });
+      setImportRows(rows);
+      setImportMapping(autoMap);
+      setImportStep('map');
+    };
+    reader.readAsText(file);
+  };
+
+  const importPreview = useMemo((): ImportPreviewRow[] => {
+    if (importStep !== 'preview' || !importRows.length) return [];
+    const dataRows = importRows.slice(1);
+    return dataRows.map((row) => {
+      const fields: Partial<Component> = {};
+      Object.entries(importMapping).forEach(([idxStr, field]) => {
+        if (!field) return;
+        const val = row[Number(idxStr)]?.trim();
+        if (val) (fields as any)[field] = val;
+      });
+      if (!fields.supplier_model) return null;
+      const existing = components.find((c) => c.supplier_model?.toLowerCase().trim() === fields.supplier_model!.toLowerCase().trim());
+      if (existing) {
+        const changes: Partial<Component> = {};
+        (['internal_description', 'brand', 'category'] as const).forEach((f) => {
+          if (f in fields && (fields as any)[f] !== existing[f]) (changes as any)[f] = (fields as any)[f];
+        });
+        return Object.keys(changes).length === 0
+          ? { action: 'skip' as const, fields, existing }
+          : { action: 'update' as const, fields, existing, changes };
+      }
+      return { action: 'add' as const, fields };
+    }).filter(Boolean) as ImportPreviewRow[];
+  }, [importStep, importRows, importMapping, components]);
+
+  const handleImportCommit = async () => {
+    if (importProcessing) return;
+    setImportProcessing(true);
+    try {
+      const adds = importPreview.filter((r) => r.action === 'add');
+      const updates = importPreview.filter((r) => r.action === 'update');
+      if (onAdd) {
+        for (const r of adds) {
+          await onAdd({
+            supplier_model: r.fields.supplier_model!,
+            internal_description: r.fields.internal_description || r.fields.supplier_model!,
+            brand: (r.fields.brand as any) || null,
+            category: (r.fields.category as any) || null,
+            specifications: undefined as any,
+          });
+        }
+      }
+      if (updates.length > 0) {
+        await onSave(updates.map((r) => ({ component_id: r.existing!.component_id, changes: r.changes! })));
+      }
+      setImportStep(null);
+      setImportRows([]);
+      setImportMapping({});
+    } finally { setImportProcessing(false); }
+  };
+
+  const copyRow = (c: Component) => {
+    const lq = lastQuoteByComponent.get(c.component_id);
+    const text = [
+      c.supplier_model ?? '',
+      c.internal_description ?? '',
+      c.brand ?? '',
+      c.category ?? '',
+      lq ? `${lq.currency} ${lq.price.toFixed(2)}` : '',
+    ].join('\t');
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedRowId(c.component_id);
+      setTimeout(() => setCopiedRowId(null), 1400);
+    });
+  };
+
+  // ── Change log grouped by timestamp (within same second = same save) ──────
+  const historyForPanel = useMemo(() => {
+    if (!historyPanelId || !componentHistory) return [];
+    const entries = componentHistory.filter((h) => h.component_id === historyPanelId);
+    const groups = new Map<string, ComponentHistoryEntry[]>();
+    entries.forEach((e) => {
+      const key = e.changed_at.slice(0, 19);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(e);
+    });
+    return [...groups.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+  }, [historyPanelId, componentHistory]);
+
   // ── CSV Export ────────────────────────────────────────────────────────────
   const downloadCSV = useCallback(() => {
     const headers = ['Model/SKU', 'Description', 'Brand', 'Category', 'Quotes', 'Line Items', 'Last Price', 'Currency'];
@@ -1041,6 +1224,17 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
           <p className="text-xs text-slate-500 mt-0.5">Click ✎ to edit · <kbd className="px-1 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Ctrl+S</kbd> to save · <kbd className="px-1 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">/</kbd> to search</p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Import CSV */}
+          <button
+            onClick={() => setImportStep('upload')}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border transition-all bg-slate-800/60 border-slate-700 text-slate-400 hover:text-violet-300 hover:border-violet-500/30"
+            title="Import components from CSV"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
+            Import
+          </button>
           {/* Column visibility picker */}
           <div className="relative">
             <button
@@ -1639,6 +1833,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                                     {lq.currency} {lq.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </p>
                                   <p className="text-[10px] text-slate-600 mt-0.5">{new Date(lq.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}</p>
+                                  <PriceSparkline lines={quoteLinesByComponent.get(c.component_id) ?? []} />
                                 </>
                               ) : (
                                 <span className="text-xs text-slate-700">—</span>
@@ -1736,6 +1931,33 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                     {/* Row actions */}
                     <td className="px-4 py-3 align-top">
                       <div className="flex gap-1.5 justify-end items-center">
+                        {/* Copy row to clipboard */}
+                        <button
+                          onClick={() => copyRow(c)}
+                          title="Copy row to clipboard (tab-separated, paste into Excel)"
+                          className={`px-2 py-1 text-xs rounded-lg border transition-all ${
+                            copiedRowId === c.component_id
+                              ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30'
+                              : 'text-slate-600 bg-transparent border-transparent hover:bg-slate-800/60 hover:border-slate-700/60 hover:text-slate-300'
+                          }`}
+                        >
+                          {copiedRowId === c.component_id
+                            ? <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                            : <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path strokeLinecap="round" d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>
+                          }
+                        </button>
+                        {/* Change log */}
+                        {componentHistory && (
+                          <button
+                            onClick={() => setHistoryPanelId(c.component_id)}
+                            title="View change history"
+                            className="px-2 py-1 text-xs text-slate-600 bg-transparent border border-transparent rounded-lg hover:bg-slate-800/60 hover:border-slate-700/60 hover:text-slate-300 transition-all"
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                              <circle cx="12" cy="12" r="10" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2" />
+                            </svg>
+                          </button>
+                        )}
                         {hasSpecs && (
                           <button
                             onClick={() => toggleSpecs(c.component_id)}
@@ -2065,6 +2287,262 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
           poLines={poLinesByComponent.get(hoveredTooltip.id) ?? []}
           style={hoveredTooltip.style}
         />
+      )}
+
+      {/* ── CSV Import overlay ────────────────────────────────────────────── */}
+      {importStep && typeof document !== 'undefined' && createPortal(
+        <>
+          <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={() => { setImportStep(null); setImportRows([]); setImportMapping({}); }} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+            <div
+              className="pointer-events-auto w-full max-w-3xl max-h-[90vh] flex flex-col bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl shadow-black/60"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 flex-shrink-0">
+                <div>
+                  <h3 className="text-base font-bold text-white">Import Components from CSV</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {importStep === 'upload' && 'Drop a CSV file or click to browse'}
+                    {importStep === 'map' && `${importRows.length - 1} rows detected — map columns to fields`}
+                    {importStep === 'preview' && (() => {
+                      const adds = importPreview.filter(r => r.action === 'add').length;
+                      const upds = importPreview.filter(r => r.action === 'update').length;
+                      const skips = importPreview.filter(r => r.action === 'skip').length;
+                      return `${adds} new · ${upds} update · ${skips} unchanged`;
+                    })()}
+                  </p>
+                </div>
+                <button onClick={() => { setImportStep(null); setImportRows([]); setImportMapping({}); }} className="text-slate-500 hover:text-white transition-colors">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto px-6 py-5">
+                {/* Step 1: Upload */}
+                {importStep === 'upload' && (
+                  <div
+                    className={`relative flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed py-16 transition-colors cursor-pointer ${importDragOver ? 'border-violet-500 bg-violet-500/5' : 'border-slate-700 hover:border-slate-600'}`}
+                    onDragOver={(e) => { e.preventDefault(); setImportDragOver(true); }}
+                    onDragLeave={() => setImportDragOver(false)}
+                    onDrop={(e) => { e.preventDefault(); setImportDragOver(false); const f = e.dataTransfer.files[0]; if (f) handleImportFile(f); }}
+                    onClick={() => { const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.csv,text/csv'; inp.onchange = (e) => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) handleImportFile(f); }; inp.click(); }}
+                  >
+                    <svg className="w-12 h-12 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                    <div className="text-center">
+                      <p className="text-sm font-semibold text-slate-300">Drop CSV file here</p>
+                      <p className="text-xs text-slate-500 mt-1">or click to browse · UTF-8 or ASCII</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2 justify-center text-[11px] text-slate-600">
+                      <span className="px-2 py-0.5 bg-white/5 rounded">Model/SKU</span>
+                      <span className="px-2 py-0.5 bg-white/5 rounded">Description</span>
+                      <span className="px-2 py-0.5 bg-white/5 rounded">Brand</span>
+                      <span className="px-2 py-0.5 bg-white/5 rounded">Category</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 2: Column mapping */}
+                {importStep === 'map' && (
+                  <div className="space-y-3">
+                    <p className="text-xs text-slate-500">Auto-detected mappings based on column headers. Adjust if needed.</p>
+                    <div className="rounded-xl border border-slate-800 overflow-hidden">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-slate-800 bg-slate-800/50">
+                            <th className="px-4 py-2.5 text-left font-bold uppercase tracking-wider text-slate-500">CSV Column</th>
+                            <th className="px-4 py-2.5 text-left font-bold uppercase tracking-wider text-slate-500">Sample</th>
+                            <th className="px-4 py-2.5 text-left font-bold uppercase tracking-wider text-slate-500">Maps to</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800">
+                          {importRows[0]?.map((header, i) => (
+                            <tr key={i} className="bg-slate-900/30">
+                              <td className="px-4 py-2.5 font-mono text-slate-300">{header || `(col ${i + 1})`}</td>
+                              <td className="px-4 py-2.5 text-slate-500 truncate max-w-[160px]">{importRows[1]?.[i] || '—'}</td>
+                              <td className="px-4 py-2.5">
+                                <select
+                                  value={importMapping[i] ?? ''}
+                                  onChange={(e) => setImportMapping((prev) => ({ ...prev, [i]: e.target.value }))}
+                                  className="px-2 py-1 bg-slate-800 border border-slate-700 rounded-lg text-slate-300 focus:outline-none focus:border-violet-500 text-xs"
+                                >
+                                  {Object.entries(IMPORT_FIELDS).map(([val, label]) => (
+                                    <option key={val} value={val}>{label}</option>
+                                  ))}
+                                </select>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 3: Preview diff */}
+                {importStep === 'preview' && (
+                  <div className="space-y-2">
+                    {importPreview.length === 0 && (
+                      <p className="text-sm text-slate-500 text-center py-8">No importable rows found. Check column mapping.</p>
+                    )}
+                    {importPreview.length > 0 && (
+                      <div className="rounded-xl border border-slate-800 overflow-hidden">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-slate-800 bg-slate-800/50">
+                              <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-500 w-16">Action</th>
+                              <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-500">Model / SKU</th>
+                              <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-500">Changes</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/60">
+                            {importPreview.map((row, i) => (
+                              <tr key={i} className={row.action === 'skip' ? 'opacity-40' : ''}>
+                                <td className="px-3 py-2">
+                                  {row.action === 'add' && <span className="px-1.5 py-0.5 bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 rounded text-[10px] font-bold">ADD</span>}
+                                  {row.action === 'update' && <span className="px-1.5 py-0.5 bg-amber-500/15 text-amber-300 border border-amber-500/25 rounded text-[10px] font-bold">UPD</span>}
+                                  {row.action === 'skip' && <span className="px-1.5 py-0.5 bg-slate-700 text-slate-500 rounded text-[10px]">skip</span>}
+                                </td>
+                                <td className="px-3 py-2 font-mono text-slate-300">{row.fields.supplier_model}</td>
+                                <td className="px-3 py-2 text-slate-400">
+                                  {row.action === 'add' && (
+                                    <span className="text-slate-500">{[row.fields.internal_description, row.fields.brand, row.fields.category].filter(Boolean).join(' · ')}</span>
+                                  )}
+                                  {row.action === 'update' && row.changes && Object.entries(row.changes).map(([f, v]) => (
+                                    <span key={f} className="inline-flex items-center gap-1 mr-2">
+                                      <span className="text-slate-600">{f}:</span>
+                                      <span className="line-through text-red-400/60">{(row.existing as any)?.[f] || '—'}</span>
+                                      <span className="text-slate-500">→</span>
+                                      <span className="text-emerald-300">{String(v)}</span>
+                                    </span>
+                                  ))}
+                                  {row.action === 'skip' && <span className="text-slate-700">no changes</span>}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 border-t border-slate-800 flex items-center justify-between flex-shrink-0">
+                <button
+                  onClick={() => {
+                    if (importStep === 'map') setImportStep('upload');
+                    else if (importStep === 'preview') setImportStep('map');
+                  }}
+                  className={`px-4 py-2 text-xs font-semibold text-slate-400 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-all ${importStep === 'upload' ? 'invisible' : ''}`}
+                >
+                  ← Back
+                </button>
+                <div className="flex gap-2">
+                  <button onClick={() => { setImportStep(null); setImportRows([]); setImportMapping({}); }} className="px-4 py-2 text-xs font-semibold text-slate-400 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-all">Cancel</button>
+                  {importStep === 'map' && (
+                    <button
+                      onClick={() => setImportStep('preview')}
+                      disabled={!Object.values(importMapping).some(v => v === 'supplier_model')}
+                      className="px-4 py-2 text-xs font-bold text-white bg-violet-600 hover:bg-violet-500 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Preview →
+                    </button>
+                  )}
+                  {importStep === 'preview' && (
+                    <button
+                      onClick={handleImportCommit}
+                      disabled={importProcessing || importPreview.filter(r => r.action !== 'skip').length === 0}
+                      className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {importProcessing ? <><Spinner className="w-3.5 h-3.5" /> Importing…</> : `Import ${importPreview.filter(r => r.action !== 'skip').length} row(s)`}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </>,
+        document.body
+      )}
+
+      {/* ── Change log side panel ─────────────────────────────────────────── */}
+      {historyPanelId && typeof document !== 'undefined' && createPortal(
+        <>
+          <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={() => setHistoryPanelId(null)} />
+          <div
+            className="fixed inset-y-0 right-0 z-50 w-[400px] max-w-full flex flex-col bg-slate-900 border-l border-slate-700 shadow-2xl"
+            style={{ animation: 'slideInRight 0.2s ease-out' }}
+          >
+            {/* Panel header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 flex-shrink-0">
+              <div>
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2"/></svg>
+                  Change History
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5 font-mono">
+                  {components.find(c => c.component_id === historyPanelId)?.supplier_model}
+                </p>
+              </div>
+              <button onClick={() => setHistoryPanelId(null)} className="text-slate-500 hover:text-white transition-colors">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            {/* Timeline */}
+            <div className="overflow-y-auto flex-1 px-6 py-4">
+              {historyForPanel.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
+                  <svg className="w-10 h-10 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2"/></svg>
+                  <p className="text-sm text-slate-600">No history yet</p>
+                  <p className="text-xs text-slate-700">Changes will appear here after the next save.</p>
+                </div>
+              ) : (
+                <div className="relative">
+                  {/* Vertical line */}
+                  <div className="absolute left-[7px] top-2 bottom-2 w-px bg-slate-800" />
+                  <div className="space-y-6 pl-6">
+                    {historyForPanel.map(([ts, entries]) => (
+                      <div key={ts} className="relative">
+                        {/* Timeline dot */}
+                        <div className="absolute -left-6 top-1 w-3.5 h-3.5 rounded-full bg-slate-700 border-2 border-slate-900 flex items-center justify-center">
+                          <div className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+                        </div>
+                        {/* Timestamp */}
+                        <p className="text-[11px] text-slate-500 mb-2">
+                          {new Date(ts).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                        {/* Changes */}
+                        <div className="space-y-1.5">
+                          {entries.map((e) => (
+                            <div key={e.id} className="rounded-lg bg-slate-800/60 border border-slate-800 px-3 py-2">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{e.field_name.replace(/_/g, ' ')}</span>
+                              <div className="flex items-center gap-2 mt-1 text-xs flex-wrap">
+                                <span className="font-mono text-red-400/80 line-through">{e.old_value || '—'}</span>
+                                <span className="text-slate-600">→</span>
+                                <span className="font-mono text-emerald-300">{e.new_value || '—'}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-3 border-t border-slate-800 flex-shrink-0">
+              <button onClick={() => setHistoryPanelId(null)} className="w-full py-2 text-xs font-semibold text-slate-400 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-all">Close</button>
+            </div>
+          </div>
+        </>,
+        document.body
       )}
     </>
   );

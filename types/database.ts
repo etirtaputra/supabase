@@ -223,6 +223,16 @@ export interface QuoteHistory extends BaseEntity {
   currency?: Currency;
 }
 
+// Component field-level audit log
+export interface ComponentHistoryEntry {
+  id: string;
+  component_id: string;
+  field_name: string;
+  old_value: string | null;
+  new_value: string | null;
+  changed_at: string;
+}
+
 // Aggregated data structures
 export interface DatabaseData {
   companies: Company[];
@@ -237,6 +247,7 @@ export interface DatabaseData {
   poHistory: PurchaseHistory[];
   quoteHistory: QuoteHistory[];
   competitorPrices: CompetitorPrice[];
+  componentHistory: ComponentHistoryEntry[];
 }
 
 // Autocomplete suggestions structure

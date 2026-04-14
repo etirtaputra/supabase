@@ -218,14 +218,29 @@ function MasterInsertPage() {
   const handleComponentUpdates = async (updates: { component_id: string; changes: Record<string, any> }[]) => {
     const errors: string[] = [];
     let saved = 0;
+    const historyEntries: { component_id: string; field_name: string; old_value: string | null; new_value: string | null }[] = [];
     for (const { component_id, changes } of updates) {
       if (!component_id || !changes || Object.keys(changes).length === 0) continue;
       const { data: updated, error } = await supabase.from('3.0_components').update(changes).eq('component_id', component_id).select();
       if (error) errors.push(`${component_id}: ${error.message}`);
       else if (!updated || updated.length === 0) errors.push(`${component_id}: no rows matched`);
-      else saved++;
+      else {
+        saved++;
+        const old = data.components.find((c) => c.component_id === component_id);
+        Object.entries(changes).forEach(([field, newVal]) => {
+          historyEntries.push({
+            component_id,
+            field_name: field,
+            old_value: old && (old as any)[field] != null ? String((old as any)[field]) : null,
+            new_value: newVal != null ? String(newVal) : null,
+          });
+        });
+      }
     }
     if (errors.length > 0) { showToast(`Error(s): ${errors.join(' | ')}`, 'error'); throw new Error('One or more updates failed'); }
+    if (historyEntries.length > 0) {
+      await supabase.from('component_history').insert(historyEntries);
+    }
     showToast(`Updated ${saved} component(s)!`, 'success');
     refetch();
   };
@@ -373,6 +388,7 @@ function MasterInsertPage() {
                     quotes={data.quotes}
                     pos={data.pos}
                     poItems={data.poItems}
+                    componentHistory={data.componentHistory}
                     onSave={handleComponentUpdates}
                     onAdd={(fields) => handleInsert('3.0_components', [fields])}
                     onAddSupplier={() => setShowSupplierForm(true)}

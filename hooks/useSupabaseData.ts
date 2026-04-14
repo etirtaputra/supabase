@@ -25,6 +25,7 @@ export function useSupabaseData() {
     poHistory: [],
     quoteHistory: [],
     competitorPrices: [],
+    componentHistory: [],
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -136,6 +137,15 @@ export function useSupabaseData() {
         .order('observed_at', { ascending: false })
         .then(({ data: competitorPrices }) => {
           if (competitorPrices) setData((prev) => ({ ...prev, competitorPrices }));
+        });
+
+      supabase
+        .from(TABLE_NAMES.COMPONENT_HISTORY)
+        .select('*')
+        .order('changed_at', { ascending: false })
+        .limit(2000)
+        .then(({ data: componentHistory }) => {
+          if (componentHistory) setData((prev) => ({ ...prev, componentHistory }));
         });
 
       setLoading(false);
