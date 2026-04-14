@@ -446,7 +446,7 @@ function Highlight({ text, query }: { text: string | null | undefined; query: st
   while (idx !== -1) {
     if (idx > last) parts.push(text.slice(last, idx));
     parts.push(
-      <mark key={idx} className="bg-amber-400/30 text-amber-200 rounded-sm not-italic">
+      <mark key={idx} className="bg-amber-400/25 text-amber-200 not-italic">
         {text.slice(idx, idx + q.length)}
       </mark>
     );
