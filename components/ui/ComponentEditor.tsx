@@ -51,7 +51,7 @@ interface ComponentEditorProps {
   onDeleteComponentLink?: (linkId: string) => Promise<void>;
 }
 
-type SortCol = 'supplier_model' | 'internal_description' | 'brand' | 'category' | 'updated_at' | 'quoteCount' | 'lineItemCount';
+type SortCol = 'supplier_model' | 'internal_description' | 'brand' | 'category' | 'updated_at' | 'quoteCount' | 'lineItemCount' | 'priceDelta';
 // Key components by their string ID to avoid Number(key)=NaN edge cases
 type PendingEdits = Record<string, Partial<Component>>;
 
@@ -876,11 +876,22 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         const bv = bu ? bu[sortCol] : 0;
         return sortDir === 'asc' ? av - bv : bv - av;
       }
+      if (sortCol === 'priceDelta') {
+        const getDelta = (c: Component) => {
+          const lines = sparklineLinesByComponent.get(c.component_id) ?? [];
+          if (lines.length < 2 || lines[lines.length - 2].unit_price === 0) return null;
+          return ((lines[lines.length - 1].unit_price - lines[lines.length - 2].unit_price) / lines[lines.length - 2].unit_price) * 100;
+        };
+        const sentinel = sortDir === 'asc' ? Infinity : -Infinity;
+        const av = getDelta(a) ?? sentinel;
+        const bv = getDelta(b) ?? sentinel;
+        return sortDir === 'asc' ? av - bv : bv - av;
+      }
       const av = ((a[sortCol as keyof Component] as string) || '').toLowerCase();
       const bv = ((b[sortCol as keyof Component] as string) || '').toLowerCase();
       return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
     });
-  }, [components, search, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, sortCol, sortDir, usageMap, duplicateModels, intelComponentIds]);
+  }, [components, search, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, sortCol, sortDir, usageMap, duplicateModels, intelComponentIds, sparklineLinesByComponent]);
 
   const toggleSort = (col: SortCol) => {
     if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -1872,7 +1883,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                 <SortTh col="internal_description" label="Description" />
                 {visibleCols.brand && <SortTh col="brand" label="Brand" className="hidden md:table-cell min-w-[160px]" />}
                 {visibleCols.category && <SortTh col="category" label="Category" className="hidden md:table-cell" />}
-                {visibleCols.lastPrice && <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-400 min-w-[120px]">Last Price</th>}
+                {visibleCols.lastPrice && <SortTh col="priceDelta" label="Last Price" className="min-w-[120px]" />}
                 {visibleCols.usage && (
                   <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-400 min-w-[200px]">
                     <div className="flex items-center gap-2">
