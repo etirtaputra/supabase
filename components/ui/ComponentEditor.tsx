@@ -2121,59 +2121,16 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                       {(() => {
                         const u = usageMap.get(c.component_id);
                         if (!u) return <span className="text-xs text-slate-700">—</span>;
-                        const MAX_TAGS = 3;
-                        const allPis = u.piNumbers;
-                        const allPos = u.poNumbers;
-                        const visiblePis = allPis.slice(0, MAX_TAGS);
-                        const visiblePos = allPos.slice(0, MAX_TAGS);
-                        const extraPis = allPis.length - visiblePis.length;
-                        const extraPos = allPos.length - visiblePos.length;
                         return (
-                          <div className="space-y-1.5">
-                            <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                              <span className="font-semibold text-slate-300">{u.quoteCount}</span>
-                              {u.quoteCount === 1 ? 'quote' : 'quotes'}
-                              <span className="text-slate-700">·</span>
-                              <span className="font-semibold text-slate-300">{u.lineItemCount}</span>
-                              {u.lineItemCount === 1 ? 'line item' : 'line items'}
-                            </div>
-                            {allPis.length > 0 && (
-                              <div className="flex flex-wrap gap-1">
-                                {visiblePis.map((pi) => (
-                                  <span key={pi} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-blue-500/10 text-blue-300 border border-blue-500/20">
-                                    {pi}
-                                  </span>
-                                ))}
-                                {extraPis > 0 && (
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] text-slate-500">+{extraPis}</span>
-                                )}
-                              </div>
-                            )}
-                            {allPos.length > 0 && (
-                              <div className="flex flex-wrap gap-1">
-                                {visiblePos.map((po) => (
-                                  <span key={po} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-                                    {po}
-                                  </span>
-                                ))}
-                                {extraPos > 0 && (
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] text-slate-500">+{extraPos}</span>
-                                )}
-                              </div>
-                            )}
+                          <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                            <span className="font-semibold text-slate-300">{u.quoteCount}</span>
+                            {u.quoteCount === 1 ? 'quote' : 'quotes'}
+                            <span className="text-slate-700">·</span>
+                            <span className="font-semibold text-slate-300">{u.lineItemCount}</span>
+                            {u.lineItemCount === 1 ? 'item' : 'items'}
                           </div>
                         );
                       })()}
-                      {(onSaveLineItem || onDeleteLineItem) && (
-                        <button
-                          onClick={() => openLineItemModal(c.component_id)}
-                          className="mt-1.5 text-[10px] text-slate-600 hover:text-blue-300 transition-colors flex items-center gap-1"
-                          title="Manage quote/PO associations"
-                        >
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                          Edit associations
-                        </button>
-                      )}
                     </td>}
 
                     {/* Updated At */}
