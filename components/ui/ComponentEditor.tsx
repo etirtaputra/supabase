@@ -471,7 +471,7 @@ function PriceDelta({ lines }: { lines: TooltipQuoteLine[] }) {
   if (lines.length < 2) return null;
   const prev = lines[lines.length - 2].unit_price;
   const last = lines[lines.length - 1].unit_price;
-  if (prev === 0) return null;
+  if (prev <= 0 || last <= 0) return null;
   const pct = ((last - prev) / prev) * 100;
   if (Math.abs(pct) < 0.01) return null; // no meaningful change
   const up = pct > 0;
@@ -732,12 +732,14 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
 
   // ── Tooltip quote lines + last quoted price (single pass over quoteItems) ───
   const { quoteLinesByComponent, lastQuoteByComponent, sparklineLinesByComponent } = useMemo(() => {
+    const SKIP_STATUSES = new Set(['Replaced', 'Rejected', 'Cancelled']);
     const quoteMap = new Map(quotes.map((q) => [q.quote_id, q]));
     const linesMap = new Map<string, TooltipQuoteLine[]>();
     const lastMap = new Map<string, { price: number; currency: string; date: string }>();
     quoteItems.forEach((item) => {
       if (!item.component_id) return;
       const q = quoteMap.get(item.quote_id);
+      if (!q || SKIP_STATUSES.has(q.status ?? '')) return;
       if (!linesMap.has(item.component_id)) linesMap.set(item.component_id, []);
       linesMap.get(item.component_id)!.push({
         pi_number: q?.pi_number,
@@ -753,9 +755,22 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         }
       }
     });
-    // Sparkline uses all history, sorted oldest→newest
+    // Sparkline: one entry per (component, quote) pair — first non-zero price seen,
+    // sorted oldest→newest. This prevents multi-line-item quotes from creating false deltas.
     const sparkMap = new Map<string, TooltipQuoteLine[]>();
-    linesMap.forEach((lines, cid) => {
+    const seenQuote = new Map<string, Set<number>>();
+    quoteItems.forEach((item) => {
+      if (!item.component_id || item.unit_price <= 0) return;
+      const q = quoteMap.get(item.quote_id);
+      if (!q || SKIP_STATUSES.has(q.status ?? '')) return;
+      const cid = item.component_id;
+      if (!seenQuote.has(cid)) seenQuote.set(cid, new Set());
+      if (seenQuote.get(cid)!.has(item.quote_id)) return; // already have a price for this quote
+      seenQuote.get(cid)!.add(item.quote_id);
+      if (!sparkMap.has(cid)) sparkMap.set(cid, []);
+      sparkMap.get(cid)!.push({ pi_number: q.pi_number, quote_date: q.quote_date, quantity: item.quantity, unit_price: item.unit_price, currency: item.currency });
+    });
+    sparkMap.forEach((lines, cid) => {
       sparkMap.set(cid, [...lines].sort((a, b) => (a.quote_date || '').localeCompare(b.quote_date || '')));
     });
     // Tooltip caps at 5 most recent
