@@ -240,8 +240,8 @@ function FilterCombobox({ options, value, onChange, placeholder, minWidth = 140,
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
-    if (!q) return options;
-    return options.filter((o) => o.toLowerCase().includes(q));
+    if (!q) return options.filter(Boolean);
+    return options.filter((o) => o?.toLowerCase().includes(q));
   }, [options, query]);
 
   const openDrop = () => {
@@ -695,7 +695,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     // Build lookup: quote_id → po_numbers[]
     const posByQuote = new Map<number, string[]>();
     pos.forEach((po) => {
-      if (po.quote_id == null) return;
+      if (po.quote_id == null || !po.po_number) return;
       const arr = posByQuote.get(po.quote_id) ?? [];
       arr.push(po.po_number);
       posByQuote.set(po.quote_id, arr);
