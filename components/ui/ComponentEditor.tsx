@@ -1452,7 +1452,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
 
   const SortTh = ({ col, label, className = '' }: { col: SortCol; label: string; className?: string }) => (
     <th
-      className={`px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-400 cursor-pointer select-none hover:text-white transition-colors ${className}`}
+      className={`px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 cursor-pointer select-none hover:text-white transition-colors ${className}`}
       onClick={() => toggleSort(col)}
     >
       <span className="flex items-center gap-1.5">
@@ -1900,7 +1900,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                 {visibleCols.category && <SortTh col="category" label="Category" className="hidden md:table-cell" />}
                 {visibleCols.lastPrice && <SortTh col="priceDelta" label="Last Price" className="min-w-[120px]" />}
                 {visibleCols.usage && (
-                  <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-400 min-w-[200px]">
+                  <th className="hidden md:table-cell px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 min-w-[140px]">
                     <div className="flex items-center gap-2">
                       <span>Usage</span>
                       <div className="flex gap-1">
@@ -1921,7 +1921,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                   </th>
                 )}
                 {visibleCols.updated && <SortTh col="updated_at" label="Updated" className="hidden md:table-cell min-w-[110px]" />}
-                <th className="px-4 py-3 w-28 text-right text-xs font-bold uppercase tracking-wider text-slate-600">Actions</th>
+                <th className="px-3 py-2 w-24 text-right text-[10px] font-bold uppercase tracking-wider text-slate-600">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/50">
@@ -1947,17 +1947,17 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                     }`}
                   >
                     {/* Select checkbox */}
-                    <td className="pl-4 pr-2 py-3 align-top">
+                    <td className="pl-4 pr-2 py-1.5 align-middle">
                       <input
                         type="checkbox"
                         checked={selectedIds.has(String(c.component_id))}
                         onChange={(e) => { e.stopPropagation(); toggleSelect(String(c.component_id)); }}
                         onClick={(e) => e.stopPropagation()}
-                        className="w-4 h-4 rounded border-white/20 bg-white/5 cursor-pointer accent-sky-400 mt-0.5"
+                        className="w-3.5 h-3.5 rounded border-white/20 bg-white/5 cursor-pointer accent-sky-400"
                       />
                     </td>
                     {/* Model / SKU */}
-                    <td className="px-4 py-3 align-top min-w-[260px]">
+                    <td className="px-3 py-1.5 align-middle w-[220px] max-w-[220px]">
                       {isEditing ? (
                         <div>
                           <input
@@ -1968,7 +1968,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                             value={(getVal(c, 'supplier_model') as string) ?? ''}
                             onChange={(e) => setField(c, 'supplier_model', e.target.value)}
                             onKeyDown={(e) => handleCellKeyDown(e, c.component_id, 'supplier_model')}
-                            className={`w-full px-2.5 py-1.5 rounded-lg text-sm text-white focus:outline-none focus:ring-2 transition-all ${
+                            className={`w-full px-2 py-1 rounded-lg text-xs text-white focus:outline-none focus:ring-2 transition-all ${
                               isDirtyField(c, 'supplier_model')
                                 ? 'bg-amber-500/10 border border-amber-500/50 focus:ring-amber-500/30'
                                 : 'bg-slate-950 border border-slate-700 focus:ring-emerald-500/20 focus:border-emerald-500'
@@ -1977,20 +1977,20 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           {isDirtyField(c, 'supplier_model') && <DirtyBadge original={c.supplier_model} />}
                         </div>
                       ) : isDirtyField(c, 'supplier_model') ? (
-                        <div>
-                          <span className="text-sm text-emerald-300 font-medium">{(getVal(c, 'supplier_model') as string) || '—'}</span>
+                        <div className="truncate">
+                          <span className="text-xs text-emerald-300 font-medium truncate">{(getVal(c, 'supplier_model') as string) || '—'}</span>
                           <DirtyBadge original={c.supplier_model} />
                         </div>
                       ) : (
-                        <span className="text-sm text-white font-medium">
+                        <span className="flex items-center text-xs text-white font-medium truncate">
                           <CopyBtn text={c.supplier_model} />
-                          <Highlight text={c.supplier_model} query={search} />
+                          <span className="truncate"><Highlight text={c.supplier_model} query={search} /></span>
                         </span>
                       )}
                     </td>
 
                     {/* Internal Description */}
-                    <td className="px-4 py-3 align-top">
+                    <td className="px-3 py-1.5 align-middle w-[220px] max-w-[220px]">
                       {isEditing ? (
                         <div>
                           <input
@@ -2000,7 +2000,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                             value={(getVal(c, 'internal_description') as string) ?? ''}
                             onChange={(e) => setField(c, 'internal_description', e.target.value)}
                             onKeyDown={(e) => handleCellKeyDown(e, c.component_id, 'internal_description')}
-                            className={`w-full px-2.5 py-1.5 rounded-lg text-sm text-white focus:outline-none focus:ring-2 transition-all ${
+                            className={`w-full px-2 py-1 rounded-lg text-xs text-white focus:outline-none focus:ring-2 transition-all ${
                               isDirtyField(c, 'internal_description')
                                 ? 'bg-amber-500/10 border border-amber-500/50 focus:ring-amber-500/30'
                                 : 'bg-slate-950 border border-slate-700 focus:ring-emerald-500/20 focus:border-emerald-500'
@@ -2011,21 +2011,21 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           )}
                         </div>
                       ) : isDirtyField(c, 'internal_description') ? (
-                        <div>
-                          <span className="text-sm text-emerald-300">{(getVal(c, 'internal_description') as string) || '—'}</span>
+                        <div className="truncate">
+                          <span className="text-xs text-emerald-300 truncate">{(getVal(c, 'internal_description') as string) || '—'}</span>
                           <DirtyBadge original={c.internal_description} />
                         </div>
                       ) : (
-                        <span className="text-sm text-slate-300">
+                        <span className="flex items-center text-xs text-slate-300 truncate">
                           <CopyBtn text={c.internal_description} />
-                          <Highlight text={c.internal_description} query={search} />
+                          <span className="truncate"><Highlight text={c.internal_description} query={search} /></span>
                         </span>
                       )}
                     </td>
 
                     {/* Brand */}
                     {visibleCols.brand && (
-                      <td className="hidden md:table-cell px-4 py-3 align-top min-w-[160px]">
+                      <td className="hidden md:table-cell px-3 py-1.5 align-middle min-w-[120px]">
                         {isEditing ? (
                           <div>
                             <BrandInput
@@ -2041,11 +2041,11 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           </div>
                         ) : isDirtyField(c, 'brand') ? (
                           <div>
-                            <span className="text-sm text-emerald-300">{(getVal(c, 'brand') as string) || '—'}</span>
+                            <span className="text-xs text-emerald-300">{(getVal(c, 'brand') as string) || '—'}</span>
                             <DirtyBadge original={c.brand} />
                           </div>
                         ) : (
-                          <span className="text-sm text-slate-300">
+                          <span className="text-xs text-slate-300">
                             {c.brand ? <Highlight text={c.brand} query={search} /> : <span className="text-slate-600">—</span>}
                           </span>
                         )}
@@ -2078,11 +2078,11 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           </div>
                         ) : isDirtyField(c, 'category') ? (
                           <div>
-                            <span className="text-sm text-emerald-300">{(getVal(c, 'category') as string) || '—'}</span>
+                            <span className="text-xs text-emerald-300">{(getVal(c, 'category') as string) || '—'}</span>
                             <DirtyBadge original={c.category} />
                           </div>
                         ) : (
-                          <span className="text-sm text-slate-300">
+                          <span className="text-xs text-slate-300">
                             {c.category || <span className="text-slate-600">—</span>}
                           </span>
                         )}
@@ -2091,7 +2091,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
 
                     {/* Last Price */}
                     {visibleCols.lastPrice && (
-                      <td className="px-4 py-3 align-top min-w-[120px]">
+                      <td className="px-3 py-1.5 align-middle min-w-[100px]">
                         {(() => {
                           const lq = lastQuoteByComponent.get(c.component_id);
                           const isDup = duplicateModels.has(c.supplier_model?.toLowerCase().trim() ?? '');
@@ -2121,7 +2121,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
 
                     {/* Usage */}
                     {visibleCols.usage && <td
-                      className="hidden md:table-cell px-4 py-3 align-top min-w-[180px] cursor-default"
+                      className="hidden md:table-cell px-3 py-1.5 align-middle min-w-[120px] cursor-default"
                       onMouseEnter={(e) => {
                         const rect = e.currentTarget.getBoundingClientRect();
                         const tooltipW = 388;
@@ -2197,18 +2197,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                             : <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path strokeLinecap="round" d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>
                           }
                         </button>
-                        {/* Change log — opens inspect panel on Log tab */}
-                        {componentHistory && (
-                          <button
-                            onClick={() => { setInspectId(c.component_id); setInspectTab('log'); }}
-                            title="View change history"
-                            className="px-2 py-1 text-xs text-slate-600 bg-transparent border border-transparent rounded-lg hover:bg-slate-800/60 hover:border-slate-700/60 hover:text-slate-300 transition-all"
-                          >
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                              <circle cx="12" cy="12" r="10" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2" />
-                            </svg>
-                          </button>
-                        )}
+                        {/* Change log button removed — accessible via inspect panel (magnifying glass) */}
                         {hasSpecs && (
                           <button
                             onClick={() => toggleSpecs(c.component_id)}
