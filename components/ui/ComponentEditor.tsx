@@ -2072,14 +2072,14 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           return (
                             <div>
                               {lq ? (
-                                <div className="flex items-center gap-2">
-                                  <div className="min-w-0">
-                                    <p className="text-sm font-semibold text-slate-200 tabular-nums leading-tight">
-                                      {lq.currency} {lq.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                    </p>
-                                    <p className="text-[10px] text-slate-600 mt-0.5">{new Date(lq.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}</p>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-semibold text-slate-200 tabular-nums leading-tight">
+                                    {lq.currency} {lq.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </p>
+                                  <div className="flex items-center gap-1.5 mt-0.5">
+                                    <span className="text-[10px] text-slate-600">{new Date(lq.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}</span>
+                                    <PriceDelta lines={sparklineLinesByComponent.get(c.component_id) ?? []} />
                                   </div>
-                                  <PriceDelta lines={sparklineLinesByComponent.get(c.component_id) ?? []} />
                                 </div>
                               ) : (
                                 <span className="text-xs text-slate-700">—</span>
