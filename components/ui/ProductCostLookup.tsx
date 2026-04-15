@@ -158,6 +158,13 @@ export default function ProductCostLookup({ components, quotes, quoteItems, pos,
     const paidWeighted = paidAllocs.reduce((s, a) => s + a.trueUnitCostIdr * a.item.quantity, 0);
     const paidQty = paidAllocs.reduce((s, a) => s + a.item.quantity, 0);
     const avgTrueUnitCostIdr = paidQty > 0 ? paidWeighted / paidQty : null;
+    // Most recent paid PO TUC
+    const sortedPaid = [...paidAllocs].sort((a, b) => b.po.po_date.localeCompare(a.po.po_date));
+    const lastPoTucIdr = sortedPaid[0]?.trueUnitCostIdr ?? null;
+    // Actual TUC = max(last, avg) — conservative cost floor
+    const actualTucIdr =
+      lastPoTucIdr != null && avgTrueUnitCostIdr != null ? Math.max(lastPoTucIdr, avgTrueUnitCostIdr) :
+      lastPoTucIdr ?? avgTrueUnitCostIdr;
     const lastPaidPoDate = paidAllocs.length > 0 ? paidAllocs.map((a) => a.po.po_date).sort((a, b) => b.localeCompare(a))[0] : null;
     const poByCurrency: Record<string, { totalValue: number; totalQty: number }> = {};
     myPoItems.forEach((pi) => {
@@ -172,7 +179,7 @@ export default function ProductCostLookup({ components, quotes, quoteItems, pos,
       quoteByCurrency[qi.currency].totalQty += qi.quantity;
     });
     return {
-      avgTrueUnitCostIdr, paidPoCount: paidAllocs.length, lastPaidPoDate, poByCurrency, quoteByCurrency,
+      avgTrueUnitCostIdr, lastPoTucIdr, actualTucIdr, paidPoCount: paidAllocs.length, lastPaidPoDate, poByCurrency, quoteByCurrency,
       totalOrderedQty: myPoItems.reduce((s, i) => s + i.quantity, 0),
       totalQuotedQty: myQuoteItems.reduce((s, i) => s + i.quantity, 0),
     };
@@ -303,17 +310,33 @@ export default function ProductCostLookup({ components, quotes, quoteItems, pos,
       {/* Summary Dashboard Grid */}
       {hasData && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-          <div className={`rounded-2xl border p-5 md:p-6 flex flex-col justify-center gap-2 col-span-2 sm:col-span-1 shadow-lg transition-colors ${summary.avgTrueUnitCostIdr != null ? 'bg-gradient-to-br from-amber-500/10 to-amber-900/20 border-amber-500/30 ring-1 ring-amber-500/20' : 'bg-slate-900/40 border-slate-800/80 ring-1 ring-white/5'}`}>
+          <div className={`rounded-2xl border p-5 md:p-6 flex flex-col justify-center gap-2 col-span-2 sm:col-span-1 shadow-lg transition-colors ${summary.actualTucIdr != null ? 'bg-gradient-to-br from-amber-500/10 to-amber-900/20 border-amber-500/30 ring-1 ring-amber-500/20' : 'bg-slate-900/40 border-slate-800/80 ring-1 ring-white/5'}`}>
             <div className="text-[11px] text-slate-400 uppercase font-bold tracking-widest flex items-center gap-2">
               <svg className="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              Avg. True Cost
+              Actual TUC
             </div>
-            {summary.avgTrueUnitCostIdr != null ? (
+            {summary.actualTucIdr != null ? (
               <>
-                <div className="text-2xl md:text-3xl font-extrabold text-amber-400 leading-none break-all tracking-tight my-1">{fmtIdr(summary.avgTrueUnitCostIdr)}</div>
-                <div className="flex items-center gap-2 text-xs text-slate-300 font-medium">
-                  <span className="bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded">{summary.paidPoCount} Paid POs</span>
-                  <span className="text-slate-500">Last: {summary.lastPaidPoDate}</span>
+                <div className="text-2xl md:text-3xl font-extrabold text-amber-400 leading-none break-all tracking-tight my-1">{fmtIdr(summary.actualTucIdr)}</div>
+                <div className="flex flex-col gap-1 text-xs">
+                  <div className="flex items-center gap-2 text-slate-300 font-medium">
+                    <span className="bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded">{summary.paidPoCount} Paid PO{summary.paidPoCount !== 1 ? 's' : ''}</span>
+                    <span className="text-slate-500">Last: {summary.lastPaidPoDate}</span>
+                  </div>
+                  <div className="flex gap-3 text-[11px] text-slate-500">
+                    <span>
+                      Last PO TUC: <span className={`font-semibold tabular-nums ${summary.lastPoTucIdr === summary.actualTucIdr ? 'text-amber-400' : 'text-slate-400'}`}>
+                        {summary.lastPoTucIdr != null ? fmtIdr(summary.lastPoTucIdr) : '—'}
+                        {summary.lastPoTucIdr === summary.actualTucIdr && <span className="ml-0.5 text-amber-600">↑</span>}
+                      </span>
+                    </span>
+                    <span>
+                      Avg ({summary.paidPoCount}): <span className={`font-semibold tabular-nums ${summary.avgTrueUnitCostIdr === summary.actualTucIdr && summary.avgTrueUnitCostIdr !== summary.lastPoTucIdr ? 'text-amber-400' : 'text-slate-400'}`}>
+                        {summary.avgTrueUnitCostIdr != null ? fmtIdr(summary.avgTrueUnitCostIdr) : '—'}
+                        {summary.avgTrueUnitCostIdr === summary.actualTucIdr && summary.avgTrueUnitCostIdr !== summary.lastPoTucIdr && <span className="ml-0.5 text-amber-600">↑</span>}
+                      </span>
+                    </span>
+                  </div>
                 </div>
               </>
             ) : (

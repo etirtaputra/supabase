@@ -523,7 +523,13 @@ function computeComponentTUC(
   allPoItems: PurchaseLineItem[],
   pos: PurchaseOrder[],
   poCosts: POCost[],
-): { tucIdr: number | null; tucXr: number | null } {
+): {
+  lastPoTucIdr:  number | null;  // TUC of the most recent paid PO
+  avgTucIdr:     number | null;  // Weighted average across all paid POs
+  actualTucIdr:  number | null;  // max(last, avg) — conservative floor
+  tucXr:         number | null;  // Exchange rate from latest paid PO
+  paidPoCount:   number;         // Number of distinct paid POs
+} {
   const poMap = new Map(pos.map((p) => [p.po_id, p]));
   const allocs = componentPoItems.map((item) => {
     const po = poMap.get(item.po_id);
@@ -541,12 +547,28 @@ function computeComponentTUC(
   }).filter((a): a is { tuc: number; qty: number; hasBalance: boolean; po: PurchaseOrder } => a !== null);
 
   const paidAllocs = allocs.filter((a) => a.hasBalance && a.tuc > 0);
-  if (paidAllocs.length === 0) return { tucIdr: null, tucXr: null };
+  const paidPoCount = new Set(paidAllocs.map((a) => a.po.po_id)).size;
+  if (paidAllocs.length === 0)
+    return { lastPoTucIdr: null, avgTucIdr: null, actualTucIdr: null, tucXr: null, paidPoCount: 0 };
+
+  // Weighted average across all paid POs
   const weighted = paidAllocs.reduce((s, a) => s + a.tuc * a.qty, 0);
   const qty      = paidAllocs.reduce((s, a) => s + a.qty, 0);
-  const tucIdr   = qty > 0 ? weighted / qty : null;
-  const latest   = [...paidAllocs].sort((a, b) => b.po.po_date.localeCompare(a.po.po_date))[0];
-  return { tucIdr, tucXr: latest?.po.exchange_rate ?? null };
+  const avgTucIdr = qty > 0 ? weighted / qty : null;
+
+  // Most recent paid PO
+  const sortedByDate = [...paidAllocs].sort((a, b) => b.po.po_date.localeCompare(a.po.po_date));
+  const latest = sortedByDate[0];
+  const lastPoTucIdr = latest?.tuc ?? null;
+  const tucXr        = latest?.po.exchange_rate ?? null;
+
+  // Actual TUC = max(last, avg) — conservative: never let a cheaper latest PO
+  // make you underestimate your cost floor
+  const actualTucIdr =
+    lastPoTucIdr != null && avgTucIdr != null ? Math.max(lastPoTucIdr, avgTucIdr) :
+    lastPoTucIdr ?? avgTucIdr;
+
+  return { lastPoTucIdr, avgTucIdr, actualTucIdr, tucXr, paidPoCount };
 }
 
 // Link type display metadata
@@ -1262,8 +1284,9 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     });
     allPOLines.sort((a, b) => (b.po_date || '').localeCompare(a.po_date || ''));
 
-    // ── TUC (weighted average across paid POs, in IDR) ────────────────────
-    const { tucIdr, tucXr } = computeComponentTUC(myPoItems, poItems, pos, poCosts);
+    // ── TUC ──────────────────────────────────────────────────────────────
+    const { lastPoTucIdr, avgTucIdr, actualTucIdr, tucXr, paidPoCount } = computeComponentTUC(myPoItems, poItems, pos, poCosts);
+    const tucIdr = actualTucIdr; // alias for downstream code (last-received, linked deltas)
 
     // ── Last received + lead time ─────────────────────────────────────────
     const myPoIds = new Set(myPoItems.map((i) => i.po_id));
@@ -1317,7 +1340,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       const otherComp = components.find((c) => c.component_id === otherId);
       if (!otherComp) return null;
       const otherPoItems = poItems.filter((i) => i.component_id === otherId);
-      const { tucIdr: otherTuc, tucXr: otherXr } = computeComponentTUC(otherPoItems, poItems, pos, poCosts);
+      const { actualTucIdr: otherTuc, tucXr: otherXr } = computeComponentTUC(otherPoItems, poItems, pos, poCosts);
       const otherIntel = (competitorPrices ?? [])
         .filter((cp) => cp.component_id === otherId)
         .sort((a, b) => b.observed_at.localeCompare(a.observed_at));
@@ -1335,7 +1358,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     // Already-linked component IDs (for exclusion in add-link form)
     const linkedIds = new Set(linkedComps.map((lc) => lc.comp.component_id));
 
-    return { comp, allQuoteLines, allPOLines, tucIdr, tucXr, lastReceivedPo, leadTime, compPrices, histTimeline, linkedComps, linkedIds };
+    return { comp, allQuoteLines, allPOLines, lastPoTucIdr, avgTucIdr, actualTucIdr, tucXr, paidPoCount, lastReceivedPo, leadTime, compPrices, histTimeline, linkedComps, linkedIds };
   }, [inspectId, components, quoteItems, quotes, poItems, pos, poCosts, competitorPrices, componentHistory, componentLinks]);
 
   // ── CSV Export ────────────────────────────────────────────────────────────
@@ -2758,7 +2781,8 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       {/* ── Inspect panel ─────────────────────────────────────────────────── */}
       {inspectId && inspectData && typeof document !== 'undefined' && createPortal(
         (() => {
-          const { comp, allQuoteLines, allPOLines, tucIdr, tucXr, lastReceivedPo, leadTime, compPrices, histTimeline } = inspectData;
+          const { comp, allQuoteLines, allPOLines, lastPoTucIdr, avgTucIdr, actualTucIdr, tucXr, paidPoCount, lastReceivedPo, leadTime, compPrices, histTimeline } = inspectData;
+          const tucIdr = actualTucIdr; // convenience alias for downstream uses
           const fmtD = (d?: string | null) =>
             d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '—';
           const fmtP = (n: number, cur: string) =>
@@ -2828,18 +2852,34 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                       {/* TUC + Last Received summary cards */}
                       <div className="grid grid-cols-2 gap-3">
                         <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 px-4 py-3">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-sky-400/70 mb-1">True Unit Cost (TUC)</p>
-                          {tucIdr != null ? (
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-sky-400/70 mb-1">Actual TUC</p>
+                          {actualTucIdr != null ? (
                             <>
                               <p className="text-lg font-bold text-sky-300 tabular-nums">
-                                IDR {Math.round(tucIdr).toLocaleString('en-US')}
+                                IDR {Math.round(actualTucIdr).toLocaleString('en-US')}
                               </p>
                               {tucXr && (
                                 <p className="text-[11px] text-slate-500 mt-0.5 tabular-nums">
-                                  ≈ USD {(tucIdr / tucXr).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  ≈ USD {(actualTucIdr / tucXr).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </p>
                               )}
-                              <p className="text-[10px] text-slate-600 mt-1">Weighted avg across paid POs</p>
+                              {/* Last PO vs Avg breakdown */}
+                              <div className="mt-2 pt-2 border-t border-sky-500/10 grid grid-cols-2 gap-x-3 gap-y-0.5">
+                                <div>
+                                  <p className="text-[10px] text-slate-500">Last PO</p>
+                                  <p className={`text-xs font-semibold tabular-nums ${lastPoTucIdr === actualTucIdr ? 'text-sky-300' : 'text-slate-400'}`}>
+                                    IDR {lastPoTucIdr != null ? Math.round(lastPoTucIdr).toLocaleString('en-US') : '—'}
+                                    {lastPoTucIdr === actualTucIdr && <span className="ml-1 text-[9px] text-sky-500/80">↑ used</span>}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] text-slate-500">Avg ({paidPoCount} PO{paidPoCount !== 1 ? 's' : ''})</p>
+                                  <p className={`text-xs font-semibold tabular-nums ${avgTucIdr === actualTucIdr && avgTucIdr !== lastPoTucIdr ? 'text-sky-300' : 'text-slate-400'}`}>
+                                    IDR {avgTucIdr != null ? Math.round(avgTucIdr).toLocaleString('en-US') : '—'}
+                                    {avgTucIdr === actualTucIdr && avgTucIdr !== lastPoTucIdr && <span className="ml-1 text-[9px] text-sky-500/80">↑ used</span>}
+                                  </p>
+                                </div>
+                              </div>
                             </>
                           ) : (
                             <p className="text-sm text-slate-600 italic mt-1">No paid PO data</p>

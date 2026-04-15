@@ -310,18 +310,13 @@ export default function PricingIntelligence({
       .map((c) => ({ comp: c, count: countByComp[c.component_id], latestDate: latestByComp[c.component_id] }));
   }, [components, competitorPrices]);
 
-  // ── TUC calculation (mirrors ProductCostLookup) ──────────────────────
-  const { tucIdr, xrUsd, latestPoDate } = useMemo(() => {
-    if (!selected) return { tucIdr: null, xrUsd: null, latestPoDate: null };
+  // ── TUC calculation ────────────────────────────────────────────────────
+  const { tucIdr, avgTucIdr: piAvgTucIdr, lastPoTucIdr: piLastPoTucIdr, paidPoCount: piPaidPoCount, xrUsd, latestPoDate } = useMemo(() => {
+    if (!selected) return { tucIdr: null, avgTucIdr: null, lastPoTucIdr: null, paidPoCount: 0, xrUsd: null, latestPoDate: null };
 
     const myItems = poItems.filter((i) => i.component_id === selected.component_id);
 
-    interface AllocRow {
-      tuc: number;
-      qty: number;
-      hasBalance: boolean;
-      po: PurchaseOrder;
-    }
+    interface AllocRow { tuc: number; qty: number; hasBalance: boolean; po: PurchaseOrder; }
 
     const allocs = myItems.map((item): AllocRow | null => {
       const po = pos.find((p) => p.po_id === item.po_id);
@@ -340,18 +335,27 @@ export default function PricingIntelligence({
     }).filter((a): a is AllocRow => a !== null);
 
     const paidAllocs = allocs.filter((a) => a.hasBalance && a.tuc > 0);
-    if (paidAllocs.length === 0) return { tucIdr: null, xrUsd: null, latestPoDate: null };
+    const paidPoCount = new Set(paidAllocs.map((a) => a.po.po_id)).size;
+    if (paidAllocs.length === 0) return { tucIdr: null, avgTucIdr: null, lastPoTucIdr: null, paidPoCount: 0, xrUsd: null, latestPoDate: null };
 
+    // Weighted average across all paid POs
     const weighted = paidAllocs.reduce((s, a) => s + a.tuc * a.qty, 0);
     const qty      = paidAllocs.reduce((s, a) => s + a.qty, 0);
     const avgTuc   = qty > 0 ? weighted / qty : null;
 
-    // Use exchange rate from the most recent paid PO (IDR per foreign currency)
-    const latestAlloc = [...paidAllocs].sort((a, b) => b.po.po_date.localeCompare(a.po.po_date))[0];
-    const xr = latestAlloc?.po.exchange_rate ?? null;
-    const latestDate = latestAlloc?.po.po_date ?? null;
+    // Most recent paid PO
+    const sortedByDate = [...paidAllocs].sort((a, b) => b.po.po_date.localeCompare(a.po.po_date));
+    const latestAlloc  = sortedByDate[0];
+    const lastPoTuc    = latestAlloc?.tuc ?? null;
+    const xr           = latestAlloc?.po.exchange_rate ?? null;
+    const latestDate   = latestAlloc?.po.po_date ?? null;
 
-    return { tucIdr: avgTuc, xrUsd: xr, latestPoDate: latestDate };
+    // Actual TUC = max(last PO TUC, avg TUC)
+    const actualTuc =
+      lastPoTuc != null && avgTuc != null ? Math.max(lastPoTuc, avgTuc) :
+      lastPoTuc ?? avgTuc;
+
+    return { tucIdr: actualTuc, avgTucIdr: avgTuc, lastPoTucIdr: lastPoTuc, paidPoCount, xrUsd: xr, latestPoDate: latestDate };
   }, [selected, poItems, pos, poCosts]);
 
   // ── Supplier quote history for this component ───────────────────────
@@ -609,9 +613,13 @@ export default function PricingIntelligence({
             <h3 className="text-sm font-bold text-white mb-3">{selected.internal_description}</h3>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               <StatCard
-                label="True Unit Cost (TUC)"
+                label="Actual TUC"
                 value={tucIdr ? fmtIdr(tucIdr) : 'Incomplete'}
-                sub={tucIdr && xrUsd ? `≈ USD ${fmtNum(tucIdr / xrUsd)} @ ${xrUsd.toLocaleString()}/USD` : 'Need balance payment + landed costs'}
+                sub={
+                  tucIdr && xrUsd
+                    ? `≈ USD ${fmtNum(tucIdr / xrUsd)} · Last PO: ${piLastPoTucIdr ? fmtIdr(piLastPoTucIdr) : '—'} · Avg (${piPaidPoCount}): ${piAvgTucIdr ? fmtIdr(piAvgTucIdr) : '—'}`
+                    : 'Need balance payment + landed costs'
+                }
                 accent={tucIdr ? 'text-sky-300' : 'text-slate-600'}
               />
               <StatCard
