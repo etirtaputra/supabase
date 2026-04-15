@@ -408,6 +408,20 @@ export default function DealLookupTab({
                 const totalCashOutIdr        = costs.reduce((s, c) => s + toIdrLocal(c), 0);
                 const totalCashOutExclTaxIdr = costs.filter((c) => !TAX_CATS.has(c.cost_category)).reduce((s, c) => s + toIdrLocal(c), 0);
 
+                // ── Lead time (computed once per PO, shared across all line items) ──
+                const ltRecDate = po.status === 'Fully Received' && po.actual_received_date
+                  ? new Date(po.actual_received_date) : null;
+                const ltDiff = (d: string) => ltRecDate
+                  ? Math.round((ltRecDate.getTime() - new Date(d).getTime()) / 86_400_000) : null;
+                const ltPo = ltRecDate && po.po_date ? ltDiff(po.po_date) : null;
+                const ltQuote = (() => {
+                  const q = quotes.find((q) => String(q.quote_id) === String(po.quote_id));
+                  return ltRecDate && q?.quote_date ? ltDiff(q.quote_date) : null;
+                })();
+                const ltFirstPay = costs.filter((c) => c.payment_date != null)
+                  .sort((a, b) => (a.payment_date! < b.payment_date! ? -1 : 1))[0];
+                const ltPayment = ltRecDate && ltFirstPay?.payment_date ? ltDiff(ltFirstPay.payment_date) : null;
+
                 return (
                   <div key={pKey} className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-2.5">
                     {/* PO meta */}
@@ -471,36 +485,20 @@ export default function DealLookupTab({
                     </div>
 
                     {/* Lead-time breakdown — shown once received date is set */}
-                    {po.status === 'Fully Received' && po.actual_received_date && (() => {
-                      const recDate = new Date(po.actual_received_date);
-                      const diffDays = (a: Date, b: Date) => Math.round((a.getTime() - b.getTime()) / 86_400_000);
-                      const fmt = (d: number) => d < 0 ? '—' : d === 0 ? 'same day' : d === 1 ? '1 day' : `${d} days`;
-
-                      // (1) From first accepted quote
-                      const linkedQuote = quotes.find((q) => String(q.quote_id) === String(po.quote_id));
-                      const daysFromQuote = linkedQuote?.quote_date ? diffDays(recDate, new Date(linkedQuote.quote_date)) : null;
-
-                      // (2) From PO creation
-                      const daysFromPO = po.po_date ? diffDays(recDate, new Date(po.po_date)) : null;
-
-                      // (3) From first payment
-                      const poIdNum = Number(pKey);
-                      const payments = poCosts.filter((c) => c.po_id === poIdNum && c.payment_date);
-                      const firstPayment = payments.sort((a, b) => (a.payment_date! < b.payment_date! ? -1 : 1))[0];
-                      const daysFromPayment = firstPayment?.payment_date ? diffDays(recDate, new Date(firstPayment.payment_date)) : null;
-
+                    {ltRecDate && (() => {
+                      const fmt = (d: number | null) => d == null ? '—' : d < 0 ? '—' : d === 0 ? 'same day' : d === 1 ? '1 day' : `${d} days`;
                       return (
                         <div className="rounded-lg bg-emerald-500/5 border border-emerald-500/15 px-3 py-2">
                           <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-500/70 mb-2">Lead Time</p>
                           <div className="grid grid-cols-3 gap-2 text-center">
                             {[
-                              { label: 'Quote → Received', days: daysFromQuote },
-                              { label: 'PO → Received',    days: daysFromPO },
-                              { label: '1st Payment → Received', days: daysFromPayment },
+                              { label: 'Quote → Received',      days: ltQuote },
+                              { label: 'PO → Received',         days: ltPo },
+                              { label: '1st Payment → Received', days: ltPayment },
                             ].map(({ label, days }) => (
                               <div key={label}>
                                 <p className={`text-sm font-bold tabular-nums ${days != null && days >= 0 ? 'text-emerald-300' : 'text-slate-600'}`}>
-                                  {days != null ? fmt(days) : '—'}
+                                  {fmt(days)}
                                 </p>
                                 <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">{label}</p>
                               </div>
@@ -716,6 +714,29 @@ export default function DealLookupTab({
                                     <p className="font-semibold text-white">{comp?.supplier_model ?? '—'}</p>
                                     {comp?.internal_description && (
                                       <p className="text-[11px] text-slate-500 mt-0.5 truncate max-w-xs">{comp.internal_description}</p>
+                                    )}
+                                    {/* Lead time reference — useful for planning next order */}
+                                    {(ltPo != null || ltPayment != null) && (
+                                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                                        {ltPo != null && (
+                                          <span className="text-[10px] text-slate-600">
+                                            <span className="font-semibold text-emerald-500/70 tabular-nums">{ltPo}d</span>
+                                            {' '}PO→rcvd
+                                          </span>
+                                        )}
+                                        {ltQuote != null && (
+                                          <span className="text-[10px] text-slate-600">
+                                            <span className="font-semibold text-emerald-500/70 tabular-nums">{ltQuote}d</span>
+                                            {' '}quote→rcvd
+                                          </span>
+                                        )}
+                                        {ltPayment != null && (
+                                          <span className="text-[10px] text-slate-600">
+                                            <span className="font-semibold text-sky-500/70 tabular-nums">{ltPayment}d</span>
+                                            {' '}1st pay→rcvd
+                                          </span>
+                                        )}
+                                      </div>
                                     )}
                                   </td>
                                   <td className="py-2 pr-4 text-right text-slate-300 tabular-nums">{Number(item.quantity).toLocaleString()}</td>
