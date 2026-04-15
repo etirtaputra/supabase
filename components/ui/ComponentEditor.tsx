@@ -822,6 +822,16 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     [components]
   );
 
+  const uniqueModels = useMemo(
+    () => [...new Set(components.map((c) => c.supplier_model?.trim()).filter(Boolean))].sort() as string[],
+    [components]
+  );
+
+  const uniqueDescriptions = useMemo(
+    () => [...new Set(components.map((c) => c.internal_description?.trim()).filter(Boolean))].sort() as string[],
+    [components]
+  );
+
   const uniquePINumbers = useMemo(() => {
     const all = new Set<string>();
     usageMap.forEach((u) => u.piNumbers.forEach((p) => all.add(p)));
@@ -1543,16 +1553,11 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
               <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">
                 Supplier Model / SKU <span className="text-red-400">*</span>
               </label>
-              <input
-                type="text"
+              <BrandInput
                 value={addDraft.supplier_model}
-                onChange={(e) => setAddDraft((p) => ({ ...p, supplier_model: e.target.value }))}
-                placeholder="e.g. SP-400W"
-                className={`w-full px-2.5 py-1.5 bg-slate-950 border rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500 placeholder-slate-600 ${
-                  addDraft.supplier_model.trim() && components.some((c) => c.supplier_model?.toLowerCase().trim() === addDraft.supplier_model.toLowerCase().trim())
-                    ? 'border-amber-500/60'
-                    : 'border-slate-700'
-                }`}
+                onChange={(v) => setAddDraft((p) => ({ ...p, supplier_model: v }))}
+                suggestions={uniqueModels}
+                isDirty={false}
               />
               {addDraft.supplier_model.trim() && components.some((c) => c.supplier_model?.toLowerCase().trim() === addDraft.supplier_model.toLowerCase().trim()) && (
                 <p className="mt-1 text-[11px] text-amber-400 flex items-center gap-1">
@@ -1567,12 +1572,11 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
               <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">
                 Internal Description <span className="text-red-400">*</span>
               </label>
-              <input
-                type="text"
+              <BrandInput
                 value={addDraft.internal_description}
-                onChange={(e) => setAddDraft((p) => ({ ...p, internal_description: e.target.value }))}
-                placeholder="e.g. 400W Mono Panel"
-                className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500 placeholder-slate-600"
+                onChange={(v) => setAddDraft((p) => ({ ...p, internal_description: v }))}
+                suggestions={uniqueDescriptions}
+                isDirty={false}
               />
             </div>
             <div>
