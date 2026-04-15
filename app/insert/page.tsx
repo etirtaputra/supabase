@@ -408,6 +408,7 @@ function MasterInsertPage() {
                     quotes={data.quotes}
                     pos={data.pos}
                     poItems={data.poItems}
+                    poCosts={data.poCosts}
                     componentHistory={data.componentHistory}
                     competitorPrices={data.competitorPrices}
                     onDeleteCompetitorPrice={handleDeleteCompetitorPrice}

@@ -8,7 +8,8 @@ import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom';
 import { Spinner } from './LoadingSkeleton';
 import SpecRenderer from './SpecRenderer';
-import type { Component, PriceQuoteLineItem, PriceQuote, PurchaseOrder, PurchaseLineItem, CompetitorPrice } from '../../types/database';
+import type { Component, PriceQuoteLineItem, PriceQuote, PurchaseOrder, PurchaseLineItem, CompetitorPrice, POCost } from '../../types/database';
+import { PRINCIPAL_CATS, BALANCE_CATS, BANK_FEE_CATS, TAX_CATS } from '../../constants/costCategories';
 import { ENUMS } from '../../constants/enums';
 
 interface ComponentUsage {
@@ -40,6 +41,7 @@ interface ComponentEditorProps {
   onDelete?: (component_id: string) => Promise<void>;
   onSaveLineItem?: (item: Omit<PriceQuoteLineItem, 'quote_line_id' | 'created_at' | 'updated_at'> & { quote_line_id?: number }) => Promise<void>;
   onDeleteLineItem?: (quote_line_id: number) => Promise<void>;
+  poCosts?: POCost[];
   componentHistory?: ComponentHistoryEntry[];
   competitorPrices?: CompetitorPrice[];
   onDeleteCompetitorPrice?: (id: string) => Promise<void>;
@@ -515,7 +517,7 @@ const IMPORT_HEADER_MAP: Record<string, string> = {
 // --- Main Component Editor ---
 const EMPTY_ADD = { supplier_model: '', internal_description: '', brand: '', category: '', specifications: '' };
 
-export default function ComponentEditor({ components, brandSuggestions, quoteItems = [], quotes = [], pos = [], poItems = [], componentHistory, competitorPrices, onSave, onAdd, onAddSupplier, onDelete, onSaveLineItem, onDeleteLineItem, onDeleteCompetitorPrice, onUpdateCompetitorPrice }: ComponentEditorProps) {
+export default function ComponentEditor({ components, brandSuggestions, quoteItems = [], quotes = [], pos = [], poItems = [], poCosts = [], componentHistory, competitorPrices, onSave, onAdd, onAddSupplier, onDelete, onSaveLineItem, onDeleteLineItem, onDeleteCompetitorPrice, onUpdateCompetitorPrice }: ComponentEditorProps) {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [filterBrand, setFilterBrand] = useState('');
@@ -601,7 +603,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [historyPanelId, setHistoryPanelId] = useState<string | null>(null);
   // ── Inspect panel ─────────────────────────────────────────────────────────
   const [inspectId, setInspectId] = useState<string | null>(null);
-  const [inspectTab, setInspectTab] = useState<'quotes' | 'pos' | 'intel' | 'log'>('quotes');
+  const [inspectTab, setInspectTab] = useState<'costs' | 'intel' | 'log'>('costs');
   const [editingIntelId, setEditingIntelId] = useState<string | null>(null);
   const [intelEditDraft, setIntelEditDraft] = useState<Partial<CompetitorPrice>>({});
   const [confirmDeleteIntelId, setConfirmDeleteIntelId] = useState<string | null>(null);
@@ -1182,41 +1184,78 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     const comp = components.find((c) => c.component_id === inspectId);
     if (!comp) return null;
 
+    // ── Quote lines ──────────────────────────────────────────────────────
     const quoteMap = new Map(quotes.map((q) => [q.quote_id, q]));
     const allQuoteLines: TooltipQuoteLine[] = [];
     quoteItems.forEach((item) => {
       if (item.component_id !== inspectId) return;
       const q = quoteMap.get(item.quote_id);
-      allQuoteLines.push({
-        pi_number: q?.pi_number,
-        quote_date: q?.quote_date,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        currency: item.currency,
-      });
+      allQuoteLines.push({ pi_number: q?.pi_number, quote_date: q?.quote_date, quantity: item.quantity, unit_price: item.unit_price, currency: item.currency });
     });
     allQuoteLines.sort((a, b) => (b.quote_date || '').localeCompare(a.quote_date || ''));
 
+    // ── PO lines ─────────────────────────────────────────────────────────
     const poMap = new Map(pos.map((p) => [p.po_id, p]));
     const allPOLines: TooltipPOLine[] = [];
-    poItems.forEach((item) => {
-      if (item.component_id !== inspectId) return;
+    const myPoItems = poItems.filter((item) => item.component_id === inspectId);
+    myPoItems.forEach((item) => {
       const po = poMap.get(item.po_id);
       if (!po) return;
-      allPOLines.push({
-        po_number: po.po_number,
-        po_date: po.po_date,
-        quantity: item.quantity,
-        unit_cost: item.unit_cost,
-        currency: item.currency,
-      });
+      allPOLines.push({ po_number: po.po_number, po_date: po.po_date, quantity: item.quantity, unit_cost: item.unit_cost, currency: item.currency });
     });
     allPOLines.sort((a, b) => (b.po_date || '').localeCompare(a.po_date || ''));
 
+    // ── TUC (weighted average across paid POs, in IDR) ────────────────────
+    interface AllocRow { tuc: number; qty: number; hasBalance: boolean; po: PurchaseOrder; }
+    const allocs = myPoItems.map((item): AllocRow | null => {
+      const po = poMap.get(item.po_id);
+      if (!po) return null;
+      const allPoItems = poItems.filter((i) => i.po_id === item.po_id && i.quantity > 0);
+      const totalForeign = allPoItems.reduce((s, i) => s + i.unit_cost * i.quantity, 0);
+      const share = totalForeign > 0 ? (item.unit_cost * item.quantity) / totalForeign : 0;
+      const costs = poCosts.filter((c) => c.po_id === item.po_id);
+      const hasBalance = costs.some((c) => BALANCE_CATS.has(c.cost_category));
+      const principal = costs.filter((c) => PRINCIPAL_CATS.has(c.cost_category)).reduce((s, c) => s + c.amount, 0);
+      const bankFees  = costs.filter((c) => BANK_FEE_CATS.has(c.cost_category)).reduce((s, c) => s + c.amount, 0);
+      const landed    = costs.filter((c) => !PRINCIPAL_CATS.has(c.cost_category) && !BANK_FEE_CATS.has(c.cost_category) && !TAX_CATS.has(c.cost_category)).reduce((s, c) => s + c.amount, 0);
+      const tuc = item.quantity > 0 ? (share * (principal + bankFees + landed)) / item.quantity : 0;
+      return { tuc, qty: item.quantity, hasBalance, po };
+    }).filter((a): a is AllocRow => a !== null);
+    const paidAllocs = allocs.filter((a) => a.hasBalance && a.tuc > 0);
+    let tucIdr: number | null = null;
+    let tucXr: number | null = null;
+    if (paidAllocs.length > 0) {
+      const weighted = paidAllocs.reduce((s, a) => s + a.tuc * a.qty, 0);
+      const qty = paidAllocs.reduce((s, a) => s + a.qty, 0);
+      tucIdr = qty > 0 ? weighted / qty : null;
+      const latestAlloc = [...paidAllocs].sort((a, b) => b.po.po_date.localeCompare(a.po.po_date))[0];
+      tucXr = latestAlloc?.po.exchange_rate ?? null;
+    }
+
+    // ── Last received + lead time ─────────────────────────────────────────
+    const myPoIds = new Set(myPoItems.map((i) => i.po_id));
+    const receivedPos = pos.filter((p) => myPoIds.has(p.po_id) && p.actual_received_date && p.status === 'Fully Received')
+      .sort((a, b) => b.actual_received_date!.localeCompare(a.actual_received_date!));
+    const lastReceivedPo = receivedPos[0] ?? null;
+    let leadTime: { fromQuote: number | null; fromPO: number | null; fromPayment: number | null } | null = null;
+    if (lastReceivedPo?.actual_received_date) {
+      const recDate = new Date(lastReceivedPo.actual_received_date);
+      const diffDays = (d: string) => Math.round((recDate.getTime() - new Date(d).getTime()) / 86_400_000);
+      const linkedQuote = lastReceivedPo.quote_id ? quotes.find((q) => q.quote_id === lastReceivedPo.quote_id) : null;
+      const payments = poCosts.filter((c) => c.po_id === lastReceivedPo.po_id && c.payment_date).sort((a, b) => a.payment_date! < b.payment_date! ? -1 : 1);
+      leadTime = {
+        fromQuote: linkedQuote?.quote_date ? diffDays(linkedQuote.quote_date) : null,
+        fromPO: lastReceivedPo.po_date ? diffDays(lastReceivedPo.po_date) : null,
+        fromPayment: payments[0]?.payment_date ? diffDays(payments[0].payment_date) : null,
+      };
+    }
+
+    // ── Competitor prices ─────────────────────────────────────────────────
     const compPrices = (competitorPrices ?? [])
       .filter((cp) => cp.component_id === inspectId)
       .sort((a, b) => b.observed_at.localeCompare(a.observed_at));
 
+    // ── Change log ────────────────────────────────────────────────────────
     const histEntries = (componentHistory ?? []).filter((h) => h.component_id === inspectId);
     const histGroups = new Map<string, ComponentHistoryEntry[]>();
     histEntries.forEach((e) => {
@@ -1226,8 +1265,8 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     });
     const histTimeline = [...histGroups.entries()].sort((a, b) => b[0].localeCompare(a[0]));
 
-    return { comp, allQuoteLines, allPOLines, compPrices, histTimeline };
-  }, [inspectId, components, quoteItems, quotes, poItems, pos, competitorPrices, componentHistory]);
+    return { comp, allQuoteLines, allPOLines, tucIdr, tucXr, lastReceivedPo, leadTime, compPrices, histTimeline };
+  }, [inspectId, components, quoteItems, quotes, poItems, pos, poCosts, competitorPrices, componentHistory]);
 
   // ── CSV Export ────────────────────────────────────────────────────────────
   const downloadCSV = useCallback(() => {
@@ -2022,7 +2061,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                       <div className="flex gap-1.5 justify-end items-center">
                         {/* Inspect panel */}
                         <button
-                          onClick={() => { setInspectId(c.component_id); setInspectTab('quotes'); }}
+                          onClick={() => { setInspectId(c.component_id); setInspectTab('costs'); }}
                           title="Inspect component — quotes, POs, market intel, change log"
                           className="px-2 py-1 text-xs text-slate-600 bg-transparent border border-transparent rounded-lg hover:bg-blue-500/10 hover:border-blue-500/30 hover:text-blue-300 transition-all"
                         >
@@ -2649,15 +2688,16 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       {/* ── Inspect panel ─────────────────────────────────────────────────── */}
       {inspectId && inspectData && typeof document !== 'undefined' && createPortal(
         (() => {
-          const { comp, allQuoteLines, allPOLines, compPrices, histTimeline } = inspectData;
-          const fmtD = (d?: string) =>
+          const { comp, allQuoteLines, allPOLines, tucIdr, tucXr, lastReceivedPo, leadTime, compPrices, histTimeline } = inspectData;
+          const fmtD = (d?: string | null) =>
             d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '—';
           const fmtP = (n: number, cur: string) =>
             `${cur} ${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+          const fmtDays = (d: number | null) =>
+            d == null ? '—' : d === 0 ? 'same day' : d === 1 ? '1 day' : `${d} days`;
 
           const tabs: { id: typeof inspectTab; label: string; count: number }[] = [
-            { id: 'quotes', label: 'Quotes', count: allQuoteLines.length },
-            { id: 'pos', label: 'POs', count: allPOLines.length },
+            { id: 'costs', label: 'Costs', count: allQuoteLines.length + allPOLines.length },
             { id: 'intel', label: 'Market Intel', count: compPrices.length },
             { id: 'log', label: 'Change Log', count: histTimeline.length },
           ];
@@ -2708,64 +2748,132 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                 {/* Tab content */}
                 <div className="flex-1 overflow-y-auto px-6 py-4">
 
-                  {/* ── Quotes tab ─────────────────────────────────────────── */}
-                  {inspectTab === 'quotes' && (
-                    allQuoteLines.length === 0 ? (
-                      <p className="text-sm text-slate-600 italic py-8 text-center">No quote line items</p>
-                    ) : (
-                      <div className="rounded-xl border border-slate-800 overflow-hidden">
-                        <table className="w-full text-xs">
-                          <thead>
-                            <tr className="border-b border-slate-800 bg-slate-800/50">
-                              <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-500">PI #</th>
-                              <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-500">Date</th>
-                              <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-500">Qty</th>
-                              <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-500">Unit Price</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-800/60">
-                            {allQuoteLines.map((ql, i) => (
-                              <tr key={i} className="hover:bg-white/[0.02]">
-                                <td className="px-3 py-2 font-mono text-blue-300">{ql.pi_number || '—'}</td>
-                                <td className="px-3 py-2 text-slate-400">{fmtD(ql.quote_date)}</td>
-                                <td className="px-3 py-2 text-right text-slate-300 tabular-nums">{ql.quantity}</td>
-                                <td className="px-3 py-2 text-right text-emerald-300 font-semibold tabular-nums">{fmtP(ql.unit_price, ql.currency)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )
-                  )}
+                  {/* ── Costs tab ──────────────────────────────────────────── */}
+                  {inspectTab === 'costs' && (
+                    <div className="space-y-4">
 
-                  {/* ── POs tab ────────────────────────────────────────────── */}
-                  {inspectTab === 'pos' && (
-                    allPOLines.length === 0 ? (
-                      <p className="text-sm text-slate-600 italic py-8 text-center">No PO line items</p>
-                    ) : (
-                      <div className="rounded-xl border border-slate-800 overflow-hidden">
-                        <table className="w-full text-xs">
-                          <thead>
-                            <tr className="border-b border-slate-800 bg-slate-800/50">
-                              <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-500">PO #</th>
-                              <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-500">Date</th>
-                              <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-500">Qty</th>
-                              <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-500">Unit Cost</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-800/60">
-                            {allPOLines.map((pl, i) => (
-                              <tr key={i} className="hover:bg-white/[0.02]">
-                                <td className="px-3 py-2 font-mono text-emerald-300">{pl.po_number}</td>
-                                <td className="px-3 py-2 text-slate-400">{fmtD(pl.po_date)}</td>
-                                <td className="px-3 py-2 text-right text-slate-300 tabular-nums">{pl.quantity}</td>
-                                <td className="px-3 py-2 text-right text-amber-300 font-semibold tabular-nums">{fmtP(pl.unit_cost, pl.currency)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                      {/* TUC + Last Received summary cards */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 px-4 py-3">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-sky-400/70 mb-1">True Unit Cost (TUC)</p>
+                          {tucIdr != null ? (
+                            <>
+                              <p className="text-lg font-bold text-sky-300 tabular-nums">
+                                IDR {Math.round(tucIdr).toLocaleString('en-US')}
+                              </p>
+                              {tucXr && (
+                                <p className="text-[11px] text-slate-500 mt-0.5 tabular-nums">
+                                  ≈ USD {(tucIdr / tucXr).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </p>
+                              )}
+                              <p className="text-[10px] text-slate-600 mt-1">Weighted avg across paid POs</p>
+                            </>
+                          ) : (
+                            <p className="text-sm text-slate-600 italic mt-1">No paid PO data</p>
+                          )}
+                        </div>
+                        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400/70 mb-1">Last Received</p>
+                          {lastReceivedPo ? (
+                            <>
+                              <p className="text-lg font-bold text-emerald-300">{fmtD(lastReceivedPo.actual_received_date)}</p>
+                              <p className="text-[11px] text-slate-500 mt-0.5 font-mono">{lastReceivedPo.po_number}</p>
+                            </>
+                          ) : (
+                            <p className="text-sm text-slate-600 italic mt-1">Never received</p>
+                          )}
+                        </div>
                       </div>
-                    )
+
+                      {/* Lead time */}
+                      {leadTime && (
+                        <div className="rounded-xl border border-slate-700/60 bg-slate-800/20 px-4 py-3">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Lead Time (last received PO)</p>
+                          <div className="grid grid-cols-3 gap-2 text-center">
+                            {[
+                              { label: 'Accepted Quote → Received', days: leadTime.fromQuote },
+                              { label: 'PO Created → Received',     days: leadTime.fromPO },
+                              { label: '1st Payment → Received',    days: leadTime.fromPayment },
+                            ].map(({ label, days }) => (
+                              <div key={label}>
+                                <p className={`text-sm font-bold tabular-nums ${days != null && days >= 0 ? 'text-slate-200' : 'text-slate-600'}`}>
+                                  {fmtDays(days)}
+                                </p>
+                                <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">{label}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Quote lines */}
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-blue-400/70 mb-2 flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block"></span>
+                          Supplier Quotes ({allQuoteLines.length})
+                        </p>
+                        {allQuoteLines.length === 0 ? (
+                          <p className="text-xs text-slate-600 italic pl-3">No quote lines</p>
+                        ) : (
+                          <div className="rounded-xl border border-slate-800 overflow-hidden">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="border-b border-slate-800 bg-slate-800/50">
+                                  <th className="px-3 py-2 text-left font-bold uppercase tracking-wider text-slate-500">PI #</th>
+                                  <th className="px-3 py-2 text-left font-bold uppercase tracking-wider text-slate-500">Date</th>
+                                  <th className="px-3 py-2 text-right font-bold uppercase tracking-wider text-slate-500">Qty</th>
+                                  <th className="px-3 py-2 text-right font-bold uppercase tracking-wider text-slate-500">Unit Price</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-800/60">
+                                {allQuoteLines.map((ql, i) => (
+                                  <tr key={i} className="hover:bg-white/[0.02]">
+                                    <td className="px-3 py-1.5 font-mono text-blue-300">{ql.pi_number || '—'}</td>
+                                    <td className="px-3 py-1.5 text-slate-400">{fmtD(ql.quote_date)}</td>
+                                    <td className="px-3 py-1.5 text-right text-slate-300 tabular-nums">{ql.quantity}</td>
+                                    <td className="px-3 py-1.5 text-right text-blue-300 font-semibold tabular-nums">{fmtP(ql.unit_price, ql.currency)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* PO lines */}
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400/70 mb-2 flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
+                          Purchase Orders ({allPOLines.length})
+                        </p>
+                        {allPOLines.length === 0 ? (
+                          <p className="text-xs text-slate-600 italic pl-3">No PO lines</p>
+                        ) : (
+                          <div className="rounded-xl border border-slate-800 overflow-hidden">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="border-b border-slate-800 bg-slate-800/50">
+                                  <th className="px-3 py-2 text-left font-bold uppercase tracking-wider text-slate-500">PO #</th>
+                                  <th className="px-3 py-2 text-left font-bold uppercase tracking-wider text-slate-500">Date</th>
+                                  <th className="px-3 py-2 text-right font-bold uppercase tracking-wider text-slate-500">Qty</th>
+                                  <th className="px-3 py-2 text-right font-bold uppercase tracking-wider text-slate-500">Unit Cost</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-800/60">
+                                {allPOLines.map((pl, i) => (
+                                  <tr key={i} className="hover:bg-white/[0.02]">
+                                    <td className="px-3 py-1.5 font-mono text-emerald-300">{pl.po_number}</td>
+                                    <td className="px-3 py-1.5 text-slate-400">{fmtD(pl.po_date)}</td>
+                                    <td className="px-3 py-1.5 text-right text-slate-300 tabular-nums">{pl.quantity}</td>
+                                    <td className="px-3 py-1.5 text-right text-amber-300 font-semibold tabular-nums">{fmtP(pl.unit_cost, pl.currency)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   )}
 
                   {/* ── Market Intel tab ───────────────────────────────────── */}
