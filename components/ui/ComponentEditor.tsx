@@ -466,15 +466,29 @@ function Highlight({ text, query }: { text: string | null | undefined; query: st
 }
 
 // ── Price history sparkline ───────────────────────────────────────────────
+// Expects lines already sorted oldest→newest (sparklineLinesByComponent)
 function PriceSparkline({ lines }: { lines: TooltipQuoteLine[] }) {
-  if (lines.length < 2) return null;
-  const sorted = [...lines].sort((a, b) => (a.quote_date || '').localeCompare(b.quote_date || ''));
-  const vals = sorted.map((l) => l.unit_price);
+  if (lines.length === 0) return null;
+  const vals = lines.map((l) => l.unit_price);
   const min = Math.min(...vals);
   const max = Math.max(...vals);
-  if (min === max) return null;
-  // Internal padding so circle (r=2) never clips at the edges
   const W = 48; const H = 28; const PAD = 3;
+
+  // Single point or flat — show a dot at center
+  if (vals.length === 1 || min === max) {
+    const col = '#94a3b8'; // neutral slate for flat/single
+    const cx = (W / 2).toFixed(1);
+    const cy = (H / 2).toFixed(1);
+    return (
+      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="flex-shrink-0 opacity-60" aria-hidden="true">
+        {vals.length > 1 && (
+          <line x1={PAD} y1={cy} x2={W - PAD} y2={cy} stroke={col} strokeWidth="1" strokeDasharray="2 2" />
+        )}
+        <circle cx={cx} cy={cy} r="2" fill={col} />
+      </svg>
+    );
+  }
+
   const range = max - min;
   const toX = (i: number) => (PAD + (i / (vals.length - 1)) * (W - PAD * 2)).toFixed(1);
   const toY = (v: number) => (H - PAD - ((v - min) / range) * (H - PAD * 2)).toFixed(1);
@@ -737,7 +751,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   }, [quoteItems, quotes, pos]);
 
   // ── Tooltip quote lines + last quoted price (single pass over quoteItems) ───
-  const { quoteLinesByComponent, lastQuoteByComponent } = useMemo(() => {
+  const { quoteLinesByComponent, lastQuoteByComponent, sparklineLinesByComponent } = useMemo(() => {
     const quoteMap = new Map(quotes.map((q) => [q.quote_id, q]));
     const linesMap = new Map<string, TooltipQuoteLine[]>();
     const lastMap = new Map<string, { price: number; currency: string; date: string }>();
@@ -759,10 +773,16 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         }
       }
     });
+    // Sparkline uses all history, sorted oldest→newest
+    const sparkMap = new Map<string, TooltipQuoteLine[]>();
+    linesMap.forEach((lines, cid) => {
+      sparkMap.set(cid, [...lines].sort((a, b) => (a.quote_date || '').localeCompare(b.quote_date || '')));
+    });
+    // Tooltip caps at 5 most recent
     linesMap.forEach((lines, cid) => {
       linesMap.set(cid, [...lines].sort((a, b) => (b.quote_date || '').localeCompare(a.quote_date || '')).slice(0, 5));
     });
-    return { quoteLinesByComponent: linesMap, lastQuoteByComponent: lastMap };
+    return { quoteLinesByComponent: linesMap, lastQuoteByComponent: lastMap, sparklineLinesByComponent: sparkMap };
   }, [quoteItems, quotes]);
 
   const poLinesByComponent = useMemo(() => {
@@ -2079,7 +2099,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                                     </p>
                                     <p className="text-[10px] text-slate-600 mt-0.5">{new Date(lq.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}</p>
                                   </div>
-                                  <PriceSparkline lines={quoteLinesByComponent.get(c.component_id) ?? []} />
+                                  <PriceSparkline lines={sparklineLinesByComponent.get(c.component_id) ?? []} />
                                 </div>
                               ) : (
                                 <span className="text-xs text-slate-700">—</span>
