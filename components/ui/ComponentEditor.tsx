@@ -1957,7 +1957,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                       />
                     </td>
                     {/* Model / SKU */}
-                    <td className="px-3 py-1.5 align-middle w-[220px] max-w-[220px]">
+                    <td className="px-3 py-1.5 align-middle">
                       {isEditing ? (
                         <div>
                           <input
@@ -1977,20 +1977,20 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           {isDirtyField(c, 'supplier_model') && <DirtyBadge original={c.supplier_model} />}
                         </div>
                       ) : isDirtyField(c, 'supplier_model') ? (
-                        <div className="truncate">
-                          <span className="text-xs text-emerald-300 font-medium truncate">{(getVal(c, 'supplier_model') as string) || '—'}</span>
+                        <div>
+                          <span className="text-xs text-emerald-300 font-medium">{(getVal(c, 'supplier_model') as string) || '—'}</span>
                           <DirtyBadge original={c.supplier_model} />
                         </div>
                       ) : (
-                        <span className="flex items-center text-xs text-white font-medium truncate">
+                        <span className="flex items-center text-xs text-white font-medium">
                           <CopyBtn text={c.supplier_model} />
-                          <span className="truncate"><Highlight text={c.supplier_model} query={search} /></span>
+                          <Highlight text={c.supplier_model} query={search} />
                         </span>
                       )}
                     </td>
 
                     {/* Internal Description */}
-                    <td className="px-3 py-1.5 align-middle w-[220px] max-w-[220px]">
+                    <td className="px-3 py-1.5 align-middle">
                       {isEditing ? (
                         <div>
                           <input
@@ -2011,14 +2011,14 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           )}
                         </div>
                       ) : isDirtyField(c, 'internal_description') ? (
-                        <div className="truncate">
-                          <span className="text-xs text-emerald-300 truncate">{(getVal(c, 'internal_description') as string) || '—'}</span>
+                        <div>
+                          <span className="text-xs text-emerald-300">{(getVal(c, 'internal_description') as string) || '—'}</span>
                           <DirtyBadge original={c.internal_description} />
                         </div>
                       ) : (
-                        <span className="flex items-center text-xs text-slate-300 truncate">
+                        <span className="flex items-center text-xs text-slate-300">
                           <CopyBtn text={c.internal_description} />
-                          <span className="truncate"><Highlight text={c.internal_description} query={search} /></span>
+                          <Highlight text={c.internal_description} query={search} />
                         </span>
                       )}
                     </td>
@@ -2054,7 +2054,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
 
                     {/* Category */}
                     {visibleCols.category && (
-                      <td className="hidden md:table-cell px-4 py-3 align-top">
+                      <td className="hidden md:table-cell px-3 py-1.5 align-middle">
                         {isEditing ? (
                           <div>
                             <select
@@ -2063,7 +2063,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                               value={(getVal(c, 'category') as string) ?? ''}
                               onChange={(e) => setField(c, 'category', e.target.value || null)}
                               onKeyDown={(e) => handleCellKeyDown(e, c.component_id, 'category')}
-                              className={`w-full px-2.5 py-1.5 rounded-lg text-sm text-white focus:outline-none focus:ring-2 transition-all ${
+                              className={`w-full px-2 py-1 rounded-lg text-xs text-white focus:outline-none focus:ring-2 transition-all ${
                                 isDirtyField(c, 'category')
                                   ? 'bg-amber-500/10 border border-amber-500/50 focus:ring-amber-500/30'
                                   : 'bg-slate-950 border border-slate-700 focus:ring-emerald-500/20 focus:border-emerald-500'
@@ -2099,7 +2099,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                             <div>
                               {lq ? (
                                 <div className="min-w-0">
-                                  <p className="text-sm font-semibold text-slate-200 tabular-nums leading-tight">
+                                  <p className="text-xs font-medium text-slate-200 tabular-nums leading-tight">
                                     {lq.currency} {lq.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </p>
                                   <div className="flex items-center gap-1.5 mt-0.5">
