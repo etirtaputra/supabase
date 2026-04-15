@@ -1335,6 +1335,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       intel: CompetitorPrice[];
       normValueSelf: number | null;   // capacity value of the *current* component
       normValueOther: number | null;  // capacity value of the *linked* component
+      lastQuoteOther: { price: number; currency: string } | null;
     };
     const myLinks = (componentLinks ?? []).filter(
       (l) => l.component_id_a === inspectId || l.component_id_b === inspectId,
@@ -1349,6 +1350,17 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       const otherIntel = (competitorPrices ?? [])
         .filter((cp) => cp.component_id === otherId)
         .sort((a, b) => b.observed_at.localeCompare(a.observed_at));
+      // Last quoted price for the linked component (fallback when no TUC)
+      const otherLatestItem = quoteItems
+        .filter((item) => item.component_id === otherId)
+        .sort((a, b) => {
+          const qa = quoteMap.get(a.quote_id);
+          const qb = quoteMap.get(b.quote_id);
+          return (qb?.quote_date ?? '').localeCompare(qa?.quote_date ?? '');
+        })[0];
+      const lastQuoteOther = otherLatestItem
+        ? { price: otherLatestItem.unit_price, currency: otherLatestItem.currency }
+        : null;
       return {
         link,
         comp: otherComp,
@@ -1357,6 +1369,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         intel: otherIntel,
         normValueSelf:  isA ? (link.norm_value_a ?? null) : (link.norm_value_b ?? null),
         normValueOther: isA ? (link.norm_value_b ?? null) : (link.norm_value_a ?? null),
+        lastQuoteOther,
       };
     }).filter((x): x is LinkedCompData => x !== null);
 
@@ -3205,13 +3218,39 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           <p className="text-sm text-slate-600 italic py-6 text-center">No linked components yet</p>
                         )}
 
-                        {linkedComps.map(({ link, comp: lComp, tucIdr: lTuc, tucXr: lXr, intel: lIntel, normValueSelf, normValueOther }) => {
+                        {linkedComps.map(({ link, comp: lComp, tucIdr: lTuc, tucXr: lXr, intel: lIntel, normValueSelf, normValueOther, lastQuoteOther }) => {
                           const meta = LINK_TYPE_META[link.link_type] ?? { label: link.link_type, color: 'text-slate-300 bg-slate-700/40 border-slate-600/40' };
-                          const selfTucNorm  = tucIdr != null && normValueSelf  ? tucIdr / normValueSelf  : null;
-                          const otherTucNorm = lTuc   != null && normValueOther ? lTuc   / normValueOther : null;
-                          const directDelta  = tucIdr != null && lTuc != null ? ((lTuc - tucIdr) / tucIdr) * 100 : null;
-                          const normDelta    = selfTucNorm != null && otherTucNorm != null ? ((otherTucNorm - selfTucNorm) / selfTucNorm) * 100 : null;
-                          const latestIntel  = lIntel[0];
+
+                          // ── Price resolution: TUC preferred, last quote as fallback ──
+                          // Convert foreign quote price to IDR estimate using available XR
+                          const toIdrEst = (price: number, currency: string, xr: number | null) =>
+                            currency === 'IDR' ? price : xr ? price * xr : null;
+
+                          // Self
+                          const selfLastQ  = allQuoteLines[0] ?? null;
+                          const selfQIdr   = selfLastQ ? toIdrEst(selfLastQ.unit_price, selfLastQ.currency, tucXr) : null;
+                          const selfPrIdr  = tucIdr ?? selfQIdr;
+                          const selfIsEst  = tucIdr == null && selfQIdr != null;
+
+                          // Linked
+                          const otherQIdr  = lastQuoteOther ? toIdrEst(lastQuoteOther.price, lastQuoteOther.currency, lXr ?? tucXr) : null;
+                          const otherPrIdr = lTuc ?? otherQIdr;
+                          const otherIsEst = lTuc == null && otherQIdr != null;
+
+                          // Deltas
+                          const directDelta = selfPrIdr != null && otherPrIdr != null
+                            ? ((otherPrIdr - selfPrIdr) / selfPrIdr) * 100 : null;
+
+                          const selfNorm  = selfPrIdr  != null && normValueSelf  ? selfPrIdr  / normValueSelf  : null;
+                          const otherNorm = otherPrIdr != null && normValueOther ? otherPrIdr / normValueOther : null;
+                          const normDelta = selfNorm != null && otherNorm != null
+                            ? ((otherNorm - selfNorm) / selfNorm) * 100 : null;
+
+                          const latestIntel = lIntel[0];
+
+                          // Label helper
+                          const priceLabel = (isTuc: boolean, isEst: boolean) =>
+                            isTuc ? 'TUC' : isEst ? 'Last quote (est.)' : null;
 
                           return (
                             <div key={link.link_id} className="rounded-xl border border-slate-700/60 bg-slate-800/20 p-4">
@@ -3242,45 +3281,92 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                                 </div>
                               </div>
 
-                              {/* TUC comparison */}
-                              {link.link_type === 'normalized' && link.normalization_unit && normValueSelf && normValueOther ? (
-                                <div className="grid grid-cols-2 gap-2 mb-3">
-                                  <div className="rounded-lg bg-slate-900/60 px-3 py-2">
-                                    <p className="text-[10px] text-slate-500 mb-0.5">This ({normValueSelf} {link.normalization_unit})</p>
-                                    <p className="text-sm font-bold text-sky-300 tabular-nums">
-                                      {selfTucNorm != null ? `${Math.round(selfTucNorm).toLocaleString('en-US')} IDR/${link.normalization_unit}` : <span className="text-slate-600 font-normal italic text-xs">No TUC</span>}
-                                    </p>
-                                    {tucIdr != null && <p className="text-[10px] text-slate-600 mt-0.5 tabular-nums">TUC IDR {Math.round(tucIdr).toLocaleString('en-US')}</p>}
-                                  </div>
-                                  <div className="rounded-lg bg-slate-900/60 px-3 py-2">
-                                    <p className="text-[10px] text-slate-500 mb-0.5">Linked ({normValueOther} {link.normalization_unit})</p>
-                                    <p className="text-sm font-bold text-slate-200 tabular-nums">
-                                      {otherTucNorm != null ? `${Math.round(otherTucNorm).toLocaleString('en-US')} IDR/${link.normalization_unit}` : <span className="text-slate-600 font-normal italic text-xs">No TUC</span>}
-                                    </p>
-                                    {lTuc != null && <p className="text-[10px] text-slate-600 mt-0.5 tabular-nums">TUC IDR {Math.round(lTuc).toLocaleString('en-US')}</p>}
-                                    {normDelta != null && (
-                                      <p className={`text-[10px] font-semibold mt-0.5 ${normDelta > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
-                                        {normDelta > 0 ? '+' : ''}{normDelta.toFixed(1)}% per {link.normalization_unit} vs this
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-4 mb-3">
-                                  <div>
-                                    <p className="text-[10px] text-slate-500">Linked TUC</p>
-                                    <p className="text-sm font-bold tabular-nums text-slate-200">
-                                      {lTuc != null ? `IDR ${Math.round(lTuc).toLocaleString('en-US')}` : <span className="text-slate-600 font-normal italic text-xs">No TUC data</span>}
-                                    </p>
-                                    {lTuc != null && lXr != null && <p className="text-[10px] text-slate-600 tabular-nums">≈ USD {(lTuc / lXr).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>}
-                                  </div>
-                                  {directDelta != null && (
-                                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${directDelta > 0 ? 'text-red-300 bg-red-500/10' : 'text-emerald-300 bg-emerald-500/10'}`}>
-                                      {directDelta > 0 ? '+' : ''}{directDelta.toFixed(1)}% vs this
-                                    </span>
+                              {/* Price comparison — always 2-col grid */}
+                              <div className="grid grid-cols-2 gap-2 mb-3">
+                                {/* Self */}
+                                <div className="rounded-lg bg-slate-900/60 px-3 py-2">
+                                  <p className="text-[10px] text-slate-500 mb-0.5">
+                                    {link.link_type === 'normalized' && normValueSelf && link.normalization_unit
+                                      ? `This (${normValueSelf} ${link.normalization_unit})`
+                                      : 'This'}
+                                  </p>
+                                  {link.link_type === 'normalized' && normValueSelf && link.normalization_unit ? (
+                                    selfNorm != null ? (
+                                      <>
+                                        <p className="text-sm font-bold text-sky-300 tabular-nums">
+                                          {Math.round(selfNorm).toLocaleString('en-US')} IDR/{link.normalization_unit}
+                                        </p>
+                                        <p className="text-[10px] text-slate-600 mt-0.5 tabular-nums">
+                                          {selfIsEst ? 'est. ' : ''}IDR {Math.round(selfPrIdr!).toLocaleString('en-US')}
+                                        </p>
+                                      </>
+                                    ) : (
+                                      <p className="text-xs text-slate-600 italic mt-0.5">No data</p>
+                                    )
+                                  ) : (
+                                    selfPrIdr != null ? (
+                                      <>
+                                        <p className="text-sm font-bold text-sky-300 tabular-nums">
+                                          IDR {Math.round(selfPrIdr).toLocaleString('en-US')}
+                                        </p>
+                                        {priceLabel(tucIdr != null, selfIsEst) && (
+                                          <p className="text-[10px] text-slate-600 mt-0.5">{priceLabel(tucIdr != null, selfIsEst)}</p>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <p className="text-xs text-slate-600 italic mt-0.5">No data</p>
+                                    )
                                   )}
                                 </div>
-                              )}
+                                {/* Linked */}
+                                <div className="rounded-lg bg-slate-900/60 px-3 py-2">
+                                  <p className="text-[10px] text-slate-500 mb-0.5">
+                                    {link.link_type === 'normalized' && normValueOther && link.normalization_unit
+                                      ? `Linked (${normValueOther} ${link.normalization_unit})`
+                                      : 'Linked'}
+                                  </p>
+                                  {link.link_type === 'normalized' && normValueOther && link.normalization_unit ? (
+                                    otherNorm != null ? (
+                                      <>
+                                        <p className="text-sm font-bold text-slate-200 tabular-nums">
+                                          {Math.round(otherNorm).toLocaleString('en-US')} IDR/{link.normalization_unit}
+                                        </p>
+                                        <p className="text-[10px] text-slate-600 mt-0.5 tabular-nums">
+                                          {otherIsEst ? 'est. ' : ''}IDR {Math.round(otherPrIdr!).toLocaleString('en-US')}
+                                        </p>
+                                      </>
+                                    ) : (
+                                      <p className="text-xs text-slate-600 italic mt-0.5">No data</p>
+                                    )
+                                  ) : (
+                                    otherPrIdr != null ? (
+                                      <>
+                                        <p className="text-sm font-bold text-slate-200 tabular-nums">
+                                          IDR {Math.round(otherPrIdr).toLocaleString('en-US')}
+                                        </p>
+                                        {priceLabel(lTuc != null, otherIsEst) && (
+                                          <p className="text-[10px] text-slate-600 mt-0.5">{priceLabel(lTuc != null, otherIsEst)}</p>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <p className="text-xs text-slate-600 italic mt-0.5">No data</p>
+                                    )
+                                  )}
+                                  {/* Delta — always in the linked column */}
+                                  {directDelta != null && link.link_type !== 'normalized' && (
+                                    <p className={`text-[10px] font-semibold mt-1 ${directDelta > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                                      {directDelta > 0 ? '+' : ''}{directDelta.toFixed(1)}% vs this
+                                      {(selfIsEst || otherIsEst) && <span className="text-slate-600 font-normal ml-0.5">(est.)</span>}
+                                    </p>
+                                  )}
+                                  {normDelta != null && link.link_type === 'normalized' && (
+                                    <p className={`text-[10px] font-semibold mt-1 ${normDelta > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                                      {normDelta > 0 ? '+' : ''}{normDelta.toFixed(1)}% per {link.normalization_unit} vs this
+                                      {(selfIsEst || otherIsEst) && <span className="text-slate-600 font-normal ml-0.5">(est.)</span>}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
 
                               {/* Latest market intel for linked comp */}
                               {lIntel.length > 0 && (
