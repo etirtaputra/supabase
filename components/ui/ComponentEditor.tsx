@@ -465,40 +465,20 @@ function Highlight({ text, query }: { text: string | null | undefined; query: st
   return <>{parts}</>;
 }
 
-// ── Price history sparkline ───────────────────────────────────────────────
+// ── Price change indicator ────────────────────────────────────────────────
 // Expects lines already sorted oldest→newest (sparklineLinesByComponent)
-function PriceSparkline({ lines }: { lines: TooltipQuoteLine[] }) {
-  if (lines.length === 0) return null;
-  const vals = lines.map((l) => l.unit_price);
-  const min = Math.min(...vals);
-  const max = Math.max(...vals);
-  const W = 48; const H = 28; const PAD = 3;
-
-  // Single point or flat — show a dot at center
-  if (vals.length === 1 || min === max) {
-    const col = '#94a3b8'; // neutral slate for flat/single
-    const cx = (W / 2).toFixed(1);
-    const cy = (H / 2).toFixed(1);
-    return (
-      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="flex-shrink-0 opacity-60" aria-hidden="true">
-        {vals.length > 1 && (
-          <line x1={PAD} y1={cy} x2={W - PAD} y2={cy} stroke={col} strokeWidth="1" strokeDasharray="2 2" />
-        )}
-        <circle cx={cx} cy={cy} r="2" fill={col} />
-      </svg>
-    );
-  }
-
-  const range = max - min;
-  const toX = (i: number) => (PAD + (i / (vals.length - 1)) * (W - PAD * 2)).toFixed(1);
-  const toY = (v: number) => (H - PAD - ((v - min) / range) * (H - PAD * 2)).toFixed(1);
-  const points = vals.map((v, i) => `${toX(i)},${toY(v)}`).join(' ');
-  const col = vals[vals.length - 1] > vals[0] ? '#f87171' : '#4ade80';
+function PriceDelta({ lines }: { lines: TooltipQuoteLine[] }) {
+  if (lines.length < 2) return null;
+  const prev = lines[lines.length - 2].unit_price;
+  const last = lines[lines.length - 1].unit_price;
+  if (prev === 0) return null;
+  const pct = ((last - prev) / prev) * 100;
+  if (Math.abs(pct) < 0.01) return null; // no meaningful change
+  const up = pct > 0;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="flex-shrink-0 opacity-80" aria-hidden="true">
-      <polyline points={points} fill="none" stroke={col} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx={toX(vals.length - 1)} cy={toY(vals[vals.length - 1])} r="2" fill={col} />
-    </svg>
+    <span className={`text-[10px] font-semibold tabular-nums flex-shrink-0 ${up ? 'text-red-400' : 'text-emerald-400'}`}>
+      {up ? '▲' : '▼'} {Math.abs(pct).toFixed(1)}%
+    </span>
   );
 }
 
@@ -2099,7 +2079,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                                     </p>
                                     <p className="text-[10px] text-slate-600 mt-0.5">{new Date(lq.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}</p>
                                   </div>
-                                  <PriceSparkline lines={sparklineLinesByComponent.get(c.component_id) ?? []} />
+                                  <PriceDelta lines={sparklineLinesByComponent.get(c.component_id) ?? []} />
                                 </div>
                               ) : (
                                 <span className="text-xs text-slate-700">—</span>
