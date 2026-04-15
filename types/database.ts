@@ -14,6 +14,7 @@ import type {
   CompetitorPriceType,
   CompetitorSourceType,
   CompetitorConfidence,
+  ComponentLinkType,
 } from '../constants/enums';
 
 // Unified cost category type (replaces PaymentCategory + LandedCostsType)
@@ -195,6 +196,18 @@ export interface CompetitorPrice extends BaseEntity {
   notes?: string;
 }
 
+// 8.0 Component Links (cross-reference / equivalent model registry)
+export interface ComponentLink extends BaseEntity {
+  link_id: string;            // UUID
+  component_id_a: string;     // UUID (smaller UUID — always store normalized)
+  component_id_b: string;     // UUID (larger UUID)
+  link_type: ComponentLinkType;
+  normalization_unit?: string | null;  // 'Wp' | 'kWh' | 'kW' | 'Ah' | 'kg' | 'unit' | custom
+  norm_value_a?: number | null;        // spec value for component_a (e.g. 550 Wp)
+  norm_value_b?: number | null;        // spec value for component_b (e.g. 715 Wp)
+  notes?: string | null;
+}
+
 // Purchase History
 export interface PurchaseHistory extends BaseEntity {
   history_id: number;
@@ -248,6 +261,7 @@ export interface DatabaseData {
   quoteHistory: QuoteHistory[];
   competitorPrices: CompetitorPrice[];
   componentHistory: ComponentHistoryEntry[];
+  componentLinks: ComponentLink[];
 }
 
 // Autocomplete suggestions structure

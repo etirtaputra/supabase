@@ -17,6 +17,7 @@ export const TABLE_NAMES = {
   QUOTE_HISTORY: 'quote_history',
   COMPETITOR_PRICES: '7.0_competitor_prices',
   COMPONENT_HISTORY: 'component_history',
+  COMPONENT_LINKS: '8.0_component_links',
 } as const;
 
 export type TableName = typeof TABLE_NAMES[keyof typeof TABLE_NAMES];

@@ -124,6 +124,17 @@ export const ENUMS = {
 
   competitor_confidence: ['high', 'medium', 'low'] as const,
 
+  // ── Component links ────────────────────────────────────────────────────
+  component_link_type: [
+    'exact_model',          // Same specs, drop-in replacement (may differ in brand)
+    'brand_equivalent',     // Same brand/function, different model number/generation
+    'normalized',           // Different specs; compare via unit metric (cost/Wp, etc.)
+    'category_comparable',  // Same category, general market reference
+    'successor',            // One product replaces / supersedes the other
+  ] as const,
+
+  normalization_unit: ['Wp', 'kWh', 'kW', 'Ah', 'kg', 'unit'] as const,
+
   market_region: [
     'Indonesia',
     'Philippines',
@@ -152,3 +163,5 @@ export type CompetitorPriceType = typeof ENUMS.competitor_price_type[number];
 export type CompetitorSourceType = typeof ENUMS.competitor_source_type[number];
 export type CompetitorConfidence = typeof ENUMS.competitor_confidence[number];
 export type MarketRegion = typeof ENUMS.market_region[number];
+export type ComponentLinkType = typeof ENUMS.component_link_type[number];
+export type NormalizationUnit = typeof ENUMS.normalization_unit[number];

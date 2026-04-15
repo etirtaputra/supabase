@@ -8,7 +8,7 @@ import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom';
 import { Spinner } from './LoadingSkeleton';
 import SpecRenderer from './SpecRenderer';
-import type { Component, PriceQuoteLineItem, PriceQuote, PurchaseOrder, PurchaseLineItem, CompetitorPrice, POCost } from '../../types/database';
+import type { Component, PriceQuoteLineItem, PriceQuote, PurchaseOrder, PurchaseLineItem, CompetitorPrice, POCost, ComponentLink } from '../../types/database';
 import { PRINCIPAL_CATS, BALANCE_CATS, BANK_FEE_CATS, TAX_CATS } from '../../constants/costCategories';
 import { ENUMS } from '../../constants/enums';
 
@@ -46,6 +46,9 @@ interface ComponentEditorProps {
   competitorPrices?: CompetitorPrice[];
   onDeleteCompetitorPrice?: (id: string) => Promise<void>;
   onUpdateCompetitorPrice?: (id: string, changes: Partial<CompetitorPrice>) => Promise<void>;
+  componentLinks?: ComponentLink[];
+  onAddComponentLink?: (link: Omit<ComponentLink, 'link_id' | 'created_at' | 'updated_at'>) => Promise<void>;
+  onDeleteComponentLink?: (linkId: string) => Promise<void>;
 }
 
 type SortCol = 'supplier_model' | 'internal_description' | 'brand' | 'category' | 'updated_at' | 'quoteCount' | 'lineItemCount';
@@ -514,10 +517,53 @@ const IMPORT_HEADER_MAP: Record<string, string> = {
   category: 'category', type: 'category', 'product type': 'category', product_type: 'category',
 };
 
+// ── TUC helper (used by inspectData for both current and linked components) ──────
+function computeComponentTUC(
+  componentPoItems: PurchaseLineItem[],
+  allPoItems: PurchaseLineItem[],
+  pos: PurchaseOrder[],
+  poCosts: POCost[],
+): { tucIdr: number | null; tucXr: number | null } {
+  const poMap = new Map(pos.map((p) => [p.po_id, p]));
+  const allocs = componentPoItems.map((item) => {
+    const po = poMap.get(item.po_id);
+    if (!po) return null;
+    const sisterItems = allPoItems.filter((i) => i.po_id === item.po_id && i.quantity > 0);
+    const totalForeign = sisterItems.reduce((s, i) => s + i.unit_cost * i.quantity, 0);
+    const share = totalForeign > 0 ? (item.unit_cost * item.quantity) / totalForeign : 0;
+    const costs = poCosts.filter((c) => c.po_id === item.po_id);
+    const hasBalance = costs.some((c) => BALANCE_CATS.has(c.cost_category));
+    const principal = costs.filter((c) => PRINCIPAL_CATS.has(c.cost_category)).reduce((s, c) => s + c.amount, 0);
+    const bankFees  = costs.filter((c) => BANK_FEE_CATS.has(c.cost_category)).reduce((s, c) => s + c.amount, 0);
+    const landed    = costs.filter((c) => !PRINCIPAL_CATS.has(c.cost_category) && !BANK_FEE_CATS.has(c.cost_category) && !TAX_CATS.has(c.cost_category)).reduce((s, c) => s + c.amount, 0);
+    const tuc = item.quantity > 0 ? (share * (principal + bankFees + landed)) / item.quantity : 0;
+    return { tuc, qty: item.quantity, hasBalance, po };
+  }).filter((a): a is { tuc: number; qty: number; hasBalance: boolean; po: PurchaseOrder } => a !== null);
+
+  const paidAllocs = allocs.filter((a) => a.hasBalance && a.tuc > 0);
+  if (paidAllocs.length === 0) return { tucIdr: null, tucXr: null };
+  const weighted = paidAllocs.reduce((s, a) => s + a.tuc * a.qty, 0);
+  const qty      = paidAllocs.reduce((s, a) => s + a.qty, 0);
+  const tucIdr   = qty > 0 ? weighted / qty : null;
+  const latest   = [...paidAllocs].sort((a, b) => b.po.po_date.localeCompare(a.po.po_date))[0];
+  return { tucIdr, tucXr: latest?.po.exchange_rate ?? null };
+}
+
+// Link type display metadata
+const LINK_TYPE_META: Record<string, { label: string; color: string }> = {
+  exact_model:         { label: 'Exact Model',     color: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/30' },
+  brand_equivalent:    { label: 'Brand Equiv.',    color: 'text-blue-300 bg-blue-500/10 border-blue-500/30' },
+  normalized:          { label: 'Normalized',      color: 'text-violet-300 bg-violet-500/10 border-violet-500/30' },
+  category_comparable: { label: 'Category Ref',    color: 'text-slate-300 bg-slate-700/40 border-slate-600/40' },
+  successor:           { label: 'Successor',       color: 'text-amber-300 bg-amber-500/10 border-amber-500/30' },
+};
+
+const NORM_UNITS = ['Wp', 'kWh', 'kW', 'Ah', 'kg', 'unit'] as const;
+
 // --- Main Component Editor ---
 const EMPTY_ADD = { supplier_model: '', internal_description: '', brand: '', category: '', specifications: '' };
 
-export default function ComponentEditor({ components, brandSuggestions, quoteItems = [], quotes = [], pos = [], poItems = [], poCosts = [], componentHistory, competitorPrices, onSave, onAdd, onAddSupplier, onDelete, onSaveLineItem, onDeleteLineItem, onDeleteCompetitorPrice, onUpdateCompetitorPrice }: ComponentEditorProps) {
+export default function ComponentEditor({ components, brandSuggestions, quoteItems = [], quotes = [], pos = [], poItems = [], poCosts = [], componentHistory, competitorPrices, onSave, onAdd, onAddSupplier, onDelete, onSaveLineItem, onDeleteLineItem, onDeleteCompetitorPrice, onUpdateCompetitorPrice, componentLinks, onAddComponentLink, onDeleteComponentLink }: ComponentEditorProps) {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [filterBrand, setFilterBrand] = useState('');
@@ -603,11 +649,22 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [historyPanelId, setHistoryPanelId] = useState<string | null>(null);
   // ── Inspect panel ─────────────────────────────────────────────────────────
   const [inspectId, setInspectId] = useState<string | null>(null);
-  const [inspectTab, setInspectTab] = useState<'costs' | 'intel' | 'log'>('costs');
+  const [inspectTab, setInspectTab] = useState<'costs' | 'intel' | 'log' | 'linked'>('costs');
   const [editingIntelId, setEditingIntelId] = useState<string | null>(null);
   const [intelEditDraft, setIntelEditDraft] = useState<Partial<CompetitorPrice>>({});
   const [confirmDeleteIntelId, setConfirmDeleteIntelId] = useState<string | null>(null);
   const [intelSaving, setIntelSaving] = useState(false);
+  // ── Add-link form state ───────────────────────────────────────────────────
+  const [showAddLink, setShowAddLink] = useState(false);
+  const [addLinkSearch, setAddLinkSearch] = useState('');
+  const [addLinkTarget, setAddLinkTarget] = useState<Component | null>(null);
+  const [addLinkType, setAddLinkType] = useState('category_comparable');
+  const [addLinkNormUnit, setAddLinkNormUnit] = useState('Wp');
+  const [addLinkNormA, setAddLinkNormA] = useState('');
+  const [addLinkNormB, setAddLinkNormB] = useState('');
+  const [addLinkNotes, setAddLinkNotes] = useState('');
+  const [addLinkSaving, setAddLinkSaving] = useState(false);
+  const [confirmDeleteLinkId, setConfirmDeleteLinkId] = useState<string | null>(null);
   // ── Copy-row flash ────────────────────────────────────────────────────────
   const [copiedRowId, setCopiedRowId] = useState<string | null>(null);
 
@@ -1206,31 +1263,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     allPOLines.sort((a, b) => (b.po_date || '').localeCompare(a.po_date || ''));
 
     // ── TUC (weighted average across paid POs, in IDR) ────────────────────
-    interface AllocRow { tuc: number; qty: number; hasBalance: boolean; po: PurchaseOrder; }
-    const allocs = myPoItems.map((item): AllocRow | null => {
-      const po = poMap.get(item.po_id);
-      if (!po) return null;
-      const allPoItems = poItems.filter((i) => i.po_id === item.po_id && i.quantity > 0);
-      const totalForeign = allPoItems.reduce((s, i) => s + i.unit_cost * i.quantity, 0);
-      const share = totalForeign > 0 ? (item.unit_cost * item.quantity) / totalForeign : 0;
-      const costs = poCosts.filter((c) => c.po_id === item.po_id);
-      const hasBalance = costs.some((c) => BALANCE_CATS.has(c.cost_category));
-      const principal = costs.filter((c) => PRINCIPAL_CATS.has(c.cost_category)).reduce((s, c) => s + c.amount, 0);
-      const bankFees  = costs.filter((c) => BANK_FEE_CATS.has(c.cost_category)).reduce((s, c) => s + c.amount, 0);
-      const landed    = costs.filter((c) => !PRINCIPAL_CATS.has(c.cost_category) && !BANK_FEE_CATS.has(c.cost_category) && !TAX_CATS.has(c.cost_category)).reduce((s, c) => s + c.amount, 0);
-      const tuc = item.quantity > 0 ? (share * (principal + bankFees + landed)) / item.quantity : 0;
-      return { tuc, qty: item.quantity, hasBalance, po };
-    }).filter((a): a is AllocRow => a !== null);
-    const paidAllocs = allocs.filter((a) => a.hasBalance && a.tuc > 0);
-    let tucIdr: number | null = null;
-    let tucXr: number | null = null;
-    if (paidAllocs.length > 0) {
-      const weighted = paidAllocs.reduce((s, a) => s + a.tuc * a.qty, 0);
-      const qty = paidAllocs.reduce((s, a) => s + a.qty, 0);
-      tucIdr = qty > 0 ? weighted / qty : null;
-      const latestAlloc = [...paidAllocs].sort((a, b) => b.po.po_date.localeCompare(a.po.po_date))[0];
-      tucXr = latestAlloc?.po.exchange_rate ?? null;
-    }
+    const { tucIdr, tucXr } = computeComponentTUC(myPoItems, poItems, pos, poCosts);
 
     // ── Last received + lead time ─────────────────────────────────────────
     const myPoIds = new Set(myPoItems.map((i) => i.po_id));
@@ -1265,8 +1298,45 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     });
     const histTimeline = [...histGroups.entries()].sort((a, b) => b[0].localeCompare(a[0]));
 
-    return { comp, allQuoteLines, allPOLines, tucIdr, tucXr, lastReceivedPo, leadTime, compPrices, histTimeline };
-  }, [inspectId, components, quoteItems, quotes, poItems, pos, poCosts, competitorPrices, componentHistory]);
+    // ── Linked components ──────────────────────────────────────────────────
+    type LinkedCompData = {
+      link: ComponentLink;
+      comp: Component;
+      tucIdr: number | null;
+      tucXr: number | null;
+      intel: CompetitorPrice[];
+      normValueSelf: number | null;   // capacity value of the *current* component
+      normValueOther: number | null;  // capacity value of the *linked* component
+    };
+    const myLinks = (componentLinks ?? []).filter(
+      (l) => l.component_id_a === inspectId || l.component_id_b === inspectId,
+    );
+    const linkedComps: LinkedCompData[] = myLinks.map((link): LinkedCompData | null => {
+      const isA = link.component_id_a === inspectId;
+      const otherId = isA ? link.component_id_b : link.component_id_a;
+      const otherComp = components.find((c) => c.component_id === otherId);
+      if (!otherComp) return null;
+      const otherPoItems = poItems.filter((i) => i.component_id === otherId);
+      const { tucIdr: otherTuc, tucXr: otherXr } = computeComponentTUC(otherPoItems, poItems, pos, poCosts);
+      const otherIntel = (competitorPrices ?? [])
+        .filter((cp) => cp.component_id === otherId)
+        .sort((a, b) => b.observed_at.localeCompare(a.observed_at));
+      return {
+        link,
+        comp: otherComp,
+        tucIdr: otherTuc,
+        tucXr: otherXr,
+        intel: otherIntel,
+        normValueSelf:  isA ? (link.norm_value_a ?? null) : (link.norm_value_b ?? null),
+        normValueOther: isA ? (link.norm_value_b ?? null) : (link.norm_value_a ?? null),
+      };
+    }).filter((x): x is LinkedCompData => x !== null);
+
+    // Already-linked component IDs (for exclusion in add-link form)
+    const linkedIds = new Set(linkedComps.map((lc) => lc.comp.component_id));
+
+    return { comp, allQuoteLines, allPOLines, tucIdr, tucXr, lastReceivedPo, leadTime, compPrices, histTimeline, linkedComps, linkedIds };
+  }, [inspectId, components, quoteItems, quotes, poItems, pos, poCosts, competitorPrices, componentHistory, componentLinks]);
 
   // ── CSV Export ────────────────────────────────────────────────────────────
   const downloadCSV = useCallback(() => {
@@ -2696,10 +2766,13 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
           const fmtDays = (d: number | null) =>
             d == null ? '—' : d === 0 ? 'same day' : d === 1 ? '1 day' : `${d} days`;
 
+          const { linkedComps, linkedIds } = inspectData;
+
           const tabs: { id: typeof inspectTab; label: string; count: number }[] = [
-            { id: 'costs', label: 'Costs', count: allQuoteLines.length + allPOLines.length },
-            { id: 'intel', label: 'Market Intel', count: compPrices.length },
-            { id: 'log', label: 'Change Log', count: histTimeline.length },
+            { id: 'costs',  label: 'Costs',        count: allQuoteLines.length + allPOLines.length },
+            { id: 'intel',  label: 'Market Intel',  count: compPrices.length },
+            { id: 'linked', label: 'Linked',        count: linkedComps.length },
+            { id: 'log',    label: 'Change Log',    count: histTimeline.length },
           ];
 
           return (
@@ -2876,9 +2949,309 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                     </div>
                   )}
 
+                  {/* ── Linked tab ─────────────────────────────────────────── */}
+                  {inspectTab === 'linked' && (() => {
+                    // Component search results (excluding self + already linked)
+                    const linkSearchLower = addLinkSearch.toLowerCase();
+                    const linkSearchResults = addLinkSearch.length > 1
+                      ? components.filter((c) =>
+                          c.component_id !== inspectId &&
+                          !linkedIds.has(c.component_id) &&
+                          (c.supplier_model.toLowerCase().includes(linkSearchLower) ||
+                           (c.internal_description || '').toLowerCase().includes(linkSearchLower) ||
+                           (c.brand || '').toLowerCase().includes(linkSearchLower))
+                        ).slice(0, 8)
+                      : [];
+
+                    const handleSaveLink = async () => {
+                      if (!addLinkTarget || !onAddComponentLink) return;
+                      setAddLinkSaving(true);
+                      try {
+                        await onAddComponentLink({
+                          component_id_a: inspectId!,
+                          component_id_b: addLinkTarget.component_id,
+                          link_type: addLinkType as any,
+                          normalization_unit: addLinkType === 'normalized' ? addLinkNormUnit : null,
+                          norm_value_a:       addLinkType === 'normalized' && addLinkNormA ? Number(addLinkNormA) : null,
+                          norm_value_b:       addLinkType === 'normalized' && addLinkNormB ? Number(addLinkNormB) : null,
+                          notes: addLinkNotes || null,
+                        });
+                        setShowAddLink(false);
+                        setAddLinkSearch('');
+                        setAddLinkTarget(null);
+                        setAddLinkType('category_comparable');
+                        setAddLinkNormUnit('Wp');
+                        setAddLinkNormA('');
+                        setAddLinkNormB('');
+                        setAddLinkNotes('');
+                      } finally {
+                        setAddLinkSaving(false);
+                      }
+                    };
+
+                    return (
+                      <div className="space-y-3">
+
+                        {/* Add link button / form */}
+                        {onAddComponentLink && !showAddLink && (
+                          <button
+                            onClick={() => setShowAddLink(true)}
+                            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-dashed border-slate-700 text-slate-500 hover:border-violet-500/50 hover:text-violet-300 transition-colors text-xs font-semibold"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                            Add Equivalent / Comparable Link
+                          </button>
+                        )}
+
+                        {showAddLink && (
+                          <div className="rounded-xl border border-violet-500/30 bg-violet-500/5 p-4 space-y-3">
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-violet-400/70">New Link</p>
+
+                            {/* Component search */}
+                            <div>
+                              <label className="text-[11px] text-slate-400 mb-1 block">Search component to link</label>
+                              {addLinkTarget ? (
+                                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800 border border-violet-500/30">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-semibold text-white truncate">{addLinkTarget.internal_description || addLinkTarget.supplier_model}</p>
+                                    <p className="text-[10px] text-slate-500 font-mono truncate">{addLinkTarget.supplier_model}{addLinkTarget.brand ? ` · ${addLinkTarget.brand}` : ''}</p>
+                                  </div>
+                                  <button onClick={() => { setAddLinkTarget(null); setAddLinkSearch(''); }} className="text-slate-500 hover:text-white flex-shrink-0">
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="relative">
+                                  <input
+                                    type="text"
+                                    value={addLinkSearch}
+                                    onChange={(e) => setAddLinkSearch(e.target.value)}
+                                    placeholder="Model, description, brand…"
+                                    className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
+                                  />
+                                  {linkSearchResults.length > 0 && (
+                                    <div className="absolute top-full left-0 right-0 mt-1 rounded-lg bg-slate-900 border border-slate-700 shadow-xl z-10 max-h-52 overflow-y-auto custom-scrollbar">
+                                      {linkSearchResults.map((c) => (
+                                        <button
+                                          key={c.component_id}
+                                          onMouseDown={() => { setAddLinkTarget(c); setAddLinkSearch(''); }}
+                                          className="w-full text-left px-3 py-2 hover:bg-slate-800 border-b border-slate-800/60 last:border-0"
+                                        >
+                                          <p className="text-xs font-medium text-white truncate">{c.internal_description || c.supplier_model}</p>
+                                          <p className="text-[10px] text-slate-500 font-mono truncate">{c.supplier_model}{c.brand ? ` · ${c.brand}` : ''}</p>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Link type */}
+                            <div>
+                              <label className="text-[11px] text-slate-400 mb-1 block">Comparison type</label>
+                              <select
+                                value={addLinkType}
+                                onChange={(e) => setAddLinkType(e.target.value)}
+                                className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white focus:outline-none focus:border-violet-500"
+                              >
+                                <option value="exact_model">Exact Model — same specs, drop-in replacement</option>
+                                <option value="brand_equivalent">Brand Equivalent — same function, different brand</option>
+                                <option value="normalized">Normalized — compare via unit metric (cost/Wp, etc.)</option>
+                                <option value="category_comparable">Category Reference — same category, general comparison</option>
+                                <option value="successor">Successor — one replaces the other</option>
+                              </select>
+                            </div>
+
+                            {/* Normalization fields (only for normalized type) */}
+                            {addLinkType === 'normalized' && (
+                              <div className="rounded-lg bg-slate-800/40 border border-slate-700/50 p-3 space-y-2">
+                                <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Normalization</p>
+                                <div className="grid grid-cols-3 gap-2">
+                                  <div>
+                                    <label className="text-[11px] text-slate-400 mb-1 block">Unit</label>
+                                    <select
+                                      value={addLinkNormUnit}
+                                      onChange={(e) => setAddLinkNormUnit(e.target.value)}
+                                      className="w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-violet-500"
+                                    >
+                                      {NORM_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="text-[11px] text-slate-400 mb-1 block">This ({addLinkNormUnit})</label>
+                                    <input
+                                      type="number"
+                                      value={addLinkNormA}
+                                      onChange={(e) => setAddLinkNormA(e.target.value)}
+                                      placeholder="e.g. 550"
+                                      className="w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-violet-500"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[11px] text-slate-400 mb-1 block">Linked ({addLinkNormUnit})</label>
+                                    <input
+                                      type="number"
+                                      value={addLinkNormB}
+                                      onChange={(e) => setAddLinkNormB(e.target.value)}
+                                      placeholder="e.g. 715"
+                                      className="w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-violet-500"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Notes */}
+                            <div>
+                              <label className="text-[11px] text-slate-400 mb-1 block">Notes (optional)</label>
+                              <input
+                                type="text"
+                                value={addLinkNotes}
+                                onChange={(e) => setAddLinkNotes(e.target.value)}
+                                placeholder="Why are these linked?"
+                                className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-violet-500"
+                              />
+                            </div>
+
+                            <div className="flex gap-2">
+                              <button
+                                onClick={handleSaveLink}
+                                disabled={!addLinkTarget || addLinkSaving}
+                                className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors"
+                              >
+                                {addLinkSaving ? 'Saving…' : 'Save Link'}
+                              </button>
+                              <button
+                                onClick={() => { setShowAddLink(false); setAddLinkSearch(''); setAddLinkTarget(null); }}
+                                className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Linked component cards */}
+                        {linkedComps.length === 0 && !showAddLink && (
+                          <p className="text-sm text-slate-600 italic py-6 text-center">No linked components yet</p>
+                        )}
+
+                        {linkedComps.map(({ link, comp: lComp, tucIdr: lTuc, tucXr: lXr, intel: lIntel, normValueSelf, normValueOther }) => {
+                          const meta = LINK_TYPE_META[link.link_type] ?? { label: link.link_type, color: 'text-slate-300 bg-slate-700/40 border-slate-600/40' };
+                          const selfTucNorm  = tucIdr != null && normValueSelf  ? tucIdr / normValueSelf  : null;
+                          const otherTucNorm = lTuc   != null && normValueOther ? lTuc   / normValueOther : null;
+                          const directDelta  = tucIdr != null && lTuc != null ? ((lTuc - tucIdr) / tucIdr) * 100 : null;
+                          const normDelta    = selfTucNorm != null && otherTucNorm != null ? ((otherTucNorm - selfTucNorm) / selfTucNorm) * 100 : null;
+                          const latestIntel  = lIntel[0];
+
+                          return (
+                            <div key={link.link_id} className="rounded-xl border border-slate-700/60 bg-slate-800/20 p-4">
+
+                              {/* Card header */}
+                              <div className="flex items-start justify-between mb-3 gap-2">
+                                <div className="min-w-0">
+                                  <p className="text-sm font-semibold text-white leading-tight truncate">{lComp.internal_description || lComp.supplier_model}</p>
+                                  <p className="text-[11px] text-slate-500 font-mono mt-0.5 truncate">{lComp.supplier_model}</p>
+                                  {lComp.brand && <p className="text-[10px] text-slate-600 mt-0.5">{lComp.brand}{lComp.category ? ` · ${lComp.category}` : ''}</p>}
+                                </div>
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                  <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${meta.color}`}>{meta.label}</span>
+                                  {confirmDeleteLinkId === link.link_id ? (
+                                    <span className="flex items-center gap-1 text-[11px]">
+                                      <span className="text-slate-400">Remove?</span>
+                                      <button
+                                        onClick={async () => { await onDeleteComponentLink?.(link.link_id); setConfirmDeleteLinkId(null); }}
+                                        className="text-red-400 hover:text-red-300 font-semibold"
+                                      >Yes</button>
+                                      <button onClick={() => setConfirmDeleteLinkId(null)} className="text-slate-500 hover:text-slate-300">No</button>
+                                    </span>
+                                  ) : (
+                                    <button onClick={() => setConfirmDeleteLinkId(link.link_id)} className="text-slate-600 hover:text-red-400 transition-colors text-[11px]">
+                                      × Remove
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* TUC comparison */}
+                              {link.link_type === 'normalized' && link.normalization_unit && normValueSelf && normValueOther ? (
+                                <div className="grid grid-cols-2 gap-2 mb-3">
+                                  <div className="rounded-lg bg-slate-900/60 px-3 py-2">
+                                    <p className="text-[10px] text-slate-500 mb-0.5">This ({normValueSelf} {link.normalization_unit})</p>
+                                    <p className="text-sm font-bold text-sky-300 tabular-nums">
+                                      {selfTucNorm != null ? `${Math.round(selfTucNorm).toLocaleString('en-US')} IDR/${link.normalization_unit}` : <span className="text-slate-600 font-normal italic text-xs">No TUC</span>}
+                                    </p>
+                                    {tucIdr != null && <p className="text-[10px] text-slate-600 mt-0.5 tabular-nums">TUC IDR {Math.round(tucIdr).toLocaleString('en-US')}</p>}
+                                  </div>
+                                  <div className="rounded-lg bg-slate-900/60 px-3 py-2">
+                                    <p className="text-[10px] text-slate-500 mb-0.5">Linked ({normValueOther} {link.normalization_unit})</p>
+                                    <p className="text-sm font-bold text-slate-200 tabular-nums">
+                                      {otherTucNorm != null ? `${Math.round(otherTucNorm).toLocaleString('en-US')} IDR/${link.normalization_unit}` : <span className="text-slate-600 font-normal italic text-xs">No TUC</span>}
+                                    </p>
+                                    {lTuc != null && <p className="text-[10px] text-slate-600 mt-0.5 tabular-nums">TUC IDR {Math.round(lTuc).toLocaleString('en-US')}</p>}
+                                    {normDelta != null && (
+                                      <p className={`text-[10px] font-semibold mt-0.5 ${normDelta > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                                        {normDelta > 0 ? '+' : ''}{normDelta.toFixed(1)}% per {link.normalization_unit} vs this
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-4 mb-3">
+                                  <div>
+                                    <p className="text-[10px] text-slate-500">Linked TUC</p>
+                                    <p className="text-sm font-bold tabular-nums text-slate-200">
+                                      {lTuc != null ? `IDR ${Math.round(lTuc).toLocaleString('en-US')}` : <span className="text-slate-600 font-normal italic text-xs">No TUC data</span>}
+                                    </p>
+                                    {lTuc != null && lXr != null && <p className="text-[10px] text-slate-600 tabular-nums">≈ USD {(lTuc / lXr).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>}
+                                  </div>
+                                  {directDelta != null && (
+                                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${directDelta > 0 ? 'text-red-300 bg-red-500/10' : 'text-emerald-300 bg-emerald-500/10'}`}>
+                                      {directDelta > 0 ? '+' : ''}{directDelta.toFixed(1)}% vs this
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Latest market intel for linked comp */}
+                              {lIntel.length > 0 && (
+                                <div className="border-t border-slate-700/40 pt-2">
+                                  <p className="text-[10px] text-slate-500 mb-1.5">
+                                    Market Intel ({lIntel.length})
+                                    {latestIntel && <span className="ml-1 text-slate-600">· latest {fmtD(latestIntel.observed_at)}</span>}
+                                  </p>
+                                  <div className="space-y-0.5">
+                                    {lIntel.slice(0, 3).map((cp) => (
+                                      <div key={cp.competitor_price_id} className="flex items-center gap-2 text-[11px]">
+                                        <span className="text-slate-500 truncate flex-1">{cp.competitor_brand || cp.competitor_model || cp.source_name || '—'}</span>
+                                        <span className="text-amber-300 font-semibold tabular-nums flex-shrink-0">
+                                          {cp.currency} {cp.unit_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </span>
+                                        <span className="text-slate-600 flex-shrink-0">{fmtD(cp.observed_at)}</span>
+                                      </div>
+                                    ))}
+                                    {lIntel.length > 3 && <p className="text-[10px] text-slate-600">+{lIntel.length - 3} more</p>}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Notes */}
+                              {link.notes && (
+                                <p className="text-[11px] text-slate-500 italic mt-2 border-t border-slate-700/40 pt-2">{link.notes}</p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+
                   {/* ── Market Intel tab ───────────────────────────────────── */}
-                  {inspectTab === 'intel' && (
-                    compPrices.length === 0 ? (
+                  {inspectTab === 'intel' && (() => {
+                    const linkedIntelGroups = linkedComps.filter((lc) => lc.intel.length > 0);
+                    const hasAnyIntel = compPrices.length > 0 || linkedIntelGroups.length > 0;
+                    return !hasAnyIntel ? (
                       <p className="text-sm text-slate-600 italic py-8 text-center">No competitor prices linked to this component</p>
                     ) : (
                       <div className="space-y-3">
@@ -3025,9 +3398,50 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                             </div>
                           );
                         })}
+
+                        {/* Intel from linked components */}
+                        {linkedIntelGroups.map(({ link, comp: lComp, intel: lIntel }) => {
+                          const meta = LINK_TYPE_META[link.link_type] ?? { label: link.link_type, color: 'text-slate-300 bg-slate-700/40 border-slate-600/40' };
+                          return (
+                            <div key={link.link_id}>
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-600 inline-block"></span>
+                                From linked: {lComp.internal_description || lComp.supplier_model}
+                                <span className={`ml-1 px-1.5 py-0.5 text-[9px] font-bold rounded-full border ${meta.color}`}>{meta.label}</span>
+                              </p>
+                              <div className="rounded-xl border border-slate-800 overflow-hidden">
+                                <table className="w-full text-xs">
+                                  <thead>
+                                    <tr className="border-b border-slate-800 bg-slate-800/50">
+                                      <th className="px-3 py-1.5 text-left font-bold uppercase tracking-wider text-slate-500">Brand / Model</th>
+                                      <th className="px-3 py-1.5 text-left font-bold uppercase tracking-wider text-slate-500">Date</th>
+                                      <th className="px-3 py-1.5 text-right font-bold uppercase tracking-wider text-slate-500">Price</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-800/60">
+                                    {lIntel.map((cp) => (
+                                      <tr key={cp.competitor_price_id} className="hover:bg-white/[0.02]">
+                                        <td className="px-3 py-1.5 text-slate-300 truncate max-w-[160px]">
+                                          {cp.competitor_brand || cp.competitor_model || cp.source_name || '—'}
+                                          {cp.competitor_model && cp.competitor_brand && (
+                                            <span className="text-slate-600 ml-1">{cp.competitor_model}</span>
+                                          )}
+                                        </td>
+                                        <td className="px-3 py-1.5 text-slate-500">{fmtD(cp.observed_at)}</td>
+                                        <td className="px-3 py-1.5 text-right text-amber-300 font-semibold tabular-nums">
+                                          {fmtP(cp.unit_price, cp.currency)}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                    )
-                  )}
+                    );
+                  })()}
 
                   {/* ── Change Log tab ─────────────────────────────────────── */}
                   {inspectTab === 'log' && (

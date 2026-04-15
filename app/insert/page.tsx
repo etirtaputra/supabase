@@ -235,6 +235,22 @@ function MasterInsertPage() {
     refetch();
   };
 
+  const handleAddComponentLink = async (link: Record<string, any>) => {
+    // Normalize: always store smaller UUID as component_id_a
+    const [a, b] = [link.component_id_a as string, link.component_id_b as string].sort();
+    const { error } = await supabase.from('8.0_component_links').insert({ ...link, component_id_a: a, component_id_b: b });
+    if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
+    showToast('Component link added.', 'success');
+    refetch();
+  };
+
+  const handleDeleteComponentLink = async (linkId: string) => {
+    const { error } = await supabase.from('8.0_component_links').delete().eq('link_id', linkId);
+    if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
+    showToast('Link removed.', 'success');
+    refetch();
+  };
+
   const handleComponentUpdates = async (updates: { component_id: string; changes: Record<string, any> }[]) => {
     const errors: string[] = [];
     let saved = 0;
@@ -413,6 +429,9 @@ function MasterInsertPage() {
                     competitorPrices={data.competitorPrices}
                     onDeleteCompetitorPrice={handleDeleteCompetitorPrice}
                     onUpdateCompetitorPrice={handleUpdateCompetitorPrice}
+                    componentLinks={data.componentLinks}
+                    onAddComponentLink={handleAddComponentLink}
+                    onDeleteComponentLink={handleDeleteComponentLink}
                     onSave={handleComponentUpdates}
                     onAdd={(fields) => handleInsert('3.0_components', [fields])}
                     onAddSupplier={() => setShowSupplierForm(true)}

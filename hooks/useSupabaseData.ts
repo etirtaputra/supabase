@@ -26,6 +26,7 @@ export function useSupabaseData() {
     quoteHistory: [],
     competitorPrices: [],
     componentHistory: [],
+    componentLinks: [],
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -146,6 +147,13 @@ export function useSupabaseData() {
         .limit(2000)
         .then(({ data: componentHistory }) => {
           if (componentHistory) setData((prev) => ({ ...prev, componentHistory }));
+        });
+
+      supabase
+        .from(TABLE_NAMES.COMPONENT_LINKS)
+        .select('*')
+        .then(({ data: componentLinks }) => {
+          if (componentLinks) setData((prev) => ({ ...prev, componentLinks }));
         });
 
       setLoading(false);
