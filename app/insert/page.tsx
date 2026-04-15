@@ -102,6 +102,12 @@ function MasterInsertPage() {
     refetch();
   };
 
+  const handleUpdatePo = async (poId: string, changes: Record<string, any>) => {
+    const { error } = await supabase.from('5.0_purchases').update(changes).eq('po_id', poId);
+    if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
+    refetch();
+  };
+
   const handleQuoteStatusChange = async (quoteId: string, status: string) => {
     const { error } = await supabase.from('4.0_price_quotes').update({ status }).eq('quote_id', quoteId);
     if (error) { showToast(`Error updating quote status: ${error.message}`, 'error'); throw error; }
@@ -826,6 +832,7 @@ function MasterInsertPage() {
                   components={data.components}
                   onQuoteStatusChange={handleQuoteStatusChange}
                   onPoStatusChange={handleStatusChange}
+                  onUpdatePo={handleUpdatePo}
                   onMarkFullyPaid={handleMarkFullyPaid}
                   onCreatePO={(quoteId) => { setPendingQuoteForPO(quoteId); handleTabChange('ordering'); }}
                 />

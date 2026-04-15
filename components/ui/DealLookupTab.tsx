@@ -124,6 +124,7 @@ interface Props {
   components: Component[];
   onQuoteStatusChange?: (quoteId: string, status: string) => Promise<void>;
   onPoStatusChange?: (poId: string, status: string) => Promise<void>;
+  onUpdatePo?: (poId: string, changes: Partial<PurchaseOrder>) => Promise<void>;
   onMarkFullyPaid?: (poId: string, amount: number, currency: string) => Promise<void>;
   onCreatePO?: (quoteId: string) => void;
 }
@@ -133,7 +134,7 @@ interface Props {
 export default function DealLookupTab({
   quotes, quoteItems, pos, poItems, poCosts,
   suppliers, companies, components,
-  onQuoteStatusChange, onPoStatusChange, onMarkFullyPaid, onCreatePO,
+  onQuoteStatusChange, onPoStatusChange, onUpdatePo, onMarkFullyPaid, onCreatePO,
 }: Props) {
 
   const [viewMode, setViewMode]               = useState<'all' | 'by-vendor' | 'by-company'>('all');
@@ -146,6 +147,10 @@ export default function DealLookupTab({
   const [updatingQuote, setUpdatingQuote]     = useState<string | null>(null);
   const [updatingPo, setUpdatingPo]           = useState<string | null>(null);
   const [markingPaid, setMarkingPaid]         = useState<string | null>(null);
+  // Intercept "Fully Received" to capture received date before saving
+  const [pendingReceived, setPendingReceived] = useState<{ poId: string; date: string } | null>(null);
+  const [editingReceivedId, setEditingReceivedId] = useState<string | null>(null);
+  const [editingReceivedDate, setEditingReceivedDate] = useState('');
 
   // ── Deal groups ──────────────────────────────────────────────────────────
   const allGroups = useMemo(
@@ -421,7 +426,6 @@ export default function DealLookupTab({
                         { label: 'PI Date',      value: po.pi_date },
                         { label: 'Incoterms',    value: po.incoterms },
                         { label: 'Est. Delivery',value: po.estimated_delivery_date },
-                        { label: 'Received',     value: po.actual_received_date },
                         { label: 'Currency',     value: po.currency },
                         { label: 'Ship Via',     value: po.method_of_shipment },
                       ].map(({ label, value }) => value ? (
@@ -430,7 +434,81 @@ export default function DealLookupTab({
                           <p className="text-slate-300 mt-0.5">{value}</p>
                         </div>
                       ) : null)}
+
+                      {/* Editable received date */}
+                      {po.status === 'Fully Received' && (
+                        <div>
+                          <p className="text-[10px] font-medium text-emerald-500/80 uppercase tracking-wider">Received</p>
+                          {editingReceivedId === pKey ? (
+                            <div className="flex items-center gap-1 mt-0.5" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="date"
+                                value={editingReceivedDate}
+                                onChange={(e) => setEditingReceivedDate(e.target.value)}
+                                className="px-1.5 py-0.5 bg-slate-950 border border-emerald-500/40 rounded text-xs text-white focus:outline-none w-32"
+                              />
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  if (onUpdatePo) { setUpdatingPo(pKey); try { await onUpdatePo(pKey, { actual_received_date: editingReceivedDate }); } finally { setUpdatingPo(null); } }
+                                  setEditingReceivedId(null);
+                                }}
+                                className="text-emerald-400 hover:text-emerald-300 text-[10px] font-bold"
+                              >Save</button>
+                              <button onClick={(e) => { e.stopPropagation(); setEditingReceivedId(null); }} className="text-slate-500 hover:text-slate-300 text-[10px]">✕</button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setEditingReceivedId(pKey); setEditingReceivedDate(po.actual_received_date ?? new Date().toISOString().slice(0, 10)); }}
+                              className="text-emerald-300 mt-0.5 text-xs hover:text-emerald-200 hover:underline text-left"
+                              title="Click to edit received date"
+                            >
+                              {po.actual_received_date ?? <span className="text-slate-600 italic">Set date…</span>}
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
+
+                    {/* Lead-time breakdown — shown once received date is set */}
+                    {po.status === 'Fully Received' && po.actual_received_date && (() => {
+                      const recDate = new Date(po.actual_received_date);
+                      const diffDays = (a: Date, b: Date) => Math.round((a.getTime() - b.getTime()) / 86_400_000);
+                      const fmt = (d: number) => d < 0 ? '—' : d === 0 ? 'same day' : d === 1 ? '1 day' : `${d} days`;
+
+                      // (1) From first accepted quote
+                      const linkedQuote = quotes.find((q) => String(q.quote_id) === String(po.quote_id));
+                      const daysFromQuote = linkedQuote?.quote_date ? diffDays(recDate, new Date(linkedQuote.quote_date)) : null;
+
+                      // (2) From PO creation
+                      const daysFromPO = po.po_date ? diffDays(recDate, new Date(po.po_date)) : null;
+
+                      // (3) From first payment
+                      const poIdNum = Number(pKey);
+                      const payments = poCosts.filter((c) => c.po_id === poIdNum && c.payment_date);
+                      const firstPayment = payments.sort((a, b) => (a.payment_date! < b.payment_date! ? -1 : 1))[0];
+                      const daysFromPayment = firstPayment?.payment_date ? diffDays(recDate, new Date(firstPayment.payment_date)) : null;
+
+                      return (
+                        <div className="rounded-lg bg-emerald-500/5 border border-emerald-500/15 px-3 py-2">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-500/70 mb-2">Lead Time</p>
+                          <div className="grid grid-cols-3 gap-2 text-center">
+                            {[
+                              { label: 'Quote → Received', days: daysFromQuote },
+                              { label: 'PO → Received',    days: daysFromPO },
+                              { label: '1st Payment → Received', days: daysFromPayment },
+                            ].map(({ label, days }) => (
+                              <div key={label}>
+                                <p className={`text-sm font-bold tabular-nums ${days != null && days >= 0 ? 'text-emerald-300' : 'text-slate-600'}`}>
+                                  {days != null ? fmt(days) : '—'}
+                                </p>
+                                <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">{label}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* PO value */}
                     {po.total_value && (
@@ -530,23 +608,63 @@ export default function DealLookupTab({
 
                     {/* PO status selector */}
                     {onPoStatusChange && (
-                      <div className="flex items-center gap-1.5">
-                        <select
-                          value={po.status ?? ''}
-                          disabled={updatingPo === pKey}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={async (e) => {
-                            e.stopPropagation();
-                            setUpdatingPo(pKey);
-                            try { await onPoStatusChange(pKey, e.target.value); } finally { setUpdatingPo(null); }
-                          }}
-                          className={`flex-1 text-[11px] font-semibold rounded-lg px-2 py-1 border bg-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 cursor-pointer disabled:opacity-60 ${poBadge(po.status)}`}
-                        >
-                          {PO_STATUSES.map((s) => (
-                            <option key={s} value={s} className="bg-[#0B1120] text-slate-200">{s}</option>
-                          ))}
-                        </select>
-                        {updatingPo === pKey && <span className="text-[10px] text-slate-500 animate-pulse">saving…</span>}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-1.5">
+                          <select
+                            value={po.status ?? ''}
+                            disabled={updatingPo === pKey}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={async (e) => {
+                              e.stopPropagation();
+                              const newStatus = e.target.value;
+                              if (newStatus === 'Fully Received') {
+                                // Intercept — ask for received date first
+                                setPendingReceived({ poId: pKey, date: new Date().toISOString().slice(0, 10) });
+                                return;
+                              }
+                              setUpdatingPo(pKey);
+                              try { await onPoStatusChange(pKey, newStatus); } finally { setUpdatingPo(null); }
+                            }}
+                            className={`flex-1 text-[11px] font-semibold rounded-lg px-2 py-1 border bg-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 cursor-pointer disabled:opacity-60 ${poBadge(po.status)}`}
+                          >
+                            {PO_STATUSES.map((s) => (
+                              <option key={s} value={s} className="bg-[#0B1120] text-slate-200">{s}</option>
+                            ))}
+                          </select>
+                          {updatingPo === pKey && <span className="text-[10px] text-slate-500 animate-pulse">saving…</span>}
+                        </div>
+
+                        {/* Received date picker — shown when intercepting "Fully Received" for this PO */}
+                        {pendingReceived?.poId === pKey && (
+                          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3 py-2.5 space-y-2" onClick={(e) => e.stopPropagation()}>
+                            <p className="text-[11px] font-semibold text-emerald-300">When was this received?</p>
+                            <input
+                              type="date"
+                              value={pendingReceived.date}
+                              onChange={(e) => setPendingReceived((p) => p && { ...p, date: e.target.value })}
+                              className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500"
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => setPendingReceived(null)}
+                                className="flex-1 py-1.5 text-[11px] text-slate-400 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-all"
+                              >Cancel</button>
+                              <button
+                                disabled={!pendingReceived.date || updatingPo === pKey}
+                                onClick={async () => {
+                                  if (!pendingReceived.date) return;
+                                  setUpdatingPo(pKey);
+                                  try {
+                                    await onPoStatusChange(pKey, 'Fully Received');
+                                    if (onUpdatePo) await onUpdatePo(pKey, { actual_received_date: pendingReceived.date });
+                                    setPendingReceived(null);
+                                  } finally { setUpdatingPo(null); }
+                                }}
+                                className="flex-1 py-1.5 text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-all disabled:opacity-40"
+                              >{updatingPo === pKey ? 'Saving…' : 'Confirm'}</button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
 
