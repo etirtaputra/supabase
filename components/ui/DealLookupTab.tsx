@@ -100,6 +100,71 @@ function CopyBtn({ text, className = '' }: { text: string; className?: string })
   );
 }
 
+// ── Mismatch detection ────────────────────────────────────────────────────────
+
+type MismatchType = 'duplicate_in_quote' | 'qty_diff' | 'only_in_quote' | 'only_in_po';
+interface MismatchItem {
+  type: MismatchType;
+  componentId: string;
+  componentName: string;
+  detail: string;
+}
+
+function detectMismatches(
+  quoteId: number | string,
+  poId: number | string,
+  quoteItems: PriceQuoteLineItem[],
+  poItems: PurchaseLineItem[],
+  components: Component[],
+): MismatchItem[] {
+  const qItems = quoteItems.filter((i) => String(i.quote_id) === String(quoteId));
+  const pItems = poItems.filter((i) => String(i.po_id) === String(poId));
+  if (qItems.length === 0 && pItems.length === 0) return [];
+
+  const compName = (cid: string) => {
+    const c = components.find((x) => x.component_id === cid);
+    return c?.supplier_model ?? c?.internal_description ?? '(unknown)';
+  };
+
+  const qQty = new Map<string, number>();
+  const qCount = new Map<string, number>();
+  qItems.forEach((i) => {
+    if (!i.component_id) return;
+    qQty.set(i.component_id, (qQty.get(i.component_id) ?? 0) + Number(i.quantity));
+    qCount.set(i.component_id, (qCount.get(i.component_id) ?? 0) + 1);
+  });
+
+  const pQty = new Map<string, number>();
+  pItems.forEach((i) => {
+    if (!i.component_id) return;
+    pQty.set(i.component_id, (pQty.get(i.component_id) ?? 0) + Number(i.quantity));
+  });
+
+  const out: MismatchItem[] = [];
+
+  // Duplicate component in quote (same component_id appears 2+ times → likely wrong association)
+  qCount.forEach((cnt, cid) => {
+    if (cnt > 1) out.push({ type: 'duplicate_in_quote', componentId: cid, componentName: compName(cid), detail: `Appears ${cnt}× in quote — possible wrong component association` });
+  });
+
+  // In quote but absent or different qty in PO
+  qQty.forEach((qty, cid) => {
+    const p = pQty.get(cid);
+    if (p === undefined) {
+      out.push({ type: 'only_in_quote', componentId: cid, componentName: compName(cid), detail: `Quoted qty ${qty} — not found in PO` });
+    } else if (p !== qty) {
+      out.push({ type: 'qty_diff', componentId: cid, componentName: compName(cid), detail: `Qty mismatch: quote ${qty} → PO ${p}` });
+    }
+  });
+
+  // In PO but not in quote
+  pQty.forEach((qty, cid) => {
+    if (!qQty.has(cid)) out.push({ type: 'only_in_po', componentId: cid, componentName: compName(cid), detail: `PO qty ${qty} — not found in linked quote` });
+  });
+
+  return out;
+}
+
 // ── Deal stage (module-level so useMemos can reference it) ────────────────────
 
 function dealStage(g: DealGroup): 'quote' | 'active' | 'received' | 'completed' | 'superseded' {
@@ -151,6 +216,8 @@ export default function DealLookupTab({
   const [pendingReceived, setPendingReceived] = useState<{ poId: string; date: string } | null>(null);
   const [editingReceivedId, setEditingReceivedId] = useState<string | null>(null);
   const [editingReceivedDate, setEditingReceivedDate] = useState('');
+  const [acknowledgedMismatches, setAcknowledgedMismatches] = useState<Set<string>>(new Set());
+  const acknowledgeMismatch = (key: string) => setAcknowledgedMismatches((prev) => new Set([...prev, key]));
 
   // ── Deal groups ──────────────────────────────────────────────────────────
   const allGroups = useMemo(
@@ -751,6 +818,49 @@ export default function DealLookupTab({
                         </table>
                       </div>
                     )}
+
+                    {/* ── Mismatch detection ── */}
+                    {(() => {
+                      if (!po.quote_id) return null;
+                      const ackKey = String(po.po_id);
+                      if (acknowledgedMismatches.has(ackKey)) return null;
+                      const mismatches = detectMismatches(po.quote_id, po.po_id, quoteItems, poItems, components);
+                      if (mismatches.length === 0) return null;
+                      const iconFor = (t: MismatchType) => ({
+                        duplicate_in_quote: '⚠',
+                        qty_diff:           '↕',
+                        only_in_quote:      '←',
+                        only_in_po:         '→',
+                      }[t]);
+                      return (
+                        <div className="mt-3 p-3 bg-amber-500/8 border border-amber-500/30 rounded-xl">
+                          <div className="flex items-start justify-between gap-3 mb-2">
+                            <p className="text-[11px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                              <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+                              {mismatches.length} mismatch{mismatches.length !== 1 ? 'es' : ''} vs linked quote
+                            </p>
+                            <button
+                              onClick={() => acknowledgeMismatch(ackKey)}
+                              className="text-[10px] text-slate-500 hover:text-slate-300 border border-slate-700 hover:border-slate-500 px-2 py-0.5 rounded transition-colors flex-shrink-0"
+                            >
+                              Dismiss
+                            </button>
+                          </div>
+                          <div className="space-y-1.5">
+                            {mismatches.map((m, i) => (
+                              <div key={i} className="flex items-start gap-2">
+                                <span className="text-[11px] text-amber-500/80 flex-shrink-0 w-4 text-center font-bold">{iconFor(m.type)}</span>
+                                <div className="min-w-0">
+                                  <span className="text-[11px] font-semibold text-white">{m.componentName}</span>
+                                  <span className="text-[11px] text-slate-400 ml-1.5">{m.detail}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-[10px] text-slate-600 mt-2.5">Check component associations in the quote or PO line items if this is unintentional.</p>
+                        </div>
+                      );
+                    })()}
 
                     {/* PO costs */}
                     {[
