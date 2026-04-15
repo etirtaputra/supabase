@@ -3354,13 +3354,13 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                                   )}
                                   {/* Delta — always in the linked column */}
                                   {directDelta != null && link.link_type !== 'normalized' && (
-                                    <p className={`text-[10px] font-semibold mt-1 ${directDelta > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                                    <p className={`text-[10px] font-semibold mt-1 ${directDelta > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                                       {directDelta > 0 ? '+' : ''}{directDelta.toFixed(1)}% vs this
                                       {(selfIsEst || otherIsEst) && <span className="text-slate-600 font-normal ml-0.5">(est.)</span>}
                                     </p>
                                   )}
                                   {normDelta != null && link.link_type === 'normalized' && (
-                                    <p className={`text-[10px] font-semibold mt-1 ${normDelta > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                                    <p className={`text-[10px] font-semibold mt-1 ${normDelta > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                                       {normDelta > 0 ? '+' : ''}{normDelta.toFixed(1)}% per {link.normalization_unit} vs this
                                       {(selfIsEst || otherIsEst) && <span className="text-slate-600 font-normal ml-0.5">(est.)</span>}
                                     </p>
