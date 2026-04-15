@@ -81,7 +81,7 @@ function CopyBtn({ text }: { text: string | null | undefined }) {
     <button
       onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1400); }); }}
       title="Copy"
-      className="inline-flex items-center justify-center w-5 h-5 rounded text-slate-600 hover:text-slate-300 hover:bg-white/10 transition-colors flex-shrink-0 ml-1 align-middle"
+      className="inline-flex items-center justify-center w-5 h-5 rounded text-slate-600 hover:text-slate-300 hover:bg-white/10 transition-colors flex-shrink-0 mr-1 align-middle"
     >
       {copied
         ? <svg className="w-3 h-3 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
@@ -667,8 +667,6 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [importMapping, setImportMapping] = useState<Record<number, string>>({});
   const [importProcessing, setImportProcessing] = useState(false);
   const [importDragOver, setImportDragOver] = useState(false);
-  // ── Change log panel ──────────────────────────────────────────────────────
-  const [historyPanelId, setHistoryPanelId] = useState<string | null>(null);
   // ── Inspect panel ─────────────────────────────────────────────────────────
   const [inspectId, setInspectId] = useState<string | null>(null);
   const [inspectTab, setInspectTab] = useState<'costs' | 'intel' | 'log' | 'linked'>('costs');
@@ -687,6 +685,10 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [addLinkNotes, setAddLinkNotes] = useState('');
   const [addLinkSaving, setAddLinkSaving] = useState(false);
   const [confirmDeleteLinkId, setConfirmDeleteLinkId] = useState<string | null>(null);
+  // ── Hover preview popup ──────────────────────────────────────────────────
+  const [hoverPreviewId, setHoverPreviewId] = useState<string | null>(null);
+  const [hoverRect, setHoverRect] = useState<DOMRect | null>(null);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // ── Copy-row flash ────────────────────────────────────────────────────────
   const [copiedRowId, setCopiedRowId] = useState<string | null>(null);
 
@@ -1244,18 +1246,21 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     });
   };
 
-  // ── Change log grouped by timestamp (within same second = same save) ──────
-  const historyForPanel = useMemo(() => {
-    if (!historyPanelId || !componentHistory) return [];
-    const entries = componentHistory.filter((h) => h.component_id === historyPanelId);
-    const groups = new Map<string, ComponentHistoryEntry[]>();
-    entries.forEach((e) => {
-      const key = e.changed_at.slice(0, 19);
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(e);
-    });
-    return [...groups.entries()].sort((a, b) => b[0].localeCompare(a[0]));
-  }, [historyPanelId, componentHistory]);
+  // ── Hover preview data ───────────────────────────────────────────────────
+  const hoverData = useMemo(() => {
+    if (!hoverPreviewId) return null;
+    const comp = components.find((c) => c.component_id === hoverPreviewId);
+    if (!comp) return null;
+    const myPoItems = poItems.filter((i) => i.component_id === hoverPreviewId);
+    const { lastPoTucIdr, avgTucIdr, actualTucIdr, tucXr, paidPoCount } = computeComponentTUC(myPoItems, poItems, pos, poCosts);
+    const lq = lastQuoteByComponent.get(hoverPreviewId) ?? null;
+    const usage = usageMap.get(hoverPreviewId) ?? null;
+    const latestIntel = (competitorPrices ?? [])
+      .filter((cp) => cp.component_id === hoverPreviewId)
+      .sort((a, b) => b.observed_at.localeCompare(a.observed_at))
+      .slice(0, 2);
+    return { comp, lastPoTucIdr, avgTucIdr, actualTucIdr, tucXr, paidPoCount, lq, usage, latestIntel };
+  }, [hoverPreviewId, components, poItems, pos, poCosts, lastQuoteByComponent, usageMap, competitorPrices]);
 
   // ── Inspect panel data ───────────────────────────────────────────────────
   const inspectData = useMemo(() => {
@@ -1610,10 +1615,10 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       )}
 
       {/* Toolbar */}
-      <div className="p-4 md:p-5 border-b border-slate-800/60 space-y-3">
-        <div className="flex flex-wrap gap-3">
-          {/* Search */}
-          <div className="relative flex-1 min-w-[200px]">
+      <div className="p-4 md:p-5 border-b border-slate-800/60 space-y-2">
+        <div className="flex flex-col gap-2">
+          {/* Search — full-width on all screen sizes */}
+          <div className="relative w-full">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
@@ -1636,52 +1641,55 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
               </button>
             )}
           </div>
-          {/* Brand filter */}
-          <FilterCombobox options={uniqueBrands} value={filterBrand} onChange={setFilterBrand} placeholder="All Brands" minWidth={140} className="min-w-[140px]" />
-          {/* Category filter */}
-          <FilterCombobox options={ENUMS.product_category} value={filterCategory} onChange={setFilterCategory} placeholder="All Categories" minWidth={180} className="min-w-[160px]" />
-          {/* PI filter */}
-          {uniquePINumbers.length > 0 && (
-            <FilterCombobox options={uniquePINumbers} value={filterPI} onChange={setFilterPI} placeholder="All PIs" minWidth={150} className="min-w-[150px]" />
-          )}
-          {/* PO filter */}
-          {uniquePONumbers.length > 0 && (
-            <FilterCombobox options={uniquePONumbers} value={filterPO} onChange={setFilterPO} placeholder="All POs" minWidth={150} className="min-w-[150px]" />
-          )}
-          {/* Quick-filter toggles */}
-          <button
-            onClick={() => { setFilterUnused((v) => !v); setFilterDuplicates(false); }}
-            className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all flex-shrink-0 ${
-              filterUnused
-                ? 'bg-orange-500/20 border-orange-500/40 text-orange-300'
-                : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-orange-300 hover:border-orange-500/30'
-            }`}
-            title="Show components never used in any quote"
-          >
-            Unused{filterUnused ? ` (${filtered.length})` : ''}
-          </button>
-          <button
-            onClick={() => { setFilterDuplicates((v) => !v); setFilterUnused(false); }}
-            className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all flex-shrink-0 ${
-              filterDuplicates
-                ? 'bg-red-500/20 border-red-500/40 text-red-300'
-                : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-red-300 hover:border-red-500/30'
-            }`}
-            title="Show components with duplicate model numbers"
-          >
-            Duplicates{filterDuplicates ? ` (${filtered.length})` : ''}
-          </button>
-          <button
-            onClick={() => setFilterHasIntel((v) => !v)}
-            className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all flex-shrink-0 ${
-              filterHasIntel
-                ? 'bg-violet-500/20 border-violet-500/40 text-violet-300'
-                : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-violet-300 hover:border-violet-500/30'
-            }`}
-            title="Show only components with market intel entries"
-          >
-            Has Intel{filterHasIntel ? ` (${filtered.length})` : ''}
-          </button>
+          {/* Filter controls — horizontally scrollable on mobile */}
+          <div className="flex gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+            {/* Brand filter */}
+            <FilterCombobox options={uniqueBrands} value={filterBrand} onChange={setFilterBrand} placeholder="All Brands" minWidth={140} className="min-w-[140px] flex-shrink-0" />
+            {/* Category filter */}
+            <FilterCombobox options={ENUMS.product_category} value={filterCategory} onChange={setFilterCategory} placeholder="All Categories" minWidth={180} className="min-w-[160px] flex-shrink-0" />
+            {/* PI filter */}
+            {uniquePINumbers.length > 0 && (
+              <FilterCombobox options={uniquePINumbers} value={filterPI} onChange={setFilterPI} placeholder="All PIs" minWidth={150} className="min-w-[150px] flex-shrink-0" />
+            )}
+            {/* PO filter */}
+            {uniquePONumbers.length > 0 && (
+              <FilterCombobox options={uniquePONumbers} value={filterPO} onChange={setFilterPO} placeholder="All POs" minWidth={150} className="min-w-[150px] flex-shrink-0" />
+            )}
+            {/* Quick-filter toggles */}
+            <button
+              onClick={() => { setFilterUnused((v) => !v); setFilterDuplicates(false); }}
+              className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all flex-shrink-0 ${
+                filterUnused
+                  ? 'bg-orange-500/20 border-orange-500/40 text-orange-300'
+                  : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-orange-300 hover:border-orange-500/30'
+              }`}
+              title="Show components never used in any quote"
+            >
+              Unused{filterUnused ? ` (${filtered.length})` : ''}
+            </button>
+            <button
+              onClick={() => { setFilterDuplicates((v) => !v); setFilterUnused(false); }}
+              className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all flex-shrink-0 ${
+                filterDuplicates
+                  ? 'bg-red-500/20 border-red-500/40 text-red-300'
+                  : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-red-300 hover:border-red-500/30'
+              }`}
+              title="Show components with duplicate model numbers"
+            >
+              Duplicates{filterDuplicates ? ` (${filtered.length})` : ''}
+            </button>
+            <button
+              onClick={() => setFilterHasIntel((v) => !v)}
+              className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all flex-shrink-0 ${
+                filterHasIntel
+                  ? 'bg-violet-500/20 border-violet-500/40 text-violet-300'
+                  : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-violet-300 hover:border-violet-500/30'
+              }`}
+              title="Show only components with market intel entries"
+            >
+              Has Intel{filterHasIntel ? ` (${filtered.length})` : ''}
+            </button>
+          </div>
         </div>
 
         {/* Stats + action buttons */}
@@ -1845,11 +1853,11 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                 </th>
                 <SortTh col="supplier_model" label="Model / SKU" />
                 <SortTh col="internal_description" label="Description" />
-                {visibleCols.brand && <SortTh col="brand" label="Brand" className="min-w-[160px]" />}
-                {visibleCols.category && <SortTh col="category" label="Category" />}
+                {visibleCols.brand && <SortTh col="brand" label="Brand" className="hidden md:table-cell min-w-[160px]" />}
+                {visibleCols.category && <SortTh col="category" label="Category" className="hidden md:table-cell" />}
                 {visibleCols.lastPrice && <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-400 min-w-[120px]">Last Price</th>}
                 {visibleCols.usage && (
-                  <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-400 min-w-[200px]">
+                  <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-400 min-w-[200px]">
                     <div className="flex items-center gap-2">
                       <span>Usage</span>
                       <div className="flex gap-1">
@@ -1869,7 +1877,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                     </div>
                   </th>
                 )}
-                {visibleCols.updated && <SortTh col="updated_at" label="Updated" className="min-w-[110px]" />}
+                {visibleCols.updated && <SortTh col="updated_at" label="Updated" className="hidden md:table-cell min-w-[110px]" />}
                 <th className="px-4 py-3 w-28 text-right text-xs font-bold uppercase tracking-wider text-slate-600">Actions</th>
               </tr>
             </thead>
@@ -1932,8 +1940,8 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                         </div>
                       ) : (
                         <span className="text-sm text-white font-medium">
-                          <Highlight text={c.supplier_model} query={search} />
                           <CopyBtn text={c.supplier_model} />
+                          <Highlight text={c.supplier_model} query={search} />
                         </span>
                       )}
                     </td>
@@ -1966,15 +1974,15 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                         </div>
                       ) : (
                         <span className="text-sm text-slate-300">
-                          <Highlight text={c.internal_description} query={search} />
                           <CopyBtn text={c.internal_description} />
+                          <Highlight text={c.internal_description} query={search} />
                         </span>
                       )}
                     </td>
 
                     {/* Brand */}
                     {visibleCols.brand && (
-                      <td className="px-4 py-3 align-top min-w-[160px]">
+                      <td className="hidden md:table-cell px-4 py-3 align-top min-w-[160px]">
                         {isEditing ? (
                           <div>
                             <BrandInput
@@ -2003,7 +2011,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
 
                     {/* Category */}
                     {visibleCols.category && (
-                      <td className="px-4 py-3 align-top">
+                      <td className="hidden md:table-cell px-4 py-3 align-top">
                         {isEditing ? (
                           <div>
                             <select
@@ -2070,7 +2078,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
 
                     {/* Usage */}
                     {visibleCols.usage && <td
-                      className="px-4 py-3 align-top min-w-[180px] cursor-default"
+                      className="hidden md:table-cell px-4 py-3 align-top min-w-[180px] cursor-default"
                       onMouseEnter={(e) => {
                         const rect = e.currentTarget.getBoundingClientRect();
                         const tooltipW = 388;
@@ -2142,7 +2150,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
 
                     {/* Updated At */}
                     {visibleCols.updated && (
-                      <td className="px-4 py-3 align-top">
+                      <td className="hidden md:table-cell px-4 py-3 align-top">
                         <span className={`text-xs ${sortCol === 'updated_at' ? 'text-emerald-400 font-semibold' : 'text-slate-500'}`}>
                           {fmtDate(c.updated_at)}
                         </span>
@@ -2155,6 +2163,18 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                         {/* Inspect panel */}
                         <button
                           onClick={() => { setInspectId(c.component_id); setInspectTab('costs'); }}
+                          onMouseEnter={(e) => {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                            hoverTimerRef.current = setTimeout(() => {
+                              setHoverPreviewId(c.component_id);
+                              setHoverRect(rect);
+                            }, 450);
+                          }}
+                          onMouseLeave={() => {
+                            if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                            setHoverPreviewId(null);
+                          }}
                           title="Inspect component — quotes, POs, market intel, change log"
                           className="px-2 py-1 text-xs text-slate-600 bg-transparent border border-transparent rounded-lg hover:bg-blue-500/10 hover:border-blue-500/30 hover:text-blue-300 transition-all"
                         >
@@ -2177,10 +2197,10 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                             : <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path strokeLinecap="round" d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>
                           }
                         </button>
-                        {/* Change log */}
+                        {/* Change log — opens inspect panel on Log tab */}
                         {componentHistory && (
                           <button
-                            onClick={() => setHistoryPanelId(c.component_id)}
+                            onClick={() => { setInspectId(c.component_id); setInspectTab('log'); }}
                             title="View change history"
                             className="px-2 py-1 text-xs text-slate-600 bg-transparent border border-transparent rounded-lg hover:bg-slate-800/60 hover:border-slate-700/60 hover:text-slate-300 transition-all"
                           >
@@ -2703,78 +2723,86 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         document.body
       )}
 
-      {/* ── Change log side panel ─────────────────────────────────────────── */}
-      {historyPanelId && typeof document !== 'undefined' && createPortal(
-        <>
-          <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={() => setHistoryPanelId(null)} />
-          <div
-            className="fixed inset-y-0 right-0 z-50 w-[400px] max-w-full flex flex-col bg-slate-900 border-l border-slate-700 shadow-2xl"
-            style={{ animation: 'slideInRight 0.2s ease-out' }}
-          >
-            {/* Panel header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 flex-shrink-0">
-              <div>
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2"/></svg>
-                  Change History
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5 font-mono">
-                  {components.find(c => c.component_id === historyPanelId)?.supplier_model}
-                </p>
-              </div>
-              <button onClick={() => setHistoryPanelId(null)} className="text-slate-500 hover:text-white transition-colors">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </div>
-
-            {/* Timeline */}
-            <div className="overflow-y-auto flex-1 px-6 py-4">
-              {historyForPanel.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
-                  <svg className="w-10 h-10 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2"/></svg>
-                  <p className="text-sm text-slate-600">No history yet</p>
-                  <p className="text-xs text-slate-700">Changes will appear here after the next save.</p>
-                </div>
-              ) : (
-                <div className="relative">
-                  {/* Vertical line */}
-                  <div className="absolute left-[7px] top-2 bottom-2 w-px bg-slate-800" />
-                  <div className="space-y-6 pl-6">
-                    {historyForPanel.map(([ts, entries]) => (
-                      <div key={ts} className="relative">
-                        {/* Timeline dot */}
-                        <div className="absolute -left-6 top-1 w-3.5 h-3.5 rounded-full bg-slate-700 border-2 border-slate-900 flex items-center justify-center">
-                          <div className="w-1.5 h-1.5 rounded-full bg-slate-500" />
-                        </div>
-                        {/* Timestamp */}
-                        <p className="text-[11px] text-slate-500 mb-2">
-                          {new Date(ts).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                        {/* Changes */}
-                        <div className="space-y-1.5">
-                          {entries.map((e) => (
-                            <div key={e.id} className="rounded-lg bg-slate-800/60 border border-slate-800 px-3 py-2">
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{e.field_name.replace(/_/g, ' ')}</span>
-                              <div className="flex items-center gap-2 mt-1 text-xs flex-wrap">
-                                <span className="font-mono text-red-400/80 line-through">{e.old_value || '—'}</span>
-                                <span className="text-slate-600">→</span>
-                                <span className="font-mono text-emerald-300">{e.new_value || '—'}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+      {/* ── Hover preview popup ───────────────────────────────────────────── */}
+      {hoverPreviewId && hoverData && hoverRect && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed z-[60] pointer-events-none"
+          style={{
+            top: Math.max(8, Math.min(hoverRect.top - 20, window.innerHeight - 360)),
+            left: Math.max(8, hoverRect.left - 300),
+          }}
+        >
+          <div className="bg-slate-900 border border-slate-700/80 rounded-xl shadow-2xl shadow-black/60 p-4 w-[284px]">
+            {/* Component name */}
+            <div className="mb-3 pb-2.5 border-b border-slate-800">
+              <p className="text-sm font-bold text-white leading-tight truncate">{hoverData.comp.supplier_model}</p>
+              {hoverData.comp.internal_description && hoverData.comp.internal_description !== hoverData.comp.supplier_model && (
+                <p className="text-xs text-slate-400 mt-0.5 leading-snug" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{hoverData.comp.internal_description}</p>
+              )}
+              {hoverData.comp.brand && (
+                <p className="text-[11px] text-slate-600 mt-1">{hoverData.comp.brand}{hoverData.comp.category ? ` · ${hoverData.comp.category}` : ''}</p>
               )}
             </div>
-
-            <div className="px-6 py-3 border-t border-slate-800 flex-shrink-0">
-              <button onClick={() => setHistoryPanelId(null)} className="w-full py-2 text-xs font-semibold text-slate-400 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-all">Close</button>
-            </div>
+            {/* Actual TUC */}
+            {hoverData.actualTucIdr != null ? (
+              <div className="mb-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-sky-400/70 mb-1">Actual TUC</p>
+                <p className="text-base font-bold text-sky-300 tabular-nums">IDR {Math.round(hoverData.actualTucIdr).toLocaleString('en-US')}</p>
+                {hoverData.tucXr && (
+                  <p className="text-[11px] text-slate-500 tabular-nums">≈ USD {(hoverData.actualTucIdr / hoverData.tucXr).toFixed(2)}</p>
+                )}
+                <div className="mt-1.5 grid grid-cols-2 gap-x-2 text-[11px]">
+                  <div>
+                    <p className="text-slate-600">Last PO</p>
+                    <p className={`font-semibold tabular-nums ${hoverData.lastPoTucIdr === hoverData.actualTucIdr ? 'text-sky-300' : 'text-slate-400'}`}>
+                      {hoverData.lastPoTucIdr != null ? `IDR ${Math.round(hoverData.lastPoTucIdr).toLocaleString('en-US')}` : '—'}
+                      {hoverData.lastPoTucIdr === hoverData.actualTucIdr && <span className="ml-0.5 text-sky-600">↑</span>}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-slate-600">Avg ({hoverData.paidPoCount} PO{hoverData.paidPoCount !== 1 ? 's' : ''})</p>
+                    <p className={`font-semibold tabular-nums ${hoverData.avgTucIdr != null && hoverData.avgTucIdr === hoverData.actualTucIdr && hoverData.lastPoTucIdr !== hoverData.actualTucIdr ? 'text-sky-300' : 'text-slate-400'}`}>
+                      {hoverData.avgTucIdr != null ? `IDR ${Math.round(hoverData.avgTucIdr).toLocaleString('en-US')}` : '—'}
+                      {hoverData.avgTucIdr != null && hoverData.avgTucIdr === hoverData.actualTucIdr && hoverData.lastPoTucIdr !== hoverData.actualTucIdr && <span className="ml-0.5 text-sky-600">↑</span>}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="mb-3">
+                <p className="text-[11px] text-slate-600 italic">No TUC data yet</p>
+              </div>
+            )}
+            {/* Last quote price */}
+            {hoverData.lq && (
+              <div className="mb-2.5">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400/70 mb-1">Last Quote</p>
+                <p className="text-sm font-semibold text-emerald-300 tabular-nums">
+                  {hoverData.lq.currency} {hoverData.lq.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+              </div>
+            )}
+            {/* Usage */}
+            {hoverData.usage && (
+              <p className="text-[11px] text-slate-500 mb-2.5">
+                {hoverData.usage.quoteCount} PI{hoverData.usage.quoteCount !== 1 ? 's' : ''}{' · '}{hoverData.usage.lineItemCount} line item{hoverData.usage.lineItemCount !== 1 ? 's' : ''}
+              </p>
+            )}
+            {/* Market intel preview */}
+            {hoverData.latestIntel.length > 0 && (
+              <div className="mb-2.5">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-violet-400/70 mb-1">Market Intel</p>
+                {hoverData.latestIntel.map((cp, i) => (
+                  <p key={i} className="text-[11px] text-slate-400">
+                    <span className="font-semibold text-slate-300 tabular-nums">{cp.currency} {cp.unit_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    {cp.source_name && <span className="text-slate-600 ml-1.5">{cp.source_name}</span>}
+                  </p>
+                ))}
+              </div>
+            )}
+            <p className="text-[10px] text-slate-700 pt-2 border-t border-slate-800">Click 🔍 for full detail</p>
           </div>
-        </>,
+        </div>,
         document.body
       )}
 
@@ -2805,7 +2833,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
               <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={() => setInspectId(null)} />
               {/* Panel */}
               <div
-                className="fixed inset-y-0 right-0 z-50 w-[580px] max-w-full flex flex-col bg-slate-900 border-l border-slate-700 shadow-2xl"
+                className="fixed inset-0 md:inset-y-0 md:right-0 md:left-auto md:w-[580px] z-50 flex flex-col bg-slate-900 md:border-l border-slate-700 shadow-2xl"
                 style={{ animation: 'slideInRight 0.2s ease-out' }}
               >
                 {/* Header */}
