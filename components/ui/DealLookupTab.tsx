@@ -481,8 +481,8 @@ export default function DealLookupTab({
                       </div>
                     )}
 
-                    {/* Quote line items */}
-                    {items.length > 0 && (
+                    {/* Quote line items — hidden when side-by-side comparison is shown */}
+                    {!hasBoth && items.length > 0 && (
                       <div className="overflow-x-auto">
                         <table className="w-full text-xs border-collapse">
                           <thead>
@@ -898,8 +898,8 @@ export default function DealLookupTab({
                       </div>
                     )}
 
-                    {/* PO line items */}
-                    {items.length > 0 && (
+                    {/* PO line items — hidden when side-by-side comparison is shown */}
+                    {!hasBoth && items.length > 0 && (
                       <div className="overflow-x-auto">
                         <table className="w-full text-xs border-collapse">
                           <thead>
@@ -969,8 +969,8 @@ export default function DealLookupTab({
                       </div>
                     )}
 
-                    {/* ── Mismatch detection ── */}
-                    {(() => {
+                    {/* ── Mismatch detection — hidden when comparison table is shown ── */}
+                    {!hasBoth && (() => {
                       if (!po.quote_id) return null;
                       const ackKey = String(po.po_id);
                       if (acknowledgedMismatches.has(ackKey)) return null;
@@ -1051,6 +1051,123 @@ export default function DealLookupTab({
           </div>
         )}
         </div>
+
+        {/* ── Side-by-side line item comparison ── */}
+        {hasBoth && g.quotes.map((qt) => {
+          const linkedPOs = g.pos.filter((p) => String(p.quote_id) === String(qt.quote_id));
+          if (linkedPOs.length === 0) return null;
+          return linkedPOs.map((po) => {
+            const qItems = quoteItems.filter((i) => String(i.quote_id) === String(qt.quote_id));
+            const pItems = poItems.filter((i) => String(i.po_id) === String(po.po_id));
+
+            // Build matched rows keyed by component_id
+            type CmpRow = { cid: string | null; q?: typeof qItems[0]; p?: typeof pItems[0] };
+            const rowMap = new Map<string, CmpRow>();
+            qItems.forEach((i) => { if (i.component_id) rowMap.set(i.component_id, { cid: i.component_id, q: i }); });
+            pItems.forEach((i) => {
+              if (i.component_id) {
+                const ex = rowMap.get(i.component_id) ?? { cid: i.component_id };
+                rowMap.set(i.component_id, { ...ex, p: i });
+              }
+            });
+            const rows: CmpRow[] = [
+              ...Array.from(rowMap.values()),
+              ...qItems.filter((i) => !i.component_id).map((q) => ({ cid: null, q })),
+              ...pItems.filter((i) => !i.component_id).map((p) => ({ cid: null, p })),
+            ];
+
+            return (
+              <div key={`cmp-${qt.quote_id}-${po.po_id}`} className="mt-4 pt-3 border-t border-slate-700/40">
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-2">Line Items</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-700/40">
+                        <th className="text-left py-1.5 pr-3 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Component</th>
+                        <th className="text-right py-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest text-sky-400/70">Q Qty</th>
+                        <th className="text-right py-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest text-sky-400/70 border-r border-slate-700/50">Q Price</th>
+                        <th className="text-right py-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest text-emerald-400/70">PO Qty</th>
+                        <th className="text-right py-1.5 text-[10px] font-semibold uppercase tracking-widest text-emerald-400/70">PO Price</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((row, idx) => {
+                        const comp = row.cid ? components.find((c) => c.component_id === row.cid) : null;
+                        const qtyDiff   = !!(row.q && row.p && Number(row.q.quantity)   !== Number(row.p.quantity));
+                        const priceDiff = !!(row.q && row.p && Number(row.q.unit_price) !== Number(row.p.unit_cost));
+                        const onlyQ = !!(row.q && !row.p);
+                        const onlyP = !!(!row.q && row.p);
+
+                        const pricePct = priceDiff && row.q && row.p && Number(row.q.unit_price) > 0
+                          ? ((Number(row.p.unit_cost) - Number(row.q.unit_price)) / Number(row.q.unit_price)) * 100
+                          : null;
+
+                        return (
+                          <tr
+                            key={idx}
+                            className={`border-b border-slate-800/40 last:border-0 ${
+                              onlyQ ? 'bg-sky-500/5' : onlyP ? 'bg-emerald-500/5' : (qtyDiff || priceDiff) ? 'bg-amber-500/5' : ''
+                            }`}
+                          >
+                            <td className="py-2 pr-3 max-w-[200px]">
+                              <p className="font-semibold text-white leading-tight truncate">
+                                {comp?.supplier_model ?? (row.q?.supplier_description ?? row.p?.supplier_description ?? <span className="italic text-slate-600">unlinked</span>)}
+                              </p>
+                              {comp?.internal_description && (
+                                <p className="text-[11px] text-slate-500 mt-0.5 truncate">{comp.internal_description}</p>
+                              )}
+                              {(onlyQ || onlyP) && (
+                                <span className={`text-[10px] font-semibold ${onlyQ ? 'text-sky-400' : 'text-emerald-400'}`}>
+                                  {onlyQ ? '← quote only' : '→ PO only'}
+                                </span>
+                              )}
+                            </td>
+                            {/* Quote qty */}
+                            <td className={`py-2 px-3 text-right tabular-nums whitespace-nowrap ${qtyDiff ? 'text-amber-400 font-semibold' : 'text-slate-400'}`}>
+                              {row.q ? Number(row.q.quantity).toLocaleString() : <span className="text-slate-700">—</span>}
+                            </td>
+                            {/* Quote price */}
+                            <td className={`py-2 px-3 text-right tabular-nums whitespace-nowrap border-r border-slate-700/50 ${priceDiff ? 'text-amber-400 font-semibold' : 'text-slate-400'}`}>
+                              {row.q ? fmtCcy(Number(row.q.unit_price), row.q.currency) : <span className="text-slate-700">—</span>}
+                            </td>
+                            {/* PO qty */}
+                            <td className={`py-2 px-3 text-right tabular-nums whitespace-nowrap ${qtyDiff ? 'text-amber-400 font-semibold' : 'text-slate-400'}`}>
+                              {row.p
+                                ? <>
+                                    {Number(row.p.quantity).toLocaleString()}
+                                    {qtyDiff && row.q && (
+                                      <span className="text-[10px] text-amber-500/70 ml-1">
+                                        ({Number(row.p.quantity) - Number(row.q.quantity) > 0 ? '+' : ''}{(Number(row.p.quantity) - Number(row.q.quantity)).toLocaleString()})
+                                      </span>
+                                    )}
+                                  </>
+                                : <span className="text-slate-700">—</span>
+                              }
+                            </td>
+                            {/* PO price */}
+                            <td className={`py-2 text-right tabular-nums whitespace-nowrap ${priceDiff ? 'text-amber-400 font-semibold' : 'text-slate-400'}`}>
+                              {row.p
+                                ? <>
+                                    {fmtCcy(Number(row.p.unit_cost), row.p.currency)}
+                                    {pricePct !== null && (
+                                      <span className={`text-[10px] ml-1 ${pricePct > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                                        ({pricePct > 0 ? '+' : ''}{pricePct.toFixed(1)}%)
+                                      </span>
+                                    )}
+                                  </>
+                                : <span className="text-slate-700">—</span>
+                              }
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          });
+        })}
       </div>
     );
   };
