@@ -833,11 +833,11 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       a.wSum += tuc * item.quantity; a.wQty += item.quantity;
       if (ps.date > a.latestDate) { a.latestDate = ps.date; a.latestTuc = tuc; a.latestXr = ps.xr; }
     });
-    const result = new Map<string, { actualTucIdr: number; tucXr: number | null }>();
+    const result = new Map<string, { actualTucIdr: number; tucXr: number | null; latestPoDate: string }>();
     acc.forEach((a, cid) => {
       if (a.wQty <= 0) return;
       const avgTuc = a.wSum / a.wQty;
-      result.set(cid, { actualTucIdr: Math.max(a.latestTuc, avgTuc), tucXr: a.latestXr });
+      result.set(cid, { actualTucIdr: Math.max(a.latestTuc, avgTuc), tucXr: a.latestXr, latestPoDate: a.latestDate });
     });
     return result;
   }, [poItems, pos, poCosts]);
@@ -2163,7 +2163,10 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                                   <p className="text-xs font-medium text-slate-200 tabular-nums leading-tight">
                                     IDR {Math.round(tuc.actualTucIdr).toLocaleString('en-US')}
                                   </p>
-                                  <span className="text-[10px] text-amber-600/70 font-medium">TUC</span>
+                                  <div className="flex items-center gap-1.5 mt-0.5">
+                                    <span className="text-[10px] text-slate-600">{new Date(tuc.latestPoDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}</span>
+                                    <span className="text-[10px] text-amber-600/70 font-medium">TUC</span>
+                                  </div>
                                 </div>
                               ) : lq ? (
                                 <div className="min-w-0">
