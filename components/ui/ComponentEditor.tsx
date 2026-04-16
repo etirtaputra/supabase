@@ -444,26 +444,9 @@ function UsageTooltip({ quoteLines, poLines, style }: UsageTooltipProps) {
   return createPortal(content, document.body);
 }
 
-// ── Search highlight ──────────────────────────────────────────────────────
+// ── Search highlight (plain text — rows already filtered by search) ────────
 function Highlight({ text, query }: { text: string | null | undefined; query: string }) {
-  if (!query || !text) return <>{text ?? '—'}</>;
-  const parts: React.ReactNode[] = [];
-  const lower = text.toLowerCase();
-  const q = query.toLowerCase();
-  let last = 0;
-  let idx = lower.indexOf(q);
-  while (idx !== -1) {
-    if (idx > last) parts.push(text.slice(last, idx));
-    parts.push(
-      <span key={idx} className="text-emerald-400">
-        {text.slice(idx, idx + q.length)}
-      </span>
-    );
-    last = idx + q.length;
-    idx = lower.indexOf(q, last);
-  }
-  if (last < text.length) parts.push(text.slice(last));
-  return <>{parts}</>;
+  return <>{text ?? '—'}</>;
 }
 
 // ── Price change indicator ────────────────────────────────────────────────
