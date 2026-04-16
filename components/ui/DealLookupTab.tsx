@@ -271,6 +271,10 @@ interface Props {
   onUpdatePoItem?: (poItemId: number, componentId: string) => Promise<void>;
   onUpdateQuoteLineItem?: (id: number, updates: { component_id?: string; quantity?: number; unit_price?: number }) => Promise<void>;
   onUpdatePoLineItem?: (id: number, updates: { component_id?: string; quantity?: number; unit_cost?: number }) => Promise<void>;
+  onAddPoLineItem?: (poId: number, data: { component_id?: string; quantity: number; unit_cost: number; currency: string }) => Promise<void>;
+  onAddQuoteLineItem?: (quoteId: number, data: { component_id?: string; quantity: number; unit_price: number; currency: string }) => Promise<void>;
+  onDeletePoLineItem?: (poLineItemId: number) => Promise<void>;
+  onDeleteQuoteLineItem?: (quoteLineId: number) => Promise<void>;
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -281,6 +285,8 @@ export default function DealLookupTab({
   onQuoteStatusChange, onPoStatusChange, onUpdatePo, onMarkFullyPaid, onCreatePO,
   onUpdateQuoteItem, onUpdatePoItem,
   onUpdateQuoteLineItem, onUpdatePoLineItem,
+  onAddPoLineItem, onAddQuoteLineItem,
+  onDeletePoLineItem, onDeleteQuoteLineItem,
 }: Props) {
 
   const [viewMode, setViewMode]               = useState<'all' | 'by-vendor' | 'by-company'>('all');
@@ -303,8 +309,12 @@ export default function DealLookupTab({
   const [editingItem, setEditingItem] = useState<{ type: 'quote' | 'po'; id: number } | null>(null);
   const [editingSaving, setEditingSaving] = useState(false);
   const [editingLine, setEditingLine] = useState<{
+    mode: 'edit' | 'add';
     type: 'quote' | 'po';
-    id: number;
+    id: number;        // line item id (edit mode); unused in add mode
+    rowIdx: number;    // row index in comparison table
+    targetId: number;  // po_id or quote_id (add mode)
+    currency: string;  // currency for new line (add mode)
     componentId: string | null;
     showCompSearch: boolean;
     qty: string;
@@ -314,19 +324,28 @@ export default function DealLookupTab({
 
   const handleSaveLine = async () => {
     if (!editingLine) return;
-    const { type, id, componentId, qty, price } = editingLine;
+    const { mode, type, id, targetId, componentId, qty, price, currency } = editingLine;
     setEditingLine((prev) => prev && { ...prev, saving: true });
     try {
       const qtyNum   = parseFloat(qty.replace(/,/g, ''));
       const priceNum = parseFloat(price.replace(/,/g, ''));
-      const updates = {
-        ...(componentId                ? { component_id: componentId } : {}),
-        ...(!isNaN(qtyNum)            ? { quantity: qtyNum }          : {}),
-      };
-      if (type === 'quote') {
-        await onUpdateQuoteLineItem?.(id, { ...updates, ...(!isNaN(priceNum) ? { unit_price: priceNum } : {}) });
+      const cmpField = componentId ? { component_id: componentId } : {};
+      if (mode === 'add') {
+        if (type === 'po') {
+          await onAddPoLineItem?.(targetId, { ...cmpField, quantity: isNaN(qtyNum) ? 1 : qtyNum, unit_cost: isNaN(priceNum) ? 0 : priceNum, currency });
+        } else {
+          await onAddQuoteLineItem?.(targetId, { ...cmpField, quantity: isNaN(qtyNum) ? 1 : qtyNum, unit_price: isNaN(priceNum) ? 0 : priceNum, currency });
+        }
       } else {
-        await onUpdatePoLineItem?.(id, { ...updates, ...(!isNaN(priceNum) ? { unit_cost: priceNum } : {}) });
+        const updates = {
+          ...cmpField,
+          ...(!isNaN(qtyNum) ? { quantity: qtyNum } : {}),
+        };
+        if (type === 'quote') {
+          await onUpdateQuoteLineItem?.(id, { ...updates, ...(!isNaN(priceNum) ? { unit_price: priceNum } : {}) });
+        } else {
+          await onUpdatePoLineItem?.(id, { ...updates, ...(!isNaN(priceNum) ? { unit_cost: priceNum } : {}) });
+        }
       }
       setEditingLine(null);
     } catch {
@@ -1134,12 +1153,14 @@ export default function DealLookupTab({
                         const pricePct = priceDiff && row.q && row.p && Number(row.q.unit_price) > 0
                           ? ((Number(row.p.unit_cost) - Number(row.q.unit_price)) / Number(row.q.unit_price)) * 100 : null;
 
-                        const lineEditQ = !!(editingLine?.type === 'quote' && row.q && editingLine.id === row.q.quote_line_id);
-                        const lineEditP = !!(editingLine?.type === 'po'    && row.p && editingLine.id === row.p.po_line_item_id);
-                        const activeEdit = lineEditQ || lineEditP;
+                        const lineEditQ = !!(editingLine?.mode === 'edit' && editingLine.type === 'quote' && row.q && editingLine.id === row.q.quote_line_id);
+                        const lineEditP = !!(editingLine?.mode === 'edit' && editingLine.type === 'po'    && row.p && editingLine.id === row.p.po_line_item_id);
+                        const addingP   = !!(editingLine?.mode === 'add'  && editingLine.type === 'po'    && editingLine.rowIdx === idx);
+                        const addingQ   = !!(editingLine?.mode === 'add'  && editingLine.type === 'quote' && editingLine.rowIdx === idx);
+                        const activeEdit = lineEditQ || lineEditP || addingP || addingQ;
 
                         // Resolved display name (may be overridden by in-progress edit)
-                        const displayComp = (lineEditQ || lineEditP) && editingLine?.componentId
+                        const displayComp = (lineEditQ || lineEditP || addingP || addingQ) && editingLine?.componentId
                           ? components.find((c) => c.component_id === editingLine.componentId) ?? comp
                           : comp;
 
@@ -1154,10 +1175,10 @@ export default function DealLookupTab({
                           >
                             {/* ── Component cell ── */}
                             <td className="py-2 pr-3 max-w-[240px]">
-                              {(lineEditQ || lineEditP) && editingLine?.showCompSearch ? (
+                              {(lineEditQ || lineEditP || addingP || addingQ) && editingLine?.showCompSearch ? (
                                 <div className="flex items-center gap-1">
-                                  <span className={`text-[9px] font-bold flex-shrink-0 ${lineEditQ ? 'text-sky-400' : 'text-emerald-400'}`}>
-                                    {lineEditQ ? 'Q' : 'PO'}
+                                  <span className={`text-[9px] font-bold flex-shrink-0 ${(lineEditQ || addingQ) ? 'text-sky-400' : 'text-emerald-400'}`}>
+                                    {(lineEditQ || addingQ) ? 'Q' : 'PO'}
                                   </span>
                                   <div className="flex-1 min-w-0">
                                     <ComponentCombobox
@@ -1194,7 +1215,7 @@ export default function DealLookupTab({
 
                             {/* ── Q Qty ── */}
                             <td className="py-2 px-3 text-right tabular-nums whitespace-nowrap">
-                              {lineEditQ ? (
+                              {(lineEditQ || addingQ) ? (
                                 <input
                                   type="number"
                                   value={editingLine!.qty}
@@ -1203,7 +1224,7 @@ export default function DealLookupTab({
                                   className="w-16 text-right px-1.5 py-0.5 bg-slate-900 border border-sky-500/50 rounded text-xs text-white focus:outline-none focus:border-sky-400"
                                 />
                               ) : (
-                                <span className={!row.q ? 'text-slate-700' : qtyDiff ? 'text-amber-400 font-semibold' : lineEditP ? 'text-slate-600' : 'text-slate-400'}>
+                                <span className={!row.q ? 'text-slate-700' : qtyDiff ? 'text-amber-400 font-semibold' : (lineEditP || addingP) ? 'text-slate-600' : 'text-slate-400'}>
                                   {row.q ? Number(row.q.quantity).toLocaleString() : '—'}
                                 </span>
                               )}
@@ -1211,7 +1232,7 @@ export default function DealLookupTab({
 
                             {/* ── Q Price + Q pencil ── */}
                             <td className="py-2 px-3 text-right tabular-nums whitespace-nowrap border-r border-slate-700/50">
-                              {lineEditQ ? (
+                              {(lineEditQ || addingQ) ? (
                                 <div className="flex items-center justify-end gap-1">
                                   <input
                                     type="number"
@@ -1237,20 +1258,47 @@ export default function DealLookupTab({
                                 </div>
                               ) : (
                                 <div className="flex items-center justify-end gap-1">
-                                  <span className={!row.q ? 'text-slate-700' : priceDiff ? 'text-amber-400 font-semibold' : lineEditP ? 'text-slate-600' : 'text-slate-400'}>
+                                  <span className={!row.q ? 'text-slate-700' : priceDiff ? 'text-amber-400 font-semibold' : (lineEditP || addingP) ? 'text-slate-600' : 'text-slate-400'}>
                                     {row.q ? fmtCcy(Number(row.q.unit_price), row.q.currency) : '—'}
                                   </span>
-                                  {/* Q pencil — on quote side */}
+                                  {/* Q pencil — on quote side, only when row has a quote item */}
                                   {row.q && onUpdateQuoteLineItem && !activeEdit && (
                                     <button
                                       title="Edit quote line"
                                       className="opacity-0 group-hover:opacity-100 flex-shrink-0 p-0.5 text-sky-600 hover:text-sky-400 hover:bg-sky-500/10 rounded transition-all"
                                       onMouseDown={(e) => {
                                         e.preventDefault();
-                                        setEditingLine({ type: 'quote', id: row.q!.quote_line_id, componentId: null, showCompSearch: false, qty: String(row.q!.quantity), price: String(row.q!.unit_price), saving: false });
+                                        setEditingLine({ mode: 'edit', type: 'quote', id: row.q!.quote_line_id, rowIdx: idx, targetId: 0, currency: '', componentId: null, showCompSearch: false, qty: String(row.q!.quantity), price: String(row.q!.unit_price), saving: false });
                                       }}
                                     >
                                       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                    </button>
+                                  )}
+                                  {/* Delete quote line — for onlyQ rows */}
+                                  {row.q && onDeleteQuoteLineItem && onlyQ && !activeEdit && (
+                                    <button
+                                      title="Delete this quote line"
+                                      className="opacity-0 group-hover:opacity-100 flex-shrink-0 p-0.5 text-red-700 hover:text-red-400 hover:bg-red-500/10 rounded transition-all"
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        if (!window.confirm('Delete this quote line item?')) return;
+                                        await onDeleteQuoteLineItem(row.q!.quote_line_id);
+                                      }}
+                                    >
+                                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                    </button>
+                                  )}
+                                  {/* Add to Quote — for onlyP rows */}
+                                  {onlyP && onAddQuoteLineItem && !activeEdit && (
+                                    <button
+                                      title="Add this item to Quote"
+                                      className="opacity-0 group-hover:opacity-100 flex-shrink-0 px-1.5 py-0.5 text-[10px] font-semibold text-sky-400 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 rounded transition-all"
+                                      onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        setEditingLine({ mode: 'add', type: 'quote', id: 0, rowIdx: idx, targetId: qt.quote_id, currency: qt.currency, componentId: row.p!.component_id ?? null, showCompSearch: false, qty: String(row.p!.quantity ?? ''), price: String(row.p!.unit_cost ?? ''), saving: false });
+                                      }}
+                                    >
+                                      + Q
                                     </button>
                                   )}
                                 </div>
@@ -1259,7 +1307,7 @@ export default function DealLookupTab({
 
                             {/* ── PO Qty ── */}
                             <td className="py-2 px-3 text-right tabular-nums whitespace-nowrap">
-                              {lineEditP ? (
+                              {(lineEditP || addingP) ? (
                                 <input
                                   type="number"
                                   value={editingLine!.qty}
@@ -1268,7 +1316,7 @@ export default function DealLookupTab({
                                   className="w-16 text-right px-1.5 py-0.5 bg-slate-900 border border-emerald-500/50 rounded text-xs text-white focus:outline-none focus:border-emerald-400"
                                 />
                               ) : (
-                                <span className={!row.p ? 'text-slate-700' : qtyDiff ? 'text-amber-400 font-semibold' : lineEditQ ? 'text-slate-600' : 'text-slate-400'}>
+                                <span className={!row.p ? 'text-slate-700' : qtyDiff ? 'text-amber-400 font-semibold' : (lineEditQ || addingQ) ? 'text-slate-600' : 'text-slate-400'}>
                                   {row.p
                                     ? <>{Number(row.p.quantity).toLocaleString()}{qtyDiff && row.q && <span className="text-[10px] text-amber-500/70 ml-1">({Number(row.p.quantity) - Number(row.q.quantity) > 0 ? '+' : ''}{(Number(row.p.quantity) - Number(row.q.quantity)).toLocaleString()})</span>}</>
                                     : '—'
@@ -1279,7 +1327,7 @@ export default function DealLookupTab({
 
                             {/* ── PO Price + PO pencil ── */}
                             <td className="py-2 text-right tabular-nums whitespace-nowrap">
-                              {lineEditP ? (
+                              {(lineEditP || addingP) ? (
                                 <div className="flex items-center justify-end gap-1">
                                   <input
                                     type="number"
@@ -1305,23 +1353,50 @@ export default function DealLookupTab({
                                 </div>
                               ) : (
                                 <div className="flex items-center justify-end gap-1">
-                                  <span className={!row.p ? 'text-slate-700' : priceDiff ? 'text-amber-400 font-semibold' : lineEditQ ? 'text-slate-600' : 'text-slate-400'}>
+                                  <span className={!row.p ? 'text-slate-700' : priceDiff ? 'text-amber-400 font-semibold' : (lineEditQ || addingQ) ? 'text-slate-600' : 'text-slate-400'}>
                                     {row.p
                                       ? <>{fmtCcy(Number(row.p.unit_cost), row.p.currency)}{pricePct !== null && <span className={`text-[10px] ml-1 ${pricePct > 0 ? 'text-red-400' : 'text-emerald-400'}`}>({pricePct > 0 ? '+' : ''}{pricePct.toFixed(1)}%)</span>}</>
                                       : '—'
                                     }
                                   </span>
-                                  {/* PO pencil — on PO side */}
+                                  {/* PO pencil — on PO side, only when row has a PO item */}
                                   {row.p && onUpdatePoLineItem && !activeEdit && (
                                     <button
                                       title="Edit PO line"
                                       className="opacity-0 group-hover:opacity-100 flex-shrink-0 p-0.5 text-emerald-600 hover:text-emerald-400 hover:bg-emerald-500/10 rounded transition-all"
                                       onMouseDown={(e) => {
                                         e.preventDefault();
-                                        setEditingLine({ type: 'po', id: row.p!.po_line_item_id, componentId: null, showCompSearch: false, qty: String(row.p!.quantity), price: String(row.p!.unit_cost), saving: false });
+                                        setEditingLine({ mode: 'edit', type: 'po', id: row.p!.po_line_item_id, rowIdx: idx, targetId: 0, currency: '', componentId: null, showCompSearch: false, qty: String(row.p!.quantity), price: String(row.p!.unit_cost), saving: false });
                                       }}
                                     >
                                       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                    </button>
+                                  )}
+                                  {/* Delete PO line — for onlyP rows */}
+                                  {row.p && onDeletePoLineItem && onlyP && !activeEdit && (
+                                    <button
+                                      title="Delete this PO line"
+                                      className="opacity-0 group-hover:opacity-100 flex-shrink-0 p-0.5 text-red-700 hover:text-red-400 hover:bg-red-500/10 rounded transition-all"
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        if (!window.confirm('Delete this PO line item?')) return;
+                                        await onDeletePoLineItem(row.p!.po_line_item_id);
+                                      }}
+                                    >
+                                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                    </button>
+                                  )}
+                                  {/* Add to PO — for onlyQ rows */}
+                                  {onlyQ && onAddPoLineItem && !activeEdit && (
+                                    <button
+                                      title="Add this item to PO"
+                                      className="opacity-0 group-hover:opacity-100 flex-shrink-0 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded transition-all"
+                                      onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        setEditingLine({ mode: 'add', type: 'po', id: 0, rowIdx: idx, targetId: po.po_id, currency: po.currency, componentId: row.q!.component_id ?? null, showCompSearch: false, qty: String(row.q!.quantity ?? ''), price: String(row.q!.unit_price ?? ''), saving: false });
+                                      }}
+                                    >
+                                      + PO
                                     </button>
                                   )}
                                 </div>

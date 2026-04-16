@@ -221,6 +221,34 @@ function MasterInsertPage() {
     refetch();
   };
 
+  const handleAddPoLineItem = async (poId: number, d: { component_id?: string; quantity: number; unit_cost: number; currency: string }) => {
+    const { error } = await supabase.from('5.1_purchase_line_items').insert({ po_id: poId, ...d });
+    if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
+    showToast('PO line added.', 'success');
+    refetch();
+  };
+
+  const handleAddQuoteLineItem = async (quoteId: number, d: { component_id?: string; quantity: number; unit_price: number; currency: string }) => {
+    const { error } = await supabase.from('4.1_price_quote_line_items').insert({ quote_id: quoteId, ...d });
+    if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
+    showToast('Quote line added.', 'success');
+    refetch();
+  };
+
+  const handleDeletePoLineItem = async (poLineItemId: number) => {
+    const { error } = await supabase.from('5.1_purchase_line_items').delete().eq('po_line_item_id', poLineItemId);
+    if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
+    showToast('PO line deleted.', 'success');
+    refetch();
+  };
+
+  const handleDeleteQuoteLineItem = async (quoteLineId: number) => {
+    const { error } = await supabase.from('4.1_price_quote_line_items').delete().eq('quote_line_id', quoteLineId);
+    if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
+    showToast('Quote line deleted.', 'success');
+    refetch();
+  };
+
   const handleComponentDelete = async (component_id: string) => {
     const { error } = await supabase.from('3.0_components').delete().eq('component_id', component_id);
     if (error) { showToast(`Error deleting component: ${error.message}`, 'error'); throw error; }
@@ -887,6 +915,10 @@ function MasterInsertPage() {
                   onUpdatePoItem={handleUpdatePoItem}
                   onUpdateQuoteLineItem={handleUpdateQuoteLineItem}
                   onUpdatePoLineItem={handleUpdatePoLineItem}
+                  onAddPoLineItem={handleAddPoLineItem}
+                  onAddQuoteLineItem={handleAddQuoteLineItem}
+                  onDeletePoLineItem={handleDeletePoLineItem}
+                  onDeleteQuoteLineItem={handleDeleteQuoteLineItem}
                 />
               )}
             </>
