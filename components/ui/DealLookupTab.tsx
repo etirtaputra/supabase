@@ -1112,6 +1112,13 @@ export default function DealLookupTab({
               </span>
             )}
 
+            {/* Mismatch indicator */}
+            {mismatchGroupIds.has(g.key) && (
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[10px] font-semibold rounded leading-none flex-shrink-0">
+                ⚠ Mismatch
+              </span>
+            )}
+
             {/* No PO: show Create PO button for any quote-only deal */}
             {g.quotes.length > 0 && g.pos.length === 0 && (() => {
               const tq = g.quotes.find((q) => q.status === 'Accepted')
