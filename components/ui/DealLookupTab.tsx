@@ -306,6 +306,7 @@ export default function DealLookupTab({
   const [editingReceivedDate, setEditingReceivedDate] = useState('');
   const [acknowledgedMismatches, setAcknowledgedMismatches] = useState<Set<string>>(new Set());
   const acknowledgeMismatch = (key: string) => setAcknowledgedMismatches((prev) => new Set([...prev, key]));
+  const [acknowledgedDealMismatches, setAcknowledgedDealMismatches] = useState<Set<string>>(new Set());
   const [editingItem, setEditingItem] = useState<{ type: 'quote' | 'po'; id: number } | null>(null);
   const [editingSaving, setEditingSaving] = useState(false);
   const [editingLine, setEditingLine] = useState<{
@@ -386,11 +387,19 @@ export default function DealLookupTab({
   }, [allGroups]);
 
   // ── Groups with quote↔PO mismatches ──────────────────────────────────────
+  // Skips: replaced/cancelled POs, replaced/rejected/expired quotes,
+  //        POs whose mismatch has been individually acknowledged.
+  const SUPERSEDED_PO_STATUSES     = new Set(['Replaced', 'Cancelled']);
+  const SUPERSEDED_QUOTE_STATUSES  = new Set(['Replaced', 'Rejected', 'Expired']);
   const mismatchGroupIds = useMemo(() => {
     const ids = new Set<string>();
     allGroups.forEach((g) => {
       for (const po of g.pos) {
         if (!po.quote_id) continue;
+        if (SUPERSEDED_PO_STATUSES.has(po.status ?? '')) continue;
+        const linkedQuote = g.quotes.find((q) => String(q.quote_id) === String(po.quote_id));
+        if (linkedQuote && SUPERSEDED_QUOTE_STATUSES.has(linkedQuote.status ?? '')) continue;
+        if (acknowledgedMismatches.has(String(po.po_id))) continue;
         if (detectMismatches(po.quote_id, po.po_id, quoteItems, poItems, components).length > 0) {
           ids.add(g.key);
           break;
@@ -398,13 +407,14 @@ export default function DealLookupTab({
       }
     });
     return ids;
-  }, [allGroups, quoteItems, poItems, components]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allGroups, quoteItems, poItems, components, acknowledgedMismatches]);
 
   // ── All-mode filtered list (respects stageFilter + filterMismatch) ────────
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
     let base = stageFilter === 'all' ? allGroups : allGroups.filter((g) => dealStage(g) === stageFilter);
-    if (filterMismatch) base = base.filter((g) => mismatchGroupIds.has(g.key));
+    if (filterMismatch) base = base.filter((g) => mismatchGroupIds.has(g.key) && !acknowledgedDealMismatches.has(g.key));
     if (!q) return base.slice(0, 80);
     return base.filter((g) => {
       const code = g.supplier?.supplier_code?.toLowerCase() ?? '';
@@ -1477,10 +1487,17 @@ export default function DealLookupTab({
               </span>
             )}
 
-            {/* Mismatch indicator */}
-            {mismatchGroupIds.has(g.key) && (
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[10px] font-semibold rounded leading-none flex-shrink-0">
+            {/* Mismatch indicator — dismissible */}
+            {mismatchGroupIds.has(g.key) && !acknowledgedDealMismatches.has(g.key) && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[10px] font-semibold rounded leading-none flex-shrink-0">
                 ⚠ Mismatch
+                <button
+                  title="Dismiss mismatch warning for this deal"
+                  onClick={(e) => { e.stopPropagation(); setAcknowledgedDealMismatches((prev) => new Set([...prev, g.key])); }}
+                  className="ml-0.5 opacity-60 hover:opacity-100 hover:text-amber-200 transition-opacity leading-none"
+                >
+                  ×
+                </button>
               </span>
             )}
 
