@@ -422,8 +422,11 @@ export default function DealLookupTab({
     const hasLinkedPO = g.pos.length > 0;
     const showCreatePO = onCreatePO && targetQuote && !hasLinkedPO;
 
+    const hasBoth = g.quotes.length > 0 && g.pos.length > 0;
+
     return (
-      <div className="mt-3 pt-3 border-t border-slate-700/40 space-y-5">
+      <div className="mt-3 pt-3 border-t border-slate-700/40">
+        <div className={hasBoth ? 'grid grid-cols-2 gap-3 items-start' : 'space-y-5'}>
 
         {/* ── Quote section ── */}
         {g.quotes.length > 0 && (
@@ -1047,6 +1050,7 @@ export default function DealLookupTab({
             </div>
           </div>
         )}
+        </div>
       </div>
     );
   };
