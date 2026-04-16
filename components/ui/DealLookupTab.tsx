@@ -8,7 +8,8 @@
  * Three view modes: All / By Vendor / By Company
  */
 'use client';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type {
   PriceQuote, PriceQuoteLineItem,
   PurchaseOrder, PurchaseLineItem, POCost,
@@ -97,6 +98,80 @@ function CopyBtn({ text, className = '' }: { text: string; className?: string })
         : <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>
       }
     </button>
+  );
+}
+
+// ── Inline component re-assignment combobox ───────────────────────────────────
+
+function ComponentCombobox({ components, onSelect, onCancel }: {
+  components: Component[];
+  onSelect: (componentId: string) => void;
+  onCancel: () => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const [dropStyle, setDropStyle] = useState<React.CSSProperties>({});
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    const pool = q
+      ? components.filter((c) =>
+          c.supplier_model?.toLowerCase().includes(q) ||
+          c.internal_description?.toLowerCase().includes(q) ||
+          c.brand?.toLowerCase().includes(q)
+        )
+      : components;
+    return pool.slice(0, 40);
+  }, [components, query]);
+
+  const openDrop = () => {
+    if (!inputRef.current) return;
+    const r = inputRef.current.getBoundingClientRect();
+    setDropStyle({ position: 'fixed', top: r.bottom + 2, left: r.left, width: Math.max(300, r.width), zIndex: 9999 });
+    setOpen(true);
+  };
+
+  useEffect(() => {
+    setTimeout(() => { inputRef.current?.focus(); openDrop(); }, 0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="text"
+        value={query}
+        onChange={(e) => { setQuery(e.target.value); if (!open) openDrop(); }}
+        onFocus={openDrop}
+        onBlur={() => setTimeout(() => { setOpen(false); onCancel(); }, 160)}
+        placeholder="Search component…"
+        autoComplete="off"
+        className="w-full px-2 py-1 bg-slate-900 border border-blue-500/50 rounded text-xs text-white focus:outline-none focus:border-blue-400 placeholder-slate-600"
+      />
+      {open && typeof document !== 'undefined' && createPortal(
+        <div style={dropStyle} className="bg-[#0D1424] border border-white/10 rounded-xl shadow-2xl overflow-hidden">
+          {query && <div className="px-3 py-1.5 border-b border-white/5 text-[10px] text-slate-500">{filtered.length} match{filtered.length !== 1 ? 'es' : ''}</div>}
+          <div className="max-h-64 overflow-y-auto">
+            {filtered.length === 0
+              ? <p className="px-3 py-3 text-xs text-slate-500 italic">No matches</p>
+              : filtered.map((c) => (
+                <button
+                  key={c.component_id}
+                  onMouseDown={(e) => { e.preventDefault(); onSelect(c.component_id); }}
+                  className="w-full text-left px-3 py-2 border-b border-white/[0.04] last:border-0 hover:bg-white/10 transition-colors"
+                >
+                  <p className="text-xs font-semibold text-white leading-tight">{c.supplier_model}</p>
+                  {c.internal_description && <p className="text-[10px] text-slate-500 truncate mt-0.5">{c.internal_description}</p>}
+                </button>
+              ))
+            }
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
   );
 }
 
@@ -192,6 +267,8 @@ interface Props {
   onUpdatePo?: (poId: string, changes: Partial<PurchaseOrder>) => Promise<void>;
   onMarkFullyPaid?: (poId: string, amount: number, currency: string) => Promise<void>;
   onCreatePO?: (quoteId: string) => void;
+  onUpdateQuoteItem?: (quoteLineId: number, componentId: string) => Promise<void>;
+  onUpdatePoItem?: (poItemId: number, componentId: string) => Promise<void>;
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -200,6 +277,7 @@ export default function DealLookupTab({
   quotes, quoteItems, pos, poItems, poCosts,
   suppliers, companies, components,
   onQuoteStatusChange, onPoStatusChange, onUpdatePo, onMarkFullyPaid, onCreatePO,
+  onUpdateQuoteItem, onUpdatePoItem,
 }: Props) {
 
   const [viewMode, setViewMode]               = useState<'all' | 'by-vendor' | 'by-company'>('all');
@@ -218,6 +296,19 @@ export default function DealLookupTab({
   const [editingReceivedDate, setEditingReceivedDate] = useState('');
   const [acknowledgedMismatches, setAcknowledgedMismatches] = useState<Set<string>>(new Set());
   const acknowledgeMismatch = (key: string) => setAcknowledgedMismatches((prev) => new Set([...prev, key]));
+  const [editingItem, setEditingItem] = useState<{ type: 'quote' | 'po'; id: number } | null>(null);
+  const [editingSaving, setEditingSaving] = useState(false);
+
+  const handleReassign = async (type: 'quote' | 'po', id: number, componentId: string) => {
+    setEditingSaving(true);
+    try {
+      if (type === 'quote') await onUpdateQuoteItem?.(id, componentId);
+      else await onUpdatePoItem?.(id, componentId);
+    } finally {
+      setEditingSaving(false);
+      setEditingItem(null);
+    }
+  };
 
   // ── Deal groups ──────────────────────────────────────────────────────────
   const allGroups = useMemo(
@@ -385,12 +476,39 @@ export default function DealLookupTab({
                             {items.map((item) => {
                               const comp = components.find((c) => c.component_id === item.component_id);
                               const lineTotal = (Number(item.quantity) || 0) * (Number(item.unit_price) || 0);
+                              const isEditing = editingItem?.type === 'quote' && editingItem.id === item.quote_line_id;
                               return (
-                                <tr key={item.quote_line_id} className="border-b border-slate-800/40 last:border-0">
+                                <tr key={item.quote_line_id} className="border-b border-slate-800/40 last:border-0 group">
                                   <td className="py-2 pr-4">
-                                    <p className="font-semibold text-white">{comp?.supplier_model ?? '—'}</p>
-                                    {comp?.internal_description && (
-                                      <p className="text-[11px] text-slate-500 mt-0.5 truncate max-w-xs">{comp.internal_description}</p>
+                                    {isEditing ? (
+                                      <div className="flex items-center gap-1.5">
+                                        <div className="flex-1 min-w-0">
+                                          <ComponentCombobox
+                                            components={components}
+                                            onSelect={(cid) => handleReassign('quote', item.quote_line_id, cid)}
+                                            onCancel={() => setEditingItem(null)}
+                                          />
+                                        </div>
+                                        {editingSaving && <span className="text-[10px] text-slate-500 flex-shrink-0">saving…</span>}
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-start gap-1.5">
+                                        <div className="min-w-0">
+                                          <p className="font-semibold text-white leading-tight">{comp?.supplier_model ?? <span className="text-slate-600 italic">unlinked</span>}</p>
+                                          {comp?.internal_description && (
+                                            <p className="text-[11px] text-slate-500 mt-0.5 truncate max-w-xs">{comp.internal_description}</p>
+                                          )}
+                                        </div>
+                                        {onUpdateQuoteItem && (
+                                          <button
+                                            onClick={() => setEditingItem({ type: 'quote', id: item.quote_line_id })}
+                                            title="Re-assign component"
+                                            className="opacity-0 group-hover:opacity-100 flex-shrink-0 mt-0.5 p-0.5 text-slate-600 hover:text-blue-400 transition-all"
+                                          >
+                                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                          </button>
+                                        )}
+                                      </div>
                                     )}
                                   </td>
                                   <td className="py-2 pr-4 text-right text-slate-300 tabular-nums">{Number(item.quantity).toLocaleString()}</td>
@@ -775,33 +893,45 @@ export default function DealLookupTab({
                             {items.map((item) => {
                               const comp = components.find((c) => c.component_id === item.component_id);
                               const lineTotal = (Number(item.quantity) || 0) * (Number(item.unit_cost) || 0);
+                              const isEditingPo = editingItem?.type === 'po' && editingItem.id === item.po_item_id;
                               return (
-                                <tr key={item.po_item_id} className="border-b border-slate-800/40 last:border-0">
+                                <tr key={item.po_item_id} className="border-b border-slate-800/40 last:border-0 group">
                                   <td className="py-2 pr-4">
-                                    <p className="font-semibold text-white">{comp?.supplier_model ?? '—'}</p>
-                                    {comp?.internal_description && (
-                                      <p className="text-[11px] text-slate-500 mt-0.5 truncate max-w-xs">{comp.internal_description}</p>
-                                    )}
-                                    {/* Lead time reference — useful for planning next order */}
-                                    {(ltPo != null || ltPayment != null) && (
-                                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
-                                        {ltPo != null && (
-                                          <span className="text-[10px] text-slate-600">
-                                            <span className="font-semibold text-emerald-500/70 tabular-nums">{ltPo}d</span>
-                                            {' '}PO→rcvd
-                                          </span>
-                                        )}
-                                        {ltQuote != null && (
-                                          <span className="text-[10px] text-slate-600">
-                                            <span className="font-semibold text-emerald-500/70 tabular-nums">{ltQuote}d</span>
-                                            {' '}quote→rcvd
-                                          </span>
-                                        )}
-                                        {ltPayment != null && (
-                                          <span className="text-[10px] text-slate-600">
-                                            <span className="font-semibold text-sky-500/70 tabular-nums">{ltPayment}d</span>
-                                            {' '}1st pay→rcvd
-                                          </span>
+                                    {isEditingPo ? (
+                                      <div className="flex items-center gap-1.5">
+                                        <div className="flex-1 min-w-0">
+                                          <ComponentCombobox
+                                            components={components}
+                                            onSelect={(cid) => handleReassign('po', item.po_item_id, cid)}
+                                            onCancel={() => setEditingItem(null)}
+                                          />
+                                        </div>
+                                        {editingSaving && <span className="text-[10px] text-slate-500 flex-shrink-0">saving…</span>}
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-start gap-1.5">
+                                        <div className="min-w-0">
+                                          <p className="font-semibold text-white leading-tight">{comp?.supplier_model ?? <span className="text-slate-600 italic">unlinked</span>}</p>
+                                          {comp?.internal_description && (
+                                            <p className="text-[11px] text-slate-500 mt-0.5 truncate max-w-xs">{comp.internal_description}</p>
+                                          )}
+                                          {/* Lead time reference */}
+                                          {(ltPo != null || ltPayment != null) && (
+                                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                                              {ltPo != null && <span className="text-[10px] text-slate-600"><span className="font-semibold text-emerald-500/70 tabular-nums">{ltPo}d</span> PO→rcvd</span>}
+                                              {ltQuote != null && <span className="text-[10px] text-slate-600"><span className="font-semibold text-emerald-500/70 tabular-nums">{ltQuote}d</span> quote→rcvd</span>}
+                                              {ltPayment != null && <span className="text-[10px] text-slate-600"><span className="font-semibold text-sky-500/70 tabular-nums">{ltPayment}d</span> 1st pay→rcvd</span>}
+                                            </div>
+                                          )}
+                                        </div>
+                                        {onUpdatePoItem && (
+                                          <button
+                                            onClick={() => setEditingItem({ type: 'po', id: item.po_item_id })}
+                                            title="Re-assign component"
+                                            className="opacity-0 group-hover:opacity-100 flex-shrink-0 mt-0.5 p-0.5 text-slate-600 hover:text-blue-400 transition-all"
+                                          >
+                                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                          </button>
                                         )}
                                       </div>
                                     )}

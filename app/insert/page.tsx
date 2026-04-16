@@ -193,6 +193,20 @@ function MasterInsertPage() {
     }
   };
 
+  const handleUpdateQuoteItem = async (quoteLineId: number, componentId: string) => {
+    const { error } = await supabase.from('4.1_price_quote_line_items').update({ component_id: componentId }).eq('quote_line_id', quoteLineId);
+    if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
+    showToast('Component re-assigned on quote line.', 'success');
+    refetch();
+  };
+
+  const handleUpdatePoItem = async (poItemId: number, componentId: string) => {
+    const { error } = await supabase.from('5.1_purchase_line_items').update({ component_id: componentId }).eq('po_item_id', poItemId);
+    if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
+    showToast('Component re-assigned on PO line.', 'success');
+    refetch();
+  };
+
   const handleComponentDelete = async (component_id: string) => {
     const { error } = await supabase.from('3.0_components').delete().eq('component_id', component_id);
     if (error) { showToast(`Error deleting component: ${error.message}`, 'error'); throw error; }
@@ -855,6 +869,8 @@ function MasterInsertPage() {
                   onUpdatePo={handleUpdatePo}
                   onMarkFullyPaid={handleMarkFullyPaid}
                   onCreatePO={(quoteId) => { setPendingQuoteForPO(quoteId); handleTabChange('ordering'); }}
+                  onUpdateQuoteItem={handleUpdateQuoteItem}
+                  onUpdatePoItem={handleUpdatePoItem}
                 />
               )}
             </>
