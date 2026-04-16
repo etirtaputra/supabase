@@ -1102,24 +1102,80 @@ export default function DealLookupTab({
                           ? ((Number(row.p.unit_cost) - Number(row.q.unit_price)) / Number(row.q.unit_price)) * 100
                           : null;
 
+                        const editingQ = !!(editingItem?.type === 'quote' && row.q && editingItem.id === row.q.quote_line_id);
+                        const editingP = !!(editingItem?.type === 'po'   && row.p && editingItem.id === row.p.po_item_id);
+
                         return (
                           <tr
                             key={idx}
-                            className={`border-b border-slate-800/40 last:border-0 ${
+                            className={`border-b border-slate-800/40 last:border-0 group ${
                               onlyQ ? 'bg-sky-500/5' : onlyP ? 'bg-emerald-500/5' : (qtyDiff || priceDiff) ? 'bg-amber-500/5' : ''
                             }`}
                           >
-                            <td className="py-2 pr-3 max-w-[200px]">
-                              <p className="font-semibold text-white leading-tight truncate">
-                                {comp?.supplier_model ?? (row.q?.supplier_description ?? row.p?.supplier_description ?? <span className="italic text-slate-600">unlinked</span>)}
-                              </p>
-                              {comp?.internal_description && (
-                                <p className="text-[11px] text-slate-500 mt-0.5 truncate">{comp.internal_description}</p>
-                              )}
-                              {(onlyQ || onlyP) && (
-                                <span className={`text-[10px] font-semibold ${onlyQ ? 'text-sky-400' : 'text-emerald-400'}`}>
-                                  {onlyQ ? '← quote only' : '→ PO only'}
-                                </span>
+                            <td className="py-2 pr-3 max-w-[240px]">
+                              {editingQ ? (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[9px] font-bold text-sky-400 flex-shrink-0">Q</span>
+                                  <div className="flex-1 min-w-0">
+                                    <ComponentCombobox
+                                      components={components}
+                                      onSelect={(cid) => handleReassign('quote', row.q!.quote_line_id, cid)}
+                                      onCancel={() => setEditingItem(null)}
+                                    />
+                                  </div>
+                                  {editingSaving && <span className="text-[10px] text-slate-500 flex-shrink-0">saving…</span>}
+                                </div>
+                              ) : editingP ? (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[9px] font-bold text-emerald-400 flex-shrink-0">PO</span>
+                                  <div className="flex-1 min-w-0">
+                                    <ComponentCombobox
+                                      components={components}
+                                      onSelect={(cid) => handleReassign('po', row.p!.po_item_id, cid)}
+                                      onCancel={() => setEditingItem(null)}
+                                    />
+                                  </div>
+                                  {editingSaving && <span className="text-[10px] text-slate-500 flex-shrink-0">saving…</span>}
+                                </div>
+                              ) : (
+                                <div className="flex items-start gap-1">
+                                  <div className="min-w-0 flex-1">
+                                    <p className="font-semibold text-white leading-tight truncate">
+                                      {comp?.supplier_model ?? (row.q?.supplier_description ?? row.p?.supplier_description ?? <span className="italic text-slate-600">unlinked</span>)}
+                                    </p>
+                                    {comp?.internal_description && (
+                                      <p className="text-[11px] text-slate-500 mt-0.5 truncate">{comp.internal_description}</p>
+                                    )}
+                                    {(onlyQ || onlyP) && (
+                                      <span className={`text-[10px] font-semibold ${onlyQ ? 'text-sky-400' : 'text-emerald-400'}`}>
+                                        {onlyQ ? '← quote only' : '→ PO only'}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {/* Pencil buttons — visible on row hover */}
+                                  <div className="opacity-0 group-hover:opacity-100 flex gap-0.5 flex-shrink-0 mt-0.5 transition-opacity">
+                                    {row.q && onUpdateQuoteItem && (
+                                      <button
+                                        onClick={() => setEditingItem({ type: 'quote', id: row.q!.quote_line_id })}
+                                        title="Re-assign quote component"
+                                        className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold text-sky-500/60 hover:text-sky-400 hover:bg-sky-500/10 transition-colors"
+                                      >
+                                        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                        Q
+                                      </button>
+                                    )}
+                                    {row.p && onUpdatePoItem && (
+                                      <button
+                                        onClick={() => setEditingItem({ type: 'po', id: row.p!.po_item_id })}
+                                        title="Re-assign PO component"
+                                        className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold text-emerald-500/60 hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+                                      >
+                                        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                        PO
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
                               )}
                             </td>
                             {/* Quote qty */}
