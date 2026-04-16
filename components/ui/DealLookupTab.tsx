@@ -947,16 +947,16 @@ export default function DealLookupTab({
                             {items.map((item) => {
                               const comp = components.find((c) => c.component_id === item.component_id);
                               const lineTotal = (Number(item.quantity) || 0) * (Number(item.unit_cost) || 0);
-                              const isEditingPo = editingItem?.type === 'po' && editingItem.id === item.po_item_id;
+                              const isEditingPo = editingItem?.type === 'po' && editingItem.id === item.po_line_item_id;
                               return (
-                                <tr key={item.po_item_id} className="border-b border-slate-800/40 last:border-0 group">
+                                <tr key={item.po_line_item_id} className="border-b border-slate-800/40 last:border-0 group">
                                   <td className="py-2 pr-4">
                                     {isEditingPo ? (
                                       <div className="flex items-center gap-1.5">
                                         <div className="flex-1 min-w-0">
                                           <ComponentCombobox
                                             components={components}
-                                            onSelect={(cid) => handleReassign('po', item.po_item_id, cid)}
+                                            onSelect={(cid) => handleReassign('po', item.po_line_item_id, cid)}
                                             onCancel={() => setEditingItem(null)}
                                           />
                                         </div>
@@ -980,7 +980,7 @@ export default function DealLookupTab({
                                         </div>
                                         {onUpdatePoItem && (
                                           <button
-                                            onClick={() => setEditingItem({ type: 'po', id: item.po_item_id })}
+                                            onClick={() => setEditingItem({ type: 'po', id: item.po_line_item_id })}
                                             title="Re-assign component"
                                             className="opacity-0 group-hover:opacity-100 flex-shrink-0 mt-0.5 p-0.5 text-slate-600 hover:text-blue-400 transition-all"
                                           >
@@ -1135,7 +1135,7 @@ export default function DealLookupTab({
                           ? ((Number(row.p.unit_cost) - Number(row.q.unit_price)) / Number(row.q.unit_price)) * 100 : null;
 
                         const lineEditQ = !!(editingLine?.type === 'quote' && row.q && editingLine.id === row.q.quote_line_id);
-                        const lineEditP = !!(editingLine?.type === 'po'    && row.p && editingLine.id === row.p.po_item_id);
+                        const lineEditP = !!(editingLine?.type === 'po'    && row.p && editingLine.id === row.p.po_line_item_id);
                         const activeEdit = lineEditQ || lineEditP;
 
                         // Resolved display name (may be overridden by in-progress edit)
@@ -1199,6 +1199,7 @@ export default function DealLookupTab({
                                   type="number"
                                   value={editingLine!.qty}
                                   onChange={(e) => setEditingLine((prev) => prev && { ...prev, qty: e.target.value })}
+                                  onKeyDown={(e) => { if (e.key === 'Escape') setEditingLine(null); if (e.key === 'Enter') handleSaveLine(); }}
                                   className="w-16 text-right px-1.5 py-0.5 bg-slate-900 border border-sky-500/50 rounded text-xs text-white focus:outline-none focus:border-sky-400"
                                 />
                               ) : (
@@ -1215,7 +1216,7 @@ export default function DealLookupTab({
                                   <input
                                     type="number"
                                     value={editingLine!.price}
-                                    onChange={(e) => setEditingLine((prev) => prev && { ...prev, price: e.target.value })}
+                                    onChange={(e) => setEditingLine((prev) => prev && { ...prev, price: e.target.value })} onKeyDown={(e) => { if (e.key === 'Escape') setEditingLine(null); if (e.key === 'Enter') handleSaveLine(); }}
                                     className="w-20 text-right px-1.5 py-0.5 bg-slate-900 border border-sky-500/50 rounded text-xs text-white focus:outline-none focus:border-sky-400"
                                   />
                                   <button
@@ -1263,6 +1264,7 @@ export default function DealLookupTab({
                                   type="number"
                                   value={editingLine!.qty}
                                   onChange={(e) => setEditingLine((prev) => prev && { ...prev, qty: e.target.value })}
+                                  onKeyDown={(e) => { if (e.key === 'Escape') setEditingLine(null); if (e.key === 'Enter') handleSaveLine(); }}
                                   className="w-16 text-right px-1.5 py-0.5 bg-slate-900 border border-emerald-500/50 rounded text-xs text-white focus:outline-none focus:border-emerald-400"
                                 />
                               ) : (
@@ -1282,7 +1284,7 @@ export default function DealLookupTab({
                                   <input
                                     type="number"
                                     value={editingLine!.price}
-                                    onChange={(e) => setEditingLine((prev) => prev && { ...prev, price: e.target.value })}
+                                    onChange={(e) => setEditingLine((prev) => prev && { ...prev, price: e.target.value })} onKeyDown={(e) => { if (e.key === 'Escape') setEditingLine(null); if (e.key === 'Enter') handleSaveLine(); }}
                                     className="w-20 text-right px-1.5 py-0.5 bg-slate-900 border border-emerald-500/50 rounded text-xs text-white focus:outline-none focus:border-emerald-400"
                                   />
                                   <button
@@ -1316,7 +1318,7 @@ export default function DealLookupTab({
                                       className="opacity-0 group-hover:opacity-100 flex-shrink-0 p-0.5 text-emerald-600 hover:text-emerald-400 hover:bg-emerald-500/10 rounded transition-all"
                                       onMouseDown={(e) => {
                                         e.preventDefault();
-                                        setEditingLine({ type: 'po', id: row.p!.po_item_id, componentId: null, showCompSearch: false, qty: String(row.p!.quantity), price: String(row.p!.unit_cost), saving: false });
+                                        setEditingLine({ type: 'po', id: row.p!.po_line_item_id, componentId: null, showCompSearch: false, qty: String(row.p!.quantity), price: String(row.p!.unit_cost), saving: false });
                                       }}
                                     >
                                       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>

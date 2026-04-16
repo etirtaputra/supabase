@@ -134,7 +134,7 @@ export interface PurchaseOrder extends BaseEntity {
 
 // 6.1 Purchase Line Items
 export interface PurchaseLineItem extends BaseEntity {
-  po_item_id: number;
+  po_line_item_id: number;
   po_id: number;
   component_id: string; // UUID
   supplier_description?: string;

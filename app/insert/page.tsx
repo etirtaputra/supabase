@@ -201,7 +201,7 @@ function MasterInsertPage() {
   };
 
   const handleUpdatePoItem = async (poItemId: number, componentId: string) => {
-    const { error } = await supabase.from('5.1_purchase_line_items').update({ component_id: componentId }).eq('po_item_id', poItemId);
+    const { error } = await supabase.from('5.1_purchase_line_items').update({ component_id: componentId }).eq('po_line_item_id', poItemId);
     if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
     showToast('Component re-assigned on PO line.', 'success');
     refetch();
@@ -215,7 +215,7 @@ function MasterInsertPage() {
   };
 
   const handleUpdatePoLineItem = async (id: number, updates: { component_id?: string; quantity?: number; unit_cost?: number }) => {
-    const { error } = await supabase.from('5.1_purchase_line_items').update(updates).eq('po_item_id', id);
+    const { error } = await supabase.from('5.1_purchase_line_items').update(updates).eq('po_line_item_id', id);
     if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
     showToast('PO line updated.', 'success');
     refetch();

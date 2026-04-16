@@ -477,7 +477,7 @@ export default function ProductCostLookup({ components, quotes, quoteItems, pos,
           {/* Mobile cards */}
           <div className="md:hidden space-y-4">
             {allocations.map((a) => (
-              <div key={a.item.po_item_id} className={`rounded-2xl border p-5 transition-opacity ring-1 ring-white/5 shadow-lg ${a.hasBalancePayment ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-900/30 border-slate-800/50 opacity-80'}`}>
+              <div key={a.item.po_line_item_id} className={`rounded-2xl border p-5 transition-opacity ring-1 ring-white/5 shadow-lg ${a.hasBalancePayment ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-900/30 border-slate-800/50 opacity-80'}`}>
                 <div className="flex items-start justify-between mb-4">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
@@ -526,7 +526,7 @@ export default function ProductCostLookup({ components, quotes, quoteItems, pos,
               </thead>
               <tbody className="divide-y divide-slate-800/60">
                 {allocations.map((a) => (
-                  <tr key={a.item.po_item_id} className={`hover:bg-slate-800/40 transition-colors group ${a.hasBalancePayment ? 'bg-transparent' : 'bg-slate-900/40 opacity-75'}`}>
+                  <tr key={a.item.po_line_item_id} className={`hover:bg-slate-800/40 transition-colors group ${a.hasBalancePayment ? 'bg-transparent' : 'bg-slate-900/40 opacity-75'}`}>
                     <td className="px-5 py-4"><span className="text-sky-400 font-mono text-xs font-semibold bg-sky-500/10 px-1.5 py-0.5 rounded border border-sky-500/20">{a.po.po_number}</span></td>
                     <td className="px-4 py-4"><span className="text-violet-400 font-mono text-[10px] font-semibold bg-violet-500/10 px-1.5 py-0.5 rounded border border-violet-500/20">{a.po.pi_number || '—'}</span></td>
                     <td className="px-4 py-4 text-slate-300 text-xs font-medium">{a.po.po_date}</td>
