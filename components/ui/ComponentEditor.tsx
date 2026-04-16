@@ -455,9 +455,9 @@ function Highlight({ text, query }: { text: string | null | undefined; query: st
   while (idx !== -1) {
     if (idx > last) parts.push(text.slice(last, idx));
     parts.push(
-      <mark key={idx} className="bg-transparent text-emerald-400 font-semibold not-italic">
+      <span key={idx} className="text-emerald-400">
         {text.slice(idx, idx + q.length)}
-      </mark>
+      </span>
     );
     last = idx + q.length;
     idx = lower.indexOf(q, last);
@@ -1712,7 +1712,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
             )}
             {/* Quick-filter toggles */}
             <button
-              onClick={() => { setFilterUnused((v) => !v); setFilterDuplicates(false); }}
+              onClick={() => { setFilterUnused((v) => !v); setFilterDuplicates(false); setFilterLinked(false); }}
               className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all flex-shrink-0 ${
                 filterUnused
                   ? 'bg-orange-500/20 border-orange-500/40 text-orange-300'
@@ -1723,7 +1723,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
               Unused{filterUnused ? ` (${filtered.length})` : ''}
             </button>
             <button
-              onClick={() => { setFilterDuplicates((v) => !v); setFilterUnused(false); }}
+              onClick={() => { setFilterDuplicates((v) => !v); setFilterUnused(false); setFilterLinked(false); }}
               className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all flex-shrink-0 ${
                 filterDuplicates
                   ? 'bg-red-500/20 border-red-500/40 text-red-300'
@@ -1745,7 +1745,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
               Has Intel{filterHasIntel ? ` (${filtered.length})` : ''}
             </button>
             <button
-              onClick={() => setFilterLinked((v) => !v)}
+              onClick={() => { setFilterLinked((v) => !v); setFilterUnused(false); setFilterDuplicates(false); }}
               className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all flex-shrink-0 ${
                 filterLinked
                   ? 'bg-sky-500/20 border-sky-500/40 text-sky-300'
