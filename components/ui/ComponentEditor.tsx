@@ -791,17 +791,19 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
 
   // ── Bulk TUC per component (single-pass, no per-component O(n) scan) ────────
   const tucByComponent = useMemo(() => {
-    const poMap = new Map(pos.map((p) => [p.po_id, p]));
+    const poMap = new Map(pos.map((p) => [String(p.po_id), p]));
     // Pre-group poItems and poCosts by po_id
     const itemsByPO = new Map<string, PurchaseLineItem[]>();
     poItems.forEach((i) => {
-      if (!itemsByPO.has(i.po_id)) itemsByPO.set(i.po_id, []);
-      itemsByPO.get(i.po_id)!.push(i);
+      const k = String(i.po_id);
+      if (!itemsByPO.has(k)) itemsByPO.set(k, []);
+      itemsByPO.get(k)!.push(i);
     });
     const costsByPO = new Map<string, POCost[]>();
     (poCosts ?? []).forEach((c) => {
-      if (!costsByPO.has(c.po_id)) costsByPO.set(c.po_id, []);
-      costsByPO.get(c.po_id)!.push(c);
+      const k = String(c.po_id);
+      if (!costsByPO.has(k)) costsByPO.set(k, []);
+      costsByPO.get(k)!.push(c);
     });
     // Per-PO derived values
     interface POSummary { totalForeign: number; hasBalance: boolean; principal: number; bankFees: number; landed: number; date: string; xr: number | null; }
@@ -821,7 +823,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     const acc = new Map<string, CompAcc>();
     poItems.forEach((item) => {
       if (!item.component_id || item.quantity <= 0) return;
-      const ps = poSummary.get(item.po_id);
+      const ps = poSummary.get(String(item.po_id));
       if (!ps || !ps.hasBalance || ps.totalForeign <= 0) return;
       const share = (item.unit_cost * item.quantity) / ps.totalForeign;
       const tuc = (share * (ps.principal + ps.bankFees + ps.landed)) / item.quantity;
