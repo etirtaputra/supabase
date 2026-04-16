@@ -283,6 +283,7 @@ export default function DealLookupTab({
   const [viewMode, setViewMode]               = useState<'all' | 'by-vendor' | 'by-company'>('all');
   const [search, setSearch]                   = useState('');
   const [stageFilter, setStageFilter]         = useState<'all' | 'quote' | 'active' | 'received' | 'completed' | 'superseded'>('all');
+  const [filterMismatch, setFilterMismatch]   = useState(false);
   const [tableView, setTableView]             = useState(false);
   const [expandedKey, setExpandedKey]         = useState<string | null>(null);
   const [selectedSuppId, setSelectedSuppId]   = useState<string | null>(null);
@@ -331,10 +332,26 @@ export default function DealLookupTab({
     return { openQuotes, activePOs, received, completed, superseded, outstandingTotal, total: allGroups.length };
   }, [allGroups]);
 
-  // ── All-mode filtered list (respects stageFilter) ─────────────────────────
+  // ── Groups with quote↔PO mismatches ──────────────────────────────────────
+  const mismatchGroupIds = useMemo(() => {
+    const ids = new Set<string>();
+    allGroups.forEach((g) => {
+      for (const po of g.pos) {
+        if (!po.quote_id) continue;
+        if (detectMismatches(po.quote_id, po.po_id, quoteItems, poItems, components).length > 0) {
+          ids.add(g.key);
+          break;
+        }
+      }
+    });
+    return ids;
+  }, [allGroups, quoteItems, poItems, components]);
+
+  // ── All-mode filtered list (respects stageFilter + filterMismatch) ────────
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
-    const base = stageFilter === 'all' ? allGroups : allGroups.filter((g) => dealStage(g) === stageFilter);
+    let base = stageFilter === 'all' ? allGroups : allGroups.filter((g) => dealStage(g) === stageFilter);
+    if (filterMismatch) base = base.filter((g) => mismatchGroupIds.has(g.key));
     if (!q) return base.slice(0, 80);
     return base.filter((g) => {
       const code = g.supplier?.supplier_code?.toLowerCase() ?? '';
@@ -342,7 +359,7 @@ export default function DealLookupTab({
       const pi   = (g.piNumber ?? '').toLowerCase();
       return pi.includes(q) || code.includes(q) || name.includes(q);
     });
-  }, [allGroups, search, stageFilter]);
+  }, [allGroups, search, stageFilter, filterMismatch, mismatchGroupIds]);
 
   // ── By-vendor stats ───────────────────────────────────────────────────────
   const vendorStats = useMemo(() => {
@@ -1396,6 +1413,18 @@ export default function DealLookupTab({
                 </button>
               ))}
             </div>
+            {mismatchGroupIds.size > 0 && (
+              <button
+                onClick={() => setFilterMismatch((v) => !v)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors border ${
+                  filterMismatch
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                    : 'text-slate-500 border-transparent hover:text-amber-400 hover:bg-amber-500/10'
+                }`}
+              >
+                ⚠ Mismatch ({mismatchGroupIds.size})
+              </button>
+            )}
             <span className="flex-1" />
             {/* Table / card toggle */}
             <button
