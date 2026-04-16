@@ -306,7 +306,15 @@ export default function DealLookupTab({
   const [editingReceivedDate, setEditingReceivedDate] = useState('');
   const [acknowledgedMismatches, setAcknowledgedMismatches] = useState<Set<string>>(new Set());
   const acknowledgeMismatch = (key: string) => setAcknowledgedMismatches((prev) => new Set([...prev, key]));
-  const [acknowledgedDealMismatches, setAcknowledgedDealMismatches] = useState<Set<string>>(new Set());
+  const [acknowledgedDealMismatches, setAcknowledgedDealMismatches] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem('acknowledgedDealMismatches');
+      return stored ? new Set(JSON.parse(stored)) : new Set<string>();
+    } catch { return new Set<string>(); }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('acknowledgedDealMismatches', JSON.stringify([...acknowledgedDealMismatches])); } catch {}
+  }, [acknowledgedDealMismatches]);
   const [editingItem, setEditingItem] = useState<{ type: 'quote' | 'po'; id: number } | null>(null);
   const [editingSaving, setEditingSaving] = useState(false);
   const [editingLine, setEditingLine] = useState<{
