@@ -269,6 +269,8 @@ interface Props {
   onCreatePO?: (quoteId: string) => void;
   onUpdateQuoteItem?: (quoteLineId: number, componentId: string) => Promise<void>;
   onUpdatePoItem?: (poItemId: number, componentId: string) => Promise<void>;
+  onUpdateQuoteLineItem?: (id: number, updates: { component_id?: string; quantity?: number; unit_price?: number }) => Promise<void>;
+  onUpdatePoLineItem?: (id: number, updates: { component_id?: string; quantity?: number; unit_cost?: number }) => Promise<void>;
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -278,6 +280,7 @@ export default function DealLookupTab({
   suppliers, companies, components,
   onQuoteStatusChange, onPoStatusChange, onUpdatePo, onMarkFullyPaid, onCreatePO,
   onUpdateQuoteItem, onUpdatePoItem,
+  onUpdateQuoteLineItem, onUpdatePoLineItem,
 }: Props) {
 
   const [viewMode, setViewMode]               = useState<'all' | 'by-vendor' | 'by-company'>('all');
@@ -299,6 +302,37 @@ export default function DealLookupTab({
   const acknowledgeMismatch = (key: string) => setAcknowledgedMismatches((prev) => new Set([...prev, key]));
   const [editingItem, setEditingItem] = useState<{ type: 'quote' | 'po'; id: number } | null>(null);
   const [editingSaving, setEditingSaving] = useState(false);
+  const [editingLine, setEditingLine] = useState<{
+    type: 'quote' | 'po';
+    id: number;
+    componentId: string | null;
+    showCompSearch: boolean;
+    qty: string;
+    price: string;
+    saving: boolean;
+  } | null>(null);
+
+  const handleSaveLine = async () => {
+    if (!editingLine) return;
+    const { type, id, componentId, qty, price } = editingLine;
+    setEditingLine((prev) => prev && { ...prev, saving: true });
+    try {
+      const qtyNum   = parseFloat(qty.replace(/,/g, ''));
+      const priceNum = parseFloat(price.replace(/,/g, ''));
+      const updates = {
+        ...(componentId                ? { component_id: componentId } : {}),
+        ...(!isNaN(qtyNum)            ? { quantity: qtyNum }          : {}),
+      };
+      if (type === 'quote') {
+        await onUpdateQuoteLineItem?.(id, { ...updates, ...(!isNaN(priceNum) ? { unit_price: priceNum } : {}) });
+      } else {
+        await onUpdatePoLineItem?.(id, { ...updates, ...(!isNaN(priceNum) ? { unit_cost: priceNum } : {}) });
+      }
+      setEditingLine(null);
+    } catch {
+      setEditingLine((prev) => prev && { ...prev, saving: false });
+    }
+  };
 
   const handleReassign = async (type: 'quote' | 'po', id: number, componentId: string) => {
     setEditingSaving(true);
@@ -1097,122 +1131,199 @@ export default function DealLookupTab({
                         const priceDiff = !!(row.q && row.p && Number(row.q.unit_price) !== Number(row.p.unit_cost));
                         const onlyQ = !!(row.q && !row.p);
                         const onlyP = !!(!row.q && row.p);
-
                         const pricePct = priceDiff && row.q && row.p && Number(row.q.unit_price) > 0
-                          ? ((Number(row.p.unit_cost) - Number(row.q.unit_price)) / Number(row.q.unit_price)) * 100
-                          : null;
+                          ? ((Number(row.p.unit_cost) - Number(row.q.unit_price)) / Number(row.q.unit_price)) * 100 : null;
 
-                        const editingQ = !!(editingItem?.type === 'quote' && row.q && editingItem.id === row.q.quote_line_id);
-                        const editingP = !!(editingItem?.type === 'po'   && row.p && editingItem.id === row.p.po_item_id);
+                        const lineEditQ = !!(editingLine?.type === 'quote' && row.q && editingLine.id === row.q.quote_line_id);
+                        const lineEditP = !!(editingLine?.type === 'po'    && row.p && editingLine.id === row.p.po_item_id);
+                        const activeEdit = lineEditQ || lineEditP;
+
+                        // Resolved display name (may be overridden by in-progress edit)
+                        const displayComp = (lineEditQ || lineEditP) && editingLine?.componentId
+                          ? components.find((c) => c.component_id === editingLine.componentId) ?? comp
+                          : comp;
 
                         return (
                           <tr
                             key={idx}
                             className={`border-b border-slate-800/40 last:border-0 group ${
-                              onlyQ ? 'bg-sky-500/5' : onlyP ? 'bg-emerald-500/5' : (qtyDiff || priceDiff) ? 'bg-amber-500/5' : ''
+                              activeEdit ? 'bg-blue-500/5' :
+                              onlyQ ? 'bg-sky-500/5' : onlyP ? 'bg-emerald-500/5' :
+                              (qtyDiff || priceDiff) ? 'bg-amber-500/5' : ''
                             }`}
                           >
+                            {/* ── Component cell ── */}
                             <td className="py-2 pr-3 max-w-[240px]">
-                              {editingQ ? (
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-[9px] font-bold text-sky-400 flex-shrink-0">Q</span>
+                              {(lineEditQ || lineEditP) && editingLine?.showCompSearch ? (
+                                <div className="flex items-center gap-1">
+                                  <span className={`text-[9px] font-bold flex-shrink-0 ${lineEditQ ? 'text-sky-400' : 'text-emerald-400'}`}>
+                                    {lineEditQ ? 'Q' : 'PO'}
+                                  </span>
                                   <div className="flex-1 min-w-0">
                                     <ComponentCombobox
                                       components={components}
-                                      onSelect={(cid) => handleReassign('quote', row.q!.quote_line_id, cid)}
-                                      onCancel={() => setEditingItem(null)}
+                                      onSelect={(cid) => setEditingLine((prev) => prev && { ...prev, componentId: cid, showCompSearch: false })}
+                                      onCancel={() => setEditingLine((prev) => prev && { ...prev, showCompSearch: false })}
                                     />
                                   </div>
-                                  {editingSaving && <span className="text-[10px] text-slate-500 flex-shrink-0">saving…</span>}
-                                </div>
-                              ) : editingP ? (
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-[9px] font-bold text-emerald-400 flex-shrink-0">PO</span>
-                                  <div className="flex-1 min-w-0">
-                                    <ComponentCombobox
-                                      components={components}
-                                      onSelect={(cid) => handleReassign('po', row.p!.po_item_id, cid)}
-                                      onCancel={() => setEditingItem(null)}
-                                    />
-                                  </div>
-                                  {editingSaving && <span className="text-[10px] text-slate-500 flex-shrink-0">saving…</span>}
                                 </div>
                               ) : (
-                                <div className="flex items-start gap-1">
-                                  <div className="min-w-0 flex-1">
-                                    <p className="font-semibold text-white leading-tight truncate">
-                                      {comp?.supplier_model ?? (row.q?.supplier_description ?? row.p?.supplier_description ?? <span className="italic text-slate-600">unlinked</span>)}
-                                    </p>
-                                    {comp?.internal_description && (
-                                      <p className="text-[11px] text-slate-500 mt-0.5 truncate">{comp.internal_description}</p>
-                                    )}
-                                    {(onlyQ || onlyP) && (
-                                      <span className={`text-[10px] font-semibold ${onlyQ ? 'text-sky-400' : 'text-emerald-400'}`}>
-                                        {onlyQ ? '← quote only' : '→ PO only'}
-                                      </span>
-                                    )}
-                                  </div>
-                                  {/* Pencil buttons — visible on row hover */}
-                                  <div className="opacity-0 group-hover:opacity-100 flex gap-0.5 flex-shrink-0 mt-0.5 transition-opacity">
-                                    {row.q && onUpdateQuoteItem && (
-                                      <button
-                                        onClick={() => setEditingItem({ type: 'quote', id: row.q!.quote_line_id })}
-                                        title="Re-assign quote component"
-                                        className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold text-sky-500/60 hover:text-sky-400 hover:bg-sky-500/10 transition-colors"
-                                      >
-                                        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                                        Q
-                                      </button>
-                                    )}
-                                    {row.p && onUpdatePoItem && (
-                                      <button
-                                        onClick={() => setEditingItem({ type: 'po', id: row.p!.po_item_id })}
-                                        title="Re-assign PO component"
-                                        className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold text-emerald-500/60 hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
-                                      >
-                                        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                                        PO
-                                      </button>
-                                    )}
-                                  </div>
+                                <div className="min-w-0">
+                                  <p className="font-semibold text-white leading-tight truncate">
+                                    {displayComp?.supplier_model ?? (row.q?.supplier_description ?? row.p?.supplier_description ?? <span className="italic text-slate-600">unlinked</span>)}
+                                  </p>
+                                  {displayComp?.internal_description && (
+                                    <p className="text-[11px] text-slate-500 mt-0.5 truncate">{displayComp.internal_description}</p>
+                                  )}
+                                  {(onlyQ || onlyP) && !activeEdit && (
+                                    <span className={`text-[10px] font-semibold ${onlyQ ? 'text-sky-400' : 'text-emerald-400'}`}>
+                                      {onlyQ ? '← quote only' : '→ PO only'}
+                                    </span>
+                                  )}
+                                  {activeEdit && (
+                                    <button
+                                      onMouseDown={(e) => { e.preventDefault(); setEditingLine((prev) => prev && { ...prev, showCompSearch: true }); }}
+                                      className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors"
+                                    >
+                                      change item
+                                    </button>
+                                  )}
                                 </div>
                               )}
                             </td>
-                            {/* Quote qty */}
-                            <td className={`py-2 px-3 text-right tabular-nums whitespace-nowrap ${qtyDiff ? 'text-amber-400 font-semibold' : 'text-slate-400'}`}>
-                              {row.q ? Number(row.q.quantity).toLocaleString() : <span className="text-slate-700">—</span>}
+
+                            {/* ── Q Qty ── */}
+                            <td className="py-2 px-3 text-right tabular-nums whitespace-nowrap">
+                              {lineEditQ ? (
+                                <input
+                                  type="number"
+                                  value={editingLine!.qty}
+                                  onChange={(e) => setEditingLine((prev) => prev && { ...prev, qty: e.target.value })}
+                                  className="w-16 text-right px-1.5 py-0.5 bg-slate-900 border border-sky-500/50 rounded text-xs text-white focus:outline-none focus:border-sky-400"
+                                />
+                              ) : (
+                                <span className={!row.q ? 'text-slate-700' : qtyDiff ? 'text-amber-400 font-semibold' : lineEditP ? 'text-slate-600' : 'text-slate-400'}>
+                                  {row.q ? Number(row.q.quantity).toLocaleString() : '—'}
+                                </span>
+                              )}
                             </td>
-                            {/* Quote price */}
-                            <td className={`py-2 px-3 text-right tabular-nums whitespace-nowrap border-r border-slate-700/50 ${priceDiff ? 'text-amber-400 font-semibold' : 'text-slate-400'}`}>
-                              {row.q ? fmtCcy(Number(row.q.unit_price), row.q.currency) : <span className="text-slate-700">—</span>}
+
+                            {/* ── Q Price + Q pencil ── */}
+                            <td className="py-2 px-3 text-right tabular-nums whitespace-nowrap border-r border-slate-700/50">
+                              {lineEditQ ? (
+                                <div className="flex items-center justify-end gap-1">
+                                  <input
+                                    type="number"
+                                    value={editingLine!.price}
+                                    onChange={(e) => setEditingLine((prev) => prev && { ...prev, price: e.target.value })}
+                                    className="w-20 text-right px-1.5 py-0.5 bg-slate-900 border border-sky-500/50 rounded text-xs text-white focus:outline-none focus:border-sky-400"
+                                  />
+                                  <button
+                                    onMouseDown={(e) => { e.preventDefault(); handleSaveLine(); }}
+                                    disabled={editingLine!.saving}
+                                    title="Save"
+                                    className="text-emerald-400 hover:text-emerald-300 disabled:opacity-40 p-0.5"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                  </button>
+                                  <button
+                                    onMouseDown={(e) => { e.preventDefault(); setEditingLine(null); }}
+                                    title="Cancel"
+                                    className="text-slate-500 hover:text-slate-300 p-0.5"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-end gap-1">
+                                  <span className={!row.q ? 'text-slate-700' : priceDiff ? 'text-amber-400 font-semibold' : lineEditP ? 'text-slate-600' : 'text-slate-400'}>
+                                    {row.q ? fmtCcy(Number(row.q.unit_price), row.q.currency) : '—'}
+                                  </span>
+                                  {/* Q pencil — on quote side */}
+                                  {row.q && onUpdateQuoteLineItem && !activeEdit && (
+                                    <button
+                                      title="Edit quote line"
+                                      className="opacity-0 group-hover:opacity-100 flex-shrink-0 p-0.5 text-sky-600 hover:text-sky-400 hover:bg-sky-500/10 rounded transition-all"
+                                      onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        setEditingLine({ type: 'quote', id: row.q!.quote_line_id, componentId: null, showCompSearch: false, qty: String(row.q!.quantity), price: String(row.q!.unit_price), saving: false });
+                                      }}
+                                    >
+                                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                    </button>
+                                  )}
+                                </div>
+                              )}
                             </td>
-                            {/* PO qty */}
-                            <td className={`py-2 px-3 text-right tabular-nums whitespace-nowrap ${qtyDiff ? 'text-amber-400 font-semibold' : 'text-slate-400'}`}>
-                              {row.p
-                                ? <>
-                                    {Number(row.p.quantity).toLocaleString()}
-                                    {qtyDiff && row.q && (
-                                      <span className="text-[10px] text-amber-500/70 ml-1">
-                                        ({Number(row.p.quantity) - Number(row.q.quantity) > 0 ? '+' : ''}{(Number(row.p.quantity) - Number(row.q.quantity)).toLocaleString()})
-                                      </span>
-                                    )}
-                                  </>
-                                : <span className="text-slate-700">—</span>
-                              }
+
+                            {/* ── PO Qty ── */}
+                            <td className="py-2 px-3 text-right tabular-nums whitespace-nowrap">
+                              {lineEditP ? (
+                                <input
+                                  type="number"
+                                  value={editingLine!.qty}
+                                  onChange={(e) => setEditingLine((prev) => prev && { ...prev, qty: e.target.value })}
+                                  className="w-16 text-right px-1.5 py-0.5 bg-slate-900 border border-emerald-500/50 rounded text-xs text-white focus:outline-none focus:border-emerald-400"
+                                />
+                              ) : (
+                                <span className={!row.p ? 'text-slate-700' : qtyDiff ? 'text-amber-400 font-semibold' : lineEditQ ? 'text-slate-600' : 'text-slate-400'}>
+                                  {row.p
+                                    ? <>{Number(row.p.quantity).toLocaleString()}{qtyDiff && row.q && <span className="text-[10px] text-amber-500/70 ml-1">({Number(row.p.quantity) - Number(row.q.quantity) > 0 ? '+' : ''}{(Number(row.p.quantity) - Number(row.q.quantity)).toLocaleString()})</span>}</>
+                                    : '—'
+                                  }
+                                </span>
+                              )}
                             </td>
-                            {/* PO price */}
-                            <td className={`py-2 text-right tabular-nums whitespace-nowrap ${priceDiff ? 'text-amber-400 font-semibold' : 'text-slate-400'}`}>
-                              {row.p
-                                ? <>
-                                    {fmtCcy(Number(row.p.unit_cost), row.p.currency)}
-                                    {pricePct !== null && (
-                                      <span className={`text-[10px] ml-1 ${pricePct > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
-                                        ({pricePct > 0 ? '+' : ''}{pricePct.toFixed(1)}%)
-                                      </span>
-                                    )}
-                                  </>
-                                : <span className="text-slate-700">—</span>
-                              }
+
+                            {/* ── PO Price + PO pencil ── */}
+                            <td className="py-2 text-right tabular-nums whitespace-nowrap">
+                              {lineEditP ? (
+                                <div className="flex items-center justify-end gap-1">
+                                  <input
+                                    type="number"
+                                    value={editingLine!.price}
+                                    onChange={(e) => setEditingLine((prev) => prev && { ...prev, price: e.target.value })}
+                                    className="w-20 text-right px-1.5 py-0.5 bg-slate-900 border border-emerald-500/50 rounded text-xs text-white focus:outline-none focus:border-emerald-400"
+                                  />
+                                  <button
+                                    onMouseDown={(e) => { e.preventDefault(); handleSaveLine(); }}
+                                    disabled={editingLine!.saving}
+                                    title="Save"
+                                    className="text-emerald-400 hover:text-emerald-300 disabled:opacity-40 p-0.5"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                  </button>
+                                  <button
+                                    onMouseDown={(e) => { e.preventDefault(); setEditingLine(null); }}
+                                    title="Cancel"
+                                    className="text-slate-500 hover:text-slate-300 p-0.5"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-end gap-1">
+                                  <span className={!row.p ? 'text-slate-700' : priceDiff ? 'text-amber-400 font-semibold' : lineEditQ ? 'text-slate-600' : 'text-slate-400'}>
+                                    {row.p
+                                      ? <>{fmtCcy(Number(row.p.unit_cost), row.p.currency)}{pricePct !== null && <span className={`text-[10px] ml-1 ${pricePct > 0 ? 'text-red-400' : 'text-emerald-400'}`}>({pricePct > 0 ? '+' : ''}{pricePct.toFixed(1)}%)</span>}</>
+                                      : '—'
+                                    }
+                                  </span>
+                                  {/* PO pencil — on PO side */}
+                                  {row.p && onUpdatePoLineItem && !activeEdit && (
+                                    <button
+                                      title="Edit PO line"
+                                      className="opacity-0 group-hover:opacity-100 flex-shrink-0 p-0.5 text-emerald-600 hover:text-emerald-400 hover:bg-emerald-500/10 rounded transition-all"
+                                      onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        setEditingLine({ type: 'po', id: row.p!.po_item_id, componentId: null, showCompSearch: false, qty: String(row.p!.quantity), price: String(row.p!.unit_cost), saving: false });
+                                      }}
+                                    >
+                                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                    </button>
+                                  )}
+                                </div>
+                              )}
                             </td>
                           </tr>
                         );
