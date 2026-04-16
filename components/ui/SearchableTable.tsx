@@ -54,7 +54,7 @@ function SearchableTable<T = any>({ title, data, columns, isLoading = false }: S
       <>
         {parts.map((part, i) =>
           part.toLowerCase() === searchTerm.toLowerCase() ? (
-            <span key={i} className="bg-emerald-500/30 text-emerald-300 font-medium rounded px-1">{part}</span>
+            <span key={i} className="bg-emerald-500/30 text-emerald-300 font-medium rounded">{part}</span>
           ) : (part)
         )}
       </>

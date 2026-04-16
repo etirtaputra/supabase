@@ -14,6 +14,7 @@ import { ENUMS } from '../../constants/enums';
 
 interface ComponentUsage {
   quoteCount: number;
+  poCount: number;
   lineItemCount: number;
   piNumbers: string[];
   poNumbers: string[];
@@ -51,7 +52,7 @@ interface ComponentEditorProps {
   onDeleteComponentLink?: (linkId: string) => Promise<void>;
 }
 
-type SortCol = 'supplier_model' | 'internal_description' | 'brand' | 'category' | 'updated_at' | 'quoteCount' | 'lineItemCount' | 'priceDelta';
+type SortCol = 'supplier_model' | 'internal_description' | 'brand' | 'category' | 'updated_at' | 'quoteCount' | 'poCount' | 'lineItemCount' | 'priceDelta';
 // Key components by their string ID to avoid Number(key)=NaN edge cases
 type PendingEdits = Record<string, Partial<Component>>;
 
@@ -589,6 +590,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [filterUnused, setFilterUnused] = useState(false);
   const [filterDuplicates, setFilterDuplicates] = useState(false);
   const [filterHasIntel, setFilterHasIntel] = useState(false);
+  const [filterLinked, setFilterLinked] = useState(false);
   const [visibleCols, setVisibleCols] = useState<Record<ColKey, boolean>>(() => {
     try {
       const saved = localStorage.getItem('componentEditor_cols');
@@ -611,6 +613,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         if (f.filterUnused) setFilterUnused(f.filterUnused);
         if (f.filterDuplicates) setFilterDuplicates(f.filterDuplicates);
         if (f.filterHasIntel) setFilterHasIntel(f.filterHasIntel);
+        if (f.filterLinked) setFilterLinked(f.filterLinked);
       }
     } catch {}
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -619,10 +622,10 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   useEffect(() => {
     try {
       localStorage.setItem('componentEditor_filters', JSON.stringify({
-        searchInput, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel,
+        searchInput, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, filterLinked,
       }));
     } catch {}
-  }, [searchInput, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel]);
+  }, [searchInput, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, filterLinked]);
 
   // ── Persist column visibility ─────────────────────────────────────────────
   useEffect(() => {
@@ -722,6 +725,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     quoteIds.forEach((qids, cid) => {
       map.set(cid, {
         quoteCount: qids.size,
+        poCount: poNums.get(cid)?.size ?? 0,
         lineItemCount: lineCounts.get(cid) ?? 0,
         piNumbers: [...(piNums.get(cid) ?? [])].sort(),
         poNumbers: [...(poNums.get(cid) ?? [])].sort(),
@@ -820,6 +824,13 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     return s;
   }, [competitorPrices]);
 
+  // ── Component IDs that have at least one equivalency link ────────────────
+  const linkedComponentIds = useMemo(() => {
+    const s = new Set<string>();
+    (componentLinks ?? []).forEach((l) => { s.add(l.component_id_a); s.add(l.component_id_b); });
+    return s;
+  }, [componentLinks]);
+
   // ── Duplicate supplier_model detection ────────────────────────────────────
   const duplicateModels = useMemo(() => {
     const counts = new Map<string, number>();
@@ -878,13 +889,14 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     if (filterUnused) result = result.filter((c) => !usageMap.has(String(c.component_id)));
     if (filterDuplicates) result = result.filter((c) => duplicateModels.has(c.supplier_model?.toLowerCase().trim() ?? ''));
     if (filterHasIntel) result = result.filter((c) => intelComponentIds.has(c.component_id));
+    if (filterLinked) result = result.filter((c) => linkedComponentIds.has(c.component_id));
     return [...result].sort((a, b) => {
       if (sortCol === 'updated_at') {
         const av = a[sortCol] ? new Date(a[sortCol] as string).getTime() : 0;
         const bv = b[sortCol] ? new Date(b[sortCol] as string).getTime() : 0;
         return sortDir === 'asc' ? av - bv : bv - av;
       }
-      if (sortCol === 'quoteCount' || sortCol === 'lineItemCount') {
+      if (sortCol === 'quoteCount' || sortCol === 'poCount' || sortCol === 'lineItemCount') {
         const au = usageMap.get(String(a.component_id));
         const bu = usageMap.get(String(b.component_id));
         const av = au ? au[sortCol] : 0;
@@ -906,7 +918,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       const bv = ((b[sortCol as keyof Component] as string) || '').toLowerCase();
       return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
     });
-  }, [components, search, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, sortCol, sortDir, usageMap, duplicateModels, intelComponentIds, sparklineLinesByComponent]);
+  }, [components, search, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, filterLinked, sortCol, sortDir, usageMap, duplicateModels, intelComponentIds, linkedComponentIds, sparklineLinesByComponent]);
 
   const toggleSort = (col: SortCol) => {
     if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -1089,7 +1101,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const clearAllFilters = () => {
     setSearchInput(''); setSearch('');
     setFilterBrand(''); setFilterCategory(''); setFilterPI(''); setFilterPO('');
-    setFilterUnused(false); setFilterDuplicates(false); setFilterHasIntel(false);
+    setFilterUnused(false); setFilterDuplicates(false); setFilterHasIntel(false); setFilterLinked(false);
   };
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
@@ -1732,6 +1744,17 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
             >
               Has Intel{filterHasIntel ? ` (${filtered.length})` : ''}
             </button>
+            <button
+              onClick={() => setFilterLinked((v) => !v)}
+              className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all flex-shrink-0 ${
+                filterLinked
+                  ? 'bg-sky-500/20 border-sky-500/40 text-sky-300'
+                  : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-sky-300 hover:border-sky-500/30'
+              }`}
+              title="Show only components linked to comparable items"
+            >
+              Linked{filterLinked ? ` (${filtered.length})` : ''}
+            </button>
           </div>
         </div>
 
@@ -1852,7 +1875,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       </div>
 
       {/* Active filter chips */}
-      {(search || filterBrand || filterCategory || filterPI || filterPO || filterUnused || filterDuplicates || filterHasIntel) && (
+      {(search || filterBrand || filterCategory || filterPI || filterPO || filterUnused || filterDuplicates || filterHasIntel || filterLinked) && (
         <div className="px-4 md:px-5 py-2.5 border-b border-slate-800/60 flex flex-wrap items-center gap-1.5 bg-slate-950/30">
           {search && <ActiveChip label="Search" value={search} onClear={() => { setSearchInput(''); setSearch(''); }} />}
           {filterBrand && <ActiveChip label="Brand" value={filterBrand} onClear={() => setFilterBrand('')} />}
@@ -1862,6 +1885,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
           {filterUnused && <ActiveChip label="Unused only" onClear={() => setFilterUnused(false)} />}
           {filterDuplicates && <ActiveChip label="Duplicates only" onClear={() => setFilterDuplicates(false)} />}
           {filterHasIntel && <ActiveChip label="Has market intel" onClear={() => setFilterHasIntel(false)} />}
+          {filterLinked && <ActiveChip label="Linked items only" onClear={() => setFilterLinked(false)} />}
           <button
             onMouseDown={clearAllFilters}
             className="text-[11px] text-slate-600 hover:text-slate-300 ml-1 transition-colors"
@@ -1911,10 +1935,10 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           Quotes{sortCol === 'quoteCount' ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
                         </button>
                         <button
-                          onClick={() => toggleSort('lineItemCount')}
-                          className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${sortCol === 'lineItemCount' ? 'text-emerald-300 border-emerald-500/40 bg-emerald-500/10' : 'text-slate-600 border-slate-700 hover:text-slate-400'}`}
+                          onClick={() => toggleSort('poCount')}
+                          className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${sortCol === 'poCount' ? 'text-emerald-300 border-emerald-500/40 bg-emerald-500/10' : 'text-slate-600 border-slate-700 hover:text-slate-400'}`}
                         >
-                          Items{sortCol === 'lineItemCount' ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+                          POs{sortCol === 'poCount' ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
                         </button>
                       </div>
                     </div>
@@ -2141,8 +2165,8 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                             <span className="font-semibold text-slate-300">{u.quoteCount}</span>
                             {u.quoteCount === 1 ? 'quote' : 'quotes'}
                             <span className="text-slate-700">·</span>
-                            <span className="font-semibold text-slate-300">{u.lineItemCount}</span>
-                            {u.lineItemCount === 1 ? 'item' : 'items'}
+                            <span className="font-semibold text-slate-300">{u.poCount}</span>
+                            {u.poCount === 1 ? 'PO' : 'POs'}
                           </div>
                         );
                       })()}
