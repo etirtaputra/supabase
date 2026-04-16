@@ -789,6 +789,57 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     return map;
   }, [poItems, pos]);
 
+  // ── Bulk TUC per component (single-pass, no per-component O(n) scan) ────────
+  const tucByComponent = useMemo(() => {
+    const poMap = new Map(pos.map((p) => [p.po_id, p]));
+    // Pre-group poItems and poCosts by po_id
+    const itemsByPO = new Map<string, PurchaseLineItem[]>();
+    poItems.forEach((i) => {
+      if (!itemsByPO.has(i.po_id)) itemsByPO.set(i.po_id, []);
+      itemsByPO.get(i.po_id)!.push(i);
+    });
+    const costsByPO = new Map<string, POCost[]>();
+    (poCosts ?? []).forEach((c) => {
+      if (!costsByPO.has(c.po_id)) costsByPO.set(c.po_id, []);
+      costsByPO.get(c.po_id)!.push(c);
+    });
+    // Per-PO derived values
+    interface POSummary { totalForeign: number; hasBalance: boolean; principal: number; bankFees: number; landed: number; date: string; xr: number | null; }
+    const poSummary = new Map<string, POSummary>();
+    itemsByPO.forEach((items, poId) => {
+      const po = poMap.get(poId); if (!po) return;
+      const totalForeign = items.reduce((s, i) => s + i.unit_cost * i.quantity, 0);
+      const costs = costsByPO.get(poId) ?? [];
+      const hasBalance = costs.some((c) => BALANCE_CATS.has(c.cost_category));
+      const principal = costs.filter((c) => PRINCIPAL_CATS.has(c.cost_category)).reduce((s, c) => s + c.amount, 0);
+      const bankFees  = costs.filter((c) => BANK_FEE_CATS.has(c.cost_category)).reduce((s, c) => s + c.amount, 0);
+      const landed    = costs.filter((c) => !PRINCIPAL_CATS.has(c.cost_category) && !BANK_FEE_CATS.has(c.cost_category) && !TAX_CATS.has(c.cost_category)).reduce((s, c) => s + c.amount, 0);
+      poSummary.set(poId, { totalForeign, hasBalance, principal, bankFees, landed, date: po.po_date, xr: po.exchange_rate ?? null });
+    });
+    // Accumulate per-component
+    interface CompAcc { wSum: number; wQty: number; latestTuc: number; latestDate: string; latestXr: number | null; }
+    const acc = new Map<string, CompAcc>();
+    poItems.forEach((item) => {
+      if (!item.component_id || item.quantity <= 0) return;
+      const ps = poSummary.get(item.po_id);
+      if (!ps || !ps.hasBalance || ps.totalForeign <= 0) return;
+      const share = (item.unit_cost * item.quantity) / ps.totalForeign;
+      const tuc = (share * (ps.principal + ps.bankFees + ps.landed)) / item.quantity;
+      if (tuc <= 0) return;
+      if (!acc.has(item.component_id)) acc.set(item.component_id, { wSum: 0, wQty: 0, latestTuc: 0, latestDate: '', latestXr: null });
+      const a = acc.get(item.component_id)!;
+      a.wSum += tuc * item.quantity; a.wQty += item.quantity;
+      if (ps.date > a.latestDate) { a.latestDate = ps.date; a.latestTuc = tuc; a.latestXr = ps.xr; }
+    });
+    const result = new Map<string, { actualTucIdr: number; tucXr: number | null }>();
+    acc.forEach((a, cid) => {
+      if (a.wQty <= 0) return;
+      const avgTuc = a.wSum / a.wQty;
+      result.set(cid, { actualTucIdr: Math.max(a.latestTuc, avgTuc), tucXr: a.latestXr });
+    });
+    return result;
+  }, [poItems, pos, poCosts]);
+
   // ── PO number lookup by quote_id (used in line-item modal) ──────────────────
   const posByQuoteId = useMemo(() => {
     const map = new Map<number, string[]>();
@@ -2096,15 +2147,23 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                       </td>
                     )}
 
-                    {/* Last Price */}
+                    {/* Last Price — TUC first, fallback to last quoted price */}
                     {visibleCols.lastPrice && (
                       <td className="px-3 py-1.5 align-middle min-w-[100px]">
                         {(() => {
-                          const lq = lastQuoteByComponent.get(c.component_id);
+                          const tuc = tucByComponent.get(c.component_id);
+                          const lq  = lastQuoteByComponent.get(c.component_id);
                           const isDup = duplicateModels.has(c.supplier_model?.toLowerCase().trim() ?? '');
                           return (
                             <div>
-                              {lq ? (
+                              {tuc ? (
+                                <div className="min-w-0">
+                                  <p className="text-xs font-medium text-slate-200 tabular-nums leading-tight">
+                                    IDR {Math.round(tuc.actualTucIdr).toLocaleString('en-US')}
+                                  </p>
+                                  <span className="text-[10px] text-amber-600/70 font-medium">TUC</span>
+                                </div>
+                              ) : lq ? (
                                 <div className="min-w-0">
                                   <p className="text-xs font-medium text-slate-200 tabular-nums leading-tight">
                                     {lq.currency} {lq.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
