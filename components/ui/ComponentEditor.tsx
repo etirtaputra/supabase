@@ -620,8 +620,8 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     const t = setTimeout(() => setSearch(searchInput), 150);
     return () => clearTimeout(t);
   }, [searchInput]);
-  const [sortCol, setSortCol] = useState<SortCol>('supplier_model');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [sortCol, setSortCol] = useState<SortCol>('updated_at');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [editingIds, setEditingIds] = useState<Set<string>>(new Set());
   const [pending, setPending] = useState<PendingEdits>({});
   const [saving, setSaving] = useState(false);
