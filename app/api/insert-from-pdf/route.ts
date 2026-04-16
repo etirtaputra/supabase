@@ -236,7 +236,7 @@ async function findOrCreateComponent(item: LineItem): Promise<number> {
   const { data: existing } = await supabase
     .from(TABLE_NAMES.COMPONENTS)
     .select('component_id')
-    .eq('model_sku', item.model_sku)
+    .eq('supplier_model', item.model_sku)
     .limit(1);
 
   if (existing && existing.length > 0) {
@@ -247,8 +247,8 @@ async function findOrCreateComponent(item: LineItem): Promise<number> {
   const { data: newComponent, error } = await supabase
     .from(TABLE_NAMES.COMPONENTS)
     .insert({
-      model_sku: item.model_sku,
-      description: item.description,
+      supplier_model: item.model_sku,
+      internal_description: item.description,
       brand: item.brand,
     })
     .select('component_id')
