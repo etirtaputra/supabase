@@ -444,19 +444,9 @@ function UsageTooltip({ quoteLines, poLines, style }: UsageTooltipProps) {
   return createPortal(content, document.body);
 }
 
-// ── Search highlight (background + text color, no font-weight) ──────────
-function Highlight({ text, query }: { text: string | null | undefined; query: string }) {
-  if (!text) return <>—</>;
-  if (!query) return <>{text}</>;
-  const idx = text.toLowerCase().indexOf(query.toLowerCase());
-  if (idx === -1) return <>{text}</>;
-  return <>
-    {text.slice(0, idx)}
-    <mark className="bg-emerald-500/30 text-emerald-300 rounded-sm not-italic">
-      {text.slice(idx, idx + query.length)}
-    </mark>
-    {text.slice(idx + query.length)}
-  </>;
+// ── Search highlight (disabled — filtering already shows matches) ────────
+function Highlight({ text }: { text: string | null | undefined; query: string }) {
+  return <>{text ?? '—'}</>;
 }
 
 // ── Price change indicator ────────────────────────────────────────────────
