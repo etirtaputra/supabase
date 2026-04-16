@@ -402,13 +402,18 @@ export default function DealLookupTab({
   const mismatchGroupIds = useMemo(() => {
     const ids = new Set<string>();
     allGroups.forEach((g) => {
+      if (acknowledgedDealMismatches.has(g.key)) return; // dismissed by user
       for (const po of g.pos) {
         if (!po.quote_id) continue;
         if (SUPERSEDED_PO_STATUSES.has(po.status ?? '')) continue;
         const linkedQuote = g.quotes.find((q) => String(q.quote_id) === String(po.quote_id));
         if (linkedQuote && SUPERSEDED_QUOTE_STATUSES.has(linkedQuote.status ?? '')) continue;
         if (acknowledgedMismatches.has(String(po.po_id))) continue;
-        if (detectMismatches(po.quote_id, po.po_id, quoteItems, poItems, components).length > 0) {
+        // Only flag real mismatches visible in the comparison table.
+        // 'duplicate_in_quote' is invisible there (duplicates are collapsed), so exclude it.
+        const realMismatches = detectMismatches(po.quote_id, po.po_id, quoteItems, poItems, components)
+          .filter((m) => m.type !== 'duplicate_in_quote');
+        if (realMismatches.length > 0) {
           ids.add(g.key);
           break;
         }
@@ -416,7 +421,7 @@ export default function DealLookupTab({
     });
     return ids;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allGroups, quoteItems, poItems, components, acknowledgedMismatches]);
+  }, [allGroups, quoteItems, poItems, components, acknowledgedMismatches, acknowledgedDealMismatches]);
 
   // ── All-mode filtered list (respects stageFilter + filterMismatch) ────────
   const filtered = useMemo(() => {
