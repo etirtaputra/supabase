@@ -574,6 +574,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [filterDuplicates, setFilterDuplicates] = useState(false);
   const [filterHasIntel, setFilterHasIntel] = useState(false);
   const [filterLinked, setFilterLinked] = useState(false);
+  const [filterHasSpecs, setFilterHasSpecs] = useState(false);
   const [visibleCols, setVisibleCols] = useState<Record<ColKey, boolean>>(() => {
     try {
       const saved = localStorage.getItem('componentEditor_cols');
@@ -597,6 +598,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         if (f.filterDuplicates) setFilterDuplicates(f.filterDuplicates);
         if (f.filterHasIntel) setFilterHasIntel(f.filterHasIntel);
         if (f.filterLinked) setFilterLinked(f.filterLinked);
+        if (f.filterHasSpecs) setFilterHasSpecs(f.filterHasSpecs);
       }
     } catch {}
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -605,10 +607,10 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   useEffect(() => {
     try {
       localStorage.setItem('componentEditor_filters', JSON.stringify({
-        searchInput, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, filterLinked,
+        searchInput, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs,
       }));
     } catch {}
-  }, [searchInput, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, filterLinked]);
+  }, [searchInput, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs]);
 
   // ── Persist column visibility ─────────────────────────────────────────────
   useEffect(() => {
@@ -926,6 +928,13 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     if (filterDuplicates) result = result.filter((c) => duplicateModels.has(c.supplier_model?.toLowerCase().trim() ?? ''));
     if (filterHasIntel) result = result.filter((c) => intelComponentIds.has(c.component_id));
     if (filterLinked) result = result.filter((c) => linkedComponentIds.has(c.component_id));
+    if (filterHasSpecs) result = result.filter((c) => {
+      const s = c.specifications;
+      if (!s) return false;
+      if (typeof s === 'object') return Object.keys(s as object).length > 0;
+      if (typeof s === 'string') { try { const p = JSON.parse(s); return p && typeof p === 'object' && Object.keys(p).length > 0; } catch { return false; } }
+      return false;
+    });
     return [...result].sort((a, b) => {
       if (sortCol === 'updated_at') {
         const av = a[sortCol] ? new Date(a[sortCol] as string).getTime() : 0;
@@ -954,7 +963,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       const bv = ((b[sortCol as keyof Component] as string) || '').toLowerCase();
       return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
     });
-  }, [components, search, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, filterLinked, sortCol, sortDir, usageMap, duplicateModels, intelComponentIds, linkedComponentIds, sparklineLinesByComponent]);
+  }, [components, search, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs, sortCol, sortDir, usageMap, duplicateModels, intelComponentIds, linkedComponentIds, sparklineLinesByComponent]);
 
   const toggleSort = (col: SortCol) => {
     if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -1137,7 +1146,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const clearAllFilters = () => {
     setSearchInput(''); setSearch('');
     setFilterBrand(''); setFilterCategory(''); setFilterPI(''); setFilterPO('');
-    setFilterUnused(false); setFilterDuplicates(false); setFilterHasIntel(false); setFilterLinked(false);
+    setFilterUnused(false); setFilterDuplicates(false); setFilterHasIntel(false); setFilterLinked(false); setFilterHasSpecs(false);
   };
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
@@ -1791,6 +1800,17 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
             >
               Linked{filterLinked ? ` (${filtered.length})` : ''}
             </button>
+            <button
+              onClick={() => setFilterHasSpecs((v) => !v)}
+              className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all flex-shrink-0 ${
+                filterHasSpecs
+                  ? 'bg-teal-500/20 border-teal-500/40 text-teal-300'
+                  : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-teal-300 hover:border-teal-500/30'
+              }`}
+              title="Show only components with specifications filled in"
+            >
+              Has Specs{filterHasSpecs ? ` (${filtered.length})` : ''}
+            </button>
           </div>
         </div>
 
@@ -1911,7 +1931,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       </div>
 
       {/* Active filter chips */}
-      {(search || filterBrand || filterCategory || filterPI || filterPO || filterUnused || filterDuplicates || filterHasIntel || filterLinked) && (
+      {(search || filterBrand || filterCategory || filterPI || filterPO || filterUnused || filterDuplicates || filterHasIntel || filterLinked || filterHasSpecs) && (
         <div className="px-4 md:px-5 py-2.5 border-b border-slate-800/60 flex flex-wrap items-center gap-1.5 bg-slate-950/30">
           {search && <ActiveChip label="Search" value={search} onClear={() => { setSearchInput(''); setSearch(''); }} />}
           {filterBrand && <ActiveChip label="Brand" value={filterBrand} onClear={() => setFilterBrand('')} />}
@@ -1922,6 +1942,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
           {filterDuplicates && <ActiveChip label="Duplicates only" onClear={() => setFilterDuplicates(false)} />}
           {filterHasIntel && <ActiveChip label="Has market intel" onClear={() => setFilterHasIntel(false)} />}
           {filterLinked && <ActiveChip label="Linked items only" onClear={() => setFilterLinked(false)} />}
+          {filterHasSpecs && <ActiveChip label="Has specs" onClear={() => setFilterHasSpecs(false)} />}
           <button
             onMouseDown={clearAllFilters}
             className="text-[11px] text-slate-600 hover:text-slate-300 ml-1 transition-colors"
