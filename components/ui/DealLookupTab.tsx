@@ -409,11 +409,7 @@ export default function DealLookupTab({
         const linkedQuote = g.quotes.find((q) => String(q.quote_id) === String(po.quote_id));
         if (linkedQuote && SUPERSEDED_QUOTE_STATUSES.has(linkedQuote.status ?? '')) continue;
         if (acknowledgedMismatches.has(String(po.po_id))) continue;
-        // Only flag real mismatches visible in the comparison table.
-        // 'duplicate_in_quote' is invisible there (duplicates are collapsed), so exclude it.
-        const realMismatches = detectMismatches(po.quote_id, po.po_id, quoteItems, poItems, components)
-          .filter((m) => m.type !== 'duplicate_in_quote');
-        if (realMismatches.length > 0) {
+        if (detectMismatches(po.quote_id, po.po_id, quoteItems, poItems, components).length > 0) {
           ids.add(g.key);
           break;
         }
@@ -1136,21 +1132,19 @@ export default function DealLookupTab({
             const qItems = quoteItems.filter((i) => String(i.quote_id) === String(qt.quote_id));
             const pItems = poItems.filter((i) => String(i.po_id) === String(po.po_id));
 
-            // Build matched rows keyed by component_id
+            // Build matched rows — one row per quote line item so duplicates are visible.
+            // PO items are greedily matched to the first unmatched quote row with the same
+            // component_id; remaining PO items become standalone "PO only" rows.
             type CmpRow = { cid: string | null; q?: typeof qItems[0]; p?: typeof pItems[0] };
-            const rowMap = new Map<string, CmpRow>();
-            qItems.forEach((i) => { if (i.component_id) rowMap.set(i.component_id, { cid: i.component_id, q: i }); });
-            pItems.forEach((i) => {
-              if (i.component_id) {
-                const ex = rowMap.get(i.component_id) ?? { cid: i.component_id };
-                rowMap.set(i.component_id, { ...ex, p: i });
+            const rows: CmpRow[] = qItems.map((q) => ({ cid: q.component_id ?? null, q }));
+            const matchedIdx = new Set<number>();
+            pItems.forEach((pi) => {
+              if (pi.component_id) {
+                const idx = rows.findIndex((r, i) => r.cid === pi.component_id && !matchedIdx.has(i) && !r.p);
+                if (idx >= 0) { rows[idx] = { ...rows[idx], p: pi }; matchedIdx.add(idx); return; }
               }
+              rows.push({ cid: pi.component_id ?? null, p: pi });
             });
-            const rows: CmpRow[] = [
-              ...Array.from(rowMap.values()),
-              ...qItems.filter((i) => !i.component_id).map((q) => ({ cid: null, q })),
-              ...pItems.filter((i) => !i.component_id).map((p) => ({ cid: null, p })),
-            ];
 
             return (
               <div key={`cmp-${qt.quote_id}-${po.po_id}`} className="mt-4 pt-3 border-t border-slate-700/40">
