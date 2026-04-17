@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { TABLE_NAMES } from '@/constants/tableNames';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: { persistSession: false }
-});
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { auth: { persistSession: false } }
+  );
+}
 
 interface LineItem {
   model_sku: string;
@@ -99,7 +100,7 @@ async function insertToHistory(data: ExtractedData) {
     }
   });
 
-  const { data: inserted, error } = await supabase
+  const { data: inserted, error } = await getSupabase()
     .from(tableName)
     .insert(historyRecords)
     .select();
@@ -121,7 +122,7 @@ async function insertToFormalTables(data: ExtractedData) {
   const supplierId = await findOrCreateSupplier(data.supplier_name);
 
   // Step 2: Get default company (or you could add company selection to the UI)
-  const { data: companies } = await supabase
+  const { data: companies } = await getSupabase()
     .from(TABLE_NAMES.COMPANIES)
     .select('company_id')
     .limit(1);
@@ -134,7 +135,7 @@ async function insertToFormalTables(data: ExtractedData) {
   );
 
   // Step 4: Insert Price Quote
-  const { data: quoteData, error: quoteError } = await supabase
+  const { data: quoteData, error: quoteError } = await getSupabase()
     .from(TABLE_NAMES.PRICE_QUOTES)
     .insert({
       supplier_id: supplierId,
@@ -165,7 +166,7 @@ async function insertToFormalTables(data: ExtractedData) {
     currency: data.currency,
   }));
 
-  const { data: lineItemsData, error: lineItemsError } = await supabase
+  const { data: lineItemsData, error: lineItemsError } = await getSupabase()
     .from(TABLE_NAMES.PRICE_QUOTE_LINE_ITEMS)
     .insert(lineItems)
     .select();
@@ -177,7 +178,7 @@ async function insertToFormalTables(data: ExtractedData) {
   // Step 6: Insert Proforma Invoice (if it's a PI document)
   let piId = null;
   if (data.document_type === 'proforma_invoice' && data.pi_number) {
-    const { data: piData, error: piError } = await supabase
+    const { data: piData, error: piError } = await getSupabase()
       .from(TABLE_NAMES.PROFORMA_INVOICES)
       .insert({
         quote_id: quoteId,
@@ -207,7 +208,7 @@ async function insertToFormalTables(data: ExtractedData) {
 
 async function findOrCreateSupplier(supplierName: string): Promise<number> {
   // Try to find existing supplier (fuzzy match)
-  const { data: existing } = await supabase
+  const { data: existing } = await getSupabase()
     .from(TABLE_NAMES.SUPPLIERS)
     .select('supplier_id')
     .ilike('supplier_name', `%${supplierName}%`)
@@ -218,7 +219,7 @@ async function findOrCreateSupplier(supplierName: string): Promise<number> {
   }
 
   // Create new supplier
-  const { data: newSupplier, error } = await supabase
+  const { data: newSupplier, error } = await getSupabase()
     .from(TABLE_NAMES.SUPPLIERS)
     .insert({ supplier_name: supplierName })
     .select('supplier_id')
@@ -233,7 +234,7 @@ async function findOrCreateSupplier(supplierName: string): Promise<number> {
 
 async function findOrCreateComponent(item: LineItem): Promise<number> {
   // Try to find existing component by SKU
-  const { data: existing } = await supabase
+  const { data: existing } = await getSupabase()
     .from(TABLE_NAMES.COMPONENTS)
     .select('component_id')
     .eq('supplier_model', item.model_sku)
@@ -244,7 +245,7 @@ async function findOrCreateComponent(item: LineItem): Promise<number> {
   }
 
   // Create new component
-  const { data: newComponent, error } = await supabase
+  const { data: newComponent, error } = await getSupabase()
     .from(TABLE_NAMES.COMPONENTS)
     .insert({
       supplier_model: item.model_sku,
