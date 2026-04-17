@@ -582,6 +582,13 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     } catch { return DEFAULT_COLS; }
   });
   const [showColPicker, setShowColPicker] = useState(false);
+  const [showFindReplace, setShowFindReplace] = useState(false);
+  const [frField, setFrField] = useState<'supplier_model' | 'internal_description'>('supplier_model');
+  const [frFind, setFrFind] = useState('');
+  const [frReplace, setFrReplace] = useState('');
+  const [frMatchCase, setFrMatchCase] = useState(false);
+  const [frUseRegex, setFrUseRegex] = useState(false);
+  const [frPreviewing, setFrPreviewing] = useState(false);
 
   // ── Restore filters from localStorage on mount ────────────────────────────
   useEffect(() => {
@@ -1149,6 +1156,54 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     setFilterUnused(false); setFilterDuplicates(false); setFilterHasIntel(false); setFilterLinked(false); setFilterHasSpecs(false);
   };
 
+  // ── Find & Replace logic ──────────────────────────────────────────────────
+  const getFindMatches = useCallback(() => {
+    if (!frFind) return [];
+    const toSearch = filtered.map(c => ({ ...c, value: c[frField] || '' }));
+    try {
+      if (frUseRegex) {
+        const regex = new RegExp(frFind, frMatchCase ? 'g' : 'gi');
+        return toSearch.filter(item => regex.test(item.value));
+      } else {
+        const find = frMatchCase ? frFind : frFind.toLowerCase();
+        return toSearch.filter(item => {
+          const val = frMatchCase ? item.value : item.value.toLowerCase();
+          return val.includes(find);
+        });
+      }
+    } catch {
+      return [];
+    }
+  }, [filtered, frField, frFind, frMatchCase, frUseRegex]);
+
+  const getReplacePreview = useCallback((comp: Component) => {
+    const val = comp[frField] || '';
+    try {
+      if (frUseRegex) {
+        const regex = new RegExp(frFind, frMatchCase ? 'g' : 'gi');
+        return val.replace(regex, frReplace);
+      } else {
+        const find = frMatchCase ? frFind : frFind.toLowerCase();
+        const idx = frMatchCase ? val.indexOf(frFind) : val.toLowerCase().indexOf(find);
+        if (idx < 0) return val;
+        return val.slice(0, idx) + frReplace + val.slice(idx + frFind.length);
+      }
+    } catch {
+      return val;
+    }
+  }, [frField, frFind, frReplace, frMatchCase, frUseRegex]);
+
+  const handleReplaceAll = () => {
+    const matches = getFindMatches();
+    if (!matches.length) return;
+    matches.forEach(comp => {
+      const newVal = getReplacePreview(comp);
+      setField(comp, frField, newVal);
+    });
+    setShowFindReplace(false);
+    setFrFind(''); setFrReplace('');
+  };
+
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
   // Use a ref so the handler always has the latest handleSaveAll without
   // re-registering the listener on every render.
@@ -1161,6 +1216,12 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         handleSaveAllRef.current();
+        return;
+      }
+      // Ctrl/Cmd+H → open find & replace
+      if ((e.ctrlKey || e.metaKey) && e.key === 'h') {
+        e.preventDefault();
+        setShowFindReplace(true);
         return;
       }
       const target = e.target as HTMLElement;
@@ -1718,28 +1779,40 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       <div className="p-4 md:p-5 border-b border-slate-800/60 space-y-2">
         <div className="flex flex-col gap-2">
           {/* Search — full-width on all screen sizes */}
-          <div className="relative w-full">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              ref={searchInputRef}
-              type="text"
-              placeholder="Search model, description, brand… (press / to focus)"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              className="w-full pl-9 pr-8 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none placeholder-slate-600"
-            />
-            {searchInput && (
-              <button
-                onClick={() => { setSearchInput(''); setSearch(''); }}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            )}
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Search model, description, brand… (press / to focus)"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="w-full pl-9 pr-8 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none placeholder-slate-600"
+              />
+              {searchInput && (
+                <button
+                  onClick={() => { setSearchInput(''); setSearch(''); }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+            <button
+              onClick={() => setShowFindReplace(true)}
+              title="Find & Replace (Ctrl+H)"
+              className="px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-slate-400 hover:text-slate-200 hover:border-slate-600 transition-colors flex items-center gap-1.5 flex-shrink-0 text-sm font-medium"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6-4v12m0 0l4-4m-4 4l-4-4" />
+              </svg>
+              Replace
+            </button>
           </div>
           {/* Filter controls — horizontally scrollable on mobile */}
           <div className="flex gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
@@ -3714,6 +3787,129 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
             </>
           );
         })(),
+        document.body
+      )}
+
+      {/* ── Find & Replace Modal ──────────────────────────────────────────── */}
+      {showFindReplace && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-auto">
+            {/* Header */}
+            <div className="p-6 border-b border-slate-800 flex justify-between items-center sticky top-0 bg-slate-900/95 backdrop-blur-sm">
+              <h2 className="text-lg font-bold text-white">Find & Replace</h2>
+              <button
+                onClick={() => setShowFindReplace(false)}
+                className="text-slate-500 hover:text-white transition-colors p-1"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-4">
+              {/* Field selector */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-2">Field</label>
+                <select
+                  value={frField}
+                  onChange={(e) => setFrField(e.target.value as any)}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20"
+                >
+                  <option value="supplier_model">Supplier Model</option>
+                  <option value="internal_description">Description</option>
+                </select>
+              </div>
+
+              {/* Find input */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-2">Find</label>
+                <input
+                  type="text"
+                  value={frFind}
+                  onChange={(e) => { setFrFind(e.target.value); setFrPreviewing(true); }}
+                  placeholder="Enter text or regex pattern…"
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 placeholder-slate-600"
+                  autoFocus
+                />
+              </div>
+
+              {/* Replace input */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-2">Replace with</label>
+                <input
+                  type="text"
+                  value={frReplace}
+                  onChange={(e) => setFrReplace(e.target.value)}
+                  placeholder="Replacement text…"
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 placeholder-slate-600"
+                />
+              </div>
+
+              {/* Options */}
+              <div className="flex gap-3 pt-2">
+                <label className="flex items-center gap-2 text-xs cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={frMatchCase}
+                    onChange={(e) => setFrMatchCase(e.target.checked)}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-slate-300">Match case</span>
+                </label>
+                <label className="flex items-center gap-2 text-xs cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={frUseRegex}
+                    onChange={(e) => setFrUseRegex(e.target.checked)}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-slate-300">Use regex</span>
+                </label>
+              </div>
+
+              {/* Preview */}
+              {frFind && (
+                <div className="pt-4 border-t border-slate-800">
+                  <div className="flex items-center gap-2 mb-3">
+                    <p className="text-xs font-semibold text-slate-400">
+                      {getFindMatches().length} match{getFindMatches().length !== 1 ? 'es' : ''}
+                    </p>
+                    {getFindMatches().length > 10 && (
+                      <p className="text-[10px] text-slate-500">(showing first 10)</p>
+                    )}
+                  </div>
+                  <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                    {getFindMatches().slice(0, 10).map((comp) => (
+                      <div key={comp.component_id} className="text-[11px] bg-slate-950/50 border border-slate-800 rounded p-2">
+                        <div className="font-mono text-red-400/80 truncate mb-1">{comp.value}</div>
+                        <div className="font-mono text-emerald-400/80 truncate">{getReplacePreview(comp)}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 border-t border-slate-800 flex gap-3">
+              <button
+                onClick={() => setShowFindReplace(false)}
+                className="flex-1 px-4 py-2 text-sm font-semibold text-slate-300 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReplaceAll}
+                disabled={!frFind || !getFindMatches().length}
+                className="flex-1 px-4 py-2 text-sm font-semibold text-white bg-emerald-600 border border-emerald-500/50 rounded-lg hover:bg-emerald-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Replace All ({getFindMatches().length})
+              </button>
+            </div>
+          </div>
+        </div>,
         document.body
       )}
     </>
