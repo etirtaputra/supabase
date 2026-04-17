@@ -583,7 +583,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   });
   const [showColPicker, setShowColPicker] = useState(false);
   const [showFindReplace, setShowFindReplace] = useState(false);
-  const [frField, setFrField] = useState<'supplier_model' | 'internal_description'>('supplier_model');
+  const [frField, setFrField] = useState<'supplier_model' | 'internal_description' | 'both'>('supplier_model');
   const [frFind, setFrFind] = useState('');
   const [frReplace, setFrReplace] = useState('');
   const [frMatchCase, setFrMatchCase] = useState(false);
@@ -1157,48 +1157,62 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   };
 
   // ── Find & Replace logic ──────────────────────────────────────────────────
-  const getFindMatches = useCallback(() => {
-    if (!frFind) return [];
-    const toSearch = filtered.map(c => ({ ...c, value: c[frField] || '' }));
-    try {
-      if (frUseRegex) {
-        const regex = new RegExp(frFind, frMatchCase ? 'g' : 'gi');
-        return toSearch.filter(item => regex.test(item.value));
-      } else {
-        const find = frMatchCase ? frFind : frFind.toLowerCase();
-        return toSearch.filter(item => {
-          const val = frMatchCase ? item.value : item.value.toLowerCase();
-          return val.includes(find);
-        });
-      }
-    } catch {
-      return [];
-    }
-  }, [filtered, frField, frFind, frMatchCase, frUseRegex]);
+  const fieldsToSearch = frField === 'both'
+    ? ['supplier_model', 'internal_description'] as const
+    : [frField] as const;
 
-  const getReplacePreview = useCallback((comp: Component) => {
-    const val = comp[frField] || '';
+  const applyReplaceToValue = useCallback((val: string) => {
+    if (!val) return val;
     try {
       if (frUseRegex) {
         const regex = new RegExp(frFind, frMatchCase ? 'g' : 'gi');
         return val.replace(regex, frReplace);
       } else {
+        const src = frMatchCase ? val : val.toLowerCase();
         const find = frMatchCase ? frFind : frFind.toLowerCase();
-        const idx = frMatchCase ? val.indexOf(frFind) : val.toLowerCase().indexOf(find);
-        if (idx < 0) return val;
-        return val.slice(0, idx) + frReplace + val.slice(idx + frFind.length);
+        let result = val;
+        let offset = 0;
+        let idx: number;
+        while ((idx = src.indexOf(find, offset)) >= 0) {
+          result = result.slice(0, idx) + frReplace + result.slice(idx + frFind.length);
+          offset = idx + frReplace.length;
+          if (!frReplace.length && offset === idx) break;
+        }
+        return result;
       }
-    } catch {
-      return val;
-    }
-  }, [frField, frFind, frReplace, frMatchCase, frUseRegex]);
+    } catch { return val; }
+  }, [frFind, frReplace, frMatchCase, frUseRegex]);
+
+  const getFindMatches = useCallback(() => {
+    if (!frFind) return [];
+    try {
+      return filtered.filter(c =>
+        fieldsToSearch.some(f => {
+          const val = frMatchCase ? (c[f] || '') : (c[f] || '').toLowerCase();
+          const find = frMatchCase ? frFind : frFind.toLowerCase();
+          if (frUseRegex) return new RegExp(frFind, frMatchCase ? '' : 'i').test(c[f] || '');
+          return val.includes(find);
+        })
+      );
+    } catch { return []; }
+  }, [filtered, fieldsToSearch, frFind, frMatchCase, frUseRegex]);
+
+  const getReplacePreview = useCallback((comp: Component) => {
+    return fieldsToSearch.map(f => ({
+      field: f,
+      before: comp[f] || '',
+      after: applyReplaceToValue(comp[f] || ''),
+    })).filter(x => x.before !== x.after);
+  }, [fieldsToSearch, applyReplaceToValue]);
 
   const handleReplaceAll = () => {
     const matches = getFindMatches();
     if (!matches.length) return;
     matches.forEach(comp => {
-      const newVal = getReplacePreview(comp);
-      setField(comp, frField, newVal);
+      fieldsToSearch.forEach(f => {
+        const newVal = applyReplaceToValue(comp[f] || '');
+        if (newVal !== (comp[f] || '')) setField(comp, f, newVal);
+      });
     });
     setShowFindReplace(false);
     setFrFind(''); setFrReplace('');
@@ -3811,15 +3825,26 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
             <div className="p-6 space-y-4">
               {/* Field selector */}
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-2">Field</label>
-                <select
-                  value={frField}
-                  onChange={(e) => setFrField(e.target.value as any)}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20"
-                >
-                  <option value="supplier_model">Supplier Model</option>
-                  <option value="internal_description">Description</option>
-                </select>
+                <label className="block text-xs font-semibold text-slate-400 mb-2">Apply to</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    { value: 'supplier_model', label: 'Model' },
+                    { value: 'internal_description', label: 'Description' },
+                    { value: 'both', label: '✓ Both' },
+                  ] as const).map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setFrField(opt.value)}
+                      className={`py-2 px-3 rounded-lg text-xs font-semibold border transition-all ${
+                        frField === opt.value
+                          ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                          : 'bg-slate-950 border-slate-700 text-slate-400 hover:border-slate-600 hover:text-slate-200'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Find input */}
@@ -3870,26 +3895,38 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
               </div>
 
               {/* Preview */}
-              {frFind && (
-                <div className="pt-4 border-t border-slate-800">
-                  <div className="flex items-center gap-2 mb-3">
-                    <p className="text-xs font-semibold text-slate-400">
-                      {getFindMatches().length} match{getFindMatches().length !== 1 ? 'es' : ''}
-                    </p>
-                    {getFindMatches().length > 10 && (
-                      <p className="text-[10px] text-slate-500">(showing first 10)</p>
-                    )}
+              {frFind && (() => {
+                const matches = getFindMatches();
+                return (
+                  <div className="pt-4 border-t border-slate-800">
+                    <div className="flex items-center gap-2 mb-3">
+                      <p className="text-xs font-semibold text-slate-400">
+                        {matches.length} component{matches.length !== 1 ? 's' : ''} matched
+                      </p>
+                      {matches.length > 8 && <p className="text-[10px] text-slate-500">(showing first 8)</p>}
+                    </div>
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {matches.slice(0, 8).map((comp) => {
+                        const previews = getReplacePreview(comp);
+                        if (!previews.length) return null;
+                        return (
+                          <div key={comp.component_id} className="text-[11px] bg-slate-950/50 border border-slate-800 rounded-lg p-2.5 space-y-1.5">
+                            {previews.map(({ field, before, after }) => (
+                              <div key={field}>
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 mr-1">
+                                  {field === 'supplier_model' ? 'Model' : 'Desc'}
+                                </span>
+                                <div className="font-mono text-red-400/70 truncate">{before}</div>
+                                <div className="font-mono text-emerald-400/80 truncate">→ {after}</div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <div className="space-y-1.5 max-h-64 overflow-y-auto">
-                    {getFindMatches().slice(0, 10).map((comp) => (
-                      <div key={comp.component_id} className="text-[11px] bg-slate-950/50 border border-slate-800 rounded p-2">
-                        <div className="font-mono text-red-400/80 truncate mb-1">{comp.value}</div>
-                        <div className="font-mono text-emerald-400/80 truncate">{getReplacePreview(comp)}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
 
             {/* Footer */}
