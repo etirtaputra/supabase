@@ -2070,19 +2070,19 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                 {visibleCols.usage && (
                   <th className="hidden md:table-cell px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 min-w-[140px]">
                     <div className="flex items-center gap-2">
-                      <span>Usage</span>
+                      <span>Deals</span>
                       <div className="flex gap-1">
                         <button
                           onClick={() => toggleSort('quoteCount')}
                           className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${sortCol === 'quoteCount' ? 'text-emerald-300 border-emerald-500/40 bg-emerald-500/10' : 'text-slate-600 border-slate-700 hover:text-slate-400'}`}
                         >
-                          Quotes{sortCol === 'quoteCount' ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+                          Q{sortCol === 'quoteCount' ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
                         </button>
                         <button
                           onClick={() => toggleSort('poCount')}
                           className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${sortCol === 'poCount' ? 'text-emerald-300 border-emerald-500/40 bg-emerald-500/10' : 'text-slate-600 border-slate-700 hover:text-slate-400'}`}
                         >
-                          POs{sortCol === 'poCount' ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+                          P{sortCol === 'poCount' ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
                         </button>
                       </div>
                     </div>
