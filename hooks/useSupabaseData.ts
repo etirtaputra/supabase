@@ -1,6 +1,7 @@
 /**
- * Supabase Data Hook
- * Centralized data fetching with loading states and error handling
+ * Supabase Data Hook — Optimized for responsiveness
+ * Critical data loads first (companies, suppliers, components, quotes, POs)
+ * Non-critical data (history, intel, links) loads async on-demand
  */
 
 'use client';
@@ -31,35 +32,40 @@ export function useSupabaseData() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = useCallback(async (silent = false) => {
+  // Fetch all components with range pagination
+  const fetchAllComponents = useCallback(async () => {
+    const PAGE = 1000;
+    let all: any[] = [];
+    let from = 0;
+    while (true) {
+      const { data: page, error } = await supabase
+        .from(TABLE_NAMES.COMPONENTS)
+        .select('*')
+        .order('supplier_model', { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error || !page || page.length === 0) break;
+      all = all.concat(page);
+      if (page.length < PAGE) break;
+      from += PAGE;
+    }
+    return all;
+  }, [supabase]);
+
+  // Fetch critical data (companies, suppliers, components, quotes, POs, costs)
+  const fetchCriticalData = useCallback(async () => {
     try {
-      if (!silent) setLoading(true);
+      setLoading(true);
       setError(null);
-
-      // Fetch all components with range pagination (PostgREST caps at 1000/page)
-      const fetchAllComponents = async () => {
-        const PAGE = 1000;
-        let all: any[] = [];
-        let from = 0;
-        while (true) {
-          const { data: page, error } = await supabase
-            .from(TABLE_NAMES.COMPONENTS)
-            .select('*')
-            .order('supplier_model', { ascending: true })
-            .range(from, from + PAGE - 1);
-          if (error || !page || page.length === 0) break;
-          all = all.concat(page);
-          if (page.length < PAGE) break;
-          from += PAGE;
-        }
-        return all;
-      };
-
-      // Fetch foundation data (critical)
-      const [compRows, sup, allComponents] = await Promise.all([
+      const [compRows, sup, allComponents, quotes, quoteItems, pis, pos, poItems, poCosts] = await Promise.all([
         supabase.from(TABLE_NAMES.COMPANIES).select('company_id, legal_name'),
         supabase.from(TABLE_NAMES.SUPPLIERS).select('*'),
         fetchAllComponents(),
+        supabase.from(TABLE_NAMES.PRICE_QUOTES).select('*').order('quote_date', { ascending: false }),
+        supabase.from(TABLE_NAMES.PRICE_QUOTE_LINE_ITEMS).select('*'),
+        supabase.from(TABLE_NAMES.PROFORMA_INVOICES).select('*').order('pi_date', { ascending: false }),
+        supabase.from(TABLE_NAMES.PURCHASES).select('*').order('po_date', { ascending: false }),
+        supabase.from(TABLE_NAMES.PURCHASE_LINE_ITEMS).select('*'),
+        supabase.from(TABLE_NAMES.PO_COSTS).select('*').order('payment_date', { ascending: false, nullsFirst: false }),
       ]);
 
       setData((prev) => ({
@@ -67,110 +73,68 @@ export function useSupabaseData() {
         companies: compRows.data || [],
         suppliers: sup.data || [],
         components: allComponents,
+        quotes: quotes.data || [],
+        quoteItems: quoteItems.data || [],
+        pis: pis.data || [],
+        pos: pos.data || [],
+        poItems: poItems.data || [],
+        poCosts: poCosts.data || [],
       }));
-
-      // Fetch transactional data (independent, non-blocking)
-      supabase
-        .from(TABLE_NAMES.PRICE_QUOTES)
-        .select('*')
-        .order('quote_date', { ascending: false })
-        .then(({ data: quotes }) => {
-          if (quotes) setData((prev) => ({ ...prev, quotes }));
-        });
-
-      supabase
-        .from(TABLE_NAMES.PRICE_QUOTE_LINE_ITEMS)
-        .select('*')
-        .then(({ data: quoteItems }) => {
-          if (quoteItems) setData((prev) => ({ ...prev, quoteItems }));
-        });
-
-      supabase
-        .from(TABLE_NAMES.PROFORMA_INVOICES)
-        .select('*')
-        .order('pi_date', { ascending: false })
-        .then(({ data: pis }) => {
-          if (pis) setData((prev) => ({ ...prev, pis }));
-        });
-
-      supabase
-        .from(TABLE_NAMES.PURCHASES)
-        .select('*')
-        .order('po_date', { ascending: false })
-        .then(({ data: pos }) => {
-          if (pos) setData((prev) => ({ ...prev, pos }));
-        });
-
-      supabase
-        .from(TABLE_NAMES.PURCHASE_LINE_ITEMS)
-        .select('*')
-        .then(({ data: poItems }) => {
-          if (poItems) setData((prev) => ({ ...prev, poItems }));
-        });
-
-      supabase
-        .from(TABLE_NAMES.PO_COSTS)
-        .select('*')
-        .order('payment_date', { ascending: false, nullsFirst: false })
-        .then(({ data: poCosts }) => {
-          if (poCosts) setData((prev) => ({ ...prev, poCosts }));
-        });
-
-      supabase
-        .from(TABLE_NAMES.PURCHASE_HISTORY)
-        .select('*')
-        .order('po_date', { ascending: false })
-        .then(({ data: poHistory }) => {
-          if (poHistory) setData((prev) => ({ ...prev, poHistory }));
-        });
-
-      supabase
-        .from(TABLE_NAMES.QUOTE_HISTORY)
-        .select('*')
-        .order('quote_date', { ascending: false })
-        .then(({ data: quoteHistory }) => {
-          if (quoteHistory) setData((prev) => ({ ...prev, quoteHistory }));
-        });
-
-      supabase
-        .from(TABLE_NAMES.COMPETITOR_PRICES)
-        .select('*')
-        .order('observed_at', { ascending: false })
-        .then(({ data: competitorPrices }) => {
-          if (competitorPrices) setData((prev) => ({ ...prev, competitorPrices }));
-        });
-
-      supabase
-        .from(TABLE_NAMES.COMPONENT_HISTORY)
-        .select('*')
-        .order('changed_at', { ascending: false })
-        .limit(2000)
-        .then(({ data: componentHistory }) => {
-          if (componentHistory) setData((prev) => ({ ...prev, componentHistory }));
-        });
-
-      supabase
-        .from(TABLE_NAMES.COMPONENT_LINKS)
-        .select('*')
-        .then(({ data: componentLinks }) => {
-          if (componentLinks) setData((prev) => ({ ...prev, componentLinks }));
-        });
-
       setLoading(false);
     } catch (err: any) {
       setError(err.message || 'Failed to load data');
       setLoading(false);
     }
-  }, []);
+  }, [supabase, fetchAllComponents]);
 
+  // Fetch non-critical data (history, intel, links) async
+  const fetchNonCriticalData = useCallback(async () => {
+    Promise.all([
+      supabase.from(TABLE_NAMES.PURCHASE_HISTORY).select('*').order('po_date', { ascending: false }),
+      supabase.from(TABLE_NAMES.QUOTE_HISTORY).select('*').order('quote_date', { ascending: false }),
+      supabase.from(TABLE_NAMES.COMPETITOR_PRICES).select('*').order('observed_at', { ascending: false }),
+      supabase.from(TABLE_NAMES.COMPONENT_HISTORY).select('*').order('changed_at', { ascending: false }).limit(2000),
+      supabase.from(TABLE_NAMES.COMPONENT_LINKS).select('*'),
+    ]).then(([poHist, qHist, intel, compHist, links]) => {
+      setData((prev) => ({
+        ...prev,
+        poHistory: poHist.data || [],
+        quoteHistory: qHist.data || [],
+        competitorPrices: intel.data || [],
+        componentHistory: compHist.data || [],
+        componentLinks: links.data || [],
+      }));
+    });
+  }, [supabase]);
+
+  // Load critical data on mount
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    fetchCriticalData();
+  }, [fetchCriticalData]);
+
+  // Load non-critical data after critical data is ready (async)
+  useEffect(() => {
+    if (!loading && data.companies.length > 0) {
+      fetchNonCriticalData();
+    }
+  }, [loading, data.companies.length, fetchNonCriticalData]);
+
+  // Selective refetch — only critical data (used after save)
+  const refetch = useCallback(async () => {
+    await fetchCriticalData();
+  }, [fetchCriticalData]);
+
+  // Full refetch including non-critical (used rarely, e.g., explicit refresh)
+  const refetchAll = useCallback(async () => {
+    await fetchCriticalData();
+    fetchNonCriticalData();
+  }, [fetchCriticalData, fetchNonCriticalData]);
 
   return {
     data,
     loading,
     error,
-    refetch: () => fetchData(true),
+    refetch,           // Fast: only quotes/POs/components (use after save)
+    refetchAll,        // Slow: everything including history/intel
   };
 }
