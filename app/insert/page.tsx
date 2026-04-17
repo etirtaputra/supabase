@@ -14,8 +14,8 @@ import CompetitorPriceForm from '@/components/forms/CompetitorPriceForm';
 import MultiPaymentForm from '@/components/forms/MultiPaymentForm';
 
 // Lazy-load heavy components (loaded only when tab is active)
-const ComponentEditor = dynamic(() => import('@/components/ui/ComponentEditor'), { loading: () => <FormSkeleton rows={8} columns={6} /> });
-const DealLookupTab = dynamic(() => import('@/components/ui/DealLookupTab'), { loading: () => <FormSkeleton rows={8} columns={6} /> });
+const ComponentEditor = dynamic(() => import('@/components/ui/ComponentEditor'), { loading: () => <FormSkeleton fields={8} /> });
+const DealLookupTab = dynamic(() => import('@/components/ui/DealLookupTab'), { loading: () => <FormSkeleton fields={8} /> });
 import PDFUploadBanner from '@/components/ui/PDFUploadBanner';
 import { ToastContainer } from '@/components/ui/Toast';
 import { ToastProvider } from '@/hooks/useToast';
