@@ -435,9 +435,7 @@ function MasterInsertPage() {
       </div>
 
       {/* ── Main content ── */}
-      <main className={`max-w-[1800px] mx-auto animate-in fade-in duration-300 ${
-        activeTab === 'catalog' ? 'p-3 md:p-4 xl:p-5' : 'p-4 md:p-6 xl:p-8 2xl:p-10'
-      }`}>
+      <main className={`max-w-[1800px] mx-auto animate-in fade-in duration-300 p-4 md:p-5 xl:p-6 2xl:p-8`}>
         <div className="pb-8 md:pb-4">
           {dataLoading ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 xl:gap-8 2xl:gap-10">
@@ -476,28 +474,30 @@ function MasterInsertPage() {
                       </button>
                     </div>
                   ) : null}
-                  <ComponentEditor
-                    components={data.components}
-                    brandSuggestions={suggestions.brands}
-                    quoteItems={data.quoteItems}
-                    quotes={data.quotes}
-                    pos={data.pos}
-                    poItems={data.poItems}
-                    poCosts={data.poCosts}
-                    componentHistory={data.componentHistory}
-                    competitorPrices={data.competitorPrices}
-                    onDeleteCompetitorPrice={handleDeleteCompetitorPrice}
-                    onUpdateCompetitorPrice={handleUpdateCompetitorPrice}
-                    componentLinks={data.componentLinks}
-                    onAddComponentLink={handleAddComponentLink}
-                    onDeleteComponentLink={handleDeleteComponentLink}
-                    onSave={handleComponentUpdates}
-                    onAdd={(fields) => handleInsert('3.0_components', [fields])}
-                    onAddSupplier={() => setShowSupplierForm(true)}
-                    onDelete={handleComponentDelete}
-                    onSaveLineItem={handleSaveLineItem}
-                    onDeleteLineItem={handleDeleteLineItem}
-                  />
+                  <Suspense fallback={<div className="min-h-96"><FormSkeleton rows={12} columns={8} /></div>}>
+                    <ComponentEditor
+                      components={data.components}
+                      brandSuggestions={suggestions.brands}
+                      quoteItems={data.quoteItems}
+                      quotes={data.quotes}
+                      pos={data.pos}
+                      poItems={data.poItems}
+                      poCosts={data.poCosts}
+                      componentHistory={data.componentHistory}
+                      competitorPrices={data.competitorPrices}
+                      onDeleteCompetitorPrice={handleDeleteCompetitorPrice}
+                      onUpdateCompetitorPrice={handleUpdateCompetitorPrice}
+                      componentLinks={data.componentLinks}
+                      onAddComponentLink={handleAddComponentLink}
+                      onDeleteComponentLink={handleDeleteComponentLink}
+                      onSave={handleComponentUpdates}
+                      onAdd={(fields) => handleInsert('3.0_components', [fields])}
+                      onAddSupplier={() => setShowSupplierForm(true)}
+                      onDelete={handleComponentDelete}
+                      onSaveLineItem={handleSaveLineItem}
+                      onDeleteLineItem={handleDeleteLineItem}
+                    />
+                  </Suspense>
                 </div>
               )}
 
@@ -900,29 +900,31 @@ function MasterInsertPage() {
 
               {/* Deal Lookup Tab */}
               {activeTab === 'lookup' && (
-                <DealLookupTab
-                  quotes={data.quotes}
-                  quoteItems={data.quoteItems}
-                  pos={data.pos}
-                  poItems={data.poItems}
-                  poCosts={data.poCosts}
-                  suppliers={data.suppliers}
-                  companies={data.companies}
-                  components={data.components}
-                  onQuoteStatusChange={handleQuoteStatusChange}
-                  onPoStatusChange={handleStatusChange}
-                  onUpdatePo={handleUpdatePo}
-                  onMarkFullyPaid={handleMarkFullyPaid}
-                  onCreatePO={(quoteId) => { setPendingQuoteForPO(quoteId); handleTabChange('ordering'); }}
-                  onUpdateQuoteItem={handleUpdateQuoteItem}
-                  onUpdatePoItem={handleUpdatePoItem}
-                  onUpdateQuoteLineItem={handleUpdateQuoteLineItem}
-                  onUpdatePoLineItem={handleUpdatePoLineItem}
-                  onAddPoLineItem={handleAddPoLineItem}
-                  onAddQuoteLineItem={handleAddQuoteLineItem}
-                  onDeletePoLineItem={handleDeletePoLineItem}
-                  onDeleteQuoteLineItem={handleDeleteQuoteLineItem}
-                />
+                <Suspense fallback={<div className="min-h-96"><FormSkeleton rows={12} columns={8} /></div>}>
+                  <DealLookupTab
+                    quotes={data.quotes}
+                    quoteItems={data.quoteItems}
+                    pos={data.pos}
+                    poItems={data.poItems}
+                    poCosts={data.poCosts}
+                    suppliers={data.suppliers}
+                    companies={data.companies}
+                    components={data.components}
+                    onQuoteStatusChange={handleQuoteStatusChange}
+                    onPoStatusChange={handleStatusChange}
+                    onUpdatePo={handleUpdatePo}
+                    onMarkFullyPaid={handleMarkFullyPaid}
+                    onCreatePO={(quoteId) => { setPendingQuoteForPO(quoteId); handleTabChange('ordering'); }}
+                    onUpdateQuoteItem={handleUpdateQuoteItem}
+                    onUpdatePoItem={handleUpdatePoItem}
+                    onUpdateQuoteLineItem={handleUpdateQuoteLineItem}
+                    onUpdatePoLineItem={handleUpdatePoLineItem}
+                    onAddPoLineItem={handleAddPoLineItem}
+                    onAddQuoteLineItem={handleAddQuoteLineItem}
+                    onDeletePoLineItem={handleDeletePoLineItem}
+                    onDeleteQuoteLineItem={handleDeleteQuoteLineItem}
+                  />
+                </Suspense>
               )}
             </>
           )}
