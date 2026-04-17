@@ -4,15 +4,18 @@
  */
 'use client';
 import { useState, useMemo, Suspense } from 'react';
+import dynamic from 'next/dynamic';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 // Components
 import SimpleForm from '@/components/forms/SimpleForm';
 import BatchLineItemsForm from '@/components/forms/BatchLineItemsForm';
-import ComponentEditor from '@/components/ui/ComponentEditor';
 import CompetitorPriceForm from '@/components/forms/CompetitorPriceForm';
 import MultiPaymentForm from '@/components/forms/MultiPaymentForm';
-import DealLookupTab from '@/components/ui/DealLookupTab';
+
+// Lazy-load heavy components (loaded only when tab is active)
+const ComponentEditor = dynamic(() => import('@/components/ui/ComponentEditor'), { loading: () => <FormSkeleton rows={8} columns={6} /> });
+const DealLookupTab = dynamic(() => import('@/components/ui/DealLookupTab'), { loading: () => <FormSkeleton rows={8} columns={6} /> });
 import PDFUploadBanner from '@/components/ui/PDFUploadBanner';
 import { ToastContainer } from '@/components/ui/Toast';
 import { ToastProvider } from '@/hooks/useToast';
