@@ -1533,10 +1533,12 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
 
       // Detect if link is inverted (component_a should always be the smaller/primary one)
       // For now, we detect but don't fix—user can manually correct via remove+re-add
-      const isInverted = link.link_type === 'normalized' &&
+      const isInverted = !!(
+        link.link_type === 'normalized' &&
         link.norm_value_a && link.norm_value_b &&
         link.norm_value_a > link.norm_value_b &&
-        !isA;  // inverted if inspected component is B and has larger normValue
+        !isA  // inverted if inspected component is B and has larger normValue
+      );
 
       return {
         link,
