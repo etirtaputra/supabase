@@ -592,6 +592,13 @@ function MasterInsertPage() {
                             if (q) {
                               overrides.pi_number = q.pi_number || '';
                               overrides.pi_date   = q.quote_date || '';
+                              overrides.total_value = q.total_value || undefined;
+                              overrides.currency = q.currency || undefined;
+                              // Auto-fill payment terms from supplier default
+                              const supplier = data.suppliers.find((s) => String(s.supplier_id) === String(q.supplier_id));
+                              if (supplier?.payment_terms_default) {
+                                overrides.payment_terms = supplier.payment_terms_default;
+                              }
                               // Exchange rate memory: find most recent PO for same supplier with same currency
                               if (q.currency && q.currency !== 'IDR') {
                                 const sameCurrencyPOs = data.pos
