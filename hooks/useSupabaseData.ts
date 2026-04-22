@@ -27,6 +27,7 @@ export function useSupabaseData() {
     competitorPrices: [],
     componentHistory: [],
     componentLinks: [],
+    exchangeRates: [],
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -154,6 +155,14 @@ export function useSupabaseData() {
         .select('*')
         .then(({ data: componentLinks }) => {
           if (componentLinks) setData((prev) => ({ ...prev, componentLinks }));
+        });
+
+      supabase
+        .from(TABLE_NAMES.EXCHANGE_RATE_HISTORY)
+        .select('*')
+        .order('payment_date', { ascending: false })
+        .then(({ data: exchangeRates }) => {
+          if (exchangeRates) setData((prev) => ({ ...prev, exchangeRates }));
         });
 
       setLoading(false);

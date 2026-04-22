@@ -246,6 +246,19 @@ export interface ComponentHistoryEntry {
   changed_at: string;
 }
 
+// 9.0 Exchange Rate History
+export interface ExchangeRateHistory extends BaseEntity {
+  rate_id: string;
+  po_id: string;
+  supplier_id: string;
+  currency: string;
+  quoted_amount_foreign: number;
+  paid_amount_idr: number;
+  implied_rate: number;
+  payment_date: string;
+  notes?: string;
+}
+
 // Aggregated data structures
 export interface DatabaseData {
   companies: Company[];
@@ -262,6 +275,7 @@ export interface DatabaseData {
   competitorPrices: CompetitorPrice[];
   componentHistory: ComponentHistoryEntry[];
   componentLinks: ComponentLink[];
+  exchangeRates?: ExchangeRateHistory[];
 }
 
 // Autocomplete suggestions structure
