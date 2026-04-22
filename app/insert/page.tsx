@@ -660,7 +660,7 @@ function MasterInsertPage() {
                       return (
                         <ExchangeRateSuggestion
                           rates={data.exchangeRates || []}
-                          supplierId={pq?.supplier_id}
+                          supplierId={pq?.supplier_id ? String(pq.supplier_id) : undefined}
                           currency={pq?.currency}
                           suppliers={data.suppliers}
                         />
