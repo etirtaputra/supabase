@@ -30,30 +30,43 @@ WITH po_payments AS (
   WHERE pc.cost_category IN ('down_payment', 'balance_payment', 'additional_balance_payment')
   GROUP BY pc.po_id
 ),
+quoted_line_totals AS (
+  -- Calculate total quoted amount from line items per PO (excludes freight)
+  SELECT
+    q.quote_id,
+    pli.currency,
+    SUM(pli.unit_price * pli.quantity) as quoted_line_total
+  FROM "4.0_price_quotes" q
+  LEFT JOIN "4.1_price_quote_line_items" pli ON q.quote_id = pli.quote_id
+  WHERE pli.currency IS NOT NULL
+    AND pli.currency != 'IDR'
+  GROUP BY q.quote_id, pli.currency
+),
 fully_paid_pos AS (
-  -- Sum quoted line items to get actual goods value (excludes freight)
+  -- Only include POs where:
+  -- - Have a quote (to get supplier)
+  -- - Are in foreign currency
+  -- - Total principal payments >= quoted line items total (excludes freight)
   SELECT
     p.po_id,
     p.po_number,
     p.po_date,
     p.quote_id,
     q.supplier_id,
-    pli.currency,
-    SUM(pli.unit_price * pli.quantity) as quoted_line_total,
+    qlt.currency,
+    qlt.quoted_line_total,
     pp.total_paid_idr,
     pp.latest_payment_date,
     p.exchange_rate
   FROM "5.0_purchases" p
   LEFT JOIN "4.0_price_quotes" q ON p.quote_id = q.quote_id
-  LEFT JOIN "4.1_price_quote_line_items" pli ON q.quote_id = pli.quote_id
+  LEFT JOIN quoted_line_totals qlt ON q.quote_id = qlt.quote_id
   INNER JOIN po_payments pp ON p.po_id = pp.po_id
   WHERE p.quote_id IS NOT NULL
     AND q.supplier_id IS NOT NULL
-    AND pli.currency IS NOT NULL
-    AND pli.currency != 'IDR'
-    -- Total principal payments >= quoted line items total (excludes freight/other costs)
-    AND pp.total_paid_idr >= (SUM(pli.unit_price * pli.quantity) * COALESCE(p.exchange_rate, 1) * 0.95)
-  GROUP BY p.po_id, p.po_number, p.po_date, p.quote_id, q.supplier_id, pli.currency, pp.total_paid_idr, pp.latest_payment_date, p.exchange_rate
+    AND qlt.currency IS NOT NULL
+    -- Total principal payments >= quoted line items total (in equivalent IDR)
+    AND pp.total_paid_idr >= (qlt.quoted_line_total * COALESCE(p.exchange_rate, 1) * 0.95)
 )
 SELECT
   fpp.po_id,
