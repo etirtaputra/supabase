@@ -59,7 +59,7 @@ SELECT
   fpp.currency,
   fpp.quoted_amount,
   fpp.total_paid_idr,
-  ROUND((fpp.total_paid_idr / (fpp.quoted_amount * COALESCE(fpp.exchange_rate, 1)))::numeric, 4) as implied_rate,
+  ROUND((fpp.total_paid_idr / fpp.quoted_amount)::numeric, 4) as implied_rate,
   fpp.latest_payment_date,
   'Fully-paid PO ' || fpp.po_number || ' (' || fpp.po_date || ') - rate realized at final payment'
 FROM fully_paid_pos fpp
