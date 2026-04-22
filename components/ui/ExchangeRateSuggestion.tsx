@@ -20,7 +20,7 @@ export default function ExchangeRateSuggestion({
   currentRate,
 }: ExchangeRateSuggestionProps) {
   const supplier = useMemo(
-    () => suppliers.find((s) => s.supplier_id === supplierId),
+    () => suppliers.find((s) => String(s.supplier_id) === supplierId),
     [supplierId, suppliers]
   );
 
