@@ -52,7 +52,7 @@ interface ComponentEditorProps {
   onDeleteComponentLink?: (linkId: string) => Promise<void>;
 }
 
-type SortCol = 'supplier_model' | 'internal_description' | 'brand' | 'category' | 'updated_at' | 'quoteCount' | 'poCount' | 'lineItemCount' | 'priceDelta';
+type SortCol = 'supplier_model' | 'internal_description' | 'brand' | 'category' | 'updated_at' | 'quoteCount' | 'poCount' | 'lineItemCount' | 'priceDelta' | 'margin';
 // Key components by their string ID to avoid Number(key)=NaN edge cases
 type PendingEdits = Record<string, Partial<Component>>;
 
@@ -467,9 +467,9 @@ function PriceDelta({ lines }: { lines: TooltipQuoteLine[] }) {
 }
 
 // ── Column visibility ─────────────────────────────────────────────────────
-type ColKey = 'brand' | 'category' | 'lastPrice' | 'usage' | 'updated';
-const COL_LABELS: Record<ColKey, string> = { brand: 'Brand', category: 'Category', lastPrice: 'Last Price', usage: 'Usage', updated: 'Updated' };
-const DEFAULT_COLS: Record<ColKey, boolean> = { brand: true, category: true, lastPrice: true, usage: true, updated: true };
+type ColKey = 'brand' | 'category' | 'lastPrice' | 'usage' | 'updated' | 'sellPrice';
+const COL_LABELS: Record<ColKey, string> = { brand: 'Brand', category: 'Category', lastPrice: 'Last Price', usage: 'Usage', updated: 'Updated', sellPrice: 'Sell Price' };
+const DEFAULT_COLS: Record<ColKey, boolean> = { brand: true, category: true, lastPrice: true, usage: true, updated: true, sellPrice: false };
 
 // ── CSV import ─────────────────────────────────────────────────────────────
 type ImportStep = 'upload' | 'map' | 'preview';
@@ -575,6 +575,9 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [filterHasIntel, setFilterHasIntel] = useState(false);
   const [filterLinked, setFilterLinked] = useState(false);
   const [filterHasSpecs, setFilterHasSpecs] = useState(false);
+  const [filterLowMargin, setFilterLowMargin] = useState(false);
+  const [marginThreshold, setMarginThreshold] = useState(20);
+  const [filterBelowMarket, setFilterBelowMarket] = useState(false);
   const [visibleCols, setVisibleCols] = useState<Record<ColKey, boolean>>(() => {
     try {
       const saved = localStorage.getItem('componentEditor_cols');
@@ -606,6 +609,9 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         if (f.filterHasIntel) setFilterHasIntel(f.filterHasIntel);
         if (f.filterLinked) setFilterLinked(f.filterLinked);
         if (f.filterHasSpecs) setFilterHasSpecs(f.filterHasSpecs);
+        if (f.filterLowMargin) setFilterLowMargin(f.filterLowMargin);
+        if (f.marginThreshold != null) setMarginThreshold(f.marginThreshold);
+        if (f.filterBelowMarket) setFilterBelowMarket(f.filterBelowMarket);
       }
     } catch {}
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -614,10 +620,10 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   useEffect(() => {
     try {
       localStorage.setItem('componentEditor_filters', JSON.stringify({
-        searchInput, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs,
+        searchInput, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs, filterLowMargin, marginThreshold, filterBelowMarket,
       }));
     } catch {}
-  }, [searchInput, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs]);
+  }, [searchInput, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs, filterLowMargin, marginThreshold, filterBelowMarket]);
 
   // ── Persist column visibility ─────────────────────────────────────────────
   useEffect(() => {
@@ -869,6 +875,46 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     return s;
   }, [competitorPrices]);
 
+  // ── Confidence-weighted market avg (USD) per component ───────────────────
+  const CONF_WEIGHT: Record<string, number> = { high: 1.0, medium: 0.6, low: 0.3 };
+  const marketAvgUsdByComponent = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!competitorPrices?.length) return map;
+    // Group by component_id
+    const byComp = new Map<string, typeof competitorPrices>();
+    competitorPrices.forEach((cp) => {
+      if (!cp.component_id || cp.unit_price <= 0 || cp.currency === 'RMB') return;
+      if (!byComp.has(cp.component_id)) byComp.set(cp.component_id, []);
+      byComp.get(cp.component_id)!.push(cp);
+    });
+    byComp.forEach((prices, cid) => {
+      const tucInfo = tucByComponent.get(cid);
+      const xr = tucInfo?.tucXr ?? 16500;
+      let wSum = 0, wTotal = 0;
+      prices.forEach((cp) => {
+        const usd = cp.currency === 'IDR' ? cp.unit_price / xr : cp.unit_price;
+        const w = CONF_WEIGHT[cp.confidence ?? 'low'] ?? 0.3;
+        wSum += usd * w; wTotal += w;
+      });
+      if (wTotal > 0) map.set(cid, wSum / wTotal);
+    });
+    return map;
+  }, [competitorPrices, tucByComponent]);
+
+  // ── Gross margin % per component (needs both sell price and TUC) ──────────
+  const marginByComponent = useMemo(() => {
+    const map = new Map<string, number>();
+    components.forEach((c) => {
+      if (!c.selling_price_usd) return;
+      const tucInfo = tucByComponent.get(c.component_id);
+      if (!tucInfo?.tucXr) return;
+      const sellIdr = c.selling_price_usd * tucInfo.tucXr;
+      if (sellIdr <= 0) return;
+      map.set(c.component_id, ((sellIdr - tucInfo.actualTucIdr) / sellIdr) * 100);
+    });
+    return map;
+  }, [components, tucByComponent]);
+
   // ── Component IDs that have at least one equivalency link ────────────────
   const linkedComponentIds = useMemo(() => {
     const s = new Set<string>();
@@ -942,6 +988,16 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       if (typeof s === 'string') { try { const p = JSON.parse(s); return p && typeof p === 'object' && Object.keys(p).length > 0; } catch { return false; } }
       return false;
     });
+    if (filterLowMargin) result = result.filter((c) => {
+      if (!c.selling_price_usd) return false;
+      const gm = marginByComponent.get(c.component_id);
+      return gm != null && gm < marginThreshold;
+    });
+    if (filterBelowMarket) result = result.filter((c) => {
+      if (!c.selling_price_usd) return false;
+      const mktUsd = marketAvgUsdByComponent.get(c.component_id);
+      return mktUsd != null && c.selling_price_usd < mktUsd;
+    });
     return [...result].sort((a, b) => {
       if (sortCol === 'updated_at') {
         const av = a[sortCol] ? new Date(a[sortCol] as string).getTime() : 0;
@@ -966,11 +1022,17 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         const bv = getDelta(b) ?? sentinel;
         return sortDir === 'asc' ? av - bv : bv - av;
       }
+      if (sortCol === 'margin') {
+        const sentinel = sortDir === 'asc' ? Infinity : -Infinity;
+        const av = marginByComponent.get(a.component_id) ?? sentinel;
+        const bv = marginByComponent.get(b.component_id) ?? sentinel;
+        return sortDir === 'asc' ? av - bv : bv - av;
+      }
       const av = ((a[sortCol as keyof Component] as string) || '').toLowerCase();
       const bv = ((b[sortCol as keyof Component] as string) || '').toLowerCase();
       return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
     });
-  }, [components, search, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs, sortCol, sortDir, usageMap, duplicateModels, intelComponentIds, linkedComponentIds, sparklineLinesByComponent]);
+  }, [components, search, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs, filterLowMargin, marginThreshold, filterBelowMarket, sortCol, sortDir, usageMap, duplicateModels, intelComponentIds, linkedComponentIds, sparklineLinesByComponent, marginByComponent, marketAvgUsdByComponent]);
 
   const toggleSort = (col: SortCol) => {
     if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -1154,6 +1216,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     setSearchInput(''); setSearch('');
     setFilterBrand(''); setFilterCategory(''); setFilterPI(''); setFilterPO('');
     setFilterUnused(false); setFilterDuplicates(false); setFilterHasIntel(false); setFilterLinked(false); setFilterHasSpecs(false);
+    setFilterLowMargin(false); setFilterBelowMarket(false);
   };
 
   // ── Find & Replace logic ──────────────────────────────────────────────────
@@ -1561,10 +1624,12 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
 
   // ── CSV Export ────────────────────────────────────────────────────────────
   const downloadCSV = useCallback(() => {
-    const headers = ['Model/SKU', 'Description', 'Brand', 'Category', 'Quotes', 'Line Items', 'Last Price', 'Currency'];
+    const headers = ['Model/SKU', 'Description', 'Brand', 'Category', 'Quotes', 'Line Items', 'Last Price', 'Currency', 'Sell Price USD', 'Gross Margin %', 'Market Avg USD'];
     const rows = filtered.map((c) => {
       const u = usageMap.get(c.component_id);
       const lq = lastQuoteByComponent.get(c.component_id);
+      const gm = marginByComponent.get(c.component_id);
+      const mkt = marketAvgUsdByComponent.get(c.component_id);
       return [
         c.supplier_model ?? '',
         c.internal_description ?? '',
@@ -1574,6 +1639,9 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         u?.lineItemCount ?? 0,
         lq ? lq.price.toFixed(2) : '',
         lq?.currency ?? '',
+        c.selling_price_usd != null ? c.selling_price_usd.toFixed(2) : '',
+        gm != null ? gm.toFixed(1) : '',
+        mkt != null ? mkt.toFixed(2) : '',
       ].map((v) => `"${String(v).replace(/"/g, '""')}"`);
     });
     const csv = [headers.map((h) => `"${h}"`), ...rows].map((r) => r.join(',')).join('\n');
@@ -1910,6 +1978,44 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
             >
               Has Specs{filterHasSpecs ? ` (${filtered.length})` : ''}
             </button>
+            <button
+              onClick={() => setFilterBelowMarket((v) => !v)}
+              className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all flex-shrink-0 ${
+                filterBelowMarket
+                  ? 'bg-rose-500/20 border-rose-500/40 text-rose-300'
+                  : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-rose-300 hover:border-rose-500/30'
+              }`}
+              title="Selling price below confidence-weighted market average"
+            >
+              Below Mkt{filterBelowMarket ? ` (${filtered.length})` : ''}
+            </button>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <button
+                onClick={() => setFilterLowMargin((v) => !v)}
+                className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all ${
+                  filterLowMargin
+                    ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+                    : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-amber-300 hover:border-amber-500/30'
+                }`}
+                title="Show items with gross margin below threshold"
+              >
+                Low Margin{filterLowMargin ? ` (${filtered.length})` : ''}
+              </button>
+              {filterLowMargin && (
+                <div className="flex items-center gap-1 bg-slate-950 border border-amber-500/40 rounded-lg px-2 py-1">
+                  <span className="text-[11px] text-slate-500">&lt;</span>
+                  <input
+                    type="number"
+                    value={marginThreshold}
+                    onChange={(e) => setMarginThreshold(Number(e.target.value))}
+                    min={0}
+                    max={100}
+                    className="w-10 bg-transparent text-xs text-amber-300 text-right focus:outline-none tabular-nums"
+                  />
+                  <span className="text-[11px] text-slate-500">%</span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -2030,7 +2136,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       </div>
 
       {/* Active filter chips */}
-      {(search || filterBrand || filterCategory || filterPI || filterPO || filterUnused || filterDuplicates || filterHasIntel || filterLinked || filterHasSpecs) && (
+      {(search || filterBrand || filterCategory || filterPI || filterPO || filterUnused || filterDuplicates || filterHasIntel || filterLinked || filterHasSpecs || filterLowMargin || filterBelowMarket) && (
         <div className="px-4 md:px-5 py-2.5 border-b border-slate-800/60 flex flex-wrap items-center gap-1.5 bg-slate-950/30">
           {search && <ActiveChip label="Search" value={search} onClear={() => { setSearchInput(''); setSearch(''); }} />}
           {filterBrand && <ActiveChip label="Brand" value={filterBrand} onClear={() => setFilterBrand('')} />}
@@ -2042,6 +2148,8 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
           {filterHasIntel && <ActiveChip label="Has market intel" onClear={() => setFilterHasIntel(false)} />}
           {filterLinked && <ActiveChip label="Linked items only" onClear={() => setFilterLinked(false)} />}
           {filterHasSpecs && <ActiveChip label="Has specs" onClear={() => setFilterHasSpecs(false)} />}
+          {filterLowMargin && <ActiveChip label="Low margin" value={`< ${marginThreshold}%`} onClear={() => setFilterLowMargin(false)} />}
+          {filterBelowMarket && <ActiveChip label="Below market" onClear={() => setFilterBelowMarket(false)} />}
           <button
             onMouseDown={clearAllFilters}
             className="text-[11px] text-slate-600 hover:text-slate-300 ml-1 transition-colors"
@@ -2079,6 +2187,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                 {visibleCols.brand && <SortTh col="brand" label="Brand" className="hidden md:table-cell min-w-[160px]" />}
                 {visibleCols.category && <SortTh col="category" label="Category" className="hidden md:table-cell" />}
                 {visibleCols.lastPrice && <SortTh col="priceDelta" label="Last Price" className="min-w-[120px]" />}
+                {visibleCols.sellPrice && <SortTh col="margin" label="Sell Price" className="min-w-[130px]" />}
                 {visibleCols.usage && (
                   <th className="hidden md:table-cell px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 min-w-[140px]">
                     <div className="flex items-center gap-2">
@@ -2304,6 +2413,65 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                               {isDup && (
                                 <span className="mt-1 inline-block px-1.5 py-0.5 bg-red-500/15 border border-red-500/25 text-red-400 text-[10px] font-bold rounded">dup</span>
                               )}
+                            </div>
+                          );
+                        })()}
+                      </td>
+                    )}
+
+                    {/* Sell Price */}
+                    {visibleCols.sellPrice && (
+                      <td className="px-3 py-1.5 align-middle min-w-[130px]">
+                        {isEditing ? (
+                          <div>
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                data-rid={c.component_id}
+                                data-fld="selling_price_usd"
+                                value={(getVal(c, 'selling_price_usd') as number | null) ?? ''}
+                                onChange={(e) => setField(c, 'selling_price_usd', e.target.value === '' ? null : parseFloat(e.target.value))}
+                                onKeyDown={(e) => handleCellKeyDown(e, c.component_id, 'selling_price_usd' as any)}
+                                placeholder="0.00"
+                                className={`w-full px-2 py-1 rounded-lg text-xs text-white focus:outline-none focus:ring-2 transition-all tabular-nums ${
+                                  isDirtyField(c, 'selling_price_usd' as any)
+                                    ? 'bg-amber-500/10 border border-amber-500/50 focus:ring-amber-500/30'
+                                    : 'bg-slate-950 border border-slate-700 focus:ring-emerald-500/20 focus:border-emerald-500'
+                                }`}
+                              />
+                              <span className="text-[11px] text-slate-500 flex-shrink-0">USD</span>
+                            </div>
+                            {isDirtyField(c, 'selling_price_usd' as any) && (
+                              <p className="mt-0.5 text-[11px] text-amber-400/80 leading-tight">
+                                was: <span className="font-mono">{c.selling_price_usd != null ? c.selling_price_usd.toFixed(2) : '—'}</span>
+                              </p>
+                            )}
+                          </div>
+                        ) : (() => {
+                          const sp = c.selling_price_usd;
+                          const gm = marginByComponent.get(c.component_id);
+                          const mktUsd = marketAvgUsdByComponent.get(c.component_id);
+                          if (!sp) return <span className="text-xs text-slate-700">—</span>;
+                          const gmColor = gm == null ? 'text-slate-500' : gm < 0 ? 'text-red-400' : gm < 10 ? 'text-orange-400' : gm < 20 ? 'text-amber-300' : gm < 30 ? 'text-emerald-300' : 'text-emerald-400';
+                          return (
+                            <div>
+                              <p className="text-xs font-medium text-slate-200 tabular-nums leading-tight">
+                                USD {sp.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </p>
+                              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                {gm != null && (
+                                  <span className={`text-[10px] font-semibold tabular-nums ${gmColor}`}>
+                                    GM {gm >= 0 ? '+' : ''}{gm.toFixed(1)}%
+                                  </span>
+                                )}
+                                {mktUsd != null && (
+                                  <span className={`text-[10px] tabular-nums ${sp < mktUsd ? 'text-rose-400' : 'text-slate-500'}`}>
+                                    {sp < mktUsd ? '▼' : '▲'} mkt
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           );
                         })()}

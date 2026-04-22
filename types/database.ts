@@ -71,6 +71,7 @@ export interface Component extends BaseEntity {
   brand?: string;
   category?: ProductCategory;
   specifications?: Record<string, any>;
+  selling_price_usd?: number | null;
 }
 
 // 4.0 Price Quotes
