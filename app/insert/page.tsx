@@ -14,6 +14,7 @@ import CompetitorPriceForm from '@/components/forms/CompetitorPriceForm';
 import MultiPaymentForm from '@/components/forms/MultiPaymentForm';
 import DealLookupTab from '@/components/ui/DealLookupTab';
 import PDFUploadBanner from '@/components/ui/PDFUploadBanner';
+import ExchangeRateSuggestion from '@/components/ui/ExchangeRateSuggestion';
 import { ToastContainer } from '@/components/ui/Toast';
 import { ToastProvider } from '@/hooks/useToast';
 import { FormSkeleton } from '@/components/ui/LoadingSkeleton';
@@ -654,6 +655,17 @@ function MasterInsertPage() {
                       onSubmit={(d) => handleInsert('5.0_purchases', d)}
                       loading={loading}
                     />
+                    {pendingQuoteForPO && (() => {
+                      const pq = data.quotes.find((q) => String(q.quote_id) === pendingQuoteForPO);
+                      return (
+                        <ExchangeRateSuggestion
+                          rates={data.exchangeRates || []}
+                          supplierId={pq?.supplier_id}
+                          currency={pq?.currency}
+                          suppliers={data.suppliers}
+                        />
+                      );
+                    })()}
                     {(() => {
                       const selPo   = orderingPoId ? data.pos.find((p) => String(p.po_id) === orderingPoId) : null;
                       const selCosts = orderingPoId ? data.poCosts.filter((c) => String(c.po_id) === orderingPoId) : [];
