@@ -40,7 +40,7 @@ eligible_pos AS (
     p.po_id,
     p.po_number,
     p.po_date,
-    COALESCE(p.supplier_id, q.supplier_id) as supplier_id,
+    q.supplier_id,
     p.currency,
     p.total_value,
     p.exchange_rate,
@@ -55,7 +55,7 @@ eligible_pos AS (
     AND p.exchange_rate > 0
     AND p.total_value IS NOT NULL
     AND p.total_value > 0
-    AND COALESCE(p.supplier_id, q.supplier_id) IS NOT NULL
+    AND q.supplier_id IS NOT NULL
     -- PO is substantially paid (≥90% of expected IDR equivalent)
     AND pp.total_paid_idr >= (p.total_value * p.exchange_rate * 0.9)
 )
