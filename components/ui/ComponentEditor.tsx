@@ -875,12 +875,11 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     return s;
   }, [competitorPrices]);
 
-  // ── Confidence-weighted market avg (USD) per component ───────────────────
+  // ── Confidence-weighted market avg (IDR) per component ───────────────────
   const CONF_WEIGHT: Record<string, number> = { high: 1.0, medium: 0.6, low: 0.3 };
-  const marketAvgUsdByComponent = useMemo(() => {
+  const marketAvgIdrByComponent = useMemo(() => {
     const map = new Map<string, number>();
     if (!competitorPrices?.length) return map;
-    // Group by component_id
     const byComp = new Map<string, typeof competitorPrices>();
     competitorPrices.forEach((cp) => {
       if (!cp.component_id || cp.unit_price <= 0 || cp.currency === 'RMB') return;
@@ -888,29 +887,27 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       byComp.get(cp.component_id)!.push(cp);
     });
     byComp.forEach((prices, cid) => {
-      const tucInfo = tucByComponent.get(cid);
-      const xr = tucInfo?.tucXr ?? 16500;
+      const xr = tucByComponent.get(cid)?.tucXr ?? 16500;
       let wSum = 0, wTotal = 0;
       prices.forEach((cp) => {
-        const usd = cp.currency === 'IDR' ? cp.unit_price / xr : cp.unit_price;
+        const idr = cp.currency === 'IDR' ? cp.unit_price : cp.unit_price * xr;
         const w = CONF_WEIGHT[cp.confidence ?? 'low'] ?? 0.3;
-        wSum += usd * w; wTotal += w;
+        wSum += idr * w; wTotal += w;
       });
       if (wTotal > 0) map.set(cid, wSum / wTotal);
     });
     return map;
   }, [competitorPrices, tucByComponent]);
 
-  // ── Gross margin % per component (needs both sell price and TUC) ──────────
+  // ── Gross margin % per component: both sell price and TUC in IDR ──────────
   const marginByComponent = useMemo(() => {
     const map = new Map<string, number>();
     components.forEach((c) => {
-      if (!c.selling_price_usd) return;
+      if (!c.selling_price_idr) return;
       const tucInfo = tucByComponent.get(c.component_id);
-      if (!tucInfo?.tucXr) return;
-      const sellIdr = c.selling_price_usd * tucInfo.tucXr;
-      if (sellIdr <= 0) return;
-      map.set(c.component_id, ((sellIdr - tucInfo.actualTucIdr) / sellIdr) * 100);
+      if (!tucInfo) return;
+      if (c.selling_price_idr <= 0) return;
+      map.set(c.component_id, ((c.selling_price_idr - tucInfo.actualTucIdr) / c.selling_price_idr) * 100);
     });
     return map;
   }, [components, tucByComponent]);
@@ -989,14 +986,14 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       return false;
     });
     if (filterLowMargin) result = result.filter((c) => {
-      if (!c.selling_price_usd) return false;
+      if (!c.selling_price_idr) return false;
       const gm = marginByComponent.get(c.component_id);
       return gm != null && gm < marginThreshold;
     });
     if (filterBelowMarket) result = result.filter((c) => {
-      if (!c.selling_price_usd) return false;
-      const mktUsd = marketAvgUsdByComponent.get(c.component_id);
-      return mktUsd != null && c.selling_price_usd < mktUsd;
+      if (!c.selling_price_idr) return false;
+      const mktIdr = marketAvgIdrByComponent.get(c.component_id);
+      return mktIdr != null && c.selling_price_idr < mktIdr;
     });
     return [...result].sort((a, b) => {
       if (sortCol === 'updated_at') {
@@ -1032,7 +1029,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       const bv = ((b[sortCol as keyof Component] as string) || '').toLowerCase();
       return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
     });
-  }, [components, search, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs, filterLowMargin, marginThreshold, filterBelowMarket, sortCol, sortDir, usageMap, duplicateModels, intelComponentIds, linkedComponentIds, sparklineLinesByComponent, marginByComponent, marketAvgUsdByComponent]);
+  }, [components, search, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs, filterLowMargin, marginThreshold, filterBelowMarket, sortCol, sortDir, usageMap, duplicateModels, intelComponentIds, linkedComponentIds, sparklineLinesByComponent, marginByComponent, marketAvgIdrByComponent]);
 
   const toggleSort = (col: SortCol) => {
     if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -1624,12 +1621,12 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
 
   // ── CSV Export ────────────────────────────────────────────────────────────
   const downloadCSV = useCallback(() => {
-    const headers = ['Model/SKU', 'Description', 'Brand', 'Category', 'Quotes', 'Line Items', 'Last Price', 'Currency', 'Sell Price USD', 'Gross Margin %', 'Market Avg USD'];
+    const headers = ['Model/SKU', 'Description', 'Brand', 'Category', 'Quotes', 'Line Items', 'Last Price', 'Currency', 'Sell Price IDR', 'Gross Margin %', 'Market Avg IDR'];
     const rows = filtered.map((c) => {
       const u = usageMap.get(c.component_id);
       const lq = lastQuoteByComponent.get(c.component_id);
       const gm = marginByComponent.get(c.component_id);
-      const mkt = marketAvgUsdByComponent.get(c.component_id);
+      const mkt = marketAvgIdrByComponent.get(c.component_id);
       return [
         c.supplier_model ?? '',
         c.internal_description ?? '',
@@ -1639,7 +1636,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         u?.lineItemCount ?? 0,
         lq ? lq.price.toFixed(2) : '',
         lq?.currency ?? '',
-        c.selling_price_usd != null ? c.selling_price_usd.toFixed(2) : '',
+        c.selling_price_idr != null ? Math.round(c.selling_price_idr).toString() : '',
         gm != null ? gm.toFixed(1) : '',
         mkt != null ? mkt.toFixed(2) : '',
       ].map((v) => `"${String(v).replace(/"/g, '""')}"`);
@@ -2427,38 +2424,38 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                             <div className="flex items-center gap-1">
                               <input
                                 type="number"
-                                step="0.01"
+                                step="1"
                                 min="0"
                                 data-rid={c.component_id}
-                                data-fld="selling_price_usd"
-                                value={(getVal(c, 'selling_price_usd') as number | null) ?? ''}
-                                onChange={(e) => setField(c, 'selling_price_usd', e.target.value === '' ? null : parseFloat(e.target.value))}
-                                onKeyDown={(e) => handleCellKeyDown(e, c.component_id, 'selling_price_usd' as any)}
-                                placeholder="0.00"
+                                data-fld="selling_price_idr"
+                                value={(getVal(c, 'selling_price_idr') as number | null) ?? ''}
+                                onChange={(e) => setField(c, 'selling_price_idr', e.target.value === '' ? null : parseFloat(e.target.value))}
+                                onKeyDown={(e) => handleCellKeyDown(e, c.component_id, 'selling_price_idr' as any)}
+                                placeholder="0"
                                 className={`w-full px-2 py-1 rounded-lg text-xs text-white focus:outline-none focus:ring-2 transition-all tabular-nums ${
-                                  isDirtyField(c, 'selling_price_usd' as any)
+                                  isDirtyField(c, 'selling_price_idr' as any)
                                     ? 'bg-amber-500/10 border border-amber-500/50 focus:ring-amber-500/30'
                                     : 'bg-slate-950 border border-slate-700 focus:ring-emerald-500/20 focus:border-emerald-500'
                                 }`}
                               />
-                              <span className="text-[11px] text-slate-500 flex-shrink-0">USD</span>
+                              <span className="text-[11px] text-slate-500 flex-shrink-0">IDR</span>
                             </div>
-                            {isDirtyField(c, 'selling_price_usd' as any) && (
+                            {isDirtyField(c, 'selling_price_idr' as any) && (
                               <p className="mt-0.5 text-[11px] text-amber-400/80 leading-tight">
-                                was: <span className="font-mono">{c.selling_price_usd != null ? c.selling_price_usd.toFixed(2) : '—'}</span>
+                                was: <span className="font-mono">{c.selling_price_idr != null ? Math.round(c.selling_price_idr).toLocaleString('en-US') : '—'}</span>
                               </p>
                             )}
                           </div>
                         ) : (() => {
-                          const sp = c.selling_price_usd;
+                          const sp = c.selling_price_idr;
                           const gm = marginByComponent.get(c.component_id);
-                          const mktUsd = marketAvgUsdByComponent.get(c.component_id);
+                          const mktIdr = marketAvgIdrByComponent.get(c.component_id);
                           if (!sp) return <span className="text-xs text-slate-700">—</span>;
                           const gmColor = gm == null ? 'text-slate-500' : gm < 0 ? 'text-red-400' : gm < 10 ? 'text-orange-400' : gm < 20 ? 'text-amber-300' : gm < 30 ? 'text-emerald-300' : 'text-emerald-400';
                           return (
                             <div>
                               <p className="text-xs font-medium text-slate-200 tabular-nums leading-tight">
-                                USD {sp.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                IDR {Math.round(sp).toLocaleString('en-US')}
                               </p>
                               <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                                 {gm != null && (
@@ -2466,9 +2463,9 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                                     GM {gm >= 0 ? '+' : ''}{gm.toFixed(1)}%
                                   </span>
                                 )}
-                                {mktUsd != null && (
-                                  <span className={`text-[10px] tabular-nums ${sp < mktUsd ? 'text-rose-400' : 'text-slate-500'}`}>
-                                    {sp < mktUsd ? '▼' : '▲'} mkt
+                                {mktIdr != null && (
+                                  <span className={`text-[10px] tabular-nums ${sp < mktIdr ? 'text-rose-400' : 'text-slate-500'}`}>
+                                    {sp < mktIdr ? '▼' : '▲'} mkt
                                   </span>
                                 )}
                               </div>
