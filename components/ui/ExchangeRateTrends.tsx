@@ -44,7 +44,7 @@ export default function ExchangeRateTrends({ rates, suppliers }: ExchangeRateTre
       const [supplier_id, currency] = key.split('|');
       result[key] = {
         currency,
-        supplier: supplierMap.get(supplier_id),
+        supplier: supplierMap.get(supplier_id as any),
         latest: rateList[0].implied_rate,
         latestDate: rateList[0].payment_date,
         avg: rateList.reduce((s, r) => s + r.implied_rate, 0) / rateList.length,
