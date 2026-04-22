@@ -37,15 +37,17 @@ fully_paid_pos AS (
     p.po_number,
     p.po_date,
     p.quote_id,
-    p.supplier_id,
+    q.supplier_id,
     p.currency,
     p.total_value as quoted_amount,
     pp.total_paid_idr,
-    pp.latest_payment_date
+    pp.latest_payment_date,
+    p.exchange_rate
   FROM "5.0_purchases" p
+  LEFT JOIN "4.0_price_quotes" q ON p.quote_id = q.quote_id
   INNER JOIN po_payments pp ON p.po_id = pp.po_id
   WHERE p.quote_id IS NOT NULL
-    AND p.supplier_id IS NOT NULL
+    AND q.supplier_id IS NOT NULL
     AND p.currency IS NOT NULL
     AND p.currency != 'IDR'
     -- Only POs where we have substantial payment (at least 90% of PO value)
@@ -57,11 +59,10 @@ SELECT
   fpp.currency,
   fpp.quoted_amount,
   fpp.total_paid_idr,
-  ROUND((fpp.total_paid_idr / (fpp.quoted_amount * COALESCE(p.exchange_rate, 1)))::numeric, 4) as implied_rate,
+  ROUND((fpp.total_paid_idr / (fpp.quoted_amount * COALESCE(fpp.exchange_rate, 1)))::numeric, 4) as implied_rate,
   fpp.latest_payment_date,
   'Fully-paid PO ' || fpp.po_number || ' (' || fpp.po_date || ') - rate realized at final payment'
 FROM fully_paid_pos fpp
-LEFT JOIN "5.0_purchases" p ON fpp.po_id = p.po_id
 WHERE fpp.quoted_amount > 0
 ORDER BY fpp.latest_payment_date DESC;
 
