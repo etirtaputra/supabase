@@ -30,8 +30,18 @@ WITH po_payments AS (
   WHERE pc.cost_category IN ('down_payment', 'balance_payment', 'additional_balance_payment')
   GROUP BY pc.po_id
 ),
+po_cost_categories AS (
+  -- Find all cost categories per PO to filter out those with non-principal costs
+  SELECT
+    po_id,
+    ARRAY_AGG(DISTINCT cost_category) as categories
+  FROM "6.0_po_costs"
+  GROUP BY po_id
+),
 fully_paid_pos AS (
-  -- Only include POs where payments >= PO total value (in equivalent IDR)
+  -- Only include POs where:
+  -- 1. ALL cost records are ONLY principal payments (no bank fees, delivery, taxes, etc.)
+  -- 2. Total principal payments >= PO total value
   SELECT
     p.po_id,
     p.po_number,
@@ -46,12 +56,15 @@ fully_paid_pos AS (
   FROM "5.0_purchases" p
   LEFT JOIN "4.0_price_quotes" q ON p.quote_id = q.quote_id
   INNER JOIN po_payments pp ON p.po_id = pp.po_id
+  INNER JOIN po_cost_categories pcc ON p.po_id = pcc.po_id
   WHERE p.quote_id IS NOT NULL
     AND q.supplier_id IS NOT NULL
     AND p.currency IS NOT NULL
     AND p.currency != 'IDR'
-    -- Only POs where we have substantial payment (at least 90% of PO value)
-    AND pp.total_paid_idr >= (p.total_value * COALESCE(p.exchange_rate, 1) * 0.9)
+    -- CRITICAL: Only include if PO has ONLY principal payment categories
+    AND pcc.categories <@ ARRAY['down_payment', 'balance_payment', 'additional_balance_payment']::text[]
+    -- Total principal payments >= PO total value (in equivalent IDR)
+    AND pp.total_paid_idr >= (p.total_value * COALESCE(p.exchange_rate, 1) * 0.95)
 )
 SELECT
   fpp.po_id,
