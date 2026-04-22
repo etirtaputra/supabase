@@ -1,10 +1,16 @@
--- CORRECTED: Populate 9.0_exchange_rate_history with realized FX rates from FULLY-PAID POs only
--- Only includes POs where total principal payments >= PO total_value
+-- FIXED: Populate 9.0_exchange_rate_history using PO's recorded exchange_rate
+--
+-- Previous approach (inferring rate from payments) failed because:
+-- 1. IDR-denominated costs (customs, freight) tagged as down_payment/balance_payment
+--    inflate total_paid_idr while the USD denominator stays fixed → rate too high
+-- 2. Payments cover full PO value (incl. freight) but quoted_line_total excludes
+--    freight → denominator too small → rate too high (e.g. 20139 instead of 16578)
+--
+-- Fix: use p.exchange_rate (the agreed rate at time of purchase) directly.
+-- The po_payments CTE is kept only as a "is this PO substantially paid?" gate.
 
--- First, DELETE old incorrect data
 DELETE FROM "9.0_exchange_rate_history";
 
--- Then INSERT only fully-paid PO rates
 INSERT INTO "9.0_exchange_rate_history" (
   po_id,
   supplier_id,
@@ -16,7 +22,6 @@ INSERT INTO "9.0_exchange_rate_history" (
   notes
 )
 WITH po_payments AS (
-  -- Calculate total PRINCIPAL payments per PO in IDR (only sum these categories)
   SELECT
     pc.po_id,
     MAX(pc.payment_date) as latest_payment_date,
@@ -30,65 +35,50 @@ WITH po_payments AS (
   WHERE pc.cost_category IN ('down_payment', 'balance_payment', 'additional_balance_payment')
   GROUP BY pc.po_id
 ),
-quoted_line_totals AS (
-  -- Calculate total quoted amount from line items per PO (excludes freight)
-  SELECT
-    q.quote_id,
-    pli.currency,
-    SUM(pli.unit_price * pli.quantity) as quoted_line_total
-  FROM "4.0_price_quotes" q
-  LEFT JOIN "4.1_price_quote_line_items" pli ON q.quote_id = pli.quote_id
-  WHERE pli.currency IS NOT NULL
-    AND pli.currency != 'IDR'
-  GROUP BY q.quote_id, pli.currency
-),
-fully_paid_pos AS (
-  -- Only include POs where:
-  -- - Have a quote (to get supplier)
-  -- - Are in foreign currency
-  -- - Total principal payments >= quoted line items total (excludes freight)
+eligible_pos AS (
   SELECT
     p.po_id,
     p.po_number,
     p.po_date,
-    p.quote_id,
     q.supplier_id,
-    qlt.currency,
-    qlt.quoted_line_total,
-    pp.total_paid_idr,
+    p.currency,
+    p.total_value,
+    p.exchange_rate,
     pp.latest_payment_date,
-    p.exchange_rate
+    pp.total_paid_idr
   FROM "5.0_purchases" p
   LEFT JOIN "4.0_price_quotes" q ON p.quote_id = q.quote_id
-  LEFT JOIN quoted_line_totals qlt ON q.quote_id = qlt.quote_id
   INNER JOIN po_payments pp ON p.po_id = pp.po_id
-  WHERE p.quote_id IS NOT NULL
+  WHERE p.currency IS NOT NULL
+    AND p.currency != 'IDR'
+    AND p.exchange_rate IS NOT NULL
+    AND p.exchange_rate > 0
+    AND p.total_value IS NOT NULL
+    AND p.total_value > 0
     AND q.supplier_id IS NOT NULL
-    AND qlt.currency IS NOT NULL
-    -- Total principal payments >= quoted line items total (in equivalent IDR)
-    AND pp.total_paid_idr >= (qlt.quoted_line_total * COALESCE(p.exchange_rate, 1) * 0.95)
+    -- PO is substantially paid (≥90% of expected IDR equivalent)
+    AND pp.total_paid_idr >= (p.total_value * p.exchange_rate * 0.9)
 )
 SELECT
-  fpp.po_id,
-  fpp.supplier_id,
-  fpp.currency,
-  fpp.quoted_line_total,
-  fpp.total_paid_idr,
-  ROUND((fpp.total_paid_idr / fpp.quoted_line_total)::numeric, 4) as implied_rate,
-  fpp.latest_payment_date,
-  'Fully-paid PO ' || fpp.po_number || ' (' || fpp.po_date || ') - rate from quote line items (excl. freight)'
-FROM fully_paid_pos fpp
-WHERE fpp.quoted_line_total > 0
-ORDER BY fpp.latest_payment_date DESC;
+  ep.po_id,
+  ep.supplier_id,
+  ep.currency,
+  ep.total_value                              AS quoted_amount_foreign,
+  ROUND((ep.total_value * ep.exchange_rate)::numeric, 2) AS paid_amount_idr,
+  ep.exchange_rate                            AS implied_rate,
+  ep.latest_payment_date,
+  'Fully-paid PO ' || ep.po_number || ' (' || ep.po_date || ') - rate from PO exchange_rate field'
+FROM eligible_pos ep
+ORDER BY ep.latest_payment_date DESC;
 
--- Show summary
+-- Verification summary
 SELECT
   currency,
-  COUNT(*) as count,
-  ROUND(AVG(implied_rate)::numeric, 4) as avg_rate,
-  ROUND(MIN(implied_rate)::numeric, 4) as min_rate,
-  ROUND(MAX(implied_rate)::numeric, 4) as max_rate,
-  ROUND((MAX(implied_rate) - MIN(implied_rate))::numeric, 4) as range
+  COUNT(*)                                    AS count,
+  ROUND(AVG(implied_rate)::numeric, 4)        AS avg_rate,
+  ROUND(MIN(implied_rate)::numeric, 4)        AS min_rate,
+  ROUND(MAX(implied_rate)::numeric, 4)        AS max_rate,
+  ROUND((MAX(implied_rate) - MIN(implied_rate))::numeric, 4) AS range
 FROM "9.0_exchange_rate_history"
 GROUP BY currency
 ORDER BY currency;
