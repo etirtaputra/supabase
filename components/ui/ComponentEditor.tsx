@@ -467,9 +467,9 @@ function PriceDelta({ lines }: { lines: TooltipQuoteLine[] }) {
 }
 
 // ── Column visibility ─────────────────────────────────────────────────────
-type ColKey = 'brand' | 'category' | 'lastPrice' | 'usage' | 'updated' | 'sellPrice';
-const COL_LABELS: Record<ColKey, string> = { brand: 'Brand', category: 'Category', lastPrice: 'Last Price', usage: 'Usage', updated: 'Updated', sellPrice: 'Sell Price' };
-const DEFAULT_COLS: Record<ColKey, boolean> = { brand: true, category: true, lastPrice: true, usage: true, updated: true, sellPrice: false };
+type ColKey = 'model' | 'description' | 'brand' | 'category' | 'lastPrice' | 'usage' | 'updated' | 'sellPrice';
+const COL_LABELS: Record<ColKey, string> = { model: 'Model/SKU', description: 'Description', brand: 'Brand', category: 'Category', lastPrice: 'Last Price', usage: 'Usage', updated: 'Updated', sellPrice: 'Sell Price' };
+const DEFAULT_COLS: Record<ColKey, boolean> = { model: true, description: true, brand: true, category: true, lastPrice: true, usage: true, updated: true, sellPrice: false };
 
 // ── CSV import ─────────────────────────────────────────────────────────────
 type ImportStep = 'upload' | 'map' | 'preview';
@@ -1652,7 +1652,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   }, [filtered, usageMap, lastQuoteByComponent]);
 
   // Total visible column count for colSpan on expanded spec rows
-  const visibleColCount = 3 + (Object.keys(visibleCols) as ColKey[]).filter((k) => visibleCols[k]).length + 1;
+  const visibleColCount = 1 + (Object.keys(visibleCols) as ColKey[]).filter((k) => visibleCols[k]).length + 1;
 
   const fmtDate = (ts?: string) => {
     if (!ts) return '—';
@@ -2179,8 +2179,8 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                     title={allFilteredSelected ? 'Deselect all' : 'Select all visible'}
                   />
                 </th>
-                <SortTh col="supplier_model" label="Model / SKU" />
-                <SortTh col="internal_description" label="Description" />
+                {visibleCols.model && <SortTh col="supplier_model" label="Model / SKU" />}
+                {visibleCols.description && <SortTh col="internal_description" label="Description" />}
                 {visibleCols.brand && <SortTh col="brand" label="Brand" className="hidden md:table-cell min-w-[160px]" />}
                 {visibleCols.category && <SortTh col="category" label="Category" className="hidden md:table-cell" />}
                 {visibleCols.lastPrice && <SortTh col="priceDelta" label="Last Price" className="min-w-[120px]" />}
@@ -2243,7 +2243,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                       />
                     </td>
                     {/* Model / SKU */}
-                    <td className="px-3 py-1.5 align-middle">
+                    {visibleCols.model && <td className="px-3 py-1.5 align-middle">
                       {isEditing ? (
                         <div>
                           <input
@@ -2273,10 +2273,10 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           <Highlight text={c.supplier_model} query={search} />
                         </span>
                       )}
-                    </td>
+                    </td>}
 
                     {/* Internal Description */}
-                    <td className="px-3 py-1.5 align-middle">
+                    {visibleCols.description && <td className="px-3 py-1.5 align-middle">
                       {isEditing ? (
                         <div>
                           <input
@@ -2307,7 +2307,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           <Highlight text={c.internal_description} query={search} />
                         </span>
                       )}
-                    </td>
+                    </td>}
 
                     {/* Brand */}
                     {visibleCols.brand && (
