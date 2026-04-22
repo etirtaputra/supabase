@@ -31,42 +31,41 @@ WITH po_payments AS (
   GROUP BY pc.po_id
 ),
 fully_paid_pos AS (
-  -- Only include POs where:
-  -- - Have a quote (to get supplier)
-  -- - Are in foreign currency
-  -- - Total principal payments >= PO total value (they're fully paid based on principals only)
+  -- Sum quoted line items to get actual goods value (excludes freight)
   SELECT
     p.po_id,
     p.po_number,
     p.po_date,
     p.quote_id,
     q.supplier_id,
-    p.currency,
-    p.total_value as quoted_amount,
+    pli.currency,
+    SUM(pli.unit_price * pli.quantity) as quoted_line_total,
     pp.total_paid_idr,
     pp.latest_payment_date,
     p.exchange_rate
   FROM "5.0_purchases" p
   LEFT JOIN "4.0_price_quotes" q ON p.quote_id = q.quote_id
+  LEFT JOIN "4.1_price_quote_line_items" pli ON q.quote_id = pli.quote_id
   INNER JOIN po_payments pp ON p.po_id = pp.po_id
   WHERE p.quote_id IS NOT NULL
     AND q.supplier_id IS NOT NULL
-    AND p.currency IS NOT NULL
-    AND p.currency != 'IDR'
-    -- Total principal payments >= PO total value (in equivalent IDR)
-    AND pp.total_paid_idr >= (p.total_value * COALESCE(p.exchange_rate, 1) * 0.95)
+    AND pli.currency IS NOT NULL
+    AND pli.currency != 'IDR'
+    -- Total principal payments >= quoted line items total (excludes freight/other costs)
+    AND pp.total_paid_idr >= (SUM(pli.unit_price * pli.quantity) * COALESCE(p.exchange_rate, 1) * 0.95)
+  GROUP BY p.po_id, p.po_number, p.po_date, p.quote_id, q.supplier_id, pli.currency, pp.total_paid_idr, pp.latest_payment_date, p.exchange_rate
 )
 SELECT
   fpp.po_id,
   fpp.supplier_id,
   fpp.currency,
-  fpp.quoted_amount,
+  fpp.quoted_line_total,
   fpp.total_paid_idr,
-  ROUND((fpp.total_paid_idr / fpp.quoted_amount)::numeric, 4) as implied_rate,
+  ROUND((fpp.total_paid_idr / fpp.quoted_line_total)::numeric, 4) as implied_rate,
   fpp.latest_payment_date,
-  'Fully-paid PO ' || fpp.po_number || ' (' || fpp.po_date || ') - rate realized at final payment'
+  'Fully-paid PO ' || fpp.po_number || ' (' || fpp.po_date || ') - rate from quote line items (excl. freight)'
 FROM fully_paid_pos fpp
-WHERE fpp.quoted_amount > 0
+WHERE fpp.quoted_line_total > 0
 ORDER BY fpp.latest_payment_date DESC;
 
 -- Show summary
