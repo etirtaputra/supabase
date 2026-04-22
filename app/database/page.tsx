@@ -9,14 +9,16 @@ import { useSupabaseData } from '@/hooks/useSupabaseData';
 import ProductCostLookup from '@/components/ui/ProductCostLookup';
 import POCashCycle from '@/components/ui/POCashCycle';
 import PricingIntelligence from '@/components/ui/PricingIntelligence';
+import ExchangeRateTrends from '@/components/ui/ExchangeRateTrends';
 import { ToastProvider } from '@/hooks/useToast';
 
-type TabId = 'lookup' | 'pricing' | 'cash';
+type TabId = 'lookup' | 'pricing' | 'cash' | 'xrates';
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'lookup',  label: 'Cost Lookup'  },
   { id: 'pricing', label: 'Pricing'      },
   { id: 'cash',    label: 'Cash Cycle'   },
+  { id: 'xrates',  label: 'Exchange Rates' },
 ];
 
 const TAB_ICONS: Record<TabId, React.ReactNode> = {
@@ -33,6 +35,11 @@ const TAB_ICONS: Record<TabId, React.ReactNode> = {
   cash: (
     <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
       <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+    </svg>
+  ),
+  xrates: (
+    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   ),
 };
@@ -134,6 +141,21 @@ export default function DatabaseViewPage() {
               quotes={data.quotes}
               suppliers={data.suppliers}
               isLoading={loading}
+            />
+          </div>
+
+          {/* Exchange Rate Trends */}
+          <div className={activeTab !== 'xrates' ? 'hidden' : 'space-y-6'}>
+            <div className="mb-6">
+              <h2 className="text-base md:text-lg font-semibold text-white tracking-tight">Currency Exchange Rates</h2>
+              <p className="text-slate-500 text-[11px] mt-1 max-w-2xl">
+                Historical FX rates realized from procurement: implied rate = total payments in IDR ÷ quoted amount in foreign currency.
+                Shows trends by supplier and currency to inform future PO pricing.
+              </p>
+            </div>
+            <ExchangeRateTrends
+              rates={data.exchangeRates || []}
+              suppliers={data.suppliers}
             />
           </div>
 
