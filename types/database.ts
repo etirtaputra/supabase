@@ -126,6 +126,9 @@ export interface PurchaseOrder extends BaseEntity {
   actual_received_date?: string;
   status?: PurchasesStatus;
   replaces_po_id?: number;
+  // Direct supplier/company reference (for POs with no linked quote)
+  supplier_id?: number;
+  company_id?: number;
   // Proforma Invoice fields (merged from 5.0_proforma_invoices)
   pi_number?: string;
   pi_date?: string;

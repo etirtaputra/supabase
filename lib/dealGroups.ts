@@ -139,7 +139,7 @@ export function buildDealGroups(
 
     if (!g.piNumber && po.pi_number) g.piNumber = po.pi_number;
 
-    // Supplier fallback: resolve via PO's linked quote
+    // Supplier fallback 1: resolve via PO's linked quote
     if (!g.supplierId && po.quote_id) {
       const qt = quotes.find((q) => String(q.quote_id) === String(po.quote_id));
       if (qt) {
@@ -147,6 +147,15 @@ export function buildDealGroups(
         g.supplier   = supplierMap[qt.supplier_id] ?? null;
         if (!g.company) g.company = companyMap[qt.company_id] ?? null;
       }
+    }
+
+    // Supplier fallback 2: use PO's own supplier_id / company_id (standalone POs)
+    if (!g.supplierId && po.supplier_id) {
+      g.supplierId = String(po.supplier_id);
+      g.supplier   = supplierMap[po.supplier_id] ?? null;
+    }
+    if (!g.company && po.company_id) {
+      g.company = companyMap[po.company_id] ?? null;
     }
 
     if (!g.latestDate || po.po_date > g.latestDate) g.latestDate = po.po_date;

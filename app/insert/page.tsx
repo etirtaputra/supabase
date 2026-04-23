@@ -634,6 +634,8 @@ function MasterInsertPage() {
                         const pq = pendingQuoteForPO ? data.quotes.find((q) => String(q.quote_id) === pendingQuoteForPO) : null;
                         return [
                         { name: 'quote_id', label: 'Link Quote', type: 'select', options: options.quotes, default: pendingQuoteForPO || undefined },
+                        { name: 'supplier_id', label: 'Supplier', type: 'rich-select', options: data.suppliers, config: { labelKey: 'supplier_name', valueKey: 'supplier_id', subLabelKey: 'location' }, default: pdfDefaults.supplier_id },
+                        { name: 'company_id', label: 'Addressed To', type: 'select', options: options.companies, default: pdfDefaults.company_id },
                         { name: 'pi_number', label: 'PI #', type: 'text', default: pq?.pi_number || pdfData?.pi_number },
                         { name: 'pi_date', label: 'PI Date', type: 'date', default: pq?.quote_date || pdfData?.pi_date },
                         { name: 'pi_status', label: 'PI Status', type: 'select', options: ENUMS.proforma_status },
