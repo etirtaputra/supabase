@@ -922,7 +922,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     const map = new Map<string, number>();
     components.forEach((c) => {
       const sp = (optimistic[c.component_id]?.selling_price_idr ?? c.selling_price_idr) as number | null;
-      if (!sp || sp <= 0) return;
+      if (sp == null || sp <= 0) return;
       const tucInfo = tucByComponent.get(c.component_id);
       if (!tucInfo) return;
       map.set(c.component_id, ((sp - tucInfo.actualTucIdr) / sp) * 100);
@@ -2469,10 +2469,10 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                             )}
                           </div>
                         ) : (() => {
-                          const sp = (optimistic[c.component_id]?.selling_price_idr ?? c.selling_price_idr) as number | null;
+                          const sp = (getVal(c, 'selling_price_idr' as any) ?? optimistic[c.component_id]?.selling_price_idr ?? c.selling_price_idr) as number | null;
                           const gm = marginByComponent.get(c.component_id);
                           const mktIdr = marketAvgIdrByComponent.get(c.component_id);
-                          if (!sp) return <span className="text-xs text-slate-700">—</span>;
+                          if (sp == null) return <span className="text-xs text-slate-700">—</span>;
                           const gmColor = gm == null ? 'text-slate-500' : gm < 0 ? 'text-red-400' : gm < 10 ? 'text-orange-400' : gm < 20 ? 'text-amber-300' : gm < 30 ? 'text-emerald-300' : 'text-emerald-400';
                           return (
                             <div>
