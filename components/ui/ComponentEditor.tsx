@@ -686,6 +686,24 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // ── Copy-row flash ────────────────────────────────────────────────────────
   const [copiedRowId, setCopiedRowId] = useState<string | null>(null);
+  // ── Optimistic overrides: bridge the gap between save and refetch ─────────
+  const [optimistic, setOptimistic] = useState<Record<string, Partial<Component>>>({});
+  useEffect(() => {
+    if (!Object.keys(optimistic).length) return;
+    setOptimistic((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const c of components) {
+        const ov = next[c.component_id];
+        if (!ov) continue;
+        if (Object.entries(ov).every(([f, v]) => String((c as any)[f] ?? '') === String(v ?? ''))) {
+          delete next[c.component_id];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [components]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Per-component usage stats ──────────────────────────────────────────────
   const usageMap = useMemo<Map<string, ComponentUsage>>(() => {
@@ -903,14 +921,14 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const marginByComponent = useMemo(() => {
     const map = new Map<string, number>();
     components.forEach((c) => {
-      if (!c.selling_price_idr) return;
+      const sp = (optimistic[c.component_id]?.selling_price_idr ?? c.selling_price_idr) as number | null;
+      if (!sp || sp <= 0) return;
       const tucInfo = tucByComponent.get(c.component_id);
       if (!tucInfo) return;
-      if (c.selling_price_idr <= 0) return;
-      map.set(c.component_id, ((c.selling_price_idr - tucInfo.actualTucIdr) / c.selling_price_idr) * 100);
+      map.set(c.component_id, ((sp - tucInfo.actualTucIdr) / sp) * 100);
     });
     return map;
-  }, [components, tucByComponent]);
+  }, [components, tucByComponent, optimistic]);
 
   // ── Component IDs that have at least one equivalency link ────────────────
   const linkedComponentIds = useMemo(() => {
@@ -1189,12 +1207,16 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const handleSaveAll = async () => {
     if (!dirtyCount || saving) return;
     setSaving(true);
+    const snapshot: Record<string, Partial<Component>> = {};
+    dirtyKeys.forEach((k) => { snapshot[k] = pending[k]; });
     try {
       await onSave(
         dirtyKeys.map((k) => ({ component_id: k, changes: pending[k] }))
       );
       setPending({});
       setEditingIds(new Set());
+      // Show saved values immediately while refetch is in flight
+      setOptimistic((prev) => ({ ...prev, ...snapshot }));
     } catch (err: any) {
       console.error('[ComponentEditor] save error:', err);
       // errors are already shown via toast in onSave; keep pending so user can retry
@@ -2447,7 +2469,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                             )}
                           </div>
                         ) : (() => {
-                          const sp = c.selling_price_idr;
+                          const sp = (optimistic[c.component_id]?.selling_price_idr ?? c.selling_price_idr) as number | null;
                           const gm = marginByComponent.get(c.component_id);
                           const mktIdr = marketAvgIdrByComponent.get(c.component_id);
                           if (!sp) return <span className="text-xs text-slate-700">—</span>;
