@@ -23,9 +23,11 @@ import { FormSkeleton } from '@/components/ui/LoadingSkeleton';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useSuggestions } from '@/hooks/useSuggestions';
 import { useToast } from '@/hooks/useToast';
+import { useAuth } from '@/hooks/useAuth';
 // Constants & Types
 import { ENUMS } from '@/constants/enums';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
+import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { fmtIdr } from '@/lib/formatters';
 import type { Tab, MenuItem } from '@/types/forms';
 
@@ -75,9 +77,22 @@ function MasterInsertPage() {
   const [newPoId, setNewPoId] = useState('');
   const [pendingQuoteForPO, setPendingQuoteForPO] = useState('');
 
+  const { user, profile, loading: authLoading, signOut } = useAuth();
   const { data, loading: dataLoading, refetch } = useSupabaseData();
   const suggestions = useSuggestions(data);
   const { showToast } = useToast();
+
+  const perms = profile ? ROLE_PERMISSIONS[profile.role] : null;
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!authLoading && !user) router.replace('/login');
+  }, [authLoading, user, router]);
+
+  // Filter menu items to only tabs the user's role can see
+  const visibleMenuItems = MENU_ITEMS.filter(
+    (item) => !perms || perms.tabs[item.id as keyof typeof perms.tabs]
+  );
 
   const handleTabChange = (tab: Tab) => {
     setActiveTab(tab);
@@ -406,6 +421,14 @@ function MasterInsertPage() {
     ),
   };
 
+  if (authLoading || !user) {
+    return (
+      <div className="min-h-screen bg-[#0B1120] flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#0B1120] text-slate-200 font-sans text-sm selection:bg-white/20">
       {/* ── Sticky top header + tab bar ── */}
@@ -419,10 +442,29 @@ function MasterInsertPage() {
               {activeItem?.label}
             </p>
           </div>
+          {/* User badge + sign out */}
+          {profile && (
+            <div className="flex items-center gap-2 pb-1">
+              {perms?.canManageUsers && (
+                <Link href="/admin" className="text-[10px] px-2 py-1 border border-slate-700 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors">
+                  Manage users
+                </Link>
+              )}
+              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800/60 border border-slate-700/60 rounded-full">
+                <div className="w-4 h-4 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-[9px] font-bold text-emerald-400 uppercase">
+                  {(profile.display_name || profile.email).charAt(0)}
+                </div>
+                <span className="text-[11px] text-slate-400 hidden sm:block">{profile.display_name || profile.email}</span>
+                <button onClick={() => signOut().then(() => router.replace('/login'))} className="text-[10px] text-slate-600 hover:text-slate-400 ml-1 transition-colors">
+                  Sign out
+                </button>
+              </div>
+            </div>
+          )}
         </header>
         {/* Tab bar */}
         <nav className="px-4 md:px-8 xl:px-12 pb-3 xl:pb-4 max-w-[1800px] mx-auto flex overflow-x-auto gap-1.5 xl:gap-2 scrollbar-none snap-x snap-mandatory">
-          {MENU_ITEMS.map((item) => (
+          {visibleMenuItems.map((item) => (
             <Link
               key={item.id}
               href={`/insert?tab=${item.id}`}
