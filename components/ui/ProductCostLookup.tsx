@@ -213,7 +213,7 @@ export default function ProductCostLookup({ components, quotes, quoteItems, pos,
     });
   }, [relatedPoIds, pos, poCosts]);
   const getQuote = (id: number) => quotes.find((q) => q.quote_id === id);
-  const getSupplier = (id?: number) => suppliers.find((s) => s.supplier_id === id)?.supplier_name || '—';
+  const getSupplier = (id?: string | number) => suppliers.find((s) => String(s.supplier_id) === String(id))?.supplier_name || '—';
   const hasData = selected && (myQuoteItems.length > 0 || myPoItems.length > 0);
   return (
     <div className="space-y-8 md:space-y-10">
