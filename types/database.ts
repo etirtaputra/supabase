@@ -54,7 +54,7 @@ export interface Company extends BaseEntity {
 
 // 2.0 Suppliers
 export interface Supplier extends BaseEntity {
-  supplier_id: number;
+  supplier_id: string; // UUID
   supplier_name: string;
   supplier_code?: string;
   location?: string;
@@ -77,7 +77,7 @@ export interface Component extends BaseEntity {
 // 4.0 Price Quotes
 export interface PriceQuote extends BaseEntity {
   quote_id: number;
-  supplier_id: number;
+  supplier_id: string; // UUID — matches 2.0_suppliers.supplier_id
   company_id: number;
   quote_date: string;
   pi_number?: string;
@@ -127,7 +127,7 @@ export interface PurchaseOrder extends BaseEntity {
   status?: PurchasesStatus;
   replaces_po_id?: number;
   // Direct supplier/company reference (for POs with no linked quote)
-  supplier_id?: number;
+  supplier_id?: string; // UUID — matches 2.0_suppliers.supplier_id
   company_id?: number;
   // Proforma Invoice fields (merged from 5.0_proforma_invoices)
   pi_number?: string;
@@ -217,7 +217,7 @@ export interface PurchaseHistory extends BaseEntity {
   history_id: number;
   po_date?: string;
   po_number?: string;
-  supplier_id?: number;
+  supplier_id?: string; // UUID
   component_id?: string; // UUID
   brand?: string;
   description?: string;
@@ -231,7 +231,7 @@ export interface QuoteHistory extends BaseEntity {
   history_id: number;
   quote_date?: string;
   quote_number?: string;
-  supplier_id?: number;
+  supplier_id?: string; // UUID
   component_id?: string; // UUID
   brand?: string;
   description?: string;

@@ -66,7 +66,7 @@ export function buildDealGroups(
   companies: Company[],
   poCosts: POCost[],
 ): DealGroup[] {
-  const supplierMap: Record<number, Supplier> = {};
+  const supplierMap: Record<string, Supplier> = {};
   for (const s of suppliers) supplierMap[s.supplier_id] = s;
   const companyMap: Record<number, Company> = {};
   for (const c of companies) companyMap[c.company_id] = c;
