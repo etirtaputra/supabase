@@ -304,6 +304,8 @@ export default function DealLookupTab({
   const [pendingReceived, setPendingReceived] = useState<{ poId: string; date: string } | null>(null);
   const [editingReceivedId, setEditingReceivedId] = useState<string | null>(null);
   const [editingReceivedDate, setEditingReceivedDate] = useState('');
+  const [editingPoSupplier, setEditingPoSupplier] = useState<string | null>(null);
+  const [editingPoCompany, setEditingPoCompany]   = useState<string | null>(null);
   const [acknowledgedMismatches, setAcknowledgedMismatches] = useState<Set<string>>(new Set());
   const acknowledgeMismatch = (key: string) => setAcknowledgedMismatches((prev) => new Set([...prev, key]));
   const [acknowledgedDealMismatches, setAcknowledgedDealMismatches] = useState<Set<string>>(() => {
@@ -725,6 +727,90 @@ export default function DealLookupTab({
                           <p className="text-slate-300 mt-0.5">{value}</p>
                         </div>
                       ) : null)}
+
+                      {/* Editable supplier */}
+                      {onUpdatePo && (() => {
+                        const linkedSupplier = po.quote_id
+                          ? suppliers.find((s) => s.supplier_id === quotes.find((q) => String(q.quote_id) === String(po.quote_id))?.supplier_id)
+                          : null;
+                        const currentSupplier = linkedSupplier ?? suppliers.find((s) => s.supplier_id === po.supplier_id) ?? null;
+                        return (
+                          <div>
+                            <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">Supplier</p>
+                            {editingPoSupplier === pKey ? (
+                              <div className="flex items-center gap-1 mt-0.5" onClick={(e) => e.stopPropagation()}>
+                                <select
+                                  autoFocus
+                                  defaultValue={po.supplier_id ?? ''}
+                                  onChange={async (e) => {
+                                    const val = e.target.value ? Number(e.target.value) : null;
+                                    if (onUpdatePo) { setUpdatingPo(pKey); try { await onUpdatePo(pKey, { supplier_id: val ?? undefined }); } finally { setUpdatingPo(null); } }
+                                    setEditingPoSupplier(null);
+                                  }}
+                                  className="flex-1 text-[11px] rounded px-1.5 py-0.5 bg-slate-900 border border-sky-500/40 text-white focus:outline-none"
+                                >
+                                  <option value="">— none —</option>
+                                  {suppliers.map((s) => (
+                                    <option key={s.supplier_id} value={s.supplier_id}>{s.supplier_name}</option>
+                                  ))}
+                                </select>
+                                <button onClick={(e) => { e.stopPropagation(); setEditingPoSupplier(null); }} className="text-slate-500 hover:text-slate-300 text-[10px]">✕</button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setEditingPoSupplier(pKey); }}
+                                className="text-slate-300 mt-0.5 text-xs hover:text-sky-300 hover:underline text-left"
+                                title="Click to set supplier"
+                              >
+                                {currentSupplier?.supplier_name ?? <span className="text-slate-600 italic">Set supplier…</span>}
+                                {linkedSupplier && <span className="text-slate-600 text-[10px] ml-1">(via quote)</span>}
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      {/* Editable addressed to (company) */}
+                      {onUpdatePo && (() => {
+                        const linkedCompany = po.quote_id
+                          ? companies.find((c) => c.company_id === quotes.find((q) => String(q.quote_id) === String(po.quote_id))?.company_id)
+                          : null;
+                        const currentCompany = linkedCompany ?? companies.find((c) => c.company_id === po.company_id) ?? null;
+                        return (
+                          <div>
+                            <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">Addressed To</p>
+                            {editingPoCompany === pKey ? (
+                              <div className="flex items-center gap-1 mt-0.5" onClick={(e) => e.stopPropagation()}>
+                                <select
+                                  autoFocus
+                                  defaultValue={po.company_id ?? ''}
+                                  onChange={async (e) => {
+                                    const val = e.target.value ? Number(e.target.value) : null;
+                                    if (onUpdatePo) { setUpdatingPo(pKey); try { await onUpdatePo(pKey, { company_id: val ?? undefined }); } finally { setUpdatingPo(null); } }
+                                    setEditingPoCompany(null);
+                                  }}
+                                  className="flex-1 text-[11px] rounded px-1.5 py-0.5 bg-slate-900 border border-sky-500/40 text-white focus:outline-none"
+                                >
+                                  <option value="">— none —</option>
+                                  {companies.map((c) => (
+                                    <option key={c.company_id} value={c.company_id}>{c.legal_name}</option>
+                                  ))}
+                                </select>
+                                <button onClick={(e) => { e.stopPropagation(); setEditingPoCompany(null); }} className="text-slate-500 hover:text-slate-300 text-[10px]">✕</button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setEditingPoCompany(pKey); }}
+                                className="text-slate-300 mt-0.5 text-xs hover:text-sky-300 hover:underline text-left"
+                                title="Click to set company"
+                              >
+                                {currentCompany?.legal_name ?? <span className="text-slate-600 italic">Set company…</span>}
+                                {linkedCompany && <span className="text-slate-600 text-[10px] ml-1">(via quote)</span>}
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {/* Editable received date */}
                       {po.status === 'Fully Received' && (
