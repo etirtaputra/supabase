@@ -4,6 +4,7 @@
  */
 'use client';
 import { useState, useMemo, Suspense } from 'react';
+import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 // Components
@@ -416,9 +417,10 @@ function MasterInsertPage() {
         {/* Tab bar */}
         <nav className="px-4 md:px-8 xl:px-12 pb-3 xl:pb-4 max-w-[1800px] mx-auto flex overflow-x-auto gap-1.5 xl:gap-2 scrollbar-none snap-x snap-mandatory">
           {MENU_ITEMS.map((item) => (
-            <button
+            <Link
               key={item.id}
-              onClick={() => handleTabChange(item.id)}
+              href={`/insert?tab=${item.id}`}
+              onClick={(e) => { e.preventDefault(); handleTabChange(item.id); }}
               className={`snap-start px-3 py-1.5 xl:px-4 xl:py-2 rounded-full text-xs xl:text-sm font-medium whitespace-nowrap transition-all duration-150 flex items-center gap-1.5 flex-shrink-0 ${
                 activeTab === item.id
                   ? 'bg-white/10 text-white'
@@ -427,7 +429,7 @@ function MasterInsertPage() {
             >
               {TAB_ICONS[item.id]}
               {item.label}
-            </button>
+            </Link>
           ))}
         </nav>
       </div>
