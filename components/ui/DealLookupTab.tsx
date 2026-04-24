@@ -743,7 +743,7 @@ export default function DealLookupTab({
                                   autoFocus
                                   defaultValue={po.supplier_id ?? ''}
                                   onChange={async (e) => {
-                                    const val = e.target.value ? Number(e.target.value) : null;
+                                    const val = e.target.value || null;
                                     if (onUpdatePo) { setUpdatingPo(pKey); try { await onUpdatePo(pKey, { supplier_id: val ?? undefined }); } finally { setUpdatingPo(null); } }
                                     setEditingPoSupplier(null);
                                   }}
@@ -785,7 +785,7 @@ export default function DealLookupTab({
                                   autoFocus
                                   defaultValue={po.company_id ?? ''}
                                   onChange={async (e) => {
-                                    const val = e.target.value ? Number(e.target.value) : null;
+                                    const val = e.target.value || null;
                                     if (onUpdatePo) { setUpdatingPo(pKey); try { await onUpdatePo(pKey, { company_id: val ?? undefined }); } finally { setUpdatingPo(null); } }
                                     setEditingPoCompany(null);
                                   }}
