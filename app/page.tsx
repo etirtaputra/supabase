@@ -94,7 +94,7 @@ export default function Home() {
         <div className="max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12 py-5 xl:py-6 flex flex-col sm:flex-row sm:items-end justify-between gap-2">
           <div>
             <h1 className="text-2xl md:text-3xl xl:text-4xl font-extrabold text-white tracking-tight">
-              ICA Supply Chain{' '}
+              ICAPROC{' '}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-sky-400">
                 Dashboard
               </span>

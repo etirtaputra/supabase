@@ -4,10 +4,10 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: {
-    template: '%s | ICA',
-    default: 'ICA Supply Chain',
+    template: '%s | ICAPROC',
+    default: 'ICAPROC',
   },
-  description: "ICA Supply Chain Management System",
+  description: "ICAPROC Supply Chain Management",
 };
 
 export default function RootLayout({

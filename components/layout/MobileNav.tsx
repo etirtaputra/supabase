@@ -19,7 +19,7 @@ export default function MobileNav({ activeTab, onTabChange, menuItems, message }
       <div className="flex justify-between items-end mb-3">
         <div>
           <h1 className="font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-sky-400 text-lg tracking-tight leading-none mb-1">Data Entry</h1>
-          <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">ICA Supply Chain</p>
+          <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">ICAPROC</p>
         </div>
         {message && (
           <span

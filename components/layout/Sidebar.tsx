@@ -18,7 +18,7 @@ export default function Sidebar({ activeTab, onTabChange, menuItems }: SidebarPr
       <div className="p-6 border-b border-slate-800/80 bg-slate-900/30">
         <h1 className="text-sm font-extrabold tracking-widest text-slate-300 uppercase leading-snug">
           Supabase <span className="text-slate-600 mx-1">|</span> <br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-sky-400 text-base">ICA Supply Chain</span>
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-sky-400 text-base">ICAPROC</span>
         </h1>
       </div>
       {/* Navigation Menu */}
@@ -43,7 +43,7 @@ export default function Sidebar({ activeTab, onTabChange, menuItems }: SidebarPr
       <div className="p-4 border-t border-slate-800/80 bg-slate-900/30">
         <div className="flex items-center gap-2 px-3">
           <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
-          <p className="text-xs text-slate-500 font-medium tracking-wide">Supply Chain v2.0</p>
+          <p className="text-xs text-slate-500 font-medium tracking-wide">ICAPROC v2.0</p>
         </div>
       </div>
     </aside>

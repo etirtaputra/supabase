@@ -59,7 +59,7 @@ function MasterInsertPage() {
 
   useEffect(() => {
     const label = MENU_ITEMS.find((m) => m.id === activeTab)?.label ?? 'Data Entry';
-    document.title = `${label} — Supply Chain`;
+    document.title = `${label} — ICAPROC`;
   }, [activeTab]);
 
   const [showSupplierForm, setShowSupplierForm] = useState(false);
@@ -413,7 +413,7 @@ function MasterInsertPage() {
         <header className="px-4 md:px-8 xl:px-12 pt-4 xl:pt-5 pb-2 max-w-[1800px] mx-auto flex flex-col sm:flex-row sm:items-end justify-between gap-1">
           <div>
             <h1 className="text-lg md:text-xl xl:text-2xl font-bold text-white tracking-tight">
-              ICA Supply Chain
+              ICAPROC
             </h1>
             <p className="text-slate-500 text-[11px] mt-0.5 hidden sm:block">
               {activeItem?.label}
