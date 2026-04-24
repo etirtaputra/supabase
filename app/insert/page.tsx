@@ -3,7 +3,7 @@
  * Top-nav layout with URL-param tab sync, optimized for desktop & mobile
  */
 'use client';
-import { useState, useMemo, Suspense } from 'react';
+import { useState, useMemo, Suspense, useEffect } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
@@ -56,6 +56,12 @@ function MasterInsertPage() {
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get('tab') as Tab) || 'catalog';
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
+
+  useEffect(() => {
+    const label = MENU_ITEMS.find((m) => m.id === activeTab)?.label ?? 'Data Entry';
+    document.title = `${label} — Supply Chain`;
+  }, [activeTab]);
+
   const [showSupplierForm, setShowSupplierForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [pdfData, setPdfData] = useState<any>(null);
@@ -420,7 +426,7 @@ function MasterInsertPage() {
             <Link
               key={item.id}
               href={`/insert?tab=${item.id}`}
-              onClick={(e) => { e.preventDefault(); handleTabChange(item.id); }}
+              onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return; e.preventDefault(); handleTabChange(item.id); }}
               className={`snap-start px-3 py-1.5 xl:px-4 xl:py-2 rounded-full text-xs xl:text-sm font-medium whitespace-nowrap transition-all duration-150 flex items-center gap-1.5 flex-shrink-0 ${
                 activeTab === item.id
                   ? 'bg-white/10 text-white'
