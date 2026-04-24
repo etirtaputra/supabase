@@ -68,7 +68,7 @@ export function buildDealGroups(
 ): DealGroup[] {
   const supplierMap: Record<string, Supplier> = {};
   for (const s of suppliers) supplierMap[s.supplier_id] = s;
-  const companyMap: Record<number, Company> = {};
+  const companyMap: Record<string, Company> = {};
   for (const c of companies) companyMap[c.company_id] = c;
 
   // quote_id → group key (built during quote pass, used in PO pass)
