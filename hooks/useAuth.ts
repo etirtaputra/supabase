@@ -18,26 +18,33 @@ export function useAuth() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = async (u: User) => {
     const { data } = await supabase
       .from('user_profiles')
       .select('*')
-      .eq('id', userId)
+      .eq('id', u.id)
       .single();
-    if (data) setProfile(data as UserProfile);
+    if (data) {
+      setProfile(data as UserProfile);
+    } else {
+      // Profile doesn't exist yet — create it (trigger may not have fired)
+      await supabase.from('user_profiles').upsert({ id: u.id, email: u.email ?? '' });
+      setProfile({ id: u.id, email: u.email ?? '', role: 'viewer' });
+    }
+    setLoading(false);
   };
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id);
+      if (session?.user) fetchProfile(session.user);
       else setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchProfile(session.user.id).finally(() => setLoading(false));
+        fetchProfile(session.user);
       } else {
         setProfile(null);
         setLoading(false);
@@ -46,11 +53,6 @@ export function useAuth() {
 
     return () => subscription.unsubscribe();
   }, []);
-
-  // Mark loading done once profile is fetched
-  useEffect(() => {
-    if (profile) setLoading(false);
-  }, [profile]);
 
   const signOut = () => supabase.auth.signOut();
 
