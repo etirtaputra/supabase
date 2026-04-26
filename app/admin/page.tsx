@@ -38,7 +38,7 @@ export default function AdminPage() {
     setSaving(userId);
     const { error } = await supabase
       .from('user_profiles')
-      .update({ role })
+      .update({ role } as any)
       .eq('id', userId);
     if (!error) {
       setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, role } : u));
