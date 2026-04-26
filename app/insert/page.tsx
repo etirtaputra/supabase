@@ -688,7 +688,7 @@ function MasterInsertPage() {
                         { name: 'company_id', label: 'Addressed To', type: 'select', options: options.companies, default: pdfDefaults.company_id },
                         { name: 'pi_number', label: 'PI #', type: 'text', default: pq?.pi_number || pdfData?.pi_number },
                         { name: 'pi_date', label: 'PI Date', type: 'date', default: pq?.quote_date || pdfData?.pi_date },
-                        { name: 'pi_status', label: 'PI Status', type: 'select', options: ENUMS.proforma_status },
+                        { name: 'pi_status', label: 'PI Status', type: 'select', options: ENUMS.proforma_status, default: 'Accepted' },
                         { name: 'po_number', label: 'PO #', type: 'text', req: true, suggestions: suggestions.poNumbers, default: pdfData?.po_number },
                         { name: 'po_date', label: 'PO Date', type: 'date', req: true, default: pdfData?.po_date || new Date().toISOString().split('T')[0] },
                         { name: 'incoterms', label: 'Incoterms', type: 'text', suggestions: ['FOB', 'EXW', 'CIF', 'DDP', ...suggestions.incoterms] },

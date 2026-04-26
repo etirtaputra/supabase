@@ -29,8 +29,21 @@ export default function BatchLineItemsForm({
 }: BatchLineItemsFormProps) {
   const uniqueFormId = useId();
   const formId = customFormId || uniqueFormId;
+  const storageKey = `form-draft:${title}`;
 
-  const [parentId, setParentId] = useState(defaultParentId ?? '');
+  const loadSaved = () => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) return JSON.parse(raw) as { parentId?: string; items?: any[]; draft?: Record<string, any> };
+    } catch {}
+    return null;
+  };
+
+  const [parentId, setParentId] = useState(() => {
+    if (defaultParentId) return defaultParentId;
+    if (typeof window !== 'undefined') return loadSaved()?.parentId ?? '';
+    return '';
+  });
 
   // Sync when parent pre-selects a new ID (e.g. after creating a quote/PO)
   useEffect(() => {
@@ -40,8 +53,15 @@ export default function BatchLineItemsForm({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defaultParentId]);
-  const [items, setItems] = useState<any[]>([]);
-  const [draft, setDraft] = useState<Record<string, any>>({});
+
+  const [items, setItems] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') return loadSaved()?.items ?? [];
+    return [];
+  });
+  const [draft, setDraft] = useState<Record<string, any>>(() => {
+    if (typeof window !== 'undefined') return loadSaved()?.draft ?? {};
+    return {};
+  });
   const [pdfUploading, setPdfUploading] = useState(false);
   const [pdfError, setPdfError] = useState('');
   const [showImportModal, setShowImportModal] = useState(false);
@@ -66,6 +86,10 @@ export default function BatchLineItemsForm({
     };
   }, [enableQuoteImport, parentId, allPurchases, allQuotes, allQuoteItems]);
 
+  const persistState = (nextParentId: string, nextItems: any[], nextDraft: Record<string, any>) => {
+    try { localStorage.setItem(storageKey, JSON.stringify({ parentId: nextParentId, items: nextItems, draft: nextDraft })); } catch {}
+  };
+
   const handleDraftChange = (field: string, value: any) => {
     const updatedDraft = { ...draft, [field]: value };
 
@@ -83,6 +107,7 @@ export default function BatchLineItemsForm({
     }
 
     setDraft(updatedDraft);
+    persistState(parentId, items, updatedDraft);
   };
 
   const addItem = () => {
@@ -93,7 +118,8 @@ export default function BatchLineItemsForm({
       }
     }
 
-    setItems([...items, { ...draft, _id: Date.now() }]);
+    const nextItems = [...items, { ...draft, _id: Date.now() }];
+    setItems(nextItems);
 
     const nextDraft: Record<string, any> = {};
     stickyFields.forEach((key) => {
@@ -102,11 +128,14 @@ export default function BatchLineItemsForm({
     if (draft.currency && !nextDraft.currency) nextDraft.currency = draft.currency;
 
     setDraft(nextDraft);
+    persistState(parentId, nextItems, nextDraft);
   };
 
   const removeItem = (id: number) => {
     if (confirm('Remove this item?')) {
-      setItems(items.filter((i) => i._id !== id));
+      const nextItems = items.filter((i) => i._id !== id);
+      setItems(nextItems);
+      persistState(parentId, nextItems, draft);
     }
   };
 
@@ -157,6 +186,7 @@ export default function BatchLineItemsForm({
   const clearAllItems = () => {
     if (confirm('Remove all items? This cannot be undone.')) {
       setItems([]);
+      persistState(parentId, [], draft);
     }
   };
 
@@ -330,6 +360,8 @@ export default function BatchLineItemsForm({
 
     onSubmit(payload);
     setItems([]);
+    setDraft({});
+    try { localStorage.removeItem(storageKey); } catch {}
   };
 
   const isHeaderField = (name: string) => stickyFields.includes(name);
@@ -455,7 +487,7 @@ export default function BatchLineItemsForm({
           <select
             className="w-full md:w-1/2 p-3 bg-slate-950/70 border border-slate-700/80 rounded-xl text-sm text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
             value={parentId}
-            onChange={(e) => { setParentId(e.target.value); onParentChange?.(e.target.value); }}
+            onChange={(e) => { setParentId(e.target.value); onParentChange?.(e.target.value); persistState(e.target.value, items, draft); }}
           >
             <option value="">-- Select --</option>
             {parentField.options.map((o) => (
