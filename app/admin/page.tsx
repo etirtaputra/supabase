@@ -26,7 +26,7 @@ export default function AdminPage() {
 
   const fetchUsers = async () => {
     setLoading(true);
-    const { data } = await supabase
+    const { data } = await (supabase as any)
       .from('user_profiles')
       .select('*')
       .order('created_at', { ascending: true });
@@ -36,9 +36,9 @@ export default function AdminPage() {
 
   const updateRole = async (userId: string, role: UserRole) => {
     setSaving(userId);
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('user_profiles')
-      .update({ role } as any)
+      .update({ role })
       .eq('id', userId);
     if (!error) {
       setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, role } : u));
@@ -49,7 +49,7 @@ export default function AdminPage() {
   };
 
   const updateName = async (userId: string, display_name: string) => {
-    await supabase.from('user_profiles').update({ display_name }).eq('id', userId);
+    await (supabase as any).from('user_profiles').update({ display_name }).eq('id', userId);
     setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, display_name } : u));
   };
 
