@@ -315,9 +315,8 @@ function MasterInsertPage() {
   };
 
   const handleAddComponentLink = async (link: Record<string, any>) => {
-    // Normalize: always store smaller UUID as component_id_a
-    const [a, b] = [link.component_id_a as string, link.component_id_b as string].sort();
-    const { error } = await supabase.from('8.0_component_links').insert({ ...link, component_id_a: a, component_id_b: b });
+    // Preserve order as-is: component_id_a is always the component the user was viewing when they added the link
+    const { error } = await supabase.from('8.0_component_links').insert(link);
     if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
     showToast('Component link added.', 'success');
     refetch();

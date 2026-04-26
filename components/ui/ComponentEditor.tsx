@@ -1587,7 +1587,6 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       normValueSelf: number | null;   // capacity value of the *current* component
       normValueOther: number | null;  // capacity value of the *linked* component
       lastQuoteOther: { price: number; currency: string } | null;
-      isInverted?: boolean;           // true if components are in wrong order in DB
     };
     const myLinks = (componentLinks ?? []).filter(
       (l) => l.component_id_a === inspectId || l.component_id_b === inspectId,
@@ -1614,15 +1613,6 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         ? { price: otherLatestItem.unit_price, currency: otherLatestItem.currency }
         : null;
 
-      // Detect if link is inverted (component_a should always be the smaller/primary one)
-      // For now, we detect but don't fix—user can manually correct via remove+re-add
-      const isInverted = !!(
-        link.link_type === 'normalized' &&
-        link.norm_value_a && link.norm_value_b &&
-        link.norm_value_a > link.norm_value_b &&
-        !isA  // inverted if inspected component is B and has larger normValue
-      );
-
       return {
         link,
         comp: otherComp,
@@ -1632,7 +1622,6 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         normValueSelf:  isA ? (link.norm_value_a ?? null) : (link.norm_value_b ?? null),
         normValueOther: isA ? (link.norm_value_b ?? null) : (link.norm_value_a ?? null),
         lastQuoteOther,
-        isInverted,
       };
     }).filter((x): x is LinkedCompData => x !== null);
 
@@ -3610,7 +3599,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           <p className="text-sm text-slate-600 italic py-6 text-center">No linked components yet</p>
                         )}
 
-                        {linkedComps.map(({ link, comp: lComp, tucIdr: lTuc, tucXr: lXr, intel: lIntel, normValueSelf, normValueOther, lastQuoteOther, isInverted }) => {
+                        {linkedComps.map(({ link, comp: lComp, tucIdr: lTuc, tucXr: lXr, intel: lIntel, normValueSelf, normValueOther, lastQuoteOther }) => {
                           const meta = LINK_TYPE_META[link.link_type] ?? { label: link.link_type, color: 'text-slate-300 bg-slate-700/40 border-slate-600/40' };
 
                           // ── Price resolution: TUC preferred, last quote as fallback ──
@@ -3656,9 +3645,6 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                                 </div>
                                 <div className="flex items-center gap-2 flex-shrink-0">
                                   <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${meta.color}`}>{meta.label}</span>
-                                  {isInverted && (
-                                    <span className="px-2 py-0.5 text-[10px] font-bold rounded-full border text-amber-300 border-amber-500/40 bg-amber-500/10" title="Link components are inverted in database - remove & re-add to fix">⚠️ Inverted</span>
-                                  )}
                                   {confirmDeleteLinkId === link.link_id ? (
                                     <span className="flex items-center gap-1 text-[11px]">
                                       <span className="text-slate-400">Remove?</span>
