@@ -533,6 +533,24 @@ export default function DealLookupTab({
                       ) : null)}
                     </div>
 
+                    {/* Quote document link */}
+                    {qt.document_url && (
+                      <div>
+                        <a
+                          href={qt.document_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1.5 text-[11px] text-sky-400 hover:text-sky-300 hover:underline"
+                        >
+                          <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                          </svg>
+                          Quote Document
+                        </a>
+                      </div>
+                    )}
+
                     {/* Quote status selector */}
                     {onQuoteStatusChange && (
                       <div className="flex items-center gap-1.5">
@@ -846,6 +864,24 @@ export default function DealLookupTab({
                         </div>
                       )}
                     </div>
+
+                    {/* PO document link */}
+                    {po.document_url && (
+                      <div>
+                        <a
+                          href={po.document_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1.5 text-[11px] text-sky-400 hover:text-sky-300 hover:underline"
+                        >
+                          <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                          </svg>
+                          PO / PI Document
+                        </a>
+                      </div>
+                    )}
 
                     {/* Lead-time breakdown — shown once received date is set */}
                     {ltRecDate && (() => {

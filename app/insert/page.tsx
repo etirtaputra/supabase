@@ -581,6 +581,7 @@ function MasterInsertPage() {
                         { name: 'status', label: 'Status', type: 'select', options: ENUMS.price_quotes_status, default: 'Open' },
                         { name: 'estimated_lead_time_days', label: 'Lead Time', type: 'select', options: ENUMS.lead_time, default: pdfData?.lead_time_days },
                         { name: 'replaces_quote_id', label: 'Replaces', type: 'select', options: options.quotes },
+                        { name: 'document_url', label: 'Document URL', type: 'text', placeholder: 'https://drive.google.com/…' },
                       ]}
                       onSubmit={(d) => handleInsert('4.0_price_quotes', d)}
                       loading={loading}
@@ -703,6 +704,7 @@ function MasterInsertPage() {
                         { name: 'actual_received_date', label: 'Received', type: 'date' },
                         { name: 'status', label: 'Status', type: 'select', options: ENUMS.purchases_status, default: 'Draft' },
                         { name: 'replaces_po_id', label: 'Replaces PO', type: 'select', options: options.pos },
+                        { name: 'document_url', label: 'Document URL', type: 'text', placeholder: 'https://drive.google.com/…' },
                         ]; })()}
                       onSubmit={(d) => handleInsert('5.0_purchases', d)}
                       loading={loading}

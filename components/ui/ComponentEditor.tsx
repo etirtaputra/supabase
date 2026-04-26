@@ -561,7 +561,7 @@ const LINK_TYPE_META: Record<string, { label: string; color: string }> = {
 const NORM_UNITS = ['Wp', 'kWh', 'kW', 'Ah', 'kg', 'unit'] as const;
 
 // --- Main Component Editor ---
-const EMPTY_ADD = { supplier_model: '', internal_description: '', brand: '', category: '', specifications: '' };
+const EMPTY_ADD = { supplier_model: '', internal_description: '', brand: '', category: '', specifications: '', datasheet_url: '' };
 
 export default function ComponentEditor({ components, brandSuggestions, quoteItems = [], quotes = [], pos = [], poItems = [], poCosts = [], componentHistory, competitorPrices, onSave, onAdd, onAddSupplier, onDelete, onSaveLineItem, onDeleteLineItem, onDeleteCompetitorPrice, onUpdateCompetitorPrice, componentLinks, onAddComponentLink, onDeleteComponentLink }: ComponentEditorProps) {
   const [searchInput, setSearchInput] = useState('');
@@ -1157,6 +1157,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         brand: addDraft.brand.trim() || null as any,
         category: (addDraft.category || null) as any,
         specifications: specs,
+        datasheet_url: addDraft.datasheet_url.trim() || null as any,
       });
       setAddDraft(EMPTY_ADD);
       setShowAddForm(false);
@@ -1859,15 +1860,27 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
               </select>
             </div>
           </div>
-          <div className="mt-3">
-            <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Specs (JSON)</label>
-            <textarea
-              value={addDraft.specifications}
-              onChange={(e) => setAddDraft((p) => ({ ...p, specifications: e.target.value }))}
-              placeholder={'{"watts": 400, "voltage": 48}'}
-              rows={2}
-              className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white font-mono focus:outline-none focus:border-emerald-500 placeholder-slate-600 resize-none"
-            />
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Specs (JSON)</label>
+              <textarea
+                value={addDraft.specifications}
+                onChange={(e) => setAddDraft((p) => ({ ...p, specifications: e.target.value }))}
+                placeholder={'{"watts": 400, "voltage": 48}'}
+                rows={2}
+                className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white font-mono focus:outline-none focus:border-emerald-500 placeholder-slate-600 resize-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Datasheet / File URL</label>
+              <input
+                type="url"
+                value={addDraft.datasheet_url}
+                onChange={(e) => setAddDraft((p) => ({ ...p, datasheet_url: e.target.value }))}
+                placeholder="https://drive.google.com/..."
+                className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500 placeholder-slate-600"
+              />
+            </div>
           </div>
           <div className="flex justify-end gap-2 mt-3">
             <button
@@ -2538,6 +2551,31 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                     {/* Row actions */}
                     <td className="px-4 py-3 align-top">
                       <div className="flex gap-1.5 justify-end items-center">
+                        {/* Datasheet / file link */}
+                        {isEditing ? (
+                          <input
+                            type="url"
+                            data-fld="datasheet_url"
+                            value={(getVal(c, 'datasheet_url' as any) as string) ?? c.datasheet_url ?? ''}
+                            onChange={(e) => setField(c, 'datasheet_url' as any, e.target.value || null)}
+                            placeholder="Datasheet URL…"
+                            title="Datasheet / file URL (Google Drive, etc.)"
+                            className="w-32 px-1.5 py-0.5 text-[10px] bg-slate-950 border border-slate-700 rounded text-slate-300 placeholder-slate-700 focus:outline-none focus:border-sky-500/50"
+                          />
+                        ) : c.datasheet_url ? (
+                          <a
+                            href={c.datasheet_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Open datasheet / file"
+                            onClick={(e) => e.stopPropagation()}
+                            className="px-2 py-1 text-xs text-sky-500 bg-transparent border border-transparent rounded-lg hover:bg-sky-500/10 hover:border-sky-500/30 transition-all"
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                            </svg>
+                          </a>
+                        ) : null}
                         {/* Inspect panel */}
                         <button
                           onClick={() => { setInspectId(c.component_id); setInspectTab('costs'); }}

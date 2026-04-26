@@ -72,6 +72,7 @@ export interface Component extends BaseEntity {
   category?: ProductCategory;
   specifications?: Record<string, any>;
   selling_price_idr?: number | null;
+  datasheet_url?: string | null;
 }
 
 // 4.0 Price Quotes
@@ -86,6 +87,7 @@ export interface PriceQuote extends BaseEntity {
   status?: PriceQuotesStatus;
   estimated_lead_time_days?: LeadTime;
   replaces_quote_id?: number;
+  document_url?: string | null;
 }
 
 // 4.1 Price Quote Line Items
@@ -134,6 +136,7 @@ export interface PurchaseOrder extends BaseEntity {
   pi_date?: string;
   pi_status?: ProformaStatus;
   quote_id?: number;
+  document_url?: string | null;
 }
 
 // 6.1 Purchase Line Items
