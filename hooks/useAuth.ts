@@ -20,7 +20,7 @@ export function useAuth() {
 
   const fetchProfile = async (u: User) => {
     const { data } = await supabase
-      .from('user_profiles' as any)
+      .from('user_profiles')
       .select('*')
       .eq('id', u.id)
       .single();
@@ -28,7 +28,7 @@ export function useAuth() {
       setProfile(data as UserProfile);
     } else {
       // Profile doesn't exist yet — create it (trigger may not have fired)
-      await (supabase as any).from('user_profiles').upsert({ id: u.id, email: u.email ?? '' });
+      await supabase.from('user_profiles').upsert({ id: u.id, email: u.email ?? '' });
       setProfile({ id: u.id, email: u.email ?? '', role: 'viewer' });
     }
     setLoading(false);

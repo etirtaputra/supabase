@@ -1,12 +1,12 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Singleton — all hooks and components share one client instance so that
-// auth state (JWT, session refresh) is consistent across the whole app.
-let _client: ReturnType<typeof createClient> | null = null;
+// Singleton with `any` schema — no generated Supabase types in this project,
+// so we use SupabaseClient<any> to avoid `never` type errors on all table ops.
+let _client: SupabaseClient<any> | null = null;
 
-export function createSupabaseClient() {
+export function createSupabaseClient(): SupabaseClient<any> {
   if (!_client) {
-    _client = createClient(
+    _client = createClient<any>(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
