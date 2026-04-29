@@ -21,7 +21,9 @@ export const ENUMS = {
     'pv_module',
     'solar_charge_controller',
     'solar_pump_inverter',
+    'stabilizer',
     'standing_cabinet',
+    'ups',
     'wallmount_cabinet',
   ] as const,
 
