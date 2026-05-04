@@ -800,9 +800,10 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     return { quoteLinesByComponent: linesMap, lastQuoteByComponent: lastMap, sparklineLinesByComponent: sparkMap };
   }, [quoteItems, quotes]);
 
-  const poLinesByComponent = useMemo(() => {
+  const { poLinesByComponent, lastPoByComponent } = useMemo(() => {
     const poMap = new Map(pos.map((p) => [p.po_id, p]));
     const map = new Map<string, TooltipPOLine[]>();
+    const lastMap = new Map<string, { price: number; currency: string; date: string }>();
     poItems.forEach((item) => {
       if (!item.component_id) return;
       const po = poMap.get(item.po_id);
@@ -815,11 +816,15 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         unit_cost: item.unit_cost,
         currency: item.currency,
       });
+      const existing = lastMap.get(item.component_id);
+      if (!existing || (po.po_date ?? '') > existing.date) {
+        lastMap.set(item.component_id, { price: item.unit_cost, currency: item.currency, date: po.po_date ?? '' });
+      }
     });
     map.forEach((lines, cid) => {
       map.set(cid, [...lines].sort((a, b) => (b.po_date || '').localeCompare(a.po_date || '')).slice(0, 5));
     });
-    return map;
+    return { poLinesByComponent: map, lastPoByComponent: lastMap };
   }, [poItems, pos]);
 
   // ── Bulk TUC per component (single-pass, no per-component O(n) scan) ────────
@@ -2399,12 +2404,13 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                       </td>
                     )}
 
-                    {/* Last Price — TUC first, fallback to last quoted price */}
+                    {/* Last Price — TUC first, fallback to last quoted price, then last PO unit cost */}
                     {visibleCols.lastPrice && (
                       <td className="px-3 py-1.5 align-middle min-w-[100px]">
                         {(() => {
                           const tuc = tucByComponent.get(c.component_id);
                           const lq  = lastQuoteByComponent.get(c.component_id);
+                          const lpo = lastPoByComponent.get(c.component_id);
                           const isDup = duplicateModels.has(c.supplier_model?.toLowerCase().trim() ?? '');
                           return (
                             <div>
@@ -2418,7 +2424,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                                     <span className="text-[10px] text-amber-600/70 font-medium">TUC</span>
                                   </div>
                                 </div>
-                              ) : lq ? (
+                              ) : lq && (!lpo || lq.date >= lpo.date) ? (
                                 <div className="min-w-0">
                                   <p className="text-xs font-medium text-slate-200 tabular-nums leading-tight">
                                     {lq.currency} {lq.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -2426,6 +2432,16 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                                   <div className="flex items-center gap-1.5 mt-0.5">
                                     <span className="text-[10px] text-slate-600">{new Date(lq.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}</span>
                                     <PriceDelta lines={sparklineLinesByComponent.get(c.component_id) ?? []} />
+                                  </div>
+                                </div>
+                              ) : lpo ? (
+                                <div className="min-w-0">
+                                  <p className="text-xs font-medium text-slate-200 tabular-nums leading-tight">
+                                    {lpo.currency} {lpo.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </p>
+                                  <div className="flex items-center gap-1.5 mt-0.5">
+                                    <span className="text-[10px] text-slate-600">{lpo.date ? new Date(lpo.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : ''}</span>
+                                    <span className="text-[10px] text-sky-600/70 font-medium">PO</span>
                                   </div>
                                 </div>
                               ) : (
