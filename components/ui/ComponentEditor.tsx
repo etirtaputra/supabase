@@ -880,7 +880,19 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     return result;
   }, [poItems, pos, poCosts]);
 
-  // ── PO number lookup by quote_id (used in line-item modal) ──────────────────
+  // ── Effective "last activity" date per component (max of component.updated_at, latest quote, latest PO) ──
+  const effectiveUpdatedAt = useMemo(() => {
+    const map = new Map<string, string>();
+    components.forEach((c) => {
+      let best = c.updated_at ?? '';
+      const lq = lastQuoteByComponent.get(c.component_id);
+      if (lq?.date && lq.date > best) best = lq.date;
+      const lpo = lastPoByComponent.get(c.component_id);
+      if (lpo?.date && lpo.date > best) best = lpo.date;
+      map.set(c.component_id, best);
+    });
+    return map;
+  }, [components, lastQuoteByComponent, lastPoByComponent]);
   const posByQuoteId = useMemo(() => {
     const map = new Map<number, string[]>();
     pos.forEach((po) => {
@@ -1020,8 +1032,8 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     });
     return [...result].sort((a, b) => {
       if (sortCol === 'updated_at') {
-        const av = a[sortCol] ? new Date(a[sortCol] as string).getTime() : 0;
-        const bv = b[sortCol] ? new Date(b[sortCol] as string).getTime() : 0;
+        const av = effectiveUpdatedAt.get(a.component_id) ? new Date(effectiveUpdatedAt.get(a.component_id)!).getTime() : 0;
+        const bv = effectiveUpdatedAt.get(b.component_id) ? new Date(effectiveUpdatedAt.get(b.component_id)!).getTime() : 0;
         return sortDir === 'asc' ? av - bv : bv - av;
       }
       if (sortCol === 'quoteCount' || sortCol === 'poCount' || sortCol === 'lineItemCount') {
@@ -2420,7 +2432,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                                     IDR {Math.round(tuc.actualTucIdr).toLocaleString('en-US')}
                                   </p>
                                   <div className="flex items-center gap-1.5 mt-0.5">
-                                    <span className="text-[10px] text-slate-600">{new Date(tuc.latestPoDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}</span>
+                                    <span className="text-[10px] text-slate-600 whitespace-nowrap">{new Date(tuc.latestPoDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}</span>
                                     <span className="text-[10px] text-amber-600/70 font-medium">TUC</span>
                                   </div>
                                 </div>
@@ -2430,7 +2442,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                                     {lq.currency} {lq.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </p>
                                   <div className="flex items-center gap-1.5 mt-0.5">
-                                    <span className="text-[10px] text-slate-600">{new Date(lq.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}</span>
+                                    <span className="text-[10px] text-slate-600 whitespace-nowrap">{new Date(lq.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}</span>
                                     <PriceDelta lines={sparklineLinesByComponent.get(c.component_id) ?? []} />
                                   </div>
                                 </div>
@@ -2440,7 +2452,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                                     {lpo.currency} {lpo.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </p>
                                   <div className="flex items-center gap-1.5 mt-0.5">
-                                    <span className="text-[10px] text-slate-600">{lpo.date ? new Date(lpo.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : ''}</span>
+                                    <span className="text-[10px] text-slate-600 whitespace-nowrap">{lpo.date ? new Date(lpo.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : ''}</span>
                                     <span className="text-[10px] text-sky-600/70 font-medium">PO</span>
                                   </div>
                                 </div>
@@ -2548,7 +2560,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                     {visibleCols.updated && (
                       <td className="hidden md:table-cell px-4 py-3 align-top">
                         <span className={`text-xs ${sortCol === 'updated_at' ? 'text-emerald-400 font-semibold' : 'text-slate-500'}`}>
-                          {fmtDate(c.updated_at)}
+                          {fmtDate(effectiveUpdatedAt.get(c.component_id))}
                         </span>
                       </td>
                     )}
