@@ -1688,6 +1688,9 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     return new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
+  const fmtAmt = (n: number, currency: string) =>
+    `${currency} ${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
   const SortTh = ({ col, label, className = '' }: { col: SortCol; label: string; className?: string }) => (
     <th
       className={`px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 cursor-pointer select-none hover:text-white transition-colors ${className}`}
@@ -2429,7 +2432,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                               {tuc ? (
                                 <div className="min-w-0">
                                   <p className="text-xs font-medium text-slate-200 tabular-nums leading-tight">
-                                    IDR {Math.round(tuc.actualTucIdr).toLocaleString('en-US')}
+                                    {fmtAmt(tuc.actualTucIdr, 'IDR')}
                                   </p>
                                   <div className="flex items-center gap-1.5 mt-0.5">
                                     <span className="text-[10px] text-slate-600 whitespace-nowrap">{new Date(tuc.latestPoDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}</span>
@@ -2439,7 +2442,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                               ) : lq && (!lpo || lq.date >= lpo.date) ? (
                                 <div className="min-w-0">
                                   <p className="text-xs font-medium text-slate-200 tabular-nums leading-tight">
-                                    {lq.currency} {lq.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {fmtAmt(lq.price, lq.currency)}
                                   </p>
                                   <div className="flex items-center gap-1.5 mt-0.5">
                                     <span className="text-[10px] text-slate-600 whitespace-nowrap">{new Date(lq.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}</span>
@@ -2449,7 +2452,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                               ) : lpo ? (
                                 <div className="min-w-0">
                                   <p className="text-xs font-medium text-slate-200 tabular-nums leading-tight">
-                                    {lpo.currency} {lpo.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {fmtAmt(lpo.price, lpo.currency)}
                                   </p>
                                   <div className="flex items-center gap-1.5 mt-0.5">
                                     <span className="text-[10px] text-slate-600 whitespace-nowrap">{lpo.date ? new Date(lpo.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : ''}</span>
@@ -2507,7 +2510,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           return (
                             <div>
                               <p className="text-xs font-medium text-slate-200 tabular-nums leading-tight">
-                                IDR {Math.round(sp).toLocaleString('en-US')}
+                                {fmtAmt(sp, 'IDR')}
                               </p>
                               <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                                 {gm != null && (
@@ -3169,7 +3172,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
             {hoverData.actualTucIdr != null ? (
               <div className="mb-3">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-sky-400/70 mb-1">Actual TUC</p>
-                <p className="text-base font-bold text-sky-300 tabular-nums">IDR {Math.round(hoverData.actualTucIdr).toLocaleString('en-US')}</p>
+                <p className="text-base font-bold text-sky-300 tabular-nums">{fmtAmt(hoverData.actualTucIdr, 'IDR')}</p>
                 {hoverData.tucXr && (
                   <p className="text-[11px] text-slate-500 tabular-nums">≈ USD {(hoverData.actualTucIdr / hoverData.tucXr).toFixed(2)}</p>
                 )}
@@ -3177,14 +3180,14 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                   <div>
                     <p className="text-slate-600">Last PO</p>
                     <p className={`font-semibold tabular-nums ${hoverData.lastPoTucIdr === hoverData.actualTucIdr ? 'text-sky-300' : 'text-slate-400'}`}>
-                      {hoverData.lastPoTucIdr != null ? `IDR ${Math.round(hoverData.lastPoTucIdr).toLocaleString('en-US')}` : '—'}
+                      {hoverData.lastPoTucIdr != null ? fmtAmt(hoverData.lastPoTucIdr, 'IDR') : '—'}
                       {hoverData.lastPoTucIdr === hoverData.actualTucIdr && <span className="ml-0.5 text-sky-600">↑</span>}
                     </p>
                   </div>
                   <div>
                     <p className="text-slate-600">Avg ({hoverData.paidPoCount} PO{hoverData.paidPoCount !== 1 ? 's' : ''})</p>
                     <p className={`font-semibold tabular-nums ${hoverData.avgTucIdr != null && hoverData.avgTucIdr === hoverData.actualTucIdr && hoverData.lastPoTucIdr !== hoverData.actualTucIdr ? 'text-sky-300' : 'text-slate-400'}`}>
-                      {hoverData.avgTucIdr != null ? `IDR ${Math.round(hoverData.avgTucIdr).toLocaleString('en-US')}` : '—'}
+                      {hoverData.avgTucIdr != null ? fmtAmt(hoverData.avgTucIdr, 'IDR') : '—'}
                       {hoverData.avgTucIdr != null && hoverData.avgTucIdr === hoverData.actualTucIdr && hoverData.lastPoTucIdr !== hoverData.actualTucIdr && <span className="ml-0.5 text-sky-600">↑</span>}
                     </p>
                   </div>
@@ -3200,7 +3203,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
               <div className="mb-2.5">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400/70 mb-1">Last Quote</p>
                 <p className="text-sm font-semibold text-emerald-300 tabular-nums">
-                  {hoverData.lq.currency} {hoverData.lq.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {fmtAmt(hoverData.lq.price, hoverData.lq.currency)}
                 </p>
               </div>
             )}
@@ -3306,7 +3309,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           {actualTucIdr != null ? (
                             <>
                               <p className="text-lg font-bold text-sky-300 tabular-nums">
-                                IDR {Math.round(actualTucIdr).toLocaleString('en-US')}
+                                {fmtAmt(actualTucIdr, 'IDR')}
                               </p>
                               {tucXr && (
                                 <p className="text-[11px] text-slate-500 mt-0.5 tabular-nums">
@@ -3318,14 +3321,14 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                                 <div>
                                   <p className="text-[10px] text-slate-500">Last PO</p>
                                   <p className={`text-xs font-semibold tabular-nums ${lastPoTucIdr === actualTucIdr ? 'text-sky-300' : 'text-slate-400'}`}>
-                                    IDR {lastPoTucIdr != null ? Math.round(lastPoTucIdr).toLocaleString('en-US') : '—'}
+                                    {lastPoTucIdr != null ? fmtAmt(lastPoTucIdr, 'IDR') : '—'}
                                     {lastPoTucIdr === actualTucIdr && <span className="ml-1 text-[9px] text-sky-500/80">↑ used</span>}
                                   </p>
                                 </div>
                                 <div>
                                   <p className="text-[10px] text-slate-500">Avg ({paidPoCount} PO{paidPoCount !== 1 ? 's' : ''})</p>
                                   <p className={`text-xs font-semibold tabular-nums ${avgTucIdr === actualTucIdr && avgTucIdr !== lastPoTucIdr ? 'text-sky-300' : 'text-slate-400'}`}>
-                                    IDR {avgTucIdr != null ? Math.round(avgTucIdr).toLocaleString('en-US') : '—'}
+                                    {avgTucIdr != null ? fmtAmt(avgTucIdr, 'IDR') : '—'}
                                     {avgTucIdr === actualTucIdr && avgTucIdr !== lastPoTucIdr && <span className="ml-1 text-[9px] text-sky-500/80">↑ used</span>}
                                   </p>
                                 </div>
