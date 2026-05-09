@@ -51,32 +51,39 @@ export default function ProductCostLookup({
   const [query, setQuery] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // ── Bulk: last quote price per component ─────────────────────────────────
+  // ── Bulk: last quote price per component ────────────────────────────────────────────────────────────────────────
   const lastQuoteByComp = useMemo(() => {
     const qMap = new Map(quotes.map((q) => [q.quote_id, q]));
-    const map = new Map<string, { price: number; currency: string; date: string; prevPrice?: number }>();
-    // sort quote items by date so we can track previous price
-    const sorted = [...quoteItems].sort((a, b) => {
-      const da = qMap.get(a.quote_id)?.quote_date ?? '';
-      const db = qMap.get(b.quote_id)?.quote_date ?? '';
-      return da.localeCompare(db);
-    });
-    sorted.forEach((item) => {
-      if (!item.component_id) return;
+    // Deduplicate: one price per (component, quote_id), first non-zero price seen.
+    // Prevents same-day / multi-line-item quotes from producing false deltas.
+    const byComp = new Map<string, { price: number; currency: string; date: string; quoteId: number }[]>();
+    const seen = new Map<string, Set<number>>();
+    quoteItems.forEach((item) => {
+      if (!item.component_id || item.unit_price <= 0) return;
       const q = qMap.get(item.quote_id);
       if (!q) return;
-      const ex = map.get(item.component_id);
-      map.set(item.component_id, {
-        price: item.unit_price,
-        currency: item.currency,
-        date: q.quote_date,
-        prevPrice: ex?.price,
+      const cid = item.component_id;
+      if (!seen.has(cid)) seen.set(cid, new Set());
+      if (seen.get(cid)!.has(item.quote_id)) return;
+      seen.get(cid)!.add(item.quote_id);
+      if (!byComp.has(cid)) byComp.set(cid, []);
+      byComp.get(cid)!.push({ price: item.unit_price, currency: item.currency, date: q.quote_date, quoteId: item.quote_id });
+    });
+    // Sort by (date, quote_id) ascending; prevPrice = second-to-last unique quote.
+    const map = new Map<string, { price: number; currency: string; date: string; prevPrice?: number }>();
+    byComp.forEach((entries, cid) => {
+      const sorted = entries.sort((a, b) => {
+        const d = a.date.localeCompare(b.date);
+        return d !== 0 ? d : a.quoteId - b.quoteId;
       });
+      const last = sorted[sorted.length - 1];
+      const prev = sorted.length >= 2 ? sorted[sorted.length - 2] : null;
+      map.set(cid, { price: last.price, currency: last.currency, date: last.date, prevPrice: prev?.price });
     });
     return map;
   }, [quoteItems, quotes]);
 
-  // ── Bulk: last PO unit cost per component ────────────────────────────────
+  // ── Bulk: last PO unit cost per component ────────────────────────────────────────────────────────────────────────
   const lastPoByComp = useMemo(() => {
     const poMap = new Map(pos.map((p) => [p.po_id, p]));
     const map = new Map<string, { price: number; currency: string; date: string }>();
@@ -92,7 +99,7 @@ export default function ProductCostLookup({
     return map;
   }, [poItems, pos]);
 
-  // ── Bulk TUC per component ───────────────────────────────────────────────
+  // ── Bulk TUC per component ───────────────────────────────────────────────────────────────────────────────────────
   const tucByComp = useMemo(() => {
     const poMap = new Map(pos.map((p) => [String(p.po_id), p]));
     const itemsByPo = new Map<string, PurchaseLineItem[]>();
@@ -145,7 +152,7 @@ export default function ProductCostLookup({
     return result;
   }, [poItems, pos, poCosts]);
 
-  // ── Usage counts per component ───────────────────────────────────────────
+  // ── Usage counts per component ───────────────────────────────────────────────────────────────────────────────────
   const usageByComp = useMemo(() => {
     const map = new Map<string, { quotes: number; pos: number }>();
     quoteItems.forEach((i) => {
@@ -161,7 +168,7 @@ export default function ProductCostLookup({
     return map;
   }, [quoteItems, poItems]);
 
-  // ── Linked components map ────────────────────────────────────────────────
+  // ── Linked components map ───────────────────────────────────────────────────────────────────────────────────────
   const linkedByComp = useMemo(() => {
     const compMap = new Map(components.map((c) => [c.component_id, c]));
     const map = new Map<string, { comp: Component; linkType: string; normUnit?: string | null; normSelf?: number | null; normOther?: number | null }[]>();
@@ -184,7 +191,7 @@ export default function ProductCostLookup({
     return map;
   }, [componentLinks, components]);
 
-  // ── Search results ───────────────────────────────────────────────────────
+  // ── Search results ───────────────────────────────────────────────────────────────────────────────────────────
   const results = useMemo(() => {
     const q = query.toLowerCase().trim();
     if (!q) return [];
@@ -208,7 +215,7 @@ export default function ProductCostLookup({
       .slice(0, 20);
   }, [query, components]);
 
-  // ── Detailed allocations for expanded component ──────────────────────────
+  // ── Detailed allocations for expanded component ──────────────────────────────────────────────────────────────────────────
   const expandedDetail = useMemo(() => {
     if (!expandedId) return null;
     const myQItems = [...quoteItems.filter((qi) => qi.component_id === expandedId)]
