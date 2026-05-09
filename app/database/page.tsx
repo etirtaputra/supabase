@@ -99,6 +99,7 @@ export default function DatabaseViewPage() {
               poItems={data.poItems}
               poCosts={data.poCosts}
               suppliers={data.suppliers}
+              componentLinks={data.componentLinks}
               isLoading={loading}
             />
           </div>
