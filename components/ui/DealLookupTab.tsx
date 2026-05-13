@@ -524,7 +524,7 @@ export default function DealLookupTab({
                         { label: 'Currency',  value: qt.currency },
                         { label: 'Lead Time', value: qt.estimated_lead_time_days },
                         { label: 'To',        value: co?.legal_name },
-                        { label: 'Total',     value: qt.total_value != null ? fmtCcy(Number(qt.total_value), qt.currency) : null },
+                        { label: 'Total',     value: items.length > 0 ? fmtCcy(items.reduce((s, i) => s + Number(i.quantity) * Number(i.unit_price), 0), qt.currency) : qt.total_value != null ? fmtCcy(Number(qt.total_value), qt.currency) : null },
                       ].map(({ label, value }) => value ? (
                         <div key={label}>
                           <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">{label}</p>
@@ -962,17 +962,22 @@ export default function DealLookupTab({
                       );
                     })()}
 
-                    {/* PO value */}
-                    {po.total_value && (
+                    {/* PO value — computed live from line items so edits reflect immediately */}
+                    {(items.length > 0 || po.total_value) && (() => {
+                      const liveTotal = items.length > 0
+                        ? items.reduce((s, i) => s + Number(i.quantity) * Number(i.unit_cost), 0)
+                        : Number(po.total_value);
+                      return (
                       <div className="flex items-center gap-3 text-xs flex-wrap">
-                        <span className="font-semibold text-white tabular-nums">{fmtCcy(Number(po.total_value), po.currency)}</span>
+                        <span className="font-semibold text-white tabular-nums">{fmtCcy(liveTotal, po.currency)}</span>
                         {po.currency !== 'IDR' && po.exchange_rate && (
                           <span className="text-slate-500 tabular-nums">
                             @ {Number(po.exchange_rate).toLocaleString()} = {fmtIdr(tIdr)}
                           </span>
                         )}
                       </div>
-                    )}
+                      );
+                    })()}
 
                     {/* Payment progress */}
                     {tIdr > 0 && (
