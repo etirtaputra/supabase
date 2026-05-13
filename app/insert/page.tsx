@@ -645,6 +645,8 @@ function MasterInsertPage() {
                               overrides.pi_date   = q.quote_date || '';
                               overrides.total_value = q.total_value || undefined;
                               overrides.currency = q.currency || undefined;
+                              overrides.supplier_id = q.supplier_id;
+                              overrides.company_id = q.company_id;
                               // Auto-fill payment terms from supplier default
                               const supplier = data.suppliers.find((s) => String(s.supplier_id) === String(q.supplier_id));
                               if (supplier?.payment_terms_default) {
