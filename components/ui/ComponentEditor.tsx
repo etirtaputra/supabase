@@ -575,6 +575,8 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [filterHasIntel, setFilterHasIntel] = useState(false);
   const [filterLinked, setFilterLinked] = useState(false);
   const [filterHasSpecs, setFilterHasSpecs] = useState(false);
+  const [filterHasLeadTime, setFilterHasLeadTime] = useState(false);
+  const [filterHasCashCycle, setFilterHasCashCycle] = useState(false);
   const [filterLowMargin, setFilterLowMargin] = useState(false);
   const [marginThreshold, setMarginThreshold] = useState(20);
   const [filterBelowMarket, setFilterBelowMarket] = useState(false);
@@ -609,6 +611,8 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         if (f.filterHasIntel) setFilterHasIntel(f.filterHasIntel);
         if (f.filterLinked) setFilterLinked(f.filterLinked);
         if (f.filterHasSpecs) setFilterHasSpecs(f.filterHasSpecs);
+        if (f.filterHasLeadTime) setFilterHasLeadTime(f.filterHasLeadTime);
+        if (f.filterHasCashCycle) setFilterHasCashCycle(f.filterHasCashCycle);
         if (f.filterLowMargin) setFilterLowMargin(f.filterLowMargin);
         if (f.marginThreshold != null) setMarginThreshold(f.marginThreshold);
         if (f.filterBelowMarket) setFilterBelowMarket(f.filterBelowMarket);
@@ -620,10 +624,10 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   useEffect(() => {
     try {
       localStorage.setItem('componentEditor_filters', JSON.stringify({
-        searchInput, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs, filterLowMargin, marginThreshold, filterBelowMarket,
+        searchInput, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs, filterHasLeadTime, filterHasCashCycle, filterLowMargin, marginThreshold, filterBelowMarket,
       }));
     } catch {}
-  }, [searchInput, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs, filterLowMargin, marginThreshold, filterBelowMarket]);
+  }, [searchInput, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs, filterHasLeadTime, filterHasCashCycle, filterLowMargin, marginThreshold, filterBelowMarket]);
 
   // ── Persist column visibility ─────────────────────────────────────────────
   useEffect(() => {
@@ -955,6 +959,42 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     return s;
   }, [componentLinks]);
 
+  // ── Component IDs that have lead-time data (≥1 fully-received PO) ─────────
+  const compIdsWithLeadTime = useMemo(() => {
+    const receivedPoIds = new Set(
+      pos.filter((p) => p.status === 'Fully Received' && p.actual_received_date).map((p) => p.po_id),
+    );
+    const s = new Set<string>();
+    poItems.forEach((i) => { if (i.component_id && receivedPoIds.has(i.po_id)) s.add(i.component_id); });
+    return s;
+  }, [pos, poItems]);
+
+  // ── Component IDs that have cash-cycle data (reorder interval OR payment data) ─
+  const compIdsWithCashCycle = useMemo(() => {
+    // group PO ids per component
+    const poIdsByComp = new Map<string, Set<number>>();
+    poItems.forEach((i) => {
+      if (!i.component_id) return;
+      if (!poIdsByComp.has(i.component_id)) poIdsByComp.set(i.component_id, new Set());
+      poIdsByComp.get(i.component_id)!.add(i.po_id);
+    });
+    const poIdsWithPayments = new Set(
+      poCosts.filter((c) => c.payment_date).map((c) => c.po_id),
+    );
+    const receivedPoIds = new Set(
+      pos.filter((p) => p.status === 'Fully Received' && p.actual_received_date).map((p) => p.po_id),
+    );
+    const s = new Set<string>();
+    poIdsByComp.forEach((poIds, cid) => {
+      if (poIds.size >= 2) { s.add(cid); return; }
+      // capital lock-up: received PO + payment record
+      for (const pid of poIds) {
+        if (receivedPoIds.has(pid) && poIdsWithPayments.has(pid)) { s.add(cid); break; }
+      }
+    });
+    return s;
+  }, [poItems, pos, poCosts]);
+
   // ── Duplicate supplier_model detection ────────────────────────────────────
   const duplicateModels = useMemo(() => {
     const counts = new Map<string, number>();
@@ -1010,7 +1050,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     if (filterCategory) result = result.filter((c) => c.category === filterCategory);
     if (filterPI) result = result.filter((c) => usageMap.get(String(c.component_id))?.piNumbers.includes(filterPI));
     if (filterPO) result = result.filter((c) => usageMap.get(String(c.component_id))?.poNumbers.includes(filterPO));
-    if (filterUnused) result = result.filter((c) => !usageMap.has(String(c.component_id)));
+    if (filterUnused) result = result.filter((c) => !usageMap.has(String(c.component_id)) && !lastPoByComponent.has(c.component_id));
     if (filterDuplicates) result = result.filter((c) => duplicateModels.has(c.supplier_model?.toLowerCase().trim() ?? ''));
     if (filterHasIntel) result = result.filter((c) => intelComponentIds.has(c.component_id));
     if (filterLinked) result = result.filter((c) => linkedComponentIds.has(c.component_id));
@@ -1021,6 +1061,8 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       if (typeof s === 'string') { try { const p = JSON.parse(s); return p && typeof p === 'object' && Object.keys(p).length > 0; } catch { return false; } }
       return false;
     });
+    if (filterHasLeadTime) result = result.filter((c) => compIdsWithLeadTime.has(c.component_id));
+    if (filterHasCashCycle) result = result.filter((c) => compIdsWithCashCycle.has(c.component_id));
     if (filterLowMargin) result = result.filter((c) => {
       if (!c.selling_price_idr) return false;
       const gm = marginByComponent.get(c.component_id);
@@ -1065,7 +1107,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       const bv = ((b[sortCol as keyof Component] as string) || '').toLowerCase();
       return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
     });
-  }, [components, search, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs, filterLowMargin, marginThreshold, filterBelowMarket, sortCol, sortDir, usageMap, duplicateModels, intelComponentIds, linkedComponentIds, sparklineLinesByComponent, marginByComponent, marketAvgIdrByComponent]);
+  }, [components, search, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs, filterHasLeadTime, filterHasCashCycle, filterLowMargin, marginThreshold, filterBelowMarket, sortCol, sortDir, usageMap, duplicateModels, intelComponentIds, linkedComponentIds, compIdsWithLeadTime, compIdsWithCashCycle, sparklineLinesByComponent, marginByComponent, marketAvgIdrByComponent, lastPoByComponent]);
 
   const toggleSort = (col: SortCol) => {
     if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -2056,6 +2098,28 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
               Has Specs{filterHasSpecs ? ` (${filtered.length})` : ''}
             </button>
             <button
+              onClick={() => setFilterHasLeadTime((v) => !v)}
+              className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all flex-shrink-0 ${
+                filterHasLeadTime
+                  ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                  : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-emerald-300 hover:border-emerald-500/30'
+              }`}
+              title="Show only components with lead time data (at least one fully-received PO)"
+            >
+              Lead Time{filterHasLeadTime ? ` (${filtered.length})` : ''}
+            </button>
+            <button
+              onClick={() => setFilterHasCashCycle((v) => !v)}
+              className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all flex-shrink-0 ${
+                filterHasCashCycle
+                  ? 'bg-violet-500/20 border-violet-500/40 text-violet-300'
+                  : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-violet-300 hover:border-violet-500/30'
+              }`}
+              title="Show only components with cash cycle data (reorder interval or capital lock-up)"
+            >
+              Cash Cycle{filterHasCashCycle ? ` (${filtered.length})` : ''}
+            </button>
+            <button
               onClick={() => setFilterBelowMarket((v) => !v)}
               className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all flex-shrink-0 ${
                 filterBelowMarket
@@ -2213,7 +2277,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       </div>
 
       {/* Active filter chips */}
-      {(search || filterBrand || filterCategory || filterPI || filterPO || filterUnused || filterDuplicates || filterHasIntel || filterLinked || filterHasSpecs || filterLowMargin || filterBelowMarket) && (
+      {(search || filterBrand || filterCategory || filterPI || filterPO || filterUnused || filterDuplicates || filterHasIntel || filterLinked || filterHasSpecs || filterHasLeadTime || filterHasCashCycle || filterLowMargin || filterBelowMarket) && (
         <div className="px-4 md:px-5 py-2.5 border-b border-slate-800/60 flex flex-wrap items-center gap-1.5 bg-slate-950/30">
           {search && <ActiveChip label="Search" value={search} onClear={() => { setSearchInput(''); setSearch(''); }} />}
           {filterBrand && <ActiveChip label="Brand" value={filterBrand} onClear={() => setFilterBrand('')} />}
@@ -2225,6 +2289,8 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
           {filterHasIntel && <ActiveChip label="Has market intel" onClear={() => setFilterHasIntel(false)} />}
           {filterLinked && <ActiveChip label="Linked items only" onClear={() => setFilterLinked(false)} />}
           {filterHasSpecs && <ActiveChip label="Has specs" onClear={() => setFilterHasSpecs(false)} />}
+          {filterHasLeadTime && <ActiveChip label="Has lead time" onClear={() => setFilterHasLeadTime(false)} />}
+          {filterHasCashCycle && <ActiveChip label="Has cash cycle" onClear={() => setFilterHasCashCycle(false)} />}
           {filterLowMargin && <ActiveChip label="Low margin" value={`< ${marginThreshold}%`} onClear={() => setFilterLowMargin(false)} />}
           {filterBelowMarket && <ActiveChip label="Below market" onClear={() => setFilterBelowMarket(false)} />}
           <button
