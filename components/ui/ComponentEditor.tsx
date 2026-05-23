@@ -1050,7 +1050,12 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     if (filterCategory) result = result.filter((c) => c.category === filterCategory);
     if (filterPI) result = result.filter((c) => usageMap.get(String(c.component_id))?.piNumbers.includes(filterPI));
     if (filterPO) result = result.filter((c) => usageMap.get(String(c.component_id))?.poNumbers.includes(filterPO));
-    if (filterUnused) result = result.filter((c) => !usageMap.has(String(c.component_id)) && !lastPoByComponent.has(c.component_id));
+    if (filterUnused) result = result.filter((c) =>
+      !usageMap.has(String(c.component_id)) &&
+      !lastPoByComponent.has(c.component_id) &&
+      !c.selling_price_idr &&
+      !linkedComponentIds.has(c.component_id)
+    );
     if (filterDuplicates) result = result.filter((c) => duplicateModels.has(c.supplier_model?.toLowerCase().trim() ?? ''));
     if (filterHasIntel) result = result.filter((c) => intelComponentIds.has(c.component_id));
     if (filterLinked) result = result.filter((c) => linkedComponentIds.has(c.component_id));
