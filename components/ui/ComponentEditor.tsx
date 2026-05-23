@@ -1580,6 +1580,41 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       };
     }
 
+    // ── Cash cycle metrics ────────────────────────────────────────────────
+    const cashCycle = (() => {
+      const myPos = pos.filter((p) => myPoIds.has(p.po_id));
+      const poDates = myPos.map((p) => p.po_date).filter(Boolean).sort();
+      let avgReorderDays: number | null = null;
+      if (poDates.length >= 2) {
+        const intervals: number[] = [];
+        for (let i = 1; i < poDates.length; i++) {
+          intervals.push(Math.round((new Date(poDates[i]).getTime() - new Date(poDates[i - 1]).getTime()) / 86_400_000));
+        }
+        avgReorderDays = Math.round(intervals.reduce((s, d) => s + d, 0) / intervals.length);
+      }
+      const exposures: number[] = [];
+      const spreads: number[] = [];
+      receivedPos.forEach((rpo) => {
+        if (!rpo.actual_received_date) return;
+        const payDates = poCosts
+          .filter((c) => c.po_id === rpo.po_id && c.payment_date)
+          .map((c) => c.payment_date!)
+          .sort();
+        if (payDates.length === 0) return;
+        const ms = (d: string) => new Date(d).getTime();
+        exposures.push(Math.round((ms(rpo.actual_received_date) - ms(payDates[0])) / 86_400_000));
+        if (payDates.length >= 2)
+          spreads.push(Math.round((ms(payDates[payDates.length - 1]) - ms(payDates[0])) / 86_400_000));
+      });
+      const avg = (arr: number[]) => arr.length > 0 ? Math.round(arr.reduce((s, d) => s + d, 0) / arr.length) : null;
+      return {
+        avgReorderDays,
+        avgCapitalExposure: avg(exposures),
+        avgPaymentSpread: avg(spreads),
+        poCount: poDates.length,
+      };
+    })();
+
     // ── Competitor prices ─────────────────────────────────────────────────
     const compPrices = (competitorPrices ?? [])
       .filter((cp) => cp.component_id === inspectId)
@@ -1646,7 +1681,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     // Already-linked component IDs (for exclusion in add-link form)
     const linkedIds = new Set(linkedComps.map((lc) => lc.comp.component_id));
 
-    return { comp, allQuoteLines, allPOLines, lastPoTucIdr, avgTucIdr, actualTucIdr, tucXr, paidPoCount, lastReceivedPo, leadTime, compPrices, histTimeline, linkedComps, linkedIds };
+    return { comp, allQuoteLines, allPOLines, lastPoTucIdr, avgTucIdr, actualTucIdr, tucXr, paidPoCount, lastReceivedPo, leadTime, cashCycle, compPrices, histTimeline, linkedComps, linkedIds };
   }, [inspectId, components, quoteItems, quotes, poItems, pos, poCosts, competitorPrices, componentHistory, componentLinks]);
 
   // ── CSV Export ────────────────────────────────────────────────────────────
@@ -3235,7 +3270,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       {/* ── Inspect panel ─────────────────────────────────────────────────── */}
       {inspectId && inspectData && typeof document !== 'undefined' && createPortal(
         (() => {
-          const { comp, allQuoteLines, allPOLines, lastPoTucIdr, avgTucIdr, actualTucIdr, tucXr, paidPoCount, lastReceivedPo, leadTime, compPrices, histTimeline } = inspectData;
+          const { comp, allQuoteLines, allPOLines, lastPoTucIdr, avgTucIdr, actualTucIdr, tucXr, paidPoCount, lastReceivedPo, leadTime, cashCycle, compPrices, histTimeline } = inspectData;
           const tucIdr = actualTucIdr; // convenience alias for downstream uses
           const fmtD = (d?: string | null) =>
             d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '—';
@@ -3369,6 +3404,25 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                                 <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">{label}</p>
                               </div>
                             ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Cash cycle */}
+                      {(cashCycle.avgReorderDays != null || cashCycle.avgCapitalExposure != null || cashCycle.avgPaymentSpread != null) && (
+                        <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 px-4 py-3">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-violet-400/70 mb-2">Cash Cycle</p>
+                          <div className="grid grid-cols-3 gap-2 text-center">
+                            {[
+                              { label: 'Reorder Interval', days: cashCycle.avgReorderDays, tip: `avg days between ${cashCycle.poCount} POs` },
+                              { label: 'Capital Lock-up', days: cashCycle.avgCapitalExposure, tip: '1st payment → goods received' },
+                              { label: 'Payment Spread', days: cashCycle.avgPaymentSpread, tip: 'down payment → balance payment' },
+                            ].map(({ label, days, tip }) => days != null ? (
+                              <div key={label} title={tip}>
+                                <p className="text-sm font-bold tabular-nums text-violet-200">{days}d</p>
+                                <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">{label}</p>
+                              </div>
+                            ) : null)}
                           </div>
                         </div>
                       )}
