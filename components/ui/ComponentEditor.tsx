@@ -658,7 +658,8 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [lineItemSaving, setLineItemSaving] = useState(false);
   const [hoveredTooltip, setHoveredTooltip] = useState<{ id: string; style: React.CSSProperties } | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [addDraft, setAddDraft] = useState(EMPTY_ADD);
+  const [addRows, setAddRows] = useState<(typeof EMPTY_ADD)[]>([{ ...EMPTY_ADD }]);
+  const [addRowsExpanded, setAddRowsExpanded] = useState<Set<number>>(new Set());
   const [addSaving, setAddSaving] = useState(false);
   // ── CSV import ────────────────────────────────────────────────────────────
   const [importStep, setImportStep] = useState<ImportStep | null>(null);
@@ -1209,22 +1210,26 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   };
 
   const handleAdd = async () => {
-    if (!onAdd || !addDraft.supplier_model.trim() || !addDraft.internal_description.trim()) return;
+    const validRows = addRows.filter((r) => r.supplier_model.trim() && r.internal_description.trim());
+    if (!onAdd || validRows.length === 0) return;
     setAddSaving(true);
     try {
-      let specs: any = undefined;
-      if (addDraft.specifications.trim()) {
-        try { specs = JSON.parse(addDraft.specifications); } catch { specs = addDraft.specifications; }
+      for (const row of validRows) {
+        let specs: any = undefined;
+        if (row.specifications.trim()) {
+          try { specs = JSON.parse(row.specifications); } catch { specs = row.specifications; }
+        }
+        await onAdd({
+          supplier_model: row.supplier_model.trim(),
+          internal_description: row.internal_description.trim(),
+          brand: row.brand.trim() || null as any,
+          category: (row.category || null) as any,
+          specifications: specs,
+          datasheet_url: row.datasheet_url.trim() || null as any,
+        });
       }
-      await onAdd({
-        supplier_model: addDraft.supplier_model.trim(),
-        internal_description: addDraft.internal_description.trim(),
-        brand: addDraft.brand.trim() || null as any,
-        category: (addDraft.category || null) as any,
-        specifications: specs,
-        datasheet_url: addDraft.datasheet_url.trim() || null as any,
-      });
-      setAddDraft(EMPTY_ADD);
+      setAddRows([{ ...EMPTY_ADD }]);
+      setAddRowsExpanded(new Set());
       setShowAddForm(false);
     } finally {
       setAddSaving(false);
@@ -1884,13 +1889,20 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         </div>
       </div>
 
-      {/* Inline Add Component form */}
+      {/* Inline Add Component form — multi-row */}
       {showAddForm && onAdd && (
         <div className="p-4 md:p-5 border-b border-emerald-500/20 bg-emerald-500/[0.04]">
           <div className="flex items-center justify-between mb-3">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">New Component</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">
+              New Components
+              {addRows.length > 1 && (
+                <span className="ml-2 text-emerald-600 font-normal normal-case">
+                  {addRows.filter((r) => r.supplier_model.trim() && r.internal_description.trim()).length} of {addRows.length} ready
+                </span>
+              )}
+            </p>
             <button
-              onClick={() => { setShowAddForm(false); setAddDraft(EMPTY_ADD); }}
+              onClick={() => { setShowAddForm(false); setAddRows([{ ...EMPTY_ADD }]); setAddRowsExpanded(new Set()); }}
               className="text-slate-500 hover:text-slate-300 transition-colors"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -1898,97 +1910,171 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
               </svg>
             </button>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div>
-              <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">
-                Supplier Model / SKU <span className="text-red-400">*</span>
-              </label>
-              <BrandInput
-                value={addDraft.supplier_model}
-                onChange={(v) => setAddDraft((p) => ({ ...p, supplier_model: v }))}
-                suggestions={uniqueModels}
-                isDirty={false}
-              />
-              {addDraft.supplier_model.trim() && components.some((c) => c.supplier_model?.toLowerCase().trim() === addDraft.supplier_model.toLowerCase().trim()) && (
-                <p className="mt-1 text-[11px] text-amber-400 flex items-center gap-1">
-                  <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.538-1.333-3.308 0L3.732 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                  Model already exists — possible duplicate
-                </p>
-              )}
-            </div>
-            <div>
-              <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">
-                Internal Description <span className="text-red-400">*</span>
-              </label>
-              <BrandInput
-                value={addDraft.internal_description}
-                onChange={(v) => setAddDraft((p) => ({ ...p, internal_description: v }))}
-                suggestions={uniqueDescriptions}
-                isDirty={false}
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Brand</label>
-              <BrandInput
-                value={addDraft.brand}
-                onChange={(v) => setAddDraft((p) => ({ ...p, brand: v }))}
-                suggestions={brandSuggestions}
-                isDirty={false}
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Category</label>
-              <select
-                value={addDraft.category}
-                onChange={(e) => setAddDraft((p) => ({ ...p, category: e.target.value }))}
-                className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500"
-              >
-                <option value="">— none —</option>
-                {ENUMS.product_category.map((cat) => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
-            </div>
+
+          <div className="space-y-2">
+            {addRows.map((row, idx) => {
+              const isDup = !!row.supplier_model.trim() && components.some(
+                (c) => c.supplier_model?.toLowerCase().trim() === row.supplier_model.toLowerCase().trim()
+              );
+              const isExpanded = addRowsExpanded.has(idx);
+              const updateRow = (patch: Partial<typeof EMPTY_ADD>) =>
+                setAddRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
+              const toggleExpanded = () =>
+                setAddRowsExpanded((prev) => { const n = new Set(prev); n.has(idx) ? n.delete(idx) : n.add(idx); return n; });
+
+              return (
+                <div key={idx} className="relative rounded-lg border border-slate-700/60 bg-slate-900/50 p-3">
+                  {/* Row number + remove */}
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">#{idx + 1}</span>
+                    {addRows.length > 1 && (
+                      <button
+                        onClick={() => {
+                          setAddRows((prev) => prev.filter((_, i) => i !== idx));
+                          setAddRowsExpanded((prev) => {
+                            const n = new Set<number>();
+                            prev.forEach((i) => { if (i < idx) n.add(i); else if (i > idx) n.add(i - 1); });
+                            return n;
+                          });
+                        }}
+                        className="text-slate-600 hover:text-red-400 transition-colors"
+                        title="Remove row"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Main fields */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                    <div>
+                      <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">
+                        Model / SKU <span className="text-red-400">*</span>
+                      </label>
+                      <BrandInput
+                        value={row.supplier_model}
+                        onChange={(v) => updateRow({ supplier_model: v })}
+                        suggestions={uniqueModels}
+                        isDirty={false}
+                      />
+                      {isDup && (
+                        <p className="mt-1 text-[11px] text-amber-400 flex items-center gap-1">
+                          <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.538-1.333-3.308 0L3.732 16c-.77 1.333.192 3 1.732 3z" />
+                          </svg>
+                          Possible duplicate
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">
+                        Description <span className="text-red-400">*</span>
+                      </label>
+                      <BrandInput
+                        value={row.internal_description}
+                        onChange={(v) => updateRow({ internal_description: v })}
+                        suggestions={uniqueDescriptions}
+                        isDirty={false}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Brand</label>
+                      <BrandInput
+                        value={row.brand}
+                        onChange={(v) => updateRow({ brand: v })}
+                        suggestions={brandSuggestions}
+                        isDirty={false}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Category</label>
+                      <select
+                        value={row.category}
+                        onChange={(e) => updateRow({ category: e.target.value })}
+                        className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500"
+                      >
+                        <option value="">— none —</option>
+                        {ENUMS.product_category.map((cat) => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Advanced toggle */}
+                  <button
+                    onClick={toggleExpanded}
+                    className="mt-2 flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-300 transition-colors"
+                  >
+                    <svg className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                    {isExpanded ? 'Hide' : 'Specs & Datasheet'}
+                  </button>
+
+                  {isExpanded && (
+                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Specs (JSON)</label>
+                        <textarea
+                          value={row.specifications}
+                          onChange={(e) => updateRow({ specifications: e.target.value })}
+                          placeholder={'{"watts": 400, "voltage": 48}'}
+                          rows={2}
+                          className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white font-mono focus:outline-none focus:border-emerald-500 placeholder-slate-600 resize-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Datasheet / File URL</label>
+                        <input
+                          type="url"
+                          value={row.datasheet_url}
+                          onChange={(e) => updateRow({ datasheet_url: e.target.value })}
+                          placeholder="https://drive.google.com/..."
+                          className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500 placeholder-slate-600"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Specs (JSON)</label>
-              <textarea
-                value={addDraft.specifications}
-                onChange={(e) => setAddDraft((p) => ({ ...p, specifications: e.target.value }))}
-                placeholder={'{"watts": 400, "voltage": 48}'}
-                rows={2}
-                className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white font-mono focus:outline-none focus:border-emerald-500 placeholder-slate-600 resize-none"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Datasheet / File URL</label>
-              <input
-                type="url"
-                value={addDraft.datasheet_url}
-                onChange={(e) => setAddDraft((p) => ({ ...p, datasheet_url: e.target.value }))}
-                placeholder="https://drive.google.com/..."
-                className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500 placeholder-slate-600"
-              />
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 mt-3">
+
+          {/* Footer */}
+          <div className="flex items-center justify-between mt-3">
             <button
-              onClick={() => { setShowAddForm(false); setAddDraft(EMPTY_ADD); }}
+              onClick={() => setAddRows((prev) => [...prev, { ...EMPTY_ADD }])}
               disabled={addSaving}
-              className="px-3 py-1.5 text-xs font-semibold text-slate-400 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-all disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-400 hover:text-emerald-300 border border-emerald-500/30 hover:border-emerald-500/50 bg-emerald-500/5 hover:bg-emerald-500/10 rounded-lg transition-all disabled:opacity-40"
             >
-              Cancel
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Add Row
             </button>
-            <button
-              onClick={handleAdd}
-              disabled={addSaving || !addDraft.supplier_model.trim() || !addDraft.internal_description.trim()}
-              className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {addSaving ? <><Spinner className="w-3.5 h-3.5" /> Saving…</> : 'Add Component'}
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setShowAddForm(false); setAddRows([{ ...EMPTY_ADD }]); setAddRowsExpanded(new Set()); }}
+                disabled={addSaving}
+                className="px-3 py-1.5 text-xs font-semibold text-slate-400 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-all disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAdd}
+                disabled={addSaving || addRows.filter((r) => r.supplier_model.trim() && r.internal_description.trim()).length === 0}
+                className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {addSaving
+                  ? <><Spinner className="w-3.5 h-3.5" /> Saving…</>
+                  : addRows.filter((r) => r.supplier_model.trim() && r.internal_description.trim()).length > 1
+                    ? `Save ${addRows.filter((r) => r.supplier_model.trim() && r.internal_description.trim()).length} Components`
+                    : 'Save Component'}
+              </button>
+            </div>
           </div>
         </div>
       )}
