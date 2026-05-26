@@ -444,6 +444,45 @@ function UsageTooltip({ quoteLines, poLines, style }: UsageTooltipProps) {
   return createPortal(content, document.body);
 }
 
+// --- Sell Price History Tooltip ---
+interface SellPriceTooltipProps { entries: ComponentHistoryEntry[]; currentPrice: number | null; style: React.CSSProperties; }
+function SellPriceTooltip({ entries, currentPrice, style }: SellPriceTooltipProps) {
+  const fmtD = (d: string) => new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' });
+  const fmtIDR = (v: string | null) => v ? parseInt(v, 10).toLocaleString('en-US') : '—';
+  const content = (
+    <div style={style} className="bg-slate-950 border border-slate-700/80 rounded-xl shadow-2xl shadow-black/70 p-3.5 w-[300px] text-xs pointer-events-none z-[9999]">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-violet-400 mb-2 flex items-center gap-1.5">
+        <span className="w-1.5 h-1.5 rounded-full bg-violet-400 inline-block flex-shrink-0"></span>
+        Sell Price Log {entries.length > 0 && <span className="text-slate-600 font-normal normal-case tracking-normal">({entries.length} changes)</span>}
+      </p>
+      {currentPrice != null && (
+        <div className="mb-2 pb-2 border-b border-slate-800 flex items-center justify-between">
+          <span className="text-[10px] text-slate-500 uppercase tracking-wide">Current</span>
+          <span className="text-sm font-bold text-slate-200 tabular-nums">{Math.round(currentPrice).toLocaleString('en-US')} IDR</span>
+        </div>
+      )}
+      {entries.length === 0 ? (
+        <p className="text-slate-600 italic pl-3">No price history</p>
+      ) : (
+        <div>
+          <div className="grid grid-cols-[72px_1fr_1fr] gap-x-3 text-[10px] text-slate-500 pb-1.5 border-b border-slate-800 mb-1">
+            <span>Date</span><span>From</span><span>To</span>
+          </div>
+          {entries.map((e, i) => (
+            <div key={i} className="grid grid-cols-[72px_1fr_1fr] gap-x-3 py-1 border-b border-slate-800/40 last:border-0">
+              <span className="text-slate-400">{fmtD(e.changed_at)}</span>
+              <span className="text-red-400/70 tabular-nums line-through">{fmtIDR(e.old_value)}</span>
+              <span className="text-emerald-300 font-semibold tabular-nums">{fmtIDR(e.new_value)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+  if (typeof document === 'undefined') return null;
+  return createPortal(content, document.body);
+}
+
 // ── Search highlight (disabled — filtering already shows matches) ────────
 function Highlight({ text }: { text: string | null | undefined; query: string }) {
   return <>{text ?? '—'}</>;
@@ -656,7 +695,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [lineItemDraft, setLineItemDraft] = useState<Record<number | string, Partial<PriceQuoteLineItem>>>({});
   const [newLineItem, setNewLineItem] = useState<{ quote_id: string; quantity: string; unit_price: string; currency: string; supplier_description: string } | null>(null);
   const [lineItemSaving, setLineItemSaving] = useState(false);
-  const [hoveredTooltip, setHoveredTooltip] = useState<{ id: string; style: React.CSSProperties } | null>(null);
+  const [hoveredTooltip, setHoveredTooltip] = useState<{ id: string; style: React.CSSProperties; kind: 'usage' | 'sellPrice' } | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [addRows, setAddRows] = useState<(typeof EMPTY_ADD)[]>([{ ...EMPTY_ADD }]);
   const [addRowsExpanded, setAddRowsExpanded] = useState<Set<number>>(new Set());
@@ -2614,7 +2653,17 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
 
                     {/* Last Price — TUC first, fallback to last quoted price, then last PO unit cost */}
                     {visibleCols.lastPrice && (
-                      <td className="px-3 py-1.5 align-middle min-w-[100px]">
+                      <td className="px-3 py-1.5 align-middle min-w-[100px] cursor-default"
+                        onMouseEnter={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const tooltipW = 388; const tooltipH = 260;
+                          const spaceBelow = window.innerHeight - rect.bottom;
+                          const top = spaceBelow > tooltipH ? rect.bottom + 4 : rect.top - tooltipH - 4;
+                          const left = Math.min(rect.left, window.innerWidth - tooltipW - 8);
+                          setHoveredTooltip({ id: c.component_id, kind: 'usage', style: { position: 'fixed', top: Math.max(8, top), left: Math.max(8, left), zIndex: 9999 } });
+                        }}
+                        onMouseLeave={() => setHoveredTooltip(null)}
+                      >
                         {(() => {
                           const tuc = tucByComponent.get(c.component_id);
                           const lq  = lastQuoteByComponent.get(c.component_id);
@@ -2666,7 +2715,17 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
 
                     {/* Sell Price */}
                     {visibleCols.sellPrice && (
-                      <td className="px-3 py-1.5 align-middle min-w-[130px]">
+                      <td className="px-3 py-1.5 align-middle min-w-[130px] cursor-default"
+                        onMouseEnter={!isEditing ? (e) => {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const tooltipW = 300; const tooltipH = 200;
+                          const spaceBelow = window.innerHeight - rect.bottom;
+                          const top = spaceBelow > tooltipH ? rect.bottom + 4 : rect.top - tooltipH - 4;
+                          const left = Math.min(rect.left, window.innerWidth - tooltipW - 8);
+                          setHoveredTooltip({ id: c.component_id, kind: 'sellPrice', style: { position: 'fixed', top: Math.max(8, top), left: Math.max(8, left), zIndex: 9999 } });
+                        } : undefined}
+                        onMouseLeave={!isEditing ? () => setHoveredTooltip(null) : undefined}
+                      >
                         {isEditing ? (
                           <div>
                             <div className="flex items-center gap-1">
@@ -2725,17 +2784,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
 
                     {/* Usage */}
                     {visibleCols.usage && <td
-                      className="hidden md:table-cell px-3 py-1.5 align-middle min-w-[120px] cursor-default"
-                      onMouseEnter={(e) => {
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        const tooltipW = 388;
-                        const tooltipH = 260;
-                        const spaceBelow = window.innerHeight - rect.bottom;
-                        const top = spaceBelow > tooltipH ? rect.bottom + 4 : rect.top - tooltipH - 4;
-                        const left = Math.min(rect.left, window.innerWidth - tooltipW - 8);
-                        setHoveredTooltip({ id: c.component_id, style: { position: 'fixed', top: Math.max(8, top), left: Math.max(8, left), zIndex: 9999 } });
-                      }}
-                      onMouseLeave={() => setHoveredTooltip(null)}
+                      className="hidden md:table-cell px-3 py-1.5 align-middle min-w-[120px]"
                     >
                       {(() => {
                         const u = usageMap.get(c.component_id);
@@ -3152,10 +3201,20 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         document.body
       )}
       {/* Hover tooltip */}
-      {hoveredTooltip && (
+      {hoveredTooltip && hoveredTooltip.kind === 'usage' && (
         <UsageTooltip
           quoteLines={quoteLinesByComponent.get(hoveredTooltip.id) ?? []}
           poLines={poLinesByComponent.get(hoveredTooltip.id) ?? []}
+          style={hoveredTooltip.style}
+        />
+      )}
+      {hoveredTooltip && hoveredTooltip.kind === 'sellPrice' && (
+        <SellPriceTooltip
+          entries={(componentHistory ?? [])
+            .filter((h) => h.component_id === hoveredTooltip.id && h.field_name === 'selling_price_idr')
+            .sort((a, b) => b.changed_at.localeCompare(a.changed_at))
+            .slice(0, 10)}
+          currentPrice={components.find((c) => c.component_id === hoveredTooltip.id)?.selling_price_idr ?? null}
           style={hoveredTooltip.style}
         />
       )}
