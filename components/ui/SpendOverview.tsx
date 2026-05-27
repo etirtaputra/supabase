@@ -9,6 +9,7 @@ const PALETTE = [
 ];
 
 type Period = 'all' | '12m' | '6m' | '3m';
+type TrendPeriod = '1y' | '6m' | '3m' | '1m' | '1w';
 
 const fmtIDR = (n: number): string => {
   if (n >= 1e9) return `Rp ${(n / 1e9).toFixed(1)}B`;
@@ -104,6 +105,7 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
   const [vendorFilter, setVendorFilter] = useState('');
   const [sortCol, setSortCol] = useState<'committed' | 'qty' | 'poCount' | 'quoteCount'>('committed');
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
+  const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('1y');
 
   const handleSort = (col: typeof sortCol) => {
     if (sortCol === col) setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'));
@@ -232,8 +234,17 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
     const activeVendorCount = vendors.filter((v) => v.committed > 0).length;
 
     // ── Category price trends ──────────────────────────────────────────────
-    // Reference point = most recent quote before the period cutoff (or oldest ever for "all")
-    // Current  point  = most recent quote ever (must be within the period for period filters)
+    // Uses its own independent period (trendPeriod), separate from the spend period filter.
+    // Reference point = most recent quote before the trend cutoff (or oldest ever for "all")
+    // Current  point  = most recent quote at/after the trend cutoff
+    const trendCutoff = (() => {
+      const d = new Date();
+      if (trendPeriod === '1w') { d.setDate(d.getDate() - 7); return d.toISOString().split('T')[0]; }
+      const months: Record<TrendPeriod, number> = { '1y': 12, '6m': 6, '3m': 3, '1m': 1, '1w': 0 };
+      d.setMonth(d.getMonth() - months[trendPeriod]);
+      return d.toISOString().split('T')[0];
+    })();
+
     const quoteById = new Map(quotes.map((q) => [q.quote_id, q]));
     const qLinesByComp = new Map<string, { date: string; price: number; currency: string }[]>();
     quoteItems.forEach((qi) => {
@@ -253,14 +264,10 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
       if (!comp) return;
       const cur = lines[lines.length - 1];
       let ref: typeof cur | null = null;
-      if (cutoff) {
-        if ((cur.date ?? '') < cutoff) return; // not recently quoted
-        const before = lines.filter((l) => l.date < cutoff);
-        if (before.length === 0) return;
-        ref = before[before.length - 1];
-      } else {
-        ref = lines[0];
-      }
+      if ((cur.date ?? '') < trendCutoff) return; // most recent quote is older than trend window
+      const before = lines.filter((l) => l.date < trendCutoff);
+      if (before.length === 0) return;
+      ref = before[before.length - 1];
       if (!ref || ref.currency !== cur.currency || ref.price === 0 || cur.price === 0 || ref.date === cur.date) return;
       compTrends.push({
         id: cid, model: comp.supplier_model, category: comp.category ?? 'Uncategorized',
@@ -288,7 +295,7 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
       .sort((a, b) => Math.abs(b.avgDeltaPct) - Math.abs(a.avgDeltaPct));
 
     return { vendors, categories, allComponents, totalCommitted, totalPaid, openPOs, activeVendorCount, categoryTrends };
-  }, [pos, poItems, poCosts, quotes, quoteItems, components, suppliers, period]);
+  }, [pos, poItems, poCosts, quotes, quoteItems, components, suppliers, period, trendPeriod]);
 
   if (isLoading) {
     return (
@@ -452,16 +459,25 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
       {/* ── Category Price Tracker ── */}
       {categoryTrends.length > 0 && (
         <div className="space-y-5">
-          <div className="flex items-start justify-between flex-wrap gap-2">
+          <div className="flex items-start justify-between flex-wrap gap-3">
             <div>
               <h3 className="text-sm font-semibold text-white">Category Price Tracker</h3>
               <p className="text-[11px] text-slate-500 mt-0.5">
-                {period === 'all'
-                  ? 'First-ever quoted price vs. most recent, per item.'
-                  : `Price at start of ${period} window vs. most recent quote.`}
-                {' '}Items with ≥2 quotes in the same currency only.
+                Price at start of selected window vs. most recent quote. Items with ≥2 quotes in the same currency only.
                 Red = price increase · Green = price decrease.
               </p>
+            </div>
+            {/* Trend period filter — independent from the spend period */}
+            <div className="flex gap-1 bg-slate-900 border border-slate-800 rounded-lg p-1 flex-shrink-0">
+              {([['1w', '1W'], ['1m', '1M'], ['3m', '3M'], ['6m', '6M'], ['1y', '1Y']] as [TrendPeriod, string][]).map(([val, label]) => (
+                <button
+                  key={val}
+                  onClick={() => setTrendPeriod(val)}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${trendPeriod === val ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
 
