@@ -261,7 +261,7 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
       } else {
         ref = lines[0];
       }
-      if (!ref || ref.currency !== cur.currency || ref.price === 0 || ref.date === cur.date) return;
+      if (!ref || ref.currency !== cur.currency || ref.price === 0 || cur.price === 0 || ref.date === cur.date) return;
       compTrends.push({
         id: cid, model: comp.supplier_model, category: comp.category ?? 'Uncategorized',
         refPrice: ref.price, curPrice: cur.price, currency: cur.currency,
