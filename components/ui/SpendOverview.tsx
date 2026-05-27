@@ -231,7 +231,63 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
     const openPOs = filteredPos.filter((p) => !['Fully Received', 'Completed'].includes(p.status ?? '')).length;
     const activeVendorCount = vendors.filter((v) => v.committed > 0).length;
 
-    return { vendors, categories, allComponents, totalCommitted, totalPaid, openPOs, activeVendorCount };
+    // ── Category price trends ──────────────────────────────────────────────
+    // Reference point = most recent quote before the period cutoff (or oldest ever for "all")
+    // Current  point  = most recent quote ever (must be within the period for period filters)
+    const quoteById = new Map(quotes.map((q) => [q.quote_id, q]));
+    const qLinesByComp = new Map<string, { date: string; price: number; currency: string }[]>();
+    quoteItems.forEach((qi) => {
+      const q = quoteById.get(qi.quote_id);
+      if (!q) return;
+      if (!qLinesByComp.has(qi.component_id)) qLinesByComp.set(qi.component_id, []);
+      qLinesByComp.get(qi.component_id)!.push({ date: q.quote_date ?? '', price: qi.unit_price, currency: qi.currency });
+    });
+    qLinesByComp.forEach((lines) => lines.sort((a, b) => a.date.localeCompare(b.date)));
+
+    type CompTrend = { id: string; model: string; category: string; refPrice: number; curPrice: number; currency: string; refDate: string; curDate: string; deltaPct: number };
+    const compTrends: CompTrend[] = [];
+
+    qLinesByComp.forEach((lines, cid) => {
+      if (lines.length < 2) return;
+      const comp = compById.get(cid);
+      if (!comp) return;
+      const cur = lines[lines.length - 1];
+      let ref: typeof cur | null = null;
+      if (cutoff) {
+        if ((cur.date ?? '') < cutoff) return; // not recently quoted
+        const before = lines.filter((l) => l.date < cutoff);
+        if (before.length === 0) return;
+        ref = before[before.length - 1];
+      } else {
+        ref = lines[0];
+      }
+      if (!ref || ref.currency !== cur.currency || ref.price === 0 || ref.date === cur.date) return;
+      compTrends.push({
+        id: cid, model: comp.supplier_model, category: comp.category ?? 'Uncategorized',
+        refPrice: ref.price, curPrice: cur.price, currency: cur.currency,
+        refDate: ref.date, curDate: cur.date,
+        deltaPct: ((cur.price - ref.price) / ref.price) * 100,
+      });
+    });
+
+    const catTrendMap = new Map<string, CompTrend[]>();
+    compTrends.forEach((t) => {
+      if (!catTrendMap.has(t.category)) catTrendMap.set(t.category, []);
+      catTrendMap.get(t.category)!.push(t);
+    });
+
+    const categoryTrends = [...catTrendMap.entries()]
+      .map(([category, items]) => ({
+        category,
+        avgDeltaPct: items.reduce((s, i) => s + i.deltaPct, 0) / items.length,
+        count: items.length,
+        topItems: [...items].sort((a, b) => Math.abs(b.deltaPct) - Math.abs(a.deltaPct)).slice(0, 5),
+        minRefDate: items.reduce((m, i) => i.refDate < m ? i.refDate : m, items[0].refDate),
+        maxCurDate: items.reduce((m, i) => i.curDate > m ? i.curDate : m, items[0].curDate),
+      }))
+      .sort((a, b) => Math.abs(b.avgDeltaPct) - Math.abs(a.avgDeltaPct));
+
+    return { vendors, categories, allComponents, totalCommitted, totalPaid, openPOs, activeVendorCount, categoryTrends };
   }, [pos, poItems, poCosts, quotes, quoteItems, components, suppliers, period]);
 
   if (isLoading) {
@@ -240,9 +296,14 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
     );
   }
 
-  const { vendors, categories, allComponents, totalCommitted, totalPaid, openPOs, activeVendorCount } = stats;
+  const { vendors, categories, allComponents, totalCommitted, totalPaid, openPOs, activeVendorCount, categoryTrends } = stats;
   const topVendors = vendors.slice(0, 10);
   const topCats = categories.slice(0, 10);
+
+  const fmtDateShort = (d: string) =>
+    d ? new Date(d).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }) : '—';
+  const fmtPrice = (p: number, cur: string) =>
+    p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + cur;
 
   const vendorSlices: DonutSlice[] = topVendors.map((v, i) => ({ label: v.name, value: v.committed, color: PALETTE[i % PALETTE.length] }));
   const catSlices: DonutSlice[] = topCats.map((c, i) => ({ label: c.name, value: c.committed, color: PALETTE[i % PALETTE.length] }));
@@ -387,6 +448,108 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
           </div>
         </div>
       </div>
+
+      {/* ── Category Price Tracker ── */}
+      {categoryTrends.length > 0 && (
+        <div className="space-y-5">
+          <div className="flex items-start justify-between flex-wrap gap-2">
+            <div>
+              <h3 className="text-sm font-semibold text-white">Category Price Tracker</h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                {period === 'all'
+                  ? 'First-ever quoted price vs. most recent, per item.'
+                  : `Price at start of ${period} window vs. most recent quote.`}
+                {' '}Items with ≥2 quotes in the same currency only.
+                Red = price increase · Green = price decrease.
+              </p>
+            </div>
+          </div>
+
+          {/* Ticker tiles — inspired by market performance widget */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            {categoryTrends.map((ct, i) => {
+              const isUp   = ct.avgDeltaPct >  0.5;
+              const isDown = ct.avgDeltaPct < -0.5;
+              const color  = PALETTE[i % PALETTE.length];
+              const deltaColor = isUp ? '#f87171' : isDown ? '#34d399' : '#94a3b8';
+              const arrow  = isUp ? '↑' : isDown ? '↓' : '→';
+              const initials = ct.category.split(' ').map((w) => w[0] ?? '').join('').slice(0, 2).toUpperCase();
+              return (
+                <div key={ct.category} className="bg-slate-900/70 border border-slate-800 rounded-xl p-4 text-center hover:border-slate-700 transition-colors">
+                  {/* Category icon badge */}
+                  <div className="w-10 h-10 rounded-full mx-auto mb-2 flex items-center justify-center text-[11px] font-bold"
+                    style={{ background: color + '22', color }}>
+                    {initials}
+                  </div>
+                  <p className="text-[11px] font-bold text-slate-200 leading-tight mb-2">{ct.category}</p>
+                  <p className="text-2xl font-bold tabular-nums leading-none" style={{ color: deltaColor }}>
+                    {ct.avgDeltaPct > 0 ? '+' : ''}{ct.avgDeltaPct.toFixed(2)}%
+                  </p>
+                  <p className="text-[11px] mt-1 font-medium" style={{ color: deltaColor }}>{arrow} {isUp ? 'rising' : isDown ? 'falling' : 'stable'}</p>
+                  <p className="text-[10px] text-slate-600 mt-1">{ct.count} item{ct.count !== 1 ? 's' : ''}</p>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Detail cards — top 5 contributors per category */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {categoryTrends.map((ct, i) => {
+              const isUp   = ct.avgDeltaPct >  0.5;
+              const isDown = ct.avgDeltaPct < -0.5;
+              const color  = PALETTE[i % PALETTE.length];
+              const deltaColor = isUp ? '#f87171' : isDown ? '#34d399' : '#94a3b8';
+              const headerBg   = isUp ? 'rgba(248,113,113,0.07)' : isDown ? 'rgba(52,211,153,0.07)' : 'rgba(148,163,184,0.04)';
+              return (
+                <div key={ct.category} className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden">
+                  {/* Card header */}
+                  <div className="px-4 py-3 border-b border-slate-800/60 flex items-center gap-3" style={{ background: headerBg }}>
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold flex-shrink-0"
+                      style={{ background: color + '22', color }}>
+                      {ct.category.split(' ').map((w) => w[0] ?? '').join('').slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-slate-200 truncate">{ct.category}</p>
+                      <p className="text-[10px] text-slate-500">
+                        {fmtDateShort(ct.minRefDate)} → {fmtDateShort(ct.maxCurDate)} · {ct.count} item{ct.count !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+                    <p className="text-base font-bold tabular-nums flex-shrink-0" style={{ color: deltaColor }}>
+                      {ct.avgDeltaPct > 0 ? '+' : ''}{ct.avgDeltaPct.toFixed(1)}%
+                    </p>
+                  </div>
+                  {/* Top 5 items */}
+                  <div className="divide-y divide-slate-800/30">
+                    {ct.topItems.map((item, rank) => {
+                      const itemUp   = item.deltaPct >  0.2;
+                      const itemDown = item.deltaPct < -0.2;
+                      const itemCol  = itemUp ? 'text-red-400' : itemDown ? 'text-emerald-400' : 'text-slate-500';
+                      const itemBadgeBg = itemUp ? 'rgba(248,113,113,0.12)' : itemDown ? 'rgba(52,211,153,0.12)' : 'rgba(148,163,184,0.08)';
+                      return (
+                        <div key={item.id} className="px-4 py-2.5 flex items-center gap-3">
+                          <span className="text-[10px] text-slate-700 font-mono w-3 flex-shrink-0">{rank + 1}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[11px] font-mono text-slate-300 truncate">{item.model}</p>
+                            <p className="text-[10px] text-slate-600 tabular-nums mt-0.5">
+                              {fmtPrice(item.refPrice, item.currency)}
+                              <span className="mx-1">→</span>
+                              {fmtPrice(item.curPrice, item.currency)}
+                            </p>
+                          </div>
+                          <span className={`text-[11px] font-bold tabular-nums flex-shrink-0 px-1.5 py-0.5 rounded ${itemCol}`}
+                            style={{ background: itemBadgeBg }}>
+                            {item.deltaPct > 0 ? '+' : ''}{item.deltaPct.toFixed(1)}%
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Top items table */}
       <div className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden">
