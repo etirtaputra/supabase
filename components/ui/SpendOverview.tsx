@@ -101,6 +101,14 @@ interface Props {
 
 export default function SpendOverview({ components, suppliers, quotes, pos, poItems, poCosts, quoteItems, isLoading }: Props) {
   const [period, setPeriod] = useState<Period>('all');
+  const [vendorFilter, setVendorFilter] = useState('');
+  const [sortCol, setSortCol] = useState<'committed' | 'qty' | 'poCount' | 'quoteCount'>('committed');
+  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
+
+  const handleSort = (col: typeof sortCol) => {
+    if (sortCol === col) setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'));
+    else { setSortCol(col); setSortDir('desc'); }
+  };
 
   const toIDR = (amount: number, currency: string, xr?: number | null) =>
     currency === 'IDR' ? amount : amount * (xr ?? 1);
@@ -180,7 +188,7 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
       .sort((a, b) => b.committed - a.committed);
 
     // ── Top components ─────────────────────────────────────────────────────
-    type CompRow = { id: string; model: string; description: string; category: string; brand: string; committed: number; qty: number; poCount: number; quoteCount: number; poIds: Set<number> };
+    type CompRow = { id: string; model: string; description: string; category: string; brand: string; committed: number; qty: number; poCount: number; quoteCount: number; poIds: Set<number>; supplierIds: Set<string> };
     const compMap = new Map<string, CompRow>();
 
     filteredPoItems.forEach((item) => {
@@ -198,12 +206,14 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
           brand: comp.brand ?? '—',
           committed: 0, qty: 0, poCount: 0, quoteCount: 0,
           poIds: new Set(),
+          supplierIds: new Set(),
         });
       }
       const c = compMap.get(comp.component_id)!;
       c.committed += idr;
       c.qty += item.quantity ?? 0;
       c.poIds.add(item.po_id);
+      if (po.supplier_id) c.supplierIds.add(po.supplier_id);
     });
 
     quoteItems.forEach((qi) => {
@@ -211,10 +221,9 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
       if (c) c.quoteCount++;
     });
 
-    const topComponents = [...compMap.values()]
+    const allComponents = [...compMap.values()]
       .map((c) => ({ ...c, poCount: c.poIds.size }))
-      .sort((a, b) => b.committed - a.committed)
-      .slice(0, 20);
+      .sort((a, b) => b.committed - a.committed);
 
     // ── KPIs ───────────────────────────────────────────────────────────────
     const totalCommitted = vendors.reduce((s, v) => s + v.committed, 0);
@@ -222,7 +231,7 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
     const openPOs = filteredPos.filter((p) => !['Fully Received', 'Completed'].includes(p.status ?? '')).length;
     const activeVendorCount = vendors.filter((v) => v.committed > 0).length;
 
-    return { vendors, categories, topComponents, totalCommitted, totalPaid, openPOs, activeVendorCount };
+    return { vendors, categories, allComponents, totalCommitted, totalPaid, openPOs, activeVendorCount };
   }, [pos, poItems, poCosts, quotes, quoteItems, components, suppliers, period]);
 
   if (isLoading) {
@@ -231,7 +240,7 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
     );
   }
 
-  const { vendors, categories, topComponents, totalCommitted, totalPaid, openPOs, activeVendorCount } = stats;
+  const { vendors, categories, allComponents, totalCommitted, totalPaid, openPOs, activeVendorCount } = stats;
   const topVendors = vendors.slice(0, 10);
   const topCats = categories.slice(0, 10);
 
@@ -240,9 +249,25 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
 
   const maxVendor = topVendors[0]?.committed ?? 1;
   const maxCat = topCats[0]?.committed ?? 1;
-  const maxComp = topComponents[0]?.committed ?? 1;
   const vendorTotal = vendors.reduce((s, v) => s + v.committed, 0);
   const catTotal = categories.reduce((s, c) => s + c.committed, 0);
+
+  // Vendor filter options: only vendors who appear in filtered POs
+  const vendorOptions = vendors.filter((v) => v.committed > 0);
+
+  // Apply vendor filter + sort to items table
+  const displayComponents = allComponents
+    .filter((c) => !vendorFilter || c.supplierIds.has(vendorFilter))
+    .sort((a, b) => sortDir === 'desc' ? b[sortCol] - a[sortCol] : a[sortCol] - b[sortCol])
+    .slice(0, 20);
+
+  const maxComp = displayComponents[0]?.committed ?? 1;
+
+  const SortIcon = ({ col }: { col: typeof sortCol }) => (
+    <span className="inline-block ml-0.5 opacity-50">
+      {sortCol === col ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}
+    </span>
+  );
 
   return (
     <div className="space-y-8">
@@ -365,63 +390,112 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
 
       {/* Top items table */}
       <div className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-800/60">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Top Items by Spend</p>
-          <p className="text-[10px] text-slate-600 mt-0.5">
-            Ranked by total PO line spend (IDR eq.). Top 20 shown.
-          </p>
+        <div className="px-5 py-4 border-b border-slate-800/60 flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Top Items by Spend</p>
+            <p className="text-[10px] text-slate-600 mt-0.5">
+              Top 20 shown. Click column headers to sort.
+              {vendorFilter && <span className="ml-2 text-indigo-400">Filtered to 1 vendor — {displayComponents.length} item{displayComponents.length !== 1 ? 's' : ''}.</span>}
+            </p>
+          </div>
+          {/* Vendor filter */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <label className="text-[10px] text-slate-500 uppercase tracking-wider whitespace-nowrap">Vendor</label>
+            <select
+              value={vendorFilter}
+              onChange={(e) => setVendorFilter(e.target.value)}
+              className="px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-indigo-500 min-w-[160px]"
+            >
+              <option value="">All vendors</option>
+              {vendorOptions.map((v) => (
+                <option key={v.id} value={v.id}>{v.name}</option>
+              ))}
+            </select>
+            {vendorFilter && (
+              <button
+                onClick={() => setVendorFilter('')}
+                className="text-slate-500 hover:text-slate-300 transition-colors"
+                title="Clear filter"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-slate-800 bg-slate-900/40">
-                {['#', 'Item', 'Category', 'Brand', 'Total Spend', 'POs', 'Quotes', 'Units', 'Share'].map((h, i) => (
-                  <th key={h} className={`px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 ${i === 0 ? 'w-8 pl-4' : ''} ${i >= 2 ? (i >= 4 ? 'text-right' : 'hidden md:table-cell') : ''} ${i >= 6 ? 'hidden sm:table-cell' : ''} ${i === 8 ? 'hidden lg:table-cell' : ''} ${i < 2 ? 'text-left' : ''}`}>
-                    {h}
-                  </th>
-                ))}
+                <th className="w-8 pl-4 pr-2 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500">#</th>
+                <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500">Item</th>
+                <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 hidden md:table-cell">Category</th>
+                <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 hidden md:table-cell">Brand</th>
+                <th
+                  className={`px-3 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider cursor-pointer select-none transition-colors ${sortCol === 'committed' ? 'text-indigo-400' : 'text-slate-500 hover:text-slate-300'}`}
+                  onClick={() => handleSort('committed')}
+                >Total Spend <SortIcon col="committed" /></th>
+                <th
+                  className={`px-3 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider cursor-pointer select-none transition-colors hidden sm:table-cell ${sortCol === 'poCount' ? 'text-indigo-400' : 'text-slate-500 hover:text-slate-300'}`}
+                  onClick={() => handleSort('poCount')}
+                >POs <SortIcon col="poCount" /></th>
+                <th
+                  className={`px-3 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider cursor-pointer select-none transition-colors hidden sm:table-cell ${sortCol === 'quoteCount' ? 'text-indigo-400' : 'text-slate-500 hover:text-slate-300'}`}
+                  onClick={() => handleSort('quoteCount')}
+                >Quotes <SortIcon col="quoteCount" /></th>
+                <th
+                  className={`px-3 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider cursor-pointer select-none transition-colors hidden md:table-cell ${sortCol === 'qty' ? 'text-indigo-400' : 'text-slate-500 hover:text-slate-300'}`}
+                  onClick={() => handleSort('qty')}
+                >Units <SortIcon col="qty" /></th>
+                <th className="px-3 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-slate-500 hidden lg:table-cell">Share</th>
               </tr>
             </thead>
             <tbody>
-              {topComponents.map((comp, i) => (
-                <tr key={comp.id} className="border-b border-slate-800/40 hover:bg-slate-800/25 transition-colors group">
-                  <td className="pl-4 pr-2 py-3 text-slate-600 font-mono text-[11px] tabular-nums">{i + 1}</td>
-                  <td className="px-3 py-3 min-w-[200px]">
-                    <p className="font-mono text-[11px] text-slate-200 leading-tight truncate max-w-[220px]">{comp.model}</p>
-                    <p className="text-[10px] text-slate-500 truncate max-w-[220px] mt-0.5">{comp.description}</p>
-                    <div className="mt-1.5 h-0.5 bg-slate-800 rounded-full overflow-hidden max-w-[180px]">
-                      <div className="h-full rounded-full bg-indigo-500/50 transition-all duration-300"
-                        style={{ width: `${(comp.committed / maxComp) * 100}%` }} />
-                    </div>
-                  </td>
-                  <td className="px-3 py-3 hidden md:table-cell">
-                    <span className="text-[11px] text-slate-400">{comp.category}</span>
-                  </td>
-                  <td className="px-3 py-3 hidden md:table-cell">
-                    <span className="text-[11px] text-slate-500">{comp.brand}</span>
-                  </td>
-                  <td className="px-3 py-3 text-right">
-                    <p className="text-sm font-bold text-white tabular-nums">{fmtIDR(comp.committed)}</p>
-                    <p className="text-[10px] text-slate-600 tabular-nums">{fmtFull(comp.committed)}</p>
-                  </td>
-                  <td className="px-3 py-3 text-right hidden sm:table-cell">
-                    <span className="text-slate-300 tabular-nums">{comp.poCount}</span>
-                  </td>
-                  <td className="px-3 py-3 text-right hidden sm:table-cell">
-                    <span className="text-slate-400 tabular-nums">{comp.quoteCount}</span>
-                  </td>
-                  <td className="px-3 py-3 text-right hidden md:table-cell">
-                    <span className="text-slate-400 tabular-nums">{comp.qty.toLocaleString()}</span>
-                  </td>
-                  <td className="px-3 py-3 text-right hidden lg:table-cell">
-                    <span className="text-slate-500 tabular-nums">{share(comp.committed, totalCommitted)}</span>
-                  </td>
-                </tr>
-              ))}
-              {topComponents.length === 0 && (
+              {displayComponents.map((comp, i) => {
+                const vendorName = vendorFilter
+                  ? vendors.find((v) => v.id === vendorFilter)?.name
+                  : comp.supplierIds.size > 1 ? `${comp.supplierIds.size} vendors` : vendors.find((v) => comp.supplierIds.has(v.id))?.name;
+                return (
+                  <tr key={comp.id} className="border-b border-slate-800/40 hover:bg-slate-800/25 transition-colors">
+                    <td className="pl-4 pr-2 py-3 text-slate-600 font-mono text-[11px] tabular-nums">{i + 1}</td>
+                    <td className="px-3 py-3 min-w-[200px]">
+                      <p className="font-mono text-[11px] text-slate-200 leading-tight truncate max-w-[220px]">{comp.model}</p>
+                      <p className="text-[10px] text-slate-500 truncate max-w-[220px] mt-0.5">{comp.description}</p>
+                      {vendorName && <p className="text-[10px] text-indigo-400/70 truncate max-w-[220px] mt-0.5">{vendorName}</p>}
+                      <div className="mt-1.5 h-0.5 bg-slate-800 rounded-full overflow-hidden max-w-[180px]">
+                        <div className="h-full rounded-full bg-indigo-500/50" style={{ width: `${(comp.committed / maxComp) * 100}%` }} />
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 hidden md:table-cell">
+                      <span className="text-[11px] text-slate-400">{comp.category}</span>
+                    </td>
+                    <td className="px-3 py-3 hidden md:table-cell">
+                      <span className="text-[11px] text-slate-500">{comp.brand}</span>
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      <p className="text-sm font-bold text-white tabular-nums">{fmtIDR(comp.committed)}</p>
+                      <p className="text-[10px] text-slate-600 tabular-nums">{fmtFull(comp.committed)}</p>
+                    </td>
+                    <td className="px-3 py-3 text-right hidden sm:table-cell">
+                      <span className={`tabular-nums ${sortCol === 'poCount' ? 'text-indigo-300 font-semibold' : 'text-slate-300'}`}>{comp.poCount}</span>
+                    </td>
+                    <td className="px-3 py-3 text-right hidden sm:table-cell">
+                      <span className={`tabular-nums ${sortCol === 'quoteCount' ? 'text-indigo-300 font-semibold' : 'text-slate-400'}`}>{comp.quoteCount}</span>
+                    </td>
+                    <td className="px-3 py-3 text-right hidden md:table-cell">
+                      <span className={`tabular-nums ${sortCol === 'qty' ? 'text-indigo-300 font-semibold' : 'text-slate-400'}`}>{comp.qty.toLocaleString()}</span>
+                    </td>
+                    <td className="px-3 py-3 text-right hidden lg:table-cell">
+                      <span className="text-slate-500 tabular-nums">{share(comp.committed, totalCommitted)}</span>
+                    </td>
+                  </tr>
+                );
+              })}
+              {displayComponents.length === 0 && (
                 <tr>
                   <td colSpan={9} className="px-4 py-16 text-center text-slate-700 text-sm italic">
-                    No purchase line item data for this period.
+                    {vendorFilter ? 'No items found for this vendor in the selected period.' : 'No purchase line item data for this period.'}
                   </td>
                 </tr>
               )}
