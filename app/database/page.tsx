@@ -4,24 +4,32 @@
  * Procurement-sensitive data — not for general staff use.
  */
 'use client';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import ProductCostLookup from '@/components/ui/ProductCostLookup';
 import POCashCycle from '@/components/ui/POCashCycle';
 import PricingIntelligence from '@/components/ui/PricingIntelligence';
 import ExchangeRateTrends from '@/components/ui/ExchangeRateTrends';
+import SpendOverview from '@/components/ui/SpendOverview';
 import { ToastProvider } from '@/hooks/useToast';
 
-type TabId = 'lookup' | 'pricing' | 'cash' | 'xrates';
+type TabId = 'spend' | 'lookup' | 'pricing' | 'cash' | 'xrates';
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: 'lookup',  label: 'Cost Lookup'  },
-  { id: 'pricing', label: 'Pricing'      },
-  { id: 'cash',    label: 'Cash Cycle'   },
+  { id: 'spend',   label: 'Spend Overview' },
+  { id: 'lookup',  label: 'Cost Lookup'    },
+  { id: 'pricing', label: 'Pricing'        },
+  { id: 'cash',    label: 'Cash Cycle'     },
   { id: 'xrates',  label: 'Exchange Rates' },
 ];
 
 const TAB_ICONS: Record<TabId, React.ReactNode> = {
+  spend: (
+    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
+    </svg>
+  ),
   lookup: (
     <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
       <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -46,7 +54,7 @@ const TAB_ICONS: Record<TabId, React.ReactNode> = {
 
 export default function DatabaseViewPage() {
   const { data, loading } = useSupabaseData();
-  const [activeTab, setActiveTab] = useState<TabId>('lookup');
+  const [activeTab, setActiveTab] = useState<TabId>('spend');
 
   return (
     <ToastProvider>
@@ -82,6 +90,20 @@ export default function DatabaseViewPage() {
 
         {/* ── Tab content ── */}
         <main className="p-4 md:p-8 xl:p-10 2xl:p-12 max-w-[1800px] mx-auto animate-in fade-in duration-300">
+
+          {/* Spend Overview */}
+          <div className={activeTab !== 'spend' ? 'hidden' : ''}>
+            <SpendOverview
+              components={data.components}
+              suppliers={data.suppliers}
+              quotes={data.quotes}
+              pos={data.pos}
+              poItems={data.poItems}
+              poCosts={data.poCosts}
+              quoteItems={data.quoteItems}
+              isLoading={loading}
+            />
+          </div>
 
           {/* Cost Lookup */}
           <div className={activeTab !== 'lookup' ? 'hidden' : 'space-y-6'}>
