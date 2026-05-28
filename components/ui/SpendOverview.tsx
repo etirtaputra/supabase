@@ -9,7 +9,7 @@ const PALETTE = [
 ];
 
 type Period = 'all' | '12m' | '6m' | '3m';
-type TrendPeriod = '1y' | '6m' | '3m' | '1m' | '1w';
+type TrendPeriod = 'all' | 'ytd' | '1y' | '6m' | '3m' | '1m' | '1w';
 
 const fmtIDR = (n: number): string => {
   if (n >= 1e9) return `Rp ${(n / 1e9).toFixed(1)}B`;
@@ -237,10 +237,13 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
     // Uses its own independent period (trendPeriod), separate from the spend period filter.
     // Reference point = most recent quote before the trend cutoff (or oldest ever for "all")
     // Current  point  = most recent quote at/after the trend cutoff
-    const trendCutoff = (() => {
+    // null = all-time (reference is oldest quote ever)
+    const trendCutoff: string | null = (() => {
+      if (trendPeriod === 'all') return null;
       const d = new Date();
+      if (trendPeriod === 'ytd') { d.setMonth(0); d.setDate(1); return d.toISOString().split('T')[0]; }
       if (trendPeriod === '1w') { d.setDate(d.getDate() - 7); return d.toISOString().split('T')[0]; }
-      const months: Record<TrendPeriod, number> = { '1y': 12, '6m': 6, '3m': 3, '1m': 1, '1w': 0 };
+      const months: Record<string, number> = { '1y': 12, '6m': 6, '3m': 3, '1m': 1 };
       d.setMonth(d.getMonth() - months[trendPeriod]);
       return d.toISOString().split('T')[0];
     })();
@@ -264,10 +267,15 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
       if (!comp) return;
       const cur = lines[lines.length - 1];
       let ref: typeof cur | null = null;
-      if ((cur.date ?? '') < trendCutoff) return; // most recent quote is older than trend window
-      const before = lines.filter((l) => l.date < trendCutoff);
-      if (before.length === 0) return;
-      ref = before[before.length - 1];
+      if (trendCutoff === null) {
+        // All-time: oldest vs most recent
+        ref = lines[0];
+      } else {
+        if ((cur.date ?? '') < trendCutoff) return; // most recent quote is older than trend window
+        const before = lines.filter((l) => l.date < trendCutoff);
+        if (before.length === 0) return;
+        ref = before[before.length - 1];
+      }
       if (!ref || ref.currency !== cur.currency || ref.price === 0 || cur.price === 0 || ref.date === cur.date) return;
       compTrends.push({
         id: cid, model: comp.supplier_model, category: comp.category ?? 'Uncategorized',
@@ -486,7 +494,7 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
             </div>
             {/* Trend period filter — independent from the spend period */}
             <div className="flex gap-1 bg-slate-900 border border-slate-800 rounded-lg p-1 flex-shrink-0">
-              {([['1w', '1W'], ['1m', '1M'], ['3m', '3M'], ['6m', '6M'], ['1y', '1Y']] as [TrendPeriod, string][]).map(([val, label]) => (
+              {([['1w', '1W'], ['1m', '1M'], ['3m', '3M'], ['6m', '6M'], ['1y', '1Y'], ['ytd', 'YTD'], ['all', 'All']] as [TrendPeriod, string][]).map(([val, label]) => (
                 <button
                   key={val}
                   onClick={() => setTrendPeriod(val)}
