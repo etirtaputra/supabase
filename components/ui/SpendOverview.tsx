@@ -315,8 +315,10 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
         colorIndex,
       };
     }).sort((a, b) => {
-      if (a.hasData !== b.hasData) return a.hasData ? -1 : 1;
-      return Math.abs(b.avgDeltaPct) - Math.abs(a.avgDeltaPct);
+      // Stable spend-sorted order so tiles don't jump when the period changes
+      const ai = categoryColorIndex.get(a.category) ?? 999;
+      const bi = categoryColorIndex.get(b.category) ?? 999;
+      return ai - bi;
     });
 
     return { vendors, categories, allComponents, totalCommitted, totalPaid, openPOs, activeVendorCount, categoryTrends };
