@@ -105,7 +105,7 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
   const [vendorFilter, setVendorFilter] = useState('');
   const [sortCol, setSortCol] = useState<'committed' | 'qty' | 'poCount' | 'quoteCount'>('committed');
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
-  const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('1y');
+  const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('all');
 
   const handleSort = (col: typeof sortCol) => {
     if (sortCol === col) setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'));
