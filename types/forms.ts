@@ -70,6 +70,8 @@ export interface BatchLineItemsFormProps {
   defaultParentId?: string;
   /** Called whenever the parent (e.g. PO) selection changes. */
   onParentChange?: (id: string) => void;
+  /** Values applied to the draft whenever the parent selection changes. Keys in this object overwrite any existing draft value for those fields. */
+  fieldDefaultsOnParentChange?: Record<string, any>;
 }
 
 // Field renderer props

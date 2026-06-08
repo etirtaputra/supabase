@@ -4,7 +4,7 @@
  * Supports sticky fields and mobile-optimized layout
  */
 'use client';
-import React, { useState, useEffect, useId } from 'react';
+import React, { useState, useEffect, useRef, useId } from 'react';
 import FieldRenderer from './FieldRenderer';
 import { Spinner } from '../ui/LoadingSkeleton';
 import QuoteItemsImportModal from './QuoteItemsImportModal';
@@ -26,6 +26,7 @@ export default function BatchLineItemsForm({
   gridLayout = false,
   defaultParentId,
   onParentChange,
+  fieldDefaultsOnParentChange = {},
 }: BatchLineItemsFormProps) {
   const uniqueFormId = useId();
   const formId = customFormId || uniqueFormId;
@@ -53,6 +54,18 @@ export default function BatchLineItemsForm({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defaultParentId]);
+
+  const prevParentIdRef = useRef('');
+  useEffect(() => {
+    if (!parentId || parentId === prevParentIdRef.current) return;
+    prevParentIdRef.current = parentId;
+    if (!fieldDefaultsOnParentChange || Object.keys(fieldDefaultsOnParentChange).length === 0) return;
+    setDraft(prev => {
+      const updated = { ...prev, ...fieldDefaultsOnParentChange };
+      persistState(parentId, items, updated);
+      return updated;
+    });
+  }, [parentId, fieldDefaultsOnParentChange]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [items, setItems] = useState<any[]>(() => {
     if (typeof window !== 'undefined') return loadSaved()?.items ?? [];

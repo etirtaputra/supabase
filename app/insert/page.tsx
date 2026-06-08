@@ -69,6 +69,10 @@ function MasterInsertPage() {
   const [pdfData, setPdfData] = useState<any>(null);
   const [paymentMode, setPaymentMode] = useState<'single' | 'batch'>('single');
   const [singlePoId, setSinglePoId] = useState('');
+  const [hideSettledPos, setHideSettledPos] = useState(true);
+  const [showCostBreakdown, setShowCostBreakdown] = useState(false);
+  const [singlePoRate, setSinglePoRate] = useState<number | null>(null);
+  const [quoteItemsCurrency, setQuoteItemsCurrency] = useState<string>('');
   const [lastSaved, setLastSaved] = useState<{ message: string; cta: string; nextTab: Tab; quoteId?: string; poId?: string } | null>(null);
   const [pdfUploading, setPdfUploading] = useState(false);
   const [dupWarning, setDupWarning] = useState<string | null>(null);
@@ -159,6 +163,38 @@ function MasterInsertPage() {
     [data]
   );
 
+  const paymentPosOptions = useMemo(() => {
+    // Build a Map<poId, totalPaidIdr>
+    const paidByPo = new Map<string, number>();
+    data.poCosts.filter(c => PRINCIPAL_CATS.has(c.cost_category)).forEach(c => {
+      const po = data.pos.find(p => String(p.po_id) === String(c.po_id));
+      const rate = Number(c.exchange_rate) || Number(po?.exchange_rate) || 1;
+      const idr = c.currency === 'IDR' ? Number(c.amount) : Number(c.amount) * rate;
+      const id = String(c.po_id);
+      paidByPo.set(id, (paidByPo.get(id) || 0) + idr);
+    });
+
+    return data.pos
+      .filter(p => {
+        if (p.status === 'Cancelled') return false;
+        if (!hideSettledPos) return true;
+        const totalIdr = p.currency === 'IDR'
+          ? Number(p.total_value)
+          : Number(p.total_value) * (Number(p.exchange_rate) || 1);
+        const paid = paidByPo.get(String(p.po_id)) || 0;
+        const outstanding = Math.max(0, totalIdr - paid);
+        return outstanding > 1 || !totalIdr;
+      })
+      .map(p => {
+        const quote    = p.quote_id ? data.quotes.find(q => String(q.quote_id) === String(p.quote_id)) : null;
+        const supplier = quote ? data.suppliers.find(s => s.supplier_id === quote.supplier_id) : null;
+        const code     = supplier?.supplier_code ? `[${supplier.supplier_code}] ` : '';
+        const value    = p.total_value ? ` | ${p.currency || 'IDR'} ${Number(p.total_value).toLocaleString()}` : '';
+        const piPart   = p.pi_number ? `${p.pi_number} · ` : '';
+        return { val: p.po_id, txt: `${code}${piPart}${p.po_number} - ${p.po_date}${value}` };
+      });
+  }, [data.pos, data.poCosts, data.quotes, data.suppliers, hideSettledPos]);
+
   const pdfDefaults = useMemo(() => {
     if (!pdfData) return {};
     const defaults: any = {};
@@ -207,6 +243,7 @@ function MasterInsertPage() {
       if (table === '4.0_price_quotes' && insertedRows?.[0]) {
         const qId = String(insertedRows[0].quote_id);
         setNewQuoteId(qId);
+        setQuoteItemsCurrency(insertedRows[0].currency || '');  // add this line
         setLastSaved({ message: 'Quote saved!', cta: 'Create PO →', nextTab: 'ordering', quoteId: qId });
       } else if (table === '5.0_purchases' && insertedRows?.[0]) {
         const pId = String(insertedRows[0].po_id);
@@ -590,6 +627,11 @@ function MasterInsertPage() {
                       enablePdfUpload={true}
                       defaultParentId={newQuoteId}
                       parentField={{ name: 'quote_id', label: 'Select Quote', options: options.quotes }}
+                      onParentChange={(id) => {
+                        const q = data.quotes.find(q => String(q.quote_id) === id);
+                        if (q?.currency) setQuoteItemsCurrency(q.currency);
+                      }}
+                      fieldDefaultsOnParentChange={quoteItemsCurrency ? { currency: quoteItemsCurrency } : {}}
                       itemFields={[
                         { name: 'component_id', label: 'Component', type: 'rich-select', options: data.components, config: { labelKey: 'supplier_model', valueKey: 'component_id', subLabelKey: 'internal_description' }, req: true },
                         { name: 'supplier_description', label: 'Supplier Desc', type: 'text' },
@@ -809,11 +851,28 @@ function MasterInsertPage() {
                     const outIdr   = Math.max(0, totalIdr - paidIdr);
                     const pct      = totalIdr > 0 ? Math.min(100, (paidIdr / totalIdr) * 100) : 0;
                     return (<>
+                    <div className="flex items-center gap-2 mb-3">
+                      <p className="text-[11px] text-slate-500">
+                        {hideSettledPos ? `${paymentPosOptions.length} open PO${paymentPosOptions.length !== 1 ? 's' : ''}` : 'All POs'}
+                      </p>
+                      <button
+                        onClick={() => setHideSettledPos(v => !v)}
+                        className="text-[11px] text-indigo-400 hover:text-indigo-300 underline underline-offset-2 transition-colors"
+                      >
+                        {hideSettledPos ? 'Show all' : 'Hide settled'}
+                      </button>
+                    </div>
                     <BatchLineItemsForm
                       title="PO Costs (Payments, Bank Fees & Landed Costs)"
                       defaultParentId={singlePoId}
-                      onParentChange={(id) => setSinglePoId(id)}
-                      parentField={{ name: 'po_id', label: 'Select PO', options: options.pos }}
+                      onParentChange={(id) => {
+                        setSinglePoId(id);
+                        setShowCostBreakdown(false);
+                        const po = data.pos.find(p => String(p.po_id) === id);
+                        setSinglePoRate(po?.exchange_rate ?? null);
+                      }}
+                      parentField={{ name: 'po_id', label: 'Select PO', options: paymentPosOptions }}
+                      fieldDefaultsOnParentChange={singlePoRate ? { exchange_rate: singlePoRate } : {}}
                       itemFields={[
                         { name: 'cost_category', label: 'Cost Category', type: 'select', options: ENUMS.po_cost_category, req: true },
                         { name: 'amount', label: 'Amount', type: 'number', req: true },
@@ -849,6 +908,43 @@ function MasterInsertPage() {
                             <p className={`font-bold ${outIdr > 0 ? 'text-amber-300' : 'text-slate-400'}`}>{fmtIdr(outIdr)}</p>
                           </div>
                         </div>
+                        {selCosts.length > 0 && (
+                          <div className="mt-2 border-t border-slate-800/40 pt-2">
+                            <button
+                              onClick={() => setShowCostBreakdown(v => !v)}
+                              className="flex items-center gap-1.5 text-[10px] text-slate-500 hover:text-slate-300 transition-colors w-full"
+                            >
+                              <svg className={`w-2.5 h-2.5 transition-transform ${showCostBreakdown ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                              </svg>
+                              {selCosts.length} cost entr{selCosts.length !== 1 ? 'ies' : 'y'} logged
+                            </button>
+                            {showCostBreakdown && (
+                              <div className="mt-2 rounded-lg overflow-hidden border border-slate-800/60">
+                                <table className="w-full text-[10px]">
+                                  <thead>
+                                    <tr className="bg-slate-800/50">
+                                      <th className="px-2.5 py-1.5 text-left text-slate-500 font-semibold">Date</th>
+                                      <th className="px-2.5 py-1.5 text-left text-slate-500 font-semibold">Category</th>
+                                      <th className="px-2.5 py-1.5 text-right text-slate-500 font-semibold">Amount</th>
+                                      <th className="px-2.5 py-1.5 text-left text-slate-500 font-semibold hidden sm:table-cell">Notes</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-800/40">
+                                    {[...selCosts].sort((a, b) => (a.payment_date || '').localeCompare(b.payment_date || '')).map((c, idx) => (
+                                      <tr key={idx} className="hover:bg-slate-800/20">
+                                        <td className="px-2.5 py-1.5 text-slate-500 tabular-nums whitespace-nowrap">{c.payment_date || '—'}</td>
+                                        <td className="px-2.5 py-1.5 text-slate-300">{c.cost_category.replace(/_/g, ' ')}</td>
+                                        <td className="px-2.5 py-1.5 text-right tabular-nums text-slate-200 whitespace-nowrap font-mono">{c.currency} {Number(c.amount).toLocaleString()}</td>
+                                        <td className="px-2.5 py-1.5 text-slate-600 hidden sm:table-cell truncate max-w-[120px]">{c.notes || ''}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
                     </>);
@@ -868,13 +964,16 @@ function MasterInsertPage() {
                   {/* ── Recent Payment Activity ── */}
                   {(() => {
                     // Collect unique po_ids in order of most-recent payment_date
-                    const seen = new Set<string>();
-                    const recentPoIds: string[] = [];
-                    for (const c of data.poCosts) {
+                    const poLatestDate = new Map<string, string>();
+                    data.poCosts.forEach(c => {
                       const id = String(c.po_id);
-                      if (!seen.has(id)) { seen.add(id); recentPoIds.push(id); }
-                      if (recentPoIds.length >= 8) break;
-                    }
+                      const cur = poLatestDate.get(id) || '';
+                      if ((c.payment_date || '') > cur) poLatestDate.set(id, c.payment_date || '');
+                    });
+                    const recentPoIds = [...poLatestDate.entries()]
+                      .sort((a, b) => b[1].localeCompare(a[1]))
+                      .slice(0, 8)
+                      .map(([id]) => id);
                     if (recentPoIds.length === 0) return null;
 
                     return (
