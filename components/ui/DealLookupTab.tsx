@@ -1045,9 +1045,9 @@ export default function DealLookupTab({
                                     {pctLanded > 0 && <div className="h-full bg-orange-500/60" style={{ width: `${pctLanded}%` }} />}
                                   </div>
                                   <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px]">
-                                    <span><span className="text-sky-400">●</span> <span className="text-slate-500">Principal</span> <span className="tabular-nums text-slate-300 font-semibold">{fmtIdr(princIdr)}</span> <span className="text-slate-600">({pctBase.toFixed(1)}%)</span></span>
-                                    {feesIdr   > 0 && <span><span className="text-purple-400">●</span> <span className="text-slate-500">Bank fees</span> <span className="tabular-nums text-slate-300 font-semibold">{fmtIdr(feesIdr)}</span> <span className="text-slate-600">(+{pctFees.toFixed(1)}%)</span></span>}
-                                    {landedIdr > 0 && <span><span className="text-orange-400">●</span> <span className="text-slate-500">Landed</span> <span className="tabular-nums text-slate-300 font-semibold">{fmtIdr(landedIdr)}</span> <span className="text-slate-600">(+{pctLanded.toFixed(1)}%)</span></span>}
+                                    <span><span className="text-sky-400">●</span> <span className="text-slate-500">Principal</span> <span className="tabular-nums text-slate-300 font-semibold">{fmtIdr(princIdr)}</span> <span className="text-sky-400 font-semibold">({pctBase.toFixed(1)}%)</span></span>
+                                    {feesIdr   > 0 && <span><span className="text-purple-400">●</span> <span className="text-slate-500">Bank fees</span> <span className="tabular-nums text-slate-300 font-semibold">{fmtIdr(feesIdr)}</span> <span className="text-purple-400 font-semibold">(+{pctFees.toFixed(1)}%)</span></span>}
+                                    {landedIdr > 0 && <span><span className="text-orange-400">●</span> <span className="text-slate-500">Landed</span> <span className="tabular-nums text-slate-300 font-semibold">{fmtIdr(landedIdr)}</span> <span className="text-orange-400 font-semibold">(+{pctLanded.toFixed(1)}%)</span></span>}
                                   </div>
                                 </>
                               )}

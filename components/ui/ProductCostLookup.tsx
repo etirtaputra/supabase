@@ -587,10 +587,11 @@ export default function ProductCostLookup({
                                   <td className="px-3 py-2 text-right bg-amber-500/5">
                                     <p className="text-amber-400 font-bold tabular-nums whitespace-nowrap">{fmtAmt(a.trueUnitCostIdr, 'IDR')}</p>
                                     {a.totalAllocated > 0 && (a.allocBankFees > 0 || a.allocLanded > 0) && (
-                                      <p className="text-[9px] text-slate-600 tabular-nums mt-0.5 whitespace-nowrap">
-                                        {((a.allocPrincipal / a.totalAllocated) * 100).toFixed(0)}% base
-                                        {a.allocBankFees > 0 && ` · +${((a.allocBankFees / a.totalAllocated) * 100).toFixed(0)}% fees`}
-                                        {a.allocLanded > 0 && ` · +${((a.allocLanded / a.totalAllocated) * 100).toFixed(0)}% landed`}
+                                      <p className="text-[9px] tabular-nums mt-0.5 whitespace-nowrap">
+                                        <span className="text-sky-400">{((a.allocPrincipal / a.totalAllocated) * 100).toFixed(0)}%</span>
+                                        <span className="text-slate-600"> base</span>
+                                        {a.allocBankFees > 0 && <><span className="text-slate-600"> · </span><span className="text-purple-400">+{((a.allocBankFees / a.totalAllocated) * 100).toFixed(0)}%</span><span className="text-slate-600"> fees</span></>}
+                                        {a.allocLanded > 0 && <><span className="text-slate-600"> · </span><span className="text-orange-400">+{((a.allocLanded / a.totalAllocated) * 100).toFixed(0)}%</span><span className="text-slate-600"> landed</span></>}
                                       </p>
                                     )}
                                   </td>
@@ -645,9 +646,9 @@ export default function ProductCostLookup({
                                     {pctLanded > 0 && <div className="h-full bg-orange-500/60" style={{ width: `${pctLanded}%` }} />}
                                   </div>
                                   <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px]">
-                                    <span><span className="text-sky-400">●</span> <span className="text-slate-500">Principal</span> <span className="tabular-nums text-slate-300 font-semibold">{fmtAmt(g.principalIdr, 'IDR')}</span> <span className="text-slate-600">({pctBase.toFixed(1)}%)</span></span>
-                                    {g.bankFeesIdr > 0 && <span><span className="text-purple-400">●</span> <span className="text-slate-500">Bank fees</span> <span className="tabular-nums text-slate-300 font-semibold">{fmtAmt(g.bankFeesIdr, 'IDR')}</span> <span className="text-slate-600">(+{pctFees.toFixed(1)}%)</span></span>}
-                                    {g.landedIdr   > 0 && <span><span className="text-orange-400">●</span> <span className="text-slate-500">Landed</span> <span className="tabular-nums text-slate-300 font-semibold">{fmtAmt(g.landedIdr, 'IDR')}</span> <span className="text-slate-600">(+{pctLanded.toFixed(1)}%)</span></span>}
+                                    <span><span className="text-sky-400">●</span> <span className="text-slate-500">Principal</span> <span className="tabular-nums text-slate-300 font-semibold">{fmtAmt(g.principalIdr, 'IDR')}</span> <span className="text-sky-400 font-semibold">({pctBase.toFixed(1)}%)</span></span>
+                                    {g.bankFeesIdr > 0 && <span><span className="text-purple-400">●</span> <span className="text-slate-500">Bank fees</span> <span className="tabular-nums text-slate-300 font-semibold">{fmtAmt(g.bankFeesIdr, 'IDR')}</span> <span className="text-purple-400 font-semibold">(+{pctFees.toFixed(1)}%)</span></span>}
+                                    {g.landedIdr   > 0 && <span><span className="text-orange-400">●</span> <span className="text-slate-500">Landed</span> <span className="tabular-nums text-slate-300 font-semibold">{fmtAmt(g.landedIdr, 'IDR')}</span> <span className="text-orange-400 font-semibold">(+{pctLanded.toFixed(1)}%)</span></span>}
                                   </div>
                                 </div>
                               );
