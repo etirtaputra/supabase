@@ -1018,18 +1018,42 @@ export default function DealLookupTab({
                             </p>
                           </div>
                         </div>
-                        {/* Total spend row */}
-                        {totalCashOutIdr > 0 && (
-                          <div className="mt-2 pt-2 border-t border-slate-700/40 flex items-center gap-3 flex-wrap text-[11px]">
-                            <span className="text-slate-500 font-semibold uppercase tracking-widest">Total Spend</span>
-                            <span className="font-bold text-slate-200 tabular-nums">{fmtIdr(totalCashOutExclTaxIdr)}</span>
-                            <span className="text-slate-600">excl. tax</span>
-                            {totalCashOutIdr !== totalCashOutExclTaxIdr && (
-                              <span className="text-slate-600 tabular-nums">({fmtIdr(totalCashOutIdr)} incl. tax)</span>
-                            )}
-                            <span className="text-slate-700">= principal + fees + landed</span>
-                          </div>
-                        )}
+                        {/* Total spend row with cost breakdown */}
+                        {totalCashOutIdr > 0 && (() => {
+                          const princIdr  = princ.reduce((s, c) => s + toIdrLocal(c), 0);
+                          const feesIdr   = fees.reduce((s, c) => s + toIdrLocal(c), 0);
+                          const landedIdr = landed.reduce((s, c) => s + toIdrLocal(c), 0);
+                          const brkTotal  = princIdr + feesIdr + landedIdr;
+                          const pctFees    = brkTotal > 0 ? (feesIdr   / brkTotal) * 100 : 0;
+                          const pctLanded  = brkTotal > 0 ? (landedIdr / brkTotal) * 100 : 0;
+                          const pctBase    = 100 - pctFees - pctLanded;
+                          return (
+                            <div className="mt-2 pt-2 border-t border-slate-700/40 space-y-1.5">
+                              <div className="flex items-center gap-3 flex-wrap text-[11px]">
+                                <span className="text-slate-500 font-semibold uppercase tracking-widest">Total Spend</span>
+                                <span className="font-bold text-slate-200 tabular-nums">{fmtIdr(totalCashOutExclTaxIdr)}</span>
+                                <span className="text-slate-600">excl. tax</span>
+                                {totalCashOutIdr !== totalCashOutExclTaxIdr && (
+                                  <span className="text-slate-600 tabular-nums">({fmtIdr(totalCashOutIdr)} incl. tax)</span>
+                                )}
+                              </div>
+                              {brkTotal > 0 && (
+                                <>
+                                  <div className="h-1.5 rounded-full overflow-hidden flex">
+                                    <div className="h-full bg-sky-500/60" style={{ width: `${pctBase}%` }} />
+                                    {pctFees   > 0 && <div className="h-full bg-purple-500/60" style={{ width: `${pctFees}%` }} />}
+                                    {pctLanded > 0 && <div className="h-full bg-orange-500/60" style={{ width: `${pctLanded}%` }} />}
+                                  </div>
+                                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px]">
+                                    <span><span className="text-sky-400">●</span> <span className="text-slate-500">Principal</span> <span className="tabular-nums text-slate-300 font-semibold">{fmtIdr(princIdr)}</span> <span className="text-slate-600">({pctBase.toFixed(1)}%)</span></span>
+                                    {feesIdr   > 0 && <span><span className="text-purple-400">●</span> <span className="text-slate-500">Bank fees</span> <span className="tabular-nums text-slate-300 font-semibold">{fmtIdr(feesIdr)}</span> <span className="text-slate-600">(+{pctFees.toFixed(1)}%)</span></span>}
+                                    {landedIdr > 0 && <span><span className="text-orange-400">●</span> <span className="text-slate-500">Landed</span> <span className="tabular-nums text-slate-300 font-semibold">{fmtIdr(landedIdr)}</span> <span className="text-slate-600">(+{pctLanded.toFixed(1)}%)</span></span>}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
 

@@ -584,7 +584,16 @@ export default function ProductCostLookup({
                                 <td className="px-3 py-2 text-right text-slate-200 tabular-nums whitespace-nowrap">{fmtAmt(a.item.unit_cost, a.item.currency)}</td>
                                 <td className="px-3 py-2 text-right text-slate-400">{(a.lineShare * 100).toFixed(1)}%</td>
                                 {a.hasBalance && a.trueUnitCostIdr > 0 ? (
-                                  <td className="px-3 py-2 text-right text-amber-400 font-bold tabular-nums whitespace-nowrap bg-amber-500/5">{fmtAmt(a.trueUnitCostIdr, 'IDR')}</td>
+                                  <td className="px-3 py-2 text-right bg-amber-500/5">
+                                    <p className="text-amber-400 font-bold tabular-nums whitespace-nowrap">{fmtAmt(a.trueUnitCostIdr, 'IDR')}</p>
+                                    {a.totalAllocated > 0 && (a.allocBankFees > 0 || a.allocLanded > 0) && (
+                                      <p className="text-[9px] text-slate-600 tabular-nums mt-0.5 whitespace-nowrap">
+                                        {((a.allocPrincipal / a.totalAllocated) * 100).toFixed(0)}% base
+                                        {a.allocBankFees > 0 && ` · +${((a.allocBankFees / a.totalAllocated) * 100).toFixed(0)}% fees`}
+                                        {a.allocLanded > 0 && ` · +${((a.allocLanded / a.totalAllocated) * 100).toFixed(0)}% landed`}
+                                      </p>
+                                    )}
+                                  </td>
                                 ) : (
                                   <td className="px-3 py-2 text-right text-slate-700 italic text-[10px]">balance unpaid</td>
                                 )}
@@ -621,6 +630,28 @@ export default function ProductCostLookup({
                                 {g.hasBalance ? 'Balance Paid' : 'Balance Unpaid'}
                               </span>
                             </div>
+                            {/* TUC cost breakdown bar */}
+                            {(() => {
+                              const total = g.principalIdr + g.bankFeesIdr + g.landedIdr;
+                              if (total <= 0 || (!g.bankFeesIdr && !g.landedIdr)) return null;
+                              const pctFees   = (g.bankFeesIdr   / total) * 100;
+                              const pctLanded = (g.landedIdr     / total) * 100;
+                              const pctBase   = 100 - pctFees - pctLanded;
+                              return (
+                                <div className="px-4 py-2.5 border-b border-slate-800/40 bg-slate-950/30 space-y-1.5">
+                                  <div className="h-1.5 rounded-full overflow-hidden flex">
+                                    <div className="h-full bg-sky-500/60" style={{ width: `${pctBase}%` }} />
+                                    {pctFees   > 0 && <div className="h-full bg-purple-500/60" style={{ width: `${pctFees}%` }} />}
+                                    {pctLanded > 0 && <div className="h-full bg-orange-500/60" style={{ width: `${pctLanded}%` }} />}
+                                  </div>
+                                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px]">
+                                    <span><span className="text-sky-400">●</span> <span className="text-slate-500">Principal</span> <span className="tabular-nums text-slate-300 font-semibold">{fmtAmt(g.principalIdr, 'IDR')}</span> <span className="text-slate-600">({pctBase.toFixed(1)}%)</span></span>
+                                    {g.bankFeesIdr > 0 && <span><span className="text-purple-400">●</span> <span className="text-slate-500">Bank fees</span> <span className="tabular-nums text-slate-300 font-semibold">{fmtAmt(g.bankFeesIdr, 'IDR')}</span> <span className="text-slate-600">(+{pctFees.toFixed(1)}%)</span></span>}
+                                    {g.landedIdr   > 0 && <span><span className="text-orange-400">●</span> <span className="text-slate-500">Landed</span> <span className="tabular-nums text-slate-300 font-semibold">{fmtAmt(g.landedIdr, 'IDR')}</span> <span className="text-slate-600">(+{pctLanded.toFixed(1)}%)</span></span>}
+                                  </div>
+                                </div>
+                              );
+                            })()}
                             <div className="overflow-x-auto">
                               <table className="w-full text-xs min-w-[400px]">
                                 <tbody className="divide-y divide-slate-800/40">
