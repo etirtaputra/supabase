@@ -7,11 +7,10 @@
  */
 'use client';
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import type { Component, PriceQuoteLineItem, PriceQuote, PurchaseOrder, PurchaseLineItem, POCost } from '../../types/database';
 import { CATEGORY_UNITS, CATEGORY_LABELS, hasCategoryUnit } from '../../constants/categoryUnits';
 import { ENUMS } from '../../constants/enums';
-import { PRINCIPAL_CATS, BANK_FEE_CATS, TAX_CATS } from '../../constants/costCategories';
 
 interface Props {
   components: Component[];
@@ -41,8 +40,8 @@ const BRAND_COLORS = [
 ];
 function brandColor(brand: string, idx: number) { return BRAND_COLORS[idx % BRAND_COLORS.length]; }
 
-// Rough USD→IDR and CNY→IDR for normalizing to IDR
-const FX: Record<string, number> = { USD: 16000, CNY: 2200, IDR: 1 };
+// Rough USD→IDR and RMB→IDR for normalizing to IDR
+const FX: Record<string, number> = { USD: 16000, RMB: 2200, IDR: 1 };
 function toIdr(amount: number, currency: string) { return amount * (FX[currency] ?? 16000); }
 
 function median(vals: number[]): number {
@@ -59,6 +58,8 @@ export default function CategoryPositioningMap({
   const svgRef = useRef<SVGSVGElement>(null);
   const [tooltip, setTooltip] = useState<{ dot: DotData; x: number; y: number } | null>(null);
 
+  const unitInfo = CATEGORY_UNITS[category];
+
   // Categorized components with norm_value
   const catComponents = useMemo(() =>
     components.filter((c) => c.category === category && c.norm_value != null && c.norm_value > 0),
@@ -67,8 +68,6 @@ export default function CategoryPositioningMap({
 
   // Build TUC lookup per component (IDR, post all costs)
   const tucByComponent = useMemo(() => {
-    const LANDED_CATS = [...(Object.values(PRINCIPAL_CATS ?? [])), ...(Object.values(BANK_FEE_CATS ?? []))];
-    // Use simpler approach: replicate TUC calc from ProductCostLookup
     const result = new Map<string, number>(); // component_id → IDR per piece
 
     // Group PO items by component
@@ -207,15 +206,13 @@ export default function CategoryPositioningMap({
         rawCurrency,
       }];
     });
-  }, [catComponents, tucByComponent, lastQuoteByComponent, lastPoByComponent]);
+  }, [catComponents, tucByComponent, lastQuoteByComponent, lastPoByComponent, category]);
 
   // Brands with stable color indices
   const brandColorMap = useMemo(() => {
     const brands = [...new Set(dots.map((d) => d.brand))].sort();
     return new Map(brands.map((b, i) => [b, i]));
   }, [dots]);
-
-  const unitInfo = CATEGORY_UNITS[category];
 
   // Layout constants
   const W = 720, H = 460;
