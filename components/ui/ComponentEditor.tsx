@@ -11,6 +11,7 @@ import SpecRenderer from './SpecRenderer';
 import type { Component, PriceQuoteLineItem, PriceQuote, PurchaseOrder, PurchaseLineItem, CompetitorPrice, POCost, ComponentLink } from '../../types/database';
 import { PRINCIPAL_CATS, BALANCE_CATS, BANK_FEE_CATS, TAX_CATS } from '../../constants/costCategories';
 import { ENUMS } from '../../constants/enums';
+import { CATEGORY_UNITS, hasCategoryUnit } from '../../constants/categoryUnits';
 
 interface ComponentUsage {
   quoteCount: number;
@@ -506,9 +507,9 @@ function PriceDelta({ lines }: { lines: TooltipQuoteLine[] }) {
 }
 
 // ── Column visibility ─────────────────────────────────────────────────────
-type ColKey = 'model' | 'description' | 'brand' | 'category' | 'lastPrice' | 'usage' | 'updated' | 'sellPrice';
-const COL_LABELS: Record<ColKey, string> = { model: 'Model/SKU', description: 'Description', brand: 'Brand', category: 'Category', lastPrice: 'Last Price', usage: 'Usage', updated: 'Updated', sellPrice: 'Sell Price' };
-const DEFAULT_COLS: Record<ColKey, boolean> = { model: true, description: true, brand: true, category: true, lastPrice: true, usage: true, updated: true, sellPrice: false };
+type ColKey = 'model' | 'description' | 'brand' | 'category' | 'normValue' | 'lastPrice' | 'usage' | 'updated' | 'sellPrice';
+const COL_LABELS: Record<ColKey, string> = { model: 'Model/SKU', description: 'Description', brand: 'Brand', category: 'Category', normValue: 'Capacity', lastPrice: 'Last Price', usage: 'Usage', updated: 'Updated', sellPrice: 'Sell Price' };
+const DEFAULT_COLS: Record<ColKey, boolean> = { model: true, description: true, brand: true, category: true, normValue: false, lastPrice: true, usage: true, updated: true, sellPrice: false };
 
 // ── CSV import ─────────────────────────────────────────────────────────────
 type ImportStep = 'upload' | 'map' | 'preview';
@@ -600,7 +601,7 @@ const LINK_TYPE_META: Record<string, { label: string; color: string }> = {
 const NORM_UNITS = ['Wp', 'kWh', 'kW', 'Ah', 'kg', 'unit'] as const;
 
 // --- Main Component Editor ---
-const EMPTY_ADD = { supplier_model: '', internal_description: '', brand: '', category: '', specifications: '', datasheet_url: '' };
+const EMPTY_ADD = { supplier_model: '', internal_description: '', brand: '', category: '', specifications: '', datasheet_url: '', norm_value: '' };
 
 export default function ComponentEditor({ components, brandSuggestions, quoteItems = [], quotes = [], pos = [], poItems = [], poCosts = [], componentHistory, competitorPrices, onSave, onAdd, onAddSupplier, onDelete, onSaveLineItem, onDeleteLineItem, onDeleteCompetitorPrice, onUpdateCompetitorPrice, componentLinks, onAddComponentLink, onDeleteComponentLink }: ComponentEditorProps) {
   const [searchInput, setSearchInput] = useState('');
@@ -1258,6 +1259,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         if (row.specifications.trim()) {
           try { specs = JSON.parse(row.specifications); } catch { specs = row.specifications; }
         }
+        const normVal = row.norm_value !== '' ? parseFloat(row.norm_value) : null;
         await onAdd({
           supplier_model: row.supplier_model.trim(),
           internal_description: row.internal_description.trim(),
@@ -1265,6 +1267,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
           category: (row.category || null) as any,
           specifications: specs,
           datasheet_url: row.datasheet_url.trim() || null as any,
+          norm_value: (normVal != null && !isNaN(normVal)) ? normVal : null as any,
         });
       }
       setAddRows([{ ...EMPTY_ADD }]);
@@ -2040,6 +2043,25 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                         ))}
                       </select>
                     </div>
+                    {hasCategoryUnit(row.category) && (
+                      <div>
+                        <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">
+                          Capacity ({CATEGORY_UNITS[row.category]?.unit})
+                        </label>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            value={row.norm_value}
+                            onChange={(e) => updateRow({ norm_value: e.target.value })}
+                            placeholder="e.g. 550"
+                            className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500 placeholder-slate-600"
+                          />
+                          <span className="text-xs text-slate-500 flex-shrink-0">{CATEGORY_UNITS[row.category]?.unit}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Advanced toggle */}
@@ -2459,6 +2481,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                 {visibleCols.description && <SortTh col="internal_description" label="Description" />}
                 {visibleCols.brand && <SortTh col="brand" label="Brand" className="hidden md:table-cell min-w-[160px]" />}
                 {visibleCols.category && <SortTh col="category" label="Category" className="hidden md:table-cell" />}
+                {visibleCols.normValue && <th className="hidden md:table-cell px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 min-w-[90px]">Capacity</th>}
                 {visibleCols.lastPrice && <SortTh col="priceDelta" label="Last Price" className="min-w-[120px]" />}
                 {visibleCols.sellPrice && <SortTh col="margin" label="Sell Price" className="min-w-[130px]" />}
                 {visibleCols.usage && (
@@ -2650,6 +2673,43 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                         )}
                       </td>
                     )}
+
+                    {visibleCols.normValue && (() => {
+                      const curCat = (getVal(c, 'category') as string) ?? c.category ?? '';
+                      const unitInfo = CATEGORY_UNITS[curCat];
+                      const curVal = (getVal(c, 'norm_value' as any) as number | null) ?? c.norm_value;
+                      return (
+                        <td className="hidden md:table-cell px-3 py-1.5 align-middle">
+                          {isEditing && unitInfo ? (
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                step="any"
+                                min="0"
+                                data-rid={c.component_id}
+                                data-fld="norm_value"
+                                value={curVal ?? ''}
+                                onChange={(e) => setField(c, 'norm_value' as any, e.target.value === '' ? null : parseFloat(e.target.value))}
+                                onKeyDown={(e) => handleCellKeyDown(e, c.component_id, 'norm_value' as any)}
+                                placeholder="0"
+                                className={`w-full px-2 py-1 rounded-lg text-xs text-white focus:outline-none focus:ring-2 transition-all tabular-nums ${
+                                  isDirtyField(c, 'norm_value' as any)
+                                    ? 'bg-amber-500/10 border border-amber-500/50 focus:ring-amber-500/30'
+                                    : 'bg-slate-950 border border-slate-700 focus:ring-emerald-500/20 focus:border-emerald-500'
+                                }`}
+                              />
+                              <span className="text-[10px] text-slate-500 flex-shrink-0">{unitInfo.unit}</span>
+                            </div>
+                          ) : curVal != null && unitInfo ? (
+                            <span className="text-xs tabular-nums text-slate-300">
+                              {curVal.toLocaleString('en-US')} <span className="text-slate-500">{unitInfo.unit}</span>
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-700">—</span>
+                          )}
+                        </td>
+                      );
+                    })()}
 
                     {/* Last Price — TUC first, fallback to last quoted price, then last PO unit cost */}
                     {visibleCols.lastPrice && (

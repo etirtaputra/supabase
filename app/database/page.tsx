@@ -11,16 +11,18 @@ import POCashCycle from '@/components/ui/POCashCycle';
 import PricingIntelligence from '@/components/ui/PricingIntelligence';
 import ExchangeRateTrends from '@/components/ui/ExchangeRateTrends';
 import SpendOverview from '@/components/ui/SpendOverview';
+import CategoryPositioningMap from '@/components/ui/CategoryPositioningMap';
 import { ToastProvider } from '@/hooks/useToast';
 
-type TabId = 'spend' | 'lookup' | 'pricing' | 'cash' | 'xrates';
+type TabId = 'spend' | 'lookup' | 'pricing' | 'cash' | 'xrates' | 'positioning';
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: 'spend',   label: 'Spend Overview' },
-  { id: 'lookup',  label: 'Cost Lookup'    },
-  { id: 'pricing', label: 'Pricing'        },
-  { id: 'cash',    label: 'Cash Cycle'     },
-  { id: 'xrates',  label: 'Exchange Rates' },
+  { id: 'spend',       label: 'Spend Overview' },
+  { id: 'lookup',      label: 'Cost Lookup'    },
+  { id: 'pricing',     label: 'Pricing'        },
+  { id: 'cash',        label: 'Cash Cycle'     },
+  { id: 'xrates',      label: 'Exchange Rates' },
+  { id: 'positioning', label: 'Positioning Map' },
 ];
 
 const TAB_ICONS: Record<TabId, React.ReactNode> = {
@@ -48,6 +50,16 @@ const TAB_ICONS: Record<TabId, React.ReactNode> = {
   xrates: (
     <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  ),
+  positioning: (
+    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+      <circle cx="5" cy="18" r="1.5" />
+      <circle cx="9" cy="12" r="1.5" />
+      <circle cx="15" cy="7" r="1.5" />
+      <circle cx="19" cy="15" r="1.5" />
+      <line x1="3" y1="21" x2="21" y2="21" strokeLinecap="round" />
+      <line x1="3" y1="3" x2="3" y2="21" strokeLinecap="round" />
     </svg>
   ),
 };
@@ -179,6 +191,27 @@ export default function DatabaseViewPage() {
             <ExchangeRateTrends
               rates={data.exchangeRates || []}
               suppliers={data.suppliers}
+            />
+          </div>
+
+          {/* Positioning Map */}
+          <div className={activeTab !== 'positioning' ? 'hidden' : 'space-y-6'}>
+            <div className="mb-6">
+              <h2 className="text-base md:text-lg font-semibold text-white tracking-tight">Category Positioning Map</h2>
+              <p className="text-slate-500 text-[11px] mt-1 max-w-2xl">
+                Price per unit vs. capacity for each product category. Quadrant lines at median X and Y.
+                Set a <span className="text-slate-400">Capacity</span> value on components (in the Catalog editor) to place them on the map.
+                Price source priority: TUC → last quote → last PO cost.
+              </p>
+            </div>
+            <CategoryPositioningMap
+              components={data.components}
+              quoteItems={data.quoteItems}
+              quotes={data.quotes}
+              pos={data.pos}
+              poItems={data.poItems}
+              poCosts={data.poCosts}
+              isLoading={loading}
             />
           </div>
 
