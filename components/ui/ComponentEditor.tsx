@@ -2046,7 +2046,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                     {hasCategoryUnit(row.category) && (
                       <div>
                         <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">
-                          Capacity ({CATEGORY_UNITS[row.category]?.unit})
+                          {CATEGORY_UNITS[row.category]?.priceIsPerUnit ? 'Cross-section' : 'Capacity'} ({CATEGORY_UNITS[row.category]?.unit})
                         </label>
                         <div className="flex items-center gap-1.5">
                           <input

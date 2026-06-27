@@ -191,7 +191,9 @@ export default function CategoryPositioningMap({
         return [];
       }
 
-      const pricePerUnit = priceIdr / normValue;
+      // For categories where unit price IS the Y-value (e.g. cables priced per meter),
+      // don't divide by norm_value — norm_value is only the X-axis spec (e.g. mm²).
+      const pricePerUnit = unitInfo?.priceIsPerUnit ? priceIdr : priceIdr / normValue;
       if (pricePerUnit <= 0 || !isFinite(pricePerUnit)) return [];
 
       return [{
@@ -324,7 +326,7 @@ export default function CategoryPositioningMap({
           </svg>
           <p className="font-medium text-slate-400">No data for this category</p>
           <p className="text-[11px] text-slate-600 max-w-xs text-center">
-            Set a <span className="text-slate-400">Capacity ({unitInfo?.unit})</span> on components in this category to place them on the map.
+            Set a <span className="text-slate-400">{unitInfo?.priceIsPerUnit ? `Cross-section (${unitInfo?.unit})` : `Capacity (${unitInfo?.unit})`}</span> on components in this category to place them on the map.
           </p>
         </div>
       ) : (
@@ -474,19 +476,21 @@ export default function CategoryPositioningMap({
               <p className="text-slate-400 mb-2">{tooltip.dot.brand}</p>
               <div className="space-y-1">
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Capacity</span>
+                  <span className="text-slate-500">{unitInfo?.priceIsPerUnit ? 'Cross-section' : 'Capacity'}</span>
                   <span className="tabular-nums text-slate-200">{tooltip.dot.normValue.toLocaleString('en-US')} {unitInfo?.unit}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">{unitInfo?.priceLabel}</span>
                   <span className="tabular-nums text-slate-200">{fmtIdr(tooltip.dot.pricePerUnit)}</span>
                 </div>
+                {!unitInfo?.priceIsPerUnit && (
                 <div className="flex justify-between">
                   <span className="text-slate-500">Unit price</span>
                   <span className="tabular-nums text-slate-200">
                     {tooltip.dot.rawCurrency} {tooltip.dot.rawPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-slate-500">Source</span>
                   <span className={`font-medium ${tooltip.dot.priceSource === 'tuc' ? 'text-amber-400' : tooltip.dot.priceSource === 'quote' ? 'text-sky-400' : 'text-slate-400'}`}>
@@ -515,7 +519,7 @@ export default function CategoryPositioningMap({
           {/* Stats row */}
           <div className="mt-3 flex flex-wrap gap-4 text-[11px] text-slate-500">
             <span>{dots.length} component{dots.length !== 1 ? 's' : ''} plotted</span>
-            {xMed > 0 && <span>Median capacity: <span className="text-slate-400">{xMed.toLocaleString('en-US')} {unitInfo?.unit}</span></span>}
+            {xMed > 0 && <span>Median {unitInfo?.priceIsPerUnit ? 'cross-section' : 'capacity'}: <span className="text-slate-400">{xMed.toLocaleString('en-US')} {unitInfo?.unit}</span></span>}
             {yMed > 0 && <span>Median {unitInfo?.priceLabel}: <span className="text-slate-400">{fmtIdr(yMed)}</span></span>}
           </div>
         </div>

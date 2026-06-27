@@ -4,10 +4,13 @@
  */
 
 export interface CategoryUnit {
-  unit: string;       // e.g. 'Wp', 'W', 'm'
-  label: string;      // e.g. 'Watt-peak', 'Watt', 'Meters'
-  priceLabel: string; // e.g. '$/Wp', '$/W', '$/m'
-  axis: string;       // X-axis label on positioning map
+  unit: string;        // e.g. 'Wp', 'W', 'mm²'
+  label: string;       // e.g. 'Watt-peak', 'Watt', 'Cross-section'
+  priceLabel: string;  // e.g. 'Price/Wp', 'Price/W', 'Price/m'
+  axis: string;        // X-axis label on positioning map
+  /** When true, unit price from quotes/POs is already the meaningful Y value (e.g. cable priced per meter).
+   *  The norm_value is the X-axis spec only — do NOT divide price by norm_value. */
+  priceIsPerUnit?: boolean;
 }
 
 export const CATEGORY_UNITS: Record<string, CategoryUnit> = {
@@ -42,10 +45,10 @@ export const CATEGORY_UNITS: Record<string, CategoryUnit> = {
     axis: 'Power (W)',
   },
   batteries: {
-    unit: 'Ah',
-    label: 'Ampere-hour',
-    priceLabel: 'Price / Ah',
-    axis: 'Capacity (Ah)',
+    unit: 'Wh',
+    label: 'Watt-hour',
+    priceLabel: 'Price / Wh',
+    axis: 'Capacity (Wh)',
   },
   ev_charger: {
     unit: 'kW',
@@ -54,10 +57,11 @@ export const CATEGORY_UNITS: Record<string, CategoryUnit> = {
     axis: 'Power (kW)',
   },
   pv_cable: {
-    unit: 'm',
-    label: 'Meters',
+    unit: 'mm²',
+    label: 'Cross-section',
     priceLabel: 'Price / m',
-    axis: 'Length (m)',
+    axis: 'Cross-section (mm²)',
+    priceIsPerUnit: true, // unit price in quotes/POs is already per-meter; norm_value is cable gauge for X-axis only
   },
   solar_charge_controller: {
     unit: 'A',
