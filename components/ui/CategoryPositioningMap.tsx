@@ -233,8 +233,8 @@ export default function CategoryPositioningMap({
   }, [dots]);
 
   // Layout constants
-  const W = 760, H = 480;
-  const PAD = { top: 36, right: 40, bottom: 64, left: 80 };
+  const W = 960, H = 560;
+  const PAD = { top: 40, right: 48, bottom: 68, left: 86 };
   const plotW = W - PAD.left - PAD.right;
   const plotH = H - PAD.top - PAD.bottom;
 
@@ -377,14 +377,10 @@ export default function CategoryPositioningMap({
               {/* Quadrant fills */}
               {xMed > 0 && yMed > 0 && (
                 <>
-                  {/* Top-left: High price, Low capacity → "Premium Small" */}
-                  <rect x={PAD.left} y={PAD.top} width={xMedSvg - PAD.left} height={yMedSvg - PAD.top} fill="rgba(251,146,60,0.06)" />
-                  {/* Top-right: High price, High capacity → "Premium" */}
-                  <rect x={xMedSvg} y={PAD.top} width={PAD.left + plotW - xMedSvg} height={yMedSvg - PAD.top} fill="rgba(168,85,247,0.06)" />
-                  {/* Bottom-left: Low price, Low capacity → "Budget" */}
-                  <rect x={PAD.left} y={yMedSvg} width={xMedSvg - PAD.left} height={PAD.top + plotH - yMedSvg} fill="rgba(148,163,184,0.04)" />
-                  {/* Bottom-right: Low price, High capacity → "Best Value" */}
-                  <rect x={xMedSvg} y={yMedSvg} width={PAD.left + plotW - xMedSvg} height={PAD.top + plotH - yMedSvg} fill="rgba(52,211,153,0.08)" />
+                  <rect x={PAD.left} y={PAD.top} width={xMedSvg - PAD.left} height={yMedSvg - PAD.top} fill="rgba(251,146,60,0.09)" />
+                  <rect x={xMedSvg} y={PAD.top} width={PAD.left + plotW - xMedSvg} height={yMedSvg - PAD.top} fill="rgba(168,85,247,0.09)" />
+                  <rect x={PAD.left} y={yMedSvg} width={xMedSvg - PAD.left} height={PAD.top + plotH - yMedSvg} fill="rgba(148,163,184,0.06)" />
+                  <rect x={xMedSvg} y={yMedSvg} width={PAD.left + plotW - xMedSvg} height={PAD.top + plotH - yMedSvg} fill="rgba(52,211,153,0.11)" />
                 </>
               )}
 
@@ -411,20 +407,20 @@ export default function CategoryPositioningMap({
                 );
               })}
 
-              {/* ── Median quadrant dividers — solid, prominent ── */}
+              {/* ── Median quadrant dividers ── */}
               {xMed > 0 && (
-                <line
-                  x1={xMedSvg} y1={PAD.top}
-                  x2={xMedSvg} y2={PAD.top + plotH}
-                  stroke="rgba(148,163,184,0.45)" strokeWidth="1.5"
-                />
+                <>
+                  {/* glow layer */}
+                  <line x1={xMedSvg} y1={PAD.top} x2={xMedSvg} y2={PAD.top + plotH} stroke="rgba(255,255,255,0.06)" strokeWidth="6" />
+                  {/* main line */}
+                  <line x1={xMedSvg} y1={PAD.top} x2={xMedSvg} y2={PAD.top + plotH} stroke="rgba(203,213,225,0.65)" strokeWidth="1.5" />
+                </>
               )}
               {yMed > 0 && (
-                <line
-                  x1={PAD.left} y1={yMedSvg}
-                  x2={PAD.left + plotW} y2={yMedSvg}
-                  stroke="rgba(148,163,184,0.45)" strokeWidth="1.5"
-                />
+                <>
+                  <line x1={PAD.left} y1={yMedSvg} x2={PAD.left + plotW} y2={yMedSvg} stroke="rgba(255,255,255,0.06)" strokeWidth="6" />
+                  <line x1={PAD.left} y1={yMedSvg} x2={PAD.left + plotW} y2={yMedSvg} stroke="rgba(203,213,225,0.65)" strokeWidth="1.5" />
+                </>
               )}
 
               {/* Quadrant labels */}
@@ -512,7 +508,7 @@ export default function CategoryPositioningMap({
             <div
               className="absolute pointer-events-none z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-3 text-xs w-64"
               style={{
-                left: Math.min(tooltip.x + 14, W - 280),
+                left: Math.min(tooltip.x + 14, W - 290),
                 top: Math.max(tooltip.y - 80, 4),
               }}
             >
