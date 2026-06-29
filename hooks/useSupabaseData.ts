@@ -31,6 +31,7 @@ export function useSupabaseData() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastFetched, setLastFetched] = useState<Date | null>(null);
 
   const fetchData = useCallback(async (silent = false) => {
     try {
@@ -166,6 +167,7 @@ export function useSupabaseData() {
         });
 
       setLoading(false);
+      setLastFetched(new Date());
     } catch (err: any) {
       setError(err.message || 'Failed to load data');
       setLoading(false);
@@ -180,6 +182,7 @@ export function useSupabaseData() {
     data,
     loading,
     error,
+    lastFetched,
     refetch: () => fetchData(true),
   };
 }

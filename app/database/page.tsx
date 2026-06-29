@@ -4,7 +4,7 @@
  * Procurement-sensitive data — not for general staff use.
  */
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import ProductCostLookup from '@/components/ui/ProductCostLookup';
 import POCashCycle from '@/components/ui/POCashCycle';
@@ -64,9 +64,33 @@ const TAB_ICONS: Record<TabId, React.ReactNode> = {
   ),
 };
 
+function useNow(intervalMs: number) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
+  return now;
+}
+
 export default function DatabaseViewPage() {
-  const { data, loading } = useSupabaseData();
+  const { data, loading, lastFetched, refetch } = useSupabaseData();
   const [activeTab, setActiveTab] = useState<TabId>('spend');
+  const [refreshing, setRefreshing] = useState(false);
+  const now = useNow(30_000); // tick every 30s to update "X min ago"
+
+  const minutesStale = lastFetched ? Math.floor((now.getTime() - lastFetched.getTime()) / 60_000) : null;
+  const isStale = minutesStale !== null && minutesStale >= 30;
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }
+
+  function fmtTime(d: Date) {
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
 
   return (
     <ToastProvider>
@@ -74,13 +98,42 @@ export default function DatabaseViewPage() {
 
         {/* ── Sticky header + tab bar ── */}
         <div className="sticky top-0 z-50 bg-[#0B1120]/90 backdrop-blur-xl border-b border-white/[0.07]">
-          <header className="px-4 md:px-8 xl:px-12 pt-4 xl:pt-5 pb-2 max-w-[1800px] mx-auto">
-            <h1 className="text-lg md:text-xl xl:text-2xl font-bold text-white tracking-tight">
-              Supply Chain Intelligence
-            </h1>
-            <p className="text-slate-500 text-[11px] mt-0.5 hidden sm:block">
-              True Unit Cost · Pricing · Cash Cycle
-            </p>
+          <header className="px-4 md:px-8 xl:px-12 pt-4 xl:pt-5 pb-2 max-w-[1800px] mx-auto flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-lg md:text-xl xl:text-2xl font-bold text-white tracking-tight">
+                Supply Chain Intelligence
+              </h1>
+              <p className="text-slate-500 text-[11px] mt-0.5 hidden sm:block">
+                True Unit Cost · Pricing · Cash Cycle
+              </p>
+            </div>
+            {/* Refresh control */}
+            <div className="flex items-center gap-2 mt-1 flex-shrink-0">
+              {lastFetched && (
+                <span className={`text-[11px] ${isStale ? 'text-amber-400' : 'text-slate-500'}`}>
+                  {isStale && (
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 mr-1.5 animate-pulse align-middle" />
+                  )}
+                  {minutesStale === 0
+                    ? `Updated ${fmtTime(lastFetched)}`
+                    : `Updated ${minutesStale}m ago`}
+                </span>
+              )}
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing || loading}
+                title="Refresh data"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium text-slate-400 hover:text-white hover:bg-white/10 transition-all disabled:opacity-40 border border-white/[0.06]"
+              >
+                <svg
+                  className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`}
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh
+              </button>
+            </div>
           </header>
           <nav className="px-4 md:px-8 xl:px-12 pb-3 xl:pb-4 max-w-[1800px] mx-auto flex overflow-x-auto gap-1.5 xl:gap-2 scrollbar-none snap-x snap-mandatory">
             {TABS.map((tab) => (
