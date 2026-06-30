@@ -263,12 +263,12 @@ export default function CostBreakdown({
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
-  const BUCKETS = [
-    { key: 'product' as const, label: 'Supplier Cost',  color: 'bg-sky-500',    text: 'text-sky-400',    desc: 'Principal payments to supplier' },
-    { key: 'bank'    as const, label: 'Bank Fees',      color: 'bg-amber-500',  text: 'text-amber-400',  desc: 'Wire transfer charges' },
-    { key: 'landed'  as const, label: 'Landed Costs',   color: 'bg-violet-500', text: 'text-violet-400', desc: 'Import duty, delivery, demurrage, DHL' },
-    { key: 'tax'     as const, label: 'Taxes',          color: 'bg-slate-600',  text: 'text-slate-400',  desc: 'VAT, income tax — excluded from TUC', muted: true },
-  ] as const;
+  const BUCKETS: { key: keyof Split; label: string; color: string; text: string; desc: string; muted: boolean }[] = [
+    { key: 'product', label: 'Supplier Cost',  color: 'bg-sky-500',    text: 'text-sky-400',    desc: 'Principal payments to supplier',       muted: false },
+    { key: 'bank',    label: 'Bank Fees',      color: 'bg-amber-500',  text: 'text-amber-400',  desc: 'Wire transfer charges',                muted: false },
+    { key: 'landed',  label: 'Landed Costs',   color: 'bg-violet-500', text: 'text-violet-400', desc: 'Import duty, delivery, demurrage, DHL', muted: false },
+    { key: 'tax',     label: 'Taxes',          color: 'bg-slate-600',  text: 'text-slate-400',  desc: 'VAT, income tax — excluded from TUC',  muted: true  },
+  ];
 
   return (
     <div className="space-y-6">
