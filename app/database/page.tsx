@@ -12,16 +12,18 @@ import PricingIntelligence from '@/components/ui/PricingIntelligence';
 import ExchangeRateTrends from '@/components/ui/ExchangeRateTrends';
 import SpendOverview from '@/components/ui/SpendOverview';
 import CategoryPositioningMap from '@/components/ui/CategoryPositioningMap';
+import CostBreakdown from '@/components/ui/CostBreakdown';
 import { ToastProvider } from '@/hooks/useToast';
 
-type TabId = 'spend' | 'lookup' | 'pricing' | 'cash' | 'xrates' | 'positioning';
+type TabId = 'spend' | 'lookup' | 'pricing' | 'cash' | 'xrates' | 'positioning' | 'costs';
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: 'spend',       label: 'Spend Overview' },
-  { id: 'lookup',      label: 'Cost Lookup'    },
-  { id: 'pricing',     label: 'Pricing'        },
-  { id: 'cash',        label: 'Cash Cycle'     },
-  { id: 'xrates',      label: 'Exchange Rates' },
+  { id: 'spend',       label: 'Spend Overview'  },
+  { id: 'lookup',      label: 'Cost Lookup'     },
+  { id: 'costs',       label: 'Cost Breakdown'  },
+  { id: 'pricing',     label: 'Pricing'         },
+  { id: 'cash',        label: 'Cash Cycle'      },
+  { id: 'xrates',      label: 'Exchange Rates'  },
   { id: 'positioning', label: 'Positioning Map' },
 ];
 
@@ -60,6 +62,11 @@ const TAB_ICONS: Record<TabId, React.ReactNode> = {
       <circle cx="19" cy="15" r="1.5" />
       <line x1="3" y1="21" x2="21" y2="21" strokeLinecap="round" />
       <line x1="3" y1="3" x2="3" y2="21" strokeLinecap="round" />
+    </svg>
+  ),
+  costs: (
+    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
     </svg>
   ),
 };
@@ -264,6 +271,27 @@ export default function DatabaseViewPage() {
               pos={data.pos}
               poItems={data.poItems}
               poCosts={data.poCosts}
+              isLoading={loading}
+            />
+          </div>
+
+          {/* Cost Breakdown */}
+          <div className={activeTab !== 'costs' ? 'hidden' : 'space-y-6'}>
+            <div className="mb-6">
+              <h2 className="text-base md:text-lg font-semibold text-white tracking-tight">Cost Breakdown</h2>
+              <p className="text-slate-500 text-[11px] mt-1 max-w-2xl">
+                How total procurement spend splits across supplier cost, bank fees, landed costs, and taxes —
+                aggregated by category, vendor, or individual product.
+                Only POs with both line items and payment records are included.
+              </p>
+            </div>
+            <CostBreakdown
+              components={data.components}
+              pos={data.pos}
+              poItems={data.poItems}
+              poCosts={data.poCosts}
+              suppliers={data.suppliers}
+              quotes={data.quotes}
               isLoading={loading}
             />
           </div>
