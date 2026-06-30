@@ -164,13 +164,16 @@ export default function CostBreakdown({
       const items = itemsByPo.get(po.po_id) ?? [];
       if (!costs.length || !items.length) continue;
 
-      const exRate = po.exchange_rate ?? FX[po.currency] ?? 16000;
+      const poExRate = Number(po.exchange_rate) || FX[po.currency] || 1;
+      // IDR currency is checked first — only non-IDR amounts use an exchange rate
+      const toIdr = (c: POCost) =>
+        c.currency === 'IDR' ? Number(c.amount) :
+        Number(c.amount) * (Number(c.exchange_rate) || poExRate);
 
       // Compute PO-level cost split in IDR
       const poSplit: Split = { ...ZERO };
       for (const cost of costs) {
-        const rate = cost.exchange_rate ?? (cost.currency === 'IDR' ? 1 : exRate);
-        const amtIdr = cost.amount * rate;
+        const amtIdr = toIdr(cost);
         if (PRINCIPAL_CATS.has(cost.cost_category)) poSplit.product += amtIdr;
         else if (BANK_FEE_CATS.has(cost.cost_category)) poSplit.bank += amtIdr;
         else if (TAX_SET.has(cost.cost_category)) poSplit.tax += amtIdr;
