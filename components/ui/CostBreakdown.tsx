@@ -276,38 +276,27 @@ export default function CostBreakdown({
   return (
     <div className="space-y-6">
 
-      {/* ── Overall summary cards ── */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-        {/* Total */}
-        <div className="col-span-2 xl:col-span-1 bg-slate-900/60 border border-slate-800 rounded-2xl p-4 xl:p-5">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-1">Total Procurement Spend</p>
+      {/* ── Compact summary ── */}
+      <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5">
+        <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Total Procurement Spend</p>
           <p className="text-2xl xl:text-3xl font-extrabold text-white tabular-nums">{fmtIdr(overallTotal)}</p>
-          <div className="mt-3">
-            <SplitBar split={overall} height="h-3" />
-          </div>
         </div>
-        {/* Per bucket */}
-        {BUCKETS.map((b) => (
-          <div key={b.key} className={`bg-slate-900/60 border border-slate-800 rounded-2xl p-4 xl:p-5 ${b.muted ? 'opacity-70' : ''}`}>
-            <div className="flex items-center gap-1.5 mb-1">
-              <span className={`w-2 h-2 rounded-full ${b.color} flex-shrink-0`} />
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">{b.label}</p>
+        <SplitBar split={overall} height="h-2.5" />
+        <div className="mt-4 pt-4 border-t border-slate-800/80 grid grid-cols-2 md:grid-cols-4 gap-4">
+          {BUCKETS.map((b) => (
+            <div key={b.key} className={b.muted ? 'opacity-60' : ''}>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${b.color}`} />
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">{b.label}</span>
+              </div>
+              <p className={`text-xl xl:text-2xl font-extrabold tabular-nums ${b.text}`}>
+                {fmtPct(pct(overall[b.key], overallTotal))}
+              </p>
+              <p className="text-[11px] text-slate-600 mt-0.5">{fmtIdr(overall[b.key])}</p>
             </div>
-            <p className={`text-xl xl:text-2xl font-extrabold tabular-nums ${b.text}`}>{fmtIdr(overall[b.key])}</p>
-            <p className="text-[11px] text-slate-500 mt-0.5">{fmtPct(pct(overall[b.key], overallTotal))} of total</p>
-            <p className="text-[10px] text-slate-600 mt-1">{b.desc}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* ── Legend ── */}
-      <div className="flex flex-wrap gap-4 text-[11px] text-slate-500">
-        {BUCKETS.map((b) => (
-          <div key={b.key} className="flex items-center gap-1.5">
-            <span className={`w-2.5 h-2.5 rounded-sm ${b.color}`} />
-            <span className={b.muted ? 'text-slate-600' : ''}>{b.label}</span>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
       {/* ── View selector + search ── */}
@@ -348,22 +337,19 @@ export default function CostBreakdown({
                 {view === 'category' ? 'Category' : view === 'vendor' ? 'Vendor' : 'Product'}
               </th>
               <th
-                className="text-right px-4 py-3 text-slate-500 font-semibold uppercase tracking-wider text-[10px] cursor-pointer hover:text-white transition-colors"
+                className="text-right px-4 py-3 text-slate-500 font-semibold uppercase tracking-wider text-[10px] cursor-pointer hover:text-white transition-colors whitespace-nowrap"
                 onClick={() => setSortBy('total')}
               >
-                Total {sortBy === 'total' && <span className="text-violet-400">▼</span>}
+                Total (IDR) {sortBy === 'total' && <span className="text-violet-400">▼</span>}
               </th>
-              <th className="px-4 py-3 text-slate-500 font-semibold uppercase tracking-wider text-[10px] min-w-[200px]">
-                Cost Split
-              </th>
+              <th className="px-4 py-3 text-slate-500 font-semibold uppercase tracking-wider text-[10px] min-w-[180px]" />
               {BUCKETS.map((b) => (
                 <th
                   key={b.key}
                   className="text-right px-3 py-3 font-semibold uppercase tracking-wider text-[10px] cursor-pointer hover:text-white transition-colors whitespace-nowrap"
-                  style={{ color: b.muted ? 'rgba(100,116,139,0.7)' : undefined }}
                   onClick={() => setSortBy(b.key)}
                 >
-                  <span className={b.text}>{b.label.split(' ')[0]}</span>
+                  <span className={b.muted ? 'text-slate-600' : b.text}>{b.label.split(' ')[0]} %</span>
                   {sortBy === b.key && <span className="text-violet-400 ml-0.5">▼</span>}
                 </th>
               ))}
@@ -420,8 +406,9 @@ export default function CostBreakdown({
 
       {activeRows.length > 0 && (
         <p className="text-[11px] text-slate-600">
-          {activeRows.length} {view === 'category' ? 'categories' : view === 'vendor' ? 'vendors' : 'products'} · Only POs with both line items and payment records included.
-          Taxes (VAT, income tax) shown separately — not included in TUC.
+          {activeRows.length} {view === 'category' ? 'categories' : view === 'vendor' ? 'vendors' : 'products'} ·
+          Percentages are share of each row's total spend. ·
+          Tax column (VAT, import tax, income tax) is excluded from TUC but shown here for completeness.
         </p>
       )}
     </div>
