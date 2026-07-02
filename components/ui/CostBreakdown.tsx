@@ -252,9 +252,14 @@ export default function CostBreakdown({
       : source;
     const sign = sortDir === 'desc' ? -1 : 1;
     return [...filtered].sort((a, b) => {
-      const diff = sortBy === 'total'
-        ? splitTotal(a.split) - splitTotal(b.split)
-        : a.split[sortBy] - b.split[sortBy];
+      let diff: number;
+      if (sortBy === 'total') {
+        diff = splitTotal(a.split) - splitTotal(b.split);
+      } else {
+        const totA = splitTotal(a.split);
+        const totB = splitTotal(b.split);
+        diff = (totA > 0 ? a.split[sortBy] / totA : 0) - (totB > 0 ? b.split[sortBy] / totB : 0);
+      }
       return sign * diff;
     });
   }, [view, byCat, byVendor, byProduct, search, sortBy, sortDir]);
