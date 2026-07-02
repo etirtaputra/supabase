@@ -89,6 +89,12 @@ export default function CostBreakdown({
   const [view, setView] = useState<ViewId>('category');
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<'total' | 'product' | 'bank' | 'landed' | 'tax'>('total');
+  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
+
+  function handleSort(col: typeof sortBy) {
+    if (col === sortBy) setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'));
+    else { setSortBy(col); setSortDir('desc'); }
+  }
 
   // ── Core computation ────────────────────────────────────────────────────────
   const { overall, byCat, byVendor, byProduct } = useMemo(() => {
@@ -244,11 +250,14 @@ export default function CostBreakdown({
     const filtered = q
       ? source.filter((r) => r.label.toLowerCase().includes(q) || r.sublabel.toLowerCase().includes(q))
       : source;
+    const sign = sortDir === 'desc' ? -1 : 1;
     return [...filtered].sort((a, b) => {
-      if (sortBy === 'total') return splitTotal(b.split) - splitTotal(a.split);
-      return b.split[sortBy] - a.split[sortBy];
+      const diff = sortBy === 'total'
+        ? splitTotal(a.split) - splitTotal(b.split)
+        : a.split[sortBy] - b.split[sortBy];
+      return sign * diff;
     });
-  }, [view, byCat, byVendor, byProduct, search, sortBy]);
+  }, [view, byCat, byVendor, byProduct, search, sortBy, sortDir]);
 
   const overallTotal = splitTotal(overall);
 
@@ -337,20 +346,20 @@ export default function CostBreakdown({
                 {view === 'category' ? 'Category' : view === 'vendor' ? 'Vendor' : 'Product'}
               </th>
               <th
-                className="text-right px-4 py-3 text-slate-500 font-semibold uppercase tracking-wider text-[10px] cursor-pointer hover:text-white transition-colors whitespace-nowrap"
-                onClick={() => setSortBy('total')}
+                className="text-right px-4 py-3 text-slate-500 font-semibold uppercase tracking-wider text-[10px] cursor-pointer hover:text-white transition-colors whitespace-nowrap select-none"
+                onClick={() => handleSort('total')}
               >
-                Total (IDR) {sortBy === 'total' && <span className="text-violet-400">▼</span>}
+                Total (IDR) {sortBy === 'total' && <span className="text-violet-400">{sortDir === 'desc' ? '▼' : '▲'}</span>}
               </th>
               <th className="px-4 py-3 text-slate-500 font-semibold uppercase tracking-wider text-[10px] min-w-[180px]" />
               {BUCKETS.map((b) => (
                 <th
                   key={b.key}
-                  className="text-right px-3 py-3 font-semibold uppercase tracking-wider text-[10px] cursor-pointer hover:text-white transition-colors whitespace-nowrap"
-                  onClick={() => setSortBy(b.key)}
+                  className="text-right px-3 py-3 font-semibold uppercase tracking-wider text-[10px] cursor-pointer hover:text-white transition-colors whitespace-nowrap select-none"
+                  onClick={() => handleSort(b.key)}
                 >
                   <span className={b.muted ? 'text-slate-600' : b.text}>{b.label.split(' ')[0]} %</span>
-                  {sortBy === b.key && <span className="text-violet-400 ml-0.5">▼</span>}
+                  {sortBy === b.key && <span className="text-violet-400 ml-0.5">{sortDir === 'desc' ? '▼' : '▲'}</span>}
                 </th>
               ))}
               <th className="text-right px-4 py-3 text-slate-500 font-semibold uppercase tracking-wider text-[10px]">
