@@ -116,6 +116,12 @@ export default function Home() {
             >
               📈 Intelligence
             </Link>
+            <Link
+              href="/quotes"
+              className="px-4 py-2 bg-violet-700 hover:bg-violet-600 text-white text-xs font-bold rounded-xl transition-colors border border-violet-600/50"
+            >
+              📄 Quotes
+            </Link>
           </div>
         </div>
       </div>
@@ -270,11 +276,12 @@ export default function Home() {
         </div>
 
         {/* ── Quick access ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 xl:gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 xl:gap-6">
           {[
             { href: '/insert?tab=quoting',    icon: '📝', label: 'New Quote',   sub: 'Enter supplier quote / PI',     color: 'hover:border-blue-500/40' },
             { href: '/insert?tab=ordering',   icon: '📦', label: 'New PO',      sub: 'Create purchase order',         color: 'hover:border-violet-500/40' },
             { href: '/insert?tab=financials', icon: '💰', label: 'Log Payment', sub: 'Record payment or bank charges', color: 'hover:border-rose-500/40' },
+            { href: '/quotes',                icon: '📄', label: 'Project Quote', sub: 'Build & export client quote', color: 'hover:border-violet-500/40' },
           ].map(({ href, icon, label, sub, color }) => (
             <Link
               key={href}
