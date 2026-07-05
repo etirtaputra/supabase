@@ -9,11 +9,14 @@ import type {
 import { PRINCIPAL_CATS, BALANCE_CATS } from '../constants/costCategories';
 
 /**
- * Derive implied exchange rates on-the-fly from PO payment records.
- * implied_rate = total principal paid in IDR ÷ total quoted in foreign currency.
- * Only non-IDR POs with both line items and at least one principal payment are included.
- * This replaces/supplements the 9.0_exchange_rate_history table so rates always
- * reflect the current payment records in 7.0_po_costs.
+ * Derive exchange rates from PO records.
+ * Strategy (in priority order):
+ *   1. po.exchange_rate — explicitly set by the user at PO creation; most reliable.
+ *   2. Weighted average of individual payment records that carry their own exchange_rate
+ *      (cost.currency ≠ IDR and cost.exchange_rate is set).
+ * Avoids dividing total-IDR-paid ÷ sum-of-items, which breaks when line items are in
+ * a different currency than the PO (e.g. IDR items on a USD PO).
+ * Only non-IDR POs that have at least one principal payment with a payment_date are included.
  */
 export function deriveExchangeRates(
   pos: PurchaseOrder[],
@@ -21,14 +24,11 @@ export function deriveExchangeRates(
   poCosts: POCost[],
   quotes: PriceQuote[],
 ): ExchangeRateHistory[] {
+  // suppress unused-import warning — poItems kept in signature for API compatibility
+  void poItems;
+
   const quoteMap = new Map(quotes.map((q) => [q.quote_id, q]));
 
-  const itemsByPo = new Map<number, PurchaseLineItem[]>();
-  for (const item of poItems) {
-    const arr = itemsByPo.get(item.po_id) ?? [];
-    arr.push(item);
-    itemsByPo.set(item.po_id, arr);
-  }
   const costsByPo = new Map<number, POCost[]>();
   for (const cost of poCosts) {
     const arr = costsByPo.get(cost.po_id) ?? [];
@@ -44,27 +44,11 @@ export function deriveExchangeRates(
     const supplierId = po.supplier_id ?? quoteMap.get(po.quote_id!)?.supplier_id;
     if (!supplierId) continue;
 
-    const items = itemsByPo.get(po.po_id) ?? [];
     const costs = costsByPo.get(po.po_id) ?? [];
-    if (!items.length || !costs.length) continue;
-
-    const quotedForeign = items.reduce((s, i) => s + i.unit_cost * i.quantity, 0);
-    if (quotedForeign === 0) continue;
-
     const principal = costs.filter((c) => PRINCIPAL_CATS.has(c.cost_category));
     if (!principal.length) continue;
 
-    const poExRate = Number(po.exchange_rate) || 0;
-    const paidIdr = principal.reduce((s, c) => {
-      if (c.currency === 'IDR') return s + Number(c.amount);
-      return s + Number(c.amount) * (Number(c.exchange_rate) || poExRate || 1);
-    }, 0);
-    if (paidIdr === 0) continue;
-
-    const impliedRate = paidIdr / quotedForeign;
-    if (impliedRate <= 0) continue;
-
-    // Latest balance payment date, falling back to any principal payment date
+    // Determine payment date: prefer latest balance settlement, else any principal date
     const balanceDates = costs
       .filter((c) => BALANCE_CATS.has(c.cost_category) && c.payment_date)
       .map((c) => c.payment_date!);
@@ -73,14 +57,44 @@ export function deriveExchangeRates(
     if (!allDates.length) continue;
     const paymentDate = allDates.reduce((a, b) => (b > a ? b : a));
 
+    // ── Option 1: explicit po.exchange_rate ──────────────────────────────────
+    const poRate = Number(po.exchange_rate);
+    if (poRate > 0) {
+      const quotedForeign = Number(po.total_value) || 0;
+      result.push({
+        rate_id: `derived-${po.po_id}`,
+        po_id: String(po.po_id),
+        supplier_id: supplierId,
+        currency: po.currency,
+        quoted_amount_foreign: quotedForeign,
+        paid_amount_idr: quotedForeign * poRate,
+        implied_rate: poRate,
+        payment_date: paymentDate,
+      });
+      continue;
+    }
+
+    // ── Option 2: weighted average from payment records with explicit rates ──
+    const foreignPayments = principal.filter(
+      (c) => c.currency !== 'IDR' && Number(c.exchange_rate) > 0,
+    );
+    if (!foreignPayments.length) continue;
+
+    const totalForeign = foreignPayments.reduce((s, c) => s + Number(c.amount), 0);
+    const totalIdr = foreignPayments.reduce(
+      (s, c) => s + Number(c.amount) * Number(c.exchange_rate),
+      0,
+    );
+    if (totalForeign <= 0) continue;
+
     result.push({
       rate_id: `derived-${po.po_id}`,
       po_id: String(po.po_id),
       supplier_id: supplierId,
       currency: po.currency,
-      quoted_amount_foreign: quotedForeign,
-      paid_amount_idr: paidIdr,
-      implied_rate: impliedRate,
+      quoted_amount_foreign: totalForeign,
+      paid_amount_idr: totalIdr,
+      implied_rate: totalIdr / totalForeign,
       payment_date: paymentDate,
     });
   }
