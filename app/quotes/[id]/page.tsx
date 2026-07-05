@@ -233,7 +233,7 @@ export default function QuoteEditorPage() {
       component_id: comp.component_id,
       description: comp.supplier_model ?? '',
       brand: comp.brand ?? '',
-      unit: comp.category === 'solar_panel' ? 'Wp' : 'pcs',
+      unit: comp.category === 'pv_module' ? 'Wp' : 'pcs',
       cost_price: costStr,
     });
     setAcState(null);
