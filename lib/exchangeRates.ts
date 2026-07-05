@@ -3,7 +3,90 @@
  * Lookup and management of historical exchange rates from POs
  */
 
-import type { ExchangeRateHistory } from '../types/database';
+import type {
+  ExchangeRateHistory, PurchaseOrder, PurchaseLineItem, POCost, PriceQuote,
+} from '../types/database';
+import { PRINCIPAL_CATS, BALANCE_CATS } from '../constants/costCategories';
+
+/**
+ * Derive implied exchange rates on-the-fly from PO payment records.
+ * implied_rate = total principal paid in IDR ÷ total quoted in foreign currency.
+ * Only non-IDR POs with both line items and at least one principal payment are included.
+ * This replaces/supplements the 9.0_exchange_rate_history table so rates always
+ * reflect the current payment records in 7.0_po_costs.
+ */
+export function deriveExchangeRates(
+  pos: PurchaseOrder[],
+  poItems: PurchaseLineItem[],
+  poCosts: POCost[],
+  quotes: PriceQuote[],
+): ExchangeRateHistory[] {
+  const quoteMap = new Map(quotes.map((q) => [q.quote_id, q]));
+
+  const itemsByPo = new Map<number, PurchaseLineItem[]>();
+  for (const item of poItems) {
+    const arr = itemsByPo.get(item.po_id) ?? [];
+    arr.push(item);
+    itemsByPo.set(item.po_id, arr);
+  }
+  const costsByPo = new Map<number, POCost[]>();
+  for (const cost of poCosts) {
+    const arr = costsByPo.get(cost.po_id) ?? [];
+    arr.push(cost);
+    costsByPo.set(cost.po_id, arr);
+  }
+
+  const result: ExchangeRateHistory[] = [];
+
+  for (const po of pos) {
+    if (po.currency === 'IDR') continue;
+
+    const supplierId = po.supplier_id ?? quoteMap.get(po.quote_id!)?.supplier_id;
+    if (!supplierId) continue;
+
+    const items = itemsByPo.get(po.po_id) ?? [];
+    const costs = costsByPo.get(po.po_id) ?? [];
+    if (!items.length || !costs.length) continue;
+
+    const quotedForeign = items.reduce((s, i) => s + i.unit_cost * i.quantity, 0);
+    if (quotedForeign === 0) continue;
+
+    const principal = costs.filter((c) => PRINCIPAL_CATS.has(c.cost_category));
+    if (!principal.length) continue;
+
+    const poExRate = Number(po.exchange_rate) || 0;
+    const paidIdr = principal.reduce((s, c) => {
+      if (c.currency === 'IDR') return s + Number(c.amount);
+      return s + Number(c.amount) * (Number(c.exchange_rate) || poExRate || 1);
+    }, 0);
+    if (paidIdr === 0) continue;
+
+    const impliedRate = paidIdr / quotedForeign;
+    if (impliedRate <= 0) continue;
+
+    // Latest balance payment date, falling back to any principal payment date
+    const balanceDates = costs
+      .filter((c) => BALANCE_CATS.has(c.cost_category) && c.payment_date)
+      .map((c) => c.payment_date!);
+    const principalDates = principal.filter((c) => c.payment_date).map((c) => c.payment_date!);
+    const allDates = balanceDates.length ? balanceDates : principalDates;
+    if (!allDates.length) continue;
+    const paymentDate = allDates.reduce((a, b) => (b > a ? b : a));
+
+    result.push({
+      rate_id: `derived-${po.po_id}`,
+      po_id: String(po.po_id),
+      supplier_id: supplierId,
+      currency: po.currency,
+      quoted_amount_foreign: quotedForeign,
+      paid_amount_idr: paidIdr,
+      implied_rate: impliedRate,
+      payment_date: paymentDate,
+    });
+  }
+
+  return result;
+}
 
 export interface LatestRateBySupplier {
   rate: number;

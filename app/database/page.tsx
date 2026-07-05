@@ -4,7 +4,7 @@
  * Procurement-sensitive data — not for general staff use.
  */
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import ProductCostLookup from '@/components/ui/ProductCostLookup';
 import POCashCycle from '@/components/ui/POCashCycle';
@@ -14,6 +14,7 @@ import SpendOverview from '@/components/ui/SpendOverview';
 import CategoryPositioningMap from '@/components/ui/CategoryPositioningMap';
 import CostBreakdown from '@/components/ui/CostBreakdown';
 import { ToastProvider } from '@/hooks/useToast';
+import { deriveExchangeRates } from '@/lib/exchangeRates';
 
 type TabId = 'spend' | 'lookup' | 'pricing' | 'cash' | 'xrates' | 'positioning' | 'costs';
 
@@ -85,6 +86,12 @@ export default function DatabaseViewPage() {
   const [activeTab, setActiveTab] = useState<TabId>('spend');
   const [refreshing, setRefreshing] = useState(false);
   const now = useNow(30_000); // tick every 30s to update "X min ago"
+
+  // Derive exchange rates on-the-fly from PO payments — always up-to-date
+  const exchangeRates = useMemo(
+    () => deriveExchangeRates(data.pos, data.poItems, data.poCosts, data.quotes),
+    [data.pos, data.poItems, data.poCosts, data.quotes],
+  );
 
   const minutesStale = lastFetched ? Math.floor((now.getTime() - lastFetched.getTime()) / 60_000) : null;
   const isStale = minutesStale !== null && minutesStale >= 30;
@@ -249,7 +256,7 @@ export default function DatabaseViewPage() {
               </p>
             </div>
             <ExchangeRateTrends
-              rates={data.exchangeRates || []}
+              rates={exchangeRates}
               suppliers={data.suppliers}
             />
           </div>
