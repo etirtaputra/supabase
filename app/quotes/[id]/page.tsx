@@ -88,8 +88,21 @@ export default function QuoteEditorPage() {
   const [saveMsg, setSaveMsg] = useState('');
 
   // ── Autocomplete state ─────────────────────────────────────────────────────
-  const [acState, setAcState] = useState<{ sectionId: string; itemId: string; query: string } | null>(null);
+  // x/y anchor the dropdown with position:fixed so the table's overflow-x-auto
+  // and the section card's overflow-hidden can't clip it.
+  const [acState, setAcState] = useState<{ sectionId: string; itemId: string; query: string; x: number; y: number } | null>(null);
   const acRef = useRef<HTMLDivElement>(null);
+
+  function openAc(sectionId: string, itemId: string, query: string, input: HTMLInputElement) {
+    const r = input.getBoundingClientRect();
+    setAcState({ sectionId, itemId, query, x: r.left, y: r.bottom });
+  }
+
+  // ── GM% inline editing ─────────────────────────────────────────────────────
+  // While a GM cell is focused, show the raw typed value instead of the value
+  // re-derived from cost/sell — otherwise every keystroke gets rewritten
+  // (typing "3" of "30" snaps to the recomputed margin).
+  const [gmEdit, setGmEdit] = useState<{ itemId: string; value: string } | null>(null);
 
   // ── Load quote from DB ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -131,13 +144,23 @@ export default function QuoteEditorPage() {
     load();
   }, [id]);
 
-  // ── Close autocomplete on outside click ────────────────────────────────────
+  // ── Close autocomplete on outside click / scroll / resize ─────────────────
   useEffect(() => {
     function handler(e: MouseEvent) {
       if (acRef.current && !acRef.current.contains(e.target as Node)) setAcState(null);
     }
+    const close = (e: Event) => {
+      if (e.target instanceof Element && e.target.closest('[data-ac-dropdown]')) return;
+      setAcState(null);
+    };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
   }, []);
 
   // ── Filtered autocomplete results ──────────────────────────────────────────
@@ -456,12 +479,17 @@ export default function QuoteEditorPage() {
               <div key={sec.section_id} className="bg-slate-900/50 border border-slate-800 rounded-2xl overflow-hidden">
                 {/* Section header */}
                 <div className="flex items-center gap-3 px-4 py-3 bg-slate-800/60 border-b border-slate-700/50">
-                  <input
-                    value={sec.title}
-                    onChange={(e) => updateSection(sec.section_id, { title: e.target.value })}
-                    className="flex-1 bg-transparent outline-none font-semibold text-white placeholder:text-slate-500"
-                    placeholder="Section title"
-                  />
+                  <div className="flex-1 flex items-center gap-2 group/title min-w-0">
+                    <svg className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                    <input
+                      value={sec.title}
+                      onChange={(e) => updateSection(sec.section_id, { title: e.target.value })}
+                      onFocus={(e) => e.target.select()}
+                      className="flex-1 min-w-0 bg-transparent outline-none font-semibold text-white placeholder:text-slate-500 border-b border-dashed border-slate-600 group-hover/title:border-slate-400 focus:border-solid focus:border-violet-500 transition-colors py-0.5"
+                      placeholder="Click to name this section…"
+                      title="Click to rename section"
+                    />
+                  </div>
                   <select
                     value={sec.lead_time}
                     onChange={(e) => updateSection(sec.section_id, { lead_time: e.target.value })}
@@ -512,15 +540,19 @@ export default function QuoteEditorPage() {
                                   value={item.description}
                                   onChange={(e) => {
                                     updateItem(sec.section_id, item.item_id, { description: e.target.value });
-                                    setAcState({ sectionId: sec.section_id, itemId: item.item_id, query: e.target.value });
+                                    openAc(sec.section_id, item.item_id, e.target.value, e.target);
                                   }}
-                                  onFocus={() => item.description && setAcState({ sectionId: sec.section_id, itemId: item.item_id, query: item.description })}
+                                  onFocus={(e) => item.description && openAc(sec.section_id, item.item_id, item.description, e.target)}
                                   placeholder="Type to search catalog…"
                                   className="w-full bg-transparent outline-none text-slate-200 placeholder:text-slate-700"
                                 />
-                                {/* Autocomplete dropdown */}
-                                {isAcOpen && acResults.length > 0 && (
-                                  <div className="absolute left-0 top-full z-30 mt-1 w-[420px] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden">
+                                {/* Autocomplete dropdown — fixed so table overflow can't clip it */}
+                                {isAcOpen && acState && acResults.length > 0 && (
+                                  <div
+                                    data-ac-dropdown
+                                    className="fixed z-50 w-[420px] max-w-[calc(100vw-32px)] max-h-80 overflow-y-auto bg-slate-900 border border-slate-700 rounded-xl shadow-2xl"
+                                    style={{ left: Math.min(acState.x, Math.max(16, window.innerWidth - 436)), top: acState.y + 4 }}
+                                  >
                                     {acResults.map((comp) => {
                                       const tuc = catalogLoading ? null : computeTUC(comp.component_id, catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes);
                                       return (
@@ -569,13 +601,19 @@ export default function QuoteEditorPage() {
                                   placeholder="0" className="w-full bg-transparent outline-none text-right text-slate-200 placeholder:text-slate-700" />
                               </td>
                               <td className="px-2 py-2 text-right">
-                                {gm ? (
-                                  <input type="number" value={gm}
+                                {num(item.cost_price) ? (
+                                  <input
+                                    type="number"
+                                    value={gmEdit?.itemId === item.item_id ? gmEdit.value : gm}
+                                    placeholder="%"
+                                    onFocus={(e) => { setGmEdit({ itemId: item.item_id, value: gm }); e.target.select(); }}
+                                    onBlur={() => setGmEdit(null)}
                                     onChange={(e) => {
+                                      setGmEdit({ itemId: item.item_id, value: e.target.value });
                                       const s = sellFromGm(item.cost_price, e.target.value);
                                       if (s) updateItem(sec.section_id, item.item_id, { sell_price: s });
                                     }}
-                                    className="w-full bg-transparent outline-none text-right text-emerald-400 placeholder:text-slate-700"
+                                    className="w-full bg-transparent outline-none text-right text-emerald-400 placeholder:text-slate-600 border-b border-dashed border-emerald-500/30 focus:border-solid focus:border-emerald-400 transition-colors"
                                   />
                                 ) : <span className="text-slate-700">—</span>}
                               </td>
