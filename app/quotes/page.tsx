@@ -33,6 +33,7 @@ export default function QuotesListPage() {
   const [dup, setDup] = useState<{ id: string; number: string } | null>(null);
   const [dupToday, setDupToday] = useState(true);
   const [dupRefresh, setDupRefresh] = useState(true);
+  const [dupInternal, setDupInternal] = useState(true);
   const [dupBusy, setDupBusy] = useState(false);
   const [dupError, setDupError] = useState('');
 
@@ -151,8 +152,8 @@ export default function QuotesListPage() {
           cost_price: cost, sell_price: sell,
           sort_order: it.sort_order,
         };
-        if ('qty_formula' in it) row.qty_formula = it.qty_formula ?? '';
-        if ('eng_note' in it) row.eng_note = it.eng_note ?? '';
+        if ('qty_formula' in it) row.qty_formula = dupInternal ? (it.qty_formula ?? '') : '';
+        if ('eng_note' in it) row.eng_note = dupInternal ? (it.eng_note ?? '') : '';
         return row;
       });
       if (newItems.length) {
@@ -227,7 +228,7 @@ export default function QuotesListPage() {
                 </Link>
                 <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
-                    onClick={() => { setDup({ id: q.quote_id, number: q.quote_number }); setDupToday(true); setDupRefresh(true); setDupError(''); }}
+                    onClick={() => { setDup({ id: q.quote_id, number: q.quote_number }); setDupToday(true); setDupRefresh(true); setDupInternal(true); setDupError(''); }}
                     className="p-2 rounded-lg hover:bg-white/10 text-slate-500 hover:text-white transition-colors"
                     title="Duplicate"
                   >
@@ -279,6 +280,18 @@ export default function QuotesListPage() {
                 <span className="block text-[11px] text-slate-500">
                   Each catalog item gets its newest cost (TUC → supplier quote → last used) and the sell price
                   is recomputed with the item&apos;s original GM%
+                </span>
+              </span>
+            </label>
+
+            <label className="flex items-start gap-3 mb-5 cursor-pointer">
+              <input type="checkbox" checked={dupInternal} onChange={(e) => setDupInternal(e.target.checked)}
+                className="mt-0.5 accent-violet-600" />
+              <span>
+                <span className="block text-sm text-slate-200 font-medium">Copy internal notes &amp; quantity formulas</span>
+                <span className="block text-[11px] text-slate-500">
+                  Engineering notes and =formulas behind quantities (internal only, never on the PDF).
+                  Unchecked starts the copy clean
                 </span>
               </span>
             </label>
