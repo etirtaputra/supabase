@@ -230,8 +230,71 @@ export default function QuoteEditorPage() {
   // ── Last-used prices from other project quotes ─────────────────────────────
   const [prevUsed, setPrevUsed] = useState<Map<string, CostEntry[]>>(new Map());
 
+  // Free-text items (no catalog link) from other quotes — deduped by
+  // description, newest usage wins. Feeds the autocomplete and, via
+  // freeTextHistory, the cost-cell hover for non-catalog items.
+  interface PrevItem {
+    description: string; brand: string; unit: string;
+    cost_price: number | null; sell_price: number | null;
+    label: string; date: string; count: number;
+  }
+  const [prevItems, setPrevItems] = useState<PrevItem[]>([]);
+  const [freeTextHistory, setFreeTextHistory] = useState<Map<string, CostEntry[]>>(new Map());
+
   useEffect(() => {
     fetchUsedEntries(supabase, id).then(setPrevUsed);
+
+    async function loadPrevItems() {
+      const [itemsRes, quotesRes] = await Promise.all([
+        supabase.from('10.2_quote_items')
+          .select('description, brand, unit, cost_price, sell_price, quote_id, parent_item_id')
+          .is('component_id', null)
+          .neq('quote_id', id),
+        supabase.from('10.0_project_quotes').select('quote_id, quote_number, quote_date'),
+      ]);
+      const qMap = new Map((quotesRes.data ?? []).map((q) => [q.quote_id as string, q]));
+      const byDesc = new Map<string, PrevItem>();
+      const hist = new Map<string, CostEntry[]>();
+      for (const it of itemsRes.data ?? []) {
+        const desc = String(it.description ?? '').trim();
+        if (it.parent_item_id || desc.length < 3) continue;
+        const q = qMap.get(it.quote_id as string);
+        const date = (q?.quote_date as string) ?? '';
+        const label = (q?.quote_number as string) || 'Project quote';
+        const key = desc.toLowerCase();
+
+        const cost = Number(it.cost_price);
+        if (cost > 0) {
+          const arr = hist.get(key) ?? [];
+          arr.push({ kind: 'used', label, date, unitCost: cost });
+          hist.set(key, arr);
+        }
+
+        const existing = byDesc.get(key);
+        if (existing) {
+          existing.count += 1;
+          if (date > existing.date) {
+            Object.assign(existing, {
+              description: desc, brand: String(it.brand ?? ''), unit: String(it.unit ?? ''),
+              cost_price: it.cost_price != null ? Number(it.cost_price) : null,
+              sell_price: it.sell_price != null ? Number(it.sell_price) : null,
+              label, date,
+            });
+          }
+        } else {
+          byDesc.set(key, {
+            description: desc, brand: String(it.brand ?? ''), unit: String(it.unit ?? ''),
+            cost_price: it.cost_price != null ? Number(it.cost_price) : null,
+            sell_price: it.sell_price != null ? Number(it.sell_price) : null,
+            label, date, count: 1,
+          });
+        }
+      }
+      for (const arr of hist.values()) arr.sort((a, b) => b.date.localeCompare(a.date));
+      setPrevItems([...byDesc.values()]);
+      setFreeTextHistory(hist);
+    }
+    loadPrevItems();
   }, [id]);
 
   // Browser tab shows which quote is open
@@ -291,12 +354,19 @@ export default function QuoteEditorPage() {
   // ── Cost history hover popup ───────────────────────────────────────────────
   const [costHover, setCostHover] = useState<{ itemId: string; history: CostEntry[]; source: string; x: number; y: number } | null>(null);
 
-  function showCostHistory(itemId: string, componentId: string | null, el: HTMLElement) {
-    if (!componentId) return;
-    const cc = costFor(componentId);
-    if (!cc || !cc.history.length) return;
+  function showCostHistory(itemId: string, componentId: string | null, description: string, el: HTMLElement) {
+    let history: CostEntry[] = [];
+    let source = 'used';
+    if (componentId) {
+      const cc = costFor(componentId);
+      if (cc) { history = cc.history; source = cc.source; }
+    } else {
+      // Free-text items: match previous usage by description
+      history = freeTextHistory.get(description.trim().toLowerCase()) ?? [];
+    }
+    if (!history.length) return;
     const r = el.getBoundingClientRect();
-    setCostHover({ itemId, history: cc.history.slice(0, 10), source: cc.source, x: r.right, y: r.bottom });
+    setCostHover({ itemId, history: history.slice(0, 10), source, x: r.right, y: r.bottom });
   }
 
   // ── Load quote from DB ─────────────────────────────────────────────────────
@@ -359,18 +429,28 @@ export default function QuoteEditorPage() {
     };
   }, []);
 
-  // ── Filtered autocomplete results ──────────────────────────────────────────
-  const acResults = useMemo<Component[]>(() => {
-    if (!acState || acState.query.length < 2) return [];
+  // ── Filtered autocomplete results: catalog components + past quote items ───
+  const acResults = useMemo(() => {
+    if (!acState || acState.query.length < 2) return { comps: [] as Component[], prev: [] as PrevItem[] };
     const q = acState.query.toLowerCase();
-    return catalog.components
+    const comps = catalog.components
       .filter((c) =>
         c.supplier_model?.toLowerCase().includes(q) ||
         c.brand?.toLowerCase().includes(q) ||
         c.category?.toLowerCase().includes(q)
       )
-      .slice(0, 8);
-  }, [acState, catalog.components]);
+      .slice(0, 6);
+    const compNames = new Set(comps.map((c) => (c.supplier_model ?? '').trim().toLowerCase()));
+    const prev = prevItems
+      .filter((p) =>
+        (p.description.toLowerCase().includes(q) || p.brand.toLowerCase().includes(q)) &&
+        !compNames.has(p.description.toLowerCase())
+      )
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 4);
+    return { comps, prev };
+  }, [acState, catalog.components, prevItems]);
+  const acCount = acResults.comps.length + acResults.prev.length;
 
   // ── Computed totals ────────────────────────────────────────────────────────
   const { subtotal, ppn, grandTotal, totalWp } = useMemo(() => {
@@ -448,6 +528,18 @@ export default function QuoteEditorPage() {
   }
 
   // ── Autocomplete selection ─────────────────────────────────────────────────
+  function selectPrevItem(sid: string, iid: string, p: PrevItem) {
+    updateItem(sid, iid, {
+      component_id: null,
+      description: p.description,
+      brand: p.brand,
+      unit: p.unit,
+      cost_price: p.cost_price != null ? String(Math.round(p.cost_price)) : '',
+      sell_price: p.sell_price != null ? String(Math.round(p.sell_price)) : '',
+    });
+    setAcState(null);
+  }
+
   function selectComponent(sid: string, iid: string, comp: Component) {
     const cc = costFor(comp.component_id);
     const costStr = cc ? Math.round(cc.cost).toString() : '';
@@ -875,17 +967,17 @@ export default function QuoteEditorPage() {
                                     openAc(sec.section_id, item.item_id, e.target.value, e.target);
                                   }}
                                   onFocus={(e) => item.description && openAc(sec.section_id, item.item_id, item.description, e.target)}
-                                  placeholder="Type to search catalog…"
+                                  placeholder="Type to search catalog & past quotes…"
                                   className="w-full bg-transparent outline-none text-slate-200 placeholder:text-slate-700"
                                 />
                                 {/* Autocomplete dropdown — fixed so table overflow can't clip it */}
-                                {isAcOpen && acState && acResults.length > 0 && (
+                                {isAcOpen && acState && acCount > 0 && (
                                   <div
                                     data-ac-dropdown
                                     className="fixed z-50 w-[420px] max-w-[calc(100vw-32px)] max-h-80 overflow-y-auto bg-slate-900 border border-slate-700 rounded-xl shadow-2xl"
                                     style={{ left: Math.min(acState.x, Math.max(16, window.innerWidth - 436)), top: acState.y + 4 }}
                                   >
-                                    {acResults.map((comp) => {
+                                    {acResults.comps.map((comp) => {
                                       const cc = catalogLoading ? null : costFor(comp.component_id);
                                       return (
                                         <button
@@ -905,6 +997,34 @@ export default function QuoteEditorPage() {
                                         </button>
                                       );
                                     })}
+                                    {acResults.prev.length > 0 && (
+                                      <p className="px-4 pt-2 pb-1 text-[9px] uppercase tracking-wider text-slate-600 border-t border-slate-800">
+                                        From previous quotes
+                                      </p>
+                                    )}
+                                    {acResults.prev.map((p) => (
+                                      <button
+                                        key={`prev-${p.description.toLowerCase()}`}
+                                        onMouseDown={(e) => { e.preventDefault(); selectPrevItem(sec.section_id, item.item_id, p); }}
+                                        className="w-full text-left px-4 py-2.5 hover:bg-slate-800 transition-colors flex items-center justify-between gap-3"
+                                      >
+                                        <div className="min-w-0">
+                                          <p className="text-slate-200 font-medium truncate">
+                                            <span className="mr-1.5 px-1 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 align-middle">PREV</span>
+                                            {p.description}
+                                          </p>
+                                          <p className="text-[10px] text-slate-500 truncate">
+                                            {[p.brand, `${p.label} · ${p.date}`, p.count > 1 ? `used ${p.count}×` : null].filter(Boolean).join(' · ')}
+                                          </p>
+                                        </div>
+                                        <div className="text-right flex-shrink-0">
+                                          {p.cost_price != null
+                                            ? <p className="font-semibold text-xs text-amber-400">{fmtIdr(p.cost_price)}</p>
+                                            : <p className="text-slate-600 text-[10px]">no cost</p>}
+                                          <p className="text-[10px] text-slate-600">last used</p>
+                                        </div>
+                                      </button>
+                                    ))}
                                   </div>
                                 )}
                               </td>
@@ -924,13 +1044,13 @@ export default function QuoteEditorPage() {
                               </td>
                               <td
                                 className="px-2 py-2"
-                                onMouseEnter={(e) => showCostHistory(item.item_id, item.component_id, e.currentTarget)}
+                                onMouseEnter={(e) => showCostHistory(item.item_id, item.component_id, item.description, e.currentTarget)}
                                 onMouseLeave={() => setCostHover(null)}
                               >
                                 <input type="number" value={item.cost_price}
                                   onChange={(e) => updateItem(sec.section_id, item.item_id, { cost_price: e.target.value })}
                                   placeholder="0"
-                                  className={`w-full bg-transparent outline-none text-right text-slate-600 placeholder:text-slate-800 ${item.component_id ? 'cursor-help' : ''}`} />
+                                  className={`w-full bg-transparent outline-none text-right text-slate-600 placeholder:text-slate-800 ${item.component_id || freeTextHistory.has(item.description.trim().toLowerCase()) ? 'cursor-help' : ''}`} />
                                 {costHover?.itemId === item.item_id && (
                                   <div
                                     className="fixed z-50 w-72 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-3 pointer-events-none"
