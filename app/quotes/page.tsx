@@ -3,6 +3,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
+import { useSupabaseData } from '@/hooks/useSupabaseData';
+import { getComponentCost } from '@/lib/computeTUC';
+import { fetchUsedEntries } from '@/lib/usedPrices';
 import type { ProjectQuote } from '@/types/quotes';
 
 const STATUS_STYLES: Record<string, string> = {
@@ -20,10 +23,18 @@ function fmtDate(d: string) {
 export default function QuotesListPage() {
   const supabase = createSupabaseClient();
   const router = useRouter();
+  const { data: catalog, loading: catalogLoading } = useSupabaseData();
   const [quotes, setQuotes] = useState<ProjectQuote[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  // Duplicate modal state
+  const [dup, setDup] = useState<{ id: string; number: string } | null>(null);
+  const [dupToday, setDupToday] = useState(true);
+  const [dupRefresh, setDupRefresh] = useState(true);
+  const [dupBusy, setDupBusy] = useState(false);
+  const [dupError, setDupError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -54,6 +65,97 @@ export default function QuotesListPage() {
     await supabase.from('10.0_project_quotes').delete().eq('quote_id', id);
     setDeleteId(null);
     load();
+  }
+
+  async function duplicateQuote() {
+    if (!dup) return;
+    setDupBusy(true);
+    setDupError('');
+    try {
+      const [qRes, secRes, itemRes] = await Promise.all([
+        supabase.from('10.0_project_quotes').select('*').eq('quote_id', dup.id).single(),
+        supabase.from('10.1_quote_sections').select('*').eq('quote_id', dup.id).order('sort_order'),
+        supabase.from('10.2_quote_items').select('*').eq('quote_id', dup.id).order('sort_order'),
+      ]);
+      const src = qRes.data;
+      if (!src) throw new Error('Source quote not found');
+
+      const usedMap = dupRefresh ? await fetchUsedEntries(supabase) : null;
+      const today = new Date().toISOString().slice(0, 10);
+      const newQuoteId = crypto.randomUUID();
+
+      // 1. Quote header — always restarts as a draft
+      const { error: qErr } = await supabase.from('10.0_project_quotes').insert({
+        quote_id: newQuoteId,
+        quote_number: `${src.quote_number || 'Q'}-REV`,
+        quote_date: dupToday ? today : src.quote_date,
+        company_id: src.company_id ?? null,
+        customer_name: src.customer_name,
+        customer_address: src.customer_address,
+        project_description: src.project_description,
+        ppn_pct: src.ppn_pct,
+        status: 'draft',
+        notes: src.notes,
+      });
+      if (qErr) throw qErr;
+
+      // 2. Sections with fresh ids
+      const secIdMap = new Map<string, string>();
+      const newSecs = (secRes.data ?? []).map((s) => {
+        const nid = crypto.randomUUID();
+        secIdMap.set(s.section_id, nid);
+        return {
+          section_id: nid, quote_id: newQuoteId, group_key: s.group_key ?? 'bos',
+          title: s.title, lead_time: s.lead_time, sort_order: s.sort_order,
+        };
+      });
+      if (newSecs.length) {
+        const { error } = await supabase.from('10.1_quote_sections').insert(newSecs);
+        if (error) throw error;
+      }
+
+      // 3. Items — parents before subs so the self-referencing FK is satisfied
+      //    within the batch insert; optionally re-cost keeping each item's GM%.
+      const srcItems = [...(itemRes.data ?? [])].sort((a, b) =>
+        Number(!!a.parent_item_id) - Number(!!b.parent_item_id));
+      const itemIdMap = new Map<string, string>();
+      for (const it of srcItems) itemIdMap.set(it.item_id, crypto.randomUUID());
+      const newItems = srcItems.map((it) => {
+        let cost = it.cost_price, sell = it.sell_price;
+        if (dupRefresh && it.component_id) {
+          const cc = getComponentCost(it.component_id, catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes, catalog.quoteItems, usedMap?.get(it.component_id) ?? []);
+          if (cc) {
+            const newCost = Math.round(cc.cost);
+            const oldCost = Number(it.cost_price), oldSell = Number(it.sell_price);
+            if (oldCost > 0 && oldSell > 0) {
+              const gmFrac = 1 - oldCost / oldSell;
+              if (gmFrac < 1) sell = Math.round(newCost / (1 - gmFrac));
+            }
+            cost = newCost;
+          }
+        }
+        return {
+          item_id: itemIdMap.get(it.item_id)!,
+          section_id: secIdMap.get(it.section_id)!,
+          quote_id: newQuoteId,
+          parent_item_id: it.parent_item_id ? (itemIdMap.get(it.parent_item_id) ?? null) : null,
+          component_id: it.component_id,
+          description: it.description, brand: it.brand,
+          quantity: it.quantity, unit: it.unit,
+          cost_price: cost, sell_price: sell,
+          sort_order: it.sort_order,
+        };
+      });
+      if (newItems.length) {
+        const { error } = await supabase.from('10.2_quote_items').insert(newItems);
+        if (error) throw error;
+      }
+
+      router.push(`/quotes/${newQuoteId}`);
+    } catch (e) {
+      setDupError(e instanceof Error ? e.message : 'Duplication failed');
+      setDupBusy(false);
+    }
   }
 
   return (
@@ -113,6 +215,13 @@ export default function QuotesListPage() {
                   </div>
                 </Link>
                 <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => { setDup({ id: q.quote_id, number: q.quote_number }); setDupToday(true); setDupRefresh(true); setDupError(''); }}
+                    className="p-2 rounded-lg hover:bg-white/10 text-slate-500 hover:text-white transition-colors"
+                    title="Duplicate"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                  </button>
                   <Link
                     href={`/quotes/${q.quote_id}/print`}
                     target="_blank"
@@ -134,6 +243,53 @@ export default function QuotesListPage() {
           </div>
         )}
       </main>
+
+      {/* Duplicate modal */}
+      {dup && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-md w-full">
+            <h3 className="font-semibold text-white mb-1">Duplicate quote</h3>
+            <p className="text-slate-500 text-xs mb-5 truncate">{dup.number || 'Untitled quote'}</p>
+
+            <label className="flex items-start gap-3 mb-4 cursor-pointer">
+              <input type="checkbox" checked={dupToday} onChange={(e) => setDupToday(e.target.checked)}
+                className="mt-0.5 accent-violet-600" />
+              <span>
+                <span className="block text-sm text-slate-200 font-medium">Set quote date to today</span>
+                <span className="block text-[11px] text-slate-500">Unchecked keeps the original date</span>
+              </span>
+            </label>
+
+            <label className="flex items-start gap-3 mb-5 cursor-pointer">
+              <input type="checkbox" checked={dupRefresh} onChange={(e) => setDupRefresh(e.target.checked)}
+                className="mt-0.5 accent-violet-600" />
+              <span>
+                <span className="block text-sm text-slate-200 font-medium">Update costs to latest, keep margins</span>
+                <span className="block text-[11px] text-slate-500">
+                  Each catalog item gets its newest cost (TUC → supplier quote → last used) and the sell price
+                  is recomputed with the item&apos;s original GM%
+                </span>
+              </span>
+            </label>
+
+            {dupRefresh && catalogLoading && (
+              <p className="text-[11px] text-amber-400 mb-4">Loading price data… duplicate will be enabled once it&apos;s ready.</p>
+            )}
+            {dupError && <p className="text-[11px] text-red-400 mb-4">{dupError}</p>}
+
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setDup(null)} disabled={dupBusy}
+                className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors disabled:opacity-50">
+                Cancel
+              </button>
+              <button onClick={duplicateQuote} disabled={dupBusy || (dupRefresh && catalogLoading)}
+                className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors disabled:opacity-50">
+                {dupBusy ? 'Duplicating…' : 'Duplicate'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete confirm modal */}
       {deleteId && (

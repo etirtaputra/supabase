@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { getComponentCost, type CostEntry } from '@/lib/computeTUC';
+import { fetchUsedEntries } from '@/lib/usedPrices';
 import { SECTION_GROUPS, type SectionGroup, type ProjectQuote, type QuoteSection, type QuoteItem } from '@/types/quotes';
 import type { Component } from '@/types/database';
 
@@ -229,38 +230,35 @@ export default function QuoteEditorPage() {
   const [prevUsed, setPrevUsed] = useState<Map<string, CostEntry[]>>(new Map());
 
   useEffect(() => {
-    async function loadPrevUsed() {
-      const [itemsRes, quotesRes] = await Promise.all([
-        supabase.from('10.2_quote_items')
-          .select('component_id, cost_price, quote_id, created_at')
-          .not('component_id', 'is', null)
-          .neq('quote_id', id),
-        supabase.from('10.0_project_quotes').select('quote_id, quote_number, quote_date'),
-      ]);
-      const qMap = new Map((quotesRes.data ?? []).map((q) => [q.quote_id as string, q]));
-      const map = new Map<string, CostEntry[]>();
-      for (const it of itemsRes.data ?? []) {
-        const cost = Number(it.cost_price);
-        if (!it.component_id || !(cost > 0)) continue;
-        const q = qMap.get(it.quote_id as string);
-        const arr = map.get(it.component_id as string) ?? [];
-        arr.push({
-          kind: 'used',
-          label: (q?.quote_number as string) || 'Project quote',
-          date: (q?.quote_date as string) || String(it.created_at ?? '').slice(0, 10),
-          unitCost: cost,
-        });
-        map.set(it.component_id as string, arr);
-      }
-      for (const arr of map.values()) arr.sort((a, b) => b.date.localeCompare(a.date));
-      setPrevUsed(map);
-    }
-    loadPrevUsed();
+    fetchUsedEntries(supabase, id).then(setPrevUsed);
   }, [id]);
 
   const costFor = useCallback((componentId: string) =>
     getComponentCost(componentId, catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes, catalog.quoteItems, prevUsed.get(componentId) ?? []),
   [catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes, catalog.quoteItems, prevUsed]);
+
+  // ── Refresh all costs to latest, preserving each item's margin ─────────────
+  function refreshCosts() {
+    setSections((prev) => prev.map((s) => ({
+      ...s,
+      items: s.items.map((it) => {
+        if (it._deleted || !it.component_id) return it;
+        const cc = costFor(it.component_id);
+        if (!cc) return it;
+        const newCost = Math.round(cc.cost);
+        const oldCost = num(it.cost_price), oldSell = num(it.sell_price);
+        let sell = it.sell_price;
+        if (oldCost && oldSell && oldSell > 0) {
+          const gmFrac = 1 - oldCost / oldSell;
+          if (gmFrac < 1) sell = String(Math.round(newCost / (1 - gmFrac)));
+        }
+        return { ...it, cost_price: String(newCost), sell_price: sell };
+      }),
+    })));
+    markDirty();
+    setSaveMsg('Costs refreshed');
+    setTimeout(() => setSaveMsg(''), 2500);
+  }
 
   // ── Cost history hover popup ───────────────────────────────────────────────
   const [costHover, setCostHover] = useState<{ itemId: string; history: CostEntry[]; source: string; x: number; y: number } | null>(null);
@@ -615,6 +613,12 @@ export default function QuoteEditorPage() {
             </select>
             {saveMsg && <span className={`text-[11px] ${saveMsg === 'Saved' ? 'text-emerald-400' : 'text-red-400'}`}>{saveMsg}</span>}
             {dirty && !saving && <span className="text-[11px] text-amber-400">Unsaved</span>}
+            <button onClick={refreshCosts} disabled={catalogLoading}
+              title="Update every catalog-linked item to its latest cost (TUC → supplier quote → last used), keeping each item's margin"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all disabled:opacity-40">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+              Costs
+            </button>
             <Link href={`/quotes/${id}/print`} target="_blank"
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
@@ -770,7 +774,14 @@ export default function QuoteEditorPage() {
                     </div>
                   )}
                   {secSubtotal > 0 && (
-                    <span className="text-[11px] text-slate-400 whitespace-nowrap">{fmtIdr(secSubtotal)}</span>
+                    <span className="text-[11px] text-slate-400 whitespace-nowrap">
+                      {fmtIdr(secSubtotal)}
+                      {subtotal > 0 && (
+                        <span className="ml-1.5 text-amber-400/90 font-semibold" title="Share of total before PPN">
+                          {((secSubtotal / subtotal) * 100).toLocaleString('en-US', { maximumFractionDigits: 1 })}%
+                        </span>
+                      )}
+                    </span>
                   )}
                   <button onClick={() => deleteSection(sec.section_id)} className="text-slate-600 hover:text-red-400 transition-colors p-1">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
