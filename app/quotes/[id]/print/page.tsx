@@ -111,37 +111,39 @@ export default function PrintPage() {
       <style>{`
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Arial', sans-serif; font-size: 10pt; color: #1a1a1a; background: white; }
-        @page { size: A4; margin: 15mm 12mm; }
+        @page { size: A4; margin: 10mm 8mm; }
         @media print {
           .no-print { display: none !important; }
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .page { max-width: none; padding: 0; }
         }
-        .page { max-width: 210mm; margin: 0 auto; padding: 10mm 0; }
-        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6mm; border-bottom: 2px solid #1e3a5f; padding-bottom: 4mm; }
+        .page { max-width: 210mm; margin: 0 auto; padding: 8mm 0; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4mm; border-bottom: 2px solid #1e3a5f; padding-bottom: 3mm; }
         .company-name { font-size: 18pt; font-weight: 900; color: #1e3a5f; letter-spacing: -0.5px; }
         .company-sub { font-size: 8pt; color: #666; margin-top: 1mm; }
         .doc-title { text-align: right; }
         .doc-title h2 { font-size: 14pt; font-weight: 700; color: #1e3a5f; text-transform: uppercase; letter-spacing: 1px; }
         .doc-title .quote-num { font-size: 10pt; color: #444; margin-top: 1mm; }
         .doc-title .quote-date { font-size: 9pt; color: #666; }
-        .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; margin-bottom: 5mm; }
+        .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; margin-bottom: 4mm; }
         .meta-label { font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #888; margin-bottom: 1mm; }
         .meta-value { font-size: 10pt; font-weight: 600; color: #1a1a1a; line-height: 1.4; }
         .meta-sub { font-size: 9pt; color: #444; line-height: 1.4; }
-        .project-bar { background: #f0f4fa; border-left: 3px solid #1e3a5f; padding: 2mm 3mm; margin-bottom: 5mm; font-size: 9pt; color: #333; }
+        .project-bar { background: #f0f4fa; border-left: 3px solid #1e3a5f; padding: 2mm 3mm; margin-bottom: 4mm; font-size: 9pt; color: #333; }
         .project-label { font-size: 7pt; font-weight: 700; text-transform: uppercase; color: #888; margin-bottom: 0.5mm; }
         table { width: 100%; border-collapse: collapse; font-size: 9pt; }
         thead tr { background: #1e3a5f; color: white; }
-        thead th { padding: 2.5mm 2mm; text-align: left; font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+        thead th { padding: 2mm 1.5mm; text-align: left; font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
         thead th.right { text-align: right; }
         tbody tr.group-row { background: #1e3a5f; }
-        tbody tr.group-row td { padding: 2mm; font-weight: 700; font-size: 9.5pt; color: #fff; text-transform: uppercase; letter-spacing: 0.5px; }
+        tbody tr.group-row td { padding: 1.6mm 1.5mm; font-weight: 700; font-size: 9.5pt; color: #fff; text-transform: uppercase; letter-spacing: 0.5px; }
         tbody tr.section-row { background: #e8eef7; }
-        tbody tr.section-row td { padding: 2mm; font-weight: 700; font-size: 9pt; color: #1e3a5f; }
-        tbody tr.item-row td { padding: 1.5mm 2mm; border-bottom: 0.3pt solid #e5e7eb; vertical-align: top; }
-        tbody tr.sub-row td { padding: 1mm 2mm 1mm 8mm; border-bottom: 0.3pt solid #f0f0f0; color: #666; font-size: 8.5pt; font-style: italic; }
+        tbody tr.section-row td { padding: 1.6mm 1.5mm; font-weight: 700; font-size: 9pt; color: #1e3a5f; }
+        tbody tr.item-row td { padding: 1.2mm 1.5mm; border-bottom: 0.3pt solid #e5e7eb; vertical-align: top; }
+        tbody tr.sub-row td { padding: 0.8mm 1.5mm 0.8mm 8mm; border-bottom: 0.3pt solid #f0f0f0; color: #666; font-size: 8.5pt; font-style: italic; }
         td.right { text-align: right; }
-        td.num { text-align: right; font-variant-numeric: tabular-nums; }
+        td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        td.lead { white-space: nowrap; }
         .totals-wrap { display: flex; justify-content: flex-end; margin-top: 4mm; }
         .totals { width: 80mm; }
         .totals-row { display: flex; justify-content: space-between; padding: 1mm 0; font-size: 9.5pt; border-bottom: 0.3pt solid #e5e7eb; }
@@ -223,7 +225,7 @@ export default function PrintPage() {
                       <React.Fragment key={sec.section_id}>
                         <tr className="section-row">
                           <td colSpan={2}>{sec.title}</td>
-                          <td>{sec.lead_time}</td>
+                          <td className="lead">{sec.lead_time}</td>
                           <td /><td />
                           <td className="num">{secTotal > 0 ? fmtIdr(secTotal) : ''}</td>
                         </tr>

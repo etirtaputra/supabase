@@ -1323,8 +1323,11 @@ export default function QuoteEditorPage() {
                 </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-500">Harga per Wp (Inc. PPN{quote.ppn_pct}%)</span>
-                  <span className="text-slate-300 tabular-nums">{fmtIdr(grandTotal / totalWp)}</span>
+                  <span className="text-slate-200 font-semibold tabular-nums">{fmtIdr(grandTotal / totalWp)}</span>
                 </div>
+                <p className="text-right text-[10px] text-slate-600">
+                  system size {totalWp.toLocaleString('en-US')} Wp
+                </p>
               </div>
             )}
           </div>
