@@ -519,7 +519,7 @@ export default function QuoteEditorPage() {
     };
   }, []);
 
-  // ── Filtered autocomplete results: catalog components + past quote items ───
+  // ── Filtered autocomplete results: catalog + this quote's rows + past quotes
   const acResults = useMemo(() => {
     if (!acState || acState.query.length < 2) return { comps: [] as Component[], prev: [] as PrevItem[] };
     const q = acState.query.toLowerCase();
@@ -531,15 +531,39 @@ export default function QuoteEditorPage() {
       )
       .slice(0, 6);
     const compNames = new Set(comps.map((c) => (c.supplier_model ?? '').trim().toLowerCase()));
-    const prev = prevItems
+
+    // Rows already in this quote (draft state — works before saving), except
+    // the row currently being typed in
+    const seen = new Set<string>();
+    const local: PrevItem[] = [];
+    for (const s of sections) {
+      if (s._deleted) continue;
+      for (const it of s.items) {
+        if (it._deleted || it.parent_item_id || it.item_id === acState.itemId) continue;
+        const d = it.description.trim();
+        const k = d.toLowerCase();
+        if (d.length < 3 || seen.has(k) || compNames.has(k)) continue;
+        if (!k.includes(q) && !it.brand.toLowerCase().includes(q)) continue;
+        seen.add(k);
+        local.push({
+          description: d, brand: it.brand, unit: it.unit,
+          component_id: it.component_id,
+          cost_price: num(it.cost_price), sell_price: num(it.sell_price),
+          label: 'this quote', date: '', count: 1,
+        });
+      }
+    }
+
+    const crossQuote = prevItems
       .filter((p) =>
         (p.description.toLowerCase().includes(q) || p.brand.toLowerCase().includes(q)) &&
-        !compNames.has(p.description.toLowerCase())
+        !compNames.has(p.description.toLowerCase()) &&
+        !seen.has(p.description.toLowerCase())
       )
-      .sort((a, b) => b.date.localeCompare(a.date))
-      .slice(0, 4);
-    return { comps, prev };
-  }, [acState, catalog.components, prevItems]);
+      .sort((a, b) => b.date.localeCompare(a.date));
+
+    return { comps, prev: [...local, ...crossQuote].slice(0, 5) };
+  }, [acState, catalog.components, prevItems, sections]);
   const acCount = acResults.comps.length + acResults.prev.length;
 
   // ── Computed totals ────────────────────────────────────────────────────────
@@ -658,7 +682,7 @@ export default function QuoteEditorPage() {
     setSaving(true);
     try {
       // 1. Upsert quote header
-      await supabase.from('10.0_project_quotes').upsert({
+      const { error: qErr } = await supabase.from('10.0_project_quotes').upsert({
         quote_id: quote.quote_id,
         quote_number: quote.quote_number,
         quote_date: quote.quote_date,
@@ -672,12 +696,19 @@ export default function QuoteEditorPage() {
         group_margins: quote.group_margins ?? {},
         updated_at: new Date().toISOString(),
       });
+      if (qErr) throw qErr;
 
       // 2. Collect deletes
       const deletedSecIds = sections.filter((s) => s._deleted).map((s) => s.section_id);
       const deletedItemIds = sections.flatMap((s) => s.items.filter((i) => i._deleted).map((i) => i.item_id));
-      if (deletedItemIds.length) await supabase.from('10.2_quote_items').delete().in('item_id', deletedItemIds);
-      if (deletedSecIds.length)  await supabase.from('10.1_quote_sections').delete().in('section_id', deletedSecIds);
+      if (deletedItemIds.length) {
+        const { error } = await supabase.from('10.2_quote_items').delete().in('item_id', deletedItemIds);
+        if (error) throw error;
+      }
+      if (deletedSecIds.length) {
+        const { error } = await supabase.from('10.1_quote_sections').delete().in('section_id', deletedSecIds);
+        if (error) throw error;
+      }
 
       // 3. Upsert live sections, ordered by group (solar → bos → services)
       const groupOrder = SECTION_GROUPS.map((g) => g.key);
@@ -685,12 +716,13 @@ export default function QuoteEditorPage() {
         .filter((s) => !s._deleted)
         .sort((a, b) => groupOrder.indexOf(a.group_key) - groupOrder.indexOf(b.group_key));
       if (liveSections.length) {
-        await supabase.from('10.1_quote_sections').upsert(
+        const { error } = await supabase.from('10.1_quote_sections').upsert(
           liveSections.map((s, i) => ({
             section_id: s.section_id, quote_id: id, group_key: s.group_key,
             title: s.title, lead_time: s.lead_time, sort_order: i,
           }))
         );
+        if (error) throw error;
       }
 
       // 4. Upsert live items
@@ -706,14 +738,19 @@ export default function QuoteEditorPage() {
           sort_order: idx,
         }))
       );
-      if (liveItems.length) await supabase.from('10.2_quote_items').upsert(liveItems);
+      if (liveItems.length) {
+        const { error } = await supabase.from('10.2_quote_items').upsert(liveItems);
+        if (error) throw error;
+      }
 
       setDirty(false);
       setSaveMsg('Saved');
       setTimeout(() => setSaveMsg(''), 2500);
       loadReferenceData(); // refresh autocomplete/history sources after save
-    } catch {
-      setSaveMsg('Error saving');
+    } catch (e) {
+      // Supabase errors are plain objects, not Error instances
+      const msg = (e as { message?: string })?.message;
+      setSaveMsg(msg ? `Error: ${msg}` : 'Error saving');
     }
     setSaving(false);
   }
@@ -856,7 +893,14 @@ export default function QuoteEditorPage() {
             >
               {STATUS_OPTS.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
-            {saveMsg && <span className={`text-[11px] ${saveMsg === 'Saved' ? 'text-emerald-400' : 'text-red-400'}`}>{saveMsg}</span>}
+            {saveMsg && (
+              <span
+                title={saveMsg}
+                className={`text-[11px] max-w-[220px] truncate ${saveMsg === 'Saved' || saveMsg === 'Costs refreshed' ? 'text-emerald-400' : 'text-red-400'}`}
+              >
+                {saveMsg}
+              </span>
+            )}
             {dirty && !saving && <span className="text-[11px] text-amber-400">Unsaved</span>}
             <button onClick={refreshCosts} disabled={catalogLoading}
               title="Update every catalog-linked item to its latest cost (TUC → supplier quote → last used), keeping each item's margin"
@@ -1140,7 +1184,7 @@ export default function QuoteEditorPage() {
                                     })}
                                     {acResults.prev.length > 0 && (
                                       <p className="px-4 pt-2 pb-1 text-[9px] uppercase tracking-wider text-slate-600 border-t border-slate-800">
-                                        From previous quotes
+                                        Previously entered items
                                       </p>
                                     )}
                                     {acResults.prev.map((p) => (
@@ -1155,7 +1199,7 @@ export default function QuoteEditorPage() {
                                             {p.description}
                                           </p>
                                           <p className="text-[10px] text-slate-500 truncate">
-                                            {[p.brand, `${p.label} · ${p.date}`, p.count > 1 ? `used ${p.count}×` : null].filter(Boolean).join(' · ')}
+                                            {[p.brand, p.date ? `${p.label} · ${p.date}` : p.label, p.count > 1 ? `used ${p.count}×` : null].filter(Boolean).join(' · ')}
                                           </p>
                                         </div>
                                         <div className="text-right flex-shrink-0">

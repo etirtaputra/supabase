@@ -84,20 +84,23 @@ export default function QuotesListPage() {
       const today = new Date().toISOString().slice(0, 10);
       const newQuoteId = crypto.randomUUID();
 
-      // 1. Quote header — always restarts as a draft
-      const { error: qErr } = await supabase.from('10.0_project_quotes').insert({
+      // 1. Quote header — always restarts as a draft. Optional columns are
+      //    only written when the source row actually has them, so duplication
+      //    keeps working on databases that haven't run the latest migration.
+      const newQuote: Record<string, unknown> = {
         quote_id: newQuoteId,
         quote_number: `${src.quote_number || 'Q'}-REV`,
         quote_date: dupToday ? today : src.quote_date,
-        company_id: src.company_id ?? null,
         customer_name: src.customer_name,
         customer_address: src.customer_address,
         project_description: src.project_description,
         ppn_pct: src.ppn_pct,
         status: 'draft',
         notes: src.notes,
-        group_margins: src.group_margins ?? {},
-      });
+      };
+      if ('company_id' in src) newQuote.company_id = src.company_id ?? null;
+      if ('group_margins' in src) newQuote.group_margins = src.group_margins ?? {};
+      const { error: qErr } = await supabase.from('10.0_project_quotes').insert(newQuote);
       if (qErr) throw qErr;
 
       // 2. Sections with fresh ids
@@ -105,10 +108,12 @@ export default function QuotesListPage() {
       const newSecs = (secRes.data ?? []).map((s) => {
         const nid = crypto.randomUUID();
         secIdMap.set(s.section_id, nid);
-        return {
-          section_id: nid, quote_id: newQuoteId, group_key: s.group_key ?? 'bos',
+        const row: Record<string, unknown> = {
+          section_id: nid, quote_id: newQuoteId,
           title: s.title, lead_time: s.lead_time, sort_order: s.sort_order,
         };
+        if ('group_key' in s) row.group_key = s.group_key ?? 'bos';
+        return row;
       });
       if (newSecs.length) {
         const { error } = await supabase.from('10.1_quote_sections').insert(newSecs);
@@ -135,18 +140,20 @@ export default function QuotesListPage() {
             cost = newCost;
           }
         }
-        return {
+        const row: Record<string, unknown> = {
           item_id: itemIdMap.get(it.item_id)!,
           section_id: secIdMap.get(it.section_id)!,
           quote_id: newQuoteId,
           parent_item_id: it.parent_item_id ? (itemIdMap.get(it.parent_item_id) ?? null) : null,
           component_id: it.component_id,
           description: it.description, brand: it.brand,
-          quantity: it.quantity, qty_formula: it.qty_formula ?? '', eng_note: it.eng_note ?? '',
-          unit: it.unit,
+          quantity: it.quantity, unit: it.unit,
           cost_price: cost, sell_price: sell,
           sort_order: it.sort_order,
         };
+        if ('qty_formula' in it) row.qty_formula = it.qty_formula ?? '';
+        if ('eng_note' in it) row.eng_note = it.eng_note ?? '';
+        return row;
       });
       if (newItems.length) {
         const { error } = await supabase.from('10.2_quote_items').insert(newItems);
@@ -155,7 +162,9 @@ export default function QuotesListPage() {
 
       router.push(`/quotes/${newQuoteId}`);
     } catch (e) {
-      setDupError(e instanceof Error ? e.message : 'Duplication failed');
+      // Supabase errors are plain objects, not Error instances — read .message either way
+      const msg = (e as { message?: string })?.message;
+      setDupError(msg || 'Duplication failed');
       setDupBusy(false);
     }
   }
