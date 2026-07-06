@@ -20,17 +20,22 @@ export default function PrintPage() {
 
   const [quote, setQuote] = useState<ProjectQuote | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
+  const [companyName, setCompanyName] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
-      const [qRes, secRes, itemRes] = await Promise.all([
+      const [qRes, secRes, itemRes, compRes] = await Promise.all([
         supabase.from('10.0_project_quotes').select('*').eq('quote_id', id).single(),
         supabase.from('10.1_quote_sections').select('*').eq('quote_id', id).order('sort_order'),
         supabase.from('10.2_quote_items').select('*').eq('quote_id', id).order('sort_order'),
+        supabase.from('1.0_companies').select('company_id, legal_name'),
       ]);
       if (!qRes.data) return;
-      setQuote(qRes.data as ProjectQuote);
+      const q = qRes.data as ProjectQuote;
+      setQuote(q);
+      const comp = (compRes.data ?? []).find((c) => c.company_id === q.company_id);
+      setCompanyName((comp?.legal_name as string) ?? '');
       const secs = (secRes.data ?? []) as QuoteSection[];
       const items = (itemRes.data ?? []) as QuoteItem[];
       setSections(secs.map((s) => ({
@@ -64,6 +69,10 @@ export default function PrintPage() {
   const subtotal = sections.reduce((s, sec) => s + sectionTotal(sec), 0);
   const ppn = subtotal * ppnPct / 100;
   const grandTotal = subtotal + ppn;
+  const totalWp = sections
+    .filter((s) => s.group_key === 'solar_panels')
+    .flatMap((s) => s.items.filter((i) => !i.parent_item_id && (i.unit ?? '').trim().toLowerCase() === 'wp'))
+    .reduce((s, i) => s + (Number(i.quantity) || 0), 0);
 
   return (
     <>
@@ -121,8 +130,7 @@ export default function PrintPage() {
         {/* Header */}
         <div className="header">
           <div>
-            <div className="company-name">ICAPROC</div>
-            <div className="company-sub">PT ICA Procure &amp; Supply</div>
+            <div className="company-name">{companyName || 'ICAPROC'}</div>
           </div>
           <div className="doc-title">
             <h2>Penawaran Harga</h2>
@@ -234,6 +242,22 @@ export default function PrintPage() {
               <span>GRAND TOTAL</span>
               <span>{fmtIdr(grandTotal)}</span>
             </div>
+            {totalWp > 0 && (
+              <>
+                <div className="totals-row" style={{ marginTop: '2mm' }}>
+                  <span>Total System</span>
+                  <span>{totalWp.toLocaleString('en-US')} Wp ({(totalWp / 1000).toLocaleString('en-US', { maximumFractionDigits: 1 })} kWp)</span>
+                </div>
+                <div className="totals-row" style={{ fontWeight: 700 }}>
+                  <span>Harga per Wp (Exc. PPN{ppnPct}%)</span>
+                  <span>{fmtIdr(subtotal / totalWp)}</span>
+                </div>
+                <div className="totals-row" style={{ fontWeight: 700 }}>
+                  <span>Harga per Wp (Inc. PPN{ppnPct}%)</span>
+                  <span>{fmtIdr(grandTotal / totalWp)}</span>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -256,7 +280,7 @@ export default function PrintPage() {
           <div>
             <div className="sig-label">Hormat kami,</div>
             <div className="sig-line" />
-            <div className="sig-name">PT ICA Procure &amp; Supply</div>
+            <div className="sig-name">{companyName || '(perusahaan)'}</div>
           </div>
           <div>
             <div className="sig-label">Disetujui oleh,</div>

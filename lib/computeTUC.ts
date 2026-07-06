@@ -4,9 +4,11 @@ import { PRINCIPAL_CATS, BANK_FEE_CATS, TAX_CATS } from '../constants/costCatego
 // Fallback rates for price-quote lines, which carry no exchange rate of their own
 const FX: Record<string, number> = { USD: 16000, RMB: 2200, IDR: 1 };
 
+export type CostKind = 'tuc' | 'quote' | 'used';
+
 export interface CostEntry {
-  kind: 'tuc' | 'quote';
-  label: string;      // PO number or quote PI number
+  kind: CostKind;
+  label: string;      // PO number, supplier-quote PI number, or project-quote number
   date: string;
   unitCost: number;   // IDR
 }
@@ -19,9 +21,9 @@ export interface TUCResult {
 }
 
 export interface ComponentCost {
-  cost: number;             // recommended cost: weighted-avg TUC, else latest quote price
-  source: 'tuc' | 'quote';
-  history: CostEntry[];     // all TUC + quote entries, newest first
+  cost: number;             // recommended cost — see getComponentCost for the fallback order
+  source: CostKind;
+  history: CostEntry[];     // all TUC + quote + last-used entries, newest first
 }
 
 /**
@@ -125,7 +127,8 @@ export function quotePriceHistory(
 /**
  * Recommended cost for a component with full price history.
  * Prefers weighted-average TUC from settled POs; when no TUC exists, falls back
- * to the most recent price-quote line (FX-converted to IDR).
+ * to the newest of: supplier price-quote line (FX-converted) or the cost last
+ * used in a previous project quote (usedEntries, supplied by the caller).
  */
 export function getComponentCost(
   componentId: string,
@@ -134,14 +137,16 @@ export function getComponentCost(
   poCosts: POCost[],
   quotes: PriceQuote[],
   quoteItems: PriceQuoteLineItem[],
+  usedEntries: CostEntry[] = [],
 ): ComponentCost | null {
   const tuc = computeTUC(componentId, pos, poItems, poCosts, quotes);
   const quoteEntries = quotePriceHistory(componentId, quotes, quoteItems);
 
-  const history = [...(tuc?.entries ?? []), ...quoteEntries]
+  const history = [...(tuc?.entries ?? []), ...quoteEntries, ...usedEntries]
     .sort((a, b) => b.date.localeCompare(a.date));
 
   if (tuc) return { cost: tuc.tuc, source: 'tuc', history };
-  if (quoteEntries.length) return { cost: quoteEntries[0].unitCost, source: 'quote', history };
+  const fallback = history.find((h) => h.kind !== 'tuc');
+  if (fallback) return { cost: fallback.unitCost, source: fallback.kind, history };
   return null;
 }

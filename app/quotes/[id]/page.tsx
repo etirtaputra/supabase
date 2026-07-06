@@ -60,7 +60,16 @@ function sellFromGm(cost: string, gm: string): string {
   return Math.round(c / (1 - g / 100)).toString();
 }
 
-const LEAD_TIMES = ['Ready', '1 minggu', '2 minggu', '3 minggu', '1 bulan', '2 bulan', 'Custom'];
+const LEAD_TIMES = ['Ready', '1 minggu', '2 minggu', '3 minggu', '1 bulan', '2 bulan', '3 bulan', 'Custom'];
+
+// Cost source presentation (TUC from POs / supplier price quote / last used in a project quote)
+const SOURCE_LABEL: Record<string, string> = { tuc: 'TUC', quote: 'latest quote', used: 'last used' };
+const SOURCE_TEXT:  Record<string, string> = { tuc: 'text-violet-400', quote: 'text-sky-400', used: 'text-amber-400' };
+const SOURCE_BADGE: Record<string, string> = {
+  tuc: 'bg-violet-500/20 text-violet-300',
+  quote: 'bg-sky-500/20 text-sky-300',
+  used: 'bg-amber-500/20 text-amber-300',
+};
 const UNITS = ['pcs', 'set', 'meter', 'Wp', 'kWh', 'ls', 'modules', 'eng days', 'man days', 'Month', 'kg', 'roll'];
 const STATUS_OPTS = ['draft', 'sent', 'accepted', 'rejected'] as const;
 const STATUS_COLORS: Record<string, string> = {
@@ -216,12 +225,49 @@ export default function QuoteEditorPage() {
     markDirty();
   }
 
+  // ── Last-used prices from other project quotes ─────────────────────────────
+  const [prevUsed, setPrevUsed] = useState<Map<string, CostEntry[]>>(new Map());
+
+  useEffect(() => {
+    async function loadPrevUsed() {
+      const [itemsRes, quotesRes] = await Promise.all([
+        supabase.from('10.2_quote_items')
+          .select('component_id, cost_price, quote_id, created_at')
+          .not('component_id', 'is', null)
+          .neq('quote_id', id),
+        supabase.from('10.0_project_quotes').select('quote_id, quote_number, quote_date'),
+      ]);
+      const qMap = new Map((quotesRes.data ?? []).map((q) => [q.quote_id as string, q]));
+      const map = new Map<string, CostEntry[]>();
+      for (const it of itemsRes.data ?? []) {
+        const cost = Number(it.cost_price);
+        if (!it.component_id || !(cost > 0)) continue;
+        const q = qMap.get(it.quote_id as string);
+        const arr = map.get(it.component_id as string) ?? [];
+        arr.push({
+          kind: 'used',
+          label: (q?.quote_number as string) || 'Project quote',
+          date: (q?.quote_date as string) || String(it.created_at ?? '').slice(0, 10),
+          unitCost: cost,
+        });
+        map.set(it.component_id as string, arr);
+      }
+      for (const arr of map.values()) arr.sort((a, b) => b.date.localeCompare(a.date));
+      setPrevUsed(map);
+    }
+    loadPrevUsed();
+  }, [id]);
+
+  const costFor = useCallback((componentId: string) =>
+    getComponentCost(componentId, catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes, catalog.quoteItems, prevUsed.get(componentId) ?? []),
+  [catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes, catalog.quoteItems, prevUsed]);
+
   // ── Cost history hover popup ───────────────────────────────────────────────
   const [costHover, setCostHover] = useState<{ itemId: string; history: CostEntry[]; source: string; x: number; y: number } | null>(null);
 
   function showCostHistory(itemId: string, componentId: string | null, el: HTMLElement) {
     if (!componentId) return;
-    const cc = getComponentCost(componentId, catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes, catalog.quoteItems);
+    const cc = costFor(componentId);
     if (!cc || !cc.history.length) return;
     const r = el.getBoundingClientRect();
     setCostHover({ itemId, history: cc.history.slice(0, 10), source: cc.source, x: r.right, y: r.bottom });
@@ -301,19 +347,22 @@ export default function QuoteEditorPage() {
   }, [acState, catalog.components]);
 
   // ── Computed totals ────────────────────────────────────────────────────────
-  const { subtotal, ppn, grandTotal } = useMemo(() => {
-    let sub = 0;
+  const { subtotal, ppn, grandTotal, totalWp } = useMemo(() => {
+    let sub = 0, wp = 0;
     for (const sec of sections) {
+      if (sec._deleted) continue;
       for (const item of sec.items) {
         if (item._deleted || item.parent_item_id) continue;
         const qty = num(item.quantity) ?? 0;
         const sell = num(item.sell_price) ?? 0;
         sub += qty * sell;
+        // System size: Wp-denominated lines in the Solar Panels group
+        if (sec.group_key === 'solar_panels' && item.unit.trim().toLowerCase() === 'wp') wp += qty;
       }
     }
     const ppnPct = num(quote?.ppn_pct?.toString() ?? '') ?? 11;
     const tax = sub * ppnPct / 100;
-    return { subtotal: sub, ppn: tax, grandTotal: sub + tax };
+    return { subtotal: sub, ppn: tax, grandTotal: sub + tax, totalWp: wp };
   }, [sections, quote?.ppn_pct]);
 
   // ── Mutations ──────────────────────────────────────────────────────────────
@@ -374,7 +423,7 @@ export default function QuoteEditorPage() {
 
   // ── Autocomplete selection ─────────────────────────────────────────────────
   function selectComponent(sid: string, iid: string, comp: Component) {
-    const cc = getComponentCost(comp.component_id, catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes, catalog.quoteItems);
+    const cc = costFor(comp.component_id);
     const costStr = cc ? Math.round(cc.cost).toString() : '';
     updateItem(sid, iid, {
       component_id: comp.component_id,
@@ -396,6 +445,7 @@ export default function QuoteEditorPage() {
         quote_id: quote.quote_id,
         quote_number: quote.quote_number,
         quote_date: quote.quote_date,
+        company_id: quote.company_id ?? null,
         customer_name: quote.customer_name,
         customer_address: quote.customer_address,
         project_description: quote.project_description,
@@ -455,6 +505,10 @@ export default function QuoteEditorPage() {
     if (!quote) return;
     const liveSecs = sections.filter((s) => !s._deleted);
     const ppnPct = num(String(quote.ppn_pct)) ?? 11;
+    const wpTotal = liveSecs
+      .filter((s) => s.group_key === 'solar_panels')
+      .flatMap((s) => s.items.filter((i) => !i._deleted && !i.parent_item_id && i.unit.trim().toLowerCase() === 'wp'))
+      .reduce((s, i) => s + (num(i.quantity) ?? 0), 0);
 
     let rows = '';
     for (const group of SECTION_GROUPS) {
@@ -502,6 +556,13 @@ export default function QuoteEditorPage() {
           <td style="text-align:right">${fmtIdr(ppn)}</td></tr>
       <tr><td colspan="5" style="text-align:right;font-weight:bold">GRAND TOTAL</td>
           <td style="text-align:right;font-weight:bold">${fmtIdr(grandTotal)}</td></tr>
+      ${wpTotal > 0 ? `
+      <tr><td colspan="5" style="text-align:right">Total System</td>
+          <td style="text-align:right">${wpTotal.toLocaleString('en-US')} Wp</td></tr>
+      <tr><td colspan="5" style="text-align:right;font-weight:bold">Harga per Wp (Exc. PPN${ppnPct}%)</td>
+          <td style="text-align:right;font-weight:bold">${fmtIdr(subtotal / wpTotal)}</td></tr>
+      <tr><td colspan="5" style="text-align:right;font-weight:bold">Harga per Wp (Inc. PPN${ppnPct}%)</td>
+          <td style="text-align:right;font-weight:bold">${fmtIdr(grandTotal / wpTotal)}</td></tr>` : ''}
     </table>
     ${quote.notes ? `
     <p style="font-weight:bold;margin-top:16px;text-transform:uppercase">Terms and Conditions</p>
@@ -576,6 +637,19 @@ export default function QuoteEditorPage() {
 
         {/* ── Header form ── */}
         <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">From (Company)</label>
+            <select
+              value={quote.company_id ?? ''}
+              onChange={(e) => setQuoteField('company_id', e.target.value || null)}
+              className="w-full bg-transparent border-b border-slate-700 focus:border-violet-500 outline-none text-white py-1 text-sm transition-colors"
+            >
+              <option value="" className="bg-slate-900">– Select –</option>
+              {catalog.companies.map((c) => (
+                <option key={c.company_id} value={c.company_id} className="bg-slate-900">{c.legal_name}</option>
+              ))}
+            </select>
+          </div>
           <div>
             <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Customer</label>
             <input value={quote.customer_name} onChange={(e) => setQuoteField('customer_name', e.target.value)}
@@ -670,16 +744,31 @@ export default function QuoteEditorPage() {
                       title="Click to rename section"
                     />
                   </div>
-                  <select
-                    value={sec.lead_time}
-                    onChange={(e) => updateSection(sec.section_id, { lead_time: e.target.value })}
-                    className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-300 outline-none"
-                  >
-                    {LEAD_TIMES.map((l) => <option key={l}>{l}</option>)}
-                    {!LEAD_TIMES.includes(sec.lead_time) && sec.lead_time && (
-                      <option value={sec.lead_time}>{sec.lead_time}</option>
-                    )}
-                  </select>
+                  {LEAD_TIMES.includes(sec.lead_time) && sec.lead_time !== 'Custom' ? (
+                    <select
+                      value={sec.lead_time}
+                      onChange={(e) => updateSection(sec.section_id, { lead_time: e.target.value === 'Custom' ? '' : e.target.value })}
+                      className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-300 outline-none"
+                    >
+                      {LEAD_TIMES.map((l) => <option key={l}>{l}</option>)}
+                    </select>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <input
+                        value={sec.lead_time === 'Custom' ? '' : sec.lead_time}
+                        onChange={(e) => updateSection(sec.section_id, { lead_time: e.target.value })}
+                        placeholder="e.g. 4 bulan"
+                        className="w-24 bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-lg px-2 py-1 text-xs text-slate-300 outline-none transition-colors"
+                      />
+                      <button
+                        onClick={() => updateSection(sec.section_id, { lead_time: 'Ready' })}
+                        className="text-slate-600 hover:text-slate-300 transition-colors text-xs px-1"
+                        title="Back to preset list"
+                      >
+                        ↺
+                      </button>
+                    </div>
+                  )}
                   {secSubtotal > 0 && (
                     <span className="text-[11px] text-slate-400 whitespace-nowrap">{fmtIdr(secSubtotal)}</span>
                   )}
@@ -751,7 +840,7 @@ export default function QuoteEditorPage() {
                                     style={{ left: Math.min(acState.x, Math.max(16, window.innerWidth - 436)), top: acState.y + 4 }}
                                   >
                                     {acResults.map((comp) => {
-                                      const cc = catalogLoading ? null : getComponentCost(comp.component_id, catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes, catalog.quoteItems);
+                                      const cc = catalogLoading ? null : costFor(comp.component_id);
                                       return (
                                         <button
                                           key={comp.component_id}
@@ -763,9 +852,9 @@ export default function QuoteEditorPage() {
                                             <p className="text-[10px] text-slate-500">{[comp.brand, comp.category].filter(Boolean).join(' · ')}</p>
                                           </div>
                                           <div className="text-right flex-shrink-0">
-                                            {cc ? <p className={`font-semibold text-xs ${cc.source === 'tuc' ? 'text-violet-400' : 'text-sky-400'}`}>{fmtIdr(cc.cost)}</p>
+                                            {cc ? <p className={`font-semibold text-xs ${SOURCE_TEXT[cc.source]}`}>{fmtIdr(cc.cost)}</p>
                                                 : <p className="text-slate-600 text-[10px]">no price data</p>}
-                                            {cc && <p className="text-[10px] text-slate-600">{cc.source === 'tuc' ? 'TUC' : 'latest quote'}</p>}
+                                            {cc && <p className="text-[10px] text-slate-600">{SOURCE_LABEL[cc.source]}</p>}
                                           </div>
                                         </button>
                                       );
@@ -802,13 +891,13 @@ export default function QuoteEditorPage() {
                                     style={{ left: Math.max(16, costHover.x - 288), top: costHover.y + 4 }}
                                   >
                                     <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-2">
-                                      Price history · using {costHover.source === 'tuc' ? 'weighted TUC' : 'latest quote'}
+                                      Price history · using {costHover.source === 'tuc' ? 'weighted TUC' : SOURCE_LABEL[costHover.source]}
                                     </p>
                                     <div className="space-y-1">
                                       {costHover.history.map((h, i) => (
                                         <div key={i} className="flex items-center justify-between gap-2 text-[11px]">
-                                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold flex-shrink-0 ${h.kind === 'tuc' ? 'bg-violet-500/20 text-violet-300' : 'bg-sky-500/20 text-sky-300'}`}>
-                                            {h.kind === 'tuc' ? 'TUC' : 'QUOTE'}
+                                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold flex-shrink-0 ${SOURCE_BADGE[h.kind]}`}>
+                                            {h.kind === 'tuc' ? 'TUC' : h.kind === 'quote' ? 'QUOTE' : 'USED'}
                                           </span>
                                           <span className="text-slate-400 truncate flex-1">{h.label}</span>
                                           <span className="text-slate-500 flex-shrink-0">{h.date}</span>
@@ -949,6 +1038,22 @@ export default function QuoteEditorPage() {
               <span className="text-white">Grand Total</span>
               <span className="text-white tabular-nums">{fmtIdr(grandTotal)}</span>
             </div>
+            {totalWp > 0 && (
+              <div className="border-t border-slate-800 pt-2 mt-2 space-y-1.5">
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-500">Total System</span>
+                  <span className="text-slate-300 tabular-nums">{totalWp.toLocaleString('en-US')} Wp ({(totalWp / 1000).toLocaleString('en-US', { maximumFractionDigits: 1 })} kWp)</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-500">Harga per Wp (Exc. PPN{quote.ppn_pct}%)</span>
+                  <span className="text-amber-300 font-semibold tabular-nums">{fmtIdr(subtotal / totalWp)}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-500">Harga per Wp (Inc. PPN{quote.ppn_pct}%)</span>
+                  <span className="text-slate-300 tabular-nums">{fmtIdr(grandTotal / totalWp)}</span>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
