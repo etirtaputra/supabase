@@ -1119,38 +1119,38 @@ export default function QuoteEditorPage() {
               <div key={group.key}>
                 {/* Group header — also a drop zone: sections dropped here go to the end of this group */}
                 <div
-                  className={`flex items-center justify-between mb-3 px-1 border-b-2 pb-2 transition-colors ${dropHint === `group:${group.key}` ? 'border-violet-500 bg-violet-500/10 rounded-t-lg' : 'border-[#1e3a5f]'}`}
+                  className={`flex items-center justify-between mb-3 px-4 py-2.5 rounded-xl transition-colors ${dropHint === `group:${group.key}` ? 'bg-violet-600/30 ring-1 ring-violet-500' : 'bg-[#1e3a5f] hover:bg-[#25476f]'}`}
                   onDragOver={(e) => { if (drag?.kind === 'section') { e.preventDefault(); setDropHint(`group:${group.key}`); } }}
                   onDragLeave={() => setDropHint((h) => h === `group:${group.key}` ? null : h)}
                   onDrop={(e) => { e.preventDefault(); dropSectionOnGroup(group.key); endDrag(); }}
                 >
                   <h2 className="text-sm font-extrabold uppercase tracking-widest text-white">
                     {group.label}
-                    <span className="ml-2 text-slate-600 font-normal normal-case tracking-normal text-xs">
+                    <span className="ml-2 text-sky-200/50 font-normal normal-case tracking-normal text-xs">
                       {groupSections.length || 'no'} sub-section{groupSections.length !== 1 ? 's' : ''}
                     </span>
                   </h2>
                   <div className="flex items-center gap-3">
                     <div className="flex items-center gap-1.5" title="Default margin for new line items in this group; each line's GM% can still be overridden">
-                      <span className="text-[10px] uppercase tracking-wider text-slate-500">GM%</span>
+                      <span className="text-[10px] uppercase tracking-wider text-sky-200/60">GM%</span>
                       <input
                         type="number"
                         value={quote.group_margins?.[group.key] ?? ''}
                         onChange={(e) => setGroupMargin(group.key, e.target.value)}
                         placeholder="—"
-                        className="w-14 bg-slate-800/80 border border-slate-700 focus:border-emerald-500 rounded-lg px-2 py-0.5 text-xs text-right text-emerald-400 outline-none transition-colors placeholder:text-slate-600"
+                        className="w-14 bg-black/25 border border-white/15 focus:border-emerald-400 rounded-lg px-2 py-0.5 text-xs text-right text-emerald-300 outline-none transition-colors placeholder:text-sky-200/40"
                       />
                       {groupGm(group.key) != null && (
                         <button
                           onClick={() => applyGmToGroup(group.key)}
-                          className="text-[10px] text-slate-500 hover:text-emerald-400 transition-colors whitespace-nowrap"
+                          className="text-[10px] text-sky-200/60 hover:text-emerald-300 transition-colors whitespace-nowrap"
                           title="Re-price every line in this group with this margin (overwrites per-line margins)"
                         >
                           apply to all
                         </button>
                       )}
                     </div>
-                    {groupTotal > 0 && <span className="text-sm font-bold text-slate-200 tabular-nums">{fmtIdr(groupTotal)}</span>}
+                    {groupTotal > 0 && <span className="text-sm font-bold text-white tabular-nums">{fmtIdr(groupTotal)}</span>}
                   </div>
                 </div>
                 <div className="space-y-3">
@@ -1162,13 +1162,13 @@ export default function QuoteEditorPage() {
             return (
               <div
                 key={sec.section_id}
-                className={`bg-slate-900/50 border rounded-2xl overflow-hidden transition-colors ${dropHint === sec.section_id ? 'border-violet-500 ring-1 ring-violet-500/50' : 'border-slate-800'}`}
+                className={`bg-slate-900/50 hover:bg-slate-900/80 border rounded-2xl overflow-hidden transition-colors ${dropHint === sec.section_id ? 'border-violet-500 ring-1 ring-violet-500/50' : 'border-slate-800 hover:border-slate-600'}`}
                 onDragOver={(e) => { if (drag?.kind === 'section' && drag.sectionId !== sec.section_id) { e.preventDefault(); setDropHint(sec.section_id); } }}
                 onDragLeave={() => setDropHint((h) => h === sec.section_id ? null : h)}
                 onDrop={(e) => { e.preventDefault(); dropSectionOn(sec.section_id); endDrag(); }}
               >
                 {/* Section header */}
-                <div className="flex items-center gap-3 px-4 py-3 bg-slate-800/60 border-b border-slate-700/50">
+                <div className="flex items-center gap-3 px-4 py-3 bg-[#1e3a5f]/25 hover:bg-[#1e3a5f]/45 border-b border-[#1e3a5f]/50 transition-colors">
                   <span
                     draggable
                     onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDrag({ kind: 'section', sectionId: sec.section_id }); }}
@@ -1231,23 +1231,23 @@ export default function QuoteEditorPage() {
 
                 {/* Items table */}
                 <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
+                  <table className="w-full text-[13px]">
                     <thead>
-                      <tr className="border-b border-slate-800 text-[10px] uppercase tracking-wider text-slate-500">
+                      <tr className="border-b border-slate-800 text-[10px] uppercase tracking-wider text-slate-400">
                         <th className="w-6" />
                         <th className="text-left px-2 py-2 min-w-[260px]">Description</th>
                         <th className="text-left px-2 py-2 w-28">Brand</th>
                         <th className="text-right px-2 py-2 w-20">Qty</th>
                         <th className="text-left px-2 py-2 w-24">Unit</th>
-                        <th className="text-right px-2 py-2 w-32 text-slate-600">TUC / Cost</th>
+                        <th className="text-right px-2 py-2 w-32 bg-violet-500/[0.07] text-violet-300/80" title="Internal — never shown on client exports">TUC / Cost 🔒</th>
                         <th className="text-right px-2 py-2 w-32">Sell / Unit</th>
-                        <th className="text-right px-2 py-2 w-16">GM %</th>
+                        <th className="text-right px-2 py-2 w-16 bg-violet-500/[0.07] text-violet-300/80" title="Internal — never shown on client exports">GM %</th>
                         <th className="text-right px-2 py-2 w-28">Total</th>
                         <th className="w-8" />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/40">
-                      {mainItems.map((item) => {
+                      {mainItems.map((item, itemIdx) => {
                         const subItems = liveItems.filter((i) => i.parent_item_id === item.item_id);
                         const total = (num(item.quantity) ?? 0) * (num(item.sell_price) ?? 0);
                         const gm = gmFromPrices(item.cost_price, item.sell_price);
@@ -1257,7 +1257,7 @@ export default function QuoteEditorPage() {
                           <React.Fragment key={item.item_id}>
                             {/* Main item row */}
                             <tr
-                              className={`hover:bg-white/[0.02] transition-colors ${dropHint === item.item_id ? 'bg-violet-500/10' : ''}`}
+                              className={`transition-colors hover:bg-white/[0.06] ${dropHint === item.item_id ? 'bg-violet-500/10' : itemIdx % 2 === 1 ? 'bg-white/[0.015]' : ''}`}
                               onDragOver={(e) => { if (drag?.kind === 'item' && drag.itemId !== item.item_id) { e.preventDefault(); setDropHint(item.item_id); } }}
                               onDragLeave={() => setDropHint((h) => h === item.item_id ? null : h)}
                               onDrop={(e) => { e.preventDefault(); e.stopPropagation(); dropItemOn(sec.section_id, item.item_id); endDrag(); }}
@@ -1298,7 +1298,7 @@ export default function QuoteEditorPage() {
                                     }
                                   }}
                                   placeholder="Type to search catalog & past quotes…"
-                                  className="w-full bg-transparent outline-none text-slate-200 placeholder:text-slate-700"
+                                  className="w-full bg-transparent outline-none text-slate-100 placeholder:text-slate-600 border-b border-slate-800 hover:border-slate-600 focus:border-violet-500 transition-colors"
                                 />
                                 {/* Autocomplete dropdown — fixed so table overflow can't clip it */}
                                 {isAcOpen && acState && acCount > 0 && (
@@ -1364,7 +1364,7 @@ export default function QuoteEditorPage() {
                               </td>
                               <td className="px-2 py-2">
                                 <input value={item.brand} onChange={(e) => updateItem(sec.section_id, item.item_id, { brand: e.target.value })}
-                                  placeholder="Brand" className="w-full bg-transparent outline-none text-slate-300 placeholder:text-slate-700" />
+                                  placeholder="Brand" className="w-full bg-transparent outline-none text-slate-200 placeholder:text-slate-600 border-b border-slate-800 hover:border-slate-600 focus:border-violet-500 transition-colors" />
                               </td>
                               <td className="px-2 py-2 relative" title={item.qty_formula ? `Formula: ${item.qty_formula}` : 'Type =2520*720 for a formula'}>
                                 {item.qty_formula && qtyEdit?.itemId !== item.item_id && (
@@ -1379,17 +1379,17 @@ export default function QuoteEditorPage() {
                                   onBlur={(e) => commitQty(sec.section_id, item.item_id, e.target.value)}
                                   onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                                   placeholder="0"
-                                  className="w-full bg-transparent outline-none text-right text-slate-200 placeholder:text-slate-700"
+                                  className="w-full bg-transparent outline-none text-right text-slate-100 placeholder:text-slate-600 border-b border-slate-800 hover:border-slate-600 focus:border-violet-500 transition-colors"
                                 />
                               </td>
                               <td className="px-2 py-2">
                                 <input list={`units-${item.item_id}`} value={item.unit}
                                   onChange={(e) => updateItem(sec.section_id, item.item_id, { unit: e.target.value })}
-                                  placeholder="unit" className="w-full bg-transparent outline-none text-slate-300 placeholder:text-slate-700" />
+                                  placeholder="unit" className="w-full bg-transparent outline-none text-slate-200 placeholder:text-slate-600 border-b border-slate-800 hover:border-slate-600 focus:border-violet-500 transition-colors" />
                                 <datalist id={`units-${item.item_id}`}>{UNITS.map((u) => <option key={u} value={u} />)}</datalist>
                               </td>
                               <td
-                                className="px-2 py-2"
+                                className="px-2 py-2 bg-violet-500/[0.04]"
                                 onMouseEnter={(e) => showCostHistory(item.item_id, item.component_id, item.description, e.currentTarget)}
                                 onMouseLeave={() => setCostHover(null)}
                               >
@@ -1401,7 +1401,7 @@ export default function QuoteEditorPage() {
                                     if (sell) updateItem(sec.section_id, item.item_id, { sell_price: sell });
                                   }}
                                   placeholder="0"
-                                  className={`w-full bg-transparent outline-none text-right text-slate-600 placeholder:text-slate-800 ${item.component_id || freeTextHistory.has(item.description.trim().toLowerCase()) ? 'cursor-help' : ''}`} />
+                                  className={`w-full bg-transparent outline-none text-right text-slate-400 placeholder:text-slate-700 border-b border-slate-800 hover:border-slate-600 focus:border-violet-500 transition-colors ${item.component_id || freeTextHistory.has(item.description.trim().toLowerCase()) ? 'cursor-help' : ''}`} />
                                 {costHover?.itemId === item.item_id && (
                                   <div
                                     className="fixed z-50 w-72 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-3 pointer-events-none"
@@ -1430,9 +1430,9 @@ export default function QuoteEditorPage() {
                                   onChange={(e) => updateItem(sec.section_id, item.item_id, { sell_price: e.target.value })}
                                   placeholder="0"
                                   title={(num(item.quantity) ?? 0) > 0 && !num(item.sell_price) ? 'This line has a quantity but no sell price' : undefined}
-                                  className={`w-full bg-transparent outline-none text-right text-slate-200 placeholder:text-slate-700 ${(num(item.quantity) ?? 0) > 0 && !num(item.sell_price) ? 'border-b border-amber-500/60' : ''}`} />
+                                  className={`w-full bg-transparent outline-none text-right text-slate-100 placeholder:text-slate-600 border-b transition-colors focus:border-violet-500 ${(num(item.quantity) ?? 0) > 0 && !num(item.sell_price) ? 'border-amber-500/60 hover:border-amber-400' : 'border-slate-800 hover:border-slate-600'}`} />
                               </td>
-                              <td className="px-2 py-2 text-right">
+                              <td className="px-2 py-2 text-right bg-violet-500/[0.04]">
                                 {num(item.cost_price) ? (
                                   <input
                                     type="number"
@@ -1449,8 +1449,8 @@ export default function QuoteEditorPage() {
                                   />
                                 ) : <span className="text-slate-700">—</span>}
                               </td>
-                              <td className="px-2 py-2 text-right text-slate-300 font-medium whitespace-nowrap">
-                                {total > 0 ? fmtIdr(total) : '—'}
+                              <td className="px-2 py-2 text-right text-slate-100 font-semibold whitespace-nowrap tabular-nums">
+                                {total > 0 ? fmtIdr(total) : <span className="text-slate-600 font-normal">—</span>}
                               </td>
                               <td className="pr-3 py-2">
                                 <div className="flex items-center gap-1.5">
@@ -1486,7 +1486,7 @@ export default function QuoteEditorPage() {
                             {subItems.map((sub) => (
                               <tr
                                 key={sub.item_id}
-                                className={`bg-slate-900/20 transition-colors ${dropHint === sub.item_id ? 'bg-violet-500/10' : ''}`}
+                                className={`transition-colors hover:bg-white/[0.05] ${dropHint === sub.item_id ? 'bg-violet-500/10' : 'bg-slate-900/20'}`}
                                 onDragOver={(e) => { if (drag?.kind === 'item' && drag.itemId !== sub.item_id) { e.preventDefault(); setDropHint(sub.item_id); } }}
                                 onDragLeave={() => setDropHint((h) => h === sub.item_id ? null : h)}
                                 onDrop={(e) => { e.preventDefault(); e.stopPropagation(); dropItemOn(sec.section_id, sub.item_id); endDrag(); }}
@@ -1505,19 +1505,19 @@ export default function QuoteEditorPage() {
                                 <td className="pl-6 pr-4 py-1.5 flex items-center gap-2">
                                   <span className="text-slate-600 flex-shrink-0">↳</span>
                                   <input value={sub.description} onChange={(e) => updateItem(sec.section_id, sub.item_id, { description: e.target.value })}
-                                    placeholder="Sub-item description" className="flex-1 bg-transparent outline-none text-slate-400 italic placeholder:text-slate-700 text-[11px]" />
+                                    placeholder="Sub-item description" className="flex-1 bg-transparent outline-none text-slate-300 italic placeholder:text-slate-600 text-xs border-b border-slate-800/70 hover:border-slate-600 focus:border-violet-500 transition-colors" />
                                 </td>
                                 <td className="px-2 py-1.5">
                                   <input value={sub.brand} onChange={(e) => updateItem(sec.section_id, sub.item_id, { brand: e.target.value })}
-                                    className="w-full bg-transparent outline-none text-slate-500 text-[11px]" />
+                                    className="w-full bg-transparent outline-none text-slate-400 text-xs border-b border-slate-800/70 hover:border-slate-600 focus:border-violet-500 transition-colors" />
                                 </td>
                                 <td className="px-2 py-1.5">
                                   <input type="number" value={sub.quantity} onChange={(e) => updateItem(sec.section_id, sub.item_id, { quantity: e.target.value })}
-                                    placeholder="0" className="w-full bg-transparent outline-none text-right text-slate-400 text-[11px]" />
+                                    placeholder="0" className="w-full bg-transparent outline-none text-right text-slate-300 text-xs border-b border-slate-800/70 hover:border-slate-600 focus:border-violet-500 transition-colors" />
                                 </td>
                                 <td className="px-2 py-1.5">
                                   <input list={`units-${sub.item_id}`} value={sub.unit} onChange={(e) => updateItem(sec.section_id, sub.item_id, { unit: e.target.value })}
-                                    className="w-full bg-transparent outline-none text-slate-500 text-[11px]" />
+                                    className="w-full bg-transparent outline-none text-slate-400 text-xs border-b border-slate-800/70 hover:border-slate-600 focus:border-violet-500 transition-colors" />
                                   <datalist id={`units-${sub.item_id}`}>{UNITS.map((u) => <option key={u} value={u} />)}</datalist>
                                 </td>
                                 <td /><td /><td /><td />
@@ -1576,6 +1576,24 @@ export default function QuoteEditorPage() {
               </div>
             );
           })}
+        </div>
+
+        {/* ── Price source legend ── */}
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 px-1 text-[10px] text-slate-500">
+          <span className="uppercase tracking-wider">Price sources</span>
+          <span className="flex items-center gap-1.5">
+            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-violet-500/20 text-violet-300">TUC</span>
+            weighted true unit cost from settled POs
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-500/20 text-sky-300">QUOTE</span>
+            supplier price quote
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300">USED</span>
+            last used in a project quote
+          </span>
+          <span className="ml-auto text-slate-600">🔒 violet-tinted columns are internal — never on client exports</span>
         </div>
 
         {/* ── Totals ── */}
