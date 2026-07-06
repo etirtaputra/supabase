@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { SECTION_GROUPS, type SectionGroup, type ProjectQuote, type QuoteSection, type QuoteItem } from '@/types/quotes';
+import { quoteFileName } from '@/lib/quoteFilename';
 
 function fmtIdr(v: number) {
   return `Rp${Math.round(v).toLocaleString('en-US')}`;
@@ -63,27 +64,6 @@ export default function PrintPage() {
     load();
   }, [id]);
 
-  useEffect(() => {
-    if (!loading && quote) {
-      setTimeout(() => window.print(), 400);
-    }
-  }, [loading, quote]);
-
-  if (loading || !quote) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif', color: '#666' }}>
-        Preparing document…
-      </div>
-    );
-  }
-
-  const ppnPct = Number(quote.ppn_pct) || 11;
-  const sectionTotal = (sec: Section) =>
-    sec.items.filter((i) => !i.parent_item_id)
-      .reduce((s, i) => s + (Number(i.quantity) || 0) * (Number(i.sell_price) || 0), 0);
-  const subtotal = sections.reduce((s, sec) => s + sectionTotal(sec), 0);
-  const ppn = subtotal * ppnPct / 100;
-  const grandTotal = subtotal + ppn;
   // Wp per module: catalog norm_value, else parsed from the description.
   // Lines with unit 'Wp' keep qty-as-total-Wp behavior.
   const wpPerModule = (item: QuoteItem): number => {
@@ -101,6 +81,30 @@ export default function PrintPage() {
     .filter((s) => s.group_key === 'solar_panels')
     .flatMap((s) => s.items.filter((i) => !i.parent_item_id))
     .reduce((s, i) => s + itemWp(i), 0);
+
+  useEffect(() => {
+    if (!loading && quote) {
+      // Browsers use the document title as the default Save-as-PDF filename
+      document.title = quoteFileName(quote.quote_number, quote.customer_name, totalWp);
+      setTimeout(() => window.print(), 400);
+    }
+  }, [loading, quote, totalWp]);
+
+  if (loading || !quote) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif', color: '#666' }}>
+        Preparing document…
+      </div>
+    );
+  }
+
+  const ppnPct = Number(quote.ppn_pct) || 11;
+  const sectionTotal = (sec: Section) =>
+    sec.items.filter((i) => !i.parent_item_id)
+      .reduce((s, i) => s + (Number(i.quantity) || 0) * (Number(i.sell_price) || 0), 0);
+  const subtotal = sections.reduce((s, sec) => s + sectionTotal(sec), 0);
+  const ppn = subtotal * ppnPct / 100;
+  const grandTotal = subtotal + ppn;
 
   return (
     <>

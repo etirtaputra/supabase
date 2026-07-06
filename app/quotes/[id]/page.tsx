@@ -6,6 +6,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { getComponentCost, type CostEntry } from '@/lib/computeTUC';
 import { fetchUsedEntries } from '@/lib/usedPrices';
+import { quoteFileName } from '@/lib/quoteFilename';
 import { SECTION_GROUPS, type SectionGroup, type ProjectQuote, type QuoteSection, type QuoteItem } from '@/types/quotes';
 import type { Component } from '@/types/database';
 
@@ -232,6 +233,13 @@ export default function QuoteEditorPage() {
   useEffect(() => {
     fetchUsedEntries(supabase, id).then(setPrevUsed);
   }, [id]);
+
+  // Browser tab shows which quote is open
+  useEffect(() => {
+    if (!quote) return;
+    const parts = [quote.quote_number || 'Quote', quote.customer_name].filter(Boolean);
+    document.title = `${parts.join(' · ')} | ICAPROC`;
+  }, [quote?.quote_number, quote?.customer_name]);
 
   const costFor = useCallback((componentId: string) =>
     getComponentCost(componentId, catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes, catalog.quoteItems, prevUsed.get(componentId) ?? []),
@@ -602,7 +610,7 @@ export default function QuoteEditorPage() {
     const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `${quote.quote_number || 'quote'}.xls`;
+    a.download = `${quoteFileName(quote.quote_number, quote.customer_name, wpTotal)}.xls`;
     a.click();
   }
 
