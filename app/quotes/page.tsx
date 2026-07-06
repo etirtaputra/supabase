@@ -96,6 +96,7 @@ export default function QuotesListPage() {
         ppn_pct: src.ppn_pct,
         status: 'draft',
         notes: src.notes,
+        group_margins: src.group_margins ?? {},
       });
       if (qErr) throw qErr;
 

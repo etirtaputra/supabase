@@ -9,6 +9,9 @@ export interface ProjectQuote {
   ppn_pct: number;
   status: 'draft' | 'sent' | 'accepted' | 'rejected';
   notes: string;
+  // Default GM% per top-level group (keys: solar_panels/bos/services);
+  // applied to new line items, overridable per line
+  group_margins?: Record<string, number> | null;
   created_at?: string;
   updated_at?: string;
 }

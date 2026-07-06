@@ -329,6 +329,50 @@ export default function QuoteEditorPage() {
     return qty * wpPerModule(item);
   }, [wpPerModule]);
 
+  // ── Per-group default margins ──────────────────────────────────────────────
+  // A group's GM% auto-prices new lines (sell = cost / (1 - gm)) whenever a
+  // cost arrives and no sell price is set yet; per-line GM stays editable.
+  const groupGm = useCallback((groupKey: SectionGroup): number | null => {
+    const v = quote?.group_margins?.[groupKey];
+    return typeof v === 'number' && v < 100 ? v : null;
+  }, [quote?.group_margins]);
+
+  function setGroupMargin(groupKey: SectionGroup, raw: string) {
+    const v = parseFloat(raw);
+    setQuote((q) => {
+      if (!q) return q;
+      const margins = { ...(q.group_margins ?? {}) };
+      if (isNaN(v)) delete margins[groupKey];
+      else margins[groupKey] = v;
+      return { ...q, group_margins: margins };
+    });
+    markDirty();
+  }
+
+  function sellFromGroupGm(groupKey: SectionGroup, cost: number | null): string | null {
+    const gm = groupGm(groupKey);
+    if (gm == null || !cost || cost <= 0) return null;
+    return String(Math.round(cost / (1 - gm / 100)));
+  }
+
+  function applyGmToGroup(groupKey: SectionGroup) {
+    const gm = groupGm(groupKey);
+    if (gm == null) return;
+    setSections((prev) => prev.map((s) => {
+      if (s._deleted || s.group_key !== groupKey) return s;
+      return {
+        ...s,
+        items: s.items.map((it) => {
+          if (it._deleted || it.parent_item_id) return it;
+          const c = num(it.cost_price);
+          if (!c || c <= 0) return it;
+          return { ...it, sell_price: String(Math.round(c / (1 - gm / 100))) };
+        }),
+      };
+    }));
+    markDirty();
+  }
+
   // ── Refresh all costs to latest, preserving each item's margin ─────────────
   function refreshCosts() {
     setSections((prev) => prev.map((s) => ({
@@ -544,13 +588,21 @@ export default function QuoteEditorPage() {
   function selectComponent(sid: string, iid: string, comp: Component) {
     const cc = costFor(comp.component_id);
     const costStr = cc ? Math.round(cc.cost).toString() : '';
-    updateItem(sid, iid, {
+    const sec = sections.find((s) => s.section_id === sid);
+    const item = sec?.items.find((i) => i.item_id === iid);
+    const patch: Partial<DraftItem> = {
       component_id: comp.component_id,
       description: comp.supplier_model ?? '',
       brand: comp.brand ?? '',
       unit: comp.category === 'pv_module' ? 'modules' : 'pcs',
       cost_price: costStr,
-    });
+    };
+    // Auto-price from the group's default margin when no sell price is set yet
+    if (sec && item && !num(item.sell_price)) {
+      const sell = sellFromGroupGm(sec.group_key, num(costStr));
+      if (sell) patch.sell_price = sell;
+    }
+    updateItem(sid, iid, patch);
     setAcState(null);
   }
 
@@ -571,6 +623,7 @@ export default function QuoteEditorPage() {
         ppn_pct: num(String(quote.ppn_pct)) ?? 11,
         status: quote.status,
         notes: quote.notes,
+        group_margins: quote.group_margins ?? {},
         updated_at: new Date().toISOString(),
       });
 
@@ -857,7 +910,28 @@ export default function QuoteEditorPage() {
                       {groupSections.length || 'no'} sub-section{groupSections.length !== 1 ? 's' : ''}
                     </span>
                   </h2>
-                  {groupTotal > 0 && <span className="text-sm font-bold text-slate-200 tabular-nums">{fmtIdr(groupTotal)}</span>}
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5" title="Default margin for new line items in this group; each line's GM% can still be overridden">
+                      <span className="text-[10px] uppercase tracking-wider text-slate-500">GM%</span>
+                      <input
+                        type="number"
+                        value={quote.group_margins?.[group.key] ?? ''}
+                        onChange={(e) => setGroupMargin(group.key, e.target.value)}
+                        placeholder="—"
+                        className="w-14 bg-slate-800/80 border border-slate-700 focus:border-emerald-500 rounded-lg px-2 py-0.5 text-xs text-right text-emerald-400 outline-none transition-colors placeholder:text-slate-600"
+                      />
+                      {groupGm(group.key) != null && (
+                        <button
+                          onClick={() => applyGmToGroup(group.key)}
+                          className="text-[10px] text-slate-500 hover:text-emerald-400 transition-colors whitespace-nowrap"
+                          title="Re-price every line in this group with this margin (overwrites per-line margins)"
+                        >
+                          apply to all
+                        </button>
+                      )}
+                    </div>
+                    {groupTotal > 0 && <span className="text-sm font-bold text-slate-200 tabular-nums">{fmtIdr(groupTotal)}</span>}
+                  </div>
                 </div>
                 <div className="space-y-3">
                   {groupSections.map((sec) => {
@@ -1069,6 +1143,11 @@ export default function QuoteEditorPage() {
                               >
                                 <input type="number" value={item.cost_price}
                                   onChange={(e) => updateItem(sec.section_id, item.item_id, { cost_price: e.target.value })}
+                                  onBlur={() => {
+                                    if (num(item.sell_price)) return;
+                                    const sell = sellFromGroupGm(sec.group_key, num(item.cost_price));
+                                    if (sell) updateItem(sec.section_id, item.item_id, { sell_price: sell });
+                                  }}
                                   placeholder="0"
                                   className={`w-full bg-transparent outline-none text-right text-slate-600 placeholder:text-slate-800 ${item.component_id || freeTextHistory.has(item.description.trim().toLowerCase()) ? 'cursor-help' : ''}`} />
                                 {costHover?.itemId === item.item_id && (
