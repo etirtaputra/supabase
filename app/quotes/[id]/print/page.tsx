@@ -21,6 +21,8 @@ export default function PrintPage() {
   const [quote, setQuote] = useState<ProjectQuote | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
   const [companyName, setCompanyName] = useState('');
+  // component_id → Wp per module, for pv_module components used on this quote
+  const [wpMap, setWpMap] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -43,6 +45,19 @@ export default function PrintPage() {
         group_key: (s.group_key as SectionGroup) || 'bos',
         items: items.filter((i) => i.section_id === s.section_id),
       })));
+
+      const compIds = [...new Set(items.map((i) => i.component_id).filter(Boolean))] as string[];
+      if (compIds.length) {
+        const { data: comps } = await supabase
+          .from('3.0_components')
+          .select('component_id, category, norm_value')
+          .in('component_id', compIds);
+        setWpMap(new Map(
+          (comps ?? [])
+            .filter((c) => c.category === 'pv_module' && Number(c.norm_value) > 0)
+            .map((c) => [c.component_id as string, Number(c.norm_value)])
+        ));
+      }
       setLoading(false);
     }
     load();
@@ -69,10 +84,23 @@ export default function PrintPage() {
   const subtotal = sections.reduce((s, sec) => s + sectionTotal(sec), 0);
   const ppn = subtotal * ppnPct / 100;
   const grandTotal = subtotal + ppn;
+  // Wp per module: catalog norm_value, else parsed from the description.
+  // Lines with unit 'Wp' keep qty-as-total-Wp behavior.
+  const wpPerModule = (item: QuoteItem): number => {
+    if (item.component_id && wpMap.has(item.component_id)) return wpMap.get(item.component_id)!;
+    const m = (item.description ?? '').match(/(\d{2,4}(?:[.,]\d+)?)\s*wp\b/i);
+    return m ? parseFloat(m[1].replace(',', '.')) : 0;
+  };
+  const itemWp = (item: QuoteItem): number => {
+    if (item.parent_item_id) return 0;
+    const qty = Number(item.quantity) || 0;
+    if ((item.unit ?? '').trim().toLowerCase() === 'wp') return qty;
+    return qty * wpPerModule(item);
+  };
   const totalWp = sections
     .filter((s) => s.group_key === 'solar_panels')
-    .flatMap((s) => s.items.filter((i) => !i.parent_item_id && (i.unit ?? '').trim().toLowerCase() === 'wp'))
-    .reduce((s, i) => s + (Number(i.quantity) || 0), 0);
+    .flatMap((s) => s.items.filter((i) => !i.parent_item_id))
+    .reduce((s, i) => s + itemWp(i), 0);
 
   return (
     <>
@@ -215,6 +243,14 @@ export default function PrintPage() {
                                   <td />
                                 </tr>
                               ))}
+                              {sec.group_key === 'solar_panels' && itemWp(item) > 0 && (item.unit ?? '').trim().toLowerCase() !== 'wp' && (
+                                <tr className="sub-row">
+                                  <td colSpan={3} style={{ color: '#1a7f4f' }}>Total system size</td>
+                                  <td className="num" style={{ color: '#1a7f4f', fontWeight: 700 }}>{itemWp(item).toLocaleString('en-US')}</td>
+                                  <td style={{ color: '#1a7f4f' }}>Wp</td>
+                                  <td />
+                                </tr>
+                              )}
                             </React.Fragment>
                           );
                         })}
@@ -244,11 +280,7 @@ export default function PrintPage() {
             </div>
             {totalWp > 0 && (
               <>
-                <div className="totals-row" style={{ marginTop: '2mm' }}>
-                  <span>Total System</span>
-                  <span>{totalWp.toLocaleString('en-US')} Wp ({(totalWp / 1000).toLocaleString('en-US', { maximumFractionDigits: 1 })} kWp)</span>
-                </div>
-                <div className="totals-row" style={{ fontWeight: 700 }}>
+                <div className="totals-row" style={{ fontWeight: 700, marginTop: '2mm' }}>
                   <span>Harga per Wp (Exc. PPN{ppnPct}%)</span>
                   <span>{fmtIdr(subtotal / totalWp)}</span>
                 </div>

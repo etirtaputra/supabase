@@ -237,6 +237,26 @@ export default function QuoteEditorPage() {
     getComponentCost(componentId, catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes, catalog.quoteItems, prevUsed.get(componentId) ?? []),
   [catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes, catalog.quoteItems, prevUsed]);
 
+  // ── System size (Wp) ───────────────────────────────────────────────────────
+  // Wp per module: catalog norm_value for pv_module components, else parsed
+  // from the description ("...720Wp..."). Lines with unit 'Wp' keep the old
+  // behavior where qty is already total Wp.
+  const wpPerModule = useCallback((item: DraftItem): number => {
+    if (item.component_id) {
+      const comp = catalog.components.find((c) => c.component_id === item.component_id);
+      if (comp?.category === 'pv_module' && Number(comp.norm_value) > 0) return Number(comp.norm_value);
+    }
+    const m = item.description.match(/(\d{2,4}(?:[.,]\d+)?)\s*wp\b/i);
+    return m ? parseFloat(m[1].replace(',', '.')) : 0;
+  }, [catalog.components]);
+
+  const itemWp = useCallback((item: DraftItem): number => {
+    if (item._deleted || item.parent_item_id) return 0;
+    const qty = num(item.quantity) ?? 0;
+    if (item.unit.trim().toLowerCase() === 'wp') return qty;
+    return qty * wpPerModule(item);
+  }, [wpPerModule]);
+
   // ── Refresh all costs to latest, preserving each item's margin ─────────────
   function refreshCosts() {
     setSections((prev) => prev.map((s) => ({
@@ -354,14 +374,14 @@ export default function QuoteEditorPage() {
         const qty = num(item.quantity) ?? 0;
         const sell = num(item.sell_price) ?? 0;
         sub += qty * sell;
-        // System size: Wp-denominated lines in the Solar Panels group
-        if (sec.group_key === 'solar_panels' && item.unit.trim().toLowerCase() === 'wp') wp += qty;
+        // System size from the Solar Panels group: module qty × Wp/module
+        if (sec.group_key === 'solar_panels') wp += itemWp(item);
       }
     }
     const ppnPct = num(quote?.ppn_pct?.toString() ?? '') ?? 11;
     const tax = sub * ppnPct / 100;
     return { subtotal: sub, ppn: tax, grandTotal: sub + tax, totalWp: wp };
-  }, [sections, quote?.ppn_pct]);
+  }, [sections, quote?.ppn_pct, itemWp]);
 
   // ── Mutations ──────────────────────────────────────────────────────────────
 
@@ -427,7 +447,7 @@ export default function QuoteEditorPage() {
       component_id: comp.component_id,
       description: comp.supplier_model ?? '',
       brand: comp.brand ?? '',
-      unit: comp.category === 'pv_module' ? 'Wp' : 'pcs',
+      unit: comp.category === 'pv_module' ? 'modules' : 'pcs',
       cost_price: costStr,
     });
     setAcState(null);
@@ -505,8 +525,8 @@ export default function QuoteEditorPage() {
     const ppnPct = num(String(quote.ppn_pct)) ?? 11;
     const wpTotal = liveSecs
       .filter((s) => s.group_key === 'solar_panels')
-      .flatMap((s) => s.items.filter((i) => !i._deleted && !i.parent_item_id && i.unit.trim().toLowerCase() === 'wp'))
-      .reduce((s, i) => s + (num(i.quantity) ?? 0), 0);
+      .flatMap((s) => s.items.filter((i) => !i._deleted && !i.parent_item_id))
+      .reduce((s, i) => s + itemWp(i), 0);
 
     let rows = '';
     for (const group of SECTION_GROUPS) {
@@ -534,6 +554,15 @@ export default function QuoteEditorPage() {
             <td>${item.unit}</td>
             <td></td>
           </tr>`;
+          if (sec.group_key === 'solar_panels' && !isChild && itemWp(item) > 0 && item.unit.trim().toLowerCase() !== 'wp') {
+            rows += `<tr style="font-style:italic;color:#1a7f4f">
+              <td style="padding-left:24px">Total system size</td>
+              <td></td><td></td>
+              <td style="text-align:right;font-weight:bold">${itemWp(item).toLocaleString('en-US')}</td>
+              <td>Wp</td>
+              <td></td>
+            </tr>`;
+          }
         }
       }
     }
@@ -555,8 +584,6 @@ export default function QuoteEditorPage() {
       <tr><td colspan="5" style="text-align:right;font-weight:bold">GRAND TOTAL</td>
           <td style="text-align:right;font-weight:bold">${fmtIdr(grandTotal)}</td></tr>
       ${wpTotal > 0 ? `
-      <tr><td colspan="5" style="text-align:right">Total System</td>
-          <td style="text-align:right">${wpTotal.toLocaleString('en-US')} Wp</td></tr>
       <tr><td colspan="5" style="text-align:right;font-weight:bold">Harga per Wp (Exc. PPN${ppnPct}%)</td>
           <td style="text-align:right;font-weight:bold">${fmtIdr(subtotal / wpTotal)}</td></tr>
       <tr><td colspan="5" style="text-align:right;font-weight:bold">Harga per Wp (Inc. PPN${ppnPct}%)</td>
@@ -996,6 +1023,18 @@ export default function QuoteEditorPage() {
                                 </td>
                               </tr>
                             ))}
+                            {/* Auto system-size line: module qty × Wp/module */}
+                            {sec.group_key === 'solar_panels' && itemWp(item) > 0 && item.unit.trim().toLowerCase() !== 'wp' && (
+                              <tr className="bg-emerald-500/[0.04]">
+                                <td />
+                                <td colSpan={2} className="px-2 py-1.5 text-[11px] italic text-emerald-400/90">Total system size (auto)</td>
+                                <td className="px-2 py-1.5 text-right text-[11px] font-semibold text-emerald-400 tabular-nums">{itemWp(item).toLocaleString('en-US')}</td>
+                                <td className="px-2 py-1.5 text-[11px] text-emerald-500/80">Wp</td>
+                                <td colSpan={5} className="px-2 py-1.5 text-[11px] text-slate-600">
+                                  {(num(item.quantity) ?? 0).toLocaleString('en-US')} × {wpPerModule(item).toLocaleString('en-US')} Wp/module
+                                </td>
+                              </tr>
+                            )}
                           </React.Fragment>
                         );
                       })}
@@ -1051,10 +1090,6 @@ export default function QuoteEditorPage() {
             </div>
             {totalWp > 0 && (
               <div className="border-t border-slate-800 pt-2 mt-2 space-y-1.5">
-                <div className="flex justify-between text-xs">
-                  <span className="text-slate-500">Total System</span>
-                  <span className="text-slate-300 tabular-nums">{totalWp.toLocaleString('en-US')} Wp ({(totalWp / 1000).toLocaleString('en-US', { maximumFractionDigits: 1 })} kWp)</span>
-                </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-500">Harga per Wp (Exc. PPN{quote.ppn_pct}%)</span>
                   <span className="text-amber-300 font-semibold tabular-nums">{fmtIdr(subtotal / totalWp)}</span>
