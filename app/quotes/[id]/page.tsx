@@ -241,61 +241,62 @@ export default function QuoteEditorPage() {
   const [prevItems, setPrevItems] = useState<PrevItem[]>([]);
   const [freeTextHistory, setFreeTextHistory] = useState<Map<string, CostEntry[]>>(new Map());
 
-  useEffect(() => {
+  // Loads both suggestion sources; re-run after every Save so long-lived
+  // sessions pick up items saved from other tabs/quotes.
+  const loadReferenceData = useCallback(async () => {
     fetchUsedEntries(supabase, id).then(setPrevUsed);
 
-    async function loadPrevItems() {
-      const [itemsRes, quotesRes] = await Promise.all([
-        supabase.from('10.2_quote_items')
-          .select('description, brand, unit, cost_price, sell_price, quote_id, parent_item_id')
-          .is('component_id', null)
-          .neq('quote_id', id),
-        supabase.from('10.0_project_quotes').select('quote_id, quote_number, quote_date'),
-      ]);
-      const qMap = new Map((quotesRes.data ?? []).map((q) => [q.quote_id as string, q]));
-      const byDesc = new Map<string, PrevItem>();
-      const hist = new Map<string, CostEntry[]>();
-      for (const it of itemsRes.data ?? []) {
-        const desc = String(it.description ?? '').trim();
-        if (it.parent_item_id || desc.length < 3) continue;
-        const q = qMap.get(it.quote_id as string);
-        const date = (q?.quote_date as string) ?? '';
-        const label = (q?.quote_number as string) || 'Project quote';
-        const key = desc.toLowerCase();
+    const [itemsRes, quotesRes] = await Promise.all([
+      supabase.from('10.2_quote_items')
+        .select('description, brand, unit, cost_price, sell_price, quote_id, parent_item_id')
+        .is('component_id', null)
+        .neq('quote_id', id),
+      supabase.from('10.0_project_quotes').select('quote_id, quote_number, quote_date'),
+    ]);
+    const qMap = new Map((quotesRes.data ?? []).map((q) => [q.quote_id as string, q]));
+    const byDesc = new Map<string, PrevItem>();
+    const hist = new Map<string, CostEntry[]>();
+    for (const it of itemsRes.data ?? []) {
+      const desc = String(it.description ?? '').trim();
+      if (it.parent_item_id || desc.length < 3) continue;
+      const q = qMap.get(it.quote_id as string);
+      const date = (q?.quote_date as string) ?? '';
+      const label = (q?.quote_number as string) || 'Project quote';
+      const key = desc.toLowerCase();
 
-        const cost = Number(it.cost_price);
-        if (cost > 0) {
-          const arr = hist.get(key) ?? [];
-          arr.push({ kind: 'used', label, date, unitCost: cost });
-          hist.set(key, arr);
-        }
+      const cost = Number(it.cost_price);
+      if (cost > 0) {
+        const arr = hist.get(key) ?? [];
+        arr.push({ kind: 'used', label, date, unitCost: cost });
+        hist.set(key, arr);
+      }
 
-        const existing = byDesc.get(key);
-        if (existing) {
-          existing.count += 1;
-          if (date > existing.date) {
-            Object.assign(existing, {
-              description: desc, brand: String(it.brand ?? ''), unit: String(it.unit ?? ''),
-              cost_price: it.cost_price != null ? Number(it.cost_price) : null,
-              sell_price: it.sell_price != null ? Number(it.sell_price) : null,
-              label, date,
-            });
-          }
-        } else {
-          byDesc.set(key, {
+      const existing = byDesc.get(key);
+      if (existing) {
+        existing.count += 1;
+        if (date > existing.date) {
+          Object.assign(existing, {
             description: desc, brand: String(it.brand ?? ''), unit: String(it.unit ?? ''),
             cost_price: it.cost_price != null ? Number(it.cost_price) : null,
             sell_price: it.sell_price != null ? Number(it.sell_price) : null,
-            label, date, count: 1,
+            label, date,
           });
         }
+      } else {
+        byDesc.set(key, {
+          description: desc, brand: String(it.brand ?? ''), unit: String(it.unit ?? ''),
+          cost_price: it.cost_price != null ? Number(it.cost_price) : null,
+          sell_price: it.sell_price != null ? Number(it.sell_price) : null,
+          label, date, count: 1,
+        });
       }
-      for (const arr of hist.values()) arr.sort((a, b) => b.date.localeCompare(a.date));
-      setPrevItems([...byDesc.values()]);
-      setFreeTextHistory(hist);
     }
-    loadPrevItems();
+    for (const arr of hist.values()) arr.sort((a, b) => b.date.localeCompare(a.date));
+    setPrevItems([...byDesc.values()]);
+    setFreeTextHistory(hist);
   }, [id]);
+
+  useEffect(() => { loadReferenceData(); }, [loadReferenceData]);
 
   // Browser tab shows which quote is open
   useEffect(() => {
@@ -610,11 +611,28 @@ export default function QuoteEditorPage() {
       setDirty(false);
       setSaveMsg('Saved');
       setTimeout(() => setSaveMsg(''), 2500);
+      loadReferenceData(); // refresh autocomplete/history sources after save
     } catch {
       setSaveMsg('Error saving');
     }
     setSaving(false);
   }
+
+  // ── Ctrl/Cmd+S saves ───────────────────────────────────────────────────────
+  // Ref keeps the handler stable while always seeing the latest state.
+  const saveShortcut = useRef({ save, dirty, saving });
+  saveShortcut.current = { save, dirty, saving };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault(); // always block the browser's save-page dialog
+        const cur = saveShortcut.current;
+        if (cur.dirty && !cur.saving) cur.save();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   // ── Export to Excel (HTML table) ───────────────────────────────────────────
   // Client-facing layout: group bars → sub-section rows with subtotal in AMOUNT,
@@ -757,8 +775,10 @@ export default function QuoteEditorPage() {
               Excel
             </button>
             <button onClick={save} disabled={saving || !dirty}
+              title="Ctrl+S / Cmd+S"
               className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-semibold bg-violet-600 hover:bg-violet-500 text-white transition-all disabled:opacity-40">
               {saving ? 'Saving…' : 'Save'}
+              <span className="hidden sm:inline text-white/50 text-[9px] font-normal">⌘S</span>
             </button>
           </div>
         </div>
