@@ -1,0 +1,117 @@
+'use client';
+import { useEffect, useState } from 'react';
+import { createSupabaseClient } from '@/lib/supabase';
+
+// Full, idempotent schema for the project-quote feature. Safe to re-run.
+const MIGRATION_SQL = `CREATE TABLE IF NOT EXISTS "10.0_project_quotes" (
+  quote_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  quote_number TEXT NOT NULL DEFAULT '',
+  quote_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  company_id UUID,
+  customer_name TEXT DEFAULT '',
+  customer_address TEXT DEFAULT '',
+  project_description TEXT DEFAULT '',
+  ppn_pct NUMERIC(5,2) DEFAULT 11,
+  status TEXT DEFAULT 'draft',
+  notes TEXT DEFAULT '',
+  group_margins JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE "10.0_project_quotes" ADD COLUMN IF NOT EXISTS company_id UUID;
+ALTER TABLE "10.0_project_quotes" ADD COLUMN IF NOT EXISTS group_margins JSONB DEFAULT '{}';
+
+CREATE TABLE IF NOT EXISTS "10.1_quote_sections" (
+  section_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  quote_id UUID NOT NULL REFERENCES "10.0_project_quotes"(quote_id) ON DELETE CASCADE,
+  group_key TEXT NOT NULL DEFAULT 'bos',
+  title TEXT NOT NULL DEFAULT '',
+  lead_time TEXT DEFAULT '',
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE "10.1_quote_sections" ADD COLUMN IF NOT EXISTS group_key TEXT NOT NULL DEFAULT 'bos';
+
+CREATE TABLE IF NOT EXISTS "10.2_quote_items" (
+  item_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  section_id UUID NOT NULL REFERENCES "10.1_quote_sections"(section_id) ON DELETE CASCADE,
+  quote_id UUID NOT NULL REFERENCES "10.0_project_quotes"(quote_id) ON DELETE CASCADE,
+  parent_item_id UUID REFERENCES "10.2_quote_items"(item_id) ON DELETE CASCADE,
+  component_id UUID,
+  description TEXT NOT NULL DEFAULT '',
+  brand TEXT DEFAULT '',
+  quantity NUMERIC,
+  qty_formula TEXT DEFAULT '',
+  eng_note TEXT DEFAULT '',
+  unit TEXT DEFAULT '',
+  cost_price NUMERIC,
+  sell_price NUMERIC,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE "10.2_quote_items" ADD COLUMN IF NOT EXISTS qty_formula TEXT DEFAULT '';
+ALTER TABLE "10.2_quote_items" ADD COLUMN IF NOT EXISTS eng_note TEXT DEFAULT '';`;
+
+/**
+ * Probes the quote tables for the columns this build writes. Renders an
+ * amber banner with copyable SQL when the database is behind the app.
+ */
+export default function MigrationBanner() {
+  const supabase = createSupabaseClient();
+  const [missing, setMissing] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [showSql, setShowSql] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function check() {
+      const probes = await Promise.all([
+        supabase.from('10.0_project_quotes').select('company_id, group_margins').limit(1),
+        supabase.from('10.1_quote_sections').select('group_key').limit(1),
+        supabase.from('10.2_quote_items').select('qty_formula, eng_note').limit(1),
+      ]);
+      if (!cancelled && probes.some((p) => p.error)) setMissing(true);
+    }
+    check();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (!missing) return null;
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(MIGRATION_SQL);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      setShowSql(true);
+    }
+  }
+
+  return (
+    <div className="bg-amber-500/10 border border-amber-500/40 rounded-2xl p-4 text-sm">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-amber-300 font-semibold">Database schema is out of date.</span>
+        <span className="text-amber-200/80 text-xs">
+          Saving and duplicating quotes will fail until the migration runs. Copy the SQL, then run it in
+          Supabase → SQL Editor → New query.
+        </span>
+        <div className="flex gap-2 ml-auto">
+          <button onClick={copy}
+            className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-xs font-semibold transition-colors">
+            {copied ? 'Copied ✓' : 'Copy SQL'}
+          </button>
+          <button onClick={() => setShowSql((v) => !v)}
+            className="px-3 py-1.5 rounded-lg text-amber-300/70 hover:text-amber-200 text-xs transition-colors">
+            {showSql ? 'Hide' : 'Show'} SQL
+          </button>
+        </div>
+      </div>
+      {showSql && (
+        <pre className="mt-3 p-3 bg-black/30 rounded-xl text-[10px] leading-relaxed text-amber-100/80 overflow-x-auto max-h-64 overflow-y-auto select-all">
+          {MIGRATION_SQL}
+        </pre>
+      )}
+    </div>
+  );
+}

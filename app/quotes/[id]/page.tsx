@@ -7,6 +7,7 @@ import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { getComponentCost, type CostEntry } from '@/lib/computeTUC';
 import { fetchUsedEntries } from '@/lib/usedPrices';
 import { quoteFileName } from '@/lib/quoteFilename';
+import MigrationBanner from '@/components/ui/MigrationBanner';
 import { SECTION_GROUPS, type SectionGroup, type ProjectQuote, type QuoteSection, type QuoteItem } from '@/types/quotes';
 import type { Component } from '@/types/database';
 
@@ -151,10 +152,20 @@ export default function QuoteEditorPage() {
   const [acState, setAcState] = useState<{ sectionId: string; itemId: string; query: string; x: number; y: number } | null>(null);
   const acRef = useRef<HTMLDivElement>(null);
 
+  // Highlighted row for keyboard navigation (flat index: components, then prev)
+  const [acIndex, setAcIndex] = useState(0);
+
   function openAc(sectionId: string, itemId: string, query: string, input: HTMLInputElement) {
     const r = input.getBoundingClientRect();
     setAcState({ sectionId, itemId, query, x: r.left, y: r.bottom });
+    setAcIndex(0);
   }
+
+  // Keep the highlighted suggestion visible while arrowing through the list
+  useEffect(() => {
+    document.querySelector(`[data-ac-dropdown] [data-ac-idx="${acIndex}"]`)
+      ?.scrollIntoView({ block: 'nearest' });
+  }, [acIndex]);
 
   // ── GM% inline editing ─────────────────────────────────────────────────────
   // While a GM cell is focused, show the raw typed value instead of the value
@@ -567,22 +578,30 @@ export default function QuoteEditorPage() {
   const acCount = acResults.comps.length + acResults.prev.length;
 
   // ── Computed totals ────────────────────────────────────────────────────────
-  const { subtotal, ppn, grandTotal, totalWp } = useMemo(() => {
-    let sub = 0, wp = 0;
+  const { subtotal, ppn, grandTotal, totalWp, blendedGm, missingSell } = useMemo(() => {
+    let sub = 0, wp = 0, costSum = 0, sellSum = 0, missing = 0;
     for (const sec of sections) {
       if (sec._deleted) continue;
       for (const item of sec.items) {
         if (item._deleted || item.parent_item_id) continue;
         const qty = num(item.quantity) ?? 0;
         const sell = num(item.sell_price) ?? 0;
+        const cost = num(item.cost_price) ?? 0;
         sub += qty * sell;
         // System size from the Solar Panels group: module qty × Wp/module
         if (sec.group_key === 'solar_panels') wp += itemWp(item);
+        if (qty > 0 && sell <= 0) missing += 1;
+        // Blended margin over lines that carry both cost and sell
+        if (qty > 0 && cost > 0 && sell > 0) { costSum += qty * cost; sellSum += qty * sell; }
       }
     }
     const ppnPct = num(quote?.ppn_pct?.toString() ?? '') ?? 11;
     const tax = sub * ppnPct / 100;
-    return { subtotal: sub, ppn: tax, grandTotal: sub + tax, totalWp: wp };
+    return {
+      subtotal: sub, ppn: tax, grandTotal: sub + tax, totalWp: wp,
+      blendedGm: sellSum > 0 ? (1 - costSum / sellSum) * 100 : null,
+      missingSell: missing,
+    };
   }, [sections, quote?.ppn_pct, itemWp]);
 
   // ── Mutations ──────────────────────────────────────────────────────────────
@@ -771,6 +790,22 @@ export default function QuoteEditorPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // ── Unsaved-changes guard + autosave ───────────────────────────────────────
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (saveShortcut.current.dirty) { e.preventDefault(); e.returnValue = ''; }
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    const auto = setInterval(() => {
+      const cur = saveShortcut.current;
+      if (cur.dirty && !cur.saving) cur.save();
+    }, 30_000);
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      clearInterval(auto);
+    };
+  }, []);
+
   // ── Export to Excel (HTML table) ───────────────────────────────────────────
   // Client-facing layout: group bars → sub-section rows with subtotal in AMOUNT,
   // item rows show qty/unit only (no per-line prices).
@@ -876,7 +911,11 @@ export default function QuoteEditorPage() {
       <div className="sticky top-0 z-40 bg-[#0B1120]/95 backdrop-blur-xl border-b border-white/[0.07]">
         <div className="max-w-[1400px] mx-auto px-6 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <Link href="/quotes" className="text-slate-500 hover:text-slate-300 transition-colors flex-shrink-0">
+            <Link
+              href="/quotes"
+              onClick={(e) => { if (dirty && !window.confirm('You have unsaved changes — leave anyway?')) e.preventDefault(); }}
+              className="text-slate-500 hover:text-slate-300 transition-colors flex-shrink-0"
+            >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
             </Link>
             <div className="min-w-0">
@@ -928,7 +967,9 @@ export default function QuoteEditorPage() {
         </div>
       </div>
 
-      <main className="max-w-[1400px] mx-auto px-6 py-6 space-y-6">
+      <main className="max-w-[1400px] mx-auto px-6 py-6 pb-24 space-y-6">
+
+        <MigrationBanner />
 
         {/* ── Header form ── */}
         <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1152,6 +1193,22 @@ export default function QuoteEditorPage() {
                                     openAc(sec.section_id, item.item_id, e.target.value, e.target);
                                   }}
                                   onFocus={(e) => item.description && openAc(sec.section_id, item.item_id, item.description, e.target)}
+                                  onKeyDown={(e) => {
+                                    if (!isAcOpen || acCount === 0) return;
+                                    if (e.key === 'ArrowDown') { e.preventDefault(); setAcIndex((i) => (i + 1) % acCount); }
+                                    else if (e.key === 'ArrowUp') { e.preventDefault(); setAcIndex((i) => (i - 1 + acCount) % acCount); }
+                                    else if (e.key === 'Escape') { setAcState(null); }
+                                    else if (e.key === 'Enter' || e.key === 'Tab') {
+                                      // Enter picks and stays; Tab picks and moves on to Brand
+                                      if (e.key === 'Enter') e.preventDefault();
+                                      if (acIndex < acResults.comps.length) {
+                                        selectComponent(sec.section_id, item.item_id, acResults.comps[acIndex]);
+                                      } else {
+                                        const p = acResults.prev[acIndex - acResults.comps.length];
+                                        if (p) selectPrevItem(sec.section_id, item.item_id, p);
+                                      }
+                                    }
+                                  }}
                                   placeholder="Type to search catalog & past quotes…"
                                   className="w-full bg-transparent outline-none text-slate-200 placeholder:text-slate-700"
                                 />
@@ -1162,13 +1219,15 @@ export default function QuoteEditorPage() {
                                     className="fixed z-50 w-[420px] max-w-[calc(100vw-32px)] max-h-80 overflow-y-auto bg-slate-900 border border-slate-700 rounded-xl shadow-2xl"
                                     style={{ left: Math.min(acState.x, Math.max(16, window.innerWidth - 436)), top: acState.y + 4 }}
                                   >
-                                    {acResults.comps.map((comp) => {
+                                    {acResults.comps.map((comp, ci) => {
                                       const cc = catalogLoading ? null : costFor(comp.component_id);
                                       return (
                                         <button
                                           key={comp.component_id}
+                                          data-ac-idx={ci}
                                           onMouseDown={(e) => { e.preventDefault(); selectComponent(sec.section_id, item.item_id, comp); }}
-                                          className="w-full text-left px-4 py-2.5 hover:bg-slate-800 transition-colors flex items-center justify-between gap-3"
+                                          onMouseEnter={() => setAcIndex(ci)}
+                                          className={`w-full text-left px-4 py-2.5 transition-colors flex items-center justify-between gap-3 ${acIndex === ci ? 'bg-slate-800' : ''}`}
                                         >
                                           <div className="min-w-0">
                                             <p className="text-slate-200 font-medium truncate">{comp.supplier_model}</p>
@@ -1187,11 +1246,13 @@ export default function QuoteEditorPage() {
                                         Previously entered items
                                       </p>
                                     )}
-                                    {acResults.prev.map((p) => (
+                                    {acResults.prev.map((p, pi) => (
                                       <button
                                         key={`prev-${p.description.toLowerCase()}`}
+                                        data-ac-idx={acResults.comps.length + pi}
                                         onMouseDown={(e) => { e.preventDefault(); selectPrevItem(sec.section_id, item.item_id, p); }}
-                                        className="w-full text-left px-4 py-2.5 hover:bg-slate-800 transition-colors flex items-center justify-between gap-3"
+                                        onMouseEnter={() => setAcIndex(acResults.comps.length + pi)}
+                                        className={`w-full text-left px-4 py-2.5 transition-colors flex items-center justify-between gap-3 ${acIndex === acResults.comps.length + pi ? 'bg-slate-800' : ''}`}
                                       >
                                         <div className="min-w-0">
                                           <p className="text-slate-200 font-medium truncate">
@@ -1279,7 +1340,9 @@ export default function QuoteEditorPage() {
                               <td className="px-2 py-2">
                                 <input type="number" value={item.sell_price}
                                   onChange={(e) => updateItem(sec.section_id, item.item_id, { sell_price: e.target.value })}
-                                  placeholder="0" className="w-full bg-transparent outline-none text-right text-slate-200 placeholder:text-slate-700" />
+                                  placeholder="0"
+                                  title={(num(item.quantity) ?? 0) > 0 && !num(item.sell_price) ? 'This line has a quantity but no sell price' : undefined}
+                                  className={`w-full bg-transparent outline-none text-right text-slate-200 placeholder:text-slate-700 ${(num(item.quantity) ?? 0) > 0 && !num(item.sell_price) ? 'border-b border-amber-500/60' : ''}`} />
                               </td>
                               <td className="px-2 py-2 text-right">
                                 {num(item.cost_price) ? (
@@ -1294,7 +1357,7 @@ export default function QuoteEditorPage() {
                                       const s = sellFromGm(item.cost_price, e.target.value);
                                       if (s) updateItem(sec.section_id, item.item_id, { sell_price: s });
                                     }}
-                                    className="w-full bg-transparent outline-none text-right text-emerald-400 placeholder:text-slate-600 border-b border-dashed border-emerald-500/30 focus:border-solid focus:border-emerald-400 transition-colors"
+                                    className={`w-full bg-transparent outline-none text-right placeholder:text-slate-600 border-b border-dashed focus:border-solid transition-colors ${(num(gm) ?? 0) < 0 ? 'text-red-400 border-red-500/40 focus:border-red-400' : 'text-emerald-400 border-emerald-500/30 focus:border-emerald-400'}`}
                                   />
                                 ) : <span className="text-slate-700">—</span>}
                               </td>
@@ -1485,6 +1548,34 @@ export default function QuoteEditorPage() {
           />
         </div>
       </main>
+
+      {/* ── Sticky totals bar ── */}
+      {subtotal > 0 && (
+        <div className="fixed bottom-0 inset-x-0 z-40 bg-[#0B1120]/95 backdrop-blur-xl border-t border-white/[0.07]">
+          <div className="max-w-[1400px] mx-auto px-6 py-2.5 flex items-center gap-5 text-xs overflow-x-auto whitespace-nowrap">
+            <span className="text-slate-500">Subtotal <span className="ml-1 text-slate-200 font-semibold tabular-nums">{fmtIdr(subtotal)}</span></span>
+            <span className="text-slate-500">Grand Total <span className="ml-1 text-white font-bold tabular-nums">{fmtIdr(grandTotal)}</span></span>
+            {totalWp > 0 && (
+              <span className="text-slate-500">per Wp <span className="ml-1 text-amber-300 font-semibold tabular-nums">{fmtIdr(subtotal / totalWp)}</span></span>
+            )}
+            {blendedGm != null && (
+              <span className="text-slate-500">Blended GM
+                <span className={`ml-1 font-semibold tabular-nums ${blendedGm < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                  {blendedGm.toFixed(1)}%
+                </span>
+              </span>
+            )}
+            {missingSell > 0 && (
+              <span className="text-amber-400 font-medium">⚠ {missingSell} line{missingSell > 1 ? 's' : ''} missing sell price</span>
+            )}
+            <span className="ml-auto flex-shrink-0">
+              {dirty
+                ? <span className="text-amber-400">Unsaved changes</span>
+                : <span className="text-slate-600">All changes saved</span>}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

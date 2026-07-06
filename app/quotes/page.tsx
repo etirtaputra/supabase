@@ -6,6 +6,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { getComponentCost } from '@/lib/computeTUC';
 import { fetchUsedEntries } from '@/lib/usedPrices';
+import MigrationBanner from '@/components/ui/MigrationBanner';
 import type { ProjectQuote } from '@/types/quotes';
 
 const STATUS_STYLES: Record<string, string> = {
@@ -198,7 +199,8 @@ export default function QuotesListPage() {
         </div>
       </div>
 
-      <main className="max-w-6xl mx-auto px-6 py-8">
+      <main className="max-w-6xl mx-auto px-6 py-8 space-y-6">
+        <MigrationBanner />
         {loading ? (
           <div className="flex items-center justify-center h-64 text-slate-500">Loading…</div>
         ) : quotes.length === 0 ? (
