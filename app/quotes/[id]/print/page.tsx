@@ -2,10 +2,10 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
-import type { ProjectQuote, QuoteSection, QuoteItem } from '@/types/quotes';
+import { SECTION_GROUPS, type SectionGroup, type ProjectQuote, type QuoteSection, type QuoteItem } from '@/types/quotes';
 
 function fmtIdr(v: number) {
-  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v);
+  return `Rp${Math.round(v).toLocaleString('en-US')}`;
 }
 function fmtDate(d: string) {
   if (!d) return '';
@@ -35,6 +35,7 @@ export default function PrintPage() {
       const items = (itemRes.data ?? []) as QuoteItem[];
       setSections(secs.map((s) => ({
         ...s,
+        group_key: (s.group_key as SectionGroup) || 'bos',
         items: items.filter((i) => i.section_id === s.section_id),
       })));
       setLoading(false);
@@ -57,17 +58,12 @@ export default function PrintPage() {
   }
 
   const ppnPct = Number(quote.ppn_pct) || 11;
-  let subtotal = 0;
-  for (const sec of sections) {
-    for (const item of sec.items) {
-      if (item.parent_item_id) continue;
-      subtotal += (Number(item.quantity) || 0) * (Number(item.sell_price) || 0);
-    }
-  }
+  const sectionTotal = (sec: Section) =>
+    sec.items.filter((i) => !i.parent_item_id)
+      .reduce((s, i) => s + (Number(i.quantity) || 0) * (Number(i.sell_price) || 0), 0);
+  const subtotal = sections.reduce((s, sec) => s + sectionTotal(sec), 0);
   const ppn = subtotal * ppnPct / 100;
   const grandTotal = subtotal + ppn;
-
-  let rowNum = 0;
 
   return (
     <>
@@ -88,7 +84,6 @@ export default function PrintPage() {
         .doc-title .quote-num { font-size: 10pt; color: #444; margin-top: 1mm; }
         .doc-title .quote-date { font-size: 9pt; color: #666; }
         .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; margin-bottom: 5mm; }
-        .meta-block { }
         .meta-label { font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #888; margin-bottom: 1mm; }
         .meta-value { font-size: 10pt; font-weight: 600; color: #1a1a1a; line-height: 1.4; }
         .meta-sub { font-size: 9pt; color: #444; line-height: 1.4; }
@@ -98,15 +93,16 @@ export default function PrintPage() {
         thead tr { background: #1e3a5f; color: white; }
         thead th { padding: 2.5mm 2mm; text-align: left; font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
         thead th.right { text-align: right; }
+        tbody tr.group-row { background: #1e3a5f; }
+        tbody tr.group-row td { padding: 2mm; font-weight: 700; font-size: 9.5pt; color: #fff; text-transform: uppercase; letter-spacing: 0.5px; }
         tbody tr.section-row { background: #e8eef7; }
-        tbody tr.section-row td { padding: 2mm 2mm; font-weight: 700; font-size: 9pt; color: #1e3a5f; }
+        tbody tr.section-row td { padding: 2mm; font-weight: 700; font-size: 9pt; color: #1e3a5f; }
         tbody tr.item-row td { padding: 1.5mm 2mm; border-bottom: 0.3pt solid #e5e7eb; vertical-align: top; }
-        tbody tr.item-row:hover { background: #fafafa; }
         tbody tr.sub-row td { padding: 1mm 2mm 1mm 8mm; border-bottom: 0.3pt solid #f0f0f0; color: #666; font-size: 8.5pt; font-style: italic; }
         td.right { text-align: right; }
         td.num { text-align: right; font-variant-numeric: tabular-nums; }
         .totals-wrap { display: flex; justify-content: flex-end; margin-top: 4mm; }
-        .totals { width: 70mm; }
+        .totals { width: 80mm; }
         .totals-row { display: flex; justify-content: space-between; padding: 1mm 0; font-size: 9.5pt; border-bottom: 0.3pt solid #e5e7eb; }
         .totals-row.grand { font-weight: 700; font-size: 11pt; color: #1e3a5f; border-top: 1.5pt solid #1e3a5f; border-bottom: none; padding-top: 2mm; margin-top: 1mm; }
         .footer { margin-top: 10mm; border-top: 0.5pt solid #ccc; padding-top: 4mm; display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; font-size: 8.5pt; color: #555; }
@@ -134,14 +130,14 @@ export default function PrintPage() {
 
         {/* Meta: customer */}
         <div className="meta">
-          <div className="meta-block">
+          <div>
             <div className="meta-label">Kepada Yth.</div>
             <div className="meta-value">{quote.customer_name || '—'}</div>
             {quote.customer_address && (
               <div className="meta-sub" style={{ whiteSpace: 'pre-line' }}>{quote.customer_address}</div>
             )}
           </div>
-          <div className="meta-block" style={{ textAlign: 'right' }}>
+          <div style={{ textAlign: 'right' }}>
             <div className="meta-label">Nomor Penawaran</div>
             <div className="meta-value">{quote.quote_number}</div>
             <div className="meta-sub" style={{ marginTop: '2mm' }}>Tanggal: {fmtDate(quote.quote_date)}</div>
@@ -156,60 +152,61 @@ export default function PrintPage() {
           </div>
         )}
 
-        {/* Items table */}
+        {/* Items table — client-facing: amounts only at sub-section level */}
         <table>
           <thead>
             <tr>
-              <th style={{ width: '28px' }}>No</th>
-              <th>Uraian / Description</th>
-              <th style={{ width: '45px' }}>Brand</th>
-              <th style={{ width: '50px' }}>Lead Time</th>
-              <th className="right" style={{ width: '35px' }}>Qty</th>
-              <th style={{ width: '30px' }}>Unit</th>
-              <th className="right" style={{ width: '65px' }}>Harga/Unit</th>
-              <th className="right" style={{ width: '72px' }}>Jumlah</th>
+              <th>Items</th>
+              <th style={{ width: '60px' }}>Brand</th>
+              <th style={{ width: '55px' }}>Lead Time</th>
+              <th className="right" style={{ width: '55px' }}>Qty</th>
+              <th style={{ width: '40px' }}>Unit</th>
+              <th className="right" style={{ width: '90px' }}>Amount</th>
             </tr>
           </thead>
           <tbody>
-            {sections.map((sec) => {
-              const mainItems = sec.items.filter((i) => !i.parent_item_id);
-              const secTotal = mainItems.reduce((s, i) => s + (Number(i.quantity) || 0) * (Number(i.sell_price) || 0), 0);
+            {SECTION_GROUPS.map((group) => {
+              const groupSecs = sections.filter((s) => s.group_key === group.key);
+              if (!groupSecs.length) return null;
               return (
-                <React.Fragment key={sec.section_id}>
-                  <tr className="section-row">
-                    <td />
-                    <td colSpan={6} style={{ fontWeight: 700 }}>{sec.title}</td>
-                    <td className="num" style={{ fontWeight: 700, color: '#1e3a5f' }}>
-                      {secTotal > 0 ? fmtIdr(secTotal) : ''}
-                    </td>
+                <React.Fragment key={group.key}>
+                  <tr className="group-row">
+                    <td colSpan={6}>{group.label}</td>
                   </tr>
-                  {mainItems.map((item) => {
-                    rowNum += 1;
-                    const subItems = sec.items.filter((i) => i.parent_item_id === item.item_id);
-                    const total = (Number(item.quantity) || 0) * (Number(item.sell_price) || 0);
+                  {groupSecs.map((sec) => {
+                    const mainItems = sec.items.filter((i) => !i.parent_item_id);
+                    const secTotal = sectionTotal(sec);
                     return (
-                      <React.Fragment key={item.item_id}>
-                        <tr className="item-row">
-                          <td className="num" style={{ color: '#888', fontSize: '8pt' }}>{rowNum}</td>
-                          <td>{item.description}</td>
-                          <td style={{ color: '#555' }}>{item.brand}</td>
-                          <td style={{ color: '#555', fontSize: '8.5pt' }}>{sec.lead_time}</td>
-                          <td className="num">{item.quantity ?? ''}</td>
-                          <td style={{ color: '#555' }}>{item.unit}</td>
-                          <td className="num">{item.sell_price ? fmtIdr(Number(item.sell_price)) : ''}</td>
-                          <td className="num" style={{ fontWeight: total > 0 ? 600 : 400 }}>
-                            {total > 0 ? fmtIdr(total) : ''}
-                          </td>
+                      <React.Fragment key={sec.section_id}>
+                        <tr className="section-row">
+                          <td colSpan={2}>{sec.title}</td>
+                          <td>{sec.lead_time}</td>
+                          <td /><td />
+                          <td className="num">{secTotal > 0 ? fmtIdr(secTotal) : ''}</td>
                         </tr>
-                        {subItems.map((sub) => (
-                          <tr key={sub.item_id} className="sub-row">
-                            <td />
-                            <td colSpan={3}>↳ {sub.description}{sub.brand ? ` — ${sub.brand}` : ''}</td>
-                            <td className="num">{sub.quantity ?? ''}</td>
-                            <td>{sub.unit}</td>
-                            <td /><td />
-                          </tr>
-                        ))}
+                        {mainItems.map((item) => {
+                          const subItems = sec.items.filter((i) => i.parent_item_id === item.item_id);
+                          return (
+                            <React.Fragment key={item.item_id}>
+                              <tr className="item-row">
+                                <td>{item.description}</td>
+                                <td style={{ color: '#555' }}>{item.brand}</td>
+                                <td />
+                                <td className="num">{item.quantity != null ? Number(item.quantity).toLocaleString('en-US') : ''}</td>
+                                <td style={{ color: '#555' }}>{item.unit}</td>
+                                <td />
+                              </tr>
+                              {subItems.map((sub) => (
+                                <tr key={sub.item_id} className="sub-row">
+                                  <td colSpan={3}>↳ {sub.description}{sub.brand ? ` — ${sub.brand}` : ''}</td>
+                                  <td className="num">{sub.quantity != null ? Number(sub.quantity).toLocaleString('en-US') : ''}</td>
+                                  <td>{sub.unit}</td>
+                                  <td />
+                                </tr>
+                              ))}
+                            </React.Fragment>
+                          );
+                        })}
                       </React.Fragment>
                     );
                   })}
@@ -223,15 +220,15 @@ export default function PrintPage() {
         <div className="totals-wrap">
           <div className="totals">
             <div className="totals-row">
-              <span>Subtotal (excl. PPN)</span>
+              <span>Total (excld. PPN{ppnPct}%)</span>
               <span>{fmtIdr(subtotal)}</span>
             </div>
             <div className="totals-row">
-              <span>PPN {ppnPct}%</span>
+              <span>PPN{ppnPct}%</span>
               <span>{fmtIdr(ppn)}</span>
             </div>
             <div className="totals-row grand">
-              <span>TOTAL</span>
+              <span>GRAND TOTAL</span>
               <span>{fmtIdr(grandTotal)}</span>
             </div>
           </div>
@@ -255,7 +252,7 @@ export default function PrintPage() {
           <div>
             <div className="sig-label">Disetujui oleh,</div>
             <div className="sig-line" />
-            <div className="sig-name">{quote.customer_name || '(nama &amp; jabatan)'}</div>
+            <div className="sig-name">{quote.customer_name || '(nama & jabatan)'}</div>
           </div>
         </div>
       </div>

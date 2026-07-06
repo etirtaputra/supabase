@@ -12,9 +12,20 @@ export interface ProjectQuote {
   updated_at?: string;
 }
 
+// Fixed top-level groups every quote is divided into.
+// Sections are sub-sections that live inside one of these groups.
+export type SectionGroup = 'solar_panels' | 'bos' | 'services';
+
+export const SECTION_GROUPS: { key: SectionGroup; label: string }[] = [
+  { key: 'solar_panels', label: 'Solar Panels' },
+  { key: 'bos',          label: 'Balance of System (BoS)' },
+  { key: 'services',     label: 'Services' },
+];
+
 export interface QuoteSection {
   section_id: string;
   quote_id: string;
+  group_key: SectionGroup;
   title: string;
   lead_time: string;
   sort_order: number;

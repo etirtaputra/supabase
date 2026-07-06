@@ -1,10 +1,27 @@
-import type { PurchaseOrder, PurchaseLineItem, POCost, PriceQuote } from '../types/database';
+import type { PurchaseOrder, PurchaseLineItem, POCost, PriceQuote, PriceQuoteLineItem } from '../types/database';
 import { PRINCIPAL_CATS, BANK_FEE_CATS, TAX_CATS } from '../constants/costCategories';
+
+// Fallback rates for price-quote lines, which carry no exchange rate of their own
+const FX: Record<string, number> = { USD: 16000, RMB: 2200, IDR: 1 };
+
+export interface CostEntry {
+  kind: 'tuc' | 'quote';
+  label: string;      // PO number or quote PI number
+  date: string;
+  unitCost: number;   // IDR
+}
 
 export interface TUCResult {
   tuc: number;
   latestPoDate: string;
   poCount: number;
+  entries: CostEntry[];
+}
+
+export interface ComponentCost {
+  cost: number;             // recommended cost: weighted-avg TUC, else latest quote price
+  source: 'tuc' | 'quote';
+  history: CostEntry[];     // all TUC + quote entries, newest first
 }
 
 /**
@@ -40,6 +57,7 @@ export function computeTUC(
 
   let wSum = 0, wQty = 0, latestDate = '';
   const seen = new Set<number>();
+  const entries: CostEntry[] = [];
 
   for (const item of poItems) {
     if (item.component_id !== componentId) continue;
@@ -68,8 +86,62 @@ export function computeTUC(
     wQty += item.quantity;
     seen.add(po.po_id);
     if ((po.po_date ?? '') > latestDate) latestDate = po.po_date ?? '';
+    entries.push({ kind: 'tuc', label: po.po_number || `PO ${po.po_id}`, date: po.po_date ?? '', unitCost: tuc });
   }
 
   if (wQty === 0) return null;
-  return { tuc: wSum / wQty, latestPoDate: latestDate, poCount: seen.size };
+  entries.sort((a, b) => b.date.localeCompare(a.date));
+  return { tuc: wSum / wQty, latestPoDate: latestDate, poCount: seen.size, entries };
+}
+
+/**
+ * Price-quote history for a component (IDR), newest first.
+ * Quote lines carry no exchange rate, so foreign currencies use FX fallbacks.
+ */
+export function quotePriceHistory(
+  componentId: string,
+  quotes: PriceQuote[],
+  quoteItems: PriceQuoteLineItem[],
+): CostEntry[] {
+  const entries: CostEntry[] = [];
+  for (const li of quoteItems) {
+    if (li.component_id !== componentId) continue;
+    const q = quotes.find((x) => x.quote_id === li.quote_id);
+    if (!q) continue;
+    const cur = li.currency || q.currency;
+    const idr = cur === 'IDR' ? Number(li.unit_price) : Number(li.unit_price) * (FX[cur] || 1);
+    if (idr <= 0) continue;
+    entries.push({
+      kind: 'quote',
+      label: q.pi_number || `Quote ${q.quote_id}`,
+      date: q.quote_date ?? '',
+      unitCost: idr,
+    });
+  }
+  entries.sort((a, b) => b.date.localeCompare(a.date));
+  return entries;
+}
+
+/**
+ * Recommended cost for a component with full price history.
+ * Prefers weighted-average TUC from settled POs; when no TUC exists, falls back
+ * to the most recent price-quote line (FX-converted to IDR).
+ */
+export function getComponentCost(
+  componentId: string,
+  pos: PurchaseOrder[],
+  poItems: PurchaseLineItem[],
+  poCosts: POCost[],
+  quotes: PriceQuote[],
+  quoteItems: PriceQuoteLineItem[],
+): ComponentCost | null {
+  const tuc = computeTUC(componentId, pos, poItems, poCosts, quotes);
+  const quoteEntries = quotePriceHistory(componentId, quotes, quoteItems);
+
+  const history = [...(tuc?.entries ?? []), ...quoteEntries]
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  if (tuc) return { cost: tuc.tuc, source: 'tuc', history };
+  if (quoteEntries.length) return { cost: quoteEntries[0].unitCost, source: 'quote', history };
+  return null;
 }

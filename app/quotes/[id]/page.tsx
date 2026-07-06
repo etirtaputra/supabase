@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
-import { computeTUC } from '@/lib/computeTUC';
-import type { ProjectQuote, QuoteSection, QuoteItem } from '@/types/quotes';
+import { getComponentCost, type CostEntry } from '@/lib/computeTUC';
+import { SECTION_GROUPS, type SectionGroup, type ProjectQuote, type QuoteSection, type QuoteItem } from '@/types/quotes';
 import type { Component } from '@/types/database';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -25,6 +25,7 @@ interface DraftItem {
 }
 interface DraftSection {
   section_id: string;
+  group_key: SectionGroup;
   title: string;
   lead_time: string;
   sort_order: number;
@@ -44,9 +45,7 @@ function num(s: string) { const n = parseFloat(s); return isNaN(n) ? null : n; }
 
 function fmtIdr(v: number | null | undefined) {
   if (v == null) return '—';
-  if (v >= 1_000_000) return `Rp${(v / 1_000_000).toFixed(2)}M`;
-  if (v >= 1_000)     return `Rp${(v / 1_000).toFixed(0)}k`;
-  return `Rp${Math.round(v).toLocaleString()}`;
+  return `Rp${Math.round(v).toLocaleString('en-US')}`;
 }
 
 function gmFromPrices(cost: string, sell: string): string {
@@ -104,6 +103,17 @@ export default function QuoteEditorPage() {
   // (typing "3" of "30" snaps to the recomputed margin).
   const [gmEdit, setGmEdit] = useState<{ itemId: string; value: string } | null>(null);
 
+  // ── Cost history hover popup ───────────────────────────────────────────────
+  const [costHover, setCostHover] = useState<{ itemId: string; history: CostEntry[]; source: string; x: number; y: number } | null>(null);
+
+  function showCostHistory(itemId: string, componentId: string | null, el: HTMLElement) {
+    if (!componentId) return;
+    const cc = getComponentCost(componentId, catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes, catalog.quoteItems);
+    if (!cc || !cc.history.length) return;
+    const r = el.getBoundingClientRect();
+    setCostHover({ itemId, history: cc.history.slice(0, 10), source: cc.source, x: r.right, y: r.bottom });
+  }
+
   // ── Load quote from DB ─────────────────────────────────────────────────────
   useEffect(() => {
     async function load() {
@@ -121,6 +131,7 @@ export default function QuoteEditorPage() {
 
       setSections(dbSections.map((sec) => ({
         section_id: sec.section_id,
+        group_key: (sec.group_key as SectionGroup) || 'bos',
         title: sec.title,
         lead_time: sec.lead_time,
         sort_order: sec.sort_order,
@@ -201,10 +212,10 @@ export default function QuoteEditorPage() {
     markDirty();
   }
 
-  function addSection() {
+  function addSection(group: SectionGroup) {
     setSections((prev) => [
       ...prev,
-      { section_id: uid(), title: 'New section', lead_time: 'Ready', sort_order: prev.length, items: [] },
+      { section_id: uid(), group_key: group, title: '', lead_time: 'Ready', sort_order: prev.length, items: [] },
     ]);
     markDirty();
   }
@@ -250,8 +261,8 @@ export default function QuoteEditorPage() {
 
   // ── Autocomplete selection ─────────────────────────────────────────────────
   function selectComponent(sid: string, iid: string, comp: Component) {
-    const tuc = computeTUC(comp.component_id, catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes);
-    const costStr = tuc ? Math.round(tuc.tuc).toString() : '';
+    const cc = getComponentCost(comp.component_id, catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes, catalog.quoteItems);
+    const costStr = cc ? Math.round(cc.cost).toString() : '';
     updateItem(sid, iid, {
       component_id: comp.component_id,
       description: comp.supplier_model ?? '',
@@ -287,12 +298,15 @@ export default function QuoteEditorPage() {
       if (deletedItemIds.length) await supabase.from('10.2_quote_items').delete().in('item_id', deletedItemIds);
       if (deletedSecIds.length)  await supabase.from('10.1_quote_sections').delete().in('section_id', deletedSecIds);
 
-      // 3. Upsert live sections
-      const liveSections = sections.filter((s) => !s._deleted);
+      // 3. Upsert live sections, ordered by group (solar → bos → services)
+      const groupOrder = SECTION_GROUPS.map((g) => g.key);
+      const liveSections = sections
+        .filter((s) => !s._deleted)
+        .sort((a, b) => groupOrder.indexOf(a.group_key) - groupOrder.indexOf(b.group_key));
       if (liveSections.length) {
         await supabase.from('10.1_quote_sections').upsert(
           liveSections.map((s, i) => ({
-            section_id: s.section_id, quote_id: id,
+            section_id: s.section_id, quote_id: id, group_key: s.group_key,
             title: s.title, lead_time: s.lead_time, sort_order: i,
           }))
         );
@@ -322,33 +336,40 @@ export default function QuoteEditorPage() {
   }
 
   // ── Export to Excel (HTML table) ───────────────────────────────────────────
+  // Client-facing layout: group bars → sub-section rows with subtotal in AMOUNT,
+  // item rows show qty/unit only (no per-line prices).
   function exportExcel() {
     if (!quote) return;
-    const liveSections = sections.filter((s) => !s._deleted);
+    const liveSecs = sections.filter((s) => !s._deleted);
     const ppnPct = num(String(quote.ppn_pct)) ?? 11;
 
     let rows = '';
-    for (const sec of liveSections) {
-      const secTotal = sec.items.filter((i) => !i._deleted && !i.parent_item_id)
-        .reduce((s, i) => s + (num(i.quantity) ?? 0) * (num(i.sell_price) ?? 0), 0);
+    for (const group of SECTION_GROUPS) {
+      const groupSecs = liveSecs.filter((s) => s.group_key === group.key);
+      if (!groupSecs.length) continue;
       rows += `<tr style="background:#1e3a5f;color:#fff;font-weight:bold">
-        <td colspan="6">${sec.title}</td>
-        <td></td>
-        <td style="text-align:right">${secTotal > 0 ? fmtIdr(secTotal) : ''}</td>
+        <td colspan="6">${group.label}</td>
       </tr>`;
-      for (const item of sec.items.filter((i) => !i._deleted)) {
-        const total = (num(item.quantity) ?? 0) * (num(item.sell_price) ?? 0);
-        const isChild = !!item.parent_item_id;
-        rows += `<tr style="${isChild ? 'font-style:italic;color:#555' : ''}">
-          <td style="padding-left:${isChild ? '24' : '8'}px">${item.description}</td>
-          <td>${item.brand}</td>
+      for (const sec of groupSecs) {
+        const secTotal = sec.items.filter((i) => !i._deleted && !i.parent_item_id)
+          .reduce((s, i) => s + (num(i.quantity) ?? 0) * (num(i.sell_price) ?? 0), 0);
+        rows += `<tr style="background:#e8eef7;font-weight:bold;color:#1e3a5f">
+          <td colspan="2">${sec.title}</td>
           <td>${sec.lead_time}</td>
-          <td style="text-align:right">${item.quantity}</td>
-          <td>${item.unit}</td>
-          <td style="text-align:right">${item.sell_price ? fmtIdr(num(item.sell_price)) : ''}</td>
-          <td style="text-align:right">${total > 0 ? fmtIdr(total) : ''}</td>
-          <td style="text-align:right">${!isChild && total > 0 ? fmtIdr(total) : ''}</td>
+          <td></td><td></td>
+          <td style="text-align:right">${secTotal > 0 ? fmtIdr(secTotal) : ''}</td>
         </tr>`;
+        for (const item of sec.items.filter((i) => !i._deleted)) {
+          const isChild = !!item.parent_item_id;
+          rows += `<tr style="${isChild ? 'font-style:italic;color:#555' : ''}">
+            <td style="padding-left:${isChild ? '24' : '8'}px">${item.description}</td>
+            <td>${item.brand}</td>
+            <td></td>
+            <td style="text-align:right">${item.quantity ?? ''}</td>
+            <td>${item.unit}</td>
+            <td></td>
+          </tr>`;
+        }
       }
     }
 
@@ -360,14 +381,13 @@ export default function QuoteEditorPage() {
     <p>${quote.project_description}</p>
     <p style="text-align:right"><b>QUOTE ID:</b> ${quote.quote_number} &nbsp; ${quote.quote_date}</p>
     <table>
-      <tr><th>ITEMS</th><th>BRAND</th><th>LEAD TIME</th><th>QTY</th><th>UNIT</th><th>QUOTE/UNIT</th><th>TOTAL</th><th>AMOUNT</th></tr>
+      <tr><th>ITEMS</th><th>BRAND</th><th>LEAD TIME</th><th>QTY</th><th>UNIT</th><th>AMOUNT</th></tr>
       ${rows}
-      <tr><td colspan="6" style="text-align:right;font-weight:bold">Total (excl. PPN${ppnPct}%)</td>
-          <td style="text-align:right">${fmtIdr(subtotal)}</td><td style="text-align:right">${fmtIdr(subtotal)}</td></tr>
-      <tr><td colspan="6" style="text-align:right">PPN${ppnPct}%</td>
-          <td style="text-align:right">${fmtIdr(ppn)}</td><td style="text-align:right">${fmtIdr(ppn)}</td></tr>
-      <tr><td colspan="6" style="text-align:right;font-weight:bold">TOTAL</td>
-          <td style="text-align:right;font-weight:bold">${fmtIdr(grandTotal)}</td>
+      <tr><td colspan="5" style="text-align:right;font-weight:bold">Total (excl. PPN${ppnPct}%)</td>
+          <td style="text-align:right">${fmtIdr(subtotal)}</td></tr>
+      <tr><td colspan="5" style="text-align:right">PPN${ppnPct}%</td>
+          <td style="text-align:right">${fmtIdr(ppn)}</td></tr>
+      <tr><td colspan="5" style="text-align:right;font-weight:bold">GRAND TOTAL</td>
           <td style="text-align:right;font-weight:bold">${fmtIdr(grandTotal)}</td></tr>
     </table></body></html>`;
 
@@ -468,9 +488,27 @@ export default function QuoteEditorPage() {
           </div>
         </div>
 
-        {/* ── Sections ── */}
-        <div className="space-y-4" ref={acRef}>
-          {liveSections.map((sec, secIdx) => {
+        {/* ── Groups & sub-sections ── */}
+        <div className="space-y-8" ref={acRef}>
+          {SECTION_GROUPS.map((group) => {
+            const groupSections = liveSections.filter((s) => s.group_key === group.key);
+            const groupTotal = groupSections.reduce((gs, s) =>
+              gs + s.items.filter((i) => !i._deleted && !i.parent_item_id)
+                .reduce((ss, i) => ss + (num(i.quantity) ?? 0) * (num(i.sell_price) ?? 0), 0), 0);
+            return (
+              <div key={group.key}>
+                {/* Group header */}
+                <div className="flex items-center justify-between mb-3 px-1 border-b-2 border-[#1e3a5f] pb-2">
+                  <h2 className="text-sm font-extrabold uppercase tracking-widest text-white">
+                    {group.label}
+                    <span className="ml-2 text-slate-600 font-normal normal-case tracking-normal text-xs">
+                      {groupSections.length || 'no'} sub-section{groupSections.length !== 1 ? 's' : ''}
+                    </span>
+                  </h2>
+                  {groupTotal > 0 && <span className="text-sm font-bold text-slate-200 tabular-nums">{fmtIdr(groupTotal)}</span>}
+                </div>
+                <div className="space-y-3">
+                  {groupSections.map((sec) => {
             const liveItems = sec.items.filter((i) => !i._deleted);
             const mainItems = liveItems.filter((i) => !i.parent_item_id);
             const secSubtotal = mainItems.reduce((s, i) => s + (num(i.quantity) ?? 0) * (num(i.sell_price) ?? 0), 0);
@@ -554,7 +592,7 @@ export default function QuoteEditorPage() {
                                     style={{ left: Math.min(acState.x, Math.max(16, window.innerWidth - 436)), top: acState.y + 4 }}
                                   >
                                     {acResults.map((comp) => {
-                                      const tuc = catalogLoading ? null : computeTUC(comp.component_id, catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes);
+                                      const cc = catalogLoading ? null : getComponentCost(comp.component_id, catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes, catalog.quoteItems);
                                       return (
                                         <button
                                           key={comp.component_id}
@@ -566,9 +604,9 @@ export default function QuoteEditorPage() {
                                             <p className="text-[10px] text-slate-500">{[comp.brand, comp.category].filter(Boolean).join(' · ')}</p>
                                           </div>
                                           <div className="text-right flex-shrink-0">
-                                            {tuc ? <p className="text-violet-400 font-semibold text-xs">{fmtIdr(tuc.tuc)}</p>
-                                                 : <p className="text-slate-600 text-[10px]">no TUC</p>}
-                                            {tuc && <p className="text-[10px] text-slate-600">{tuc.poCount} PO{tuc.poCount !== 1 ? 's' : ''}</p>}
+                                            {cc ? <p className={`font-semibold text-xs ${cc.source === 'tuc' ? 'text-violet-400' : 'text-sky-400'}`}>{fmtIdr(cc.cost)}</p>
+                                                : <p className="text-slate-600 text-[10px]">no price data</p>}
+                                            {cc && <p className="text-[10px] text-slate-600">{cc.source === 'tuc' ? 'TUC' : 'latest quote'}</p>}
                                           </div>
                                         </button>
                                       );
@@ -590,10 +628,37 @@ export default function QuoteEditorPage() {
                                   placeholder="unit" className="w-full bg-transparent outline-none text-slate-300 placeholder:text-slate-700" />
                                 <datalist id={`units-${item.item_id}`}>{UNITS.map((u) => <option key={u} value={u} />)}</datalist>
                               </td>
-                              <td className="px-2 py-2">
+                              <td
+                                className="px-2 py-2"
+                                onMouseEnter={(e) => showCostHistory(item.item_id, item.component_id, e.currentTarget)}
+                                onMouseLeave={() => setCostHover(null)}
+                              >
                                 <input type="number" value={item.cost_price}
                                   onChange={(e) => updateItem(sec.section_id, item.item_id, { cost_price: e.target.value })}
-                                  placeholder="0" className="w-full bg-transparent outline-none text-right text-slate-600 placeholder:text-slate-800" />
+                                  placeholder="0"
+                                  className={`w-full bg-transparent outline-none text-right text-slate-600 placeholder:text-slate-800 ${item.component_id ? 'cursor-help' : ''}`} />
+                                {costHover?.itemId === item.item_id && (
+                                  <div
+                                    className="fixed z-50 w-72 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-3 pointer-events-none"
+                                    style={{ left: Math.max(16, costHover.x - 288), top: costHover.y + 4 }}
+                                  >
+                                    <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-2">
+                                      Price history · using {costHover.source === 'tuc' ? 'weighted TUC' : 'latest quote'}
+                                    </p>
+                                    <div className="space-y-1">
+                                      {costHover.history.map((h, i) => (
+                                        <div key={i} className="flex items-center justify-between gap-2 text-[11px]">
+                                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold flex-shrink-0 ${h.kind === 'tuc' ? 'bg-violet-500/20 text-violet-300' : 'bg-sky-500/20 text-sky-300'}`}>
+                                            {h.kind === 'tuc' ? 'TUC' : 'QUOTE'}
+                                          </span>
+                                          <span className="text-slate-400 truncate flex-1">{h.label}</span>
+                                          <span className="text-slate-500 flex-shrink-0">{h.date}</span>
+                                          <span className="text-slate-200 font-medium tabular-nums flex-shrink-0">{fmtIdr(h.unitCost)}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
                               </td>
                               <td className="px-2 py-2">
                                 <input type="number" value={item.sell_price}
@@ -681,12 +746,16 @@ export default function QuoteEditorPage() {
             );
           })}
 
-          {/* Add section */}
-          <button onClick={addSection}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-dashed border-slate-700 hover:border-violet-500 text-slate-500 hover:text-violet-400 transition-all text-sm">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
-            Add section
-          </button>
+                  {/* Add sub-section to this group */}
+                  <button onClick={() => addSection(group.key)}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-dashed border-slate-700 hover:border-violet-500 text-slate-600 hover:text-violet-400 transition-all text-xs">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
+                    Add sub-section
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {/* ── Totals ── */}
