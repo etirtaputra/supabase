@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { SECTION_GROUPS, type SectionGroup, type ProjectQuote, type QuoteSection, type QuoteItem } from '@/types/quotes';
 import { quoteFileName } from '@/lib/quoteFilename';
+import { specFileTag, type SystemSpecs } from '@/lib/projectSpec';
 
 function fmtIdr(v: number) {
   return `Rp${Math.round(v).toLocaleString('en-US')}`;
@@ -85,7 +86,10 @@ export default function PrintPage() {
   useEffect(() => {
     if (!loading && quote) {
       // Browsers use the document title as the default Save-as-PDF filename
-      document.title = quoteFileName(quote.quote_number, quote.customer_name, totalWp);
+      document.title = quoteFileName(quote.quote_number, quote.customer_name, totalWp, {
+        specTag: specFileTag(quote.project_type, (quote.system_specs as SystemSpecs) ?? {}),
+        location: quote.location ?? '',
+      });
       setTimeout(() => window.print(), 400);
     }
   }, [loading, quote, totalWp]);

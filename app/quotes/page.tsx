@@ -7,6 +7,7 @@ import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { getComponentCost } from '@/lib/computeTUC';
 import { fetchUsedEntries } from '@/lib/usedPrices';
 import MigrationBanner from '@/components/ui/MigrationBanner';
+import { PROJECT_TYPES } from '@/lib/projectSpec';
 import type { ProjectQuote } from '@/types/quotes';
 
 const STATUS_STYLES: Record<string, string> = {
@@ -102,6 +103,9 @@ export default function QuotesListPage() {
       };
       if ('company_id' in src) newQuote.company_id = src.company_id ?? null;
       if ('group_margins' in src) newQuote.group_margins = src.group_margins ?? {};
+      if ('project_type' in src) newQuote.project_type = src.project_type ?? 'custom';
+      if ('system_specs' in src) newQuote.system_specs = src.system_specs ?? {};
+      if ('location' in src) newQuote.location = src.location ?? '';
       const { error: qErr } = await supabase.from('10.0_project_quotes').insert(newQuote);
       if (qErr) throw qErr;
 
@@ -221,6 +225,11 @@ export default function QuotesListPage() {
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${STATUS_STYLES[q.status] ?? STATUS_STYLES.draft}`}>
                       {q.status}
                     </span>
+                    {q.project_type && q.project_type !== 'custom' && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-sky-500/15 text-sky-300">
+                        {PROJECT_TYPES.find((t) => t.key === q.project_type)?.label ?? q.project_type}
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-4 text-[11px] text-slate-500">
                     <span className="truncate">{q.customer_name || 'No customer'}</span>

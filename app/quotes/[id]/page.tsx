@@ -8,6 +8,7 @@ import { getComponentCost, type CostEntry } from '@/lib/computeTUC';
 import { fetchUsedEntries } from '@/lib/usedPrices';
 import { quoteFileName } from '@/lib/quoteFilename';
 import MigrationBanner from '@/components/ui/MigrationBanner';
+import { PROJECT_TYPES, composeDescription, specFileTag, type ProjectType, type SystemSpecs } from '@/lib/projectSpec';
 import { SECTION_GROUPS, type SectionGroup, type ProjectQuote, type QuoteSection, type QuoteItem } from '@/types/quotes';
 import type { Component } from '@/types/database';
 
@@ -121,6 +122,27 @@ Delivery terms:
 -Products will be ready to deliver 3 months after receiving DP I.
 
 Thank you for the opportunity. Should you require further clarification please do not hesitate to contact us.`;
+
+function SpecInput({ label, unit, value, onChange }: {
+  label: string; unit: string; value: number | null | undefined;
+  onChange: (v: number | null) => void;
+}) {
+  return (
+    <div className="w-40">
+      <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{label}</label>
+      <div className="flex items-baseline gap-1.5 border-b border-slate-700 focus-within:border-violet-500 transition-colors">
+        <input
+          type="number"
+          value={value ?? ''}
+          onChange={(e) => onChange(e.target.value === '' ? null : parseFloat(e.target.value))}
+          placeholder="0"
+          className="w-full bg-transparent outline-none text-white py-1 text-sm text-right placeholder:text-slate-600"
+        />
+        <span className="text-[10px] text-slate-500 whitespace-nowrap pb-1">{unit}</span>
+      </div>
+    </div>
+  );
+}
 
 const GRIP = (
   <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
@@ -613,6 +635,22 @@ export default function QuoteEditorPage() {
     markDirty();
   }
 
+  // Structured project fields: any change re-composes the description so the
+  // title, PDF, and filename always agree. Custom keeps free-text as-is.
+  function updateProject(patch: { project_type?: ProjectType; location?: string; specs?: Partial<SystemSpecs> }) {
+    setQuote((q) => {
+      if (!q) return q;
+      const type = (patch.project_type ?? (q.project_type as ProjectType)) || 'custom';
+      const specs: SystemSpecs = { ...(q.system_specs ?? {}), ...(patch.specs ?? {}) };
+      const location = patch.location ?? (q.location ?? '');
+      const description = type === 'custom'
+        ? q.project_description
+        : composeDescription(type, specs, location);
+      return { ...q, project_type: type, system_specs: specs, location, project_description: description };
+    });
+    markDirty();
+  }
+
   function addSection(group: SectionGroup) {
     setSections((prev) => [
       ...prev,
@@ -709,6 +747,9 @@ export default function QuoteEditorPage() {
         customer_name: quote.customer_name,
         customer_address: quote.customer_address,
         project_description: quote.project_description,
+        project_type: quote.project_type ?? 'custom',
+        system_specs: quote.system_specs ?? {},
+        location: quote.location ?? '',
         ppn_pct: num(String(quote.ppn_pct)) ?? 11,
         status: quote.status,
         notes: quote.notes,
@@ -892,7 +933,10 @@ export default function QuoteEditorPage() {
     const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `${quoteFileName(quote.quote_number, quote.customer_name, wpTotal)}.xls`;
+    a.download = `${quoteFileName(quote.quote_number, quote.customer_name, wpTotal, {
+      specTag: specFileTag(quote.project_type, quote.system_specs ?? {}),
+      location: quote.location ?? '',
+    })}.xls`;
     a.click();
   }
 
@@ -996,10 +1040,54 @@ export default function QuoteEditorPage() {
             <input value={quote.customer_address} onChange={(e) => setQuoteField('customer_address', e.target.value)}
               placeholder="Customer address" className="w-full bg-transparent border-b border-slate-700 focus:border-violet-500 outline-none text-white py-1 text-sm placeholder:text-slate-600 transition-colors" />
           </div>
+          <div>
+            <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Project Type</label>
+            <select
+              value={(quote.project_type as ProjectType) ?? 'custom'}
+              onChange={(e) => updateProject({ project_type: e.target.value as ProjectType })}
+              className="w-full bg-transparent border-b border-slate-700 focus:border-violet-500 outline-none text-white py-1 text-sm transition-colors"
+            >
+              {PROJECT_TYPES.map((t) => (
+                <option key={t.key} value={t.key} className="bg-slate-900">{t.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Location / Site</label>
+            <input value={quote.location ?? ''} onChange={(e) => updateProject({ location: e.target.value })}
+              placeholder="e.g. RIVERSIDE PV FARM, Kota Tangerang" className="w-full bg-transparent border-b border-slate-700 focus:border-violet-500 outline-none text-white py-1 text-sm placeholder:text-slate-600 transition-colors" />
+          </div>
+          {((quote.project_type as ProjectType) ?? 'custom') !== 'custom' && (
+            <div className="md:col-span-2 flex flex-wrap gap-6">
+              <SpecInput label="PV Modules" unit="kWp DC" value={quote.system_specs?.kwp_dc}
+                onChange={(v) => updateProject({ specs: { kwp_dc: v } })} />
+              <SpecInput label="Inverters" unit="kW AC" value={quote.system_specs?.kw_ac}
+                onChange={(v) => updateProject({ specs: { kw_ac: v } })} />
+              {(quote.project_type as ProjectType) === 'hybrid_bess' && (
+                <SpecInput label="PCS" unit="kW" value={quote.system_specs?.kw_pcs}
+                  onChange={(v) => updateProject({ specs: { kw_pcs: v } })} />
+              )}
+              {(quote.project_type as ProjectType) !== 'on_grid' && (
+                <SpecInput label="BESS" unit="kWh" value={quote.system_specs?.kwh_bess}
+                  onChange={(v) => updateProject({ specs: { kwh_bess: v } })} />
+              )}
+            </div>
+          )}
           <div className="md:col-span-2">
-            <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Project Description</label>
-            <input value={quote.project_description} onChange={(e) => setQuoteField('project_description', e.target.value)}
-              placeholder="e.g. EPC for solar On Grid 2.2 kWp DC / 2 kW AC, at Kota Tangerang" className="w-full bg-transparent border-b border-slate-700 focus:border-violet-500 outline-none text-white py-1 text-sm placeholder:text-slate-600 transition-colors" />
+            <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">
+              Project Description
+              {((quote.project_type as ProjectType) ?? 'custom') !== 'custom' && (
+                <span className="ml-2 normal-case tracking-normal text-emerald-500/80">auto-generated from the fields above</span>
+              )}
+            </label>
+            {((quote.project_type as ProjectType) ?? 'custom') === 'custom' ? (
+              <input value={quote.project_description} onChange={(e) => setQuoteField('project_description', e.target.value)}
+                placeholder="e.g. EPC for solar On Grid 2.2 kWp DC / 2 kW AC, at Kota Tangerang" className="w-full bg-transparent border-b border-slate-700 focus:border-violet-500 outline-none text-white py-1 text-sm placeholder:text-slate-600 transition-colors" />
+            ) : (
+              <p className="text-slate-200 text-sm py-1 border-b border-slate-800 min-h-[1.9rem]">
+                {quote.project_description || <span className="text-slate-600">Fill in the capacities above…</span>}
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Quote Number</label>

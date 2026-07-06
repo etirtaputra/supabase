@@ -11,6 +11,9 @@ const MIGRATION_SQL = `CREATE TABLE IF NOT EXISTS "10.0_project_quotes" (
   customer_name TEXT DEFAULT '',
   customer_address TEXT DEFAULT '',
   project_description TEXT DEFAULT '',
+  project_type TEXT DEFAULT 'custom',
+  system_specs JSONB DEFAULT '{}',
+  location TEXT DEFAULT '',
   ppn_pct NUMERIC(5,2) DEFAULT 11,
   status TEXT DEFAULT 'draft',
   notes TEXT DEFAULT '',
@@ -20,6 +23,9 @@ const MIGRATION_SQL = `CREATE TABLE IF NOT EXISTS "10.0_project_quotes" (
 );
 ALTER TABLE "10.0_project_quotes" ADD COLUMN IF NOT EXISTS company_id UUID;
 ALTER TABLE "10.0_project_quotes" ADD COLUMN IF NOT EXISTS group_margins JSONB DEFAULT '{}';
+ALTER TABLE "10.0_project_quotes" ADD COLUMN IF NOT EXISTS project_type TEXT DEFAULT 'custom';
+ALTER TABLE "10.0_project_quotes" ADD COLUMN IF NOT EXISTS system_specs JSONB DEFAULT '{}';
+ALTER TABLE "10.0_project_quotes" ADD COLUMN IF NOT EXISTS location TEXT DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS "10.1_quote_sections" (
   section_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -66,7 +72,7 @@ export default function MigrationBanner() {
     let cancelled = false;
     async function check() {
       const probes = await Promise.all([
-        supabase.from('10.0_project_quotes').select('company_id, group_margins').limit(1),
+        supabase.from('10.0_project_quotes').select('company_id, group_margins, project_type, system_specs, location').limit(1),
         supabase.from('10.1_quote_sections').select('group_key').limit(1),
         supabase.from('10.2_quote_items').select('qty_formula, eng_note').limit(1),
       ]);

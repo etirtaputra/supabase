@@ -1,3 +1,5 @@
+import type { SystemSpecs } from '../lib/projectSpec';
+
 export interface ProjectQuote {
   quote_id: string;
   quote_number: string;
@@ -6,6 +8,10 @@ export interface ProjectQuote {
   customer_name: string;
   customer_address: string;
   project_description: string;
+  // Structured classification — see lib/projectSpec.ts
+  project_type?: string;              // on_grid | hybrid_bess | off_grid | custom
+  system_specs?: SystemSpecs | null;  // kwp_dc, kw_ac, kw_pcs, kwh_bess
+  location?: string;
   ppn_pct: number;
   status: 'draft' | 'sent' | 'accepted' | 'rejected';
   notes: string;
