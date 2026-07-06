@@ -45,6 +45,8 @@ export interface QuoteItem {
   description: string;
   brand: string;
   quantity: number | null;
+  qty_formula?: string;   // internal: Excel-style formula behind quantity
+  eng_note?: string;      // internal: engineering notes, never exported
   unit: string;
   cost_price: number | null;
   sell_price: number | null;

@@ -142,7 +142,8 @@ export default function QuotesListPage() {
           parent_item_id: it.parent_item_id ? (itemIdMap.get(it.parent_item_id) ?? null) : null,
           component_id: it.component_id,
           description: it.description, brand: it.brand,
-          quantity: it.quantity, unit: it.unit,
+          quantity: it.quantity, qty_formula: it.qty_formula ?? '', eng_note: it.eng_note ?? '',
+          unit: it.unit,
           cost_price: cost, sell_price: sell,
           sort_order: it.sort_order,
         };

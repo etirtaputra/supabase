@@ -19,6 +19,8 @@ interface DraftItem {
   description: string;
   brand: string;
   quantity: string;
+  qty_formula: string;   // internal Excel-style formula behind quantity
+  eng_note: string;      // internal engineering notes, never exported
   unit: string;
   cost_price: string;
   sell_price: string;
@@ -44,6 +46,19 @@ function uid() {
 }
 
 function num(s: string) { const n = parseFloat(s); return isNaN(n) ? null : n; }
+
+// Excel-style quantity formulas: "=2520*720" → 1814400. Digits and
+// + - * / ( ) . only; anything else refuses to evaluate.
+function evalFormula(raw: string): number | null {
+  const expr = raw.replace(/^=/, '').replace(/,/g, '').trim();
+  if (!expr || !/^[0-9+\-*/().\s]+$/.test(expr)) return null;
+  try {
+    const v = Function(`"use strict"; return (${expr});`)();
+    return typeof v === 'number' && isFinite(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
 
 function fmtIdr(v: number | null | undefined) {
   if (v == null) return '—';
@@ -147,6 +162,32 @@ export default function QuoteEditorPage() {
   // (typing "3" of "30" snaps to the recomputed margin).
   const [gmEdit, setGmEdit] = useState<{ itemId: string; value: string } | null>(null);
 
+  // ── Qty formula editing (Excel-like: focus shows formula, blur shows value) ─
+  const [qtyEdit, setQtyEdit] = useState<{ itemId: string; value: string } | null>(null);
+
+  function commitQty(sid: string, iid: string, raw: string) {
+    const t = raw.trim();
+    if (t.startsWith('=')) {
+      const v = evalFormula(t);
+      if (v != null) updateItem(sid, iid, { quantity: String(v), qty_formula: t });
+      // invalid formula: leave the item untouched, the field reverts on blur
+    } else {
+      updateItem(sid, iid, { quantity: t, qty_formula: '' });
+    }
+    setQtyEdit(null);
+  }
+
+  // ── Engineering notes (internal only, never exported) ─────────────────────
+  const [openNotes, setOpenNotes] = useState<Set<string>>(new Set());
+  function toggleNote(iid: string) {
+    setOpenNotes((prev) => {
+      const next = new Set(prev);
+      if (next.has(iid)) next.delete(iid);
+      else next.add(iid);
+      return next;
+    });
+  }
+
   // ── Drag & drop reordering ─────────────────────────────────────────────────
   // Native HTML5 DnD. Dropping on a target inserts before it; dropping a
   // section on a group header appends to that group; dropping a sub-item on a
@@ -230,11 +271,12 @@ export default function QuoteEditorPage() {
   // ── Last-used prices from other project quotes ─────────────────────────────
   const [prevUsed, setPrevUsed] = useState<Map<string, CostEntry[]>>(new Map());
 
-  // Free-text items (no catalog link) from other quotes — deduped by
+  // Items from other quotes (catalog-linked or free-text) — deduped by
   // description, newest usage wins. Feeds the autocomplete and, via
   // freeTextHistory, the cost-cell hover for non-catalog items.
   interface PrevItem {
     description: string; brand: string; unit: string;
+    component_id: string | null;
     cost_price: number | null; sell_price: number | null;
     label: string; date: string; count: number;
   }
@@ -248,8 +290,7 @@ export default function QuoteEditorPage() {
 
     const [itemsRes, quotesRes] = await Promise.all([
       supabase.from('10.2_quote_items')
-        .select('description, brand, unit, cost_price, sell_price, quote_id, parent_item_id')
-        .is('component_id', null)
+        .select('description, brand, unit, component_id, cost_price, sell_price, quote_id, parent_item_id')
         .neq('quote_id', id),
       supabase.from('10.0_project_quotes').select('quote_id, quote_number, quote_date'),
     ]);
@@ -277,6 +318,7 @@ export default function QuoteEditorPage() {
         if (date > existing.date) {
           Object.assign(existing, {
             description: desc, brand: String(it.brand ?? ''), unit: String(it.unit ?? ''),
+            component_id: (it.component_id as string | null) ?? null,
             cost_price: it.cost_price != null ? Number(it.cost_price) : null,
             sell_price: it.sell_price != null ? Number(it.sell_price) : null,
             label, date,
@@ -285,6 +327,7 @@ export default function QuoteEditorPage() {
       } else {
         byDesc.set(key, {
           description: desc, brand: String(it.brand ?? ''), unit: String(it.unit ?? ''),
+          component_id: (it.component_id as string | null) ?? null,
           cost_price: it.cost_price != null ? Number(it.cost_price) : null,
           sell_price: it.sell_price != null ? Number(it.sell_price) : null,
           label, date, count: 1,
@@ -444,6 +487,8 @@ export default function QuoteEditorPage() {
             description: i.description,
             brand: i.brand,
             quantity: i.quantity != null ? String(i.quantity) : '',
+            qty_formula: i.qty_formula ?? '',
+            eng_note: i.eng_note ?? '',
             unit: i.unit,
             cost_price: i.cost_price != null ? String(i.cost_price) : '',
             sell_price: i.sell_price != null ? String(i.sell_price) : '',
@@ -549,7 +594,8 @@ export default function QuoteEditorPage() {
       const order = s.items.length;
       return { ...s, items: [...s.items, {
         item_id: uid(), parent_item_id: parentId, component_id: null,
-        description: '', brand: '', quantity: '', unit: '', cost_price: '', sell_price: '',
+        description: '', brand: '', quantity: '', qty_formula: '', eng_note: '',
+        unit: '', cost_price: '', sell_price: '',
         sort_order: order,
       }] };
     }));
@@ -575,7 +621,7 @@ export default function QuoteEditorPage() {
   // ── Autocomplete selection ─────────────────────────────────────────────────
   function selectPrevItem(sid: string, iid: string, p: PrevItem) {
     updateItem(sid, iid, {
-      component_id: null,
+      component_id: p.component_id ?? null,
       description: p.description,
       brand: p.brand,
       unit: p.unit,
@@ -654,7 +700,8 @@ export default function QuoteEditorPage() {
           parent_item_id: i.parent_item_id,
           component_id: i.component_id ?? null,
           description: i.description, brand: i.brand,
-          quantity: num(i.quantity), unit: i.unit,
+          quantity: num(i.quantity), qty_formula: i.qty_formula, eng_note: i.eng_note,
+          unit: i.unit,
           cost_price: num(i.cost_price), sell_price: num(i.sell_price),
           sort_order: idx,
         }))
@@ -1126,9 +1173,21 @@ export default function QuoteEditorPage() {
                                 <input value={item.brand} onChange={(e) => updateItem(sec.section_id, item.item_id, { brand: e.target.value })}
                                   placeholder="Brand" className="w-full bg-transparent outline-none text-slate-300 placeholder:text-slate-700" />
                               </td>
-                              <td className="px-2 py-2">
-                                <input type="number" value={item.quantity} onChange={(e) => updateItem(sec.section_id, item.item_id, { quantity: e.target.value })}
-                                  placeholder="0" className="w-full bg-transparent outline-none text-right text-slate-200 placeholder:text-slate-700" />
+                              <td className="px-2 py-2 relative" title={item.qty_formula ? `Formula: ${item.qty_formula}` : 'Type =2520*720 for a formula'}>
+                                {item.qty_formula && qtyEdit?.itemId !== item.item_id && (
+                                  <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[9px] font-bold text-sky-500/80 italic pointer-events-none">ƒ</span>
+                                )}
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={qtyEdit?.itemId === item.item_id ? qtyEdit.value : item.quantity}
+                                  onFocus={(e) => { setQtyEdit({ itemId: item.item_id, value: item.qty_formula || item.quantity }); e.target.select(); }}
+                                  onChange={(e) => setQtyEdit({ itemId: item.item_id, value: e.target.value })}
+                                  onBlur={(e) => commitQty(sec.section_id, item.item_id, e.target.value)}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                                  placeholder="0"
+                                  className="w-full bg-transparent outline-none text-right text-slate-200 placeholder:text-slate-700"
+                                />
                               </td>
                               <td className="px-2 py-2">
                                 <input list={`units-${item.item_id}`} value={item.unit}
@@ -1199,11 +1258,35 @@ export default function QuoteEditorPage() {
                                 {total > 0 ? fmtIdr(total) : '—'}
                               </td>
                               <td className="pr-3 py-2">
-                                <button onClick={() => deleteItem(sec.section_id, item.item_id)} className="text-slate-700 hover:text-red-400 transition-colors">
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                                </button>
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    onClick={() => toggleNote(item.item_id)}
+                                    className={`transition-colors ${item.eng_note ? 'text-sky-400 hover:text-sky-300' : 'text-slate-700 hover:text-slate-400'}`}
+                                    title={item.eng_note ? 'Engineering note (internal only)' : 'Add engineering note (internal only)'}
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                  </button>
+                                  <button onClick={() => deleteItem(sec.section_id, item.item_id)} className="text-slate-700 hover:text-red-400 transition-colors">
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                  </button>
+                                </div>
                               </td>
                             </tr>
+                            {/* Engineering note row — internal only, never exported */}
+                            {openNotes.has(item.item_id) && (
+                              <tr className="bg-sky-500/[0.03]">
+                                <td />
+                                <td colSpan={9} className="px-2 py-1.5">
+                                  <textarea
+                                    value={item.eng_note}
+                                    onChange={(e) => updateItem(sec.section_id, item.item_id, { eng_note: e.target.value })}
+                                    rows={2}
+                                    placeholder="Engineering notes — internal reference only, never shown on the PDF or Excel"
+                                    className="w-full bg-transparent border border-slate-800 focus:border-sky-600 rounded-lg p-2 text-[11px] leading-relaxed text-sky-200/80 outline-none transition-colors resize-y placeholder:text-slate-700"
+                                  />
+                                </td>
+                              </tr>
+                            )}
                             {/* Sub-items */}
                             {subItems.map((sub) => (
                               <tr
