@@ -70,6 +70,39 @@ const STATUS_COLORS: Record<string, string> = {
   rejected: 'bg-red-500/20 text-red-400',
 };
 
+const TC_TEMPLATE = `-Solar Modules: (product warranty & power guarantee)
+-Inverters: (warranty)
+-Actual Energy Production in Year-1: Minimum 90% of the PVSyst As-built result (Produced Energy).
+ -- Operational anomalies shall be excluded and not considered in the benchmark, such as:
+  > Unpredictable blackout or grid power failure.
+  > System shutdown for maintenance or renovation purposes.
+  > Product failure not caused by improper installation.
+  > Force majeure.
+
+Pricing terms:
+-Prices are valid for 14 days.
+-Detailed engineering design will be given after PO is received.
+-Exclude NIDI & SLO
+
+Payment terms:
+-DP I, 30%: against BG, as confirmation of PO and before ordering of materials.
+-DP II, 20%: when materials are ready in warehouse and before delivery to site.
+-DP III, 45%: after final testing & commissioning.
+-DP IV, 5%: 1-year after commissioning (retention period).
+
+Delivery terms:
+-Products will be ready to deliver 3 months after receiving DP I.
+
+Thank you for the opportunity. Should you require further clarification please do not hesitate to contact us.`;
+
+const GRIP = (
+  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+    <circle cx="7" cy="5" r="1.4" /><circle cx="13" cy="5" r="1.4" />
+    <circle cx="7" cy="10" r="1.4" /><circle cx="13" cy="10" r="1.4" />
+    <circle cx="7" cy="15" r="1.4" /><circle cx="13" cy="15" r="1.4" />
+  </svg>
+);
+
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function QuoteEditorPage() {
@@ -102,6 +135,86 @@ export default function QuoteEditorPage() {
   // re-derived from cost/sell — otherwise every keystroke gets rewritten
   // (typing "3" of "30" snaps to the recomputed margin).
   const [gmEdit, setGmEdit] = useState<{ itemId: string; value: string } | null>(null);
+
+  // ── Drag & drop reordering ─────────────────────────────────────────────────
+  // Native HTML5 DnD. Dropping on a target inserts before it; dropping a
+  // section on a group header appends to that group; dropping a sub-item on a
+  // main item re-parents it.
+  const [drag, setDrag] = useState<
+    | { kind: 'section'; sectionId: string }
+    | { kind: 'item'; sectionId: string; itemId: string }
+    | null
+  >(null);
+  const [dropHint, setDropHint] = useState<string | null>(null);
+
+  function endDrag() { setDrag(null); setDropHint(null); }
+
+  function dropSectionOn(targetSectionId: string) {
+    if (!drag || drag.kind !== 'section' || drag.sectionId === targetSectionId) return;
+    setSections((prev) => {
+      const next = [...prev];
+      const from = next.findIndex((s) => s.section_id === drag.sectionId);
+      if (from < 0) return prev;
+      const [moved] = next.splice(from, 1);
+      const to = next.findIndex((s) => s.section_id === targetSectionId);
+      if (to < 0) return prev;
+      next.splice(to, 0, { ...moved, group_key: next[to].group_key });
+      return next;
+    });
+    markDirty();
+  }
+
+  function dropSectionOnGroup(group: SectionGroup) {
+    if (!drag || drag.kind !== 'section') return;
+    setSections((prev) => {
+      const from = prev.findIndex((s) => s.section_id === drag.sectionId);
+      if (from < 0) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.push({ ...moved, group_key: group });
+      return next;
+    });
+    markDirty();
+  }
+
+  function dropItemOn(targetSectionId: string, targetItemId: string) {
+    if (!drag || drag.kind !== 'item' || drag.itemId === targetItemId) return;
+    setSections((prev) => {
+      const next = prev.map((s) => ({ ...s, items: [...s.items] }));
+      const src = next.find((s) => s.section_id === drag.sectionId);
+      const dst = next.find((s) => s.section_id === targetSectionId);
+      if (!src || !dst) return prev;
+      const dragged = src.items.find((i) => i.item_id === drag.itemId);
+      const tgt = dst.items.find((i) => i.item_id === targetItemId);
+      if (!dragged || !tgt) return prev;
+      if (tgt.parent_item_id === dragged.item_id) return prev; // can't drop onto own sub
+
+      if (!dragged.parent_item_id) {
+        // Main item moves together with its sub-items, inserted before the
+        // target's main item.
+        const targetMainId = tgt.parent_item_id ?? tgt.item_id;
+        if (targetMainId === dragged.item_id) return prev;
+        const subs = src.items.filter((i) => i.parent_item_id === dragged.item_id);
+        src.items = src.items.filter((i) => i.item_id !== dragged.item_id && i.parent_item_id !== dragged.item_id);
+        const insertAt = dst.items.findIndex((i) => i.item_id === targetMainId);
+        if (insertAt < 0) dst.items.push(dragged, ...subs);
+        else dst.items.splice(insertAt, 0, dragged, ...subs);
+      } else {
+        // Sub-item: before a fellow sub (adopting its parent), or onto a main
+        // item to become its sub.
+        src.items = src.items.filter((i) => i.item_id !== dragged.item_id);
+        if (tgt.parent_item_id) {
+          const insertAt = dst.items.findIndex((i) => i.item_id === tgt.item_id);
+          dst.items.splice(insertAt, 0, { ...dragged, parent_item_id: tgt.parent_item_id });
+        } else {
+          const tgtIdx = dst.items.findIndex((i) => i.item_id === tgt.item_id);
+          dst.items.splice(tgtIdx + 1, 0, { ...dragged, parent_item_id: tgt.item_id });
+        }
+      }
+      return next;
+    });
+    markDirty();
+  }
 
   // ── Cost history hover popup ───────────────────────────────────────────────
   const [costHover, setCostHover] = useState<{ itemId: string; history: CostEntry[]; source: string; x: number; y: number } | null>(null);
@@ -389,7 +502,16 @@ export default function QuoteEditorPage() {
           <td style="text-align:right">${fmtIdr(ppn)}</td></tr>
       <tr><td colspan="5" style="text-align:right;font-weight:bold">GRAND TOTAL</td>
           <td style="text-align:right;font-weight:bold">${fmtIdr(grandTotal)}</td></tr>
-    </table></body></html>`;
+    </table>
+    ${quote.notes ? `
+    <p style="font-weight:bold;margin-top:16px;text-transform:uppercase">Terms and Conditions</p>
+    ${quote.notes.split('\n').map((l) => {
+      const t = l.trim();
+      if (!t) return '<p style="margin:0">&nbsp;</p>';
+      if (/:$/.test(t)) return `<p style="margin:0;font-size:11px;text-decoration:underline">${l}</p>`;
+      return `<p style="margin:0;font-size:11px;font-style:italic">${l}</p>`;
+    }).join('')}` : ''}
+    </body></html>`;
 
     const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
     const a = document.createElement('a');
@@ -497,8 +619,13 @@ export default function QuoteEditorPage() {
                 .reduce((ss, i) => ss + (num(i.quantity) ?? 0) * (num(i.sell_price) ?? 0), 0), 0);
             return (
               <div key={group.key}>
-                {/* Group header */}
-                <div className="flex items-center justify-between mb-3 px-1 border-b-2 border-[#1e3a5f] pb-2">
+                {/* Group header — also a drop zone: sections dropped here go to the end of this group */}
+                <div
+                  className={`flex items-center justify-between mb-3 px-1 border-b-2 pb-2 transition-colors ${dropHint === `group:${group.key}` ? 'border-violet-500 bg-violet-500/10 rounded-t-lg' : 'border-[#1e3a5f]'}`}
+                  onDragOver={(e) => { if (drag?.kind === 'section') { e.preventDefault(); setDropHint(`group:${group.key}`); } }}
+                  onDragLeave={() => setDropHint((h) => h === `group:${group.key}` ? null : h)}
+                  onDrop={(e) => { e.preventDefault(); dropSectionOnGroup(group.key); endDrag(); }}
+                >
                   <h2 className="text-sm font-extrabold uppercase tracking-widest text-white">
                     {group.label}
                     <span className="ml-2 text-slate-600 font-normal normal-case tracking-normal text-xs">
@@ -514,9 +641,24 @@ export default function QuoteEditorPage() {
             const secSubtotal = mainItems.reduce((s, i) => s + (num(i.quantity) ?? 0) * (num(i.sell_price) ?? 0), 0);
 
             return (
-              <div key={sec.section_id} className="bg-slate-900/50 border border-slate-800 rounded-2xl overflow-hidden">
+              <div
+                key={sec.section_id}
+                className={`bg-slate-900/50 border rounded-2xl overflow-hidden transition-colors ${dropHint === sec.section_id ? 'border-violet-500 ring-1 ring-violet-500/50' : 'border-slate-800'}`}
+                onDragOver={(e) => { if (drag?.kind === 'section' && drag.sectionId !== sec.section_id) { e.preventDefault(); setDropHint(sec.section_id); } }}
+                onDragLeave={() => setDropHint((h) => h === sec.section_id ? null : h)}
+                onDrop={(e) => { e.preventDefault(); dropSectionOn(sec.section_id); endDrag(); }}
+              >
                 {/* Section header */}
                 <div className="flex items-center gap-3 px-4 py-3 bg-slate-800/60 border-b border-slate-700/50">
+                  <span
+                    draggable
+                    onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDrag({ kind: 'section', sectionId: sec.section_id }); }}
+                    onDragEnd={endDrag}
+                    className="cursor-grab active:cursor-grabbing text-slate-600 hover:text-slate-300 flex-shrink-0 -ml-1"
+                    title="Drag to reorder / move to another group"
+                  >
+                    {GRIP}
+                  </span>
                   <div className="flex-1 flex items-center gap-2 group/title min-w-0">
                     <svg className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                     <input
@@ -551,7 +693,8 @@ export default function QuoteEditorPage() {
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b border-slate-800 text-[10px] uppercase tracking-wider text-slate-500">
-                        <th className="text-left px-4 py-2 min-w-[260px]">Description</th>
+                        <th className="w-6" />
+                        <th className="text-left px-2 py-2 min-w-[260px]">Description</th>
                         <th className="text-left px-2 py-2 w-28">Brand</th>
                         <th className="text-right px-2 py-2 w-20">Qty</th>
                         <th className="text-left px-2 py-2 w-24">Unit</th>
@@ -572,8 +715,24 @@ export default function QuoteEditorPage() {
                         return (
                           <React.Fragment key={item.item_id}>
                             {/* Main item row */}
-                            <tr className="hover:bg-white/[0.02]">
-                              <td className="px-4 py-2 relative">
+                            <tr
+                              className={`hover:bg-white/[0.02] transition-colors ${dropHint === item.item_id ? 'bg-violet-500/10' : ''}`}
+                              onDragOver={(e) => { if (drag?.kind === 'item' && drag.itemId !== item.item_id) { e.preventDefault(); setDropHint(item.item_id); } }}
+                              onDragLeave={() => setDropHint((h) => h === item.item_id ? null : h)}
+                              onDrop={(e) => { e.preventDefault(); e.stopPropagation(); dropItemOn(sec.section_id, item.item_id); endDrag(); }}
+                            >
+                              <td className="pl-2 py-2">
+                                <span
+                                  draggable
+                                  onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDrag({ kind: 'item', sectionId: sec.section_id, itemId: item.item_id }); }}
+                                  onDragEnd={endDrag}
+                                  className="cursor-grab active:cursor-grabbing text-slate-700 hover:text-slate-400 inline-block"
+                                  title="Drag to reorder or move to another section"
+                                >
+                                  {GRIP}
+                                </span>
+                              </td>
+                              <td className="px-2 py-2 relative">
                                 <input
                                   value={item.description}
                                   onChange={(e) => {
@@ -693,8 +852,25 @@ export default function QuoteEditorPage() {
                             </tr>
                             {/* Sub-items */}
                             {subItems.map((sub) => (
-                              <tr key={sub.item_id} className="bg-slate-900/20">
-                                <td className="pl-10 pr-4 py-1.5 flex items-center gap-2">
+                              <tr
+                                key={sub.item_id}
+                                className={`bg-slate-900/20 transition-colors ${dropHint === sub.item_id ? 'bg-violet-500/10' : ''}`}
+                                onDragOver={(e) => { if (drag?.kind === 'item' && drag.itemId !== sub.item_id) { e.preventDefault(); setDropHint(sub.item_id); } }}
+                                onDragLeave={() => setDropHint((h) => h === sub.item_id ? null : h)}
+                                onDrop={(e) => { e.preventDefault(); e.stopPropagation(); dropItemOn(sec.section_id, sub.item_id); endDrag(); }}
+                              >
+                                <td className="pl-2 py-1.5">
+                                  <span
+                                    draggable
+                                    onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDrag({ kind: 'item', sectionId: sec.section_id, itemId: sub.item_id }); }}
+                                    onDragEnd={endDrag}
+                                    className="cursor-grab active:cursor-grabbing text-slate-700 hover:text-slate-400 inline-block"
+                                    title="Drag to reorder or move under another item"
+                                  >
+                                    {GRIP}
+                                  </span>
+                                </td>
+                                <td className="pl-6 pr-4 py-1.5 flex items-center gap-2">
                                   <span className="text-slate-600 flex-shrink-0">↳</span>
                                   <input value={sub.description} onChange={(e) => updateItem(sec.section_id, sub.item_id, { description: e.target.value })}
                                     placeholder="Sub-item description" className="flex-1 bg-transparent outline-none text-slate-400 italic placeholder:text-slate-700 text-[11px]" />
@@ -775,6 +951,31 @@ export default function QuoteEditorPage() {
             </div>
           </div>
         )}
+
+        {/* ── Terms & Conditions ── */}
+        <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5">
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-[10px] uppercase tracking-widest text-slate-500">
+              Terms &amp; Conditions
+              <span className="ml-2 normal-case tracking-normal text-slate-600">shown at the end of the client quote</span>
+            </label>
+            {!quote.notes && (
+              <button
+                onClick={() => setQuoteField('notes', TC_TEMPLATE)}
+                className="text-[11px] text-violet-400 hover:text-violet-300 transition-colors"
+              >
+                Insert template
+              </button>
+            )}
+          </div>
+          <textarea
+            value={quote.notes ?? ''}
+            onChange={(e) => setQuoteField('notes', e.target.value)}
+            rows={10}
+            placeholder={'Warranty, pricing, payment and delivery terms…\nLines ending with ":" become underlined headers on the PDF.'}
+            className="w-full bg-transparent border border-slate-800 focus:border-violet-500 rounded-xl outline-none text-slate-300 p-3 text-xs leading-relaxed placeholder:text-slate-700 transition-colors resize-y"
+          />
+        </div>
       </main>
     </div>
   );

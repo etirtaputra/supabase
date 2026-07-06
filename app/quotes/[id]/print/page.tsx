@@ -109,8 +109,11 @@ export default function PrintPage() {
         .sig-label { font-size: 8pt; color: #888; margin-bottom: 8mm; }
         .sig-line { border-bottom: 0.5pt solid #999; margin-bottom: 1mm; height: 10mm; }
         .sig-name { font-size: 8pt; color: #444; text-align: center; }
-        .notes { margin-top: 5mm; font-size: 8.5pt; color: #555; }
-        .notes-label { font-size: 7pt; font-weight: 700; text-transform: uppercase; color: #888; margin-bottom: 1mm; }
+        .terms { margin-top: 6mm; border-top: 1pt solid #1e3a5f; padding-top: 3mm; font-size: 8.5pt; color: #333; page-break-inside: avoid; }
+        .terms-title { font-size: 9.5pt; font-weight: 700; text-transform: uppercase; color: #1e3a5f; margin-bottom: 2mm; }
+        .terms-header { font-weight: 600; text-decoration: underline; margin-top: 1.5mm; line-height: 1.5; white-space: pre-wrap; }
+        .terms-line { font-style: italic; line-height: 1.5; white-space: pre-wrap; }
+        .terms-thanks { font-weight: 700; font-style: italic; margin-top: 2mm; line-height: 1.5; white-space: pre-wrap; }
         .print-btn { position: fixed; bottom: 20px; right: 20px; padding: 10px 20px; background: #1e3a5f; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
       `}</style>
 
@@ -234,11 +237,17 @@ export default function PrintPage() {
           </div>
         </div>
 
-        {/* Notes */}
+        {/* Terms and Conditions */}
         {quote.notes && (
-          <div className="notes">
-            <div className="notes-label">Catatan</div>
-            <div style={{ whiteSpace: 'pre-line' }}>{quote.notes}</div>
+          <div className="terms">
+            <div className="terms-title">Terms and Conditions</div>
+            {quote.notes.split('\n').map((line, i) => {
+              const t = line.trim();
+              if (!t) return <div key={i} style={{ height: '2mm' }} />;
+              if (/:$/.test(t)) return <div key={i} className="terms-header">{line}</div>;
+              if (/^thank you/i.test(t)) return <div key={i} className="terms-thanks">{line}</div>;
+              return <div key={i} className="terms-line">{line}</div>;
+            })}
           </div>
         )}
 
