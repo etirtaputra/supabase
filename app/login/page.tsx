@@ -13,9 +13,12 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    // Send the user back to the page that required login (e.g. /quotes)
+    const next = new URLSearchParams(window.location.search).get('next');
+    const dest = next && next.startsWith('/') ? next : '/insert';
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim().toLowerCase(),
-      options: { emailRedirectTo: `${window.location.origin}/insert` },
+      options: { emailRedirectTo: `${window.location.origin}${dest}` },
     });
     setLoading(false);
     if (error) setError(error.message);

@@ -5,6 +5,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { SECTION_GROUPS, type SectionGroup, type ProjectQuote, type QuoteSection, type QuoteItem } from '@/types/quotes';
 import { quoteFileName } from '@/lib/quoteFilename';
 import { specFileTag, type SystemSpecs } from '@/lib/projectSpec';
+import { useQuotesGate } from '@/hooks/useQuotesGate';
 
 function fmtIdr(v: number) {
   return `Rp${Math.round(v).toLocaleString('en-US')}`;
@@ -19,6 +20,8 @@ interface Section extends QuoteSection { items: QuoteItem[] }
 export default function PrintPage() {
   const { id } = useParams<{ id: string }>();
   const supabase = createSupabaseClient();
+  // Any signed-in role may print; no session redirects to login
+  const gate = useQuotesGate(true);
 
   const [quote, setQuote] = useState<ProjectQuote | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
@@ -84,7 +87,7 @@ export default function PrintPage() {
     .reduce((s, i) => s + itemWp(i), 0);
 
   useEffect(() => {
-    if (!loading && quote) {
+    if (!loading && quote && gate.ready) {
       // Browsers use the document title as the default Save-as-PDF filename
       document.title = quoteFileName(quote.quote_number, quote.customer_name, totalWp, {
         specTag: specFileTag(quote.project_type, (quote.system_specs as SystemSpecs) ?? {}),
@@ -92,9 +95,9 @@ export default function PrintPage() {
       });
       setTimeout(() => window.print(), 400);
     }
-  }, [loading, quote, totalWp]);
+  }, [loading, quote, totalWp, gate.ready]);
 
-  if (loading || !quote) {
+  if (!gate.ready || loading || !quote) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif', color: '#666' }}>
         Preparing document…

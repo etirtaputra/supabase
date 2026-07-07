@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
+import { useQuotesGate } from '@/hooks/useQuotesGate';
 import { getComponentCost, type CostEntry } from '@/lib/computeTUC';
 import { fetchUsedEntries } from '@/lib/usedPrices';
 import { quoteFileName } from '@/lib/quoteFilename';
@@ -158,6 +159,7 @@ export default function QuoteEditorPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const supabase = createSupabaseClient();
+  const gate = useQuotesGate();
   const { data: catalog, loading: catalogLoading } = useSupabaseData();
 
   // ── Quote header state ─────────────────────────────────────────────────────
@@ -385,6 +387,13 @@ export default function QuoteEditorPage() {
   const [prevEdit, setPrevEdit] = useState<{ key: string; description: string; brand: string; original: PrevItem } | null>(null);
   const [prevEditBusy, setPrevEditBusy] = useState(false);
   const [prevEditError, setPrevEditError] = useState('');
+  const prevEditInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Focus without scrolling — a scroll here would fire the dropdown's
+  // scroll-close listener and instantly abort the edit
+  useEffect(() => {
+    if (prevEdit) prevEditInputRef.current?.focus({ preventScroll: true });
+  }, [prevEdit?.key]);
 
   async function renamePrevItem() {
     if (!prevEdit) return;
@@ -986,7 +995,7 @@ export default function QuoteEditorPage() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
-  if (loadingQuote || !quote) {
+  if (!gate.ready || loadingQuote || !quote) {
     return <div className="min-h-screen bg-[#0B1120] flex items-center justify-center text-slate-500">Loading…</div>;
   }
 
@@ -1390,7 +1399,7 @@ export default function QuoteEditorPage() {
                                               value={prevEdit.description}
                                               onChange={(e) => setPrevEdit({ ...prevEdit, description: e.target.value })}
                                               onKeyDown={(e) => { if (e.key === 'Enter') renamePrevItem(); if (e.key === 'Escape') setPrevEdit(null); }}
-                                              autoFocus
+                                              ref={prevEditInputRef}
                                               className="w-full bg-slate-900 border border-slate-600 focus:border-violet-500 rounded-lg px-2 py-1 text-xs text-white outline-none transition-colors"
                                             />
                                             <div className="flex items-center gap-1.5">
@@ -1415,43 +1424,44 @@ export default function QuoteEditorPage() {
                                         );
                                       }
                                       return (
-                                        <button
-                                          key={rowKey}
-                                          data-ac-idx={acResults.comps.length + pi}
-                                          onMouseDown={(e) => { e.preventDefault(); selectPrevItem(sec.section_id, item.item_id, p); }}
-                                          onMouseEnter={() => setAcIndex(acResults.comps.length + pi)}
-                                          className={`group/prev w-full text-left px-4 py-2.5 transition-colors flex items-center justify-between gap-3 ${acIndex === acResults.comps.length + pi ? 'bg-slate-800' : ''}`}
-                                        >
-                                          <div className="min-w-0">
-                                            <p className="text-slate-200 font-medium truncate">
-                                              <span className="mr-1.5 px-1 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 align-middle">PREV</span>
-                                              {p.description}
-                                            </p>
-                                            <p className="text-[10px] text-slate-500 truncate">
-                                              {[p.brand, p.date ? `${p.label} · ${p.date}` : p.label, p.count > 1 ? `used ${p.count}×` : null].filter(Boolean).join(' · ')}
-                                            </p>
-                                          </div>
-                                          <div className="text-right flex-shrink-0 flex items-center gap-2">
-                                            <div>
+                                        <div key={rowKey} className="relative group/prev">
+                                          <button
+                                            data-ac-idx={acResults.comps.length + pi}
+                                            onMouseDown={(e) => { e.preventDefault(); selectPrevItem(sec.section_id, item.item_id, p); }}
+                                            onMouseEnter={() => setAcIndex(acResults.comps.length + pi)}
+                                            className={`w-full text-left px-4 py-2.5 pr-11 transition-colors flex items-center justify-between gap-3 ${acIndex === acResults.comps.length + pi ? 'bg-slate-800' : ''}`}
+                                          >
+                                            <div className="min-w-0">
+                                              <p className="text-slate-200 font-medium truncate">
+                                                <span className="mr-1.5 px-1 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 align-middle">PREV</span>
+                                                {p.description}
+                                              </p>
+                                              <p className="text-[10px] text-slate-500 truncate">
+                                                {[p.brand, p.date ? `${p.label} · ${p.date}` : p.label, p.count > 1 ? `used ${p.count}×` : null].filter(Boolean).join(' · ')}
+                                              </p>
+                                            </div>
+                                            <div className="text-right flex-shrink-0">
                                               {p.cost_price != null
                                                 ? <p className="font-semibold text-xs text-amber-400">{fmtIdr(p.cost_price)}</p>
                                                 : <p className="text-slate-600 text-[10px]">no cost</p>}
                                               <p className="text-[10px] text-slate-600">last used</p>
                                             </div>
-                                            <span
-                                              onMouseDown={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                setPrevEditError('');
-                                                setPrevEdit({ key: rowKey, description: p.description, brand: p.brand, original: p });
-                                              }}
-                                              className="p-1 rounded opacity-0 group-hover/prev:opacity-100 hover:bg-white/10 text-slate-500 hover:text-white transition-all"
-                                              title="Rename this entry everywhere — fix inconsistent naming"
-                                            >
-                                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                                            </span>
-                                          </div>
-                                        </button>
+                                          </button>
+                                          {/* Sibling overlay so the select button's mousedown can't swallow it */}
+                                          <button
+                                            type="button"
+                                            onMouseDown={(e) => e.preventDefault()}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setPrevEditError('');
+                                              setPrevEdit({ key: rowKey, description: p.description, brand: p.brand, original: p });
+                                            }}
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg opacity-0 group-hover/prev:opacity-100 hover:bg-white/10 text-slate-500 hover:text-white transition-all"
+                                            title="Rename this entry everywhere — fix inconsistent naming"
+                                          >
+                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                          </button>
+                                        </div>
                                       );
                                     })}
                                   </div>

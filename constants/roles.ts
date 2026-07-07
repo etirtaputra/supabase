@@ -17,6 +17,7 @@ export interface RolePermissions {
   canViewBankFees: boolean;
   canViewCompetitorPrices: boolean;
   canManageUsers: boolean;    // owner-only: role management page
+  canEditQuotes: boolean;     // project quotes / BOM builder (costs & margins visible)
 }
 
 export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
@@ -28,6 +29,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canViewBankFees: true,
     canViewCompetitorPrices: true,
     canManageUsers: true,
+    canEditQuotes: true,
   },
   data_entry: {
     tabs: { catalog: true, quoting: true, ordering: true, financials: false, lookup: true, 'market-intel': false },
@@ -37,6 +39,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canViewBankFees: false,
     canViewCompetitorPrices: false,
     canManageUsers: false,
+    canEditQuotes: true,
   },
   finance: {
     tabs: { catalog: false, quoting: false, ordering: false, financials: true, lookup: true, 'market-intel': false },
@@ -46,6 +49,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canViewBankFees: true,
     canViewCompetitorPrices: false,
     canManageUsers: false,
+    canEditQuotes: true,
   },
   viewer: {
     tabs: { catalog: false, quoting: false, ordering: false, financials: false, lookup: true, 'market-intel': false },
@@ -55,6 +59,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canViewBankFees: false,
     canViewCompetitorPrices: false,
     canManageUsers: false,
+    canEditQuotes: false,
   },
 };
 

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
+import { useQuotesGate } from '@/hooks/useQuotesGate';
 import { getComponentCost } from '@/lib/computeTUC';
 import { fetchUsedEntries } from '@/lib/usedPrices';
 import MigrationBanner from '@/components/ui/MigrationBanner';
@@ -25,6 +26,7 @@ function fmtDate(d: string) {
 export default function QuotesListPage() {
   const supabase = createSupabaseClient();
   const router = useRouter();
+  const gate = useQuotesGate();
   const { data: catalog, loading: catalogLoading } = useSupabaseData();
   const [quotes, setQuotes] = useState<ProjectQuote[]>([]);
   const [loading, setLoading] = useState(true);
@@ -175,6 +177,14 @@ export default function QuotesListPage() {
     }
   }
 
+  if (!gate.ready) {
+    return (
+      <div className="min-h-screen bg-[#0B1120] flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#0B1120] text-slate-200 font-sans text-sm">
       {/* Header */}
@@ -188,6 +198,15 @@ export default function QuotesListPage() {
             </div>
             <h1 className="text-xl font-bold text-white tracking-tight">Project Quotes</h1>
           </div>
+          <div className="flex items-center gap-4">
+            {gate.profile && (
+              <div className="text-right hidden sm:block">
+                <p className="text-[11px] text-slate-400 leading-tight">{gate.profile.email}</p>
+                <button onClick={() => gate.signOut()} className="text-[10px] text-slate-600 hover:text-slate-300 underline transition-colors">
+                  Sign out
+                </button>
+              </div>
+            )}
           <button
             onClick={createNew}
             disabled={creating}
@@ -200,6 +219,7 @@ export default function QuotesListPage() {
             )}
             New Quote
           </button>
+          </div>
         </div>
       </div>
 
