@@ -189,6 +189,11 @@ export default function QuoteEditorPage() {
       ?.scrollIntoView({ block: 'nearest' });
   }, [acIndex]);
 
+  // Abandon any in-progress rename when the dropdown closes
+  useEffect(() => {
+    if (!acState) setPrevEdit(null);
+  }, [acState]);
+
   // ── GM% inline editing ─────────────────────────────────────────────────────
   // While a GM cell is focused, show the raw typed value instead of the value
   // re-derived from cost/sell — otherwise every keystroke gets rewritten
@@ -373,6 +378,45 @@ export default function QuoteEditorPage() {
   }, [id]);
 
   useEffect(() => { loadReferenceData(); }, [loadReferenceData]);
+
+  // ── Inline rename of previous entries (fix inconsistent naming) ────────────
+  // Renames every past quote item carrying the old description so the
+  // suggestion library converges to one spelling.
+  const [prevEdit, setPrevEdit] = useState<{ key: string; description: string; brand: string; original: PrevItem } | null>(null);
+  const [prevEditBusy, setPrevEditBusy] = useState(false);
+  const [prevEditError, setPrevEditError] = useState('');
+
+  async function renamePrevItem() {
+    if (!prevEdit) return;
+    const newDesc = prevEdit.description.trim();
+    const newBrand = prevEdit.brand.trim();
+    if (newDesc.length < 3) { setPrevEditError('Description too short'); return; }
+    setPrevEditBusy(true);
+    setPrevEditError('');
+    // ilike with wildcards escaped = case-insensitive equality, catching
+    // "U ditch" vs "U Ditch" variants in one pass
+    const escaped = prevEdit.original.description.replace(/([%_\\])/g, '\\$1');
+    const { error } = await supabase.from('10.2_quote_items')
+      .update({ description: newDesc, brand: newBrand })
+      .ilike('description', escaped);
+    if (error) {
+      setPrevEditError(error.message);
+      setPrevEditBusy(false);
+      return;
+    }
+    // Keep the open draft consistent too (its saved rows were just updated)
+    const oldKey = prevEdit.original.description.trim().toLowerCase();
+    setSections((prev) => prev.map((s) => ({
+      ...s,
+      items: s.items.map((it) =>
+        it.description.trim().toLowerCase() === oldKey
+          ? { ...it, description: newDesc, brand: newBrand }
+          : it),
+    })));
+    setPrevEdit(null);
+    setPrevEditBusy(false);
+    loadReferenceData();
+  }
 
   // Browser tab shows which quote is open
   useEffect(() => {
@@ -1334,31 +1378,82 @@ export default function QuoteEditorPage() {
                                         Previously entered items
                                       </p>
                                     )}
-                                    {acResults.prev.map((p, pi) => (
-                                      <button
-                                        key={`prev-${p.description.toLowerCase()}`}
-                                        data-ac-idx={acResults.comps.length + pi}
-                                        onMouseDown={(e) => { e.preventDefault(); selectPrevItem(sec.section_id, item.item_id, p); }}
-                                        onMouseEnter={() => setAcIndex(acResults.comps.length + pi)}
-                                        className={`w-full text-left px-4 py-2.5 transition-colors flex items-center justify-between gap-3 ${acIndex === acResults.comps.length + pi ? 'bg-slate-800' : ''}`}
-                                      >
-                                        <div className="min-w-0">
-                                          <p className="text-slate-200 font-medium truncate">
-                                            <span className="mr-1.5 px-1 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 align-middle">PREV</span>
-                                            {p.description}
-                                          </p>
-                                          <p className="text-[10px] text-slate-500 truncate">
-                                            {[p.brand, p.date ? `${p.label} · ${p.date}` : p.label, p.count > 1 ? `used ${p.count}×` : null].filter(Boolean).join(' · ')}
-                                          </p>
-                                        </div>
-                                        <div className="text-right flex-shrink-0">
-                                          {p.cost_price != null
-                                            ? <p className="font-semibold text-xs text-amber-400">{fmtIdr(p.cost_price)}</p>
-                                            : <p className="text-slate-600 text-[10px]">no cost</p>}
-                                          <p className="text-[10px] text-slate-600">last used</p>
-                                        </div>
-                                      </button>
-                                    ))}
+                                    {acResults.prev.map((p, pi) => {
+                                      const rowKey = `prev-${p.description.toLowerCase()}`;
+                                      if (prevEdit?.key === rowKey) {
+                                        return (
+                                          <div key={rowKey} className="px-4 py-2.5 bg-slate-800/70 space-y-1.5 border-y border-slate-700">
+                                            <p className="text-[10px] text-slate-400">
+                                              Rename everywhere — updates {p.count} previous entr{p.count > 1 ? 'ies' : 'y'} and this quote
+                                            </p>
+                                            <input
+                                              value={prevEdit.description}
+                                              onChange={(e) => setPrevEdit({ ...prevEdit, description: e.target.value })}
+                                              onKeyDown={(e) => { if (e.key === 'Enter') renamePrevItem(); if (e.key === 'Escape') setPrevEdit(null); }}
+                                              autoFocus
+                                              className="w-full bg-slate-900 border border-slate-600 focus:border-violet-500 rounded-lg px-2 py-1 text-xs text-white outline-none transition-colors"
+                                            />
+                                            <div className="flex items-center gap-1.5">
+                                              <input
+                                                value={prevEdit.brand}
+                                                onChange={(e) => setPrevEdit({ ...prevEdit, brand: e.target.value })}
+                                                onKeyDown={(e) => { if (e.key === 'Enter') renamePrevItem(); if (e.key === 'Escape') setPrevEdit(null); }}
+                                                placeholder="Brand"
+                                                className="flex-1 min-w-0 bg-slate-900 border border-slate-600 focus:border-violet-500 rounded-lg px-2 py-1 text-xs text-slate-200 outline-none transition-colors"
+                                              />
+                                              <button onClick={renamePrevItem} disabled={prevEditBusy}
+                                                className="px-2.5 py-1 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-[10px] font-semibold transition-colors disabled:opacity-50">
+                                                {prevEditBusy ? 'Renaming…' : 'Rename'}
+                                              </button>
+                                              <button onClick={() => setPrevEdit(null)} disabled={prevEditBusy}
+                                                className="px-2 py-1 text-slate-400 hover:text-white text-[10px] transition-colors">
+                                                Cancel
+                                              </button>
+                                            </div>
+                                            {prevEditError && <p className="text-[10px] text-red-400">{prevEditError}</p>}
+                                          </div>
+                                        );
+                                      }
+                                      return (
+                                        <button
+                                          key={rowKey}
+                                          data-ac-idx={acResults.comps.length + pi}
+                                          onMouseDown={(e) => { e.preventDefault(); selectPrevItem(sec.section_id, item.item_id, p); }}
+                                          onMouseEnter={() => setAcIndex(acResults.comps.length + pi)}
+                                          className={`group/prev w-full text-left px-4 py-2.5 transition-colors flex items-center justify-between gap-3 ${acIndex === acResults.comps.length + pi ? 'bg-slate-800' : ''}`}
+                                        >
+                                          <div className="min-w-0">
+                                            <p className="text-slate-200 font-medium truncate">
+                                              <span className="mr-1.5 px-1 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 align-middle">PREV</span>
+                                              {p.description}
+                                            </p>
+                                            <p className="text-[10px] text-slate-500 truncate">
+                                              {[p.brand, p.date ? `${p.label} · ${p.date}` : p.label, p.count > 1 ? `used ${p.count}×` : null].filter(Boolean).join(' · ')}
+                                            </p>
+                                          </div>
+                                          <div className="text-right flex-shrink-0 flex items-center gap-2">
+                                            <div>
+                                              {p.cost_price != null
+                                                ? <p className="font-semibold text-xs text-amber-400">{fmtIdr(p.cost_price)}</p>
+                                                : <p className="text-slate-600 text-[10px]">no cost</p>}
+                                              <p className="text-[10px] text-slate-600">last used</p>
+                                            </div>
+                                            <span
+                                              onMouseDown={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                setPrevEditError('');
+                                                setPrevEdit({ key: rowKey, description: p.description, brand: p.brand, original: p });
+                                              }}
+                                              className="p-1 rounded opacity-0 group-hover/prev:opacity-100 hover:bg-white/10 text-slate-500 hover:text-white transition-all"
+                                              title="Rename this entry everywhere — fix inconsistent naming"
+                                            >
+                                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                            </span>
+                                          </div>
+                                        </button>
+                                      );
+                                    })}
                                   </div>
                                 )}
                               </td>
