@@ -114,7 +114,7 @@ export default function PrintPage() {
     <>
       <style>{`
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Arial', sans-serif; font-size: 10pt; color: #1a1a1a; background: white; }
+        body { font-family: -apple-system, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 9.5pt; color: #1f2937; background: #fff; -webkit-font-smoothing: antialiased; }
         @page { size: A4; margin: 10mm 8mm; }
         @media print {
           .no-print { display: none !important; }
@@ -122,46 +122,54 @@ export default function PrintPage() {
           .page { max-width: none; padding: 0; }
         }
         .page { max-width: 210mm; margin: 0 auto; padding: 8mm 0; }
-        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4mm; border-bottom: 2px solid #1e3a5f; padding-bottom: 3mm; }
-        .company-name { font-size: 18pt; font-weight: 900; color: #1e3a5f; letter-spacing: -0.5px; }
-        .company-sub { font-size: 8pt; color: #666; margin-top: 1mm; }
+
+        .header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 6mm; padding-bottom: 3mm; border-bottom: 2.5pt solid #1e3a5f; }
+        .company-name { font-size: 16pt; font-weight: 800; color: #1e3a5f; letter-spacing: -0.3px; }
         .doc-title { text-align: right; }
-        .doc-title h2 { font-size: 14pt; font-weight: 700; color: #1e3a5f; text-transform: uppercase; letter-spacing: 1px; }
-        .doc-title .quote-num { font-size: 10pt; color: #444; margin-top: 1mm; }
-        .doc-title .quote-date { font-size: 9pt; color: #666; }
-        .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; margin-bottom: 4mm; }
-        .meta-label { font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #888; margin-bottom: 1mm; }
-        .meta-value { font-size: 10pt; font-weight: 600; color: #1a1a1a; line-height: 1.4; }
-        .meta-sub { font-size: 9pt; color: #444; line-height: 1.4; }
-        .project-bar { background: #f0f4fa; border-left: 3px solid #1e3a5f; padding: 2mm 3mm; margin-bottom: 4mm; font-size: 9pt; color: #333; }
-        .project-label { font-size: 7pt; font-weight: 700; text-transform: uppercase; color: #888; margin-bottom: 0.5mm; }
+        .doc-label { font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 2.5px; color: #94a3b8; margin-bottom: 1mm; }
+        .quote-num { font-size: 12.5pt; font-weight: 700; color: #1e3a5f; }
+        .quote-date { font-size: 8.5pt; color: #64748b; margin-top: 0.5mm; }
+
+        .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; margin-bottom: 5mm; }
+        .meta-label { font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #94a3b8; margin-bottom: 1mm; }
+        .meta-value { font-size: 10.5pt; font-weight: 600; color: #0f172a; line-height: 1.4; }
+        .meta-sub { font-size: 9pt; color: #475569; line-height: 1.45; }
+
+        .project-bar { background: #f4f7fb; border-left: 2.5pt solid #1e3a5f; border-radius: 0 1.5mm 1.5mm 0; padding: 2.5mm 3.5mm; margin-bottom: 5mm; font-size: 9.5pt; color: #1f2937; }
+        .project-label { font-size: 6.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #94a3b8; margin-bottom: 0.8mm; }
+
         table { width: 100%; border-collapse: collapse; font-size: 9pt; }
-        thead tr { background: #1e3a5f; color: white; }
-        thead th { padding: 2mm 1.5mm; text-align: left; font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+        thead th { padding: 2mm 1.5mm; text-align: left; font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #64748b; border-bottom: 1.5pt solid #1e3a5f; white-space: nowrap; }
         thead th.right { text-align: right; }
-        tbody tr.group-row { background: #1e3a5f; }
-        tbody tr.group-row td { padding: 1.6mm 1.5mm; font-weight: 700; font-size: 9.5pt; color: #fff; text-transform: uppercase; letter-spacing: 0.5px; }
-        tbody tr.section-row { background: #e8eef7; }
-        tbody tr.section-row td { padding: 1.6mm 1.5mm; font-weight: 700; font-size: 9pt; color: #1e3a5f; }
-        tbody tr.item-row td { padding: 1.2mm 1.5mm; border-bottom: 0.3pt solid #e5e7eb; vertical-align: top; }
-        tbody tr.sub-row td { padding: 0.8mm 1.5mm 0.8mm 8mm; border-bottom: 0.3pt solid #f0f0f0; color: #666; font-size: 8.5pt; font-style: italic; }
+        tbody tr.group-row td { padding: 4.5mm 1.5mm 1.6mm; font-weight: 800; font-size: 9.5pt; color: #1e3a5f; text-transform: uppercase; letter-spacing: 1.5px; border-bottom: 1pt solid #1e3a5f; }
+        tbody tr.section-row { background: #f4f7fb; }
+        tbody tr.section-row td { padding: 2mm 1.5mm; font-weight: 650; font-size: 9pt; color: #1e3a5f; }
+        tbody tr.item-row td { padding: 1.7mm 1.5mm; border-bottom: 0.4pt solid #e8edf3; vertical-align: top; color: #334155; }
+        tbody tr.item-row td:first-child { color: #1f2937; }
+        tbody tr.sub-row td { padding: 1mm 1.5mm 1mm 8mm; border-bottom: 0.4pt solid #f1f5f9; color: #64748b; font-size: 8.5pt; font-style: italic; }
         td.right { text-align: right; }
         td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
         td.lead { white-space: nowrap; }
-        .totals-wrap { display: flex; justify-content: flex-end; margin-top: 4mm; }
-        .totals { width: 80mm; }
-        .totals-row { display: flex; justify-content: space-between; padding: 1mm 0; font-size: 9.5pt; border-bottom: 0.3pt solid #e5e7eb; }
-        .totals-row.grand { font-weight: 700; font-size: 11pt; color: #1e3a5f; border-top: 1.5pt solid #1e3a5f; border-bottom: none; padding-top: 2mm; margin-top: 1mm; }
-        .footer { margin-top: 10mm; border-top: 0.5pt solid #ccc; padding-top: 4mm; display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; font-size: 8.5pt; color: #555; }
-        .sig-label { font-size: 8pt; color: #888; margin-bottom: 8mm; }
-        .sig-line { border-bottom: 0.5pt solid #999; margin-bottom: 1mm; height: 10mm; }
-        .sig-name { font-size: 8pt; color: #444; text-align: center; }
-        .terms { margin-top: 6mm; border-top: 1pt solid #1e3a5f; padding-top: 3mm; font-size: 8.5pt; color: #333; page-break-inside: avoid; }
-        .terms-title { font-size: 9.5pt; font-weight: 700; text-transform: uppercase; color: #1e3a5f; margin-bottom: 2mm; }
-        .terms-header { font-weight: 600; text-decoration: underline; margin-top: 1.5mm; line-height: 1.5; white-space: pre-wrap; }
-        .terms-line { font-style: italic; line-height: 1.5; white-space: pre-wrap; }
-        .terms-thanks { font-weight: 700; font-style: italic; margin-top: 2mm; line-height: 1.5; white-space: pre-wrap; }
-        .print-btn { position: fixed; bottom: 20px; right: 20px; padding: 10px 20px; background: #1e3a5f; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+
+        .totals-wrap { display: flex; justify-content: flex-end; margin-top: 5mm; }
+        .totals { width: 88mm; }
+        .totals-row { display: flex; justify-content: space-between; padding: 1.4mm 3mm; font-size: 9.5pt; color: #475569; border-bottom: 0.4pt solid #e8edf3; font-variant-numeric: tabular-nums; }
+        .totals-row span:last-child { font-weight: 650; color: #0f172a; }
+        .totals-row.grand { background: #1e3a5f; color: #fff; border: none; border-radius: 1.5mm; font-weight: 700; font-size: 11pt; padding: 2.4mm 3mm; margin-top: 1.5mm; }
+        .totals-row.grand span:last-child { color: #fff; font-weight: 800; }
+
+        .terms { margin-top: 8mm; padding-top: 2mm; page-break-inside: avoid; }
+        .terms-title { font-size: 8pt; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; color: #1e3a5f; border-left: 2.5pt solid #1e3a5f; padding-left: 2.5mm; margin-bottom: 2.5mm; }
+        .terms-header { font-weight: 650; text-decoration: underline; text-underline-offset: 2px; margin-top: 1.8mm; line-height: 1.55; color: #1f2937; font-size: 8.5pt; white-space: pre-wrap; }
+        .terms-line { font-style: italic; line-height: 1.55; color: #475569; font-size: 8.5pt; white-space: pre-wrap; }
+        .terms-thanks { font-weight: 700; font-style: italic; margin-top: 2.5mm; line-height: 1.5; color: #1e3a5f; font-size: 8.5pt; white-space: pre-wrap; }
+
+        .footer { margin-top: 10mm; padding-top: 4mm; border-top: 0.5pt solid #e2e8f0; display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; font-size: 8.5pt; color: #64748b; }
+        .sig-label { font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #94a3b8; margin-bottom: 10mm; }
+        .sig-line { border-bottom: 0.6pt solid #cbd5e1; margin-bottom: 1.2mm; height: 8mm; }
+        .sig-name { font-size: 8pt; color: #475569; text-align: center; font-weight: 600; }
+
+        .print-btn { position: fixed; bottom: 20px; right: 20px; padding: 11px 22px; background: #1e3a5f; color: #fff; border: none; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: 0 6px 20px rgba(15,23,42,0.25); }
       `}</style>
 
       <div className="page">
@@ -171,7 +179,7 @@ export default function PrintPage() {
             <div className="company-name">{companyName || 'ICAPROC'}</div>
           </div>
           <div className="doc-title">
-            <h2>Penawaran Harga</h2>
+            <div className="doc-label">Penawaran Harga</div>
             <div className="quote-num">{quote.quote_number}</div>
             <div className="quote-date">{fmtDate(quote.quote_date)}</div>
           </div>
@@ -186,11 +194,12 @@ export default function PrintPage() {
               <div className="meta-sub" style={{ whiteSpace: 'pre-line' }}>{quote.customer_address}</div>
             )}
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div className="meta-label">Nomor Penawaran</div>
-            <div className="meta-value">{quote.quote_number}</div>
-            <div className="meta-sub" style={{ marginTop: '2mm' }}>Tanggal: {fmtDate(quote.quote_date)}</div>
-          </div>
+          {quote.location ? (
+            <div style={{ textAlign: 'right' }}>
+              <div className="meta-label">Lokasi / Site</div>
+              <div className="meta-value">{quote.location}</div>
+            </div>
+          ) : <div />}
         </div>
 
         {/* Project description */}
@@ -239,10 +248,10 @@ export default function PrintPage() {
                             <React.Fragment key={item.item_id}>
                               <tr className="item-row">
                                 <td>{item.description}</td>
-                                <td style={{ color: '#555' }}>{item.brand}</td>
+                                <td style={{ color: '#64748b' }}>{item.brand}</td>
                                 <td />
                                 <td className="num">{item.quantity != null ? Number(item.quantity).toLocaleString('en-US') : ''}</td>
-                                <td style={{ color: '#555' }}>{item.unit}</td>
+                                <td style={{ color: '#64748b' }}>{item.unit}</td>
                                 <td />
                               </tr>
                               {subItems.map((sub) => (
@@ -255,9 +264,9 @@ export default function PrintPage() {
                               ))}
                               {sec.group_key === 'solar_panels' && itemWp(item) > 0 && (item.unit ?? '').trim().toLowerCase() !== 'wp' && (
                                 <tr className="sub-row">
-                                  <td colSpan={3} style={{ color: '#1a7f4f' }}>Total system size</td>
-                                  <td className="num" style={{ color: '#1a7f4f', fontWeight: 700 }}>{itemWp(item).toLocaleString('en-US')}</td>
-                                  <td style={{ color: '#1a7f4f' }}>Wp</td>
+                                  <td colSpan={3} style={{ color: '#047857' }}>Total system size</td>
+                                  <td className="num" style={{ color: '#047857', fontWeight: 700 }}>{itemWp(item).toLocaleString('en-US')}</td>
+                                  <td style={{ color: '#047857' }}>Wp</td>
                                   <td />
                                 </tr>
                               )}
