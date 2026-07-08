@@ -279,6 +279,11 @@ export default function QuotesListPage() {
                     <span className="truncate">{q.customer_name || 'No customer'}</span>
                     {q.project_description && <span className="truncate text-slate-600 hidden sm:block">{q.project_description}</span>}
                     <span className="flex-shrink-0">{fmtDate(q.quote_date)}</span>
+                    {(q.updated_by_email || q.created_by_email) && (
+                      <span className="flex-shrink-0 text-slate-600 hidden md:block" title={`Created by ${q.created_by_email || '—'} · last edited by ${q.updated_by_email || '—'}`}>
+                        ✎ {(q.updated_by_email || q.created_by_email)!.split('@')[0]}{q.updated_at ? ` · ${fmtDate(q.updated_at)}` : ''}
+                      </span>
+                    )}
                   </div>
                 </Link>
                 <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">

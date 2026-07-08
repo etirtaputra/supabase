@@ -70,6 +70,18 @@ function fmtIdr(v: number | null | undefined) {
   return `Rp${Math.round(v).toLocaleString('en-US')}`;
 }
 
+function fmtDateTime(s: string | undefined) {
+  if (!s) return '';
+  return new Date(s).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+const ACTIVITY_BADGE: Record<string, string> = {
+  created: 'bg-emerald-500/20 text-emerald-300',
+  edited:  'bg-slate-600/40 text-slate-300',
+  status:  'bg-sky-500/20 text-sky-300',
+  deleted: 'bg-red-500/20 text-red-300',
+};
+
 function gmFromPrices(cost: string, sell: string): string {
   const c = num(cost), s = num(sell);
   if (!c || !s || s <= 0) return '';
@@ -562,6 +574,21 @@ export default function QuoteEditorPage() {
     markDirty();
     setSaveMsg('Costs refreshed');
     setTimeout(() => setSaveMsg(''), 2500);
+  }
+
+  // ── Activity log (written by database trigger; read-only here) ─────────────
+  const [showActivity, setShowActivity] = useState(false);
+  const [activity, setActivity] = useState<{ action: string; detail: string; actor_email: string; at: string }[] | null>(null);
+
+  async function openActivity() {
+    setShowActivity(true);
+    setActivity(null);
+    const { data } = await supabase.from('10.3_quote_activity')
+      .select('action, detail, actor_email, at')
+      .eq('quote_id', id)
+      .order('at', { ascending: false })
+      .limit(100);
+    setActivity(data ?? []);
   }
 
   // ── Export column choices (shared with the print page via localStorage) ────
@@ -1154,6 +1181,20 @@ export default function QuoteEditorPage() {
             🔒 This quote is <span className="font-bold">SENT</span> and read-only for your role.
             Ask an Owner to make changes, or duplicate it from the quotes list to start a new revision.
           </div>
+        )}
+
+        {/* ── Audit line ── */}
+        {(quote.created_by_email || quote.updated_by_email) && (
+          <p className="text-[11px] text-slate-600 px-1">
+            {quote.created_by_email && <>Created by <span className="text-slate-400">{quote.created_by_email}</span></>}
+            {quote.updated_by_email && (
+              <> · Last edited by <span className="text-slate-400">{quote.updated_by_email}</span>
+                {quote.updated_at && <> on {fmtDateTime(quote.updated_at)}</>}</>
+            )}
+            <button onClick={openActivity} className="ml-2 underline text-slate-500 hover:text-slate-300 transition-colors">
+              View history
+            </button>
+          </p>
         )}
 
         {/* ── Header form ── */}
@@ -1875,6 +1916,38 @@ export default function QuoteEditorPage() {
           />
         </div>
       </main>
+
+      {/* ── Activity history modal ── */}
+      {showActivity && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setShowActivity(false)}>
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-lg w-full max-h-[70vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-white">History — {quote.quote_number}</h3>
+              <button onClick={() => setShowActivity(false)} className="text-slate-500 hover:text-white transition-colors">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="overflow-y-auto space-y-1.5 pr-1">
+              {activity === null && <p className="text-slate-500 text-sm">Loading…</p>}
+              {activity?.length === 0 && (
+                <p className="text-slate-500 text-sm">
+                  No history yet. Entries appear once the audit migration has been run and the quote is saved.
+                </p>
+              )}
+              {activity?.map((a, i) => (
+                <div key={i} className="flex items-center gap-3 px-3 py-2 bg-slate-800/40 rounded-xl text-xs">
+                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase flex-shrink-0 ${ACTIVITY_BADGE[a.action] ?? ACTIVITY_BADGE.edited}`}>
+                    {a.action}
+                  </span>
+                  {a.detail && <span className="text-sky-300 flex-shrink-0">{a.detail}</span>}
+                  <span className="text-slate-400 truncate">{a.actor_email}</span>
+                  <span className="text-slate-600 ml-auto flex-shrink-0 tabular-nums">{fmtDateTime(a.at)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Sticky totals bar ── */}
       {subtotal > 0 && (

@@ -56,7 +56,72 @@ CREATE TABLE IF NOT EXISTS "10.2_quote_items" (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE "10.2_quote_items" ADD COLUMN IF NOT EXISTS qty_formula TEXT DEFAULT '';
-ALTER TABLE "10.2_quote_items" ADD COLUMN IF NOT EXISTS eng_note TEXT DEFAULT '';`;
+ALTER TABLE "10.2_quote_items" ADD COLUMN IF NOT EXISTS eng_note TEXT DEFAULT '';
+
+-- Audit trail: who created / last edited each quote, plus an activity log
+ALTER TABLE "10.0_project_quotes" ADD COLUMN IF NOT EXISTS created_by_email TEXT DEFAULT '';
+ALTER TABLE "10.0_project_quotes" ADD COLUMN IF NOT EXISTS updated_by_email TEXT DEFAULT '';
+
+CREATE TABLE IF NOT EXISTS "10.3_quote_activity" (
+  activity_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  quote_id UUID,                -- deliberately no FK: the log survives quote deletion
+  quote_number TEXT DEFAULT '',
+  action TEXT NOT NULL,         -- created | edited | status | deleted
+  detail TEXT DEFAULT '',
+  actor_email TEXT DEFAULT '',
+  at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE "10.3_quote_activity" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "activity read" ON "10.3_quote_activity";
+CREATE POLICY "activity read" ON "10.3_quote_activity" FOR SELECT TO authenticated USING (true);
+-- no client insert/update/delete policies: only the trigger below writes
+
+CREATE OR REPLACE FUNCTION public.log_quote_activity() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER AS $fn$
+DECLARE actor TEXT;
+BEGIN
+  SELECT email INTO actor FROM user_profiles WHERE id = auth.uid();
+  actor := COALESCE(actor, 'system');
+  IF TG_OP = 'INSERT' THEN
+    -- Upserts fire INSERT triggers even on the conflict path; only a truly
+    -- new row counts as "created"
+    IF EXISTS (SELECT 1 FROM "10.0_project_quotes" WHERE quote_id = NEW.quote_id) THEN
+      RETURN NEW;
+    END IF;
+    NEW.created_by_email := actor;
+    NEW.updated_by_email := actor;
+    INSERT INTO "10.3_quote_activity"(quote_id, quote_number, action, actor_email)
+      VALUES (NEW.quote_id, NEW.quote_number, 'created', actor);
+    RETURN NEW;
+  ELSIF TG_OP = 'UPDATE' THEN
+    NEW.updated_by_email := actor;
+    NEW.updated_at := NOW();
+    IF NEW.status IS DISTINCT FROM OLD.status THEN
+      INSERT INTO "10.3_quote_activity"(quote_id, quote_number, action, detail, actor_email)
+        VALUES (NEW.quote_id, NEW.quote_number, 'status', OLD.status || ' -> ' || NEW.status, actor);
+    ELSIF NOT EXISTS (
+      -- throttle: autosave fires every 30s, one "edited" entry per editing
+      -- session (same actor, last 10 minutes) is enough
+      SELECT 1 FROM "10.3_quote_activity"
+      WHERE quote_id = NEW.quote_id AND action = 'edited' AND actor_email = actor
+        AND at > NOW() - INTERVAL '10 minutes'
+    ) THEN
+      INSERT INTO "10.3_quote_activity"(quote_id, quote_number, action, actor_email)
+        VALUES (NEW.quote_id, NEW.quote_number, 'edited', actor);
+    END IF;
+    RETURN NEW;
+  ELSIF TG_OP = 'DELETE' THEN
+    INSERT INTO "10.3_quote_activity"(quote_id, quote_number, action, actor_email)
+      VALUES (OLD.quote_id, OLD.quote_number, 'deleted', actor);
+    RETURN OLD;
+  END IF;
+  RETURN NULL;
+END $fn$;
+
+DROP TRIGGER IF EXISTS log_quote_activity ON "10.0_project_quotes";
+CREATE TRIGGER log_quote_activity
+  BEFORE INSERT OR UPDATE OR DELETE ON "10.0_project_quotes"
+  FOR EACH ROW EXECUTE FUNCTION public.log_quote_activity();`;
 
 /**
  * Probes the quote tables for the columns this build writes. Renders an
@@ -72,9 +137,10 @@ export default function MigrationBanner() {
     let cancelled = false;
     async function check() {
       const probes = await Promise.all([
-        supabase.from('10.0_project_quotes').select('company_id, group_margins, project_type, system_specs, location').limit(1),
+        supabase.from('10.0_project_quotes').select('company_id, group_margins, project_type, system_specs, location, created_by_email, updated_by_email').limit(1),
         supabase.from('10.1_quote_sections').select('group_key').limit(1),
         supabase.from('10.2_quote_items').select('qty_formula, eng_note').limit(1),
+        supabase.from('10.3_quote_activity').select('activity_id').limit(1),
       ]);
       if (!cancelled && probes.some((p) => p.error)) setMissing(true);
     }

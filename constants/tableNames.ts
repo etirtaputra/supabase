@@ -22,6 +22,7 @@ export const TABLE_NAMES = {
   PROJECT_QUOTES:   '10.0_project_quotes',
   QUOTE_SECTIONS:   '10.1_quote_sections',
   QUOTE_ITEMS:      '10.2_quote_items',
+  QUOTE_ACTIVITY:   '10.3_quote_activity',
 } as const;
 
 export type TableName = typeof TABLE_NAMES[keyof typeof TABLE_NAMES];
