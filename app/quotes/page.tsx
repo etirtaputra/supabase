@@ -34,6 +34,24 @@ export default function QuotesListPage() {
   const [creating, setCreating] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
+  // Set-password modal (for accounts created via magic link)
+  const [pwOpen, setPwOpen] = useState(false);
+  const [pw1, setPw1] = useState('');
+  const [pw2, setPw2] = useState('');
+  const [pwBusy, setPwBusy] = useState(false);
+  const [pwMsg, setPwMsg] = useState('');
+
+  async function savePassword() {
+    if (pw1.length < 8) { setPwMsg('Use at least 8 characters'); return; }
+    if (pw1 !== pw2) { setPwMsg('Passwords do not match'); return; }
+    setPwBusy(true);
+    const { error } = await supabase.auth.updateUser({ password: pw1 });
+    setPwBusy(false);
+    if (error) { setPwMsg(error.message); return; }
+    setPwMsg('');
+    setPwOpen(false);
+  }
+
   // Duplicate modal state
   const [dup, setDup] = useState<{ id: string; number: string } | null>(null);
   const [dupToday, setDupToday] = useState(true);
@@ -203,9 +221,14 @@ export default function QuotesListPage() {
             {gate.profile && (
               <div className="text-right hidden sm:block">
                 <p className="text-[11px] text-slate-400 leading-tight">{gate.profile.email}</p>
-                <button onClick={() => gate.signOut()} className="text-[10px] text-slate-600 hover:text-slate-300 underline transition-colors">
-                  Sign out
-                </button>
+                <div className="flex items-center gap-2 justify-end">
+                  <button onClick={() => { setPwOpen(true); setPw1(''); setPw2(''); setPwMsg(''); }} className="text-[10px] text-slate-600 hover:text-slate-300 underline transition-colors">
+                    Set password
+                  </button>
+                  <button onClick={() => gate.signOut()} className="text-[10px] text-slate-600 hover:text-slate-300 underline transition-colors">
+                    Sign out
+                  </button>
+                </div>
               </div>
             )}
           <button
@@ -274,6 +297,7 @@ export default function QuotesListPage() {
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                   </Link>
+                  {(q.status !== 'sent' || gate.profile?.role === 'owner') && (
                   <button
                     onClick={() => setDeleteId(q.quote_id)}
                     className="p-2 rounded-lg hover:bg-red-500/10 text-slate-600 hover:text-red-400 transition-colors"
@@ -281,12 +305,41 @@ export default function QuotesListPage() {
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                   </button>
+                  )}
                 </div>
               </div>
             ))}
           </div>
         )}
       </main>
+
+      {/* Set-password modal */}
+      {pwOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-sm w-full">
+            <h3 className="font-semibold text-white mb-1">Set a password</h3>
+            <p className="text-slate-500 text-xs mb-5">Lets you sign in without waiting for a login-link email.</p>
+            <div className="space-y-3">
+              <input type="password" value={pw1} onChange={(e) => setPw1(e.target.value)}
+                placeholder="New password (min. 8 characters)"
+                className="w-full px-3 py-2.5 bg-slate-800/80 border border-slate-700 rounded-lg text-white text-sm placeholder-slate-600 focus:outline-none focus:border-violet-500" />
+              <input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') savePassword(); }}
+                placeholder="Repeat password"
+                className="w-full px-3 py-2.5 bg-slate-800/80 border border-slate-700 rounded-lg text-white text-sm placeholder-slate-600 focus:outline-none focus:border-violet-500" />
+              {pwMsg && <p className="text-[11px] text-red-400">{pwMsg}</p>}
+            </div>
+            <div className="flex gap-3 justify-end mt-5">
+              <button onClick={() => setPwOpen(false)} disabled={pwBusy}
+                className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors disabled:opacity-50">Cancel</button>
+              <button onClick={savePassword} disabled={pwBusy}
+                className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors disabled:opacity-50">
+                {pwBusy ? 'Saving…' : 'Save password'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Duplicate modal */}
       {dup && (
