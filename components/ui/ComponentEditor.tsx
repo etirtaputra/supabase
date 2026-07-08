@@ -804,7 +804,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     // Sparkline raw: one entry per (component, quote_id), first non-zero price seen.
     // Keyed with quote_id for stable sort tiebreaker — prevents same-day quotes from
     // producing false deltas (comparing line items within the same quote).
-    type SparkRaw = TooltipQuoteLine & { quote_id: number };
+    type SparkRaw = TooltipQuoteLine & { quote_id: number; quote_line_id: number };
     const sparkRaw = new Map<string, SparkRaw[]>();
     const seenQuote = new Map<string, Set<number>>();
 
@@ -823,13 +823,13 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       if (seenQuote.get(cid)!.has(item.quote_id)) return;
       seenQuote.get(cid)!.add(item.quote_id);
       if (!sparkRaw.has(cid)) sparkRaw.set(cid, []);
-      sparkRaw.get(cid)!.push({ pi_number: q.pi_number, quote_date: q.quote_date, quantity: item.quantity, unit_price: item.unit_price, currency: item.currency, quote_id: item.quote_id });
+      sparkRaw.get(cid)!.push({ pi_number: q.pi_number, quote_date: q.quote_date, quantity: item.quantity, unit_price: item.unit_price, currency: item.currency, quote_id: item.quote_id, quote_line_id: item.quote_line_id });
     });
 
     // Sort by (date, quote_id) ascending; derive lastMap from sparkline's last entry
     // so displayed price always matches the delta baseline.
     const sparkMap = new Map<string, TooltipQuoteLine[]>();
-    const lastMap = new Map<string, { price: number; currency: string; date: string }>();
+    const lastMap = new Map<string, { price: number; currency: string; date: string; quote_line_id?: number; pi_number?: string }>();
     sparkRaw.forEach((entries, cid) => {
       const sorted = [...entries].sort((a, b) => {
         const d = (a.quote_date || '').localeCompare(b.quote_date || '');
@@ -837,7 +837,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       });
       sparkMap.set(cid, sorted);
       const last = sorted[sorted.length - 1];
-      lastMap.set(cid, { price: last.unit_price, currency: last.currency, date: last.quote_date ?? '' });
+      lastMap.set(cid, { price: last.unit_price, currency: last.currency, date: last.quote_date ?? '', quote_line_id: last.quote_line_id, pi_number: last.pi_number });
     });
 
     linesMap.forEach((lines, cid) => {
@@ -1458,6 +1458,25 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       n.has(id) ? n.delete(id) : n.add(id);
       return n;
     });
+  };
+
+  // ── Fix-at-source for quoted Last Price ─────────────────────────────────────
+  // Only quoted prices are correctable (typo fixes on the source quote line);
+  // TUC and PO-derived prices stay read-only.
+  const [lqDraft, setLqDraft] = useState<{ componentId: string; value: string; saving: boolean } | null>(null);
+
+  const fixQuotedPrice = async (componentId: string, quoteLineId: number) => {
+    if (!onSaveLineItem || !lqDraft || lqDraft.componentId !== componentId || lqDraft.saving) return;
+    const v = parseFloat(lqDraft.value);
+    if (!(v > 0)) return;
+    setLqDraft({ ...lqDraft, saving: true });
+    try {
+      // Partial update: handleSaveLineItem spreads fields into .update()
+      await onSaveLineItem({ quote_line_id: quoteLineId, unit_price: v } as any);
+      setLqDraft(null);
+    } catch {
+      setLqDraft((d) => (d ? { ...d, saving: false } : d));
+    }
   };
 
   const toggleSpecs = (id: string) => {
@@ -2714,15 +2733,15 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                     {/* Last Price — TUC first, fallback to last quoted price, then last PO unit cost */}
                     {visibleCols.lastPrice && (
                       <td className="px-3 py-1.5 align-middle min-w-[100px] cursor-default"
-                        onMouseEnter={(e) => {
+                        onMouseEnter={!isEditing ? (e) => {
                           const rect = e.currentTarget.getBoundingClientRect();
                           const tooltipW = 388; const tooltipH = 260;
                           const spaceBelow = window.innerHeight - rect.bottom;
                           const top = spaceBelow > tooltipH ? rect.bottom + 4 : rect.top - tooltipH - 4;
                           const left = Math.min(rect.left, window.innerWidth - tooltipW - 8);
                           setHoveredTooltip({ id: c.component_id, kind: 'usage', style: { position: 'fixed', top: Math.max(8, top), left: Math.max(8, left), zIndex: 9999 } });
-                        }}
-                        onMouseLeave={() => setHoveredTooltip(null)}
+                        } : undefined}
+                        onMouseLeave={!isEditing ? () => setHoveredTooltip(null) : undefined}
                       >
                         {(() => {
                           const tuc = tucByComponent.get(c.component_id);
@@ -2742,15 +2761,44 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                                   </div>
                                 </div>
                               ) : lq && (!lpo || lq.date >= lpo.date) ? (
-                                <div className="min-w-0">
-                                  <p className="text-xs font-medium text-slate-200 tabular-nums leading-tight">
-                                    {fmtAmt(lq.price, lq.currency)}
-                                  </p>
-                                  <div className="flex items-center gap-1.5 mt-0.5">
-                                    <span className="text-[10px] text-slate-600 whitespace-nowrap">{new Date(lq.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}</span>
-                                    <PriceDelta lines={sparklineLinesByComponent.get(c.component_id) ?? []} />
+                                isEditing && lq.quote_line_id != null && onSaveLineItem ? (
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-1">
+                                      <input
+                                        type="number"
+                                        step="any"
+                                        min="0"
+                                        value={lqDraft?.componentId === c.component_id ? lqDraft.value : String(lq.price)}
+                                        onFocus={() => setLqDraft({ componentId: c.component_id, value: String(lq.price), saving: false })}
+                                        onChange={(e) => setLqDraft({ componentId: c.component_id, value: e.target.value, saving: false })}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') fixQuotedPrice(c.component_id, lq.quote_line_id!); }}
+                                        className="w-24 px-2 py-1 rounded-lg text-xs text-white bg-slate-950 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 tabular-nums"
+                                      />
+                                      <span className="text-[11px] text-slate-500 flex-shrink-0">{lq.currency}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 mt-1">
+                                      <button
+                                        onClick={() => fixQuotedPrice(c.component_id, lq.quote_line_id!)}
+                                        disabled={lqDraft?.componentId !== c.component_id || lqDraft.saving || !(parseFloat(lqDraft.value) > 0) || parseFloat(lqDraft.value) === lq.price}
+                                        className="px-2 py-0.5 text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded hover:bg-amber-500/20 transition-all disabled:opacity-40"
+                                        title={`Corrects the source quote line (${lq.pi_number ?? 'quote'}) — the fix applies everywhere this price is used`}
+                                      >
+                                        {lqDraft?.componentId === c.component_id && lqDraft.saving ? 'Fixing…' : 'Fix source'}
+                                      </button>
+                                      <span className="text-[10px] text-slate-600 truncate">quoted · {lq.pi_number ?? ''}</span>
+                                    </div>
                                   </div>
-                                </div>
+                                ) : (
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-medium text-slate-200 tabular-nums leading-tight">
+                                      {fmtAmt(lq.price, lq.currency)}
+                                    </p>
+                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                      <span className="text-[10px] text-slate-600 whitespace-nowrap">{new Date(lq.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}</span>
+                                      <PriceDelta lines={sparklineLinesByComponent.get(c.component_id) ?? []} />
+                                    </div>
+                                  </div>
+                                )
                               ) : lpo ? (
                                 <div className="min-w-0">
                                   <p className="text-xs font-medium text-slate-200 tabular-nums leading-tight">
