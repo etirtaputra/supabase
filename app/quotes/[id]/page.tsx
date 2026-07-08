@@ -8,6 +8,7 @@ import { useQuotesGate } from '@/hooks/useQuotesGate';
 import { getComponentCost, type CostEntry } from '@/lib/computeTUC';
 import { fetchUsedEntries } from '@/lib/usedPrices';
 import { roundNice } from '@/lib/rounding';
+import { DEFAULT_EXPORT_COLS, EXPORT_COL_KEYS, EXPORT_COL_LABELS, loadExportCols, saveExportCols, type ExportCols } from '@/lib/exportCols';
 import { quoteFileName } from '@/lib/quoteFilename';
 import MigrationBanner from '@/components/ui/MigrationBanner';
 import { PROJECT_TYPES, composeDescription, specFileTag, type ProjectType, type SystemSpecs } from '@/lib/projectSpec';
@@ -560,6 +561,14 @@ export default function QuoteEditorPage() {
     setTimeout(() => setSaveMsg(''), 2500);
   }
 
+  // ── Export column choices (shared with the print page via localStorage) ────
+  const [exportCols, setExportCols] = useState<ExportCols>(DEFAULT_EXPORT_COLS);
+  const [showExportCols, setShowExportCols] = useState(false);
+  useEffect(() => { setExportCols(loadExportCols()); }, []);
+  const setExportCol = (k: keyof ExportCols, v: boolean) => {
+    setExportCols((prev) => { const next = { ...prev, [k]: v }; saveExportCols(next); return next; });
+  };
+
   // ── Cost history hover popup ───────────────────────────────────────────────
   const [costHover, setCostHover] = useState<{ itemId: string; history: CostEntry[]; source: string; x: number; y: number } | null>(null);
 
@@ -947,39 +956,41 @@ export default function QuoteEditorPage() {
       .flatMap((s) => s.items.filter((i) => !i._deleted && !i.parent_item_id))
       .reduce((s, i) => s + itemWp(i), 0);
 
+    // Column choices shared with the PDF (lead time renders inline on section rows)
+    const ec = exportCols;
+    const colCount = 1 + (ec.brand ? 1 : 0) + (ec.qty ? 1 : 0) + (ec.unit ? 1 : 0) + (ec.amount ? 1 : 0);
+    const labelSpan = Math.max(1, colCount - 1);
+
     let rows = '';
     for (const group of SECTION_GROUPS) {
       const groupSecs = liveSecs.filter((s) => s.group_key === group.key);
       if (!groupSecs.length) continue;
       rows += `<tr style="background:#1e3a5f;color:#fff;font-weight:bold">
-        <td colspan="6">${group.label}</td>
+        <td colspan="${colCount}">${group.label}</td>
       </tr>`;
       for (const sec of groupSecs) {
         const secTotal = sec.items.filter((i) => !i._deleted && !i.parent_item_id)
           .reduce((s, i) => s + (num(i.quantity) ?? 0) * (num(i.sell_price) ?? 0), 0);
         rows += `<tr style="background:#e8eef7;font-weight:bold;color:#1e3a5f">
-          <td colspan="2">${sec.title}</td>
-          <td>${sec.lead_time}</td>
-          <td></td><td></td>
-          <td style="text-align:right">${secTotal > 0 ? fmtIdr(secTotal) : ''}</td>
+          <td colspan="${colCount - (ec.amount ? 1 : 0)}">${sec.title}${ec.lead && sec.lead_time ? ` — lead time ${sec.lead_time}` : ''}</td>
+          ${ec.amount ? `<td style="text-align:right">${secTotal > 0 ? fmtIdr(secTotal) : ''}</td>` : ''}
         </tr>`;
         for (const item of sec.items.filter((i) => !i._deleted)) {
           const isChild = !!item.parent_item_id;
           rows += `<tr style="${isChild ? 'font-style:italic;color:#555' : ''}">
             <td style="padding-left:${isChild ? '24' : '8'}px">${item.description}</td>
-            <td>${item.brand}</td>
-            <td></td>
-            <td style="text-align:right">${item.quantity ?? ''}</td>
-            <td>${item.unit}</td>
-            <td></td>
+            ${ec.brand ? `<td>${item.brand}</td>` : ''}
+            ${ec.qty ? `<td style="text-align:right">${item.quantity ?? ''}</td>` : ''}
+            ${ec.unit ? `<td>${item.unit}</td>` : ''}
+            ${ec.amount ? '<td></td>' : ''}
           </tr>`;
           if (sec.group_key === 'solar_panels' && !isChild && itemWp(item) > 0 && item.unit.trim().toLowerCase() !== 'wp') {
             rows += `<tr style="font-style:italic;color:#1a7f4f">
               <td style="padding-left:24px">Total system size</td>
-              <td></td><td></td>
-              <td style="text-align:right;font-weight:bold">${itemWp(item).toLocaleString('en-US')}</td>
-              <td>Wp</td>
-              <td></td>
+              ${ec.brand ? '<td></td>' : ''}
+              ${ec.qty ? `<td style="text-align:right;font-weight:bold">${itemWp(item).toLocaleString('en-US')}</td>` : ''}
+              ${ec.unit ? '<td>Wp</td>' : ''}
+              ${ec.amount ? '<td></td>' : ''}
             </tr>`;
           }
         }
@@ -994,18 +1005,18 @@ export default function QuoteEditorPage() {
     <p>${quote.project_description}</p>
     <p style="text-align:right"><b>QUOTE ID:</b> ${quote.quote_number} &nbsp; ${quote.quote_date}</p>
     <table>
-      <tr><th>ITEMS</th><th>BRAND</th><th>LEAD TIME</th><th>QTY</th><th>UNIT</th><th>AMOUNT</th></tr>
+      <tr><th>ITEMS</th>${ec.brand ? '<th>BRAND</th>' : ''}${ec.qty ? '<th>QTY</th>' : ''}${ec.unit ? '<th>UNIT</th>' : ''}${ec.amount ? '<th>AMOUNT</th>' : ''}</tr>
       ${rows}
-      <tr><td colspan="5" style="text-align:right;font-weight:bold">Total (excl. PPN${ppnPct}%)</td>
+      <tr><td colspan="${labelSpan}" style="text-align:right;font-weight:bold">Total (excl. PPN${ppnPct}%)</td>
           <td style="text-align:right">${fmtIdr(subtotal)}</td></tr>
-      <tr><td colspan="5" style="text-align:right">PPN${ppnPct}%</td>
+      <tr><td colspan="${labelSpan}" style="text-align:right">PPN${ppnPct}%</td>
           <td style="text-align:right">${fmtIdr(ppn)}</td></tr>
-      <tr><td colspan="5" style="text-align:right;font-weight:bold">GRAND TOTAL</td>
+      <tr><td colspan="${labelSpan}" style="text-align:right;font-weight:bold">GRAND TOTAL</td>
           <td style="text-align:right;font-weight:bold">${fmtIdr(grandTotal)}</td></tr>
       ${wpTotal > 0 ? `
-      <tr><td colspan="5" style="text-align:right;font-weight:bold">Harga per Wp (Exc. PPN${ppnPct}%)</td>
+      <tr><td colspan="${labelSpan}" style="text-align:right;font-weight:bold">Harga per Wp (Exc. PPN${ppnPct}%)</td>
           <td style="text-align:right;font-weight:bold">${fmtIdr(subtotal / wpTotal)}</td></tr>
-      <tr><td colspan="5" style="text-align:right;font-weight:bold">Harga per Wp (Inc. PPN${ppnPct}%)</td>
+      <tr><td colspan="${labelSpan}" style="text-align:right;font-weight:bold">Harga per Wp (Inc. PPN${ppnPct}%)</td>
           <td style="text-align:right;font-weight:bold">${fmtIdr(grandTotal / wpTotal)}</td></tr>` : ''}
     </table>
     ${quote.notes ? `
@@ -1079,6 +1090,29 @@ export default function QuoteEditorPage() {
               </span>
             )}
             {dirty && !saving && <span className="text-[11px] text-amber-400">Unsaved</span>}
+            <div className="relative">
+              <button onClick={() => setShowExportCols((v) => !v)}
+                title="Choose which columns appear on the PDF and Excel exports"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all">
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 4v16m6-16v16M4 4h16v16H4z" /></svg>
+                Columns
+              </button>
+              {showExportCols && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowExportCols(false)} />
+                  <div className="absolute right-0 top-full mt-2 z-50 w-52 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-3 space-y-2">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500">Export columns</p>
+                    {EXPORT_COL_KEYS.map((k) => (
+                      <label key={k} className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                        <input type="checkbox" checked={exportCols[k]} onChange={(e) => setExportCol(k, e.target.checked)} className="accent-violet-600" />
+                        {EXPORT_COL_LABELS[k]}
+                      </label>
+                    ))}
+                    <p className="text-[10px] text-slate-600 leading-snug">Applies to PDF and Excel. Amounts off = scope-only BOM.</p>
+                  </div>
+                </>
+              )}
+            </div>
             <button onClick={refreshCosts} disabled={catalogLoading}
               title="Update every catalog-linked item to its latest cost (TUC → supplier quote → last used), keeping each item's margin"
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all disabled:opacity-40">

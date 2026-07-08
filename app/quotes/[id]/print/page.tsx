@@ -6,6 +6,7 @@ import { SECTION_GROUPS, type SectionGroup, type ProjectQuote, type QuoteSection
 import { quoteFileName } from '@/lib/quoteFilename';
 import { specFileTag, type SystemSpecs } from '@/lib/projectSpec';
 import { useQuotesGate } from '@/hooks/useQuotesGate';
+import { DEFAULT_EXPORT_COLS, EXPORT_COL_KEYS, EXPORT_COL_LABELS, loadExportCols, saveExportCols, type ExportCols } from '@/lib/exportCols';
 
 function fmtIdr(v: number) {
   return `Rp${Math.round(v).toLocaleString('en-US')}`;
@@ -29,6 +30,13 @@ export default function PrintPage() {
   // component_id → Wp per module, for pv_module components used on this quote
   const [wpMap, setWpMap] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
+
+  // Column choices (shared with the editor's Excel export via localStorage)
+  const [cols, setCols] = useState<ExportCols>(DEFAULT_EXPORT_COLS);
+  useEffect(() => { setCols(loadExportCols()); }, []);
+  const setCol = (k: keyof ExportCols, v: boolean) => {
+    setCols((prev) => { const next = { ...prev, [k]: v }; saveExportCols(next); return next; });
+  };
 
   useEffect(() => {
     async function load() {
@@ -147,6 +155,7 @@ export default function PrintPage() {
         tbody tr.group-row td { padding: 4.5mm 1.5mm 1.6mm; font-weight: 800; font-size: 9.5pt; color: #1e3a5f; text-transform: uppercase; letter-spacing: 1.5px; border-bottom: 1pt solid #1e3a5f; }
         tbody tr.section-row { background: #f4f7fb; }
         tbody tr.section-row td { padding: 2mm 1.5mm; font-weight: 650; font-size: 9pt; color: #1e3a5f; }
+        .lead-tag { font-weight: 500; font-style: italic; font-size: 8pt; color: #64748b; white-space: nowrap; }
         tbody tr.item-row td { padding: 1.7mm 1.5mm; border-bottom: 0.4pt solid #e8edf3; vertical-align: top; color: #334155; }
         tbody tr.item-row td:first-child { color: #1f2937; }
         tbody tr.sub-row td { padding: 1mm 1.5mm 1mm 8mm; border-bottom: 0.4pt solid #f1f5f9; color: #64748b; font-size: 8.5pt; font-style: italic; }
@@ -218,21 +227,21 @@ export default function PrintPage() {
           <thead>
             <tr>
               <th>Items</th>
-              <th style={{ width: '60px' }}>Brand</th>
-              <th style={{ width: '55px' }}>Lead Time</th>
-              <th className="right" style={{ width: '55px' }}>Qty</th>
-              <th style={{ width: '55px' }}>Unit</th>
-              <th className="right" style={{ width: '90px' }}>Amount</th>
+              {cols.brand && <th style={{ width: '75px' }}>Brand</th>}
+              {cols.qty && <th className="right" style={{ width: '60px' }}>Qty</th>}
+              {cols.unit && <th style={{ width: '60px' }}>Unit</th>}
+              {cols.amount && <th className="right" style={{ width: '95px' }}>Amount</th>}
             </tr>
           </thead>
           <tbody>
             {SECTION_GROUPS.map((group) => {
               const groupSecs = sections.filter((s) => s.group_key === group.key);
               if (!groupSecs.length) return null;
+              const colCount = 1 + (cols.brand ? 1 : 0) + (cols.qty ? 1 : 0) + (cols.unit ? 1 : 0) + (cols.amount ? 1 : 0);
               return (
                 <React.Fragment key={group.key}>
                   <tr className="group-row">
-                    <td colSpan={6}>{group.label}</td>
+                    <td colSpan={colCount}>{group.label}</td>
                   </tr>
                   {groupSecs.map((sec) => {
                     const mainItems = sec.items.filter((i) => !i.parent_item_id);
@@ -240,10 +249,11 @@ export default function PrintPage() {
                     return (
                       <React.Fragment key={sec.section_id}>
                         <tr className="section-row">
-                          <td colSpan={2}>{sec.title}</td>
-                          <td className="lead">{sec.lead_time}</td>
-                          <td /><td />
-                          <td className="num">{secTotal > 0 ? fmtIdr(secTotal) : ''}</td>
+                          <td colSpan={colCount - (cols.amount ? 1 : 0)}>
+                            {sec.title}
+                            {cols.lead && sec.lead_time && <span className="lead-tag"> · lead time {sec.lead_time}</span>}
+                          </td>
+                          {cols.amount && <td className="num">{secTotal > 0 ? fmtIdr(secTotal) : ''}</td>}
                         </tr>
                         {mainItems.map((item) => {
                           const subItems = sec.items.filter((i) => i.parent_item_id === item.item_id);
@@ -251,26 +261,25 @@ export default function PrintPage() {
                             <React.Fragment key={item.item_id}>
                               <tr className="item-row">
                                 <td>{item.description}</td>
-                                <td style={{ color: '#64748b' }}>{item.brand}</td>
-                                <td />
-                                <td className="num">{item.quantity != null ? Number(item.quantity).toLocaleString('en-US') : ''}</td>
-                                <td style={{ color: '#64748b', whiteSpace: 'nowrap' }}>{item.unit}</td>
-                                <td />
+                                {cols.brand && <td style={{ color: '#64748b' }}>{item.brand}</td>}
+                                {cols.qty && <td className="num">{item.quantity != null ? Number(item.quantity).toLocaleString('en-US') : ''}</td>}
+                                {cols.unit && <td style={{ color: '#64748b', whiteSpace: 'nowrap' }}>{item.unit}</td>}
+                                {cols.amount && <td />}
                               </tr>
                               {subItems.map((sub) => (
                                 <tr key={sub.item_id} className="sub-row">
-                                  <td colSpan={3}>↳ {sub.description}{sub.brand ? ` — ${sub.brand}` : ''}</td>
-                                  <td className="num">{sub.quantity != null ? Number(sub.quantity).toLocaleString('en-US') : ''}</td>
-                                  <td style={{ whiteSpace: 'nowrap' }}>{sub.unit}</td>
-                                  <td />
+                                  <td colSpan={1 + (cols.brand ? 1 : 0)}>↳ {sub.description}{sub.brand ? ` — ${sub.brand}` : ''}</td>
+                                  {cols.qty && <td className="num">{sub.quantity != null ? Number(sub.quantity).toLocaleString('en-US') : ''}</td>}
+                                  {cols.unit && <td style={{ whiteSpace: 'nowrap' }}>{sub.unit}</td>}
+                                  {cols.amount && <td />}
                                 </tr>
                               ))}
                               {sec.group_key === 'solar_panels' && itemWp(item) > 0 && (item.unit ?? '').trim().toLowerCase() !== 'wp' && (
                                 <tr className="sub-row">
-                                  <td colSpan={3} style={{ color: '#047857' }}>Total system size</td>
-                                  <td className="num" style={{ color: '#047857', fontWeight: 700 }}>{itemWp(item).toLocaleString('en-US')}</td>
-                                  <td style={{ color: '#047857' }}>Wp</td>
-                                  <td />
+                                  <td colSpan={1 + (cols.brand ? 1 : 0)} style={{ color: '#047857' }}>Total system size</td>
+                                  {cols.qty && <td className="num" style={{ color: '#047857', fontWeight: 700 }}>{itemWp(item).toLocaleString('en-US')}</td>}
+                                  {cols.unit && <td style={{ color: '#047857' }}>Wp</td>}
+                                  {cols.amount && <td />}
                                 </tr>
                               )}
                             </React.Fragment>
@@ -344,7 +353,17 @@ export default function PrintPage() {
         </div>
       </div>
 
-      {/* Print button (hidden when printing) */}
+      {/* Column toggles + print button (hidden when printing) */}
+      <div className="no-print" style={{ position: 'fixed', bottom: '20px', left: '20px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px 14px', boxShadow: '0 6px 20px rgba(15,23,42,0.15)', fontSize: '12px', color: '#334155' }}>
+        <p style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: '#94a3b8', marginBottom: '8px' }}>Columns</p>
+        {EXPORT_COL_KEYS.map((k) => (
+          <label key={k} style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '5px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={cols[k]} onChange={(e) => setCol(k, e.target.checked)} />
+            {EXPORT_COL_LABELS[k]}
+          </label>
+        ))}
+        <p style={{ fontSize: '10px', color: '#94a3b8', marginTop: '6px', maxWidth: '150px' }}>Also applies to the Excel export</p>
+      </div>
       <button className="print-btn no-print" onClick={() => window.print()}>
         Print / Save PDF
       </button>
