@@ -221,7 +221,7 @@ export default function PrintPage() {
               <th style={{ width: '60px' }}>Brand</th>
               <th style={{ width: '55px' }}>Lead Time</th>
               <th className="right" style={{ width: '55px' }}>Qty</th>
-              <th style={{ width: '40px' }}>Unit</th>
+              <th style={{ width: '55px' }}>Unit</th>
               <th className="right" style={{ width: '90px' }}>Amount</th>
             </tr>
           </thead>
@@ -254,14 +254,14 @@ export default function PrintPage() {
                                 <td style={{ color: '#64748b' }}>{item.brand}</td>
                                 <td />
                                 <td className="num">{item.quantity != null ? Number(item.quantity).toLocaleString('en-US') : ''}</td>
-                                <td style={{ color: '#64748b' }}>{item.unit}</td>
+                                <td style={{ color: '#64748b', whiteSpace: 'nowrap' }}>{item.unit}</td>
                                 <td />
                               </tr>
                               {subItems.map((sub) => (
                                 <tr key={sub.item_id} className="sub-row">
                                   <td colSpan={3}>↳ {sub.description}{sub.brand ? ` — ${sub.brand}` : ''}</td>
                                   <td className="num">{sub.quantity != null ? Number(sub.quantity).toLocaleString('en-US') : ''}</td>
-                                  <td>{sub.unit}</td>
+                                  <td style={{ whiteSpace: 'nowrap' }}>{sub.unit}</td>
                                   <td />
                                 </tr>
                               ))}

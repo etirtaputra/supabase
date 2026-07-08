@@ -7,6 +7,7 @@ import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useQuotesGate } from '@/hooks/useQuotesGate';
 import { getComponentCost, type CostEntry } from '@/lib/computeTUC';
 import { fetchUsedEntries } from '@/lib/usedPrices';
+import { roundNice } from '@/lib/rounding';
 import { quoteFileName } from '@/lib/quoteFilename';
 import MigrationBanner from '@/components/ui/MigrationBanner';
 import { PROJECT_TYPES, composeDescription, specFileTag, type ProjectType, type SystemSpecs } from '@/lib/projectSpec';
@@ -77,7 +78,7 @@ function gmFromPrices(cost: string, sell: string): string {
 function sellFromGm(cost: string, gm: string): string {
   const c = num(cost), g = num(gm);
   if (!c || g == null || g >= 100) return '';
-  return Math.round(c / (1 - g / 100)).toString();
+  return String(roundNice(c / (1 - g / 100)));
 }
 
 const LEAD_TIMES = ['Ready', '1 minggu', '2 minggu', '3 minggu', '1 bulan', '2 bulan', '3 bulan', 'Custom'];
@@ -98,6 +99,40 @@ const STATUS_COLORS: Record<string, string> = {
   accepted: 'bg-emerald-500/20 text-emerald-300',
   rejected: 'bg-red-500/20 text-red-400',
 };
+
+// ── Spreadsheet-style arrow navigation between cells ───────────────────────────
+// ↑/↓ jump to the same column in the previous/next row (across sub-sections and
+// groups, following DOM order). ←/→ move to the adjacent cell once the caret is
+// at the text boundary, skipping cells the row doesn't have (e.g. GM without cost).
+const NAV_COLS = ['desc', 'brand', 'qty', 'unit', 'cost', 'sell', 'gm'] as const;
+
+function navCell(e: React.KeyboardEvent<HTMLInputElement>, row: string, col: string) {
+  const { key } = e;
+  if (key === 'ArrowDown' || key === 'ArrowUp') {
+    const nodes = Array.from(document.querySelectorAll<HTMLInputElement>(`input[data-nav-col="${col}"]`));
+    const i = nodes.findIndex((n) => n.dataset.navRow === row);
+    if (i < 0) return;
+    const next = nodes[i + (key === 'ArrowDown' ? 1 : -1)];
+    if (next) { e.preventDefault(); next.focus(); next.select(); }
+    return;
+  }
+  if (key === 'ArrowLeft' || key === 'ArrowRight') {
+    const el = e.currentTarget;
+    let atStart = true, atEnd = true;
+    try {
+      atStart = el.selectionStart === 0 && el.selectionEnd === 0;
+      atEnd = el.selectionStart === el.value.length && el.selectionEnd === el.value.length;
+    } catch { /* selection unavailable — treat as boundary */ }
+    if ((key === 'ArrowLeft' && !atStart) || (key === 'ArrowRight' && !atEnd)) return;
+    const dir = key === 'ArrowRight' ? 1 : -1;
+    let ci = NAV_COLS.indexOf(col as typeof NAV_COLS[number]) + dir;
+    while (ci >= 0 && ci < NAV_COLS.length) {
+      const target = document.querySelector<HTMLInputElement>(`input[data-nav-col="${NAV_COLS[ci]}"][data-nav-row="${row}"]`);
+      if (target) { e.preventDefault(); target.focus(); target.select(); return; }
+      ci += dir;
+    }
+  }
+}
 
 const TC_TEMPLATE = `-Solar Modules: (product warranty & power guarantee)
 -Inverters: (warranty)
@@ -481,7 +516,7 @@ export default function QuoteEditorPage() {
   function sellFromGroupGm(groupKey: SectionGroup, cost: number | null): string | null {
     const gm = groupGm(groupKey);
     if (gm == null || !cost || cost <= 0) return null;
-    return String(Math.round(cost / (1 - gm / 100)));
+    return String(roundNice(cost / (1 - gm / 100)));
   }
 
   function applyGmToGroup(groupKey: SectionGroup) {
@@ -495,7 +530,7 @@ export default function QuoteEditorPage() {
           if (it._deleted || it.parent_item_id) return it;
           const c = num(it.cost_price);
           if (!c || c <= 0) return it;
-          return { ...it, sell_price: String(Math.round(c / (1 - gm / 100))) };
+          return { ...it, sell_price: String(roundNice(c / (1 - gm / 100))) };
         }),
       };
     }));
@@ -515,7 +550,7 @@ export default function QuoteEditorPage() {
         let sell = it.sell_price;
         if (oldCost && oldSell && oldSell > 0) {
           const gmFrac = 1 - oldCost / oldSell;
-          if (gmFrac < 1) sell = String(Math.round(newCost / (1 - gmFrac)));
+          if (gmFrac < 1) sell = String(roundNice(newCost / (1 - gmFrac)));
         }
         return { ...it, cost_price: String(newCost), sell_price: sell };
       }),
@@ -1003,6 +1038,12 @@ export default function QuoteEditorPage() {
 
   return (
     <div className="min-h-screen bg-[#0B1120] text-slate-200 font-sans text-sm">
+      {/* Hide native number spinners — rarely used and they collide with arrow-key cell navigation */}
+      <style>{`
+        input[type=number]::-webkit-outer-spin-button,
+        input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+      `}</style>
 
       {/* ── Sticky header ── */}
       <div className="sticky top-0 z-40 bg-[#0B1120]/95 backdrop-blur-xl border-b border-white/[0.07]">
@@ -1335,21 +1376,26 @@ export default function QuoteEditorPage() {
                                   }}
                                   onFocus={(e) => item.description && openAc(sec.section_id, item.item_id, item.description, e.target)}
                                   onKeyDown={(e) => {
-                                    if (!isAcOpen || acCount === 0) return;
-                                    if (e.key === 'ArrowDown') { e.preventDefault(); setAcIndex((i) => (i + 1) % acCount); }
-                                    else if (e.key === 'ArrowUp') { e.preventDefault(); setAcIndex((i) => (i - 1 + acCount) % acCount); }
-                                    else if (e.key === 'Escape') { setAcState(null); }
-                                    else if (e.key === 'Enter' || e.key === 'Tab') {
-                                      // Enter picks and stays; Tab picks and moves on to Brand
-                                      if (e.key === 'Enter') e.preventDefault();
-                                      if (acIndex < acResults.comps.length) {
-                                        selectComponent(sec.section_id, item.item_id, acResults.comps[acIndex]);
-                                      } else {
-                                        const p = acResults.prev[acIndex - acResults.comps.length];
-                                        if (p) selectPrevItem(sec.section_id, item.item_id, p);
+                                    if (isAcOpen && acCount > 0) {
+                                      if (e.key === 'ArrowDown') { e.preventDefault(); setAcIndex((i) => (i + 1) % acCount); }
+                                      else if (e.key === 'ArrowUp') { e.preventDefault(); setAcIndex((i) => (i - 1 + acCount) % acCount); }
+                                      else if (e.key === 'Escape') { setAcState(null); }
+                                      else if (e.key === 'Enter' || e.key === 'Tab') {
+                                        // Enter picks and stays; Tab picks and moves on to Brand
+                                        if (e.key === 'Enter') e.preventDefault();
+                                        if (acIndex < acResults.comps.length) {
+                                          selectComponent(sec.section_id, item.item_id, acResults.comps[acIndex]);
+                                        } else {
+                                          const p = acResults.prev[acIndex - acResults.comps.length];
+                                          if (p) selectPrevItem(sec.section_id, item.item_id, p);
+                                        }
                                       }
+                                      return;
                                     }
+                                    navCell(e, item.item_id, 'desc');
                                   }}
+                                  data-nav-row={item.item_id}
+                                  data-nav-col="desc"
                                   placeholder="Type to search catalog & past quotes…"
                                   className="w-full bg-transparent outline-none text-slate-100 placeholder:text-slate-600 border-b border-slate-800 hover:border-slate-600 focus:border-violet-500 transition-colors"
                                 />
@@ -1469,6 +1515,8 @@ export default function QuoteEditorPage() {
                               </td>
                               <td className="px-2 py-2">
                                 <input value={item.brand} onChange={(e) => updateItem(sec.section_id, item.item_id, { brand: e.target.value })}
+                                  onKeyDown={(e) => navCell(e, item.item_id, 'brand')}
+                                  data-nav-row={item.item_id} data-nav-col="brand"
                                   placeholder="Brand" className="w-full bg-transparent outline-none text-slate-200 placeholder:text-slate-600 border-b border-slate-800 hover:border-slate-600 focus:border-violet-500 transition-colors" />
                               </td>
                               <td className="px-2 py-2 relative" title={item.qty_formula ? `Formula: ${item.qty_formula}` : 'Type =2520*720 for a formula'}>
@@ -1482,7 +1530,11 @@ export default function QuoteEditorPage() {
                                   onFocus={(e) => { setQtyEdit({ itemId: item.item_id, value: item.qty_formula || item.quantity }); e.target.select(); }}
                                   onChange={(e) => setQtyEdit({ itemId: item.item_id, value: e.target.value })}
                                   onBlur={(e) => commitQty(sec.section_id, item.item_id, e.target.value)}
-                                  onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') { (e.target as HTMLInputElement).blur(); return; }
+                                    navCell(e, item.item_id, 'qty');
+                                  }}
+                                  data-nav-row={item.item_id} data-nav-col="qty"
                                   placeholder="0"
                                   className="w-full bg-transparent outline-none text-right text-slate-100 placeholder:text-slate-600 border-b border-slate-800 hover:border-slate-600 focus:border-violet-500 transition-colors"
                                 />
@@ -1490,6 +1542,8 @@ export default function QuoteEditorPage() {
                               <td className="px-2 py-2">
                                 <input list={`units-${item.item_id}`} value={item.unit}
                                   onChange={(e) => updateItem(sec.section_id, item.item_id, { unit: e.target.value })}
+                                  onKeyDown={(e) => navCell(e, item.item_id, 'unit')}
+                                  data-nav-row={item.item_id} data-nav-col="unit"
                                   placeholder="unit" className="w-full bg-transparent outline-none text-slate-200 placeholder:text-slate-600 border-b border-slate-800 hover:border-slate-600 focus:border-violet-500 transition-colors" />
                                 <datalist id={`units-${item.item_id}`}>{UNITS.map((u) => <option key={u} value={u} />)}</datalist>
                               </td>
@@ -1498,8 +1552,10 @@ export default function QuoteEditorPage() {
                                 onMouseEnter={(e) => showCostHistory(item.item_id, item.component_id, item.description, e.currentTarget)}
                                 onMouseLeave={() => setCostHover(null)}
                               >
-                                <input type="number" value={item.cost_price}
+                                <input type="text" inputMode="decimal" value={item.cost_price}
                                   onChange={(e) => updateItem(sec.section_id, item.item_id, { cost_price: e.target.value })}
+                                  onKeyDown={(e) => navCell(e, item.item_id, 'cost')}
+                                  data-nav-row={item.item_id} data-nav-col="cost"
                                   onBlur={() => {
                                     if (num(item.sell_price)) return;
                                     const sell = sellFromGroupGm(sec.group_key, num(item.cost_price));
@@ -1531,8 +1587,10 @@ export default function QuoteEditorPage() {
                                 )}
                               </td>
                               <td className="px-2 py-2">
-                                <input type="number" value={item.sell_price}
+                                <input type="text" inputMode="decimal" value={item.sell_price}
                                   onChange={(e) => updateItem(sec.section_id, item.item_id, { sell_price: e.target.value })}
+                                  onKeyDown={(e) => navCell(e, item.item_id, 'sell')}
+                                  data-nav-row={item.item_id} data-nav-col="sell"
                                   placeholder="0"
                                   title={(num(item.quantity) ?? 0) > 0 && !num(item.sell_price) ? 'This line has a quantity but no sell price' : undefined}
                                   className={`w-full bg-transparent outline-none text-right text-slate-100 placeholder:text-slate-600 border-b transition-colors focus:border-violet-500 ${(num(item.quantity) ?? 0) > 0 && !num(item.sell_price) ? 'border-amber-500/60 hover:border-amber-400' : 'border-slate-800 hover:border-slate-600'}`} />
@@ -1540,9 +1598,12 @@ export default function QuoteEditorPage() {
                               <td className="px-2 py-2 text-right bg-violet-500/[0.04]">
                                 {num(item.cost_price) ? (
                                   <input
-                                    type="number"
+                                    type="text"
+                                    inputMode="decimal"
                                     value={gmEdit?.itemId === item.item_id ? gmEdit.value : gm}
                                     placeholder="%"
+                                    onKeyDown={(e) => navCell(e, item.item_id, 'gm')}
+                                    data-nav-row={item.item_id} data-nav-col="gm"
                                     onFocus={(e) => { setGmEdit({ itemId: item.item_id, value: gm }); e.target.select(); }}
                                     onBlur={() => setGmEdit(null)}
                                     onChange={(e) => {
@@ -1610,18 +1671,26 @@ export default function QuoteEditorPage() {
                                 <td className="pl-6 pr-4 py-1.5 flex items-center gap-2">
                                   <span className="text-slate-600 flex-shrink-0">↳</span>
                                   <input value={sub.description} onChange={(e) => updateItem(sec.section_id, sub.item_id, { description: e.target.value })}
+                                    onKeyDown={(e) => navCell(e, sub.item_id, 'desc')}
+                                    data-nav-row={sub.item_id} data-nav-col="desc"
                                     placeholder="Sub-item description" className="flex-1 bg-transparent outline-none text-slate-300 italic placeholder:text-slate-600 text-xs border-b border-slate-800/70 hover:border-slate-600 focus:border-violet-500 transition-colors" />
                                 </td>
                                 <td className="px-2 py-1.5">
                                   <input value={sub.brand} onChange={(e) => updateItem(sec.section_id, sub.item_id, { brand: e.target.value })}
+                                    onKeyDown={(e) => navCell(e, sub.item_id, 'brand')}
+                                    data-nav-row={sub.item_id} data-nav-col="brand"
                                     className="w-full bg-transparent outline-none text-slate-400 text-xs border-b border-slate-800/70 hover:border-slate-600 focus:border-violet-500 transition-colors" />
                                 </td>
                                 <td className="px-2 py-1.5">
-                                  <input type="number" value={sub.quantity} onChange={(e) => updateItem(sec.section_id, sub.item_id, { quantity: e.target.value })}
+                                  <input type="text" inputMode="decimal" value={sub.quantity} onChange={(e) => updateItem(sec.section_id, sub.item_id, { quantity: e.target.value })}
+                                    onKeyDown={(e) => navCell(e, sub.item_id, 'qty')}
+                                    data-nav-row={sub.item_id} data-nav-col="qty"
                                     placeholder="0" className="w-full bg-transparent outline-none text-right text-slate-300 text-xs border-b border-slate-800/70 hover:border-slate-600 focus:border-violet-500 transition-colors" />
                                 </td>
                                 <td className="px-2 py-1.5">
                                   <input list={`units-${sub.item_id}`} value={sub.unit} onChange={(e) => updateItem(sec.section_id, sub.item_id, { unit: e.target.value })}
+                                    onKeyDown={(e) => navCell(e, sub.item_id, 'unit')}
+                                    data-nav-row={sub.item_id} data-nav-col="unit"
                                     className="w-full bg-transparent outline-none text-slate-400 text-xs border-b border-slate-800/70 hover:border-slate-600 focus:border-violet-500 transition-colors" />
                                   <datalist id={`units-${sub.item_id}`}>{UNITS.map((u) => <option key={u} value={u} />)}</datalist>
                                 </td>
