@@ -55,7 +55,7 @@ export default function QuotesListPage() {
   // Duplicate modal state
   const [dup, setDup] = useState<{ id: string; number: string } | null>(null);
   const [dupToday, setDupToday] = useState(true);
-  const [dupRefresh, setDupRefresh] = useState(true);
+  const [dupRefresh, setDupRefresh] = useState(false);
   const [dupInternal, setDupInternal] = useState(true);
   const [dupBusy, setDupBusy] = useState(false);
   const [dupError, setDupError] = useState('');
@@ -283,7 +283,7 @@ export default function QuotesListPage() {
                 </Link>
                 <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
-                    onClick={() => { setDup({ id: q.quote_id, number: q.quote_number }); setDupToday(true); setDupRefresh(true); setDupInternal(true); setDupError(''); }}
+                    onClick={() => { setDup({ id: q.quote_id, number: q.quote_number }); setDupToday(true); setDupRefresh(false); setDupInternal(true); setDupError(''); }}
                     className="p-2 rounded-lg hover:bg-white/10 text-slate-500 hover:text-white transition-colors"
                     title="Duplicate"
                   >
