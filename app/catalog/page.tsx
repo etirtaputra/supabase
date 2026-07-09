@@ -103,7 +103,7 @@ function MasterInsertPage() {
     setActiveTab(tab);
     setLastSaved(null);
     setDupWarning(null);
-    router.replace(`/insert?tab=${tab}`, { scroll: false });
+    router.replace(`/catalog?tab=${tab}`, { scroll: false });
   };
 
   const handleMarkFullyPaid = async (poId: string, amount: number, currency: string) => {
@@ -476,7 +476,7 @@ function MasterInsertPage() {
               ICAPROC
             </h1>
             <p className="text-slate-500 text-[11px] mt-0.5 hidden sm:block">
-              {activeItem?.label}
+              Catalog · {activeItem?.label}
             </p>
           </div>
           {/* User badge + sign out */}
@@ -505,7 +505,7 @@ function MasterInsertPage() {
           {visibleMenuItems.map((item) => (
             <Link
               key={item.id}
-              href={`/insert?tab=${item.id}`}
+              href={`/catalog?tab=${item.id}`}
               onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return; e.preventDefault(); handleTabChange(item.id); }}
               className={`snap-start px-3 py-1.5 xl:px-4 xl:py-2 rounded-full text-xs xl:text-sm font-medium whitespace-nowrap transition-all duration-150 flex items-center gap-1.5 flex-shrink-0 ${
                 activeTab === item.id

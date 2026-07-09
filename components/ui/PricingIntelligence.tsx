@@ -600,7 +600,7 @@ export default function PricingIntelligence({
         <div className="bg-slate-900/40 border border-slate-800/60 rounded-2xl p-8 text-center">
           <p className="text-slate-400 text-sm">No PO cost data or competitor prices found for this component.</p>
           <p className="text-slate-600 text-xs mt-1">Log PO costs in Financials and competitor prices in Market Intel to unlock analysis.</p>
-          <Link href="/insert?tab=market-intel" className="inline-block mt-4 px-4 py-2 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-400 text-xs font-semibold rounded-lg transition-colors">
+          <Link href="/catalog?tab=market-intel" className="inline-block mt-4 px-4 py-2 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-400 text-xs font-semibold rounded-lg transition-colors">
             + Log competitor price
           </Link>
         </div>
@@ -876,7 +876,7 @@ export default function PricingIntelligence({
                   ))}
                 </div>
                 <Link
-                  href="/insert?tab=market-intel"
+                  href="/catalog?tab=market-intel"
                   className="px-3 py-1 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-400 text-[11px] font-semibold rounded-md transition-colors whitespace-nowrap"
                 >
                   + Log price
@@ -892,7 +892,7 @@ export default function PricingIntelligence({
                     : 'No competitor prices logged for this component yet.'}
                 </p>
                 {compPrices.length === 0 && (
-                  <Link href="/insert?tab=market-intel" className="inline-block mt-3 px-4 py-2 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-400 text-xs font-semibold rounded-lg transition-colors">
+                  <Link href="/catalog?tab=market-intel" className="inline-block mt-3 px-4 py-2 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-400 text-xs font-semibold rounded-lg transition-colors">
                     + Log competitor price
                   </Link>
                 )}

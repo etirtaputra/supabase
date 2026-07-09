@@ -119,7 +119,7 @@ export default function DatabaseViewPage() {
                 ICAPROC
               </h1>
               <p className="text-slate-500 text-[11px] mt-0.5 hidden sm:block">
-                Intelligence · True Unit Cost · Pricing · Cash Cycle
+                Insights · True Unit Cost · Pricing · Cash Cycle
               </p>
             </div>
             {/* Refresh control */}

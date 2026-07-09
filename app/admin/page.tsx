@@ -71,7 +71,7 @@ export default function AdminPage() {
             <p className="text-slate-500 text-xs mt-1">User Management · Set roles for who can access what</p>
           </div>
           <button
-            onClick={() => router.push('/insert')}
+            onClick={() => router.push('/catalog')}
             className="text-xs text-slate-400 hover:text-slate-200 px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors"
           >
             ← Back to app

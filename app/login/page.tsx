@@ -14,7 +14,7 @@ export default function LoginPage() {
   // Send the user back to the page that required login (e.g. /quotes)
   const dest = () => {
     const next = new URLSearchParams(window.location.search).get('next');
-    return next && next.startsWith('/') ? next : '/insert';
+    return next && next.startsWith('/') ? next : '/catalog';
   };
 
   const handleLink = async (e: React.FormEvent) => {

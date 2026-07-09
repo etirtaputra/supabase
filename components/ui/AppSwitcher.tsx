@@ -3,9 +3,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const APPS = [
-  { href: '/insert',   label: 'Data Entry',   icon: '✏️' },
-  { href: '/database', label: 'Intelligence', icon: '📈' },
-  { href: '/quotes',   label: 'Quotes',       icon: '📄' },
+  { href: '/catalog',  label: 'Catalog' },
+  { href: '/insights', label: 'Insights' },
+  { href: '/quotes',   label: 'Quotes' },
 ];
 
 /**
@@ -20,9 +20,8 @@ export default function AppSwitcher() {
         const active = pathname === a.href || pathname.startsWith(a.href + '/');
         if (active) {
           return (
-            <span key={a.href} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold whitespace-nowrap bg-slate-700 text-white">
-              <span className="text-[10px]">{a.icon}</span>
-              <span className="hidden md:block">{a.label}</span>
+            <span key={a.href} className="px-3 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap bg-slate-700 text-white">
+              {a.label}
             </span>
           );
         }
@@ -33,10 +32,9 @@ export default function AppSwitcher() {
             target="_blank"
             rel="noopener"
             title={`Open ${a.label} in a new tab`}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-colors text-slate-500 hover:text-slate-200 hover:bg-slate-700/50"
+            className="px-3 py-1 rounded-lg text-[11px] font-medium whitespace-nowrap transition-colors text-slate-400 hover:text-white hover:bg-slate-700/50"
           >
-            <span className="text-[10px]">{a.icon}</span>
-            <span className="hidden md:block">{a.label}</span>
+            {a.label}
           </Link>
         );
       })}

@@ -107,22 +107,22 @@ export default function Home() {
           </div>
           <div className="flex gap-2">
             <Link
-              href="/insert"
+              href="/catalog"
               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-colors border border-emerald-500/50"
             >
-              ✏️ Data Entry
+              Catalog
             </Link>
             <Link
-              href="/database"
+              href="/insights"
               className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl transition-colors border border-slate-700"
             >
-              📈 Intelligence
+              Insights
             </Link>
             <Link
               href="/quotes"
               className="px-4 py-2 bg-violet-700 hover:bg-violet-600 text-white text-xs font-bold rounded-xl transition-colors border border-violet-600/50"
             >
-              📄 Quotes
+              Quotes
             </Link>
           </div>
         </div>
@@ -228,7 +228,7 @@ export default function Home() {
           <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-5 xl:p-6">
             <div className="flex items-center justify-between mb-4 xl:mb-5">
               <h2 className="text-sm xl:text-base font-bold text-white">Recent POs</h2>
-              <Link href="/insert?tab=lookup" className="text-xs text-slate-500 hover:text-sky-300 transition-colors">
+              <Link href="/catalog?tab=lookup" className="text-xs text-slate-500 hover:text-sky-300 transition-colors">
                 View all →
               </Link>
             </div>
@@ -280,9 +280,9 @@ export default function Home() {
         {/* ── Quick access ── */}
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 xl:gap-6">
           {[
-            { href: '/insert?tab=quoting',    icon: '📝', label: 'New Quote',   sub: 'Enter supplier quote / PI',     color: 'hover:border-blue-500/40' },
-            { href: '/insert?tab=ordering',   icon: '📦', label: 'New PO',      sub: 'Create purchase order',         color: 'hover:border-violet-500/40' },
-            { href: '/insert?tab=financials', icon: '💰', label: 'Log Payment', sub: 'Record payment or bank charges', color: 'hover:border-rose-500/40' },
+            { href: '/catalog?tab=quoting',    icon: '📝', label: 'New Quote',   sub: 'Enter supplier quote / PI',     color: 'hover:border-blue-500/40' },
+            { href: '/catalog?tab=ordering',   icon: '📦', label: 'New PO',      sub: 'Create purchase order',         color: 'hover:border-violet-500/40' },
+            { href: '/catalog?tab=financials', icon: '💰', label: 'Log Payment', sub: 'Record payment or bank charges', color: 'hover:border-rose-500/40' },
             { href: '/quotes',                icon: '📄', label: 'Project Quote', sub: 'Build & export client quote', color: 'hover:border-violet-500/40' },
           ].map(({ href, icon, label, sub, color }) => (
             <Link
