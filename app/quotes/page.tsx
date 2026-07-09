@@ -218,10 +218,12 @@ export default function QuotesListPage() {
               <span>/</span>
               <span className="text-slate-400">Project Quotes</span>
             </div>
-            <h1 className="text-xl font-bold text-white tracking-tight">Project Quotes</h1>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-xl font-bold text-white tracking-tight">Project Quotes</h1>
+              {gate.profile?.role === 'owner' && <AppSwitcher />}
+            </div>
           </div>
           <div className="flex items-center gap-4">
-            {gate.profile?.role === 'owner' && <AppSwitcher />}
             {gate.profile && (
               <div className="text-right hidden sm:block">
                 <p className="text-[11px] text-slate-400 leading-tight">{gate.profile.email}</p>
