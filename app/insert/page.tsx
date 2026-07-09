@@ -11,6 +11,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 import SimpleForm from '@/components/forms/SimpleForm';
 import BatchLineItemsForm from '@/components/forms/BatchLineItemsForm';
 import ComponentEditor from '@/components/ui/ComponentEditor';
+import AppSwitcher from '@/components/ui/AppSwitcher';
 import CompetitorPriceForm from '@/components/forms/CompetitorPriceForm';
 import MultiPaymentForm from '@/components/forms/MultiPaymentForm';
 import DealLookupTab from '@/components/ui/DealLookupTab';
@@ -481,6 +482,7 @@ function MasterInsertPage() {
           {/* User badge + sign out */}
           {profile && (
             <div className="flex items-center gap-2 pb-1">
+              <AppSwitcher />
               {perms?.canManageUsers && (
                 <Link href="/admin" className="text-[10px] px-2 py-1 border border-slate-700 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors">
                   Manage users

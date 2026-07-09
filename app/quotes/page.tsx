@@ -9,6 +9,7 @@ import { getComponentCost } from '@/lib/computeTUC';
 import { fetchUsedEntries } from '@/lib/usedPrices';
 import { roundNice } from '@/lib/rounding';
 import MigrationBanner from '@/components/ui/MigrationBanner';
+import AppSwitcher from '@/components/ui/AppSwitcher';
 import { PROJECT_TYPES } from '@/lib/projectSpec';
 import type { ProjectQuote } from '@/types/quotes';
 
@@ -211,13 +212,16 @@ export default function QuotesListPage() {
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 text-[11px] text-slate-500 mb-1">
-              <Link href="/" className="hover:text-slate-300 transition-colors">ICAPROC</Link>
+              {gate.profile?.role === 'owner'
+                ? <Link href="/" className="hover:text-slate-300 transition-colors">ICAPROC</Link>
+                : <span>ICAPROC</span>}
               <span>/</span>
               <span className="text-slate-400">Project Quotes</span>
             </div>
             <h1 className="text-xl font-bold text-white tracking-tight">Project Quotes</h1>
           </div>
           <div className="flex items-center gap-4">
+            {gate.profile?.role === 'owner' && <AppSwitcher />}
             {gate.profile && (
               <div className="text-right hidden sm:block">
                 <p className="text-[11px] text-slate-400 leading-tight">{gate.profile.email}</p>

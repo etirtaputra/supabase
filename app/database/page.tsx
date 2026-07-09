@@ -7,6 +7,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import ProductCostLookup from '@/components/ui/ProductCostLookup';
+import AppSwitcher from '@/components/ui/AppSwitcher';
 import POCashCycle from '@/components/ui/POCashCycle';
 import PricingIntelligence from '@/components/ui/PricingIntelligence';
 import ExchangeRateTrends from '@/components/ui/ExchangeRateTrends';
@@ -123,6 +124,7 @@ export default function DatabaseViewPage() {
             </div>
             {/* Refresh control */}
             <div className="flex items-center gap-2 mt-1 flex-shrink-0">
+              <AppSwitcher />
               {lastFetched && (
                 <span className={`text-[11px] ${isStale ? 'text-amber-400' : 'text-slate-500'}`}>
                   {isStale && (
