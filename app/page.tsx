@@ -1,5 +1,5 @@
 'use client';
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
@@ -15,6 +15,8 @@ function thisMonth() { return new Date().toISOString().slice(0, 7); }
 
 export default function Home() {
   const { data, loading } = useSupabaseData();
+
+  useEffect(() => { document.title = 'Dashboard | ICAPROC'; }, []);
 
   // ── Per-PO payment status ─────────────────────────────────────────────
   const poStatus = useMemo(() => {

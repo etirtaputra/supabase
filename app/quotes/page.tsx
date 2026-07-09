@@ -211,19 +211,11 @@ export default function QuotesListPage() {
       <div className="sticky top-0 z-40 bg-[#0B1120]/90 backdrop-blur-xl border-b border-white/[0.07]">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 text-[11px] text-slate-500 mb-1">
-              {gate.profile?.role === 'owner'
-                ? <Link href="/" className="hover:text-slate-300 transition-colors">ICAPROC</Link>
-                : <span>ICAPROC</span>}
-              <span>/</span>
-              <span className="text-slate-400">Project Quotes</span>
-            </div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-xl font-bold text-white tracking-tight">Project Quotes</h1>
-              {gate.profile?.role === 'owner' && <AppSwitcher />}
-            </div>
+            <h1 className="text-xl font-bold text-white tracking-tight">ICAPROC</h1>
+            <p className="text-slate-500 text-[11px] mt-0.5">Project Quotes</p>
           </div>
           <div className="flex items-center gap-4">
+            {gate.profile?.role === 'owner' && <AppSwitcher />}
             {gate.profile && (
               <div className="text-right hidden sm:block">
                 <p className="text-[11px] text-slate-400 leading-tight">{gate.profile.email}</p>

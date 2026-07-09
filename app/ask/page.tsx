@@ -95,10 +95,10 @@ export default function AskPage() {
             </div>
             <div className="flex flex-col">
               <h1 className="text-lg md:text-2xl font-bold text-white leading-none tracking-tight">
-                ICA AI Assistant
+                ICAPROC
               </h1>
               <span className="text-[10px] md:text-xs font-mono text-emerald-400 font-normal mt-0.5 md:mt-1 opacity-80">
-                Supply Chain Intelligence
+                AI Assistant · Supply Chain Intelligence
               </span>
             </div>
           </div>

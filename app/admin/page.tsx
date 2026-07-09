@@ -67,8 +67,8 @@ export default function AdminPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-xl font-extrabold text-white">User Management</h1>
-            <p className="text-slate-500 text-xs mt-1">Set roles for who can access what in ICAPROC</p>
+            <h1 className="text-xl font-extrabold text-white">ICAPROC</h1>
+            <p className="text-slate-500 text-xs mt-1">User Management · Set roles for who can access what</p>
           </div>
           <button
             onClick={() => router.push('/insert')}
