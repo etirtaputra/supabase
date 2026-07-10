@@ -7,12 +7,29 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+interface HistoryMessage { role: 'user' | 'assistant'; content: string }
+
 export async function POST(request: NextRequest) {
   try {
-    const { query } = await request.json();
+    const { query, history = [] } = await request.json() as { query: string; history?: HistoryMessage[] };
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+
+    // This route reads with the service-role key, so callers must prove they
+    // are signed-in users first
+    const token = (request.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '');
+    if (!token) {
+      return NextResponse.json({ error: 'Sign in required' }, { status: 401 });
+    }
+    const authClient = createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+      auth: { persistSession: false },
+    });
+    const { data: { user } } = await authClient.auth.getUser(token);
+    if (!user) {
+      return NextResponse.json({ error: 'Sign in required' }, { status: 401 });
+    }
 
     // Use Service Role Key (Admin) to bypass RLS policies
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
     const supabase = createClient(supabaseUrl, supabaseKey, {
@@ -90,6 +107,23 @@ export async function POST(request: NextRequest) {
         : supabase.from('v_purchase_history_analytics').select('*').order('po_date', { ascending: false }).limit(10)
     ]);
 
+    // J. Project quotes (client-facing BOM quotes) + their subtotals
+    const projectQuoteFilter = keywords.length > 0
+      ? keywords.map((k: string) => `customer_name.ilike.%${k}%,quote_number.ilike.%${k}%,project_description.ilike.%${k}%,location.ilike.%${k}%`).join(',')
+      : '';
+    const [pqReq, pqItemsReq] = await Promise.all([
+      projectQuoteFilter
+        ? supabase.from('10.0_project_quotes').select('quote_id, quote_number, quote_date, customer_name, project_description, location, status, ppn_pct, created_by_email, updated_by_email').or(projectQuoteFilter).order('quote_date', { ascending: false }).limit(12)
+        : supabase.from('10.0_project_quotes').select('quote_id, quote_number, quote_date, customer_name, project_description, location, status, ppn_pct, created_by_email, updated_by_email').order('quote_date', { ascending: false }).limit(12),
+      supabase.from('10.2_quote_items').select('quote_id, quantity, sell_price, parent_item_id'),
+    ]);
+    const pqTotals = new Map<string, number>();
+    for (const it of pqItemsReq.data ?? []) {
+      if (it.parent_item_id) continue;
+      const v = (Number(it.quantity) || 0) * (Number(it.sell_price) || 0);
+      pqTotals.set(it.quote_id, (pqTotals.get(it.quote_id) ?? 0) + v);
+    }
+
     // --- STEP 3: FORMATTING CONTEXT ---
     const poContext = (poReq.data || []).map((r: any) =>
       `[PO] Date: ${r.po_date}, Supplier: ${r.supplier_name}, SKU: ${r.model_sku}, Item: ${r.component_name?.substring(0,30)}, Qty: ${r.quantity}, True Cost: ${r.true_unit_cost_idr} IDR`
@@ -123,13 +157,20 @@ export async function POST(request: NextRequest) {
       `[QUOTE HIST] Date: ${r.quote_date}, Supplier: ${r.supplier_name || 'N/A'}, Brand: ${r.brand || 'N/A'}, SKU: ${r.model_sku || 'N/A'}, Item: ${r.description?.substring(0, 40) || 'N/A'}, Qty: ${r.quantity || 0}, Unit Cost: ${r.unit_cost} ${r.currency}`
     ).join('\n');
 
+    const projectQuoteContext = (pqReq.data || []).map((r: any) => {
+      const sub = pqTotals.get(r.quote_id) ?? 0;
+      return `[PROJECT QUOTE] ${r.quote_number} (${(r.status || 'draft').toUpperCase()}), Customer: ${r.customer_name || 'N/A'}, Date: ${r.quote_date}, Project: ${r.project_description?.substring(0, 80) || 'N/A'}, Location: ${r.location || 'N/A'}, Subtotal excl. PPN: ${Math.round(sub)} IDR, Created by: ${r.created_by_email || 'N/A'}, Last edited by: ${r.updated_by_email || 'N/A'}`;
+    }).join('\n');
+
     const poHistContext = (poHistReq.data || []).map((r: any) =>
       `[PO HIST] Date: ${r.po_date}, PO#: ${r.po_number || 'N/A'}, Supplier: ${r.supplier_name || 'N/A'}, Brand: ${r.brand || 'N/A'}, SKU: ${r.model_sku || 'N/A'}, Item: ${r.description?.substring(0, 40) || 'N/A'}, Qty: ${r.quantity || 0}, Unit Cost: ${r.unit_cost} ${r.currency}`
     ).join('\n');
 
     // --- STEP 4: SYSTEM PROMPT ---
     const prompt = `
-    You are a Supply Chain Intelligence Assistant. Answer STRICTLY based on the 9 datasets below.
+    You are ICAPROC's supply-chain assistant for an Indonesian solar EPC company.
+    Today's date is ${new Date().toISOString().slice(0, 10)}.
+    Answer STRICTLY based on the 10 datasets below.
 
     USER QUESTION: "${query}"
 
@@ -160,25 +201,36 @@ export async function POST(request: NextRequest) {
     === SOURCE 9: PURCHASE HISTORY (Historical Purchase Records) ===
     ${poHistContext || '(No purchase history data available)'}
 
+    === SOURCE 10: PROJECT QUOTES (Client-facing sales quotes / BOM) ===
+    ${projectQuoteContext || '(No project quotes found)'}
+
     GUIDELINES:
-    1. Be Direct and concise.
-    2. Prioritize True Cost data when discussing pricing.
+    1. Be direct and concise. Format with markdown: short paragraphs, bullet lists, and tables where they help.
+    2. Prioritize True Cost data when discussing pricing. Write IDR amounts with thousand separators (Rp1,400,000,000).
     3. Use Source 4 for supplier reliability and delivery performance questions.
     4. Use Source 5 for demand forecasting and reorder analysis.
     5. Use Source 6 for payment status and cash flow questions.
     6. Use Source 7 for total cost calculations including duties and taxes.
     7. Use Sources 8 and 9 for historical price tracking, brand comparisons, and long-term trends.
-    8. When data is missing or insufficient, clearly state the limitation.
+    8. Use Source 10 for questions about client quotations, sales pipeline, quote status, and who created or edited a quote. Sources 1-9 are the BUYING side (suppliers); Source 10 is the SELLING side (customers) — never mix them up.
+    9. When data is missing or insufficient, clearly state the limitation.
     `;
 
+    // Keep short-term conversation memory so follow-up questions work
+    const priorTurns = (Array.isArray(history) ? history : [])
+      .filter((m) => (m?.role === 'user' || m?.role === 'assistant') && typeof m?.content === 'string')
+      .slice(-8)
+      .map((m) => ({ role: m.role, content: m.content.slice(0, 4000) }));
+
     const completion = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 2048,
       system: prompt,
       messages: [
+        ...priorTurns,
         { role: 'user', content: query },
       ],
-      temperature: 0.0,
+      temperature: 0.2,
     });
 
     const answer = completion.content[0]?.type === 'text' ? completion.content[0].text : 'No answer.';
