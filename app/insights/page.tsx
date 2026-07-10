@@ -5,7 +5,9 @@
  */
 'use client';
 import React, { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
+import { useAuth } from '@/hooks/useAuth';
 import ProductCostLookup from '@/components/ui/ProductCostLookup';
 import AppSwitcher from '@/components/ui/AppSwitcher';
 import POCashCycle from '@/components/ui/POCashCycle';
@@ -83,10 +85,17 @@ function useNow(intervalMs: number) {
 }
 
 export default function DatabaseViewPage() {
+  const router = useRouter();
+  const { user, profile, loading: authLoading, signOut } = useAuth();
   const { data, loading, lastFetched, refetch } = useSupabaseData();
   const [activeTab, setActiveTab] = useState<TabId>('spend');
   const [refreshing, setRefreshing] = useState(false);
   const now = useNow(30_000); // tick every 30s to update "X min ago"
+
+  // Procurement-sensitive data — sign-in required
+  useEffect(() => {
+    if (!authLoading && !user) router.replace('/login?next=/insights');
+  }, [authLoading, user, router]);
 
   // Derive exchange rates on-the-fly from PO payments — always up-to-date
   const exchangeRates = useMemo(
@@ -107,6 +116,14 @@ export default function DatabaseViewPage() {
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
+  if (authLoading || !user) {
+    return (
+      <div className="min-h-screen bg-[#0B1120] flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <ToastProvider>
       <div className="min-h-screen bg-[#0B1120] text-slate-200 font-sans text-sm selection:bg-white/20">
@@ -125,6 +142,14 @@ export default function DatabaseViewPage() {
             {/* Refresh control */}
             <div className="flex items-center gap-2 mt-1 flex-shrink-0">
               <AppSwitcher />
+              {profile && (
+                <div className="text-right hidden lg:block mr-1">
+                  <p className="text-[11px] text-slate-400 leading-tight">{profile.email}</p>
+                  <button onClick={() => signOut().then(() => router.replace('/login'))} className="text-[10px] text-slate-600 hover:text-slate-300 underline transition-colors">
+                    Sign out
+                  </button>
+                </div>
+              )}
               {lastFetched && (
                 <span className={`text-[11px] ${isStale ? 'text-amber-400' : 'text-slate-500'}`}>
                   {isStale && (

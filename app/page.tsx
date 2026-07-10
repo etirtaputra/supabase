@@ -1,7 +1,9 @@
 'use client';
 import { useMemo, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
+import { useAuth } from '@/hooks/useAuth';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 const fmtIdr = (n: number) =>
   n >= 1_000_000_000
@@ -14,9 +16,16 @@ function today() { return new Date().toISOString().slice(0, 10); }
 function thisMonth() { return new Date().toISOString().slice(0, 7); }
 
 export default function Home() {
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const { data, loading } = useSupabaseData();
 
   useEffect(() => { document.title = 'Dashboard | ICAPROC'; }, []);
+
+  // PO values and payment status are sensitive — sign-in required
+  useEffect(() => {
+    if (!authLoading && !user) router.replace('/login?next=/');
+  }, [authLoading, user, router]);
 
   // ── Per-PO payment status ─────────────────────────────────────────────
   const poStatus = useMemo(() => {
@@ -88,6 +97,14 @@ export default function Home() {
   );
 
   const attentionCount = stats.noPayments.length + stats.overdue.length + stats.noItems.length;
+
+  if (authLoading || !user) {
+    return (
+      <div className="min-h-screen bg-[#0B1120] flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0B1120] text-slate-200 font-sans text-sm">
