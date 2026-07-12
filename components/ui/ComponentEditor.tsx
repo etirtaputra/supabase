@@ -9,6 +9,7 @@ import { createPortal } from 'react-dom';
 import { Spinner } from './LoadingSkeleton';
 import SpecRenderer from './SpecRenderer';
 import type { Component, PriceQuoteLineItem, PriceQuote, PurchaseOrder, PurchaseLineItem, CompetitorPrice, POCost, ComponentLink } from '../../types/database';
+import { computeTUC, computeTUCMap } from '../../lib/computeTUC';
 import { PRINCIPAL_CATS, BALANCE_CATS, BANK_FEE_CATS, TAX_CATS } from '../../constants/costCategories';
 import { ENUMS } from '../../constants/enums';
 import { CATEGORY_UNITS, hasCategoryUnit } from '../../constants/categoryUnits';
@@ -536,6 +537,8 @@ const IMPORT_HEADER_MAP: Record<string, string> = {
 };
 
 // ── TUC helper (used by inspectData for both current and linked components) ──────
+// Delegates to the shared canonical engine (lib/computeTUC) so every app shows
+// identical numbers. The old inline math also skipped IDR conversion on costs.
 function computeComponentTUC(
   componentPoItems: PurchaseLineItem[],
   allPoItems: PurchaseLineItem[],
@@ -548,45 +551,10 @@ function computeComponentTUC(
   tucXr:         number | null;  // Exchange rate from latest paid PO
   paidPoCount:   number;         // Number of distinct paid POs
 } {
-  const poMap = new Map(pos.map((p) => [p.po_id, p]));
-  const allocs = componentPoItems.map((item) => {
-    const po = poMap.get(item.po_id);
-    if (!po) return null;
-    const sisterItems = allPoItems.filter((i) => i.po_id === item.po_id && i.quantity > 0);
-    const totalForeign = sisterItems.reduce((s, i) => s + i.unit_cost * i.quantity, 0);
-    const share = totalForeign > 0 ? (item.unit_cost * item.quantity) / totalForeign : 0;
-    const costs = poCosts.filter((c) => c.po_id === item.po_id);
-    const hasBalance = costs.some((c) => BALANCE_CATS.has(c.cost_category));
-    const principal = costs.filter((c) => PRINCIPAL_CATS.has(c.cost_category)).reduce((s, c) => s + c.amount, 0);
-    const bankFees  = costs.filter((c) => BANK_FEE_CATS.has(c.cost_category)).reduce((s, c) => s + c.amount, 0);
-    const landed    = costs.filter((c) => !PRINCIPAL_CATS.has(c.cost_category) && !BANK_FEE_CATS.has(c.cost_category) && !TAX_CATS.has(c.cost_category)).reduce((s, c) => s + c.amount, 0);
-    const tuc = item.quantity > 0 ? (share * (principal + bankFees + landed)) / item.quantity : 0;
-    return { tuc, qty: item.quantity, hasBalance, po };
-  }).filter((a): a is { tuc: number; qty: number; hasBalance: boolean; po: PurchaseOrder } => a !== null);
-
-  const paidAllocs = allocs.filter((a) => a.hasBalance && a.tuc > 0);
-  const paidPoCount = new Set(paidAllocs.map((a) => a.po.po_id)).size;
-  if (paidAllocs.length === 0)
-    return { lastPoTucIdr: null, avgTucIdr: null, actualTucIdr: null, tucXr: null, paidPoCount: 0 };
-
-  // Weighted average across all paid POs
-  const weighted = paidAllocs.reduce((s, a) => s + a.tuc * a.qty, 0);
-  const qty      = paidAllocs.reduce((s, a) => s + a.qty, 0);
-  const avgTucIdr = qty > 0 ? weighted / qty : null;
-
-  // Most recent paid PO
-  const sortedByDate = [...paidAllocs].sort((a, b) => b.po.po_date.localeCompare(a.po.po_date));
-  const latest = sortedByDate[0];
-  const lastPoTucIdr = latest?.tuc ?? null;
-  const tucXr        = latest?.po.exchange_rate ?? null;
-
-  // Actual TUC = max(last, avg) — conservative: never let a cheaper latest PO
-  // make you underestimate your cost floor
-  const actualTucIdr =
-    lastPoTucIdr != null && avgTucIdr != null ? Math.max(lastPoTucIdr, avgTucIdr) :
-    lastPoTucIdr ?? avgTucIdr;
-
-  return { lastPoTucIdr, avgTucIdr, actualTucIdr, tucXr, paidPoCount };
+  const componentId = componentPoItems[0]?.component_id ?? null;
+  const t = componentId ? computeTUC(componentId, pos, allPoItems, poCosts) : null;
+  if (!t) return { lastPoTucIdr: null, avgTucIdr: null, actualTucIdr: null, tucXr: null, paidPoCount: 0 };
+  return { lastPoTucIdr: t.latestTuc, avgTucIdr: t.avgTuc, actualTucIdr: t.tuc, tucXr: t.latestXr, paidPoCount: t.poCount };
 }
 
 // Link type display metadata
@@ -874,54 +842,12 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   }, [poItems, pos]);
 
   // ── Bulk TUC per component (single-pass, no per-component O(n) scan) ────────
+  // Canonical TUC from the shared engine — identical numbers in Insights & Quotes.
+  // (The old local implementation summed cost amounts without IDR conversion.)
   const tucByComponent = useMemo(() => {
-    const poMap = new Map(pos.map((p) => [String(p.po_id), p]));
-    // Pre-group poItems and poCosts by po_id
-    const itemsByPO = new Map<string, PurchaseLineItem[]>();
-    poItems.forEach((i) => {
-      const k = String(i.po_id);
-      if (!itemsByPO.has(k)) itemsByPO.set(k, []);
-      itemsByPO.get(k)!.push(i);
-    });
-    const costsByPO = new Map<string, POCost[]>();
-    (poCosts ?? []).forEach((c) => {
-      const k = String(c.po_id);
-      if (!costsByPO.has(k)) costsByPO.set(k, []);
-      costsByPO.get(k)!.push(c);
-    });
-    // Per-PO derived values
-    interface POSummary { totalForeign: number; hasBalance: boolean; principal: number; bankFees: number; landed: number; date: string; xr: number | null; }
-    const poSummary = new Map<string, POSummary>();
-    itemsByPO.forEach((items, poId) => {
-      const po = poMap.get(poId); if (!po) return;
-      const totalForeign = items.reduce((s, i) => s + i.unit_cost * i.quantity, 0);
-      const costs = costsByPO.get(poId) ?? [];
-      const hasBalance = costs.some((c) => BALANCE_CATS.has(c.cost_category));
-      const principal = costs.filter((c) => PRINCIPAL_CATS.has(c.cost_category)).reduce((s, c) => s + c.amount, 0);
-      const bankFees  = costs.filter((c) => BANK_FEE_CATS.has(c.cost_category)).reduce((s, c) => s + c.amount, 0);
-      const landed    = costs.filter((c) => !PRINCIPAL_CATS.has(c.cost_category) && !BANK_FEE_CATS.has(c.cost_category) && !TAX_CATS.has(c.cost_category)).reduce((s, c) => s + c.amount, 0);
-      poSummary.set(poId, { totalForeign, hasBalance, principal, bankFees, landed, date: po.po_date, xr: po.exchange_rate ?? null });
-    });
-    // Accumulate per-component
-    interface CompAcc { wSum: number; wQty: number; latestTuc: number; latestDate: string; latestXr: number | null; }
-    const acc = new Map<string, CompAcc>();
-    poItems.forEach((item) => {
-      if (!item.component_id || item.quantity <= 0) return;
-      const ps = poSummary.get(String(item.po_id));
-      if (!ps || !ps.hasBalance || ps.totalForeign <= 0) return;
-      const share = (item.unit_cost * item.quantity) / ps.totalForeign;
-      const tuc = (share * (ps.principal + ps.bankFees + ps.landed)) / item.quantity;
-      if (tuc <= 0) return;
-      if (!acc.has(item.component_id)) acc.set(item.component_id, { wSum: 0, wQty: 0, latestTuc: 0, latestDate: '', latestXr: null });
-      const a = acc.get(item.component_id)!;
-      a.wSum += tuc * item.quantity; a.wQty += item.quantity;
-      if (ps.date > a.latestDate) { a.latestDate = ps.date; a.latestTuc = tuc; a.latestXr = ps.xr; }
-    });
     const result = new Map<string, { actualTucIdr: number; tucXr: number | null; latestPoDate: string }>();
-    acc.forEach((a, cid) => {
-      if (a.wQty <= 0) return;
-      const avgTuc = a.wSum / a.wQty;
-      result.set(cid, { actualTucIdr: Math.max(a.latestTuc, avgTuc), tucXr: a.latestXr, latestPoDate: a.latestDate });
+    computeTUCMap(pos, poItems, poCosts ?? []).forEach((t, cid) => {
+      result.set(cid, { actualTucIdr: t.tuc, tucXr: t.latestXr, latestPoDate: t.latestPoDate });
     });
     return result;
   }, [poItems, pos, poCosts]);

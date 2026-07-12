@@ -5,6 +5,7 @@ import type {
   PurchaseOrder, PurchaseLineItem, POCost, Supplier, ComponentLink,
 } from '@/types/database';
 import { PRINCIPAL_CATS, BANK_FEE_CATS, TAX_CATS, BALANCE_CATS } from '@/constants/costCategories';
+import { computeTUCMap } from '@/lib/computeTUC';
 import { fmtIdr, fmtNum } from '@/lib/formatters';
 
 const COST_LABELS: Record<string, string> = {
@@ -43,12 +44,13 @@ interface Props {
   suppliers: Supplier[];
   componentLinks: ComponentLink[];
   isLoading: boolean;
+  initialQuery?: string;   // e.g. from the global search palette (?q=)
 }
 
 export default function ProductCostLookup({
-  components, quotes, quoteItems, pos, poItems, poCosts, suppliers, componentLinks, isLoading,
+  components, quotes, quoteItems, pos, poItems, poCosts, suppliers, componentLinks, isLoading, initialQuery,
 }: Props) {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialQuery ?? '');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // ── Bulk: last quote price per component ────────────────────────────────────────────────────────────────────────
@@ -100,54 +102,11 @@ export default function ProductCostLookup({
   }, [poItems, pos]);
 
   // ── Bulk TUC per component ───────────────────────────────────────────────────────────────────────────────────────
+  // Canonical TUC from the shared engine — identical numbers in Catalog & Quotes
   const tucByComp = useMemo(() => {
-    const poMap = new Map(pos.map((p) => [String(p.po_id), p]));
-    const itemsByPo = new Map<string, PurchaseLineItem[]>();
-    poItems.forEach((i) => {
-      const k = String(i.po_id);
-      if (!itemsByPo.has(k)) itemsByPo.set(k, []);
-      itemsByPo.get(k)!.push(i);
-    });
-    const costsByPo = new Map<string, POCost[]>();
-    poCosts.forEach((c) => {
-      const k = String(c.po_id);
-      if (!costsByPo.has(k)) costsByPo.set(k, []);
-      costsByPo.get(k)!.push(c);
-    });
-    // per-component accumulators
-    type Acc = { wSum: number; wQty: number; latestDate: string; latestTuc: number; latestXr: number | null };
-    const acc = new Map<string, Acc>();
-    poItems.forEach((item) => {
-      if (!item.component_id || item.quantity <= 0) return;
-      const k = String(item.po_id);
-      const po = poMap.get(k);
-      if (!po) return;
-      const costs = costsByPo.get(k) ?? [];
-      const hasBalance = costs.some((c) => BALANCE_CATS.has(c.cost_category));
-      if (!hasBalance) return;
-      const siblings = itemsByPo.get(k) ?? [];
-      const totalForeign = siblings.reduce((s, i) => s + i.unit_cost * i.quantity, 0);
-      if (totalForeign <= 0) return;
-      const share = (item.unit_cost * item.quantity) / totalForeign;
-      const toIdr = (c: POCost) => c.currency === 'IDR'
-        ? Number(c.amount)
-        : Number(c.amount) * (Number(c.exchange_rate) || Number(po.exchange_rate) || 1);
-      const principal = costs.filter((c) => PRINCIPAL_CATS.has(c.cost_category)).reduce((s, c) => s + toIdr(c), 0);
-      const bankFees  = costs.filter((c) => BANK_FEE_CATS.has(c.cost_category)).reduce((s, c) => s + toIdr(c), 0);
-      const landed    = costs.filter((c) => !PRINCIPAL_CATS.has(c.cost_category) && !BANK_FEE_CATS.has(c.cost_category) && !TAX_CATS.has(c.cost_category)).reduce((s, c) => s + toIdr(c), 0);
-      const tuc = (share * (principal + bankFees + landed)) / item.quantity;
-      if (tuc <= 0) return;
-      const xr = Number(po.exchange_rate) || null;
-      const cid = item.component_id;
-      if (!acc.has(cid)) acc.set(cid, { wSum: 0, wQty: 0, latestDate: '', latestTuc: 0, latestXr: null });
-      const a = acc.get(cid)!;
-      a.wSum += tuc * item.quantity; a.wQty += item.quantity;
-      if (po.po_date > a.latestDate) { a.latestDate = po.po_date; a.latestTuc = tuc; a.latestXr = xr; }
-    });
     const result = new Map<string, { actualTucIdr: number; latestPoDate: string; tucXr: number | null }>();
-    acc.forEach((a, cid) => {
-      if (a.wQty <= 0) return;
-      result.set(cid, { actualTucIdr: Math.max(a.latestTuc, a.wSum / a.wQty), latestPoDate: a.latestDate, tucXr: a.latestXr });
+    computeTUCMap(pos, poItems, poCosts).forEach((t, cid) => {
+      result.set(cid, { actualTucIdr: t.tuc, latestPoDate: t.latestPoDate, tucXr: t.latestXr });
     });
     return result;
   }, [poItems, pos, poCosts]);

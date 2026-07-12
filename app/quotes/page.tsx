@@ -1,15 +1,16 @@
 'use client';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useQuotesGate } from '@/hooks/useQuotesGate';
-import { getComponentCost } from '@/lib/computeTUC';
+import { computeTUCMap, getComponentCost, type TUCResult, type CostEntry } from '@/lib/computeTUC';
 import { fetchUsedEntries } from '@/lib/usedPrices';
 import { roundNice } from '@/lib/rounding';
 import MigrationBanner from '@/components/ui/MigrationBanner';
 import AppSwitcher from '@/components/ui/AppSwitcher';
+import CommandPalette from '@/components/ui/CommandPalette';
 import { PROJECT_TYPES } from '@/lib/projectSpec';
 import type { ProjectQuote } from '@/types/quotes';
 
@@ -73,6 +74,48 @@ export default function QuotesListPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // ── Cost-drift detection on open (draft/sent) quotes ────────────────────────
+  // Compares each catalog-linked item's stored cost against today's
+  // recommendation from the shared cost engine; >10% difference flags the quote.
+  const DRIFT_THRESHOLD = 0.10;
+  const [openItems, setOpenItems] = useState<{ quote_id: string; component_id: string | null; cost_price: number | null; parent_item_id: string | null }[] | null>(null);
+  const [usedEntries, setUsedEntries] = useState<Map<string, CostEntry[]> | null>(null);
+
+  useEffect(() => {
+    fetchUsedEntries(supabase).then(setUsedEntries).catch(() => setUsedEntries(new Map()));
+  }, []);
+
+  useEffect(() => {
+    const openIds = quotes.filter((q) => q.status === 'draft' || q.status === 'sent').map((q) => q.quote_id);
+    if (!openIds.length) { setOpenItems([]); return; }
+    supabase.from('10.2_quote_items')
+      .select('quote_id, component_id, cost_price, parent_item_id')
+      .in('quote_id', openIds)
+      .not('component_id', 'is', null)
+      .then(({ data }) => setOpenItems(data ?? []));
+  }, [quotes]);
+
+  const listTucMap = useMemo(
+    () => computeTUCMap(catalog.pos, catalog.poItems, catalog.poCosts),
+    [catalog.pos, catalog.poItems, catalog.poCosts],
+  );
+
+  const driftByQuote = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!openItems || !usedEntries || catalogLoading) return map;
+    for (const it of openItems) {
+      if (!it.component_id || it.parent_item_id) continue;
+      const stored = Number(it.cost_price);
+      if (!(stored > 0)) continue;
+      const cc = getComponentCost(it.component_id, listTucMap, catalog.quotes, catalog.quoteItems, usedEntries.get(it.component_id) ?? []);
+      if (!cc || !(cc.cost > 0)) continue;
+      if (Math.abs(cc.cost - stored) / stored > DRIFT_THRESHOLD) {
+        map.set(it.quote_id, (map.get(it.quote_id) ?? 0) + 1);
+      }
+    }
+    return map;
+  }, [openItems, usedEntries, catalogLoading, listTucMap, catalog.quotes, catalog.quoteItems]);
+
   async function createNew() {
     setCreating(true);
     const today = new Date().toISOString().slice(0, 10);
@@ -106,6 +149,9 @@ export default function QuotesListPage() {
       if (!src) throw new Error('Source quote not found');
 
       const usedMap = dupRefresh ? await fetchUsedEntries(supabase) : null;
+      const dupTucMap: Map<string, TUCResult> = dupRefresh
+        ? computeTUCMap(catalog.pos, catalog.poItems, catalog.poCosts)
+        : new Map();
       const today = new Date().toISOString().slice(0, 10);
       const newQuoteId = crypto.randomUUID();
 
@@ -157,7 +203,7 @@ export default function QuotesListPage() {
       const newItems = srcItems.map((it) => {
         let cost = it.cost_price, sell = it.sell_price;
         if (dupRefresh && it.component_id) {
-          const cc = getComponentCost(it.component_id, catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes, catalog.quoteItems, usedMap?.get(it.component_id) ?? []);
+          const cc = getComponentCost(it.component_id, dupTucMap, catalog.quotes, catalog.quoteItems, usedMap?.get(it.component_id) ?? []);
           if (cc) {
             const newCost = Math.round(cc.cost);
             const oldCost = Number(it.cost_price), oldSell = Number(it.sell_price);
@@ -207,6 +253,7 @@ export default function QuotesListPage() {
 
   return (
     <div className="min-h-screen bg-[#0B1120] text-slate-200 font-sans text-sm">
+      <CommandPalette />
       {/* Header */}
       <div className="sticky top-0 z-40 bg-[#0B1120]/90 backdrop-blur-xl border-b border-white/[0.07]">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
@@ -247,6 +294,12 @@ export default function QuotesListPage() {
 
       <main className="max-w-6xl mx-auto px-6 py-8 space-y-6">
         <MigrationBanner />
+        {driftByQuote.size > 0 && (
+          <div className="bg-amber-500/10 border border-amber-500/40 rounded-2xl px-4 py-3 text-sm text-amber-300">
+            ⚠ <span className="font-semibold">{driftByQuote.size} open quote{driftByQuote.size > 1 ? 's have' : ' has'} outdated costs</span>
+            <span className="text-amber-200/70"> — component prices moved more than 10% since costing. Open the quote and press <span className="font-semibold">Costs</span> to refresh (margins are kept).</span>
+          </div>
+        )}
         {loading ? (
           <div className="flex items-center justify-center h-64 text-slate-500">Loading…</div>
         ) : quotes.length === 0 ? (
@@ -270,6 +323,14 @@ export default function QuotesListPage() {
                     {q.project_type && q.project_type !== 'custom' && (
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-sky-500/15 text-sky-300">
                         {PROJECT_TYPES.find((t) => t.key === q.project_type)?.label ?? q.project_type}
+                      </span>
+                    )}
+                    {driftByQuote.has(q.quote_id) && (
+                      <span
+                        className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-300"
+                        title={`${driftByQuote.get(q.quote_id)} item${driftByQuote.get(q.quote_id)! > 1 ? 's' : ''} priced >10% away from today's cost — open and press Costs to refresh`}
+                      >
+                        ⚠ {driftByQuote.get(q.quote_id)} outdated cost{driftByQuote.get(q.quote_id)! > 1 ? 's' : ''}
                       </span>
                     )}
                   </div>

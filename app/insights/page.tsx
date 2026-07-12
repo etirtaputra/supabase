@@ -10,6 +10,7 @@ import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useAuth } from '@/hooks/useAuth';
 import ProductCostLookup from '@/components/ui/ProductCostLookup';
 import AppSwitcher from '@/components/ui/AppSwitcher';
+import CommandPalette from '@/components/ui/CommandPalette';
 import POCashCycle from '@/components/ui/POCashCycle';
 import PricingIntelligence from '@/components/ui/PricingIntelligence';
 import ExchangeRateTrends from '@/components/ui/ExchangeRateTrends';
@@ -97,6 +98,16 @@ export default function DatabaseViewPage() {
     if (!authLoading && !user) router.replace('/login?next=/insights');
   }, [authLoading, user, router]);
 
+  // Deep links from the global search palette: /insights?tab=lookup&q=<name>
+  const [lookupQuery, setLookupQuery] = useState('');
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    if (tab && TABS.some((t) => t.id === tab)) setActiveTab(tab as TabId);
+    const q = params.get('q');
+    if (q) setLookupQuery(q);
+  }, []);
+
   // Derive exchange rates on-the-fly from PO payments — always up-to-date
   const exchangeRates = useMemo(
     () => deriveExchangeRates(data.pos, data.poItems, data.poCosts, data.quotes),
@@ -127,6 +138,7 @@ export default function DatabaseViewPage() {
   return (
     <ToastProvider>
       <div className="min-h-screen bg-[#0B1120] text-slate-200 font-sans text-sm selection:bg-white/20">
+        <CommandPalette />
 
         {/* ── Sticky header + tab bar ── */}
         <div className="sticky top-0 z-50 bg-[#0B1120]/90 backdrop-blur-xl border-b border-white/[0.07]">
@@ -229,6 +241,8 @@ export default function DatabaseViewPage() {
               suppliers={data.suppliers}
               componentLinks={data.componentLinks}
               isLoading={loading}
+              key={lookupQuery || 'lookup'}
+              initialQuery={lookupQuery}
             />
           </div>
 

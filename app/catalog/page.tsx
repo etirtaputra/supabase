@@ -12,6 +12,7 @@ import SimpleForm from '@/components/forms/SimpleForm';
 import BatchLineItemsForm from '@/components/forms/BatchLineItemsForm';
 import ComponentEditor from '@/components/ui/ComponentEditor';
 import AppSwitcher from '@/components/ui/AppSwitcher';
+import CommandPalette from '@/components/ui/CommandPalette';
 import CompetitorPriceForm from '@/components/forms/CompetitorPriceForm';
 import MultiPaymentForm from '@/components/forms/MultiPaymentForm';
 import DealLookupTab from '@/components/ui/DealLookupTab';
@@ -36,7 +37,7 @@ const MENU_ITEMS: MenuItem[] = [
   { id: 'catalog', label: 'Catalog', icon: '🗂️',
     color: 'text-slate-400 hover:text-emerald-300 hover:bg-slate-800/50',
     activeColor: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30' },
-  { id: 'quoting', label: 'Quotes', icon: '📝',
+  { id: 'quoting', label: 'Supplier Quotes', icon: '📝',
     color: 'text-slate-400 hover:text-blue-300 hover:bg-slate-800/50',
     activeColor: 'bg-blue-500/15 text-blue-300 ring-1 ring-blue-500/30' },
   { id: 'ordering', label: 'PI / PO', icon: '📦',
@@ -468,6 +469,7 @@ function MasterInsertPage() {
 
   return (
     <div className="min-h-screen bg-[#0B1120] text-slate-200 font-sans text-sm selection:bg-white/20">
+      <CommandPalette />
       {/* ── Sticky top header + tab bar ── */}
       <div className="sticky top-0 z-50 bg-[#0B1120]/90 backdrop-blur-xl border-b border-white/[0.07]">
         <header className="px-4 md:px-8 xl:px-12 pt-4 xl:pt-5 pb-2 max-w-[1800px] mx-auto flex flex-col sm:flex-row sm:items-end justify-between gap-1">

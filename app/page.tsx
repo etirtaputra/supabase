@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useAuth } from '@/hooks/useAuth';
+import CommandPalette from '@/components/ui/CommandPalette';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 const fmtIdr = (n: number) =>
   n >= 1_000_000_000
@@ -108,6 +109,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#0B1120] text-slate-200 font-sans text-sm">
+      <CommandPalette />
       {/* ── Header ── */}
       <div className="border-b border-slate-800/60 bg-[#0B1120]/80 backdrop-blur-md">
         <div className="max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12 py-5 xl:py-6 flex flex-col sm:flex-row sm:items-end justify-between gap-2">
@@ -297,10 +299,10 @@ export default function Home() {
         {/* ── Quick access ── */}
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 xl:gap-6">
           {[
-            { href: '/catalog?tab=quoting',    icon: '📝', label: 'New Quote',   sub: 'Enter supplier quote / PI',     color: 'hover:border-blue-500/40' },
+            { href: '/catalog?tab=quoting',    icon: '📝', label: 'Supplier Quote / PI', sub: 'Enter a supplier price quote', color: 'hover:border-blue-500/40' },
             { href: '/catalog?tab=ordering',   icon: '📦', label: 'New PO',      sub: 'Create purchase order',         color: 'hover:border-violet-500/40' },
             { href: '/catalog?tab=financials', icon: '💰', label: 'Log Payment', sub: 'Record payment or bank charges', color: 'hover:border-rose-500/40' },
-            { href: '/quotes',                icon: '📄', label: 'Project Quote', sub: 'Build & export client quote', color: 'hover:border-violet-500/40' },
+            { href: '/quotes',                icon: '📄', label: 'Project Quote', sub: 'Client-facing quote / BOM', color: 'hover:border-violet-500/40' },
           ].map(({ href, icon, label, sub, color }) => (
             <Link
               key={href}

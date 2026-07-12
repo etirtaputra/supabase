@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useQuotesGate } from '@/hooks/useQuotesGate';
-import { getComponentCost, type CostEntry } from '@/lib/computeTUC';
+import { computeTUCMap, getComponentCost, priceAgeDays, AGED_PRICE_DAYS, type CostEntry } from '@/lib/computeTUC';
 import { fetchUsedEntries } from '@/lib/usedPrices';
 import { roundNice } from '@/lib/rounding';
 import { DEFAULT_EXPORT_COLS, EXPORT_COL_KEYS, EXPORT_COL_LABELS, loadExportCols, saveExportCols, type ExportCols } from '@/lib/exportCols';
@@ -485,9 +485,15 @@ export default function QuoteEditorPage() {
     document.title = `${parts.join(' · ')} | ICAPROC`;
   }, [quote?.quote_number, quote?.customer_name]);
 
+  // One canonical TUC map shared with Catalog and Insights (same lib, same numbers)
+  const tucMap = useMemo(
+    () => computeTUCMap(catalog.pos, catalog.poItems, catalog.poCosts),
+    [catalog.pos, catalog.poItems, catalog.poCosts],
+  );
+
   const costFor = useCallback((componentId: string) =>
-    getComponentCost(componentId, catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes, catalog.quoteItems, prevUsed.get(componentId) ?? []),
-  [catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes, catalog.quoteItems, prevUsed]);
+    getComponentCost(componentId, tucMap, catalog.quotes, catalog.quoteItems, prevUsed.get(componentId) ?? []),
+  [tucMap, catalog.quotes, catalog.quoteItems, prevUsed]);
 
   // ── System size (Wp) ───────────────────────────────────────────────────────
   // Wp per module: catalog norm_value for pv_module components, else parsed
@@ -1511,7 +1517,15 @@ export default function QuoteEditorPage() {
                                           <div className="text-right flex-shrink-0">
                                             {cc ? <p className={`font-semibold text-xs ${SOURCE_TEXT[cc.source]}`}>{fmtIdr(cc.cost)}</p>
                                                 : <p className="text-slate-600 text-[10px]">no price data</p>}
-                                            {cc && <p className="text-[10px] text-slate-600">{SOURCE_LABEL[cc.source]}</p>}
+                                            {cc && (
+                                              priceAgeDays(cc.asOf) > AGED_PRICE_DAYS ? (
+                                                <p className="text-[10px] text-amber-400 font-semibold" title={`Price is from ${cc.asOf || 'an unknown date'} — consider re-checking with the supplier`}>
+                                                  ⚠ aged · {SOURCE_LABEL[cc.source]}
+                                                </p>
+                                              ) : (
+                                                <p className="text-[10px] text-slate-600">{SOURCE_LABEL[cc.source]}</p>
+                                              )
+                                            )}
                                           </div>
                                         </button>
                                       );
@@ -1578,7 +1592,9 @@ export default function QuoteEditorPage() {
                                               {p.cost_price != null
                                                 ? <p className="font-semibold text-xs text-amber-400">{fmtIdr(p.cost_price)}</p>
                                                 : <p className="text-slate-600 text-[10px]">no cost</p>}
-                                              <p className="text-[10px] text-slate-600">last used</p>
+                                              {priceAgeDays(p.date) > AGED_PRICE_DAYS
+                                                ? <p className="text-[10px] text-amber-400 font-semibold" title={`Last used ${p.date} — consider re-checking`}>⚠ aged</p>
+                                                : <p className="text-[10px] text-slate-600">last used</p>}
                                             </div>
                                           </button>
                                           {/* Sibling overlay so the select button's mousedown can't swallow it */}
