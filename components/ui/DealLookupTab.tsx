@@ -433,9 +433,22 @@ export default function DealLookupTab({
       const code = g.supplier?.supplier_code?.toLowerCase() ?? '';
       const name = g.supplier?.supplier_name?.toLowerCase() ?? '';
       const pi   = (g.piNumber ?? '').toLowerCase();
-      return pi.includes(q) || code.includes(q) || name.includes(q);
+      const company = g.company?.legal_name?.toLowerCase() ?? '';
+      return pi.includes(q) || code.includes(q) || name.includes(q) || company.includes(q)
+        || g.pos.some((p) => (p.po_number ?? '').toLowerCase().includes(q));
     });
   }, [allGroups, search, stageFilter, filterMismatch, mismatchGroupIds]);
+
+  // Deep-linked search (e.g. a PO number from the global palette): when it
+  // resolves to exactly one deal, open its card automatically
+  const autoExpandedRef = useRef(false);
+  useEffect(() => {
+    if (autoExpandedRef.current || !initialSearch || !search) return;
+    if (filtered.length === 1) {
+      setExpandedKey(filtered[0].key);
+      autoExpandedRef.current = true;
+    }
+  }, [filtered, initialSearch, search]);
 
   // ── By-vendor stats ───────────────────────────────────────────────────────
   const vendorStats = useMemo(() => {
