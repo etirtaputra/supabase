@@ -605,6 +605,27 @@ export default function QuoteEditorPage() {
     setExportCols((prev) => { const next = { ...prev, [k]: v }; saveExportCols(next); return next; });
   };
 
+  // ── Per-item cost drift: stored cost vs today's recommendation ─────────────
+  const DRIFT_THRESHOLD = 0.10;
+  const itemDrift = useCallback((item: DraftItem): { rec: number; pct: number } | null => {
+    if (!item.component_id || item._deleted || item.parent_item_id) return null;
+    const stored = num(item.cost_price);
+    if (!stored || stored <= 0) return null;
+    const cc = costFor(item.component_id);
+    if (!cc || !(cc.cost > 0)) return null;
+    const pct = (cc.cost - stored) / stored;
+    return Math.abs(pct) > DRIFT_THRESHOLD ? { rec: cc.cost, pct } : null;
+  }, [costFor]);
+
+  const driftCount = useMemo(() => {
+    let n = 0;
+    for (const sec of sections) {
+      if (sec._deleted) continue;
+      for (const it of sec.items) if (itemDrift(it)) n += 1;
+    }
+    return n;
+  }, [sections, itemDrift]);
+
   // ── Cost history hover popup ───────────────────────────────────────────────
   const [costHover, setCostHover] = useState<{ itemId: string; history: CostEntry[]; source: string; x: number; y: number } | null>(null);
 
@@ -1440,6 +1461,7 @@ export default function QuoteEditorPage() {
                         const total = (num(item.quantity) ?? 0) * (num(item.sell_price) ?? 0);
                         const gm = gmFromPrices(item.cost_price, item.sell_price);
                         const isAcOpen = acState?.itemId === item.item_id;
+                        const drift = itemDrift(item);
 
                         return (
                           <React.Fragment key={item.item_id}>
@@ -1666,7 +1688,13 @@ export default function QuoteEditorPage() {
                                     if (sell) updateItem(sec.section_id, item.item_id, { sell_price: sell });
                                   }}
                                   placeholder="0"
-                                  className={`w-full bg-transparent outline-none text-right text-slate-400 placeholder:text-slate-700 border-b border-slate-800 hover:border-slate-600 focus:border-violet-500 transition-colors ${item.component_id || freeTextHistory.has(item.description.trim().toLowerCase()) ? 'cursor-help' : ''}`} />
+                                  title={drift ? `Outdated: today's cost is ${fmtIdr(drift.rec)} (${drift.pct > 0 ? '+' : ''}${(drift.pct * 100).toFixed(1)}%). The Costs button refreshes all items, keeping margins.` : undefined}
+                                  className={`w-full bg-transparent outline-none text-right placeholder:text-slate-700 border-b transition-colors focus:border-violet-500 ${drift ? 'text-amber-300 border-amber-500/70 hover:border-amber-400' : 'text-slate-400 border-slate-800 hover:border-slate-600'} ${item.component_id || freeTextHistory.has(item.description.trim().toLowerCase()) ? 'cursor-help' : ''}`} />
+                                {drift && (
+                                  <p className="text-right text-[10px] text-amber-400/90 leading-tight" title="Today's recommended cost">
+                                    now {fmtIdr(drift.rec)}
+                                  </p>
+                                )}
                                 {costHover?.itemId === item.item_id && (
                                   <div
                                     className="fixed z-50 w-72 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-3 pointer-events-none"
@@ -1983,6 +2011,11 @@ export default function QuoteEditorPage() {
             )}
             {missingSell > 0 && (
               <span className="text-amber-400 font-medium">⚠ {missingSell} line{missingSell > 1 ? 's' : ''} missing sell price</span>
+            )}
+            {driftCount > 0 && (
+              <span className="text-amber-400 font-medium" title="Stored costs differ >10% from today's — press Costs to refresh, margins are kept">
+                ⚠ {driftCount} outdated cost{driftCount > 1 ? 's' : ''}
+              </span>
             )}
             <span className="ml-auto flex-shrink-0">
               {dirty

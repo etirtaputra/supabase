@@ -59,6 +59,7 @@ function MasterInsertPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get('tab') as Tab) || 'catalog';
+  const initialLookupQ = searchParams.get('q') ?? '';
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
 
   useEffect(() => {
@@ -1072,6 +1073,8 @@ function MasterInsertPage() {
               {/* Deal Lookup Tab */}
               {activeTab === 'lookup' && (
                 <DealLookupTab
+                  key={initialLookupQ || 'lookup'}
+                  initialSearch={initialLookupQ}
                   quotes={data.quotes}
                   quoteItems={data.quoteItems}
                   pos={data.pos}

@@ -275,6 +275,7 @@ interface Props {
   onAddQuoteLineItem?: (quoteId: number, data: { component_id?: string; quantity: number; unit_price: number; currency: string }) => Promise<void>;
   onDeletePoLineItem?: (poLineItemId: number) => Promise<void>;
   onDeleteQuoteLineItem?: (quoteLineId: number) => Promise<void>;
+  initialSearch?: string;  // e.g. a PI/PO number from the global search palette
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -287,10 +288,11 @@ export default function DealLookupTab({
   onUpdateQuoteLineItem, onUpdatePoLineItem,
   onAddPoLineItem, onAddQuoteLineItem,
   onDeletePoLineItem, onDeleteQuoteLineItem,
+  initialSearch,
 }: Props) {
 
   const [viewMode, setViewMode]               = useState<'all' | 'by-vendor' | 'by-company'>('all');
-  const [search, setSearch]                   = useState('');
+  const [search, setSearch]                   = useState(initialSearch ?? '');
   const [stageFilter, setStageFilter]         = useState<'all' | 'quote' | 'active' | 'received' | 'completed' | 'superseded'>('all');
   const [filterMismatch, setFilterMismatch]   = useState(false);
   const [tableView, setTableView]             = useState(false);
