@@ -391,6 +391,19 @@ export default function QuotesListPage() {
                       </span>
                     )}
                   </div>
+                  {t && t.subtotal > 0 && (
+                    <div className="flex items-baseline gap-3 mb-1 tabular-nums">
+                      <span className="text-sm font-bold text-white">
+                        {fmtRp(t.subtotal)}
+                        <span className="ml-1.5 text-[10px] font-normal text-slate-500">excl. PPN</span>
+                      </span>
+                      {t.wp > 0 && (
+                        <span className="text-[11px] text-amber-300/90" title={`System size ${t.wp.toLocaleString('en-US')} Wp — price per Wp excl. PPN`}>
+                          {fmtRp(t.subtotal / t.wp)}/Wp
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <div className="flex items-center gap-4 text-[11px] text-slate-500">
                     <span className="truncate">{q.customer_name || 'No customer'}</span>
                     {q.project_description && <span className="truncate text-slate-600 hidden sm:block">{q.project_description}</span>}
@@ -407,19 +420,6 @@ export default function QuotesListPage() {
                     )}
                   </div>
                 </Link>
-                {t && t.subtotal > 0 && (
-                  <Link href={`/quotes/${q.quote_id}`} className="text-right flex-shrink-0 hidden sm:block">
-                    <div className="text-sm font-bold text-white tabular-nums">
-                      {fmtRp(t.subtotal)}
-                      <span className="ml-1.5 text-[10px] font-normal text-slate-500">excl. PPN</span>
-                    </div>
-                    {t.wp > 0 && (
-                      <div className="text-[11px] text-amber-300/90 tabular-nums mt-0.5" title={`System size ${t.wp.toLocaleString('en-US')} Wp — price per Wp excl. PPN`}>
-                        {fmtRp(t.subtotal / t.wp)}/Wp
-                      </div>
-                    )}
-                  </Link>
-                )}
                 <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={() => { setDup({ id: q.quote_id, number: q.quote_number }); setDupToday(true); setDupRefresh(false); setDupInternal(true); setDupError(''); }}
