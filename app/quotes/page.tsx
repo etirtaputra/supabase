@@ -117,8 +117,11 @@ export default function QuotesListPage() {
     return map;
   }, [openItems, usedEntries, catalogLoading, listTucMap, catalog.quotes, catalog.quoteItems]);
 
+  const [createError, setCreateError] = useState('');
+
   async function createNew() {
     setCreating(true);
+    setCreateError('');
     const today = new Date().toISOString().slice(0, 10);
     const num = `Q-${today.replace(/-/g, '')}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
     const { data, error } = await supabase
@@ -126,8 +129,13 @@ export default function QuotesListPage() {
       .insert({ quote_number: num, quote_date: today })
       .select('quote_id')
       .single();
-    if (!error && data) router.push(`/quotes/${data.quote_id}`);
-    else setCreating(false);
+    if (!error && data) {
+      router.push(`/quotes/${data.quote_id}`);
+    } else {
+      // Surface the real reason (e.g. an RLS policy rejecting the insert)
+      setCreateError(error?.message || 'Could not create the quote');
+      setCreating(false);
+    }
   }
 
   async function confirmDelete(id: string) {
@@ -295,6 +303,14 @@ export default function QuotesListPage() {
 
       <main className="max-w-6xl mx-auto px-6 py-8 space-y-6">
         <MigrationBanner />
+        {createError && (
+          <div className="bg-red-500/10 border border-red-500/40 rounded-2xl px-4 py-3 text-sm text-red-300">
+            Creating the quote failed: <span className="font-medium">{createError}</span>
+            {/insufficient|policy|denied|row-level/i.test(createError) && (
+              <span className="text-red-200/70"> — this looks like a database permission rule; ask an Owner to apply the latest can_edit_quote fix.</span>
+            )}
+          </div>
+        )}
         {driftByQuote.size > 0 && (
           <div className="bg-amber-500/10 border border-amber-500/40 rounded-2xl px-4 py-3 text-sm text-amber-300">
             ⚠ <span className="font-semibold">{driftByQuote.size} open quote{driftByQuote.size > 1 ? 's have' : ' has'} outdated costs</span>
