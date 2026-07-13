@@ -38,6 +38,31 @@ export const SECTION_GROUPS: { key: SectionGroup; label: string }[] = [
   { key: 'services',     label: 'Services' },
 ];
 
+// House-style sub-section titles per group: every new quote is seeded with
+// these, and the section-title autocomplete suggests them. Free text is
+// still allowed for the odd case, but staying on the list keeps quotes
+// consistent and comparable.
+export const STANDARD_SECTIONS: Record<SectionGroup, string[]> = {
+  solar_panels: [
+    'Solar panels',
+  ],
+  bos: [
+    'Inverters',
+    'Monitoring systems',
+    'Array mounting kits',
+    'DC cables, conduits and terminators',
+    'AC cables, conduits and terminators',
+    'AC switchgears and protection devices',
+    'Battery Energy Storage Systems (BESS)',
+    'Transformers',
+  ],
+  services: [
+    'Design, engineering and test commissioning',
+    'Installation',
+    'Logistics and misc.',
+  ],
+};
+
 export interface QuoteSection {
   section_id: string;
   quote_id: string;

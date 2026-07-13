@@ -13,7 +13,7 @@ import { quoteFileName } from '@/lib/quoteFilename';
 import { lineWp, wpPerModule } from '@/lib/quoteWp';
 import MigrationBanner from '@/components/ui/MigrationBanner';
 import { PROJECT_TYPES, composeDescription, specFileTag, type ProjectType, type SystemSpecs } from '@/lib/projectSpec';
-import { SECTION_GROUPS, type SectionGroup, type ProjectQuote, type QuoteSection, type QuoteItem } from '@/types/quotes';
+import { SECTION_GROUPS, STANDARD_SECTIONS, type SectionGroup, type ProjectQuote, type QuoteSection, type QuoteItem } from '@/types/quotes';
 import type { Component } from '@/types/database';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -831,6 +831,9 @@ export default function QuoteEditorPage() {
     markDirty();
   }
 
+  // Section-title autocomplete: which section's title input is focused
+  const [titleAcFor, setTitleAcFor] = useState<string | null>(null);
+
   function addSection(group: SectionGroup) {
     setSections((prev) => [
       ...prev,
@@ -1054,7 +1057,9 @@ export default function QuoteEditorPage() {
 
     let rows = '';
     for (const group of SECTION_GROUPS) {
-      const groupSecs = liveSecs.filter((s) => s.group_key === group.key);
+      // Empty sections (e.g. unused seeded defaults) never reach the client export
+      const groupSecs = liveSecs.filter((s) =>
+        s.group_key === group.key && s.items.some((i) => !i._deleted));
       if (!groupSecs.length) continue;
       rows += `<tr style="background:#12463b;color:#fff;font-weight:bold">
         <td colspan="${colCount}">${group.label}</td>
@@ -1425,16 +1430,43 @@ export default function QuoteEditorPage() {
                   >
                     {GRIP}
                   </span>
-                  <div className="flex-1 flex items-center gap-2 group/title min-w-0">
+                  <div className="flex-1 flex items-center gap-2 group/title min-w-0 relative">
                     <svg className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                     <input
                       value={sec.title}
                       onChange={(e) => updateSection(sec.section_id, { title: e.target.value })}
-                      onFocus={(e) => e.target.select()}
+                      onFocus={(e) => { e.target.select(); setTitleAcFor(sec.section_id); }}
+                      onBlur={() => setTitleAcFor((v) => (v === sec.section_id ? null : v))}
+                      onKeyDown={(e) => { if (e.key === 'Escape' || e.key === 'Enter') setTitleAcFor(null); }}
                       className="flex-1 min-w-0 bg-transparent outline-none font-semibold text-white placeholder:text-slate-500 border-b border-dashed border-slate-600 group-hover/title:border-slate-400 focus:border-solid focus:border-violet-500 transition-colors py-0.5"
                       placeholder="Click to name this section…"
                       title="Click to rename section"
                     />
+                    {titleAcFor === sec.section_id && (() => {
+                      // Suggest the house-style titles for this group, hiding ones
+                      // already used by another section; typing narrows the list
+                      const used = new Set(sections
+                        .filter((s) => !s._deleted && s.group_key === sec.group_key && s.section_id !== sec.section_id)
+                        .map((s) => s.title.trim().toLowerCase()));
+                      const all = STANDARD_SECTIONS[sec.group_key].filter((t) => !used.has(t.toLowerCase()));
+                      const q = sec.title.trim().toLowerCase();
+                      const filtered = q ? all.filter((t) => t.toLowerCase().includes(q)) : all;
+                      const shown = filtered.length ? filtered : all;
+                      if (!shown.length) return null;
+                      return (
+                        <div className="absolute left-5 right-0 top-full mt-1.5 z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1 max-h-64 overflow-y-auto">
+                          {shown.map((t) => (
+                            <button
+                              key={t}
+                              onMouseDown={(e) => { e.preventDefault(); updateSection(sec.section_id, { title: t }); setTitleAcFor(null); }}
+                              className="block w-full text-left px-3 py-1.5 text-xs text-slate-300 hover:bg-violet-500/20 hover:text-white transition-colors"
+                            >
+                              {t}
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
                   {LEAD_TIMES.includes(sec.lead_time) && sec.lead_time !== 'Custom' ? (
                     <select

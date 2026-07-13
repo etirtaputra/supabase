@@ -235,7 +235,8 @@ export default function PrintPage() {
           </thead>
           <tbody>
             {SECTION_GROUPS.map((group) => {
-              const groupSecs = sections.filter((s) => s.group_key === group.key);
+              // Empty sections (e.g. unused seeded defaults) never reach the client PDF
+              const groupSecs = sections.filter((s) => s.group_key === group.key && s.items.length > 0);
               if (!groupSecs.length) return null;
               const colCount = 1 + (cols.brand ? 1 : 0) + (cols.qty ? 1 : 0) + (cols.unit ? 1 : 0) + (cols.amount ? 1 : 0);
               return (

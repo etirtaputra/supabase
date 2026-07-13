@@ -14,7 +14,7 @@ import MigrationBanner from '@/components/ui/MigrationBanner';
 import AppSwitcher from '@/components/ui/AppSwitcher';
 import CommandPalette from '@/components/ui/CommandPalette';
 import { PROJECT_TYPES } from '@/lib/projectSpec';
-import type { ProjectQuote } from '@/types/quotes';
+import { SECTION_GROUPS, STANDARD_SECTIONS, type ProjectQuote } from '@/types/quotes';
 
 const STATUS_STYLES: Record<string, string> = {
   draft:    'bg-slate-700/60 text-slate-300',
@@ -168,6 +168,13 @@ export default function QuotesListPage() {
       .select('quote_id')
       .single();
     if (!error && data) {
+      // Seed the house-style sub-sections (delete the unneeded ones in the
+      // editor; empty sections never appear on client exports anyway). A
+      // failure here is non-fatal — the quote just starts without sections.
+      const seed = SECTION_GROUPS
+        .flatMap((g) => STANDARD_SECTIONS[g.key].map((title) => ({ group_key: g.key, title })))
+        .map((s, i) => ({ quote_id: data.quote_id, ...s, lead_time: 'Ready', sort_order: i }));
+      await supabase.from('10.1_quote_sections').insert(seed);
       router.push(`/quotes/${data.quote_id}`);
     } else {
       // Surface the real reason (e.g. an RLS policy rejecting the insert)
@@ -393,7 +400,7 @@ export default function QuotesListPage() {
                   </div>
                   {t && t.subtotal > 0 && (
                     <div className="flex items-baseline gap-3 mb-1 tabular-nums">
-                      <span className="text-sm font-bold text-white">
+                      <span className="text-sm font-semibold text-slate-300">
                         {fmtRp(t.subtotal)}
                         <span className="ml-1.5 text-[10px] font-normal text-slate-500">excl. PPN</span>
                       </span>
