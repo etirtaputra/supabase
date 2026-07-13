@@ -10,6 +10,7 @@ import { fetchUsedEntries } from '@/lib/usedPrices';
 import { roundNice } from '@/lib/rounding';
 import { DEFAULT_EXPORT_COLS, EXPORT_COL_KEYS, EXPORT_COL_LABELS, loadExportCols, saveExportCols, type ExportCols } from '@/lib/exportCols';
 import { quoteFileName } from '@/lib/quoteFilename';
+import { lineWp, wpPerModule } from '@/lib/quoteWp';
 import MigrationBanner from '@/components/ui/MigrationBanner';
 import { PROJECT_TYPES, composeDescription, specFileTag, type ProjectType, type SystemSpecs } from '@/lib/projectSpec';
 import { SECTION_GROUPS, type SectionGroup, type ProjectQuote, type QuoteSection, type QuoteItem } from '@/types/quotes';
@@ -501,24 +502,18 @@ export default function QuoteEditorPage() {
   [tucMap, catalog.quotes, catalog.quoteItems, prevUsed]);
 
   // ── System size (Wp) ───────────────────────────────────────────────────────
-  // Wp per module: catalog norm_value for pv_module components, else parsed
-  // from the description ("...720Wp..."). Lines with unit 'Wp' keep the old
-  // behavior where qty is already total Wp.
-  const wpPerModule = useCallback((item: DraftItem): number => {
-    if (item.component_id) {
-      const comp = catalog.components.find((c) => c.component_id === item.component_id);
-      if (comp?.category === 'pv_module' && Number(comp.norm_value) > 0) return Number(comp.norm_value);
-    }
-    const m = item.description.match(/(\d{2,4}(?:[.,]\d+)?)\s*wp\b/i);
-    return m ? parseFloat(m[1].replace(',', '.')) : 0;
-  }, [catalog.components]);
-
+  // Shared rules in lib/quoteWp.ts (also used by the quotes list): catalog
+  // norm_value for pv_module components, else parsed from the description;
+  // lines with unit 'Wp' keep the old behavior where qty is already total Wp.
   const itemWp = useCallback((item: DraftItem): number => {
     if (item._deleted || item.parent_item_id) return 0;
-    const qty = num(item.quantity) ?? 0;
-    if (item.unit.trim().toLowerCase() === 'wp') return qty;
-    return qty * wpPerModule(item);
-  }, [wpPerModule]);
+    return lineWp(catalog.components, {
+      component_id: item.component_id,
+      description: item.description,
+      unit: item.unit,
+      quantity: num(item.quantity) ?? 0,
+    });
+  }, [catalog.components]);
 
   // ── Per-group default margins ──────────────────────────────────────────────
   // A group's GM% auto-prices new lines (sell = cost / (1 - gm)) whenever a
@@ -943,6 +938,13 @@ export default function QuoteEditorPage() {
         updated_at: new Date().toISOString(),
       });
       if (qErr) throw qErr;
+      // sent_at is stamped by the DB trigger on the draft→sent transition;
+      // read it back so the header shows the date without a reload
+      if (quote.status === 'sent' && !quote.sent_at) {
+        const { data: stamped } = await supabase
+          .from('10.0_project_quotes').select('sent_at').eq('quote_id', quote.quote_id).single();
+        if (stamped?.sent_at) setQuote((q) => q ? { ...q, sent_at: stamped.sent_at } : q);
+      }
 
       // 2. Collect deletes
       const deletedSecIds = sections.filter((s) => s._deleted).map((s) => s.section_id);
@@ -1172,6 +1174,11 @@ export default function QuoteEditorPage() {
             >
               {STATUS_OPTS.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
+            {quote.sent_at && (
+              <span className="text-[11px] text-blue-300/70 hidden md:inline" title="Stamped by the database when the status was set to SENT">
+                sent {fmtDateTime(quote.sent_at)}
+              </span>
+            )}
             {saveMsg && (
               <span
                 title={saveMsg}
@@ -1900,7 +1907,7 @@ export default function QuoteEditorPage() {
                                 <td className="px-2 py-1.5 text-right text-[11px] font-semibold text-emerald-400 tabular-nums">{itemWp(item).toLocaleString('en-US')}</td>
                                 <td className="px-2 py-1.5 text-[11px] text-emerald-500/80">Wp</td>
                                 <td colSpan={5} className="px-2 py-1.5 text-[11px] text-slate-600">
-                                  {(num(item.quantity) ?? 0).toLocaleString('en-US')} × {wpPerModule(item).toLocaleString('en-US')} Wp/module
+                                  {(num(item.quantity) ?? 0).toLocaleString('en-US')} × {wpPerModule(catalog.components, item.component_id, item.description).toLocaleString('en-US')} Wp/module
                                 </td>
                               </tr>
                             )}

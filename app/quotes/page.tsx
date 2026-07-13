@@ -8,6 +8,8 @@ import { useQuotesGate } from '@/hooks/useQuotesGate';
 import { computeTUCMap, getComponentCost, type TUCResult, type CostEntry } from '@/lib/computeTUC';
 import { fetchUsedEntries } from '@/lib/usedPrices';
 import { roundNice } from '@/lib/rounding';
+import { lineWp } from '@/lib/quoteWp';
+import { fmtRp } from '@/lib/formatters';
 import MigrationBanner from '@/components/ui/MigrationBanner';
 import AppSwitcher from '@/components/ui/AppSwitcher';
 import CommandPalette from '@/components/ui/CommandPalette';
@@ -74,11 +76,16 @@ export default function QuotesListPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // ── Cost-drift detection on open (draft/sent) quotes ────────────────────────
-  // Compares each catalog-linked item's stored cost against today's
-  // recommendation from the shared cost engine; >10% difference flags the quote.
-  const DRIFT_THRESHOLD = 0.10;
-  const [openItems, setOpenItems] = useState<{ quote_id: string; component_id: string | null; cost_price: number | null; parent_item_id: string | null }[] | null>(null);
+  // ── Line items + sections for all quotes ────────────────────────────────────
+  // One fetch feeds both the per-quote totals (grand total / price per Wp)
+  // and the cost-drift detection below.
+  interface ListItem {
+    quote_id: string; section_id: string; parent_item_id: string | null;
+    component_id: string | null; description: string | null; unit: string | null;
+    quantity: number | null; cost_price: number | null; sell_price: number | null;
+  }
+  const [allItems, setAllItems] = useState<ListItem[] | null>(null);
+  const [sectionGroups, setSectionGroups] = useState<Map<string, string> | null>(null);
   const [usedEntries, setUsedEntries] = useState<Map<string, CostEntry[]> | null>(null);
 
   useEffect(() => {
@@ -86,14 +93,45 @@ export default function QuotesListPage() {
   }, []);
 
   useEffect(() => {
-    const openIds = quotes.filter((q) => q.status === 'draft' || q.status === 'sent').map((q) => q.quote_id);
-    if (!openIds.length) { setOpenItems([]); return; }
+    if (!quotes.length) { setAllItems([]); setSectionGroups(new Map()); return; }
     supabase.from('10.2_quote_items')
-      .select('quote_id, component_id, cost_price, parent_item_id')
-      .in('quote_id', openIds)
-      .not('component_id', 'is', null)
-      .then(({ data }) => setOpenItems(data ?? []));
+      .select('quote_id, section_id, parent_item_id, component_id, description, unit, quantity, cost_price, sell_price')
+      .then(({ data }) => setAllItems((data as ListItem[]) ?? []));
+    supabase.from('10.1_quote_sections')
+      .select('section_id, group_key')
+      .then(({ data }) => setSectionGroups(new Map((data ?? []).map((s) => [s.section_id as string, (s.group_key as string) ?? 'bos']))));
   }, [quotes]);
+
+  // Totals per quote: subtotal excl. PPN + system Wp (Solar Panels group only,
+  // same lib/quoteWp.ts rules as the editor)
+  const totalsByQuote = useMemo(() => {
+    const map = new Map<string, { subtotal: number; wp: number }>();
+    if (!allItems || !sectionGroups) return map;
+    for (const it of allItems) {
+      if (it.parent_item_id) continue;
+      const qty = Number(it.quantity) || 0;
+      const t = map.get(it.quote_id) ?? { subtotal: 0, wp: 0 };
+      t.subtotal += qty * (Number(it.sell_price) || 0);
+      if (sectionGroups.get(it.section_id) === 'solar_panels') {
+        t.wp += lineWp(catalog.components, {
+          component_id: it.component_id, description: it.description ?? '',
+          unit: it.unit ?? '', quantity: qty,
+        });
+      }
+      map.set(it.quote_id, t);
+    }
+    return map;
+  }, [allItems, sectionGroups, catalog.components]);
+
+  // ── Cost-drift detection on open (draft/sent) quotes ────────────────────────
+  // Compares each catalog-linked item's stored cost against today's
+  // recommendation from the shared cost engine; >10% difference flags the quote.
+  const DRIFT_THRESHOLD = 0.10;
+  const openItems = useMemo(() => {
+    if (!allItems) return null;
+    const openIds = new Set(quotes.filter((q) => q.status === 'draft' || q.status === 'sent').map((q) => q.quote_id));
+    return allItems.filter((it) => openIds.has(it.quote_id) && it.component_id);
+  }, [allItems, quotes]);
 
   const listTucMap = useMemo(
     () => computeTUCMap(catalog.pos, catalog.poItems, catalog.poCosts),
@@ -329,7 +367,9 @@ export default function QuotesListPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            {quotes.map((q) => (
+            {quotes.map((q) => {
+              const t = totalsByQuote.get(q.quote_id);
+              return (
               <div key={q.quote_id} className="group flex items-center gap-4 bg-slate-900/50 hover:bg-slate-900/80 border border-slate-800 hover:border-slate-700 rounded-2xl px-5 py-4 transition-all">
                 <Link href={`/quotes/${q.quote_id}`} className="flex-1 min-w-0">
                   <div className="flex items-center gap-3 mb-1">
@@ -355,6 +395,11 @@ export default function QuotesListPage() {
                     <span className="truncate">{q.customer_name || 'No customer'}</span>
                     {q.project_description && <span className="truncate text-slate-600 hidden sm:block">{q.project_description}</span>}
                     <span className="flex-shrink-0">{fmtDate(q.quote_date)}</span>
+                    {q.sent_at && (
+                      <span className="flex-shrink-0 text-blue-300/80" title="Stamped when the status was set to SENT">
+                        ➤ sent {fmtDate(q.sent_at)}
+                      </span>
+                    )}
                     {(q.updated_by_email || q.created_by_email) && (
                       <span className="flex-shrink-0 text-slate-600 hidden md:block" title={`Created by ${q.created_by_email || '—'} · last edited by ${q.updated_by_email || '—'}`}>
                         ✎ {(q.updated_by_email || q.created_by_email)!.split('@')[0]}{q.updated_at ? ` · ${fmtDate(q.updated_at)}` : ''}
@@ -362,6 +407,19 @@ export default function QuotesListPage() {
                     )}
                   </div>
                 </Link>
+                {t && t.subtotal > 0 && (
+                  <Link href={`/quotes/${q.quote_id}`} className="text-right flex-shrink-0 hidden sm:block">
+                    <div className="text-sm font-bold text-white tabular-nums">
+                      {fmtRp(t.subtotal)}
+                      <span className="ml-1.5 text-[10px] font-normal text-slate-500">excl. PPN</span>
+                    </div>
+                    {t.wp > 0 && (
+                      <div className="text-[11px] text-amber-300/90 tabular-nums mt-0.5" title={`System size ${t.wp.toLocaleString('en-US')} Wp — price per Wp excl. PPN`}>
+                        {fmtRp(t.subtotal / t.wp)}/Wp
+                      </div>
+                    )}
+                  </Link>
+                )}
                 <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={() => { setDup({ id: q.quote_id, number: q.quote_number }); setDupToday(true); setDupRefresh(false); setDupInternal(true); setDupError(''); }}
@@ -389,7 +447,8 @@ export default function QuotesListPage() {
                   )}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>

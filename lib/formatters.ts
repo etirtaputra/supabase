@@ -7,6 +7,10 @@
 export const fmtIdr = (n: number): string =>
   'IDR ' + Math.round(n).toLocaleString('en-US');
 
+/** Quotes-app Rupiah style: "Rp1,234,567" (matches the quote editor/PDF) */
+export const fmtRp = (n: number): string =>
+  'Rp' + Math.round(n).toLocaleString('en-US');
+
 /**
  * Format a number with fixed decimal places (default 2).
  * Example: fmtNum(1234.5) → "1,234.50"

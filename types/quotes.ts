@@ -14,6 +14,9 @@ export interface ProjectQuote {
   location?: string;
   ppn_pct: number;
   status: 'draft' | 'sent' | 'accepted' | 'rejected';
+  // Stamped by the log_quote_activity trigger when status transitions to
+  // 'sent' (re-stamped on every draft→sent transition), never by the client
+  sent_at?: string | null;
   notes: string;
   // Default GM% per top-level group (keys: solar_panels/bos/services);
   // applied to new line items, overridable per line

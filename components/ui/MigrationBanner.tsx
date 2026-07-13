@@ -26,6 +26,8 @@ ALTER TABLE "10.0_project_quotes" ADD COLUMN IF NOT EXISTS group_margins JSONB D
 ALTER TABLE "10.0_project_quotes" ADD COLUMN IF NOT EXISTS project_type TEXT DEFAULT 'custom';
 ALTER TABLE "10.0_project_quotes" ADD COLUMN IF NOT EXISTS system_specs JSONB DEFAULT '{}';
 ALTER TABLE "10.0_project_quotes" ADD COLUMN IF NOT EXISTS location TEXT DEFAULT '';
+-- Stamped by the log_quote_activity trigger whenever status transitions to 'sent'
+ALTER TABLE "10.0_project_quotes" ADD COLUMN IF NOT EXISTS sent_at TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS "10.1_quote_sections" (
   section_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -90,12 +92,17 @@ BEGIN
     END IF;
     NEW.created_by_email := actor;
     NEW.updated_by_email := actor;
+    IF NEW.status = 'sent' THEN NEW.sent_at := COALESCE(NEW.sent_at, NOW()); END IF;
     INSERT INTO "10.3_quote_activity"(quote_id, quote_number, action, actor_email)
       VALUES (NEW.quote_id, NEW.quote_number, 'created', actor);
     RETURN NEW;
   ELSIF TG_OP = 'UPDATE' THEN
     NEW.updated_by_email := actor;
     NEW.updated_at := NOW();
+    -- Sent date: stamped on every transition into 'sent'
+    IF NEW.status = 'sent' AND OLD.status IS DISTINCT FROM 'sent' THEN
+      NEW.sent_at := NOW();
+    END IF;
     IF NEW.status IS DISTINCT FROM OLD.status THEN
       INSERT INTO "10.3_quote_activity"(quote_id, quote_number, action, detail, actor_email)
         VALUES (NEW.quote_id, NEW.quote_number, 'status', OLD.status || ' -> ' || NEW.status, actor);
@@ -137,7 +144,7 @@ export default function MigrationBanner() {
     let cancelled = false;
     async function check() {
       const probes = await Promise.all([
-        supabase.from('10.0_project_quotes').select('company_id, group_margins, project_type, system_specs, location, created_by_email, updated_by_email').limit(1),
+        supabase.from('10.0_project_quotes').select('company_id, group_margins, project_type, system_specs, location, created_by_email, updated_by_email, sent_at').limit(1),
         supabase.from('10.1_quote_sections').select('group_key').limit(1),
         supabase.from('10.2_quote_items').select('qty_formula, eng_note').limit(1),
         supabase.from('10.3_quote_activity').select('activity_id').limit(1),
