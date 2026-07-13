@@ -831,8 +831,10 @@ export default function QuoteEditorPage() {
     markDirty();
   }
 
-  // Section-title autocomplete: which section's title input is focused
-  const [titleAcFor, setTitleAcFor] = useState<string | null>(null);
+  // Section-title autocomplete: which section's title input is focused.
+  // Anchored with position:fixed (like the item autocomplete above) so the
+  // section card's overflow-hidden can't clip the dropdown.
+  const [titleAcFor, setTitleAcFor] = useState<{ id: string; x: number; y: number; w: number } | null>(null);
 
   function addSection(group: SectionGroup) {
     setSections((prev) => [
@@ -1435,14 +1437,18 @@ export default function QuoteEditorPage() {
                     <input
                       value={sec.title}
                       onChange={(e) => updateSection(sec.section_id, { title: e.target.value })}
-                      onFocus={(e) => { e.target.select(); setTitleAcFor(sec.section_id); }}
-                      onBlur={() => setTitleAcFor((v) => (v === sec.section_id ? null : v))}
+                      onFocus={(e) => {
+                        e.target.select();
+                        const r = e.target.getBoundingClientRect();
+                        setTitleAcFor({ id: sec.section_id, x: r.left, y: r.bottom, w: Math.max(r.width, 320) });
+                      }}
+                      onBlur={() => setTitleAcFor((v) => (v?.id === sec.section_id ? null : v))}
                       onKeyDown={(e) => { if (e.key === 'Escape' || e.key === 'Enter') setTitleAcFor(null); }}
                       className="flex-1 min-w-0 bg-transparent outline-none font-semibold text-white placeholder:text-slate-500 border-b border-dashed border-slate-600 group-hover/title:border-slate-400 focus:border-solid focus:border-violet-500 transition-colors py-0.5"
                       placeholder="Click to name this section…"
                       title="Click to rename section"
                     />
-                    {titleAcFor === sec.section_id && (() => {
+                    {titleAcFor?.id === sec.section_id && (() => {
                       // Suggest the house-style titles for this group, hiding ones
                       // already used by another section; typing narrows the list
                       const used = new Set(sections
@@ -1454,7 +1460,10 @@ export default function QuoteEditorPage() {
                       const shown = filtered.length ? filtered : all;
                       if (!shown.length) return null;
                       return (
-                        <div className="absolute left-5 right-0 top-full mt-1.5 z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1 max-h-64 overflow-y-auto">
+                        <div
+                          style={{ position: 'fixed', left: titleAcFor.x, top: titleAcFor.y + 6, width: titleAcFor.w }}
+                          className="z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1 max-h-64 overflow-y-auto"
+                        >
                           {shown.map((t) => (
                             <button
                               key={t}
