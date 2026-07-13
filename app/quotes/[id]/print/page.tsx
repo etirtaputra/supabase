@@ -134,11 +134,11 @@ export default function PrintPage() {
         }
         .page { max-width: 210mm; margin: 0 auto; padding: 8mm 0; }
 
-        .header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 6mm; padding-bottom: 3mm; border-bottom: 2.5pt solid #12836f; }
-        .company-name { font-size: 16pt; font-weight: 800; color: #12836f; letter-spacing: -0.3px; }
+        .header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 6mm; padding-bottom: 3mm; border-bottom: 2.5pt solid #1f5aa8; }
+        .company-name { font-size: 16pt; font-weight: 800; color: #1f5aa8; letter-spacing: -0.3px; }
         .doc-title { text-align: right; }
         .doc-label { font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 2.5px; color: #94a3b8; margin-bottom: 1mm; }
-        .quote-num { font-size: 12.5pt; font-weight: 700; color: #12836f; }
+        .quote-num { font-size: 12.5pt; font-weight: 700; color: #1f5aa8; }
         .quote-date { font-size: 8.5pt; color: #64748b; margin-top: 0.5mm; }
 
         .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; margin-bottom: 5mm; }
@@ -146,15 +146,15 @@ export default function PrintPage() {
         .meta-value { font-size: 10.5pt; font-weight: 600; color: #0f172a; line-height: 1.4; }
         .meta-sub { font-size: 9pt; color: #475569; line-height: 1.45; }
 
-        .project-bar { background: #eef8f4; border-left: 2.5pt solid #12836f; border-radius: 0 1.5mm 1.5mm 0; padding: 2.5mm 3.5mm; margin-bottom: 5mm; font-size: 9.5pt; color: #1f2937; }
+        .project-bar { background: #edf3fa; border-left: 2.5pt solid #1f5aa8; border-radius: 0 1.5mm 1.5mm 0; padding: 2.5mm 3.5mm; margin-bottom: 5mm; font-size: 9.5pt; color: #1f2937; }
         .project-label { font-size: 6.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #94a3b8; margin-bottom: 0.8mm; }
 
         table { width: 100%; border-collapse: collapse; font-size: 9pt; }
-        thead th { padding: 2mm 1.5mm; text-align: left; font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #64748b; border-bottom: 1.5pt solid #12836f; white-space: nowrap; }
+        thead th { padding: 2mm 1.5mm; text-align: left; font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #64748b; border-bottom: 1.5pt solid #1f5aa8; white-space: nowrap; }
         thead th.right { text-align: right; }
-        tbody tr.group-row td { padding: 4.5mm 1.5mm 1.6mm; font-weight: 800; font-size: 9.5pt; color: #12836f; text-transform: uppercase; letter-spacing: 1.5px; border-bottom: 1pt solid #12836f; }
-        tbody tr.section-row { background: #eef8f4; }
-        tbody tr.section-row td { padding: 2mm 1.5mm; font-weight: 650; font-size: 9pt; color: #12836f; }
+        tbody tr.group-row td { padding: 4.5mm 1.5mm 1.6mm; font-weight: 800; font-size: 9.5pt; color: #1f5aa8; text-transform: uppercase; letter-spacing: 1.5px; border-bottom: 1pt solid #1f5aa8; }
+        tbody tr.section-row { background: #edf3fa; }
+        tbody tr.section-row td { padding: 2mm 1.5mm; font-weight: 650; font-size: 9pt; color: #1f5aa8; }
         .lead-tag { font-weight: 500; font-style: italic; font-size: 8pt; color: #64748b; white-space: nowrap; }
         tbody tr.item-row td { padding: 1.7mm 1.5mm; border-bottom: 0.4pt solid #e8edf3; vertical-align: top; color: #334155; }
         tbody tr.item-row td:first-child { color: #1f2937; }
@@ -167,21 +167,21 @@ export default function PrintPage() {
         .totals { width: 88mm; }
         .totals-row { display: flex; justify-content: space-between; padding: 1.4mm 3mm; font-size: 9.5pt; color: #475569; border-bottom: 0.4pt solid #e8edf3; font-variant-numeric: tabular-nums; }
         .totals-row span:last-child { font-weight: 650; color: #0f172a; }
-        .totals-row.grand { background: #12836f; color: #fff; border: none; border-radius: 1.5mm; font-weight: 700; font-size: 11pt; padding: 2.4mm 3mm; margin-top: 1.5mm; }
+        .totals-row.grand { background: #1f5aa8; color: #fff; border: none; border-radius: 1.5mm; font-weight: 700; font-size: 11pt; padding: 2.4mm 3mm; margin-top: 1.5mm; }
         .totals-row.grand span:last-child { color: #fff; font-weight: 800; }
 
         .terms { margin-top: 8mm; padding-top: 2mm; page-break-inside: avoid; }
-        .terms-title { font-size: 8pt; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; color: #12836f; border-left: 2.5pt solid #12836f; padding-left: 2.5mm; margin-bottom: 2.5mm; }
+        .terms-title { font-size: 8pt; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; color: #1f5aa8; border-left: 2.5pt solid #1f5aa8; padding-left: 2.5mm; margin-bottom: 2.5mm; }
         .terms-header { font-weight: 650; text-decoration: underline; text-underline-offset: 2px; margin-top: 1.8mm; line-height: 1.55; color: #1f2937; font-size: 8.5pt; white-space: pre-wrap; }
         .terms-line { font-style: italic; line-height: 1.55; color: #475569; font-size: 8.5pt; white-space: pre-wrap; }
-        .terms-thanks { font-weight: 700; font-style: italic; margin-top: 2.5mm; line-height: 1.5; color: #12836f; font-size: 8.5pt; white-space: pre-wrap; }
+        .terms-thanks { font-weight: 700; font-style: italic; margin-top: 2.5mm; line-height: 1.5; color: #1f5aa8; font-size: 8.5pt; white-space: pre-wrap; }
 
         .footer { margin-top: 10mm; padding-top: 4mm; border-top: 0.5pt solid #e2e8f0; display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; font-size: 8.5pt; color: #64748b; }
         .sig-label { font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #94a3b8; margin-bottom: 10mm; }
         .sig-line { border-bottom: 0.6pt solid #cbd5e1; margin-bottom: 1.2mm; height: 8mm; }
         .sig-name { font-size: 8pt; color: #475569; text-align: center; font-weight: 600; }
 
-        .print-btn { position: fixed; bottom: 20px; right: 20px; padding: 11px 22px; background: #12836f; color: #fff; border: none; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: 0 6px 20px rgba(15,23,42,0.25); }
+        .print-btn { position: fixed; bottom: 20px; right: 20px; padding: 11px 22px; background: #1f5aa8; color: #fff; border: none; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: 0 6px 20px rgba(15,23,42,0.25); }
       `}</style>
 
       <div className="page">
@@ -276,9 +276,9 @@ export default function PrintPage() {
                               ))}
                               {sec.group_key === 'solar_panels' && itemWp(item) > 0 && (item.unit ?? '').trim().toLowerCase() !== 'wp' && (
                                 <tr className="sub-row">
-                                  <td colSpan={1 + (cols.brand ? 1 : 0)} style={{ color: '#12836f' }}>Total system size</td>
-                                  {cols.qty && <td className="num" style={{ color: '#12836f', fontWeight: 700 }}>{itemWp(item).toLocaleString('en-US')}</td>}
-                                  {cols.unit && <td style={{ color: '#12836f' }}>Wp</td>}
+                                  <td colSpan={1 + (cols.brand ? 1 : 0)} style={{ color: '#1f5aa8' }}>Total system size</td>
+                                  {cols.qty && <td className="num" style={{ color: '#1f5aa8', fontWeight: 700 }}>{itemWp(item).toLocaleString('en-US')}</td>}
+                                  {cols.unit && <td style={{ color: '#1f5aa8' }}>Wp</td>}
                                   {cols.amount && <td />}
                                 </tr>
                               )}
