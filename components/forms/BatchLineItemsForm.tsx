@@ -4,7 +4,7 @@
  * Supports sticky fields and mobile-optimized layout
  */
 'use client';
-import React, { useState, useEffect, useRef, useId } from 'react';
+import React, { useState, useEffect, useRef, useId, useMemo } from 'react';
 import FieldRenderer from './FieldRenderer';
 import { Spinner } from '../ui/LoadingSkeleton';
 import QuoteItemsImportModal from './QuoteItemsImportModal';
@@ -54,6 +54,43 @@ export default function BatchLineItemsForm({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defaultParentId]);
+
+  // ── Searchable parent combobox (hundreds of POs — scrolling doesn't scale) ──
+  const [parentQuery, setParentQuery] = useState('');
+  const [parentOpen, setParentOpen] = useState(false);
+  const [parentIdx, setParentIdx] = useState(0);
+  const parentBoxRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => {
+      if (parentBoxRef.current && !parentBoxRef.current.contains(e.target as Node)) setParentOpen(false);
+    };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+
+  const filteredParents = useMemo(() => {
+    const opts = parentField?.options ?? [];
+    const q = parentQuery.toLowerCase().trim();
+    if (!q) return opts.slice(0, 100);
+    const tokens = q.split(/\s+/).filter(Boolean);
+    return opts.filter((o) => {
+      const hay = o.txt.toLowerCase();
+      return tokens.every((t) => hay.includes(t));
+    }).slice(0, 100);
+  }, [parentField?.options, parentQuery]);
+
+  // Keep the highlighted option visible while arrowing
+  useEffect(() => {
+    parentBoxRef.current?.querySelector(`[data-parent-idx="${parentIdx}"]`)?.scrollIntoView({ block: 'nearest' });
+  }, [parentIdx]);
+
+  function selectParent(val: string) {
+    setParentId(val);
+    onParentChange?.(val);
+    persistState(val, items, draft);
+    setParentOpen(false);
+  }
 
   const prevParentIdRef = useRef('');
   useEffect(() => {
@@ -391,14 +428,14 @@ export default function BatchLineItemsForm({
 
       {/* PDF Upload Button (if enabled) */}
       {enablePdfUpload && (
-        <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4 ring-1 ring-white/5">
+        <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4 ring-1 ring-white/5">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-500/10 rounded-lg border border-blue-500/20">
+              <div className="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
                 <span className="text-xl block leading-none">📄</span>
               </div>
               <div>
-                <h4 className="text-sm font-bold text-blue-300">Upload PDF to Pre-fill</h4>
+                <h4 className="text-sm font-bold text-emerald-300">Upload PDF to Pre-fill</h4>
                 <p className="text-xs text-slate-400">AI will extract data and populate the form below</p>
               </div>
             </div>
@@ -410,7 +447,7 @@ export default function BatchLineItemsForm({
                 disabled={pdfUploading}
                 className="hidden"
               />
-              <span className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg border border-blue-500 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed">
+              <span className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg border border-emerald-500 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed">
                 {pdfUploading ? (
                   <>
                     <Spinner className="w-4 h-4" />
@@ -491,24 +528,51 @@ export default function BatchLineItemsForm({
         />
       )}
 
-      {/* Parent Selector (if provided) */}
+      {/* Parent Selector (if provided) — searchable: type to filter POs/quotes */}
       {parentField && (
         <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800/80">
           <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-widest">
             {parentField.label}
           </label>
-          <select
-            className="w-full md:w-1/2 p-3 bg-slate-950/70 border border-slate-700/80 rounded-xl text-sm text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
-            value={parentId}
-            onChange={(e) => { setParentId(e.target.value); onParentChange?.(e.target.value); persistState(e.target.value, items, draft); }}
-          >
-            <option value="">-- Select --</option>
-            {parentField.options.map((o) => (
-              <option key={o.val} value={o.val}>
-                {o.txt}
-              </option>
-            ))}
-          </select>
+          <div className="relative w-full md:w-1/2" ref={parentBoxRef}>
+            <input
+              value={parentOpen ? parentQuery : (parentField.options.find((o) => String(o.val) === String(parentId))?.txt ?? '')}
+              onFocus={() => { setParentOpen(true); setParentQuery(''); setParentIdx(0); }}
+              onChange={(e) => { setParentQuery(e.target.value); setParentOpen(true); setParentIdx(0); }}
+              onKeyDown={(e) => {
+                if (!parentOpen) return;
+                if (e.key === 'ArrowDown') { e.preventDefault(); setParentIdx((i) => Math.min(i + 1, filteredParents.length - 1)); }
+                else if (e.key === 'ArrowUp') { e.preventDefault(); setParentIdx((i) => Math.max(i - 1, 0)); }
+                else if (e.key === 'Escape') { setParentOpen(false); }
+                else if (e.key === 'Enter') {
+                  e.preventDefault();
+                  const o = filteredParents[parentIdx];
+                  if (o) { selectParent(String(o.val)); }
+                }
+              }}
+              placeholder="Type PO / PI number, supplier, date…"
+              className="w-full p-3 bg-slate-950/70 border border-slate-700/80 rounded-xl text-sm text-white placeholder:text-slate-600 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all"
+            />
+            {parentOpen && (
+              <div className="absolute z-30 mt-1 w-full max-h-72 overflow-y-auto bg-slate-900 border border-slate-700 rounded-xl shadow-2xl">
+                {filteredParents.length === 0 && (
+                  <p className="px-3 py-2.5 text-xs text-slate-500">No matches — try a PO number or supplier name</p>
+                )}
+                {filteredParents.map((o, i) => (
+                  <button
+                    key={o.val}
+                    type="button"
+                    data-parent-idx={i}
+                    onMouseDown={(e) => { e.preventDefault(); selectParent(String(o.val)); }}
+                    onMouseEnter={() => setParentIdx(i)}
+                    className={`w-full text-left px-3 py-2 text-xs transition-colors ${i === parentIdx ? 'bg-slate-800' : ''} ${String(o.val) === String(parentId) ? 'text-emerald-300 font-semibold' : 'text-slate-200'}`}
+                  >
+                    {o.txt}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
