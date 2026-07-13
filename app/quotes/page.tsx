@@ -246,17 +246,17 @@ export default function QuotesListPage() {
 
   if (!gate.ready) {
     return (
-      <div className="min-h-screen bg-[#0B1120] flex items-center justify-center">
+      <div className="min-h-screen bg-[#141518] flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0B1120] text-slate-200 font-sans text-sm">
+    <div className="min-h-screen bg-[#141518] text-slate-200 font-sans text-sm">
       <CommandPalette />
       {/* Header */}
-      <div className="sticky top-0 z-40 bg-[#0B1120]/90 backdrop-blur-xl border-b border-white/[0.07]">
+      <div className="sticky top-0 z-40 bg-[#141518]/90 backdrop-blur-xl border-b border-white/[0.07]">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
           <div>
             <h1 className="text-xl font-bold text-white tracking-tight">ICAPROC</h1>

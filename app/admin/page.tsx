@@ -55,14 +55,14 @@ export default function AdminPage() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-[#060D1A] flex items-center justify-center">
+      <div className="min-h-screen bg-[#0f1012] flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#060D1A] text-white">
+    <div className="min-h-screen bg-[#0f1012] text-white">
       <div className="max-w-3xl mx-auto px-4 py-10">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">

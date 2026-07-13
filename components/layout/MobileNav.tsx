@@ -14,7 +14,7 @@ interface MobileNavProps {
 }
 export default function MobileNav({ activeTab, onTabChange, menuItems, message }: MobileNavProps) {
   return (
-    <div className="md:hidden bg-[#0B1120]/80 backdrop-blur-md border-b border-slate-800/60 pt-4 pb-3 px-4 sticky top-0 z-50 shadow-lg shadow-black/20">
+    <div className="md:hidden bg-[#141518]/80 backdrop-blur-md border-b border-slate-800/60 pt-4 pb-3 px-4 sticky top-0 z-50 shadow-lg shadow-black/20">
       {/* Header Row */}
       <div className="flex justify-between items-end mb-3">
         <div>

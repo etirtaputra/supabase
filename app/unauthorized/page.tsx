@@ -9,7 +9,7 @@ export default function UnauthorizedPage() {
   const supabase = createSupabaseClient();
 
   return (
-    <div className="min-h-screen bg-[#060D1A] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#0f1012] flex items-center justify-center p-4">
       <div className="text-center space-y-4 max-w-sm">
         <div className="text-4xl">🔒</div>
         <h1 className="text-white font-bold text-lg">Access restricted</h1>

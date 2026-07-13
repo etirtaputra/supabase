@@ -13,7 +13,7 @@ interface SidebarProps {
 }
 export default function Sidebar({ activeTab, onTabChange, menuItems }: SidebarProps) {
   return (
-    <aside className="hidden md:flex w-64 bg-[#0B1120]/95 backdrop-blur-xl border-r border-slate-800/80 flex-col fixed h-full z-20 shadow-2xl">
+    <aside className="hidden md:flex w-64 bg-[#141518]/95 backdrop-blur-xl border-r border-slate-800/80 flex-col fixed h-full z-20 shadow-2xl">
       {/* Header */}
       <div className="p-6 border-b border-slate-800/80 bg-slate-900/30">
         <h1 className="text-sm font-extrabold tracking-widest text-slate-300 uppercase leading-snug">

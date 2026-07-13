@@ -581,7 +581,7 @@ export default function DealLookupTab({
                           className={`flex-1 text-[11px] font-semibold rounded-lg px-2 py-1 border bg-slate-900 focus:outline-none focus:ring-1 focus:ring-sky-500/40 cursor-pointer disabled:opacity-60 ${quoteBadge(qt.status)}`}
                         >
                           {QUOTE_STATUSES.map((s) => (
-                            <option key={s} value={s} className="bg-[#0B1120] text-slate-200">{s}</option>
+                            <option key={s} value={s} className="bg-[#141518] text-slate-200">{s}</option>
                           ))}
                         </select>
                         {updatingQuote === qKey && <span className="text-[10px] text-slate-500 animate-pulse">saving…</span>}
@@ -1124,7 +1124,7 @@ export default function DealLookupTab({
                             className={`flex-1 text-[11px] font-semibold rounded-lg px-2 py-1 border bg-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 cursor-pointer disabled:opacity-60 ${poBadge(po.status)}`}
                           >
                             {PO_STATUSES.map((s) => (
-                              <option key={s} value={s} className="bg-[#0B1120] text-slate-200">{s}</option>
+                              <option key={s} value={s} className="bg-[#141518] text-slate-200">{s}</option>
                             ))}
                           </select>
                           {updatingPo === pKey && <span className="text-[10px] text-slate-500 animate-pulse">saving…</span>}

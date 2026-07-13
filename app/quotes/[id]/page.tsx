@@ -1054,13 +1054,13 @@ export default function QuoteEditorPage() {
     for (const group of SECTION_GROUPS) {
       const groupSecs = liveSecs.filter((s) => s.group_key === group.key);
       if (!groupSecs.length) continue;
-      rows += `<tr style="background:#1e3a5f;color:#fff;font-weight:bold">
+      rows += `<tr style="background:#12463b;color:#fff;font-weight:bold">
         <td colspan="${colCount}">${group.label}</td>
       </tr>`;
       for (const sec of groupSecs) {
         const secTotal = sec.items.filter((i) => !i._deleted && !i.parent_item_id)
           .reduce((s, i) => s + (num(i.quantity) ?? 0) * (num(i.sell_price) ?? 0), 0);
-        rows += `<tr style="background:#e8eef7;font-weight:bold;color:#1e3a5f">
+        rows += `<tr style="background:#e8eef7;font-weight:bold;color:#12463b">
           <td colspan="${colCount - (ec.amount ? 1 : 0)}">${sec.title}${ec.lead && sec.lead_time ? ` — lead time ${sec.lead_time}` : ''}</td>
           ${ec.amount ? `<td style="text-align:right">${secTotal > 0 ? fmtIdr(secTotal) : ''}</td>` : ''}
         </tr>`;
@@ -1087,7 +1087,7 @@ export default function QuoteEditorPage() {
     }
 
     const html = `<html><head><meta charset="utf-8"/>
-    <style>table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:4px 8px;font-size:11px}th{background:#1e3a5f;color:#fff}</style>
+    <style>table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:4px 8px;font-size:11px}th{background:#12463b;color:#fff}</style>
     </head><body>
     <p><b>CUSTOMER:</b> ${quote.customer_name}</p>
     <p>${quote.customer_address}</p>
@@ -1131,13 +1131,13 @@ export default function QuoteEditorPage() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   if (!gate.ready || loadingQuote || !quote) {
-    return <div className="min-h-screen bg-[#0B1120] flex items-center justify-center text-slate-500">Loading…</div>;
+    return <div className="min-h-screen bg-[#141518] flex items-center justify-center text-slate-500">Loading…</div>;
   }
 
   const liveSections = sections.filter((s) => !s._deleted);
 
   return (
-    <div className="min-h-screen bg-[#0B1120] text-slate-200 font-sans text-sm">
+    <div className="min-h-screen bg-[#141518] text-slate-200 font-sans text-sm">
       {/* Hide native number spinners — rarely used and they collide with arrow-key cell navigation */}
       <style>{`
         input[type=number]::-webkit-outer-spin-button,
@@ -1146,7 +1146,7 @@ export default function QuoteEditorPage() {
       `}</style>
 
       {/* ── Sticky header ── */}
-      <div className="sticky top-0 z-40 bg-[#0B1120]/95 backdrop-blur-xl border-b border-white/[0.07]">
+      <div className="sticky top-0 z-40 bg-[#141518]/95 backdrop-blur-xl border-b border-white/[0.07]">
         <div className="max-w-[1400px] mx-auto px-6 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <Link
@@ -1359,7 +1359,7 @@ export default function QuoteEditorPage() {
               <div key={group.key}>
                 {/* Group header — also a drop zone: sections dropped here go to the end of this group */}
                 <div
-                  className={`flex items-center justify-between mb-3 px-4 py-2.5 rounded-xl transition-colors ${dropHint === `group:${group.key}` ? 'bg-violet-600/30 ring-1 ring-violet-500' : 'bg-[#1e3a5f] hover:bg-[#25476f]'}`}
+                  className={`flex items-center justify-between mb-3 px-4 py-2.5 rounded-xl transition-colors ${dropHint === `group:${group.key}` ? 'bg-violet-600/30 ring-1 ring-violet-500' : 'bg-[#12463b] hover:bg-[#1a5c4c]'}`}
                   onDragOver={(e) => { if (drag?.kind === 'section') { e.preventDefault(); setDropHint(`group:${group.key}`); } }}
                   onDragLeave={() => setDropHint((h) => h === `group:${group.key}` ? null : h)}
                   onDrop={(e) => { e.preventDefault(); dropSectionOnGroup(group.key); endDrag(); }}
@@ -1408,7 +1408,7 @@ export default function QuoteEditorPage() {
                 onDrop={(e) => { e.preventDefault(); dropSectionOn(sec.section_id); endDrag(); }}
               >
                 {/* Section header */}
-                <div className="flex items-center gap-3 px-4 py-3 bg-[#1e3a5f]/25 hover:bg-[#1e3a5f]/45 border-b border-[#1e3a5f]/50 transition-colors">
+                <div className="flex items-center gap-3 px-4 py-3 bg-[#12463b]/25 hover:bg-[#12463b]/45 border-b border-[#12463b]/50 transition-colors">
                   <span
                     draggable
                     onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDrag({ kind: 'section', sectionId: sec.section_id }); }}
@@ -2053,7 +2053,7 @@ export default function QuoteEditorPage() {
 
       {/* ── Sticky totals bar ── */}
       {subtotal > 0 && (
-        <div className="fixed bottom-0 inset-x-0 z-40 bg-[#0B1120]/95 backdrop-blur-xl border-t border-white/[0.07]">
+        <div className="fixed bottom-0 inset-x-0 z-40 bg-[#141518]/95 backdrop-blur-xl border-t border-white/[0.07]">
           <div className="max-w-[1400px] mx-auto px-6 py-2.5 flex items-center gap-5 text-xs overflow-x-auto whitespace-nowrap">
             <span className="text-slate-500">Subtotal <span className="ml-1 text-slate-200 font-semibold tabular-nums">{fmtIdr(subtotal)}</span></span>
             <span className="text-slate-500">Grand Total <span className="ml-1 text-white font-bold tabular-nums">{fmtIdr(grandTotal)}</span></span>

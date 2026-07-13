@@ -462,17 +462,17 @@ function MasterInsertPage() {
 
   if (authLoading || !user) {
     return (
-      <div className="min-h-screen bg-[#0B1120] flex items-center justify-center">
+      <div className="min-h-screen bg-[#141518] flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0B1120] text-slate-200 font-sans text-sm selection:bg-white/20">
+    <div className="min-h-screen bg-[#141518] text-slate-200 font-sans text-sm selection:bg-white/20">
       <CommandPalette />
       {/* ── Sticky top header + tab bar ── */}
-      <div className="sticky top-0 z-50 bg-[#0B1120]/90 backdrop-blur-xl border-b border-white/[0.07]">
+      <div className="sticky top-0 z-50 bg-[#141518]/90 backdrop-blur-xl border-b border-white/[0.07]">
         <header className="px-4 md:px-8 xl:px-12 pt-4 xl:pt-5 pb-2 max-w-[1800px] mx-auto flex flex-col sm:flex-row sm:items-end justify-between gap-1">
           <div>
             <h1 className="text-lg md:text-xl xl:text-2xl font-bold text-white tracking-tight">

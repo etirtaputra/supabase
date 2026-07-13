@@ -51,7 +51,7 @@ export default function LoginPage() {
   const inputCls = "w-full px-3 py-2.5 bg-slate-800/80 border border-slate-700 rounded-lg text-white text-sm placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50";
 
   return (
-    <div className="min-h-screen bg-[#060D1A] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#0f1012] flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-8">

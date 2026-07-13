@@ -101,17 +101,17 @@ export default function Home() {
 
   if (authLoading || !user) {
     return (
-      <div className="min-h-screen bg-[#0B1120] flex items-center justify-center">
+      <div className="min-h-screen bg-[#141518] flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0B1120] text-slate-200 font-sans text-sm">
+    <div className="min-h-screen bg-[#141518] text-slate-200 font-sans text-sm">
       <CommandPalette />
       {/* ── Header ── */}
-      <div className="border-b border-slate-800/60 bg-[#0B1120]/80 backdrop-blur-md">
+      <div className="border-b border-slate-800/60 bg-[#141518]/80 backdrop-blur-md">
         <div className="max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12 py-5 xl:py-6 flex flex-col sm:flex-row sm:items-end justify-between gap-2">
           <div>
             <h1 className="text-2xl md:text-3xl xl:text-4xl font-extrabold text-white tracking-tight">
