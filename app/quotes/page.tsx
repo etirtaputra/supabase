@@ -109,7 +109,8 @@ export default function QuotesListPage() {
       if (!(stored > 0)) continue;
       const cc = getComponentCost(it.component_id, listTucMap, catalog.quotes, catalog.quoteItems, usedEntries.get(it.component_id) ?? []);
       if (!cc || !(cc.cost > 0)) continue;
-      if (Math.abs(cc.cost - stored) / stored > DRIFT_THRESHOLD) {
+      // Flag only cost increases — margin risk; price drops are fine
+      if ((cc.cost - stored) / stored > DRIFT_THRESHOLD) {
         map.set(it.quote_id, (map.get(it.quote_id) ?? 0) + 1);
       }
     }

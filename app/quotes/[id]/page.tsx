@@ -485,6 +485,11 @@ export default function QuoteEditorPage() {
     document.title = `${parts.join(' · ')} | ICAPROC`;
   }, [quote?.quote_number, quote?.customer_name]);
 
+  const compById = useMemo(
+    () => new Map(catalog.components.map((c) => [c.component_id, c])),
+    [catalog.components],
+  );
+
   // One canonical TUC map shared with Catalog and Insights (same lib, same numbers)
   const tucMap = useMemo(
     () => computeTUCMap(catalog.pos, catalog.poItems, catalog.poCosts),
@@ -614,7 +619,9 @@ export default function QuoteEditorPage() {
     const cc = costFor(item.component_id);
     if (!cc || !(cc.cost > 0)) return null;
     const pct = (cc.cost - stored) / stored;
-    return Math.abs(pct) > DRIFT_THRESHOLD ? { rec: cc.cost, pct } : null;
+    // Only cost INCREASES are a margin risk worth flagging; a price drop
+    // just means the quote is conservative.
+    return pct > DRIFT_THRESHOLD ? { rec: cc.cost, pct } : null;
   }, [costFor]);
 
   const driftCount = useMemo(() => {
@@ -627,9 +634,19 @@ export default function QuoteEditorPage() {
   }, [sections, itemDrift]);
 
   // ── Cost history hover popup ───────────────────────────────────────────────
-  const [costHover, setCostHover] = useState<{ itemId: string; history: CostEntry[]; source: string; x: number; y: number } | null>(null);
+  const [costHover, setCostHover] = useState<{ sectionId: string; itemId: string; history: CostEntry[]; source: string; linkedModel: string | null; x: number; y: number } | null>(null);
+  const hoverCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  function showCostHistory(itemId: string, componentId: string | null, description: string, el: HTMLElement) {
+  function cancelHoverClose() {
+    if (hoverCloseTimer.current) { clearTimeout(hoverCloseTimer.current); hoverCloseTimer.current = null; }
+  }
+  function scheduleHoverClose() {
+    cancelHoverClose();
+    hoverCloseTimer.current = setTimeout(() => setCostHover(null), 150);
+  }
+
+  function showCostHistory(sectionId: string, itemId: string, componentId: string | null, description: string, el: HTMLElement) {
+    cancelHoverClose();
     let history: CostEntry[] = [];
     let source = 'used';
     if (componentId) {
@@ -641,7 +658,21 @@ export default function QuoteEditorPage() {
     }
     if (!history.length) return;
     const r = el.getBoundingClientRect();
-    setCostHover({ itemId, history: history.slice(0, 10), source, x: r.right, y: r.bottom });
+    setCostHover({
+      sectionId,
+      itemId,
+      history: history.slice(0, 10),
+      source,
+      linkedModel: componentId ? (compById.get(componentId)?.supplier_model ?? '(unknown component)') : null,
+      x: r.right,
+      y: r.bottom,
+    });
+  }
+
+  function unlinkFromPopup() {
+    if (!costHover) return;
+    updateItem(costHover.sectionId, costHover.itemId, { component_id: null });
+    setCostHover(null);
   }
 
   // ── Load quote from DB ─────────────────────────────────────────────────────
@@ -1487,7 +1518,10 @@ export default function QuoteEditorPage() {
                                 <input
                                   value={item.description}
                                   onChange={(e) => {
-                                    updateItem(sec.section_id, item.item_id, { description: e.target.value });
+                                    // Manual typing makes this a free-text item: break any catalog
+                                    // link so costs/history can't come from the wrong component.
+                                    // Picking from the dropdown re-links.
+                                    updateItem(sec.section_id, item.item_id, { description: e.target.value, component_id: null });
                                     openAc(sec.section_id, item.item_id, e.target.value, e.target);
                                   }}
                                   onFocus={(e) => item.description && openAc(sec.section_id, item.item_id, item.description, e.target)}
@@ -1513,8 +1547,16 @@ export default function QuoteEditorPage() {
                                   data-nav-row={item.item_id}
                                   data-nav-col="desc"
                                   placeholder="Type to search catalog & past quotes…"
-                                  className="w-full bg-transparent outline-none text-slate-100 placeholder:text-slate-600 border-b border-slate-800 hover:border-slate-600 focus:border-violet-500 transition-colors"
+                                  className={`w-full bg-transparent outline-none text-slate-100 placeholder:text-slate-600 border-b border-slate-800 hover:border-slate-600 focus:border-violet-500 transition-colors ${item.component_id ? 'pr-5' : ''}`}
                                 />
+                                {item.component_id && (
+                                  <span
+                                    className="absolute right-1 top-1/2 -translate-y-1/2 text-emerald-400/70"
+                                    title={`Linked to catalog: ${compById.get(item.component_id)?.supplier_model ?? 'unknown component'} — costs and history come from this link; typing in the description unlinks`}
+                                  >
+                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 01-5.656-5.656l1.5-1.5m7.156-7.156a4 4 0 015.656 5.656l-1.5 1.5" /></svg>
+                                  </span>
+                                )}
                                 {/* Autocomplete dropdown — fixed so table overflow can't clip it */}
                                 {isAcOpen && acState && acCount > 0 && (
                                   <div
@@ -1675,8 +1717,8 @@ export default function QuoteEditorPage() {
                               </td>
                               <td
                                 className="px-2 py-2 bg-violet-500/[0.04]"
-                                onMouseEnter={(e) => showCostHistory(item.item_id, item.component_id, item.description, e.currentTarget)}
-                                onMouseLeave={() => setCostHover(null)}
+                                onMouseEnter={(e) => showCostHistory(sec.section_id, item.item_id, item.component_id, item.description, e.currentTarget)}
+                                onMouseLeave={scheduleHoverClose}
                               >
                                 <input type="text" inputMode="decimal" value={item.cost_price}
                                   onChange={(e) => updateItem(sec.section_id, item.item_id, { cost_price: e.target.value })}
@@ -1697,9 +1739,25 @@ export default function QuoteEditorPage() {
                                 )}
                                 {costHover?.itemId === item.item_id && (
                                   <div
-                                    className="fixed z-50 w-72 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-3 pointer-events-none"
-                                    style={{ left: Math.max(16, costHover.x - 288), top: costHover.y + 4 }}
+                                    className="fixed z-50 w-80 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-3"
+                                    style={{ left: Math.max(16, costHover.x - 320), top: costHover.y + 4 }}
+                                    onMouseEnter={cancelHoverClose}
+                                    onMouseLeave={scheduleHoverClose}
                                   >
+                                    {costHover.linkedModel && (
+                                      <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-800">
+                                        <p className="text-[10px] text-slate-500 truncate">
+                                          Linked to <span className="text-emerald-300 font-medium">{costHover.linkedModel}</span>
+                                        </p>
+                                        <button
+                                          onClick={unlinkFromPopup}
+                                          title="Wrong item? Unlink — the row keeps its current cost but stops following this catalog component"
+                                          className="text-[10px] text-red-400/80 hover:text-red-300 underline flex-shrink-0 transition-colors"
+                                        >
+                                          Unlink
+                                        </button>
+                                      </div>
+                                    )}
                                     <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-2">
                                       Price history · using {costHover.source === 'tuc' ? 'weighted TUC' : SOURCE_LABEL[costHover.source]}
                                     </p>
