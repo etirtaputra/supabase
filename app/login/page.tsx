@@ -8,6 +8,7 @@ export default function LoginPage() {
   const [email, setEmail]     = useState('');
   const [password, setPassword] = useState('');
   const [sent, setSent]       = useState(false);
+  const [otp, setOtp]         = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState<string | null>(null);
 
@@ -28,6 +29,23 @@ export default function LoginPage() {
     setLoading(false);
     if (error) setError(error.message);
     else setSent(true);
+  };
+
+  // Typing the 6-digit code from the email is immune to the "link already
+  // used / expired" problem caused by mail-security scanners pre-opening links
+  const handleVerifyOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (otp.trim().length < 6) return;
+    setLoading(true);
+    setError(null);
+    const { error } = await supabase.auth.verifyOtp({
+      email: email.trim().toLowerCase(),
+      token: otp.trim(),
+      type: 'email',
+    });
+    setLoading(false);
+    if (error) setError(error.message);
+    else window.location.assign(dest());
   };
 
   const handlePassword = async (e: React.FormEvent) => {
@@ -63,17 +81,50 @@ export default function LoginPage() {
 
         <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 shadow-2xl">
           {sent ? (
-            <div className="text-center space-y-3">
+            <div className="text-center space-y-4">
               <div className="text-3xl">📬</div>
               <p className="text-white font-semibold">Check your email</p>
               <p className="text-slate-400 text-sm">
-                We sent a login link to <span className="text-slate-300 font-medium">{email}</span>.
-                Click it to sign in — no password needed.
+                We sent a login link and a 6-digit code to <span className="text-slate-300 font-medium">{email}</span>.
               </p>
-              <p className="text-slate-600 text-xs">Link expires in 10 minutes.</p>
+
+              {/* Code entry — reliable even when the link says "expired" */}
+              <form onSubmit={handleVerifyOtp} className="space-y-2 text-left">
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  Enter the 6-digit code
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    inputMode="numeric"
+                    placeholder="123456"
+                    autoFocus
+                    className={`${inputCls} text-center tracking-[0.5em] font-mono`}
+                  />
+                  <button
+                    type="submit"
+                    disabled={loading || otp.trim().length < 6}
+                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm rounded-lg transition-colors flex-shrink-0"
+                  >
+                    {loading ? '…' : 'Verify'}
+                  </button>
+                </div>
+                <p className="text-slate-600 text-[11px]">
+                  If the link in the email says expired or invalid, the code above still works — company
+                  mail scanners often use up the link before you click it.
+                </p>
+              </form>
+
+              {error && (
+                <p className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-left">
+                  {error}
+                </p>
+              )}
+
               <button
-                onClick={() => { setSent(false); setEmail(''); }}
-                className="text-xs text-slate-500 hover:text-slate-300 underline mt-2"
+                onClick={() => { setSent(false); setEmail(''); setOtp(''); setError(null); }}
+                className="text-xs text-slate-500 hover:text-slate-300 underline"
               >
                 Use a different email
               </button>
