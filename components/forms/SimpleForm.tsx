@@ -95,9 +95,6 @@ export default function SimpleForm({ title, fields, onSubmit, loading, onFieldCh
     >
       {/* Form Title */}
       <div className="flex items-center gap-3 border-b border-slate-800/80 pb-4 mb-6">
-        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.8)]"></span>
-        </div>
         <h3 className="text-lg font-bold text-white tracking-tight flex-1">{title}</h3>
         {hasDraft && (
           <button

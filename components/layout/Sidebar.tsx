@@ -42,7 +42,6 @@ export default function Sidebar({ activeTab, onTabChange, menuItems }: SidebarPr
       {/* Footer */}
       <div className="p-4 border-t border-slate-800/80 bg-slate-900/30">
         <div className="flex items-center gap-2 px-3">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
           <p className="text-xs text-slate-500 font-medium tracking-wide">ICAPROC v2.0</p>
         </div>
       </div>

@@ -420,9 +420,6 @@ export default function BatchLineItemsForm({
     <div className="bg-slate-900/40 backdrop-blur-sm rounded-2xl border border-slate-800/80 p-5 md:p-8 shadow-xl ring-1 ring-white/5 space-y-6">
       {/* Title */}
       <div className="flex items-center gap-3 border-b border-slate-800/80 pb-4">
-        <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center">
-          <span className="w-2.5 h-2.5 rounded-full bg-sky-500 shadow-[0_0_10px_rgba(14,165,233,0.8)]"></span>
-        </div>
         <h3 className="text-lg font-bold text-white tracking-tight">{title}</h3>
       </div>
 

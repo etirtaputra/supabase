@@ -1793,9 +1793,6 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     <div className="bg-slate-900/40 backdrop-blur-sm rounded-2xl border border-slate-800/80 shadow-xl ring-1 ring-white/5">
       {/* Header */}
       <div className="flex items-center gap-3 border-b border-slate-800/80 p-5 md:p-6">
-        <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
-          <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.8)]"></span>
-        </div>
         <div className="flex-1">
           <h3 className="text-lg font-bold text-white tracking-tight">Component Editor</h3>
           <p className="text-xs text-slate-500 mt-0.5">Click ✎ to edit · <kbd className="px-1 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Ctrl+S</kbd> to save · <kbd className="px-1 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">/</kbd> to search</p>
