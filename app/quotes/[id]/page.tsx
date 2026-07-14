@@ -836,6 +836,37 @@ export default function QuoteEditorPage() {
   // section card's overflow-hidden can't clip the dropdown.
   const [titleAcFor, setTitleAcFor] = useState<{ id: string; x: number; y: number; w: number } | null>(null);
 
+  // Customer autocomplete: previously quoted customers, newest first, one
+  // entry per name carrying the latest address used for that customer.
+  const [pastCustomers, setPastCustomers] = useState<{ name: string; address: string }[]>([]);
+  const [custAc, setCustAc] = useState<{ x: number; y: number; w: number } | null>(null);
+
+  useEffect(() => {
+    supabase.from('10.0_project_quotes')
+      .select('quote_id, customer_name, customer_address, updated_at')
+      .neq('customer_name', '')
+      .order('updated_at', { ascending: false })
+      .then(({ data }) => {
+        const seen = new Set<string>();
+        const out: { name: string; address: string }[] = [];
+        for (const r of data ?? []) {
+          if (r.quote_id === id) continue;
+          const name = String(r.customer_name ?? '').trim();
+          const key = name.toLowerCase();
+          if (!key || seen.has(key)) continue;
+          seen.add(key);
+          out.push({ name, address: String(r.customer_address ?? '') });
+        }
+        setPastCustomers(out);
+      });
+  }, [id]);
+
+  function pickCustomer(c: { name: string; address: string }) {
+    setQuote((q) => q ? { ...q, customer_name: c.name, customer_address: c.address } : q);
+    markDirty();
+    setCustAc(null);
+  }
+
   function addSection(group: SectionGroup) {
     setSections((prev) => [
       ...prev,
@@ -1286,8 +1317,38 @@ export default function QuoteEditorPage() {
           </div>
           <div>
             <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Customer</label>
-            <input value={quote.customer_name} onChange={(e) => setQuoteField('customer_name', e.target.value)}
+            <input value={quote.customer_name}
+              onChange={(e) => setQuoteField('customer_name', e.target.value)}
+              onFocus={(e) => {
+                const r = e.target.getBoundingClientRect();
+                setCustAc({ x: r.left, y: r.bottom, w: Math.max(r.width, 320) });
+              }}
+              onBlur={() => setCustAc(null)}
+              onKeyDown={(e) => { if (e.key === 'Escape' || e.key === 'Enter') setCustAc(null); }}
               placeholder="Customer name" className="w-full bg-transparent border-b border-slate-700 focus:border-violet-500 outline-none text-white py-1 text-sm placeholder:text-slate-600 transition-colors" />
+            {custAc && (() => {
+              const q = quote.customer_name.trim().toLowerCase();
+              const matches = (q ? pastCustomers.filter((c) => c.name.toLowerCase().includes(q)) : pastCustomers).slice(0, 8);
+              if (!matches.length) return null;
+              return (
+                <div
+                  style={{ position: 'fixed', left: custAc.x, top: custAc.y + 6, width: custAc.w }}
+                  className="z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1 max-h-64 overflow-y-auto"
+                >
+                  <p className="px-3 pt-1.5 pb-1 text-[9px] uppercase tracking-widest text-slate-600">Previous customers</p>
+                  {matches.map((c) => (
+                    <button
+                      key={c.name}
+                      onMouseDown={(e) => { e.preventDefault(); pickCustomer(c); }}
+                      className="block w-full text-left px-3 py-1.5 hover:bg-violet-500/20 transition-colors"
+                    >
+                      <span className="block text-xs text-slate-200">{c.name}</span>
+                      {c.address && <span className="block text-[10px] text-slate-500 truncate">{c.address}</span>}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
           <div>
             <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Address</label>
@@ -1699,6 +1760,18 @@ export default function QuoteEditorPage() {
                                               <p className="text-[10px] text-slate-500 truncate">
                                                 {[p.brand, p.date ? `${p.label} · ${p.date}` : p.label, p.count > 1 ? `used ${p.count}×` : null].filter(Boolean).join(' · ')}
                                               </p>
+                                              {(() => {
+                                                // Surface hidden catalog links that don't match the description —
+                                                // picking this entry copies the link, so a wrong one must be visible
+                                                if (!p.component_id) return null;
+                                                const linked = compById.get(p.component_id)?.supplier_model ?? 'unknown component';
+                                                if (p.description.toLowerCase().includes(linked.toLowerCase())) return null;
+                                                return (
+                                                  <p className="text-[10px] text-amber-400/90 truncate" title="This past entry carries a catalog link to a DIFFERENT item — picking it copies that link. Unlink after picking (link icon → Unlink) if it's wrong.">
+                                                    ⚠ linked to: {linked}
+                                                  </p>
+                                                );
+                                              })()}
                                             </div>
                                             <div className="text-right flex-shrink-0">
                                               {p.cost_price != null
