@@ -277,20 +277,20 @@ function FilterCombobox({ options, value, onChange, placeholder, minWidth = 140,
         <svg className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-600 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
       )}
       {open && typeof document !== 'undefined' && createPortal(
-        <div style={dropStyle} className="bg-[#0D1424] border border-white/10 rounded-xl shadow-2xl overflow-hidden">
+        <div style={dropStyle} className="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden">
           <div className="px-3 py-1.5 border-b border-white/5 flex items-center justify-between">
             <span className="text-[10px] text-slate-500">{filtered.length} option{filtered.length !== 1 ? 's' : ''}</span>
-            {query && <span className="text-[10px] text-blue-400">"{query}"</span>}
+            {query && <span className="text-[10px] text-emerald-400">"{query}"</span>}
           </div>
           <div className="max-h-60 overflow-y-auto">
-            <button onMouseDown={() => select('')} className={`w-full text-left px-3 py-2 text-sm transition-colors border-b border-white/[0.04] ${value === '' ? 'bg-blue-500/15 text-blue-300' : 'text-slate-400 hover:bg-white/10'}`}>
+            <button onMouseDown={() => select('')} className={`w-full text-left px-3 py-2 text-sm transition-colors border-b border-white/[0.04] ${value === '' ? 'bg-emerald-500/15 text-emerald-300' : 'text-slate-400 hover:bg-white/10'}`}>
               {placeholder}
             </button>
             {filtered.length === 0 ? (
               <p className="px-3 py-3 text-sm text-slate-500 italic">No matches</p>
             ) : filtered.map((opt) => (
               <button key={opt} onMouseDown={() => select(opt)}
-                className={`w-full text-left px-3 py-2 text-sm transition-colors border-b border-white/[0.04] last:border-0 ${opt === value ? 'bg-blue-500/15 text-blue-300' : 'text-slate-300 hover:bg-white/10'}`}>
+                className={`w-full text-left px-3 py-2 text-sm transition-colors border-b border-white/[0.04] last:border-0 ${opt === value ? 'bg-emerald-500/15 text-emerald-300' : 'text-slate-300 hover:bg-white/10'}`}>
                 {opt}
               </button>
             ))}
@@ -354,17 +354,17 @@ function QuoteCombobox({ quotes, value, onChange }: QuoteComboboxProps) {
         </button>
       )}
       {open && typeof document !== 'undefined' && createPortal(
-        <div style={dropStyle} className="bg-[#0D1424] border border-white/10 rounded-xl shadow-2xl overflow-hidden">
+        <div style={dropStyle} className="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden">
           <div className="px-3 py-1.5 border-b border-white/5 flex items-center justify-between">
             <span className="text-[10px] text-slate-500">{filtered.length} of {quotes.length} quotes</span>
-            {query && <span className="text-[10px] text-blue-400">"{query}"</span>}
+            {query && <span className="text-[10px] text-emerald-400">"{query}"</span>}
           </div>
           <div className="max-h-64 overflow-y-auto">
             {filtered.length === 0 ? (
               <p className="px-3 py-3 text-xs text-slate-500 italic">No matches</p>
             ) : filtered.map((qt) => (
               <button key={qt.quote_id} onMouseDown={() => select(qt)}
-                className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center gap-2 border-b border-white/[0.04] last:border-0 ${String(qt.quote_id) === value ? 'bg-blue-500/15 text-blue-300' : 'text-slate-300 hover:bg-white/10'}`}
+                className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center gap-2 border-b border-white/[0.04] last:border-0 ${String(qt.quote_id) === value ? 'bg-emerald-500/15 text-emerald-300' : 'text-slate-300 hover:bg-white/10'}`}
               >
                 <span className="font-semibold flex-1 truncate">{qt.pi_number ?? `Quote #${qt.quote_id}`}</span>
                 {qt.quote_date && <span className="text-slate-600 text-[10px] flex-shrink-0">{qt.quote_date}</span>}

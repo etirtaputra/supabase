@@ -148,10 +148,10 @@ function ComponentCombobox({ components, onSelect, onCancel }: {
         onBlur={() => setTimeout(() => { setOpen(false); onCancel(); }, 160)}
         placeholder="Search component…"
         autoComplete="off"
-        className="w-full px-2 py-1 bg-slate-900 border border-blue-500/50 rounded text-xs text-white focus:outline-none focus:border-blue-400 placeholder-slate-600"
+        className="w-full px-2 py-1 bg-slate-900 border border-emerald-500/50 rounded text-xs text-white focus:outline-none focus:border-emerald-400 placeholder-slate-600"
       />
       {open && typeof document !== 'undefined' && createPortal(
-        <div style={dropStyle} className="bg-[#0D1424] border border-white/10 rounded-xl shadow-2xl overflow-hidden">
+        <div style={dropStyle} className="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden">
           {query && <div className="px-3 py-1.5 border-b border-white/5 text-[10px] text-slate-500">{filtered.length} match{filtered.length !== 1 ? 'es' : ''}</div>}
           <div className="max-h-64 overflow-y-auto">
             {filtered.length === 0
