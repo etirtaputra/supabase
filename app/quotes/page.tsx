@@ -307,12 +307,13 @@ export default function QuotesListPage() {
 
   return (
     <div className="min-h-screen bg-[#141518] text-slate-200 font-sans text-sm">
-      <CommandPalette />
+      {/* Spotlight is Owner-only in Quotes — keeps the data-entry team out of vendor/deal search */}
+      <CommandPalette enabled={gate.profile?.role === 'owner'} />
       {/* Header */}
       <div className="sticky top-0 z-40 bg-[#141518]/90 backdrop-blur-xl border-b border-white/[0.07]">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
           <div>
-            <h1 className="text-xl font-bold text-white tracking-tight">ICAPROC</h1>
+            <Link href="/" className="text-xl font-bold text-white tracking-tight hover:text-emerald-300 transition-colors">ICAPROC</Link>
             <p className="text-slate-500 text-[11px] mt-0.5">Project Quotes</p>
           </div>
           <div className="flex items-center gap-4">

@@ -98,7 +98,7 @@ export default function AskPage() {
       <div className="flex-none sticky top-0 z-40 bg-[#141518]/90 backdrop-blur-xl border-b border-white/[0.07]">
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
           <div>
-            <h1 className="text-xl font-bold text-white tracking-tight">ICAPROC</h1>
+            <a href="/" className="text-xl font-bold text-white tracking-tight hover:text-emerald-300 transition-colors">ICAPROC</a>
             <p className="text-slate-500 text-[11px] mt-0.5">AI Assistant · Supply chain &amp; quotes</p>
           </div>
           <div className="flex items-center gap-4">

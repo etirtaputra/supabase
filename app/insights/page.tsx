@@ -144,9 +144,9 @@ export default function DatabaseViewPage() {
         <div className="sticky top-0 z-50 bg-[#141518]/90 backdrop-blur-xl border-b border-white/[0.07]">
           <header className="px-4 md:px-8 xl:px-12 pt-4 xl:pt-5 pb-2 max-w-[1800px] mx-auto flex items-start justify-between gap-4">
             <div>
-              <h1 className="text-lg md:text-xl xl:text-2xl font-bold text-white tracking-tight">
+              <a href="/" className="block text-lg md:text-xl xl:text-2xl font-bold text-white tracking-tight hover:text-emerald-300 transition-colors">
                 ICAPROC
-              </h1>
+              </a>
               <p className="text-slate-500 text-[11px] mt-0.5 hidden sm:block">
                 Insights · True Unit Cost · Pricing · Cash Cycle
               </p>

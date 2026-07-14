@@ -32,8 +32,12 @@ const dealLookupHref = (n: string) => `/catalog?tab=lookup&q=${encodeURIComponen
 
 interface ProjectQuoteLite {
   quote_id: string; quote_number: string; quote_date: string;
-  customer_name: string; status: string; created_at?: string;
+  customer_name: string; status: string; created_at?: string; updated_at?: string;
 }
+
+// Most-recent-activity key: prefer updated_at, fall back to created/business date
+const recencyKey = (updated?: string | null, created?: string | null, biz?: string | null) =>
+  (updated || created || biz || '') as string;
 
 const PQ_STATUS: Record<string, string> = {
   draft: 'text-slate-400', sent: 'text-blue-300',
@@ -61,12 +65,10 @@ export default function Home() {
   useEffect(() => {
     if (!user) return;
     supabase.from('10.0_project_quotes')
-      .select('quote_id, quote_number, quote_date, customer_name, status, created_at')
-      .order('created_at', { ascending: false })
+      .select('quote_id, quote_number, quote_date, customer_name, status, created_at, updated_at')
+      .order('updated_at', { ascending: false })
       .then(({ data }) => setProjectQuotes((data as ProjectQuoteLite[]) ?? []));
   }, [user]);
-
-  const openSpotlight = () => window.dispatchEvent(new Event('icaproc:spotlight'));
 
   // ── Lookups ─────────────────────────────────────────────────────────────
   const supById = useMemo(
@@ -132,29 +134,32 @@ export default function Home() {
   }, [data, poStatus, poById]);
 
   // ── Recent feeds ──────────────────────────────────────────────────────────
-  const recentComponents = useMemo(() => {
-    const dated = data.components.filter((c) => c.created_at);
-    // Fall back to catalog order if created_at isn't populated on this DB
-    const base = dated.length
-      ? [...dated].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
-      : data.components;
-    return base.slice(0, 10);
-  }, [data.components]);
+  // All feeds order by most-recent activity (updated_at first), newest on top.
+  // localeCompare keeps ties (e.g. missing timestamps) in their incoming order.
+  const byRecency = <T,>(get: (o: T) => string) => (a: T, b: T) => get(b).localeCompare(get(a));
+
+  const recentComponents = useMemo(
+    () => [...data.components]
+      .sort(byRecency((c) => recencyKey(c.updated_at, c.created_at)))
+      .slice(0, 10),
+    [data.components]);
 
   const recentSupplierQuotes = useMemo(
     () => [...data.quotes]
-      .sort((a, b) => (b.quote_date || '').localeCompare(a.quote_date || ''))
+      .sort(byRecency((q) => recencyKey(q.updated_at, q.created_at, q.quote_date)))
       .slice(0, 10),
     [data.quotes]);
 
   const recentPos = useMemo(
-    () => [...data.pos].sort((a, b) => (b.po_date || '').localeCompare(a.po_date || '')).slice(0, 10),
+    () => [...data.pos]
+      .sort(byRecency((p) => recencyKey(p.updated_at, p.created_at, p.po_date)))
+      .slice(0, 10),
     [data.pos]);
 
   const recentPayments = useMemo(
     () => data.poCosts
-      .filter((c) => c.payment_date)
-      .sort((a, b) => (b.payment_date || '').localeCompare(a.payment_date || ''))
+      .filter((c) => c.payment_date || c.updated_at)
+      .sort(byRecency((c) => recencyKey(c.updated_at, c.created_at, c.payment_date)))
       .slice(0, 10),
     [data.poCosts]);
 
@@ -170,13 +175,11 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#0f1012] text-slate-200 font-sans text-sm">
-      <CommandPalette />
-
       {/* ── Header ── */}
       <div className="border-b border-slate-800/60 bg-[#0f1012]/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12 py-4 flex items-center justify-between gap-4">
           <div className="flex items-baseline gap-3">
-            <h1 className="text-xl md:text-2xl font-extrabold text-white tracking-tight">ICAPROC</h1>
+            <Link href="/" className="text-xl md:text-2xl font-extrabold text-white tracking-tight hover:text-emerald-300 transition-colors">ICAPROC</Link>
             <p className="hidden sm:block text-slate-500 text-[11px] tabular-nums">
               {new Date().toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
             </p>
@@ -191,22 +194,10 @@ export default function Home() {
 
       <main className="max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12 py-8 xl:py-10 space-y-8">
 
-        {/* ── Spotlight hero ── */}
+        {/* ── Spotlight hero (inline, searches in place — no popup) ── */}
         <div className="relative flex flex-col items-center pt-4 pb-2">
           <div className="pointer-events-none absolute -top-6 left-1/2 -translate-x-1/2 w-[520px] max-w-full h-40 bg-emerald-500/10 blur-3xl rounded-full" />
-          <button
-            onClick={openSpotlight}
-            className="relative w-full max-w-2xl flex items-center gap-3 px-5 h-14 rounded-full bg-slate-900/80 border border-slate-700/80 hover:border-emerald-500/50 focus:border-emerald-500/60 shadow-xl ring-1 ring-white/5 transition-colors group text-left"
-          >
-            <svg className="w-5 h-5 text-slate-500 group-hover:text-emerald-400 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
-            <span className="flex-1 text-slate-500 group-hover:text-slate-400 transition-colors truncate">
-              Search vendors, components, quotes, PI / PO numbers…
-            </span>
-            <span className="hidden sm:flex items-center gap-1 flex-shrink-0">
-              <kbd className="text-[11px] font-mono text-slate-400 border border-slate-700 rounded px-1.5 py-0.5 leading-none">{modKey}</kbd>
-              <kbd className="text-[11px] font-mono text-slate-400 border border-slate-700 rounded px-1.5 py-0.5 leading-none">I</kbd>
-            </span>
-          </button>
+          <CommandPalette variant="inline" />
           <p className="mt-3 text-[11px] text-slate-600">
             Press <span className="text-slate-400 font-medium">{modKey} + I</span> anywhere for Spotlight — jump to any vendor, deal, or item
           </p>
@@ -240,7 +231,7 @@ export default function Home() {
               <FeedRow key={c.component_id} href={`/insights?tab=lookup&q=${encodeURIComponent(c.supplier_model ?? '')}`} accent="emerald"
                 title={c.supplier_model || '(no model)'}
                 sub={[c.brand, c.category].filter(Boolean).join(' · ') || '—'}
-                right={fmtDate(c.created_at)} />
+                right={fmtDate(c.updated_at || c.created_at)} />
             ))}
           </FeedPanel>
 
@@ -250,7 +241,7 @@ export default function Home() {
               <FeedRow key={q.quote_id} href={`/quotes/${q.quote_id}`} accent="violet"
                 title={q.quote_number || '(no number)'}
                 sub={<span>{q.customer_name || 'No customer'} · <span className={PQ_STATUS[q.status] ?? 'text-slate-400'}>{(q.status || 'draft').toUpperCase()}</span></span>}
-                right={fmtDate(q.quote_date)} />
+                right={fmtDate(q.updated_at || q.created_at || q.quote_date)} />
             ))}
           </FeedPanel>
 

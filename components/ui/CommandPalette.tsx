@@ -4,17 +4,19 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 
 /**
- * Global Ctrl/Cmd+I search — Spotlight-style, two levels deep.
+ * Global Spotlight search — two presentations of one search index:
+ *
+ *  • variant="modal"  (default): a Ctrl/Cmd+I overlay. When closed it shows a
+ *    small bottom-right reminder pill (unless showHint=false). Used in Catalog,
+ *    Insights, and — gated to owners via `enabled` — Quotes.
+ *  • variant="inline": an always-visible search bar that drops its results
+ *    directly below it (the dashboard hero). No modal, no pill.
  *
  * Root results: suppliers, buying companies, project quotes, supplier quotes
- * (PI), POs (searchable by number), and catalog items.
- * Press → on a supplier, company, or item to drill into its latest PIs & POs;
- * Enter on a deal opens Catalog's Deal Lookup pre-searched (the matching card
- * auto-expands), Enter on an item opens Insights' Cost Lookup pre-searched.
- *
- * Ranking: prefix matches first; vendors and companies outrank items (so
- * "EPEVER" finds the vendor before its products); items sort by how much
- * they've been bought/quoted.
+ * (PI), POs, and catalog items. → drills a supplier/company/item into its
+ * latest PIs & POs; Enter opens the item's context (Deal/Cost Lookup or the
+ * quote editor). Ranking: prefix matches first; vendors/companies outrank
+ * items; items sort by buying activity.
  */
 
 interface DealRef {
@@ -31,9 +33,9 @@ interface Item {
   title: string;
   sub: string;
   href: string;
-  date?: string;       // for the "recent" list
-  weight?: number;     // components: buying activity, more = higher rank
-  drill?: DealRef[];   // suppliers/companies/components: their latest deals
+  date?: string;
+  weight?: number;
+  drill?: DealRef[];
 }
 
 const KIND_BADGE: Record<Item['kind'], { label: string; cls: string }> = {
@@ -49,40 +51,57 @@ const KIND_ORDER: Item['kind'][] = ['supplier', 'company', 'quote', 'pi', 'po', 
 
 const dealLookupHref = (n: string) => `/catalog?tab=lookup&q=${encodeURIComponent(n)}`;
 
-export default function CommandPalette() {
+interface Props {
+  variant?: 'modal' | 'inline';
+  /** modal only: show the bottom-right reminder pill when closed */
+  showHint?: boolean;
+  /** false renders nothing (e.g. Quotes for non-owners) */
+  enabled?: boolean;
+}
+
+export default function CommandPalette({ variant = 'modal', showHint = true, enabled = true }: Props) {
   const supabase = createSupabaseClient();
-  const [open, setOpen] = useState(false);
+  const inline = variant === 'inline';
+
+  const [open, setOpen] = useState(false);       // modal visibility
+  const [focused, setFocused] = useState(false); // inline dropdown visibility
+  const active = inline ? focused : open;
+
   const [query, setQuery] = useState('');
   const [index, setIndex] = useState(0);
-  const [items, setItems] = useState<Item[] | null>(null);       // null = not fetched yet
+  const [items, setItems] = useState<Item[] | null>(null);
   const [recents, setRecents] = useState<Item[]>([]);
   const [drill, setDrill] = useState<{ title: string; refs: DealRef[] } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Ctrl/Cmd+I anywhere — I for ICAPROC. A custom event lets any in-page
-  // affordance (e.g. the dashboard search bar) open the same palette.
+  const isMac = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform || '');
+  const modKey = isMac ? '⌘' : 'Ctrl';
+
+  // Ctrl/Cmd+I anywhere; a custom event lets any affordance open/focus it
   useEffect(() => {
+    if (!enabled) return;
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'i') {
         e.preventDefault();
-        setOpen((v) => !v);
+        if (inline) inputRef.current?.focus();
+        else setOpen((v) => !v);
       }
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key === 'Escape') {
+        if (inline) { inputRef.current?.blur(); setFocused(false); }
+        else setOpen(false);
+      }
     };
-    const onOpen = () => setOpen(true);
+    const onOpen = () => { if (inline) inputRef.current?.focus(); else setOpen(true); };
     window.addEventListener('keydown', onKey);
     window.addEventListener('icaproc:spotlight', onOpen);
     return () => {
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('icaproc:spotlight', onOpen);
     };
-  }, []);
+  }, [enabled, inline]);
 
-  // Mac shows ⌘, everything else Ctrl — glyphs only, no emoji
-  const isMac = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform || '');
-  const modKey = isMac ? '⌘' : 'Ctrl';
-
+  // Reset + focus each time the modal opens
   useEffect(() => {
     if (open) {
       setQuery('');
@@ -92,7 +111,6 @@ export default function CommandPalette() {
     }
   }, [open]);
 
-  // Fetch slim datasets on first open and build the index
   const loadData = useCallback(async () => {
     const fetchAllComponents = async () => {
       const PAGE = 1000;
@@ -144,7 +162,6 @@ export default function CommandPalette() {
       };
     };
 
-    // Deal refs per supplier, company, and component
     const bySupplier = new Map<string, DealRef[]>();
     const byCompany = new Map<string, DealRef[]>();
     const byComponent = new Map<string, DealRef[]>();
@@ -253,7 +270,6 @@ export default function CommandPalette() {
     ];
     setItems(list);
 
-    // Recent activity for the empty-query state
     setRecents(
       [...quoteItemsList.slice(0, 4), ...piItemsList.slice(0, 5), ...poItemsList.slice(0, 5)]
         .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))
@@ -262,8 +278,8 @@ export default function CommandPalette() {
   }, []);
 
   useEffect(() => {
-    if (open && items === null) loadData();
-  }, [open, items, loadData]);
+    if (active && items === null) loadData();
+  }, [active, items, loadData]);
 
   const results = useMemo(() => {
     if (!items) return [];
@@ -290,35 +306,173 @@ export default function CommandPalette() {
   const rootRows = query.trim().length >= 2 ? results : recents;
 
   useEffect(() => { setIndex(0); }, [query, drill]);
-
-  // Keep the highlighted row visible while arrowing
   useEffect(() => {
     listRef.current?.querySelector(`[data-idx="${index}"]`)?.scrollIntoView({ block: 'nearest' });
   }, [index]);
 
   function go(href: string) {
-    setOpen(false);
-    window.location.assign(href);
+    if (inline) {
+      window.open(href, '_blank', 'noopener');
+      setFocused(false);
+    } else {
+      setOpen(false);
+      window.location.assign(href);
+    }
   }
-
   function drillInto(item: Item) {
     if (!item.drill) return;
     setDrill({ title: item.title, refs: item.drill });
   }
 
-  // Closed: a subtle, always-present reminder that Spotlight exists. Clicking
-  // it opens the palette — same as pressing the shortcut.
-  if (!open) return (
-    <button
-      onClick={() => setOpen(true)}
-      title={`Spotlight search — ${modKey} + I`}
-      className="fixed bottom-5 right-5 z-[90] flex items-center gap-2 px-3 py-2 rounded-full bg-slate-900/90 backdrop-blur border border-slate-700/80 text-slate-400 hover:text-white hover:border-emerald-500/40 shadow-lg transition-colors group"
-    >
-      <svg className="w-3.5 h-3.5 text-slate-500 group-hover:text-emerald-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
-      <span className="text-[11px] font-medium hidden sm:inline">Search</span>
-      <kbd className="text-[10px] font-mono text-slate-500 border border-slate-700 rounded px-1.5 py-0.5 leading-none">{modKey} I</kbd>
-    </button>
+  const onInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (drill) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setIndex((i) => Math.min(i + 1, drill.refs.length - 1)); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); setIndex((i) => Math.max(i - 1, 0)); }
+      else if (e.key === 'ArrowLeft' || e.key === 'Backspace') { e.preventDefault(); setDrill(null); }
+      else if (e.key === 'Enter' && drill.refs[index]) go(drill.refs[index].href);
+      return;
+    }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setIndex((i) => Math.min(i + 1, rootRows.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setIndex((i) => Math.max(i - 1, 0)); }
+    else if (e.key === 'ArrowRight') {
+      const r = rootRows[index];
+      if (r?.drill) { e.preventDefault(); drillInto(r); }
+    }
+    else if (e.key === 'Enter' && rootRows[index]) go(rootRows[index].href);
+  };
+
+  if (!enabled) return null;
+
+  // Scrollable results list — shared by both variants
+  const body = (
+    <div ref={listRef} className="max-h-[50vh] overflow-y-auto">
+      {items === null && (
+        <div className="px-4 py-6 flex items-center justify-center gap-2 text-sm text-slate-500">
+          <div className="w-3.5 h-3.5 border-2 border-slate-600 border-t-slate-300 rounded-full animate-spin" />
+          Building search index…
+        </div>
+      )}
+
+      {!drill && items !== null && rootRows.length === 0 && query.trim().length >= 2 && (
+        <p className="px-4 py-6 text-sm text-slate-500 text-center">No matches for “{query}”.</p>
+      )}
+      {!drill && items !== null && query.trim().length < 2 && rootRows.length > 0 && (
+        <p className="px-4 pt-3 pb-1 text-[9px] uppercase tracking-wider text-slate-600">Recent activity</p>
+      )}
+      {drill && drill.refs.length === 0 && (
+        <p className="px-4 py-6 text-sm text-slate-500 text-center">No supplier quotes or POs recorded yet.</p>
+      )}
+
+      {!drill && items !== null && rootRows.map((r, i) => (
+        <div key={`${r.kind}-${r.id}`} data-idx={i} className={`flex items-stretch transition-colors ${i === index ? 'bg-slate-800' : ''}`}>
+          <button
+            onClick={() => go(r.href)}
+            onMouseEnter={() => setIndex(i)}
+            className="flex-1 min-w-0 text-left px-4 py-2.5 flex items-center gap-3"
+          >
+            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase flex-shrink-0 ${KIND_BADGE[r.kind].cls}`}>
+              {KIND_BADGE[r.kind].label}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm text-slate-200 truncate">{r.title}</span>
+              <span className="block text-[11px] text-slate-500 truncate">{r.sub}</span>
+            </span>
+            {r.date && <span className="text-[10px] text-slate-600 flex-shrink-0 tabular-nums">{r.date}</span>}
+          </button>
+          {r.drill && r.drill.length > 0 && (
+            <button
+              onClick={() => { setIndex(i); drillInto(r); }}
+              title="Show latest quotes & POs (→)"
+              className="px-3 flex items-center text-slate-600 hover:text-white transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+            </button>
+          )}
+        </div>
+      ))}
+
+      {drill && drill.refs.map((r, i) => (
+        <button
+          key={`${r.kind}-${r.number}-${i}`}
+          data-idx={i}
+          onClick={() => go(r.href)}
+          onMouseEnter={() => setIndex(i)}
+          className={`w-full text-left px-4 py-2.5 flex items-center gap-3 transition-colors ${i === index ? 'bg-slate-800' : ''}`}
+        >
+          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase flex-shrink-0 ${KIND_BADGE[r.kind].cls}`}>
+            {KIND_BADGE[r.kind].label}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm text-slate-200 truncate">{r.number}</span>
+            <span className="block text-[11px] text-slate-500 truncate">{r.extra || '—'}</span>
+          </span>
+          <span className="text-[10px] text-slate-600 flex-shrink-0 tabular-nums">{r.date}</span>
+        </button>
+      ))}
+    </div>
   );
+
+  // ── Inline variant: the search bar IS the UI (dashboard hero) ──────────────
+  if (inline) {
+    return (
+      <div className="relative w-full max-w-2xl mx-auto">
+        <div className="relative flex items-center gap-3 px-5 h-14 rounded-full bg-slate-900/80 border border-slate-700/80 focus-within:border-emerald-500/60 hover:border-emerald-500/40 shadow-xl ring-1 ring-white/5 transition-colors">
+          {drill ? (
+            <button onClick={() => { setDrill(null); inputRef.current?.focus(); }} onMouseDown={(e) => e.preventDefault()} className="flex items-center gap-1.5 text-slate-400 hover:text-white text-xs flex-shrink-0 transition-colors">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+              <span className="max-w-[200px] truncate font-medium text-slate-300">{drill.title}</span>
+            </button>
+          ) : (
+            <svg className="w-5 h-5 text-slate-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
+          )}
+          <input
+            ref={inputRef}
+            value={drill ? '' : query}
+            readOnly={!!drill}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={onInputKeyDown}
+            placeholder={drill ? 'Latest supplier quotes & POs — Enter opens Deal Lookup' : 'Search vendors, components, quotes, PI / PO numbers…'}
+            className="flex-1 bg-transparent outline-none text-white text-sm placeholder:text-slate-500"
+          />
+          <span className="hidden sm:flex items-center gap-1 flex-shrink-0">
+            <kbd className="text-[11px] font-mono text-slate-400 border border-slate-700 rounded px-1.5 py-0.5 leading-none">{modKey}</kbd>
+            <kbd className="text-[11px] font-mono text-slate-400 border border-slate-700 rounded px-1.5 py-0.5 leading-none">I</kbd>
+          </span>
+        </div>
+        {active && (query.trim().length >= 2 || rootRows.length > 0 || items === null || drill) && (
+          <div
+            onMouseDown={(e) => e.preventDefault()}
+            className="absolute left-0 right-0 mt-2 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden z-50"
+          >
+            {body}
+            <div className="px-4 py-2 border-t border-slate-800 text-[10px] text-slate-600 flex gap-4">
+              <span>↑↓ navigate</span>
+              {drill ? <span>← back</span> : <span>→ drill in</span>}
+              <span>↵ open in new tab</span>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Modal variant ──────────────────────────────────────────────────────────
+  if (!open) {
+    if (!showHint) return null;
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        title={`Spotlight search — ${modKey} + I`}
+        className="fixed bottom-5 right-5 z-[90] flex items-center gap-2 px-3 py-2 rounded-full bg-slate-900/90 backdrop-blur border border-slate-700/80 text-slate-400 hover:text-white hover:border-emerald-500/40 shadow-lg transition-colors group"
+      >
+        <svg className="w-3.5 h-3.5 text-slate-500 group-hover:text-emerald-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
+        <span className="text-[11px] font-medium hidden sm:inline">Search</span>
+        <kbd className="text-[10px] font-mono text-slate-500 border border-slate-700 rounded px-1.5 py-0.5 leading-none">{modKey} I</kbd>
+      </button>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/60 flex items-start justify-center pt-[15vh] px-4" onClick={() => setOpen(false)}>
@@ -337,100 +491,21 @@ export default function CommandPalette() {
             value={drill ? '' : query}
             readOnly={!!drill}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (drill) {
-                if (e.key === 'ArrowDown') { e.preventDefault(); setIndex((i) => Math.min(i + 1, drill.refs.length - 1)); }
-                else if (e.key === 'ArrowUp') { e.preventDefault(); setIndex((i) => Math.max(i - 1, 0)); }
-                else if (e.key === 'ArrowLeft' || e.key === 'Backspace') { e.preventDefault(); setDrill(null); }
-                else if (e.key === 'Enter' && drill.refs[index]) go(drill.refs[index].href);
-                return;
-              }
-              if (e.key === 'ArrowDown') { e.preventDefault(); setIndex((i) => Math.min(i + 1, rootRows.length - 1)); }
-              else if (e.key === 'ArrowUp') { e.preventDefault(); setIndex((i) => Math.max(i - 1, 0)); }
-              else if (e.key === 'ArrowRight') {
-                const r = rootRows[index];
-                if (r?.drill) { e.preventDefault(); drillInto(r); }
-              }
-              else if (e.key === 'Enter' && rootRows[index]) go(rootRows[index].href);
-            }}
+            onKeyDown={onInputKeyDown}
             placeholder={drill ? 'Latest supplier quotes & POs — Enter opens Deal Lookup' : 'Search vendors, companies, items, quote/PI/PO numbers…'}
             className="flex-1 bg-transparent outline-none text-white text-sm placeholder:text-slate-600"
           />
           <kbd className="text-[10px] text-slate-600 border border-slate-700 rounded px-1.5 py-0.5">Esc</kbd>
         </div>
 
-        <div ref={listRef} className="max-h-[50vh] overflow-y-auto">
-          {items === null && (
-            <div className="px-4 py-6 flex items-center justify-center gap-2 text-sm text-slate-500">
-              <div className="w-3.5 h-3.5 border-2 border-slate-600 border-t-slate-300 rounded-full animate-spin" />
-              Building search index…
-            </div>
-          )}
-
-          {!drill && items !== null && rootRows.length === 0 && query.trim().length >= 2 && (
-            <p className="px-4 py-6 text-sm text-slate-500 text-center">No matches for “{query}”.</p>
-          )}
-          {!drill && items !== null && query.trim().length < 2 && rootRows.length > 0 && (
-            <p className="px-4 pt-3 pb-1 text-[9px] uppercase tracking-wider text-slate-600">Recent activity</p>
-          )}
-          {drill && drill.refs.length === 0 && (
-            <p className="px-4 py-6 text-sm text-slate-500 text-center">No supplier quotes or POs recorded yet.</p>
-          )}
-
-          {!drill && items !== null && rootRows.map((r, i) => (
-            <div key={`${r.kind}-${r.id}`} data-idx={i} className={`flex items-stretch transition-colors ${i === index ? 'bg-slate-800' : ''}`}>
-              <button
-                onClick={() => go(r.href)}
-                onMouseEnter={() => setIndex(i)}
-                className="flex-1 min-w-0 text-left px-4 py-2.5 flex items-center gap-3"
-              >
-                <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase flex-shrink-0 ${KIND_BADGE[r.kind].cls}`}>
-                  {KIND_BADGE[r.kind].label}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm text-slate-200 truncate">{r.title}</span>
-                  <span className="block text-[11px] text-slate-500 truncate">{r.sub}</span>
-                </span>
-                {r.date && <span className="text-[10px] text-slate-600 flex-shrink-0 tabular-nums">{r.date}</span>}
-              </button>
-              {r.drill && (
-                <button
-                  onClick={() => { setIndex(i); drillInto(r); }}
-                  title="Show latest quotes & POs (→)"
-                  className="px-3 flex items-center text-slate-600 hover:text-white transition-colors"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
-                </button>
-              )}
-            </div>
-          ))}
-
-          {drill && drill.refs.map((r, i) => (
-            <button
-              key={`${r.kind}-${r.number}-${i}`}
-              data-idx={i}
-              onClick={() => go(r.href)}
-              onMouseEnter={() => setIndex(i)}
-              className={`w-full text-left px-4 py-2.5 flex items-center gap-3 transition-colors ${i === index ? 'bg-slate-800' : ''}`}
-            >
-              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase flex-shrink-0 ${KIND_BADGE[r.kind].cls}`}>
-                {KIND_BADGE[r.kind].label}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm text-slate-200 truncate">{r.number}</span>
-                <span className="block text-[11px] text-slate-500 truncate">{r.extra || '—'}</span>
-              </span>
-              <span className="text-[10px] text-slate-600 flex-shrink-0 tabular-nums">{r.date}</span>
-            </button>
-          ))}
-        </div>
+        {body}
 
         <div className="px-4 py-2 border-t border-slate-800 text-[10px] text-slate-600 flex gap-4">
           <span>↑↓ navigate</span>
           {drill ? <span>← back</span> : <span>→ drill in</span>}
           <span>↵ open</span>
           <span>Esc close</span>
-          <span className="ml-auto">Ctrl+I</span>
+          <span className="ml-auto">{modKey} I</span>
         </div>
       </div>
     </div>

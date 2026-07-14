@@ -67,7 +67,7 @@ export default function AdminPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-xl font-extrabold text-white">ICAPROC</h1>
+            <a href="/" className="text-xl font-extrabold text-white hover:text-emerald-300 transition-colors">ICAPROC</a>
             <p className="text-slate-500 text-xs mt-1">User Management · Set roles for who can access what</p>
           </div>
           <button
