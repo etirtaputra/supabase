@@ -60,7 +60,8 @@ export default function CommandPalette() {
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Ctrl/Cmd+I anywhere — I for ICAPROC
+  // Ctrl/Cmd+I anywhere — I for ICAPROC. A custom event lets any in-page
+  // affordance (e.g. the dashboard search bar) open the same palette.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'i') {
@@ -69,9 +70,18 @@ export default function CommandPalette() {
       }
       if (e.key === 'Escape') setOpen(false);
     };
+    const onOpen = () => setOpen(true);
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('icaproc:spotlight', onOpen);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('icaproc:spotlight', onOpen);
+    };
   }, []);
+
+  // Mac shows ⌘, everything else Ctrl — glyphs only, no emoji
+  const isMac = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform || '');
+  const modKey = isMac ? '⌘' : 'Ctrl';
 
   useEffect(() => {
     if (open) {
@@ -296,7 +306,19 @@ export default function CommandPalette() {
     setDrill({ title: item.title, refs: item.drill });
   }
 
-  if (!open) return null;
+  // Closed: a subtle, always-present reminder that Spotlight exists. Clicking
+  // it opens the palette — same as pressing the shortcut.
+  if (!open) return (
+    <button
+      onClick={() => setOpen(true)}
+      title={`Spotlight search — ${modKey} + I`}
+      className="fixed bottom-5 right-5 z-[90] flex items-center gap-2 px-3 py-2 rounded-full bg-slate-900/90 backdrop-blur border border-slate-700/80 text-slate-400 hover:text-white hover:border-emerald-500/40 shadow-lg transition-colors group"
+    >
+      <svg className="w-3.5 h-3.5 text-slate-500 group-hover:text-emerald-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
+      <span className="text-[11px] font-medium hidden sm:inline">Search</span>
+      <kbd className="text-[10px] font-mono text-slate-500 border border-slate-700 rounded px-1.5 py-0.5 leading-none">{modKey} I</kbd>
+    </button>
+  );
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/60 flex items-start justify-center pt-[15vh] px-4" onClick={() => setOpen(false)}>

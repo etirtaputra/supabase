@@ -1,25 +1,54 @@
 'use client';
-import { useMemo, useEffect } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { createSupabaseClient } from '@/lib/supabase';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useAuth } from '@/hooks/useAuth';
 import CommandPalette from '@/components/ui/CommandPalette';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
-const fmtIdr = (n: number) =>
-  n >= 1_000_000_000
-    ? `IDR ${(n / 1_000_000_000).toFixed(2)}B`
-    : n >= 1_000_000
-    ? `IDR ${(n / 1_000_000).toFixed(1)}M`
-    : `IDR ${Math.round(n).toLocaleString('en-US')}`;
 
+// ── Formatting ──────────────────────────────────────────────────────────────
+const fmtCompact = (n: number) =>
+  n >= 1_000_000_000 ? `${(n / 1_000_000_000).toFixed(2)}B`
+  : n >= 1_000_000   ? `${(n / 1_000_000).toFixed(1)}M`
+  : Math.round(n).toLocaleString('en-US');
+const fmtIdr = (n: number) => `IDR ${fmtCompact(n)}`;
+const fmtMoney = (n: number, ccy: string) => `${ccy} ${fmtCompact(n)}`;
+
+function fmtDate(d?: string | null) {
+  if (!d) return '';
+  const dt = new Date(d.length <= 10 ? `${d}T00:00:00` : d);
+  if (isNaN(dt.getTime())) return '';
+  return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+}
+function humanize(s: string) {
+  return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
 function today() { return new Date().toISOString().slice(0, 10); }
 function thisMonth() { return new Date().toISOString().slice(0, 7); }
 
+const dealLookupHref = (n: string) => `/catalog?tab=lookup&q=${encodeURIComponent(n)}`;
+
+interface ProjectQuoteLite {
+  quote_id: string; quote_number: string; quote_date: string;
+  customer_name: string; status: string; created_at?: string;
+}
+
+const PQ_STATUS: Record<string, string> = {
+  draft: 'text-slate-400', sent: 'text-blue-300',
+  accepted: 'text-emerald-300', rejected: 'text-red-400',
+};
+
 export default function Home() {
   const router = useRouter();
+  const supabase = createSupabaseClient();
   const { user, loading: authLoading } = useAuth();
   const { data, loading } = useSupabaseData();
+  const [projectQuotes, setProjectQuotes] = useState<ProjectQuoteLite[]>([]);
+
+  const isMac = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform || '');
+  const modKey = isMac ? '⌘' : 'Ctrl';
 
   useEffect(() => { document.title = 'Dashboard | ICAPROC'; }, []);
 
@@ -28,7 +57,35 @@ export default function Home() {
     if (!authLoading && !user) router.replace('/login?next=/');
   }, [authLoading, user, router]);
 
-  // ── Per-PO payment status ─────────────────────────────────────────────
+  // Project quotes live in the Quotes app tables (not in useSupabaseData)
+  useEffect(() => {
+    if (!user) return;
+    supabase.from('10.0_project_quotes')
+      .select('quote_id, quote_number, quote_date, customer_name, status, created_at')
+      .order('created_at', { ascending: false })
+      .then(({ data }) => setProjectQuotes((data as ProjectQuoteLite[]) ?? []));
+  }, [user]);
+
+  const openSpotlight = () => window.dispatchEvent(new Event('icaproc:spotlight'));
+
+  // ── Lookups ─────────────────────────────────────────────────────────────
+  const supById = useMemo(
+    () => new Map(data.suppliers.map((s) => [s.supplier_id as string, s])),
+    [data.suppliers]);
+  const quoteById = useMemo(
+    () => new Map(data.quotes.map((q) => [String(q.quote_id), q])),
+    [data.quotes]);
+  const poById = useMemo(
+    () => new Map(data.pos.map((p) => [String(p.po_id), p])),
+    [data.pos]);
+
+  const supplierForPo = (po: (typeof data.pos)[number]) => {
+    if (po.supplier_id && supById.has(po.supplier_id)) return supById.get(po.supplier_id);
+    const q = po.quote_id != null ? quoteById.get(String(po.quote_id)) : null;
+    return q?.supplier_id ? supById.get(q.supplier_id) : undefined;
+  };
+
+  // ── Per-PO payment status ─────────────────────────────────────────────────
   const poStatus = useMemo(() => {
     const r: Record<string, { totalIdr: number; paidIdr: number; pct: number }> = {};
     for (const po of data.pos) {
@@ -43,61 +100,65 @@ export default function Home() {
     return r;
   }, [data.pos, data.poCosts]);
 
-  // ── Supplier code map ─────────────────────────────────────────────────
   const poCode = useMemo(() => {
     const r: Record<string, string> = {};
     for (const po of data.pos) {
-      if (!po.quote_id) continue;
-      const q = data.quotes.find((q) => String(q.quote_id) === String(po.quote_id));
-      const s = q ? data.suppliers.find((s) => s.supplier_id === q.supplier_id) : null;
-      if (s?.supplier_code) r[String(po.po_id)] = s.supplier_code;
+      const s = supplierForPo(po);
+      if (s?.supplier_code) r[String(po.po_id)] = s.supplier_code as string;
     }
     return r;
-  }, [data.pos, data.quotes, data.suppliers]);
+  }, [data.pos, supById, quoteById]);
 
-  // ── Dashboard stats ───────────────────────────────────────────────────
+  // ── KPI stats ─────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
-    const todayStr = today();
     const monthStr = thisMonth();
     const activePOs = data.pos.filter((p) => p.status !== 'Cancelled');
     const outstandingIdr = activePOs.reduce((s, p) => {
       const { totalIdr, paidIdr } = poStatus[String(p.po_id)] ?? { totalIdr: 0, paidIdr: 0 };
       return s + Math.max(0, totalIdr - paidIdr);
     }, 0);
-    const receivedThisMonth = data.pos.filter(
-      (p) => p.actual_received_date?.startsWith(monthStr)
-    ).length;
+    const paidThisMonthIdr = data.poCosts
+      .filter((c) => c.payment_date?.startsWith(monthStr) && PRINCIPAL_CATS.has(c.cost_category))
+      .reduce((s, c) => {
+        const xr = Number(c.exchange_rate) || Number(poById.get(String(c.po_id))?.exchange_rate) || 1;
+        return s + (c.currency === 'IDR' ? Number(c.amount) : Number(c.amount) * xr);
+      }, 0);
     return {
       activePOs: activePOs.length,
       outstandingIdr,
-      receivedThisMonth,
+      paidThisMonthIdr,
       componentCount: data.components.length,
-      // Attention lists
-      noPayments: activePOs
-        .filter((p) => p.status !== 'Fully Received' && p.status !== 'Partially Received' && !(poStatus[String(p.po_id)]?.paidIdr > 0))
-        .slice(0, 5),
-      overdue: activePOs
-        .filter((p) =>
-          p.estimated_delivery_date &&
-          p.estimated_delivery_date < todayStr &&
-          !p.actual_received_date &&
-          p.status !== 'Cancelled'
-        )
-        .sort((a, b) => a.estimated_delivery_date!.localeCompare(b.estimated_delivery_date!))
-        .slice(0, 5),
-      noItems: activePOs
-        .filter((p) => !data.poItems.find((i) => String(i.po_id) === String(p.po_id)))
-        .slice(0, 5),
     };
-  }, [data, poStatus]);
+  }, [data, poStatus, poById]);
 
-  // ── Recent POs ────────────────────────────────────────────────────────
+  // ── Recent feeds ──────────────────────────────────────────────────────────
+  const recentComponents = useMemo(() => {
+    const dated = data.components.filter((c) => c.created_at);
+    // Fall back to catalog order if created_at isn't populated on this DB
+    const base = dated.length
+      ? [...dated].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+      : data.components;
+    return base.slice(0, 10);
+  }, [data.components]);
+
+  const recentSupplierQuotes = useMemo(
+    () => [...data.quotes]
+      .sort((a, b) => (b.quote_date || '').localeCompare(a.quote_date || ''))
+      .slice(0, 10),
+    [data.quotes]);
+
   const recentPos = useMemo(
-    () => [...data.pos].sort((a, b) => b.po_date.localeCompare(a.po_date)).slice(0, 15),
-    [data.pos]
-  );
+    () => [...data.pos].sort((a, b) => (b.po_date || '').localeCompare(a.po_date || '')).slice(0, 10),
+    [data.pos]);
 
-  const attentionCount = stats.noPayments.length + stats.overdue.length + stats.noItems.length;
+  const recentPayments = useMemo(
+    () => data.poCosts
+      .filter((c) => c.payment_date)
+      .sort((a, b) => (b.payment_date || '').localeCompare(a.payment_date || ''))
+      .slice(0, 10),
+    [data.poCosts]);
+
+  const recentProjectQuotes = useMemo(() => projectQuotes.slice(0, 10), [projectQuotes]);
 
   if (authLoading || !user) {
     return (
@@ -108,260 +169,250 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-[#141518] text-slate-200 font-sans text-sm">
+    <div className="min-h-screen bg-[#0f1012] text-slate-200 font-sans text-sm">
       <CommandPalette />
+
       {/* ── Header ── */}
-      <div className="border-b border-slate-800/60 bg-[#141518]/80 backdrop-blur-md">
-        <div className="max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12 py-5 xl:py-6 flex flex-col sm:flex-row sm:items-end justify-between gap-2">
-          <div>
-            <h1 className="text-2xl md:text-3xl xl:text-4xl font-extrabold text-white tracking-tight">
-              ICAPROC{' '}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-sky-400">
-                Dashboard
-              </span>
-            </h1>
-            <p className="text-slate-500 text-xs mt-1">
-              {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+      <div className="border-b border-slate-800/60 bg-[#0f1012]/80 backdrop-blur-md sticky top-0 z-30">
+        <div className="max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12 py-4 flex items-center justify-between gap-4">
+          <div className="flex items-baseline gap-3">
+            <h1 className="text-xl md:text-2xl font-extrabold text-white tracking-tight">ICAPROC</h1>
+            <p className="hidden sm:block text-slate-500 text-[11px] tabular-nums">
+              {new Date().toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
             </p>
           </div>
           <div className="flex gap-2">
-            <Link
-              href="/catalog"
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-colors border border-emerald-500/50"
-            >
-              Catalog
-            </Link>
-            <Link
-              href="/insights"
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl transition-colors border border-slate-700"
-            >
-              Insights
-            </Link>
-            <Link
-              href="/quotes"
-              className="px-4 py-2 bg-violet-700 hover:bg-violet-600 text-white text-xs font-bold rounded-xl transition-colors border border-violet-600/50"
-            >
-              Quotes
-            </Link>
+            <Link href="/catalog" className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-colors border border-emerald-500/50">Catalog</Link>
+            <Link href="/insights" className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-lg transition-colors border border-slate-700">Insights</Link>
+            <Link href="/quotes" className="px-3.5 py-1.5 bg-violet-700 hover:bg-violet-600 text-white text-xs font-bold rounded-lg transition-colors border border-violet-600/50">Quotes</Link>
           </div>
         </div>
       </div>
 
-      <main className="max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12 py-6 xl:py-8 space-y-6 xl:space-y-8">
+      <main className="max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12 py-8 xl:py-10 space-y-8">
 
-        {/* ── Stats row ── */}
-        {loading ? (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 xl:gap-6">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-5 xl:p-7 animate-pulse h-24 xl:h-32" />
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 xl:gap-6">
-            {[
-              {
-                label: 'Outstanding',
-                value: fmtIdr(stats.outstandingIdr),
-                sub: 'unpaid across active POs',
-                color: stats.outstandingIdr > 0 ? 'text-amber-300' : 'text-emerald-300',
-                bg: stats.outstandingIdr > 0 ? 'border-amber-500/20' : 'border-emerald-500/20',
-              },
-              {
-                label: 'Active POs',
-                value: stats.activePOs.toString(),
-                sub: 'not cancelled',
-                color: 'text-sky-300',
-                bg: 'border-sky-500/20',
-              },
-              {
-                label: 'Received This Month',
-                value: stats.receivedThisMonth.toString(),
-                sub: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
-                color: 'text-emerald-300',
-                bg: 'border-emerald-500/20',
-              },
-              {
-                label: 'Components',
-                value: stats.componentCount.toString(),
-                sub: 'in catalog',
-                color: 'text-violet-300',
-                bg: 'border-violet-500/20',
-              },
-            ].map(({ label, value, sub, color, bg }) => (
-              <div key={label} className={`bg-slate-900 border ${bg} rounded-2xl p-5 xl:p-7`}>
-                <p className="text-[11px] xl:text-xs font-semibold uppercase tracking-widest text-slate-400 mb-1 xl:mb-2">{label}</p>
-                <p className={`text-2xl xl:text-3xl 2xl:text-4xl font-extrabold tabular-nums ${color} leading-none`}>{value}</p>
-                <p className="text-[11px] xl:text-xs text-slate-500 mt-1 xl:mt-2">{sub}</p>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* ── Main grid ── */}
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_400px] 2xl:grid-cols-[1fr_520px] gap-5 xl:gap-7">
-
-          {/* Needs Attention */}
-          <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-5 xl:p-6">
-            <div className="flex items-center justify-between mb-4 xl:mb-5">
-              <h2 className="text-sm xl:text-base font-bold text-white">Needs Attention</h2>
-              {attentionCount === 0 && !loading && (
-                <span className="text-xs text-emerald-400 font-semibold">✓ All clear</span>
-              )}
-            </div>
-
-            {loading && <div className="space-y-2">{[...Array(3)].map((_, i) => <div key={i} className="h-10 bg-slate-800/40 rounded-xl animate-pulse" />)}</div>}
-
-            {!loading && attentionCount === 0 && (
-              <p className="text-slate-600 text-xs italic">No issues found.</p>
-            )}
-
-            {/* On 2xl: show 3 groups side-by-side; smaller: stacked */}
-            {!loading && attentionCount > 0 && (
-              <div className="2xl:grid 2xl:grid-cols-3 2xl:gap-6 space-y-4 2xl:space-y-0">
-                <div>
-                  {stats.noPayments.length > 0 ? (
-                    <AttentionGroup icon="💳" label="No payments logged" color="text-amber-300" items={stats.noPayments} poCode={poCode} />
-                  ) : (
-                    <p className="hidden 2xl:block text-[11px] text-emerald-500/70 font-semibold">💳 No payments — ✓ all logged</p>
-                  )}
-                </div>
-                <div>
-                  {stats.overdue.length > 0 ? (
-                    <AttentionGroup icon="🚨" label="Overdue delivery" color="text-red-400" items={stats.overdue} poCode={poCode} sub={(po) => po.estimated_delivery_date ? `Est. ${po.estimated_delivery_date}` : ''} />
-                  ) : (
-                    <p className="hidden 2xl:block text-[11px] text-emerald-500/70 font-semibold">🚨 Overdue — ✓ none</p>
-                  )}
-                </div>
-                <div>
-                  {stats.noItems.length > 0 ? (
-                    <AttentionGroup icon="📋" label="No line items" color="text-slate-400" items={stats.noItems} poCode={poCode} />
-                  ) : (
-                    <p className="hidden 2xl:block text-[11px] text-emerald-500/70 font-semibold">📋 Line items — ✓ all present</p>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Recent POs */}
-          <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-5 xl:p-6">
-            <div className="flex items-center justify-between mb-4 xl:mb-5">
-              <h2 className="text-sm xl:text-base font-bold text-white">Recent POs</h2>
-              <Link href="/catalog?tab=lookup" className="text-xs text-slate-500 hover:text-sky-300 transition-colors">
-                View all →
-              </Link>
-            </div>
-            {loading && <div className="space-y-2">{[...Array(6)].map((_, i) => <div key={i} className="h-12 bg-slate-800/40 rounded-xl animate-pulse" />)}</div>}
-            {!loading && (
-              <div className="space-y-1.5">
-                {recentPos.map((po) => {
-                  const key = String(po.po_id);
-                  const { totalIdr, paidIdr, pct } = poStatus[key] ?? { totalIdr: 0, paidIdr: 0, pct: 0 };
-                  const code = poCode[key];
-                  return (
-                    <div key={key} className="flex items-center gap-3 px-3 py-2.5 xl:py-3 bg-slate-800/30 rounded-xl hover:bg-slate-800/50 transition-colors">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {code && (
-                            <span className="inline-block px-1.5 py-0.5 bg-sky-500/15 border border-sky-500/30 text-sky-300 text-[10px] font-bold rounded leading-none flex-shrink-0">
-                              {code}
-                            </span>
-                          )}
-                          <span className="text-xs font-semibold text-white truncate">
-                            {po.pi_number || po.po_number}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-slate-500 mt-0.5">{po.po_date}</p>
-                      </div>
-                      {totalIdr > 0 ? (
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <div className="w-16 xl:w-24 h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full ${pct >= 100 ? 'bg-emerald-500' : pct > 0 ? 'bg-amber-400' : 'bg-slate-600'}`}
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                          <span className={`text-[11px] font-semibold w-9 text-right ${pct >= 100 ? 'text-emerald-400' : pct > 0 ? 'text-amber-300' : 'text-slate-600'}`}>
-                            {pct.toFixed(0)}%
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-[11px] text-slate-600 flex-shrink-0">no value</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+        {/* ── Spotlight hero ── */}
+        <div className="relative flex flex-col items-center pt-4 pb-2">
+          <div className="pointer-events-none absolute -top-6 left-1/2 -translate-x-1/2 w-[520px] max-w-full h-40 bg-emerald-500/10 blur-3xl rounded-full" />
+          <button
+            onClick={openSpotlight}
+            className="relative w-full max-w-2xl flex items-center gap-3 px-5 h-14 rounded-full bg-slate-900/80 border border-slate-700/80 hover:border-emerald-500/50 focus:border-emerald-500/60 shadow-xl ring-1 ring-white/5 transition-colors group text-left"
+          >
+            <svg className="w-5 h-5 text-slate-500 group-hover:text-emerald-400 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
+            <span className="flex-1 text-slate-500 group-hover:text-slate-400 transition-colors truncate">
+              Search vendors, components, quotes, PI / PO numbers…
+            </span>
+            <span className="hidden sm:flex items-center gap-1 flex-shrink-0">
+              <kbd className="text-[11px] font-mono text-slate-400 border border-slate-700 rounded px-1.5 py-0.5 leading-none">{modKey}</kbd>
+              <kbd className="text-[11px] font-mono text-slate-400 border border-slate-700 rounded px-1.5 py-0.5 leading-none">I</kbd>
+            </span>
+          </button>
+          <p className="mt-3 text-[11px] text-slate-600">
+            Press <span className="text-slate-400 font-medium">{modKey} + I</span> anywhere for Spotlight — jump to any vendor, deal, or item
+          </p>
         </div>
 
-        {/* ── Quick access ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 xl:gap-6">
+        {/* ── KPI row ── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 xl:gap-5">
           {[
-            { href: '/catalog?tab=quoting',    icon: '📝', label: 'Supplier Quote / PI', sub: 'Enter a supplier price quote', color: 'hover:border-blue-500/40' },
-            { href: '/catalog?tab=ordering',   icon: '📦', label: 'New PO',      sub: 'Create purchase order',         color: 'hover:border-violet-500/40' },
-            { href: '/catalog?tab=financials', icon: '💰', label: 'Log Payment', sub: 'Record payment or bank charges', color: 'hover:border-rose-500/40' },
-            { href: '/quotes',                icon: '📄', label: 'Project Quote', sub: 'Client-facing quote / BOM', color: 'hover:border-violet-500/40' },
-          ].map(({ href, icon, label, sub, color }) => (
-            <Link
-              key={href}
-              href={href}
-              className={`flex items-center gap-4 px-4 py-4 xl:px-6 xl:py-5 bg-slate-900/40 border border-slate-800/80 ${color} rounded-2xl ring-1 ring-white/5 transition-colors group`}
-            >
-              <span className="text-2xl xl:text-3xl flex-shrink-0">{icon}</span>
-              <div>
-                <p className="text-sm xl:text-base font-bold text-white group-hover:text-slate-100">{label}</p>
-                <p className="text-xs xl:text-sm text-slate-500">{sub}</p>
-              </div>
-              <span className="ml-auto text-slate-600 group-hover:text-slate-400 text-lg xl:text-xl">→</span>
-            </Link>
+            { label: 'Outstanding', value: loading ? '—' : fmtIdr(stats.outstandingIdr), sub: 'unpaid across active POs',
+              color: stats.outstandingIdr > 0 ? 'text-amber-300' : 'text-emerald-300',
+              ring: stats.outstandingIdr > 0 ? 'ring-amber-500/20' : 'ring-emerald-500/20' },
+            { label: 'Paid This Month', value: loading ? '—' : fmtIdr(stats.paidThisMonthIdr),
+              sub: new Date().toLocaleDateString('en-US', { month: 'long' }), color: 'text-rose-300', ring: 'ring-rose-500/20' },
+            { label: 'Active POs', value: loading ? '—' : stats.activePOs.toString(), sub: 'not cancelled', color: 'text-sky-300', ring: 'ring-sky-500/20' },
+            { label: 'Components', value: loading ? '—' : stats.componentCount.toLocaleString('en-US'), sub: 'in catalog', color: 'text-emerald-300', ring: 'ring-emerald-500/20' },
+          ].map(({ label, value, sub, color, ring }) => (
+            <div key={label} className={`bg-slate-900/60 border border-slate-800/80 ring-1 ${ring} rounded-2xl p-4 xl:p-5`}>
+              <p className="text-[10px] xl:text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">{label}</p>
+              <p className={`text-2xl xl:text-3xl font-extrabold tabular-nums ${color} leading-none`}>{value}</p>
+              <p className="text-[11px] text-slate-600 mt-1.5">{sub}</p>
+            </div>
           ))}
         </div>
 
+        {/* ── Recent feeds ── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+
+          {/* Recent Components */}
+          <FeedPanel title="Recent Components" accent="emerald" href="/catalog" loading={loading} empty={recentComponents.length === 0} icon={ICONS.cube}>
+            {recentComponents.map((c) => (
+              <FeedRow key={c.component_id} href={`/insights?tab=lookup&q=${encodeURIComponent(c.supplier_model ?? '')}`} accent="emerald"
+                title={c.supplier_model || '(no model)'}
+                sub={[c.brand, c.category].filter(Boolean).join(' · ') || '—'}
+                right={fmtDate(c.created_at)} />
+            ))}
+          </FeedPanel>
+
+          {/* Recent Project Quotes */}
+          <FeedPanel title="Recent Project Quotes" accent="violet" href="/quotes" loading={loading} empty={recentProjectQuotes.length === 0} icon={ICONS.doc}>
+            {recentProjectQuotes.map((q) => (
+              <FeedRow key={q.quote_id} href={`/quotes/${q.quote_id}`} accent="violet"
+                title={q.quote_number || '(no number)'}
+                sub={<span>{q.customer_name || 'No customer'} · <span className={PQ_STATUS[q.status] ?? 'text-slate-400'}>{(q.status || 'draft').toUpperCase()}</span></span>}
+                right={fmtDate(q.quote_date)} />
+            ))}
+          </FeedPanel>
+
+          {/* Recent Supplier Quotes (PI) */}
+          <FeedPanel title="Recent Supplier Quotes" accent="blue" href="/catalog?tab=lookup" loading={loading} empty={recentSupplierQuotes.length === 0} icon={ICONS.tag}>
+            {recentSupplierQuotes.map((q) => {
+              const sup = q.supplier_id ? supById.get(q.supplier_id) : undefined;
+              return (
+                <FeedRow key={String(q.quote_id)} href={dealLookupHref((q.pi_number as string) || String(q.quote_id))} accent="blue"
+                  title={(q.pi_number as string) || `Quote #${q.quote_id}`}
+                  sub={[sup?.supplier_name, q.status].filter(Boolean).join(' · ') || '—'}
+                  right={q.total_value ? fmtMoney(Number(q.total_value), q.currency) : fmtDate(q.quote_date)} />
+              );
+            })}
+          </FeedPanel>
+
+          {/* Recent POs */}
+          <FeedPanel title="Recent Purchase Orders" accent="amber" href="/catalog?tab=lookup" loading={loading} empty={recentPos.length === 0} icon={ICONS.clipboard}>
+            {recentPos.map((po) => {
+              const key = String(po.po_id);
+              const { pct, totalIdr } = poStatus[key] ?? { pct: 0, totalIdr: 0 };
+              const code = poCode[key];
+              return (
+                <FeedRow key={key} href={dealLookupHref(po.po_number || po.pi_number || key)} accent="amber"
+                  badge={code}
+                  title={po.pi_number || po.po_number || `PO ${po.po_id}`}
+                  sub={supplierForPo(po)?.supplier_name || po.po_date || '—'}
+                  right={totalIdr > 0
+                    ? <PctBar pct={pct} />
+                    : <span className="text-[10px] text-slate-600">no value</span>} />
+              );
+            })}
+          </FeedPanel>
+
+          {/* Recent Payments */}
+          <FeedPanel title="Recent Payments" accent="rose" href="/catalog?tab=financials" loading={loading} empty={recentPayments.length === 0} icon={ICONS.cash}>
+            {recentPayments.map((c) => {
+              const po = poById.get(String(c.po_id));
+              const isFee = !PRINCIPAL_CATS.has(c.cost_category);
+              return (
+                <FeedRow key={c.cost_id} href={dealLookupHref(po?.po_number || po?.pi_number || String(c.po_id))} accent="rose"
+                  title={fmtMoney(Number(c.amount), c.currency)}
+                  titleClass={isFee ? 'text-slate-300' : 'text-rose-200'}
+                  sub={<span>{humanize(c.cost_category)}{po ? <span className="text-slate-600"> · {po.pi_number || po.po_number}</span> : null}</span>}
+                  right={fmtDate(c.payment_date)} />
+              );
+            })}
+          </FeedPanel>
+
+          {/* Quick actions (text only, no emoji) */}
+          <div className="bg-slate-900/40 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl p-5">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-3">Quick Actions</p>
+            <div className="space-y-2">
+              {[
+                { href: '/catalog?tab=quoting',    label: 'Enter Supplier Quote / PI', accent: 'blue' },
+                { href: '/catalog?tab=ordering',   label: 'Create Purchase Order',      accent: 'amber' },
+                { href: '/catalog?tab=financials', label: 'Log Payment',                accent: 'rose' },
+                { href: '/quotes',                 label: 'New Project Quote',          accent: 'violet' },
+              ].map(({ href, label, accent }) => (
+                <Link key={href} href={href}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-800/30 hover:bg-slate-800/60 border border-transparent hover:border-slate-700 transition-colors group">
+                  <span className={`w-1.5 h-1.5 rounded-full ${DOT[accent]}`} />
+                  <span className="text-sm text-slate-300 group-hover:text-white transition-colors">{label}</span>
+                  <span className="ml-auto text-slate-700 group-hover:text-slate-400 transition-colors">→</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
       </main>
     </div>
   );
 }
 
-// ── Attention group sub-component ──────────────────────────────────────────
+// ── Accent maps ───────────────────────────────────────────────────────────────
+const DOT: Record<string, string> = {
+  emerald: 'bg-emerald-400', violet: 'bg-violet-400', blue: 'bg-blue-400',
+  amber: 'bg-amber-400', rose: 'bg-rose-400',
+};
+const ACCENT_TEXT: Record<string, string> = {
+  emerald: 'text-emerald-300', violet: 'text-violet-300', blue: 'text-blue-300',
+  amber: 'text-amber-300', rose: 'text-rose-300',
+};
+const ACCENT_TILE: Record<string, string> = {
+  emerald: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20',
+  violet: 'bg-violet-500/10 text-violet-300 border-violet-500/20',
+  blue: 'bg-blue-500/10 text-blue-300 border-blue-500/20',
+  amber: 'bg-amber-500/10 text-amber-300 border-amber-500/20',
+  rose: 'bg-rose-500/10 text-rose-300 border-rose-500/20',
+};
 
-import type { PurchaseOrder } from '@/types/database';
+// ── Inline icons (no emoji) ─────────────────────────────────────────────────
+const ICONS = {
+  cube: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4',
+  doc: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+  tag: 'M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.99 1.99 0 013 12V7a4 4 0 014-4z',
+  clipboard: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2',
+  cash: 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z',
+};
 
-function AttentionGroup({
-  icon, label, color, items, poCode, sub,
+// ── Feed panel ────────────────────────────────────────────────────────────────
+function FeedPanel({
+  title, accent, href, icon, loading, empty, children,
 }: {
-  icon: string;
-  label: string;
-  color: string;
-  items: PurchaseOrder[];
-  poCode: Record<string, string>;
-  sub?: (po: PurchaseOrder) => string;
+  title: string; accent: string; href: string; icon: string;
+  loading: boolean; empty: boolean; children: React.ReactNode;
 }) {
   return (
-    <div className="mb-4 last:mb-0">
-      <p className={`text-[11px] font-bold uppercase tracking-wider ${color} mb-1.5 flex items-center gap-1.5`}>
-        <span>{icon}</span>{label}
-        <span className="text-slate-600 font-normal normal-case">({items.length})</span>
-      </p>
-      <div className="space-y-1">
-        {items.map((po) => {
-          const code = poCode[String(po.po_id)];
-          return (
-            <div key={String(po.po_id)} className="flex items-center gap-2 px-3 py-2 bg-slate-800/30 rounded-xl text-xs">
-              {code && (
-                <span className="inline-block px-1.5 py-0.5 bg-sky-500/15 border border-sky-500/30 text-sky-300 text-[10px] font-bold rounded leading-none flex-shrink-0">
-                  {code}
-                </span>
-              )}
-              <span className="text-slate-200 font-medium truncate">
-                {po.pi_number || po.po_number}
-              </span>
-              {sub?.(po) && <span className="text-slate-500 flex-shrink-0 ml-auto">{sub(po)}</span>}
-            </div>
-          );
-        })}
+    <div className="bg-slate-900/40 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl p-5 flex flex-col">
+      <div className="flex items-center gap-2.5 mb-3">
+        <span className={`w-7 h-7 rounded-lg border flex items-center justify-center flex-shrink-0 ${ACCENT_TILE[accent]}`}>
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d={icon} /></svg>
+        </span>
+        <h2 className="text-sm font-bold text-white flex-1">{title}</h2>
+        <Link href={href} className={`text-[11px] ${ACCENT_TEXT[accent]} opacity-50 hover:opacity-100 transition-opacity`}>
+          View all →
+        </Link>
       </div>
+      {loading ? (
+        <div className="space-y-1.5">{[...Array(6)].map((_, i) => <div key={i} className="h-11 bg-slate-800/40 rounded-xl animate-pulse" />)}</div>
+      ) : empty ? (
+        <p className="text-slate-600 text-xs italic py-6 text-center">Nothing recent.</p>
+      ) : (
+        <div className="space-y-1 max-h-[22rem] overflow-y-auto -mr-1 pr-1">{children}</div>
+      )}
+    </div>
+  );
+}
+
+// ── Feed row ──────────────────────────────────────────────────────────────────
+function FeedRow({
+  href, accent, title, titleClass, sub, right, badge,
+}: {
+  href: string; accent: string; title: string; titleClass?: string;
+  sub: React.ReactNode; right: React.ReactNode; badge?: string;
+}) {
+  return (
+    <Link href={href} target="_blank" rel="noopener noreferrer"
+      className="flex items-center gap-3 px-3 py-2 rounded-xl bg-slate-800/20 hover:bg-slate-800/50 transition-colors group">
+      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${DOT[accent]}`} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          {badge && (
+            <span className={`inline-block px-1.5 py-0.5 border text-[10px] font-bold rounded leading-none flex-shrink-0 ${ACCENT_TILE[accent]}`}>{badge}</span>
+          )}
+          <span className={`text-xs font-semibold truncate ${titleClass || 'text-slate-100'} group-hover:text-white transition-colors`}>{title}</span>
+        </div>
+        <p className="text-[11px] text-slate-500 truncate mt-0.5">{sub}</p>
+      </div>
+      <div className="flex-shrink-0 text-[10px] text-slate-500 tabular-nums text-right">{right}</div>
+    </Link>
+  );
+}
+
+// ── Payment progress bar ──────────────────────────────────────────────────────
+function PctBar({ pct }: { pct: number }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className="w-14 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${pct >= 100 ? 'bg-emerald-500' : pct > 0 ? 'bg-amber-400' : 'bg-slate-600'}`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className={`text-[10px] font-semibold w-8 text-right ${pct >= 100 ? 'text-emerald-400' : pct > 0 ? 'text-amber-300' : 'text-slate-600'}`}>{pct.toFixed(0)}%</span>
     </div>
   );
 }
