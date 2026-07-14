@@ -380,11 +380,14 @@ export default function QuoteEditorPage() {
   const loadReferenceData = useCallback(async () => {
     fetchUsedEntries(supabase, id).then(setPrevUsed);
 
-    const [itemsRes, quotesRes] = await Promise.all([
+    const [itemsRes, quotesRes, libRes] = await Promise.all([
       supabase.from('10.2_quote_items')
         .select('description, brand, unit, component_id, cost_price, sell_price, quote_id, parent_item_id')
         .neq('quote_id', id),
       supabase.from('10.0_project_quotes').select('quote_id, quote_number, quote_date'),
+      // Curated entries from the owner-managed Description Library; the table
+      // may not exist yet on older databases — errors are simply ignored
+      supabase.from('10.4_description_library').select('description, brand, unit, default_cost'),
     ]);
     const qMap = new Map((quotesRes.data ?? []).map((q) => [q.quote_id as string, q]));
     const byDesc = new Map<string, PrevItem>();
@@ -425,6 +428,20 @@ export default function QuoteEditorPage() {
           label, date, count: 1,
         });
       }
+    }
+    // Curated library entries join the suggestions when no quote item already
+    // carries the same text (real usage, with its cost, always wins)
+    for (const r of libRes.data ?? []) {
+      const desc = String(r.description ?? '').trim();
+      const key = desc.toLowerCase();
+      if (desc.length < 3 || byDesc.has(key)) continue;
+      byDesc.set(key, {
+        description: desc, brand: String(r.brand ?? ''), unit: String(r.unit ?? ''),
+        component_id: null,
+        cost_price: r.default_cost != null ? Number(r.default_cost) : null,
+        sell_price: null,
+        label: 'Library', date: '', count: 1,
+      });
     }
     for (const arr of hist.values()) arr.sort((a, b) => b.date.localeCompare(a.date));
     setPrevItems([...byDesc.values()]);
@@ -1777,9 +1794,9 @@ export default function QuoteEditorPage() {
                                               {p.cost_price != null
                                                 ? <p className="font-semibold text-xs text-amber-400">{fmtIdr(p.cost_price)}</p>
                                                 : <p className="text-slate-600 text-[10px]">no cost</p>}
-                                              {priceAgeDays(p.date) > AGED_PRICE_DAYS
+                                              {p.date && priceAgeDays(p.date) > AGED_PRICE_DAYS
                                                 ? <p className="text-[10px] text-amber-400 font-semibold" title={`Last used ${p.date} — consider re-checking`}>⚠ aged</p>
-                                                : <p className="text-[10px] text-slate-600">last used</p>}
+                                                : <p className="text-[10px] text-slate-600">{p.date ? 'last used' : 'library'}</p>}
                                             </div>
                                           </button>
                                           {/* Sibling overlay so the select button's mousedown can't swallow it */}

@@ -128,7 +128,31 @@ END $fn$;
 DROP TRIGGER IF EXISTS log_quote_activity ON "10.0_project_quotes";
 CREATE TRIGGER log_quote_activity
   BEFORE INSERT OR UPDATE OR DELETE ON "10.0_project_quotes"
-  FOR EACH ROW EXECUTE FUNCTION public.log_quote_activity();`;
+  FOR EACH ROW EXECUTE FUNCTION public.log_quote_activity();
+
+-- Description Library: curated item texts for the editor autocomplete,
+-- managed on /quotes/library (read: everyone signed in; write: Owners)
+CREATE TABLE IF NOT EXISTS "10.4_description_library" (
+  entry_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  description TEXT NOT NULL,
+  brand TEXT DEFAULT '',
+  unit TEXT DEFAULT '',
+  group_key TEXT DEFAULT 'bos',
+  section_title TEXT DEFAULT '',
+  default_cost NUMERIC,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS description_library_unique
+  ON "10.4_description_library" (lower(description));
+ALTER TABLE "10.4_description_library" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "library read" ON "10.4_description_library";
+CREATE POLICY "library read" ON "10.4_description_library"
+  FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "library write" ON "10.4_description_library";
+CREATE POLICY "library write" ON "10.4_description_library"
+  FOR ALL TO authenticated
+  USING (EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'owner'))
+  WITH CHECK (EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'owner'));`;
 
 /**
  * Probes the quote tables for the columns this build writes. Renders an
@@ -148,6 +172,7 @@ export default function MigrationBanner() {
         supabase.from('10.1_quote_sections').select('group_key').limit(1),
         supabase.from('10.2_quote_items').select('qty_formula, eng_note').limit(1),
         supabase.from('10.3_quote_activity').select('activity_id').limit(1),
+        supabase.from('10.4_description_library').select('entry_id').limit(1),
       ]);
       if (!cancelled && probes.some((p) => p.error)) setMissing(true);
     }

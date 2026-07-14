@@ -2,19 +2,20 @@
 /**
  * Description Library — Owner-only editor for the project-quote item texts.
  *
- * Every distinct description ever entered in a project quote, with where it
- * was used (quote, date, sub-section), the costs it carried, duplicate /
- * near-duplicate detection, per-entry Rename-everywhere, multi-select Merge,
- * and a global Find & Replace (same UX as the Catalog's Component Editor).
- *
- * The goal: keep the autocomplete library consistent — one spelling per
- * item — without losing context, since history stays keyed by description.
+ * Every distinct item description across all project quotes plus curated
+ * entries from "10.4_description_library" (prepopulated texts that no quote
+ * has used yet). Grouped the way quotes read: Solar Panels → BoS → Services,
+ * sub-sections in quote order, items in row order — so descriptions keep
+ * their context. Duplicate / near-duplicate detection, Rename-everywhere,
+ * multi-select Merge and Delete, New-entry creation, and a Catalog-style
+ * Find & Replace.
  */
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useQuotesGate } from '@/hooks/useQuotesGate';
 import { fmtRp } from '@/lib/formatters';
+import { SECTION_GROUPS, STANDARD_SECTIONS, type SectionGroup } from '@/types/quotes';
 
 const STATUS_STYLES: Record<string, string> = {
   draft:    'bg-slate-700/60 text-slate-300',
@@ -28,7 +29,6 @@ interface Usage {
   raw: string;            // description exactly as stored on this row
   brand: string;
   unit: string;
-  quantity: number | null;
   cost: number | null;
   sell: number | null;
   isSub: boolean;
@@ -38,6 +38,18 @@ interface Usage {
   status: string;
   section_title: string;
   group_key: string;
+  secSort: number;
+  itemSort: number;
+}
+
+interface LibRow {
+  entry_id: string;
+  description: string;
+  brand: string;
+  unit: string;
+  group_key: string;
+  section_title: string;
+  default_cost: number | null;
 }
 
 interface Entry {
@@ -45,13 +57,19 @@ interface Entry {
   display: string;        // most recent raw spelling
   variants: string[];     // distinct raw spellings (casing/spacing drift)
   usages: Usage[];
-  sections: string[];
   latestCost: number | null;
   minCost: number | null;
   maxCost: number | null;
   linked: string[];       // distinct linked catalog models
   linkMismatch: boolean;  // a linked model not contained in the description
   dupSimilar: string[];   // display names of near-duplicate entries
+  // Placement anchor = the most recent usage (or the curated row): keeps the
+  // list in the same order the quotes read
+  anchorGroup: string;
+  anchorSection: string;
+  secSort: number;
+  itemSort: number;
+  curated: LibRow | null;
 }
 
 const escLike = (s: string) => s.replace(/([%_\\])/g, '\\$1');
@@ -65,6 +83,8 @@ function similarity(a: Set<string>, b: Set<string>): number {
   return uni ? inter / uni : 0;
 }
 
+const LIB_TABLE = '10.4_description_library';
+
 export default function DescriptionLibraryPage() {
   const supabase = createSupabaseClient();
   const gate = useQuotesGate();
@@ -72,6 +92,9 @@ export default function DescriptionLibraryPage() {
 
   const [loading, setLoading] = useState(true);
   const [usagesAll, setUsagesAll] = useState<Usage[]>([]);
+  const [libRows, setLibRows] = useState<LibRow[]>([]);
+  const [libMissing, setLibMissing] = useState(false);
+  const [compNames, setCompNames] = useState<Map<string, string>>(new Map());
   const [busy, setBusy] = useState(false);
   const [flash, setFlash] = useState('');
   const [error, setError] = useState('');
@@ -80,16 +103,24 @@ export default function DescriptionLibraryPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [itemsRes, secRes, quotesRes, compRes] = await Promise.all([
+    const [itemsRes, secRes, quotesRes, compRes, libRes] = await Promise.all([
       supabase.from('10.2_quote_items')
-        .select('item_id, quote_id, section_id, parent_item_id, component_id, description, brand, unit, quantity, cost_price, sell_price'),
-      supabase.from('10.1_quote_sections').select('section_id, title, group_key'),
+        .select('item_id, quote_id, section_id, parent_item_id, component_id, description, brand, unit, cost_price, sell_price, sort_order'),
+      supabase.from('10.1_quote_sections').select('section_id, title, group_key, sort_order'),
       supabase.from('10.0_project_quotes').select('quote_id, quote_number, quote_date, status'),
       supabase.from('3.0_components').select('component_id, supplier_model'),
+      supabase.from(LIB_TABLE).select('*'),
     ]);
     const secMap = new Map((secRes.data ?? []).map((s) => [s.section_id as string, s]));
     const qMap = new Map((quotesRes.data ?? []).map((q) => [q.quote_id as string, q]));
-    const compMap = new Map((compRes.data ?? []).map((c) => [c.component_id as string, String(c.supplier_model ?? '')]));
+    setCompNames(new Map((compRes.data ?? []).map((c) => [c.component_id as string, String(c.supplier_model ?? '')])));
+    setLibMissing(!!libRes.error);
+    setLibRows(((libRes.data ?? []) as LibRow[]).map((r) => ({
+      ...r,
+      brand: String(r.brand ?? ''), unit: String(r.unit ?? ''),
+      group_key: String(r.group_key ?? 'bos'), section_title: String(r.section_title ?? ''),
+      default_cost: r.default_cost != null ? Number(r.default_cost) : null,
+    })));
 
     const out: Usage[] = [];
     for (const it of itemsRes.data ?? []) {
@@ -102,7 +133,6 @@ export default function DescriptionLibraryPage() {
         raw,
         brand: String(it.brand ?? ''),
         unit: String(it.unit ?? ''),
-        quantity: it.quantity != null ? Number(it.quantity) : null,
         cost: it.cost_price != null ? Number(it.cost_price) : null,
         sell: it.sell_price != null ? Number(it.sell_price) : null,
         isSub: !!it.parent_item_id,
@@ -112,67 +142,81 @@ export default function DescriptionLibraryPage() {
         status: String(q?.status ?? 'draft'),
         section_title: String(sec?.title ?? '—'),
         group_key: String(sec?.group_key ?? ''),
+        secSort: sec?.sort_order != null ? Number(sec.sort_order) : 9999,
+        itemSort: it.sort_order != null ? Number(it.sort_order) : 9999,
       });
     }
-    // stash the component names on the usages via a side map for entry building
-    setCompNames(compMap);
     setUsagesAll(out);
     setLoading(false);
   }, []);
 
-  const [compNames, setCompNames] = useState<Map<string, string>>(new Map());
-
   useEffect(() => { if (gate.ready && isOwner) load(); }, [gate.ready, isOwner, load]);
 
-  // ── Build entries ────────────────────────────────────────────────────────────
+  // ── Build entries (quote usage + curated library rows) ──────────────────────
   const entries = useMemo(() => {
-    const byKey = new Map<string, Usage[]>();
+    const byKey = new Map<string, Entry>();
+    const usagesByKey = new Map<string, Usage[]>();
     for (const u of usagesAll) {
       const key = u.raw.toLowerCase();
-      byKey.set(key, [...(byKey.get(key) ?? []), u]);
+      usagesByKey.set(key, [...(usagesByKey.get(key) ?? []), u]);
     }
-    const list: Entry[] = [];
-    for (const [key, usages] of byKey) {
+    for (const [key, usages] of usagesByKey) {
       usages.sort((a, b) => b.quote_date.localeCompare(a.quote_date));
-      const variants = [...new Set(usages.map((u) => u.raw))];
+      const anchor = usages[0];
       const costs = usages.map((u) => u.cost).filter((c): c is number => c != null && c > 0);
       const linked = [...new Set(usages.map((u) => u.component_id && compNames.get(u.component_id)).filter(Boolean))] as string[];
-      list.push({
+      byKey.set(key, {
         key,
-        display: usages[0].raw,
-        variants,
+        display: anchor.raw,
+        variants: [...new Set(usages.map((u) => u.raw))],
         usages,
-        sections: [...new Set(usages.map((u) => u.section_title).filter((t) => t !== '—'))],
         latestCost: usages.find((u) => u.cost != null && u.cost > 0)?.cost ?? null,
         minCost: costs.length ? Math.min(...costs) : null,
         maxCost: costs.length ? Math.max(...costs) : null,
         linked,
         linkMismatch: linked.some((m) => !key.includes(m.toLowerCase())),
         dupSimilar: [],
+        anchorGroup: anchor.group_key || 'bos',
+        anchorSection: anchor.section_title !== '—' ? anchor.section_title : '',
+        secSort: anchor.secSort,
+        itemSort: anchor.itemSort,
+        curated: null,
       });
     }
+    for (const r of libRows) {
+      const display = r.description.trim();
+      const key = display.toLowerCase();
+      if (key.length < 2) continue;
+      const existing = byKey.get(key);
+      if (existing) { existing.curated = r; continue; }
+      byKey.set(key, {
+        key, display, variants: [display], usages: [],
+        latestCost: r.default_cost, minCost: null, maxCost: null,
+        linked: [], linkMismatch: false, dupSimilar: [],
+        anchorGroup: r.group_key || 'bos',
+        anchorSection: r.section_title,
+        secSort: 9999, itemSort: 9999,
+        curated: r,
+      });
+    }
+    const list = [...byKey.values()];
     // Near-duplicate pass: same normalized text, or high token overlap
     const toks = list.map((e) => tokenSet(e.key));
     const norms = list.map((e) => norm(e.key));
     for (let i = 0; i < list.length; i++) {
       for (let j = i + 1; j < list.length; j++) {
-        const isDup = norms[i] === norms[j] || similarity(toks[i], toks[j]) >= 0.75;
-        if (isDup) {
+        if (norms[i] === norms[j] || similarity(toks[i], toks[j]) >= 0.75) {
           list[i].dupSimilar.push(list[j].display);
           list[j].dupSimilar.push(list[i].display);
         }
       }
     }
-    return list.sort((a, b) => {
-      const fa = a.dupSimilar.length > 0 || a.variants.length > 1 ? 0 : 1;
-      const fb = b.dupSimilar.length > 0 || b.variants.length > 1 ? 0 : 1;
-      return fa - fb || a.display.localeCompare(b.display);
-    });
-  }, [usagesAll, compNames]);
+    return list;
+  }, [usagesAll, libRows, compNames]);
 
   // ── Filters / search / selection / expansion ────────────────────────────────
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<'all' | 'dups' | 'linked' | 'free'>('all');
+  const [filter, setFilter] = useState<'all' | 'free' | 'dups' | 'linked'>('free');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -191,10 +235,40 @@ export default function DescriptionLibraryPage() {
     () => entries.filter((e) => e.dupSimilar.length > 0 || e.variants.length > 1).length,
     [entries]);
 
+  // Nesting in quote-reading order: group → sub-section (by quote sort_order)
+  // → entries (by row sort_order)
+  const grouped = useMemo(() => {
+    const groups = new Map<string, Map<string, { secSort: number; entries: Entry[] }>>();
+    for (const e of visible) {
+      const g = SECTION_GROUPS.some((x) => x.key === e.anchorGroup) ? e.anchorGroup : 'bos';
+      const title = e.anchorSection || 'Unsectioned';
+      const secs = groups.get(g) ?? new Map();
+      const bucket = secs.get(title) ?? { secSort: e.secSort, entries: [] };
+      bucket.secSort = Math.min(bucket.secSort, e.secSort);
+      bucket.entries.push(e);
+      secs.set(title, bucket);
+      groups.set(g, secs);
+    }
+    for (const secs of groups.values()) {
+      for (const bucket of secs.values()) {
+        bucket.entries.sort((a, b) => a.itemSort - b.itemSort || a.display.localeCompare(b.display));
+      }
+    }
+    return groups;
+  }, [visible]);
+
   function toggle(set: Set<string>, key: string): Set<string> {
     const next = new Set(set);
     if (next.has(key)) next.delete(key); else next.add(key);
     return next;
+  }
+
+  // Best-effort curated-row rename: if the target spelling already exists in
+  // the library (unique index), drop the source row instead
+  async function renameLibRows(oldDesc: string, newDesc: string) {
+    const { error: e } = await supabase.from(LIB_TABLE)
+      .update({ description: newDesc }).ilike('description', escLike(oldDesc));
+    if (e) await supabase.from(LIB_TABLE).delete().ilike('description', escLike(oldDesc));
   }
 
   // ── Rename everywhere ────────────────────────────────────────────────────────
@@ -207,16 +281,13 @@ export default function DescriptionLibraryPage() {
     setBusy(true); setError('');
     const patch: Record<string, string> = { description: newDesc };
     if (rename.brand.trim()) patch.brand = rename.brand.trim();
-    const { error: e } = await supabase.from('10.2_quote_items')
-      .update(patch).ilike('description', escLike(rename.entry.display));
-    // catch spelling variants that differ from the display spelling
     for (const v of rename.entry.variants) {
-      if (v === rename.entry.display) continue;
-      await supabase.from('10.2_quote_items').update(patch).ilike('description', escLike(v));
+      const { error: e } = await supabase.from('10.2_quote_items').update(patch).ilike('description', escLike(v));
+      if (e) { setBusy(false); setError(e.message); return; }
+      await renameLibRows(v, newDesc);
     }
     setBusy(false);
-    if (e) { setError(e.message); return; }
-    setFlash(`Renamed ${rename.entry.usages.length} item${rename.entry.usages.length > 1 ? 's' : ''} to “${newDesc}”`);
+    setFlash(`Renamed ${rename.entry.usages.length || 'the library'} item${rename.entry.usages.length > 1 ? 's' : ''} to “${newDesc}”`);
     setRename(null);
     setSelected(new Set());
     load();
@@ -239,13 +310,72 @@ export default function DescriptionLibraryPage() {
         const { error: e } = await supabase.from('10.2_quote_items')
           .update({ description: target.display }).ilike('description', escLike(v));
         if (e) { setBusy(false); setError(e.message); return; }
+        await renameLibRows(v, target.display);
       }
       count += src.usages.length;
     }
     setBusy(false);
-    setFlash(`Merged ${count} item${count > 1 ? 's' : ''} into “${target.display}” — their cost history now shares one entry`);
+    setFlash(`Merged into “${target.display}” — ${count} quote item${count === 1 ? '' : 's'} updated, histories now share one entry`);
     setMerge(null);
     setSelected(new Set());
+    load();
+  }
+
+  // ── Delete selected entries ─────────────────────────────────────────────────
+  const [del, setDel] = useState<{ keys: string[]; deleteQuoteItems: boolean } | null>(null);
+
+  async function applyDelete() {
+    if (!del) return;
+    setBusy(true); setError('');
+    let libCount = 0, itemCount = 0;
+    for (const k of del.keys) {
+      const e = entries.find((x) => x.key === k);
+      if (!e) continue;
+      if (e.curated) {
+        const { error: err } = await supabase.from(LIB_TABLE).delete().eq('entry_id', e.curated.entry_id);
+        if (err) { setBusy(false); setError(err.message); return; }
+        libCount += 1;
+      }
+      if (del.deleteQuoteItems && e.usages.length) {
+        const ids = e.usages.map((u) => u.item_id);
+        const { error: err } = await supabase.from('10.2_quote_items').delete().in('item_id', ids);
+        if (err) { setBusy(false); setError(err.message); return; }
+        itemCount += ids.length;
+      }
+    }
+    setBusy(false);
+    setFlash(`Deleted ${libCount ? `${libCount} library entr${libCount > 1 ? 'ies' : 'y'}` : ''}${libCount && itemCount ? ' and ' : ''}${itemCount ? `${itemCount} quote item${itemCount > 1 ? 's' : ''}` : ''}` || 'Nothing deleted');
+    setDel(null);
+    setSelected(new Set());
+    load();
+  }
+
+  // ── Create a new library entry ──────────────────────────────────────────────
+  const emptyDraft = { description: '', brand: '', unit: 'pcs', group_key: 'bos' as SectionGroup, section_title: '', cost: '' };
+  const [draft, setDraft] = useState<typeof emptyDraft | null>(null);
+
+  async function applyCreate() {
+    if (!draft) return;
+    const desc = draft.description.trim();
+    if (desc.length < 3) { setError('Description too short'); return; }
+    setBusy(true); setError('');
+    const { error: e } = await supabase.from(LIB_TABLE).insert({
+      description: desc,
+      brand: draft.brand.trim(),
+      unit: draft.unit.trim(),
+      group_key: draft.group_key,
+      section_title: draft.section_title.trim(),
+      default_cost: draft.cost.trim() ? Number(draft.cost) : null,
+    });
+    setBusy(false);
+    if (e) {
+      setError(/does not exist|schema cache/i.test(e.message)
+        ? 'The library table is missing — run the migration SQL first (see the banner).'
+        : e.message);
+      return;
+    }
+    setFlash(`Added “${desc}” — it now appears in the editor autocomplete`);
+    setDraft(null);
     load();
   }
 
@@ -289,6 +419,11 @@ export default function DescriptionLibraryPage() {
       const bad = results.find((r) => r.error);
       if (bad?.error) { setBusy(false); setError(bad.error.message); return; }
     }
+    // Curated rows join the rename so the library stays consistent
+    for (const r of libRows) {
+      const after = applyReplaceToValue(r.description);
+      if (after !== r.description) await renameLibRows(r.description, after.trim());
+    }
     setBusy(false);
     setFlash(`Replaced text in ${frMatches.length} item${frMatches.length > 1 ? 's' : ''}`);
     setShowFr(false); setFrFind(''); setFrReplace('');
@@ -312,7 +447,115 @@ export default function DescriptionLibraryPage() {
     );
   }
 
-  const selectedEntries = entries.filter((e) => selected.has(e.key));
+  const delEntries = del ? entries.filter((e) => del.keys.includes(e.key)) : [];
+  const delItemCount = delEntries.reduce((s, e) => s + e.usages.length, 0);
+  const delSentCount = delEntries.reduce((s, e) => s + e.usages.filter((u) => u.status === 'sent').length, 0);
+  const delLibCount = delEntries.filter((e) => e.curated).length;
+
+  const renderEntry = (e: Entry) => (
+    <div key={e.key} className="bg-slate-900/50 border border-slate-800 hover:border-slate-700 rounded-2xl transition-colors">
+      <div className="flex items-center gap-3 px-4 py-3">
+        <input type="checkbox" checked={selected.has(e.key)}
+          onChange={() => setSelected((s) => toggle(s, e.key))}
+          className="accent-violet-600 flex-shrink-0" />
+        <button onClick={() => setExpanded((s) => toggle(s, e.key))} className="flex-1 min-w-0 text-left">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-medium text-slate-100 truncate">{e.display}</span>
+            <span className="text-[10px] text-slate-600">×{e.usages.length}</span>
+            {e.curated && (
+              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-violet-500/15 text-violet-300"
+                title="Curated library entry — offered in the editor autocomplete even before first use">LIB</span>
+            )}
+            {e.variants.length > 1 && (
+              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-red-500/15 text-red-300"
+                title={`Spelling variants: ${e.variants.join(' | ')}`}>
+                {e.variants.length} spellings
+              </span>
+            )}
+            {e.dupSimilar.length > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/15 text-amber-300"
+                title={`Similar to: ${e.dupSimilar.join(' | ')}`}>
+                ~{e.dupSimilar.length} similar
+              </span>
+            )}
+            {e.linked.length > 0 && (
+              <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${e.linkMismatch ? 'bg-red-500/15 text-red-300' : 'bg-emerald-500/15 text-emerald-300'}`}
+                title={`Linked to: ${e.linked.join(' | ')}${e.linkMismatch ? ' — link does not match the description!' : ''}`}>
+                🔗 {e.linkMismatch ? 'wrong link?' : 'linked'}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-3 mt-0.5 text-[11px] text-slate-500">
+            {e.usages.length > 0 ? (
+              <span className="flex-shrink-0">
+                {[...new Set(e.usages.map((u) => u.quote_number))].join(' · ')}
+              </span>
+            ) : (
+              <span className="text-violet-400/70">not used in any quote yet</span>
+            )}
+            {e.usages[0]?.brand && <span className="truncate text-slate-600">{e.usages[0].brand}</span>}
+            {e.curated && !e.usages.length && e.curated.brand && <span className="truncate text-slate-600">{e.curated.brand}</span>}
+          </div>
+        </button>
+        <div className="text-right flex-shrink-0 tabular-nums">
+          {e.latestCost != null && e.latestCost > 0 ? (
+            <>
+              <p className="text-xs font-semibold text-slate-300">{fmtRp(e.latestCost)}</p>
+              {e.minCost != null && e.maxCost != null && e.minCost !== e.maxCost && (
+                <p className="text-[10px] text-amber-400/80" title="Costs differ between quotes">
+                  {fmtRp(e.minCost)} – {fmtRp(e.maxCost)}
+                </p>
+              )}
+            </>
+          ) : <p className="text-[10px] text-slate-600">no cost</p>}
+        </div>
+        <button
+          onClick={() => { setError(''); setRename({ entry: e, text: e.display, brand: '' }); }}
+          className="p-2 rounded-lg hover:bg-white/10 text-slate-500 hover:text-white transition-colors flex-shrink-0"
+          title="Rename everywhere — updates every quote item carrying this description"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+        </button>
+      </div>
+      {expanded.has(e.key) && (
+        <div className="border-t border-slate-800 px-4 py-3 overflow-x-auto">
+          {e.usages.length === 0 ? (
+            <p className="text-xs text-slate-500 italic">
+              Library-only entry — appears in the editor autocomplete, no quote has used it yet.
+              {e.curated?.default_cost ? ` Default cost ${fmtRp(e.curated.default_cost)}.` : ''}
+            </p>
+          ) : (
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-left text-[10px] uppercase tracking-wider text-slate-600">
+                  <th className="py-1 pr-4">Quote</th>
+                  <th className="py-1 pr-4">Date</th>
+                  <th className="py-1 pr-4">Status</th>
+                  <th className="py-1 pr-4">Section</th>
+                  <th className="py-1 pr-4">As entered</th>
+                  <th className="py-1 pr-4 text-right">Cost</th>
+                  <th className="py-1 text-right">Sell</th>
+                </tr>
+              </thead>
+              <tbody>
+                {e.usages.map((u) => (
+                  <tr key={u.item_id} className="border-t border-slate-800/60">
+                    <td className="py-1.5 pr-4 font-medium text-slate-300 whitespace-nowrap">{u.quote_number}{u.isSub && <span className="ml-1.5 text-[9px] text-slate-600">sub-item</span>}</td>
+                    <td className="py-1.5 pr-4 text-slate-500 whitespace-nowrap">{u.quote_date || '—'}</td>
+                    <td className="py-1.5 pr-4"><span className={`px-1.5 py-0.5 rounded-full text-[9px] font-semibold uppercase ${STATUS_STYLES[u.status] ?? STATUS_STYLES.draft}`}>{u.status}</span></td>
+                    <td className="py-1.5 pr-4 text-slate-400">{u.section_title}</td>
+                    <td className={`py-1.5 pr-4 ${u.raw !== e.display ? 'text-red-300' : 'text-slate-500'}`}>{u.raw !== e.display ? u.raw : '〃'}</td>
+                    <td className="py-1.5 pr-4 text-right tabular-nums text-slate-300">{u.cost != null && u.cost > 0 ? fmtRp(u.cost) : '—'}</td>
+                    <td className="py-1.5 text-right tabular-nums text-slate-400">{u.sell != null && u.sell > 0 ? fmtRp(u.sell) : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-[#141518] text-slate-200 font-sans text-sm">
@@ -328,17 +571,31 @@ export default function DescriptionLibraryPage() {
               <p className="text-slate-500 text-[11px] mt-0.5">Every item text used in project quotes — keep one spelling per item</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            {selected.size >= 1 && (
+              <button
+                onClick={() => { setError(''); setDel({ keys: [...selected], deleteQuoteItems: false }); }}
+                className="px-3 py-2 rounded-xl bg-red-600/80 hover:bg-red-500 text-white text-xs font-semibold transition-colors"
+              >
+                Delete {selected.size}
+              </button>
+            )}
             {selected.size >= 2 && (
               <button
-                onClick={() => setMerge({ keys: [...selected], canonical: [...selected][0] })}
+                onClick={() => { setError(''); setMerge({ keys: [...selected], canonical: [...selected][0] }); }}
                 className="px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold transition-colors"
               >
-                Merge {selected.size} selected
+                Merge {selected.size}
               </button>
             )}
             <button
-              onClick={() => setShowFr(true)}
+              onClick={() => { setError(''); setDraft({ ...emptyDraft }); }}
+              className="px-3 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold transition-colors"
+            >
+              + New
+            </button>
+            <button
+              onClick={() => { setError(''); setShowFr(true); }}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/[0.08] text-slate-300 hover:text-white hover:bg-white/10 text-xs font-semibold transition-all"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" /></svg>
@@ -349,13 +606,19 @@ export default function DescriptionLibraryPage() {
       </div>
 
       <main className="max-w-6xl mx-auto px-6 py-6 space-y-4">
+        {libMissing && (
+          <div className="bg-amber-500/10 border border-amber-500/40 rounded-2xl px-4 py-3 text-sm text-amber-300">
+            The <span className="font-mono">10.4_description_library</span> table doesn&apos;t exist yet — creating new entries needs it.
+            Run the migration SQL in Supabase → SQL Editor (everything else here works without it).
+          </div>
+        )}
         {flash && (
           <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl px-4 py-3 text-sm text-emerald-300 flex items-center justify-between">
             {flash}
             <button onClick={() => setFlash('')} className="text-emerald-400/60 hover:text-emerald-200 ml-3">✕</button>
           </div>
         )}
-        {error && (
+        {error && !rename && !merge && !del && !draft && !showFr && (
           <div className="bg-red-500/10 border border-red-500/40 rounded-2xl px-4 py-3 text-sm text-red-300">{error}</div>
         )}
 
@@ -368,10 +631,10 @@ export default function DescriptionLibraryPage() {
             className="flex-1 min-w-[220px] px-3 py-2 bg-slate-900/70 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-600 focus:outline-none focus:border-violet-500"
           />
           {([
-            { k: 'all',    label: `All (${entries.length})` },
+            { k: 'free',   label: 'Free text' },
             { k: 'dups',   label: `Duplicates (${dupCount})` },
             { k: 'linked', label: 'Catalog-linked' },
-            { k: 'free',   label: 'Free text' },
+            { k: 'all',    label: `All (${entries.length})` },
           ] as const).map((f) => (
             <button key={f.k} onClick={() => setFilter(f.k)}
               className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${filter === f.k
@@ -387,93 +650,32 @@ export default function DescriptionLibraryPage() {
         ) : visible.length === 0 ? (
           <div className="flex items-center justify-center h-48 text-slate-500">No descriptions match</div>
         ) : (
-          <div className="space-y-1.5">
-            {visible.map((e) => (
-              <div key={e.key} className="bg-slate-900/50 border border-slate-800 hover:border-slate-700 rounded-2xl transition-colors">
-                <div className="flex items-center gap-3 px-4 py-3">
-                  <input type="checkbox" checked={selected.has(e.key)}
-                    onChange={() => setSelected((s) => toggle(s, e.key))}
-                    className="accent-violet-600 flex-shrink-0" />
-                  <button onClick={() => setExpanded((s) => toggle(s, e.key))} className="flex-1 min-w-0 text-left">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-slate-100 truncate">{e.display}</span>
-                      <span className="text-[10px] text-slate-600">×{e.usages.length}</span>
-                      {e.variants.length > 1 && (
-                        <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-red-500/15 text-red-300"
-                          title={`Spelling variants: ${e.variants.join(' | ')}`}>
-                          {e.variants.length} spellings
-                        </span>
-                      )}
-                      {e.dupSimilar.length > 0 && (
-                        <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/15 text-amber-300"
-                          title={`Similar to: ${e.dupSimilar.join(' | ')}`}>
-                          ~{e.dupSimilar.length} similar
-                        </span>
-                      )}
-                      {e.linked.length > 0 && (
-                        <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${e.linkMismatch ? 'bg-red-500/15 text-red-300' : 'bg-emerald-500/15 text-emerald-300'}`}
-                          title={`Linked to: ${e.linked.join(' | ')}${e.linkMismatch ? ' — link does not match the description!' : ''}`}>
-                          🔗 {e.linkMismatch ? 'wrong link?' : 'linked'}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3 mt-0.5 text-[11px] text-slate-500">
-                      <span className="truncate">{e.sections.join(' · ') || 'no section'}</span>
-                      <span className="flex-shrink-0">{[...new Set(e.usages.map((u) => u.quote_number))].length} quote{[...new Set(e.usages.map((u) => u.quote_number))].length > 1 ? 's' : ''}</span>
-                    </div>
-                  </button>
-                  <div className="text-right flex-shrink-0 tabular-nums">
-                    {e.latestCost != null ? (
-                      <>
-                        <p className="text-xs font-semibold text-slate-300">{fmtRp(e.latestCost)}</p>
-                        {e.minCost != null && e.maxCost != null && e.minCost !== e.maxCost && (
-                          <p className="text-[10px] text-amber-400/80" title="Costs differ between quotes">
-                            {fmtRp(e.minCost)} – {fmtRp(e.maxCost)}
-                          </p>
-                        )}
-                      </>
-                    ) : <p className="text-[10px] text-slate-600">no cost</p>}
+          <div className="space-y-6">
+            {SECTION_GROUPS.map((g) => {
+              const secs = grouped.get(g.key);
+              if (!secs || !secs.size) return null;
+              const orderedSecs = [...secs.entries()].sort((a, b) => a[1].secSort - b[1].secSort || a[0].localeCompare(b[0]));
+              return (
+                <div key={g.key}>
+                  <div className="flex items-center gap-3 mb-2 px-1">
+                    <h2 className="text-xs font-bold uppercase tracking-widest text-emerald-300">{g.label}</h2>
+                    <div className="flex-1 h-px bg-emerald-500/15" />
                   </div>
-                  <button
-                    onClick={() => { setError(''); setRename({ entry: e, text: e.display, brand: '' }); }}
-                    className="p-2 rounded-lg hover:bg-white/10 text-slate-500 hover:text-white transition-colors flex-shrink-0"
-                    title="Rename everywhere — updates every quote item carrying this description"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                  </button>
+                  <div className="space-y-4">
+                    {orderedSecs.map(([title, bucket]) => (
+                      <div key={title}>
+                        <p className="text-[11px] font-semibold text-slate-400 mb-1.5 px-1">{title}
+                          <span className="ml-2 text-slate-600 font-normal">{bucket.entries.length}</span>
+                        </p>
+                        <div className="space-y-1.5">
+                          {bucket.entries.map(renderEntry)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                {expanded.has(e.key) && (
-                  <div className="border-t border-slate-800 px-4 py-3 overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="text-left text-[10px] uppercase tracking-wider text-slate-600">
-                          <th className="py-1 pr-4">Quote</th>
-                          <th className="py-1 pr-4">Date</th>
-                          <th className="py-1 pr-4">Status</th>
-                          <th className="py-1 pr-4">Section</th>
-                          <th className="py-1 pr-4">As entered</th>
-                          <th className="py-1 pr-4 text-right">Cost</th>
-                          <th className="py-1 text-right">Sell</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {e.usages.map((u) => (
-                          <tr key={u.item_id} className="border-t border-slate-800/60">
-                            <td className="py-1.5 pr-4 font-medium text-slate-300 whitespace-nowrap">{u.quote_number}{u.isSub && <span className="ml-1.5 text-[9px] text-slate-600">sub-item</span>}</td>
-                            <td className="py-1.5 pr-4 text-slate-500 whitespace-nowrap">{u.quote_date || '—'}</td>
-                            <td className="py-1.5 pr-4"><span className={`px-1.5 py-0.5 rounded-full text-[9px] font-semibold uppercase ${STATUS_STYLES[u.status] ?? STATUS_STYLES.draft}`}>{u.status}</span></td>
-                            <td className="py-1.5 pr-4 text-slate-400">{u.section_title}</td>
-                            <td className={`py-1.5 pr-4 ${u.raw !== e.display ? 'text-red-300' : 'text-slate-500'}`}>{u.raw !== e.display ? u.raw : '〃'}</td>
-                            <td className="py-1.5 pr-4 text-right tabular-nums text-slate-300">{u.cost != null && u.cost > 0 ? fmtRp(u.cost) : '—'}</td>
-                            <td className="py-1.5 text-right tabular-nums text-slate-400">{u.sell != null && u.sell > 0 ? fmtRp(u.sell) : '—'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>
@@ -484,7 +686,7 @@ export default function DescriptionLibraryPage() {
           <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-lg w-full">
             <h3 className="font-semibold text-white mb-1">Rename everywhere</h3>
             <p className="text-slate-500 text-xs mb-4">
-              Updates all {rename.entry.usages.length} item{rename.entry.usages.length > 1 ? 's' : ''} carrying this text
+              Updates all {rename.entry.usages.length} item{rename.entry.usages.length === 1 ? '' : 's'} carrying this text
               {rename.entry.variants.length > 1 ? ` (including ${rename.entry.variants.length} spelling variants)` : ''}, across every quote — including SENT ones.
               Cost history follows the new spelling.
             </p>
@@ -528,7 +730,7 @@ export default function DescriptionLibraryPage() {
                       onChange={() => setMerge({ ...merge, canonical: k })} className="mt-0.5 accent-violet-600" />
                     <span className="min-w-0">
                       <span className="block text-sm text-slate-200">{e.display}</span>
-                      <span className="block text-[10px] text-slate-500">×{e.usages.length} · {e.sections.join(', ') || 'no section'}{e.latestCost != null ? ` · latest ${fmtRp(e.latestCost)}` : ''}</span>
+                      <span className="block text-[10px] text-slate-500">×{e.usages.length} · {e.anchorSection || 'no section'}{e.latestCost != null && e.latestCost > 0 ? ` · latest ${fmtRp(e.latestCost)}` : ''}</span>
                     </span>
                   </label>
                 );
@@ -541,6 +743,106 @@ export default function DescriptionLibraryPage() {
               <button onClick={applyMerge} disabled={busy}
                 className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-sm font-semibold transition-colors disabled:opacity-50">
                 {busy ? 'Merging…' : 'Merge'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete modal */}
+      {del && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-lg w-full">
+            <h3 className="font-semibold text-white mb-1">Delete {del.keys.length} entr{del.keys.length > 1 ? 'ies' : 'y'}?</h3>
+            <p className="text-slate-500 text-xs mb-4">
+              {delLibCount > 0 && <>Removes {delLibCount} curated library entr{delLibCount > 1 ? 'ies' : 'y'} from the autocomplete.<br /></>}
+              {delItemCount > 0 && <>The selected descriptions are used by <span className="text-slate-300 font-semibold">{delItemCount} quote item{delItemCount > 1 ? 's' : ''}</span>{delSentCount > 0 && <span className="text-red-300"> ({delSentCount} inside SENT quotes)</span>}.</>}
+              {delItemCount === 0 && delLibCount === 0 && <>Nothing to delete — these entries only exist as quote items and the checkbox below is off.</>}
+            </p>
+            {delItemCount > 0 && (
+              <label className="flex items-start gap-3 mb-4 cursor-pointer bg-red-500/5 border border-red-500/20 rounded-xl p-3">
+                <input type="checkbox" checked={del.deleteQuoteItems}
+                  onChange={(e) => setDel({ ...del, deleteQuoteItems: e.target.checked })}
+                  className="mt-0.5 accent-red-600" />
+                <span>
+                  <span className="block text-sm text-red-300 font-medium">Also delete the {delItemCount} quote item{delItemCount > 1 ? 's' : ''} from their quotes</span>
+                  <span className="block text-[11px] text-slate-500">Permanently removes the rows (and their sub-items) from the quotes listed — cannot be undone. Leave off to only clean the library.</span>
+                </span>
+              </label>
+            )}
+            {error && <p className="text-[11px] text-red-400 mb-3">{error}</p>}
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setDel(null)} disabled={busy}
+                className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors disabled:opacity-50">Cancel</button>
+              <button onClick={applyDelete} disabled={busy || (delLibCount === 0 && !(del.deleteQuoteItems && delItemCount > 0))}
+                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm font-semibold transition-colors disabled:opacity-50">
+                {busy ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New-entry modal */}
+      {draft && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-lg w-full">
+            <h3 className="font-semibold text-white mb-1">New library entry</h3>
+            <p className="text-slate-500 text-xs mb-4">
+              Prepopulates the editor autocomplete with a house-style description before any quote uses it.
+            </p>
+            <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Description</label>
+            <input value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+              placeholder="e.g. KMI Kabel NYY 1 x 95 mm²"
+              className="w-full px-3 py-2.5 bg-slate-800/80 border border-slate-700 rounded-lg text-white text-sm placeholder-slate-600 focus:outline-none focus:border-violet-500 mb-3" autoFocus />
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div>
+                <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Brand</label>
+                <input value={draft.brand} onChange={(e) => setDraft({ ...draft, brand: e.target.value })}
+                  className="w-full px-3 py-2.5 bg-slate-800/80 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-violet-500" />
+              </div>
+              <div>
+                <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Unit</label>
+                <input value={draft.unit} onChange={(e) => setDraft({ ...draft, unit: e.target.value })}
+                  className="w-full px-3 py-2.5 bg-slate-800/80 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-violet-500" />
+              </div>
+            </div>
+            <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Group</label>
+            <div className="flex gap-2 mb-3">
+              {SECTION_GROUPS.map((g) => (
+                <button key={g.key} onClick={() => setDraft({ ...draft, group_key: g.key, section_title: '' })}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${draft.group_key === g.key
+                    ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                    : 'border-slate-700 text-slate-400 hover:text-white'}`}>
+                  {g.label}
+                </button>
+              ))}
+            </div>
+            <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Sub-section</label>
+            <input value={draft.section_title} onChange={(e) => setDraft({ ...draft, section_title: e.target.value })}
+              placeholder="Pick below or type your own"
+              className="w-full px-3 py-2.5 bg-slate-800/80 border border-slate-700 rounded-lg text-white text-sm placeholder-slate-600 focus:outline-none focus:border-violet-500 mb-1.5" />
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {STANDARD_SECTIONS[draft.group_key].map((t) => (
+                <button key={t} onClick={() => setDraft({ ...draft, section_title: t })}
+                  className={`px-2 py-1 rounded-lg text-[10px] border transition-all ${draft.section_title === t
+                    ? 'bg-violet-500/20 border-violet-500/40 text-violet-300'
+                    : 'border-slate-700/60 text-slate-500 hover:text-slate-300'}`}>
+                  {t}
+                </button>
+              ))}
+            </div>
+            <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Default cost (IDR, optional)</label>
+            <input value={draft.cost} onChange={(e) => setDraft({ ...draft, cost: e.target.value })} type="number"
+              placeholder="Suggested cost when picked in the editor"
+              className="w-full px-3 py-2.5 bg-slate-800/80 border border-slate-700 rounded-lg text-white text-sm placeholder-slate-600 focus:outline-none focus:border-violet-500" />
+            {error && <p className="text-[11px] text-red-400 mt-3">{error}</p>}
+            <div className="flex gap-3 justify-end mt-5">
+              <button onClick={() => setDraft(null)} disabled={busy}
+                className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors disabled:opacity-50">Cancel</button>
+              <button onClick={applyCreate} disabled={busy}
+                className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors disabled:opacity-50">
+                {busy ? 'Adding…' : 'Add entry'}
               </button>
             </div>
           </div>
