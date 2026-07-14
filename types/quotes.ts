@@ -38,6 +38,10 @@ export const SECTION_GROUPS: { key: SectionGroup; label: string }[] = [
   { key: 'services',     label: 'Services' },
 ];
 
+// Canonical unit choices shared by the quote editor and the Description
+// Library (free text stays allowed everywhere)
+export const QUOTE_UNITS = ['pcs', 'set', 'meter', 'Wp', 'kWh', 'ls', 'modules', 'eng days', 'man days', 'Month', 'kg', 'roll'] as const;
+
 // House-style sub-section titles per group: every new quote is seeded with
 // these, and the section-title autocomplete suggests them. Free text is
 // still allowed for the odd case, but staying on the list keeps quotes

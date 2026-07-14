@@ -13,7 +13,7 @@ import { quoteFileName } from '@/lib/quoteFilename';
 import { lineWp, wpPerModule } from '@/lib/quoteWp';
 import MigrationBanner from '@/components/ui/MigrationBanner';
 import { PROJECT_TYPES, composeDescription, specFileTag, type ProjectType, type SystemSpecs } from '@/lib/projectSpec';
-import { SECTION_GROUPS, STANDARD_SECTIONS, type SectionGroup, type ProjectQuote, type QuoteSection, type QuoteItem } from '@/types/quotes';
+import { SECTION_GROUPS, STANDARD_SECTIONS, QUOTE_UNITS, type SectionGroup, type ProjectQuote, type QuoteSection, type QuoteItem } from '@/types/quotes';
 import type { Component } from '@/types/database';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -105,7 +105,7 @@ const SOURCE_BADGE: Record<string, string> = {
   quote: 'bg-sky-500/20 text-sky-300',
   used: 'bg-amber-500/20 text-amber-300',
 };
-const UNITS = ['pcs', 'set', 'meter', 'Wp', 'kWh', 'ls', 'modules', 'eng days', 'man days', 'Month', 'kg', 'roll'];
+const UNITS = QUOTE_UNITS;
 const STATUS_OPTS = ['draft', 'sent', 'accepted', 'rejected'] as const;
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-slate-700/60 text-slate-300',

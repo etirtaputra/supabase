@@ -15,7 +15,7 @@ import Link from 'next/link';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useQuotesGate } from '@/hooks/useQuotesGate';
 import { fmtRp } from '@/lib/formatters';
-import { SECTION_GROUPS, STANDARD_SECTIONS, type SectionGroup } from '@/types/quotes';
+import { SECTION_GROUPS, STANDARD_SECTIONS, QUOTE_UNITS, type SectionGroup } from '@/types/quotes';
 
 const STATUS_STYLES: Record<string, string> = {
   draft:    'bg-slate-700/60 text-slate-300',
@@ -272,7 +272,7 @@ export default function DescriptionLibraryPage() {
   }
 
   // ── Rename everywhere ────────────────────────────────────────────────────────
-  const [rename, setRename] = useState<{ entry: Entry; text: string; brand: string } | null>(null);
+  const [rename, setRename] = useState<{ entry: Entry; text: string; brand: string; unit: string } | null>(null);
 
   async function applyRename() {
     if (!rename) return;
@@ -281,10 +281,18 @@ export default function DescriptionLibraryPage() {
     setBusy(true); setError('');
     const patch: Record<string, string> = { description: newDesc };
     if (rename.brand.trim()) patch.brand = rename.brand.trim();
+    if (rename.unit.trim()) patch.unit = rename.unit.trim();
     for (const v of rename.entry.variants) {
       const { error: e } = await supabase.from('10.2_quote_items').update(patch).ilike('description', escLike(v));
       if (e) { setBusy(false); setError(e.message); return; }
       await renameLibRows(v, newDesc);
+    }
+    // Curated row (if any) adopts the same brand/unit normalization
+    if (rename.entry.curated && (patch.brand || patch.unit)) {
+      const libPatch: Record<string, string> = {};
+      if (patch.brand) libPatch.brand = patch.brand;
+      if (patch.unit) libPatch.unit = patch.unit;
+      await supabase.from(LIB_TABLE).update(libPatch).eq('entry_id', rename.entry.curated.entry_id);
     }
     setBusy(false);
     setFlash(`Renamed ${rename.entry.usages.length || 'the library'} item${rename.entry.usages.length > 1 ? 's' : ''} to “${newDesc}”`);
@@ -495,6 +503,15 @@ export default function DescriptionLibraryPage() {
             )}
             {e.usages[0]?.brand && <span className="truncate text-slate-600">{e.usages[0].brand}</span>}
             {e.curated && !e.usages.length && e.curated.brand && <span className="truncate text-slate-600">{e.curated.brand}</span>}
+            {(e.usages[0]?.unit || e.curated?.unit) && (
+              <span className="flex-shrink-0 px-1.5 py-0.5 rounded bg-white/[0.04] text-slate-500 text-[10px]"
+                title={[...new Set(e.usages.map((u) => u.unit).filter(Boolean))].length > 1
+                  ? `Mixed units: ${[...new Set(e.usages.map((u) => u.unit).filter(Boolean))].join(', ')} — use Rename to normalize`
+                  : 'Unit'}>
+                {e.usages[0]?.unit || e.curated?.unit}
+                {[...new Set(e.usages.map((u) => u.unit).filter(Boolean))].length > 1 && <span className="text-amber-400 ml-1">⚠ mixed</span>}
+              </span>
+            )}
           </div>
         </button>
         <div className="text-right flex-shrink-0 tabular-nums">
@@ -510,7 +527,7 @@ export default function DescriptionLibraryPage() {
           ) : <p className="text-[10px] text-slate-600">no cost</p>}
         </div>
         <button
-          onClick={() => { setError(''); setRename({ entry: e, text: e.display, brand: '' }); }}
+          onClick={() => { setError(''); setRename({ entry: e, text: e.display, brand: '', unit: '' }); }}
           className="p-2 rounded-lg hover:bg-white/10 text-slate-500 hover:text-white transition-colors flex-shrink-0"
           title="Rename everywhere — updates every quote item carrying this description"
         >
@@ -532,6 +549,7 @@ export default function DescriptionLibraryPage() {
                   <th className="py-1 pr-4">Date</th>
                   <th className="py-1 pr-4">Status</th>
                   <th className="py-1 pr-4">Section</th>
+                  <th className="py-1 pr-4">Unit</th>
                   <th className="py-1 pr-4">As entered</th>
                   <th className="py-1 pr-4 text-right">Cost</th>
                   <th className="py-1 text-right">Sell</th>
@@ -544,6 +562,7 @@ export default function DescriptionLibraryPage() {
                     <td className="py-1.5 pr-4 text-slate-500 whitespace-nowrap">{u.quote_date || '—'}</td>
                     <td className="py-1.5 pr-4"><span className={`px-1.5 py-0.5 rounded-full text-[9px] font-semibold uppercase ${STATUS_STYLES[u.status] ?? STATUS_STYLES.draft}`}>{u.status}</span></td>
                     <td className="py-1.5 pr-4 text-slate-400">{u.section_title}</td>
+                    <td className="py-1.5 pr-4 text-slate-500">{u.unit || '—'}</td>
                     <td className={`py-1.5 pr-4 ${u.raw !== e.display ? 'text-red-300' : 'text-slate-500'}`}>{u.raw !== e.display ? u.raw : '〃'}</td>
                     <td className="py-1.5 pr-4 text-right tabular-nums text-slate-300">{u.cost != null && u.cost > 0 ? fmtRp(u.cost) : '—'}</td>
                     <td className="py-1.5 text-right tabular-nums text-slate-400">{u.sell != null && u.sell > 0 ? fmtRp(u.sell) : '—'}</td>
@@ -697,7 +716,21 @@ export default function DescriptionLibraryPage() {
             <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Brand (optional — blank keeps each row&apos;s brand)</label>
             <input value={rename.brand} onChange={(e) => setRename({ ...rename, brand: e.target.value })}
               placeholder="Leave blank to keep existing brands"
-              className="w-full px-3 py-2.5 bg-slate-800/80 border border-slate-700 rounded-lg text-white text-sm placeholder-slate-600 focus:outline-none focus:border-violet-500" />
+              className="w-full px-3 py-2.5 bg-slate-800/80 border border-slate-700 rounded-lg text-white text-sm placeholder-slate-600 focus:outline-none focus:border-violet-500 mb-3" />
+            <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Unit (optional — blank keeps each row&apos;s unit)</label>
+            <input value={rename.unit} onChange={(e) => setRename({ ...rename, unit: e.target.value })}
+              placeholder={`Currently: ${[...new Set(rename.entry.usages.map((u) => u.unit).filter(Boolean))].join(', ') || rename.entry.curated?.unit || '—'}`}
+              className="w-full px-3 py-2.5 bg-slate-800/80 border border-slate-700 rounded-lg text-white text-sm placeholder-slate-600 focus:outline-none focus:border-violet-500 mb-1.5" />
+            <div className="flex flex-wrap gap-1.5">
+              {QUOTE_UNITS.map((u) => (
+                <button key={u} onClick={() => setRename({ ...rename, unit: u })}
+                  className={`px-2 py-1 rounded-lg text-[10px] border transition-all ${rename.unit === u
+                    ? 'bg-violet-500/20 border-violet-500/40 text-violet-300'
+                    : 'border-slate-700/60 text-slate-500 hover:text-slate-300'}`}>
+                  {u}
+                </button>
+              ))}
+            </div>
             {error && <p className="text-[11px] text-red-400 mt-3">{error}</p>}
             <div className="flex gap-3 justify-end mt-5">
               <button onClick={() => setRename(null)} disabled={busy}
@@ -806,6 +839,16 @@ export default function DescriptionLibraryPage() {
                 <input value={draft.unit} onChange={(e) => setDraft({ ...draft, unit: e.target.value })}
                   className="w-full px-3 py-2.5 bg-slate-800/80 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-violet-500" />
               </div>
+            </div>
+            <div className="flex flex-wrap gap-1.5 mb-3 -mt-1">
+              {QUOTE_UNITS.map((u) => (
+                <button key={u} onClick={() => setDraft({ ...draft, unit: u })}
+                  className={`px-2 py-1 rounded-lg text-[10px] border transition-all ${draft.unit === u
+                    ? 'bg-violet-500/20 border-violet-500/40 text-violet-300'
+                    : 'border-slate-700/60 text-slate-500 hover:text-slate-300'}`}>
+                  {u}
+                </button>
+              ))}
             </div>
             <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Group</label>
             <div className="flex gap-2 mb-3">
