@@ -316,6 +316,15 @@ export default function QuotesListPage() {
             <p className="text-slate-500 text-[11px] mt-0.5">Project Quotes</p>
           </div>
           <div className="flex items-center gap-4">
+            {gate.profile?.role === 'owner' && (
+              <Link
+                href="/quotes/library"
+                className="px-3 py-1.5 rounded-xl border border-white/[0.08] text-slate-400 hover:text-white hover:bg-white/10 text-xs font-semibold transition-all"
+                title="Description Library — review, dedupe and rename quote item texts (Owners only)"
+              >
+                Library
+              </Link>
+            )}
             {gate.profile?.role === 'owner' && <AppSwitcher />}
             {gate.profile && (
               <div className="text-right hidden sm:block">
