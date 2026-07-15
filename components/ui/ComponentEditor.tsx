@@ -384,14 +384,20 @@ function QuoteCombobox({ quotes, value, onChange }: QuoteComboboxProps) {
 // --- Usage Tooltip (portal-based to escape table overflow) ---
 interface TooltipQuoteLine { pi_number?: string; quote_date?: string; quantity: number; unit_price: number; currency: string; }
 interface TooltipPOLine { po_number: string; po_date?: string; quantity: number; unit_cost: number; currency: string; }
-interface UsageTooltipProps { quoteLines: TooltipQuoteLine[]; poLines: TooltipPOLine[]; style: React.CSSProperties; }
-function UsageTooltip({ quoteLines, poLines, style }: UsageTooltipProps) {
+interface UsageTooltipProps {
+  quoteLines: TooltipQuoteLine[]; poLines: TooltipPOLine[]; style: React.CSSProperties;
+  onMouseEnter?: () => void; onMouseLeave?: () => void;
+}
+// Deal Lookup deep link (matches the Spotlight / dashboard convention)
+const dealLookupHref = (n: string) => `/catalog?tab=lookup&q=${encodeURIComponent(n)}`;
+function UsageTooltip({ quoteLines, poLines, style, onMouseEnter, onMouseLeave }: UsageTooltipProps) {
   const fmtPrice = (n: number, cur: string) =>
     `${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${cur}`;
   const fmtD = (d?: string) =>
     d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '—';
   const content = (
-    <div style={style} className="bg-slate-950 border border-slate-700/80 rounded-xl shadow-2xl shadow-black/70 p-3.5 w-[380px] text-xs pointer-events-none z-[9999]">
+    <div style={style} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}
+      className="bg-slate-950 border border-slate-700/80 rounded-xl shadow-2xl shadow-black/70 p-3.5 w-[380px] text-xs z-[9999]">
       {/* Quote lines */}
       <div className="mb-3">
         <p className="text-[10px] font-bold uppercase tracking-wider text-blue-400 mb-2 flex items-center gap-1.5">
@@ -407,7 +413,9 @@ function UsageTooltip({ quoteLines, poLines, style }: UsageTooltipProps) {
             </div>
             {quoteLines.map((ql, i) => (
               <div key={i} className="grid grid-cols-[1fr_72px_44px_90px] gap-x-2 py-1 border-b border-slate-800/40 last:border-0">
-                <span className="font-mono text-blue-300 truncate">{ql.pi_number || '—'}</span>
+                {ql.pi_number
+                  ? <a href={dealLookupHref(ql.pi_number)} title="Open in Deal Lookup" className="font-mono text-blue-300 truncate hover:text-blue-200 hover:underline">{ql.pi_number}</a>
+                  : <span className="font-mono text-slate-600 truncate">—</span>}
                 <span className="text-slate-400">{fmtD(ql.quote_date)}</span>
                 <span className="text-right text-slate-300">{ql.quantity}</span>
                 <span className="text-right text-emerald-300 font-semibold tabular-nums">{fmtPrice(ql.unit_price, ql.currency)}</span>
@@ -431,7 +439,9 @@ function UsageTooltip({ quoteLines, poLines, style }: UsageTooltipProps) {
             </div>
             {poLines.map((pl, i) => (
               <div key={i} className="grid grid-cols-[1fr_72px_44px_90px] gap-x-2 py-1 border-b border-slate-800/40 last:border-0">
-                <span className="font-mono text-emerald-300 truncate">{pl.po_number}</span>
+                {pl.po_number
+                  ? <a href={dealLookupHref(pl.po_number)} title="Open in Deal Lookup" className="font-mono text-emerald-300 truncate hover:text-emerald-200 hover:underline">{pl.po_number}</a>
+                  : <span className="font-mono text-slate-600 truncate">—</span>}
                 <span className="text-slate-400">{fmtD(pl.po_date)}</span>
                 <span className="text-right text-slate-300">{pl.quantity}</span>
                 <span className="text-right text-amber-300 font-semibold tabular-nums">{fmtPrice(pl.unit_cost, pl.currency)}</span>
@@ -697,6 +707,11 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [hoverPreviewId, setHoverPreviewId] = useState<string | null>(null);
   const [hoverRect, setHoverRect] = useState<DOMRect | null>(null);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Grace period so the mouse can travel from the Last Price cell onto the
+  // (now interactive) usage popup without it closing mid-move.
+  const usageCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelUsageClose = () => { if (usageCloseTimer.current) { clearTimeout(usageCloseTimer.current); usageCloseTimer.current = null; } };
+  const scheduleUsageClose = () => { cancelUsageClose(); usageCloseTimer.current = setTimeout(() => setHoveredTooltip(null), 180); };
   // ── Copy-row flash ────────────────────────────────────────────────────────
   const [copiedRowId, setCopiedRowId] = useState<string | null>(null);
   // ── Optimistic overrides: bridge the gap between save and refetch ─────────
@@ -2657,6 +2672,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                     {visibleCols.lastPrice && (
                       <td className="px-3 py-1.5 align-middle min-w-[100px] cursor-default"
                         onMouseEnter={!isEditing ? (e) => {
+                          cancelUsageClose();
                           const rect = e.currentTarget.getBoundingClientRect();
                           const tooltipW = 388; const tooltipH = 260;
                           const spaceBelow = window.innerHeight - rect.bottom;
@@ -2664,7 +2680,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           const left = Math.min(rect.left, window.innerWidth - tooltipW - 8);
                           setHoveredTooltip({ id: c.component_id, kind: 'usage', style: { position: 'fixed', top: Math.max(8, top), left: Math.max(8, left), zIndex: 9999 } });
                         } : undefined}
-                        onMouseLeave={!isEditing ? () => setHoveredTooltip(null) : undefined}
+                        onMouseLeave={!isEditing ? scheduleUsageClose : undefined}
                       >
                         {(() => {
                           const tuc = tucByComponent.get(c.component_id);
@@ -3237,6 +3253,8 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
           quoteLines={quoteLinesByComponent.get(hoveredTooltip.id) ?? []}
           poLines={poLinesByComponent.get(hoveredTooltip.id) ?? []}
           style={hoveredTooltip.style}
+          onMouseEnter={cancelUsageClose}
+          onMouseLeave={scheduleUsageClose}
         />
       )}
       {hoveredTooltip && hoveredTooltip.kind === 'sellPrice' && (

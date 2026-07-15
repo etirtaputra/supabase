@@ -73,10 +73,12 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
   }, [pos, quotes, suppliers]);
 
   // ── PO list (filtered) ────────────────────────────────────────────────
+  // Shows every PO by default (newest first); the search box narrows it. The
+  // list is scrollable, so nothing is hidden behind a cap.
   const filteredPos = useMemo(() => {
     const q = poSearch.toLowerCase().trim();
     const sorted = [...pos].sort((a, b) => b.po_date.localeCompare(a.po_date));
-    if (!q) return sorted.slice(0, 40);
+    if (!q) return sorted;
     return sorted.filter((p) => {
       const code = poSupplierCode[String(p.po_id)]?.toLowerCase() ?? '';
       return (
@@ -84,7 +86,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
         p.pi_number?.toLowerCase().includes(q) ||
         code.includes(q)
       );
-    }).slice(0, 40);
+    });
   }, [pos, poSearch, poSupplierCode]);
 
   const selectedPos = useMemo(
@@ -241,7 +243,10 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
       {/* ── LEFT COLUMN: Step 1 Select POs ── */}
       <div className="mb-5 xl:mb-0">
         <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-5 xl:p-6">
-          <h4 className="text-sm font-bold text-white mb-3">1 · Select POs</h4>
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-bold text-white">1 · Select POs</h4>
+            <span className="text-[11px] text-slate-500 tabular-nums">{filteredPos.length}{poSearch.trim() ? ' matches' : ' POs'}</span>
+          </div>
           <input
             type="text" value={poSearch} onChange={(e) => setPoSearch(e.target.value)}
             placeholder="Filter by PO number, PI / reference, or supplier code…"
