@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 
 export const dynamic = 'force-dynamic';
 
@@ -8,6 +8,15 @@ export const metadata: Metadata = {
     default: 'ICAPROC',
   },
   description: "ICAPROC Supply Chain Management",
+};
+
+// Without this, mobile browsers assume a desktop-width canvas and zoom the
+// whole app out. device-width lets the responsive Tailwind breakpoints work;
+// user scaling stays enabled for accessibility.
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: '#0f1012',
 };
 
 /**

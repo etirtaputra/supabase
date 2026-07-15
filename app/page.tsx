@@ -198,8 +198,10 @@ export default function Home() {
         <div className="relative flex flex-col items-center pt-4 pb-2">
           <div className="pointer-events-none absolute -top-6 left-1/2 -translate-x-1/2 w-[520px] max-w-full h-40 bg-emerald-500/10 blur-3xl rounded-full" />
           <CommandPalette variant="inline" />
-          <p className="mt-3 text-[11px] text-slate-600">
-            Press <span className="text-slate-400 font-medium">{modKey} + I</span> anywhere for Spotlight — jump to any vendor, deal, or item
+          <p className="mt-3 text-[11px] text-slate-600 text-center px-4">
+            <span className="hidden sm:inline">Press <span className="text-slate-400 font-medium">{modKey} + I</span> anywhere for Spotlight — </span>
+            <span className="sm:hidden">Tap to search — </span>
+            jump to any vendor, deal, or item
           </p>
         </div>
 

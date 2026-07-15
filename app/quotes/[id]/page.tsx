@@ -12,6 +12,7 @@ import { DEFAULT_EXPORT_COLS, EXPORT_COL_KEYS, EXPORT_COL_LABELS, loadExportCols
 import { quoteFileName } from '@/lib/quoteFilename';
 import { lineWp, wpPerModule } from '@/lib/quoteWp';
 import MigrationBanner from '@/components/ui/MigrationBanner';
+import MobileNotice from '@/components/ui/MobileNotice';
 import { PROJECT_TYPES, composeDescription, specFileTag, type ProjectType, type SystemSpecs } from '@/lib/projectSpec';
 import { SECTION_GROUPS, STANDARD_SECTIONS, QUOTE_UNITS, type SectionGroup, type ProjectQuote, type QuoteSection, type QuoteItem } from '@/types/quotes';
 import type { Component } from '@/types/database';
@@ -1204,7 +1205,7 @@ export default function QuoteEditorPage() {
 
       {/* ── Sticky header ── */}
       <div className="sticky top-0 z-40 bg-[#141518]/95 backdrop-blur-xl border-b border-white/[0.07]">
-        <div className="max-w-[1400px] mx-auto px-6 py-3 flex items-center justify-between gap-4">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <Link
               href="/quotes"
@@ -1218,7 +1219,8 @@ export default function QuoteEditorPage() {
               <p className="font-semibold text-white truncate text-base leading-tight">{quote.quote_number}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Scrolls horizontally on phones so the toolbar never runs off-screen */}
+          <div className="flex items-center gap-2 min-w-0 overflow-x-auto scrollbar-none [&>*]:flex-shrink-0">
             {/* Status selector */}
             <select
               value={quote.status}
@@ -1292,8 +1294,9 @@ export default function QuoteEditorPage() {
         </div>
       </div>
 
-      <main className="max-w-[1400px] mx-auto px-6 py-6 pb-24 space-y-6">
+      <main className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6 pb-24 space-y-6">
 
+        <MobileNotice variant="edit" />
         <MigrationBanner />
 
         {locked && (

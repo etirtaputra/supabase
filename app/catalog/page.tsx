@@ -13,6 +13,7 @@ import BatchLineItemsForm from '@/components/forms/BatchLineItemsForm';
 import ComponentEditor from '@/components/ui/ComponentEditor';
 import AppSwitcher from '@/components/ui/AppSwitcher';
 import CommandPalette from '@/components/ui/CommandPalette';
+import MobileNotice from '@/components/ui/MobileNotice';
 import CompetitorPriceForm from '@/components/forms/CompetitorPriceForm';
 import MultiPaymentForm from '@/components/forms/MultiPaymentForm';
 import DealLookupTab from '@/components/ui/DealLookupTab';
@@ -528,6 +529,7 @@ function MasterInsertPage() {
         activeTab === 'catalog' ? 'p-3 md:p-4 xl:p-5' : 'p-4 md:p-6 xl:p-8 2xl:p-10'
       }`}>
         <div className="pb-8 md:pb-4">
+          <MobileNotice variant="edit" />
           {dataLoading ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 xl:gap-8 2xl:gap-10">
               <FormSkeleton />

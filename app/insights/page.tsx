@@ -11,6 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import ProductCostLookup from '@/components/ui/ProductCostLookup';
 import AppSwitcher from '@/components/ui/AppSwitcher';
 import CommandPalette from '@/components/ui/CommandPalette';
+import MobileNotice from '@/components/ui/MobileNotice';
 import POCashCycle from '@/components/ui/POCashCycle';
 import PricingIntelligence from '@/components/ui/PricingIntelligence';
 import ExchangeRateTrends from '@/components/ui/ExchangeRateTrends';
@@ -208,6 +209,7 @@ export default function DatabaseViewPage() {
 
         {/* ── Tab content ── */}
         <main className="p-4 md:p-8 xl:p-10 2xl:p-12 max-w-[1800px] mx-auto animate-in fade-in duration-300">
+          <MobileNotice variant="view" />
 
           {/* Spend Overview */}
           <div className={activeTab !== 'spend' ? 'hidden' : ''}>

@@ -13,6 +13,7 @@ import { fmtRp } from '@/lib/formatters';
 import MigrationBanner from '@/components/ui/MigrationBanner';
 import AppSwitcher from '@/components/ui/AppSwitcher';
 import CommandPalette from '@/components/ui/CommandPalette';
+import MobileNotice from '@/components/ui/MobileNotice';
 import { PROJECT_TYPES } from '@/lib/projectSpec';
 import { SECTION_GROUPS, STANDARD_SECTIONS, type ProjectQuote } from '@/types/quotes';
 
@@ -311,12 +312,12 @@ export default function QuotesListPage() {
       <CommandPalette enabled={gate.profile?.role === 'owner'} />
       {/* Header */}
       <div className="sticky top-0 z-40 bg-[#141518]/90 backdrop-blur-xl border-b border-white/[0.07]">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
-          <div>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
+          <div className="min-w-0">
             <Link href="/" className="text-xl font-bold text-white tracking-tight hover:text-emerald-300 transition-colors">ICAPROC</Link>
             <p className="text-slate-500 text-[11px] mt-0.5">Project Quotes</p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
             {gate.profile?.role === 'owner' && (
               <Link
                 href="/quotes/library"
@@ -356,7 +357,8 @@ export default function QuotesListPage() {
         </div>
       </div>
 
-      <main className="max-w-6xl mx-auto px-6 py-8 space-y-6">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+        <MobileNotice variant="edit" />
         <MigrationBanner />
         {createError && (
           <div className="bg-red-500/10 border border-red-500/40 rounded-2xl px-4 py-3 text-sm text-red-300">
