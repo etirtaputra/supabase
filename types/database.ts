@@ -74,6 +74,7 @@ export interface Component extends BaseEntity {
   selling_price_idr?: number | null;
   datasheet_url?: string | null;
   norm_value?: number | null; // Normalized capacity in category's canonical unit (Wp, W, Ah, m, etc.)
+  unit?: string | null;       // Default selling unit (pcs, set, meter, Wp…) — referenced by Quotes
 }
 
 // 4.0 Price Quotes

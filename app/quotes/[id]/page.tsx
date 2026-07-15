@@ -13,7 +13,7 @@ import { quoteFileName } from '@/lib/quoteFilename';
 import { lineWp, wpPerModule } from '@/lib/quoteWp';
 import MigrationBanner from '@/components/ui/MigrationBanner';
 import MobileNotice from '@/components/ui/MobileNotice';
-import { PROJECT_TYPES, composeDescription, specFileTag, type ProjectType, type SystemSpecs } from '@/lib/projectSpec';
+import { PROJECT_TYPES, composeDescription, specFileTag, isSolarType, type ProjectType, type SystemSpecs, type Phase } from '@/lib/projectSpec';
 import { SECTION_GROUPS, STANDARD_SECTIONS, QUOTE_UNITS, type SectionGroup, type ProjectQuote, type QuoteSection, type QuoteItem } from '@/types/quotes';
 import type { Component } from '@/types/database';
 
@@ -955,7 +955,8 @@ export default function QuoteEditorPage() {
       component_id: comp.component_id,
       description: comp.supplier_model ?? '',
       brand: comp.brand ?? '',
-      unit: comp.category === 'pv_module' ? 'modules' : 'pcs',
+      // Prefer the component's own catalog unit; fall back to the old default
+      unit: (comp.unit?.trim()) || (comp.category === 'pv_module' ? 'modules' : 'pcs'),
       cost_price: costStr,
     };
     // Auto-price from the group's default margin when no sell price is set yet
@@ -1392,7 +1393,7 @@ export default function QuoteEditorPage() {
             <input value={quote.location ?? ''} onChange={(e) => updateProject({ location: e.target.value })}
               placeholder="e.g. RIVERSIDE PV FARM, Kota Tangerang" className="w-full bg-transparent border-b border-slate-700 focus:border-violet-500 outline-none text-white py-1 text-sm placeholder:text-slate-600 transition-colors" />
           </div>
-          {((quote.project_type as ProjectType) ?? 'custom') !== 'custom' && (
+          {isSolarType(quote.project_type) && (
             <div className="md:col-span-2 flex flex-wrap gap-6">
               <SpecInput label="PV Modules" unit="kWp DC" value={quote.system_specs?.kwp_dc}
                 onChange={(v) => updateProject({ specs: { kwp_dc: v } })} />
@@ -1406,6 +1407,24 @@ export default function QuoteEditorPage() {
                 <SpecInput label="BESS" unit="kWh" value={quote.system_specs?.kwh_bess}
                   onChange={(v) => updateProject({ specs: { kwh_bess: v } })} />
               )}
+            </div>
+          )}
+          {(quote.project_type as ProjectType) === 'evcs' && (
+            <div className="md:col-span-2 flex flex-wrap gap-6">
+              <SpecInput label="EV Charger" unit="kW" value={quote.system_specs?.kw_evcs}
+                onChange={(v) => updateProject({ specs: { kw_evcs: v } })} />
+              <div className="w-40">
+                <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Phase</label>
+                <select
+                  value={quote.system_specs?.phase ?? ''}
+                  onChange={(e) => updateProject({ specs: { phase: (e.target.value || null) as Phase | null } })}
+                  className="w-full bg-transparent border-b border-slate-700 focus:border-violet-500 outline-none text-white py-1 text-sm transition-colors"
+                >
+                  <option value="" className="bg-slate-900">— select —</option>
+                  <option value="single" className="bg-slate-900">Single-Phase</option>
+                  <option value="triple" className="bg-slate-900">Three-Phase</option>
+                </select>
+              </div>
             </div>
           )}
           <div className="md:col-span-2">

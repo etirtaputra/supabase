@@ -518,9 +518,13 @@ function PriceDelta({ lines }: { lines: TooltipQuoteLine[] }) {
 }
 
 // ── Column visibility ─────────────────────────────────────────────────────
-type ColKey = 'model' | 'description' | 'brand' | 'category' | 'normValue' | 'lastPrice' | 'usage' | 'updated' | 'sellPrice';
-const COL_LABELS: Record<ColKey, string> = { model: 'Model/SKU', description: 'Description', brand: 'Brand', category: 'Category', normValue: 'Capacity', lastPrice: 'Last Price', usage: 'Usage', updated: 'Updated', sellPrice: 'Sell Price' };
-const DEFAULT_COLS: Record<ColKey, boolean> = { model: true, description: true, brand: true, category: true, normValue: false, lastPrice: true, usage: true, updated: true, sellPrice: false };
+type ColKey = 'model' | 'description' | 'brand' | 'category' | 'unit' | 'normValue' | 'lastPrice' | 'usage' | 'updated' | 'sellPrice';
+const COL_LABELS: Record<ColKey, string> = { model: 'Model/SKU', description: 'Description', brand: 'Brand', category: 'Category', unit: 'Unit', normValue: 'Capacity', lastPrice: 'Last Price', usage: 'Usage', updated: 'Updated', sellPrice: 'Sell Price' };
+const DEFAULT_COLS: Record<ColKey, boolean> = { model: true, description: true, brand: true, category: true, unit: true, normValue: false, lastPrice: true, usage: true, updated: true, sellPrice: false };
+
+// Default selling units offered for components — the same list the quote
+// editor uses, so a component's unit flows straight into quotes.
+const COMPONENT_UNITS = ['pcs', 'set', 'meter', 'Wp', 'kWh', 'ls', 'modules', 'unit', 'roll', 'kg', 'Month'];
 
 // ── CSV import ─────────────────────────────────────────────────────────────
 type ImportStep = 'upload' | 'map' | 'preview';
@@ -579,7 +583,7 @@ const LINK_TYPE_META: Record<string, { label: string; color: string }> = {
 const NORM_UNITS = ['Wp', 'kWh', 'kW', 'Ah', 'kg', 'unit'] as const;
 
 // --- Main Component Editor ---
-const EMPTY_ADD = { supplier_model: '', internal_description: '', brand: '', category: '', specifications: '', datasheet_url: '', norm_value: '' };
+const EMPTY_ADD = { supplier_model: '', internal_description: '', brand: '', category: '', unit: '', specifications: '', datasheet_url: '', norm_value: '' };
 
 export default function ComponentEditor({ components, brandSuggestions, quoteItems = [], quotes = [], pos = [], poItems = [], poCosts = [], componentHistory, competitorPrices, onSave, onAdd, onAddSupplier, onDelete, onSaveLineItem, onDeleteLineItem, onDeleteCompetitorPrice, onUpdateCompetitorPrice, componentLinks, onAddComponentLink, onDeleteComponentLink }: ComponentEditorProps) {
   const [searchInput, setSearchInput] = useState('');
@@ -1206,6 +1210,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
           internal_description: row.internal_description.trim(),
           brand: row.brand.trim() || null as any,
           category: (row.category || null) as any,
+          unit: row.unit.trim() || null as any,
           specifications: specs,
           datasheet_url: row.datasheet_url.trim() || null as any,
           norm_value: (normVal != null && !isNaN(normVal)) ? normVal : null as any,
@@ -1429,7 +1434,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   };
 
   // ── Row keyboard navigation (Tab / Enter / Escape while editing) ─────────
-  const NAV_FIELDS = ['supplier_model', 'internal_description', 'brand', 'category'] as const;
+  const NAV_FIELDS = ['supplier_model', 'internal_description', 'brand', 'category', 'unit'] as const;
   const handleCellKeyDown = (
     e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>,
     componentId: string,
@@ -1805,6 +1810,10 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
 
   return (
     <>
+    {/* Shared unit suggestions for the add form and the editable Unit column */}
+    <datalist id="component-units">
+      {COMPONENT_UNITS.map((u) => <option key={u} value={u} />)}
+    </datalist>
     <div className="bg-slate-900/40 backdrop-blur-sm rounded-2xl border border-slate-800/80 shadow-xl ring-1 ring-white/5">
       {/* Header — stacks on mobile so the action buttons wrap instead of overflowing */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 border-b border-slate-800/80 p-5 md:p-6">
@@ -1999,6 +2008,18 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           <option key={cat} value={cat}>{cat}</option>
                         ))}
                       </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-500 mb-1 uppercase tracking-wide">Unit
+                        <span className="ml-1 normal-case tracking-normal text-slate-600">(used in Quotes)</span>
+                      </label>
+                      <input
+                        list="component-units"
+                        value={row.unit}
+                        onChange={(e) => updateRow({ unit: e.target.value })}
+                        placeholder="pcs, set, meter…"
+                        className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500 placeholder-slate-600"
+                      />
                     </div>
                     {hasCategoryUnit(row.category) && (
                       <div>
@@ -2438,6 +2459,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                 {visibleCols.description && <SortTh col="internal_description" label="Description" />}
                 {visibleCols.brand && <SortTh col="brand" label="Brand" className="hidden md:table-cell min-w-[160px]" />}
                 {visibleCols.category && <SortTh col="category" label="Category" className="hidden md:table-cell" />}
+                {visibleCols.unit && <th className="hidden md:table-cell px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 min-w-[80px]">Unit</th>}
                 {visibleCols.normValue && <th className="hidden md:table-cell px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 min-w-[90px]">Capacity</th>}
                 {visibleCols.lastPrice && <SortTh col="priceDelta" label="Last Price" className="min-w-[120px]" />}
                 {visibleCols.sellPrice && <SortTh col="margin" label="Sell Price" className="min-w-[130px]" />}
@@ -2626,6 +2648,40 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                         ) : (
                           <span className="text-xs text-slate-300">
                             {c.category || <span className="text-slate-600">—</span>}
+                          </span>
+                        )}
+                      </td>
+                    )}
+
+                    {/* Unit — referenced by Quotes when this component is picked */}
+                    {visibleCols.unit && (
+                      <td className="hidden md:table-cell px-3 py-1.5 align-middle min-w-[80px]">
+                        {isEditing ? (
+                          <div>
+                            <input
+                              list="component-units"
+                              data-rid={c.component_id}
+                              data-fld="unit"
+                              value={(getVal(c, 'unit' as keyof Component) as string) ?? ''}
+                              onChange={(e) => setField(c, 'unit' as keyof Component, e.target.value)}
+                              onKeyDown={(e) => handleCellKeyDown(e, c.component_id, 'unit')}
+                              placeholder="—"
+                              className={`w-full px-2 py-1 rounded-lg text-xs text-white focus:outline-none focus:ring-2 transition-all ${
+                                isDirtyField(c, 'unit' as keyof Component)
+                                  ? 'bg-amber-500/10 border border-amber-500/50 focus:ring-amber-500/30'
+                                  : 'bg-slate-950 border border-slate-700 focus:ring-emerald-500/20 focus:border-emerald-500'
+                              }`}
+                            />
+                            {isDirtyField(c, 'unit' as keyof Component) && <DirtyBadge original={c.unit} />}
+                          </div>
+                        ) : isDirtyField(c, 'unit' as keyof Component) ? (
+                          <div>
+                            <span className="text-xs text-emerald-300">{(getVal(c, 'unit' as keyof Component) as string) || '—'}</span>
+                            <DirtyBadge original={c.unit} />
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-300">
+                            {c.unit || <span className="text-slate-600">—</span>}
                           </span>
                         )}
                       </td>
