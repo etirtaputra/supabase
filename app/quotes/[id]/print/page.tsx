@@ -96,12 +96,13 @@ export default function PrintPage() {
 
   useEffect(() => {
     if (!loading && quote && gate.ready) {
-      // Browsers use the document title as the default Save-as-PDF filename
+      // Browsers use the document title as the default Save-as-PDF filename.
+      // We no longer auto-open the print dialog — the user reviews the
+      // preview first, then clicks Print / Save (the button below).
       document.title = quoteFileName(quote.quote_number, quote.customer_name, totalWp, {
         specTag: specFileTag(quote.project_type, (quote.system_specs as SystemSpecs) ?? {}),
         location: quote.location ?? '',
       });
-      setTimeout(() => window.print(), 400);
     }
   }, [loading, quote, totalWp, gate.ready]);
 
@@ -181,7 +182,8 @@ export default function PrintPage() {
         .sig-line { border-bottom: 0.6pt solid #cbd5e1; margin-bottom: 1.2mm; height: 8mm; }
         .sig-name { font-size: 8pt; color: #475569; text-align: center; font-weight: 600; }
 
-        .print-btn { position: fixed; bottom: 20px; right: 20px; padding: 11px 22px; background: #1f5aa8; color: #fff; border: none; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: 0 6px 20px rgba(15,23,42,0.25); }
+        .print-btn { padding: 11px 22px; background: #1f5aa8; color: #fff; border: none; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: 0 6px 20px rgba(15,23,42,0.25); width: 100%; }
+        .print-btn:hover { background: #1a4e91; }
       `}</style>
 
       <div className="page">
@@ -354,20 +356,22 @@ export default function PrintPage() {
         </div>
       </div>
 
-      {/* Column toggles + print button (hidden when printing) */}
-      <div className="no-print" style={{ position: 'fixed', bottom: '20px', left: '20px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px 14px', boxShadow: '0 6px 20px rgba(15,23,42,0.15)', fontSize: '12px', color: '#334155' }}>
-        <p style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: '#94a3b8', marginBottom: '8px' }}>Columns</p>
-        {EXPORT_COL_KEYS.map((k) => (
-          <label key={k} style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '5px', cursor: 'pointer' }}>
-            <input type="checkbox" checked={cols[k]} onChange={(e) => setCol(k, e.target.checked)} />
-            {EXPORT_COL_LABELS[k]}
-          </label>
-        ))}
-        <p style={{ fontSize: '10px', color: '#94a3b8', marginTop: '6px', maxWidth: '150px' }}>Also applies to the Excel export</p>
+      {/* Column toggles + print button, grouped together (hidden when printing) */}
+      <div className="no-print" style={{ position: 'fixed', bottom: '20px', right: '20px', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '10px', width: '190px', zIndex: 50 }}>
+        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px 14px', boxShadow: '0 6px 20px rgba(15,23,42,0.15)', fontSize: '12px', color: '#334155' }}>
+          <p style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: '#94a3b8', marginBottom: '8px' }}>Columns</p>
+          {EXPORT_COL_KEYS.map((k) => (
+            <label key={k} style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '5px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={cols[k]} onChange={(e) => setCol(k, e.target.checked)} />
+              {EXPORT_COL_LABELS[k]}
+            </label>
+          ))}
+          <p style={{ fontSize: '10px', color: '#94a3b8', marginTop: '6px' }}>Also applies to the Excel export</p>
+        </div>
+        <button className="print-btn" onClick={() => window.print()}>
+          Print / Save PDF
+        </button>
       </div>
-      <button className="print-btn no-print" onClick={() => window.print()}>
-        Print / Save PDF
-      </button>
     </>
   );
 }
