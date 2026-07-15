@@ -73,7 +73,9 @@ function MasterInsertPage() {
   const [pdfData, setPdfData] = useState<any>(null);
   const [paymentMode, setPaymentMode] = useState<'single' | 'batch'>('single');
   const [singlePoId, setSinglePoId] = useState('');
-  const [hideSettledPos, setHideSettledPos] = useState(true);
+  // Default to showing every PO — the PO picker has its own search, so
+  // nothing should be hidden behind the "settled" filter by default.
+  const [hideSettledPos, setHideSettledPos] = useState(false);
   const [showCostBreakdown, setShowCostBreakdown] = useState(false);
   const [singlePoRate, setSinglePoRate] = useState<number | null>(null);
   const [quoteItemsCurrency, setQuoteItemsCurrency] = useState<string>('');

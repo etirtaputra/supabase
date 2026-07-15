@@ -1454,7 +1454,7 @@ export default function QuoteEditorPage() {
               <div key={group.key}>
                 {/* Group header — also a drop zone: sections dropped here go to the end of this group */}
                 <div
-                  className={`flex items-center justify-between mb-3 px-4 py-2.5 rounded-xl transition-colors ${dropHint === `group:${group.key}` ? 'bg-violet-600/30 ring-1 ring-violet-500' : 'bg-[#12463b] hover:bg-[#1a5c4c]'}`}
+                  className={`flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mb-3 px-3 sm:px-4 py-2.5 rounded-xl transition-colors ${dropHint === `group:${group.key}` ? 'bg-violet-600/30 ring-1 ring-violet-500' : 'bg-[#12463b] hover:bg-[#1a5c4c]'}`}
                   onDragOver={(e) => { if (drag?.kind === 'section') { e.preventDefault(); setDropHint(`group:${group.key}`); } }}
                   onDragLeave={() => setDropHint((h) => h === `group:${group.key}` ? null : h)}
                   onDrop={(e) => { e.preventDefault(); dropSectionOnGroup(group.key); endDrag(); }}
@@ -1465,7 +1465,7 @@ export default function QuoteEditorPage() {
                       {groupSections.length || 'no'} sub-section{groupSections.length !== 1 ? 's' : ''}
                     </span>
                   </h2>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                     <div className="flex items-center gap-1.5" title="Default margin for new line items in this group; each line's GM% can still be overridden">
                       <span className="text-[10px] uppercase tracking-wider text-sky-200/60">GM%</span>
                       <input
@@ -1968,13 +1968,18 @@ export default function QuoteEditorPage() {
                             {openNotes.has(item.item_id) && (
                               <tr className="bg-sky-500/[0.03]">
                                 <td />
-                                <td colSpan={9} className="px-2 py-1.5">
+                                <td colSpan={9} className="px-2 py-2.5">
+                                  <div className="flex items-center gap-1.5 mb-1.5">
+                                    <svg className="w-3 h-3 text-sky-400/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                    <span className="text-[10px] uppercase tracking-widest text-sky-300/60">Engineering note</span>
+                                    <span className="text-[10px] text-slate-600 normal-case tracking-normal">internal only — never on the PDF / Excel</span>
+                                  </div>
                                   <textarea
                                     value={item.eng_note}
                                     onChange={(e) => updateItem(sec.section_id, item.item_id, { eng_note: e.target.value })}
-                                    rows={2}
-                                    placeholder="Engineering notes — internal reference only, never shown on the PDF or Excel"
-                                    className="w-full bg-transparent border border-slate-800 focus:border-sky-600 rounded-lg p-2 text-[11px] leading-relaxed text-sky-200/80 outline-none transition-colors resize-y placeholder:text-slate-700"
+                                    rows={5}
+                                    placeholder={"Internal reference only.\nOne calc or note per line — e.g. Pondasi K250 0.64cbm x Rp1,250,000 = Rp800,000"}
+                                    className="w-full min-h-[7rem] bg-slate-950/40 border border-slate-800 focus:border-sky-600 rounded-lg px-3 py-2.5 text-xs leading-relaxed text-sky-200/90 outline-none transition-colors resize-y placeholder:text-slate-700 font-mono"
                                   />
                                 </td>
                               </tr>
@@ -2195,7 +2200,7 @@ export default function QuoteEditorPage() {
       {/* ── Sticky totals bar ── */}
       {subtotal > 0 && (
         <div className="fixed bottom-0 inset-x-0 z-40 bg-[#141518]/95 backdrop-blur-xl border-t border-white/[0.07]">
-          <div className="max-w-[1400px] mx-auto px-6 py-2.5 flex items-center gap-5 text-xs overflow-x-auto whitespace-nowrap">
+          <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-2.5 flex items-center gap-4 sm:gap-5 text-xs overflow-x-auto whitespace-nowrap scrollbar-none">
             <span className="text-slate-500">Subtotal <span className="ml-1 text-slate-200 font-semibold tabular-nums">{fmtIdr(subtotal)}</span></span>
             <span className="text-slate-500">Grand Total <span className="ml-1 text-white font-bold tabular-nums">{fmtIdr(grandTotal)}</span></span>
             {totalWp > 0 && (
