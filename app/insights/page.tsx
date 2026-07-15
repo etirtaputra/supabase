@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useAuth } from '@/hooks/useAuth';
 import ProductCostLookup from '@/components/ui/ProductCostLookup';
-import AppSwitcher from '@/components/ui/AppSwitcher';
+import BrandMenu from '@/components/ui/BrandMenu';
 import CommandPalette from '@/components/ui/CommandPalette';
 import MobileNotice from '@/components/ui/MobileNotice';
 import POCashCycle from '@/components/ui/POCashCycle';
@@ -144,17 +144,9 @@ export default function DatabaseViewPage() {
         {/* ── Sticky header + tab bar ── */}
         <div className="sticky top-0 z-50 bg-[#141518]/90 backdrop-blur-xl border-b border-white/[0.07]">
           <header className="px-4 md:px-8 xl:px-12 pt-4 xl:pt-5 pb-2 max-w-[1800px] mx-auto flex items-start justify-between gap-4">
-            <div>
-              <a href="/" className="block text-lg md:text-xl xl:text-2xl font-bold text-white tracking-tight hover:text-emerald-300 transition-colors">
-                ICAPROC
-              </a>
-              <p className="text-slate-500 text-[11px] mt-0.5 hidden sm:block">
-                Insights · True Unit Cost · Pricing · Cash Cycle
-              </p>
-            </div>
+            <BrandMenu wordmarkClass="text-lg md:text-xl xl:text-2xl font-bold" subtitle="Insights · TUC · Pricing · Cash Cycle" />
             {/* Refresh control */}
             <div className="flex items-center gap-2 mt-1 flex-shrink-0">
-              <AppSwitcher />
               {profile && (
                 <div className="text-right hidden lg:block mr-1">
                   <p className="text-[11px] text-slate-400 leading-tight">{profile.email}</p>

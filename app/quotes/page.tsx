@@ -11,7 +11,7 @@ import { roundNice } from '@/lib/rounding';
 import { lineWp } from '@/lib/quoteWp';
 import { fmtRp } from '@/lib/formatters';
 import MigrationBanner from '@/components/ui/MigrationBanner';
-import AppSwitcher from '@/components/ui/AppSwitcher';
+import BrandMenu from '@/components/ui/BrandMenu';
 import CommandPalette from '@/components/ui/CommandPalette';
 import MobileNotice from '@/components/ui/MobileNotice';
 import { PROJECT_TYPES } from '@/lib/projectSpec';
@@ -313,10 +313,7 @@ export default function QuotesListPage() {
       {/* Header */}
       <div className="sticky top-0 z-40 bg-[#141518]/90 backdrop-blur-xl border-b border-white/[0.07]">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <Link href="/" className="text-xl font-bold text-white tracking-tight hover:text-emerald-300 transition-colors">ICAPROC</Link>
-            <p className="text-slate-500 text-[11px] mt-0.5">Project Quotes</p>
-          </div>
+          <BrandMenu wordmarkClass="text-xl font-bold" subtitle="Project Quotes" />
           <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
             {gate.profile?.role === 'owner' && (
               <Link
@@ -327,7 +324,6 @@ export default function QuotesListPage() {
                 Library
               </Link>
             )}
-            {gate.profile?.role === 'owner' && <AppSwitcher />}
             {gate.profile && (
               <div className="text-right hidden sm:block">
                 <p className="text-[11px] text-slate-400 leading-tight">{gate.profile.email}</p>

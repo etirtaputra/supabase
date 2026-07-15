@@ -434,7 +434,8 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onInputKeyDown}
             placeholder={drill ? 'Latest supplier quotes & POs — Enter opens Deal Lookup' : 'Search vendors, components, quotes, PI / PO numbers…'}
-            className="flex-1 bg-transparent outline-none text-white text-sm placeholder:text-slate-500"
+            // text-base (16px) on phones stops iOS from auto-zooming on focus
+            className="flex-1 bg-transparent outline-none text-white text-base sm:text-sm placeholder:text-slate-500"
           />
           <span className="hidden sm:flex items-center gap-1 flex-shrink-0">
             <kbd className="text-[11px] font-mono text-slate-400 border border-slate-700 rounded px-1.5 py-0.5 leading-none">{modKey}</kbd>
@@ -493,7 +494,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onInputKeyDown}
             placeholder={drill ? 'Latest supplier quotes & POs — Enter opens Deal Lookup' : 'Search vendors, companies, items, quote/PI/PO numbers…'}
-            className="flex-1 bg-transparent outline-none text-white text-sm placeholder:text-slate-600"
+            className="flex-1 bg-transparent outline-none text-white text-base sm:text-sm placeholder:text-slate-600"
           />
           <kbd className="text-[10px] text-slate-600 border border-slate-700 rounded px-1.5 py-0.5">Esc</kbd>
         </div>

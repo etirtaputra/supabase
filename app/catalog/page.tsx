@@ -11,7 +11,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 import SimpleForm from '@/components/forms/SimpleForm';
 import BatchLineItemsForm from '@/components/forms/BatchLineItemsForm';
 import ComponentEditor from '@/components/ui/ComponentEditor';
-import AppSwitcher from '@/components/ui/AppSwitcher';
+import BrandMenu from '@/components/ui/BrandMenu';
 import CommandPalette from '@/components/ui/CommandPalette';
 import MobileNotice from '@/components/ui/MobileNotice';
 import CompetitorPriceForm from '@/components/forms/CompetitorPriceForm';
@@ -475,18 +475,10 @@ function MasterInsertPage() {
       {/* ── Sticky top header + tab bar ── */}
       <div className="sticky top-0 z-50 bg-[#141518]/90 backdrop-blur-xl border-b border-white/[0.07]">
         <header className="px-4 md:px-8 xl:px-12 pt-4 xl:pt-5 pb-2 max-w-[1800px] mx-auto flex flex-col sm:flex-row sm:items-end justify-between gap-1">
-          <div>
-            <Link href="/" className="block text-lg md:text-xl xl:text-2xl font-bold text-white tracking-tight hover:text-emerald-300 transition-colors">
-              ICAPROC
-            </Link>
-            <p className="text-slate-500 text-[11px] mt-0.5 hidden sm:block">
-              Catalog · {activeItem?.label}
-            </p>
-          </div>
+          <BrandMenu wordmarkClass="text-lg md:text-xl xl:text-2xl font-bold" subtitle={`Catalog${activeItem?.label ? ` · ${activeItem.label}` : ''}`} />
           {/* User badge + sign out */}
           {profile && (
             <div className="flex items-center gap-2 pb-1">
-              <AppSwitcher />
               {perms?.canManageUsers && (
                 <Link href="/admin" className="hidden sm:inline-block text-[10px] px-2 py-1 border border-slate-700 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors">
                   Manage users

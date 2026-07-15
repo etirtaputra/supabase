@@ -6,6 +6,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useAuth } from '@/hooks/useAuth';
 import CommandPalette from '@/components/ui/CommandPalette';
+import BrandMenu from '@/components/ui/BrandMenu';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 
 // ── Formatting ──────────────────────────────────────────────────────────────
@@ -178,17 +179,10 @@ export default function Home() {
       {/* ── Header ── */}
       <div className="border-b border-slate-800/60 bg-[#0f1012]/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12 py-4 flex items-center justify-between gap-4">
-          <div className="flex items-baseline gap-3">
-            <Link href="/" className="text-xl md:text-2xl font-extrabold text-white tracking-tight hover:text-emerald-300 transition-colors">ICAPROC</Link>
-            <p className="hidden sm:block text-slate-500 text-[11px] tabular-nums">
-              {new Date().toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Link href="/catalog" className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-colors border border-emerald-500/50">Catalog</Link>
-            <Link href="/insights" className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-lg transition-colors border border-slate-700">Insights</Link>
-            <Link href="/quotes" className="px-3.5 py-1.5 bg-violet-700 hover:bg-violet-600 text-white text-xs font-bold rounded-lg transition-colors border border-violet-600/50">Quotes</Link>
-          </div>
+          <BrandMenu
+            wordmarkClass="text-xl md:text-2xl font-extrabold"
+            subtitle={new Date().toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
+          />
         </div>
       </div>
 
