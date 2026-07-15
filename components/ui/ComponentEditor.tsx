@@ -1791,13 +1791,13 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   return (
     <>
     <div className="bg-slate-900/40 backdrop-blur-sm rounded-2xl border border-slate-800/80 shadow-xl ring-1 ring-white/5">
-      {/* Header */}
-      <div className="flex items-center gap-3 border-b border-slate-800/80 p-5 md:p-6">
-        <div className="flex-1">
+      {/* Header — stacks on mobile so the action buttons wrap instead of overflowing */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 border-b border-slate-800/80 p-5 md:p-6">
+        <div className="flex-1 min-w-0">
           <h3 className="text-lg font-bold text-white tracking-tight">Component Editor</h3>
-          <p className="text-xs text-slate-500 mt-0.5">Click ✎ to edit · <kbd className="px-1 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Ctrl+S</kbd> to save · <kbd className="px-1 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">/</kbd> to search</p>
+          <p className="text-xs text-slate-500 mt-0.5"><span className="hidden sm:inline">Click ✎ to edit · <kbd className="px-1 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Ctrl+S</kbd> to save · </span><kbd className="px-1 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">/</kbd> to search</p>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Import CSV */}
           <button
             onClick={() => setImportStep('upload')}

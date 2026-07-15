@@ -488,7 +488,7 @@ function MasterInsertPage() {
             <div className="flex items-center gap-2 pb-1">
               <AppSwitcher />
               {perms?.canManageUsers && (
-                <Link href="/admin" className="text-[10px] px-2 py-1 border border-slate-700 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors">
+                <Link href="/admin" className="hidden sm:inline-block text-[10px] px-2 py-1 border border-slate-700 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors">
                   Manage users
                 </Link>
               )}

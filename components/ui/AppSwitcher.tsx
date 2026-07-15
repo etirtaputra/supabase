@@ -15,7 +15,7 @@ const APPS = [
 export default function AppSwitcher() {
   const pathname = usePathname();
   return (
-    <div className="flex items-center gap-0.5 p-0.5 bg-slate-800/60 border border-slate-700/60 rounded-xl">
+    <div className="hidden sm:flex items-center gap-0.5 p-0.5 bg-slate-800/60 border border-slate-700/60 rounded-xl">
       {APPS.map((a) => {
         const active = pathname === a.href || pathname.startsWith(a.href + '/');
         if (active) {
