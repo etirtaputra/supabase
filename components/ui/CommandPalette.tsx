@@ -291,9 +291,18 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
       const hay = `${i.title} ${i.sub}`.toLowerCase();
       return tokens.every((t) => hay.includes(t));
     });
+    // Tier priority: (0) suppliers/companies — matched by code or name —
+    // then (1) project quotes / supplier quotes (PI) / POs, then (2) items.
+    const tier = (k: Item['kind']) =>
+      k === 'supplier' || k === 'company' ? 0 : k === 'component' ? 2 : 1;
+    // Prefix match on the name OR the sub line (supplier_code lives in sub)
+    const startsWith = (i: Item) =>
+      i.title.toLowerCase().startsWith(first) || i.sub.toLowerCase().startsWith(first);
     matched.sort((a, b) => {
-      const ap = a.title.toLowerCase().startsWith(first) ? 0 : 1;
-      const bp = b.title.toLowerCase().startsWith(first) ? 0 : 1;
+      const ta = tier(a.kind), tb = tier(b.kind);
+      if (ta !== tb) return ta - tb;
+      const ap = startsWith(a) ? 0 : 1;
+      const bp = startsWith(b) ? 0 : 1;
       if (ap !== bp) return ap - bp;
       const ko = KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind);
       if (ko !== 0) return ko;
