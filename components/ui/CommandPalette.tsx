@@ -19,12 +19,16 @@ import { createSupabaseClient } from '@/lib/supabase';
  * items; items sort by buying activity.
  */
 
+interface DealLine { name: string; qty: number; price: number; ccy: string }
+
 interface DealRef {
   kind: 'pi' | 'po';
   number: string;
+  altNumber?: string;      // the paired PI/PO number when the two were merged
   date: string;
   extra: string;
   href: string;
+  lines?: DealLine[];      // line items, for the hover/tap preview
 }
 
 interface Item {
@@ -72,6 +76,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
   const [items, setItems] = useState<Item[] | null>(null);
   const [recents, setRecents] = useState<Item[]>([]);
   const [drill, setDrill] = useState<{ title: string; refs: DealRef[] } | null>(null);
+  const [openLines, setOpenLines] = useState<number | null>(null); // drill row whose items are expanded
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -135,13 +140,51 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
       supabase.from('1.0_companies').select('company_id, legal_name'),
       supabase.from('4.0_price_quotes').select('quote_id, pi_number, quote_date, supplier_id, company_id, status').order('quote_date', { ascending: false }).limit(1500),
       supabase.from('5.0_purchases').select('po_id, po_number, po_date, quote_id, company_id, status').order('po_date', { ascending: false }).limit(1500),
-      supabase.from('4.1_price_quote_line_items').select('quote_id, component_id').limit(8000),
-      supabase.from('5.1_purchase_line_items').select('po_id, component_id').limit(8000),
+      supabase.from('4.1_price_quote_line_items').select('quote_id, component_id, quantity, unit_price, currency, supplier_description').limit(8000),
+      supabase.from('5.1_purchase_line_items').select('po_id, component_id, quantity, unit_cost, currency, supplier_description').limit(8000),
     ]);
 
     const supplierName = new Map((suppliers.data ?? []).map((s) => [s.supplier_id as string, (s.supplier_name as string) || '']));
     const piById = new Map((pis.data ?? []).map((q) => [q.quote_id as number, q]));
     const poById = new Map((pos.data ?? []).map((p) => [p.po_id as number, p]));
+    const compModel = new Map(comps.map((c) => [c.component_id, c.supplier_model]));
+
+    // ── Line items + a component×qty signature per PI and per PO ──────────────
+    const pushArr = <T,>(m: Map<number, T[]>, k: number, v: T) => { const a = m.get(k); if (a) a.push(v); else m.set(k, [v]); };
+    const linesByPi = new Map<number, DealLine[]>();
+    const linesByPo = new Map<number, DealLine[]>();
+    const sigPartsPi = new Map<number, string[]>();
+    const sigPartsPo = new Map<number, string[]>();
+    for (const l of piLines.data ?? []) {
+      const id = l.quote_id as number;
+      const qty = Number(l.quantity) || 0;
+      pushArr(linesByPi, id, { name: compModel.get(l.component_id as string) || (l.supplier_description as string) || '(item)', qty, price: Number(l.unit_price) || 0, ccy: (l.currency as string) || '' });
+      pushArr(sigPartsPi, id, `${l.component_id}:${qty}`);
+    }
+    for (const l of poLines.data ?? []) {
+      const id = l.po_id as number;
+      const qty = Number(l.quantity) || 0;
+      pushArr(linesByPo, id, { name: compModel.get(l.component_id as string) || (l.supplier_description as string) || '(item)', qty, price: Number(l.unit_cost) || 0, ccy: (l.currency as string) || '' });
+      pushArr(sigPartsPo, id, `${l.component_id}:${qty}`);
+    }
+    const sig = (parts?: string[]) => (parts && parts.length ? [...parts].sort().join('|') : '');
+    const sigByPi = new Map<number, string>(); for (const [k, v] of sigPartsPi) sigByPi.set(k, sig(v));
+    const sigByPo = new Map<number, string>(); for (const [k, v] of sigPartsPo) sigByPo.set(k, sig(v));
+
+    // A PO whose line items exactly match its originating PI is the same deal —
+    // merge them into a single entry (the PO carries the PI's number as altNumber).
+    const mergedPiIds = new Set<number>();
+    const poAltPi = new Map<number, string>();
+    for (const p of pos.data ?? []) {
+      if (p.quote_id == null) continue;
+      const sp = sigByPo.get(p.po_id as number);
+      const sq = sigByPi.get(p.quote_id as number);
+      if (sp && sq && sp === sq) {
+        mergedPiIds.add(p.quote_id as number);
+        const pi = piById.get(p.quote_id as number);
+        poAltPi.set(p.po_id as number, (pi?.pi_number as string) || `Quote ${p.quote_id}`);
+      }
+    }
 
     const piRef = (q: any): DealRef => ({
       kind: 'pi',
@@ -149,6 +192,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
       date: (q.quote_date as string) ?? '',
       extra: [supplierName.get(q.supplier_id as string), (q.status as string)].filter(Boolean).join(' · '),
       href: dealLookupHref((q.pi_number as string) || String(q.quote_id)),
+      lines: linesByPi.get(q.quote_id as number),
     });
     const poRef = (p: any): DealRef => {
       const viaPi = p.quote_id != null ? piById.get(p.quote_id as number) : undefined;
@@ -156,9 +200,11 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
       return {
         kind: 'po',
         number: (p.po_number as string) || `PO ${p.po_id}`,
+        altNumber: poAltPi.get(p.po_id as number),
         date: (p.po_date as string) ?? '',
         extra: [sup, (p.status as string)].filter(Boolean).join(' · '),
         href: dealLookupHref((p.po_number as string) || String(p.po_id)),
+        lines: linesByPo.get(p.po_id as number),
       };
     };
 
@@ -173,6 +219,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
     };
 
     for (const q of pis.data ?? []) {
+      if (mergedPiIds.has(q.quote_id as number)) continue; // shown as part of its PO
       const r = piRef(q);
       push(bySupplier, q.supplier_id as string, r);
       push(byCompany, q.company_id as string, r);
@@ -186,7 +233,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
     for (const l of piLines.data ?? []) {
       if (!l.component_id) continue;
       const q = piById.get(l.quote_id as number);
-      if (q) push(byComponent, l.component_id as string, piRef(q));
+      if (q && !mergedPiIds.has(l.quote_id as number)) push(byComponent, l.component_id as string, piRef(q));
       if (!compActivity.has(l.component_id as string)) compActivity.set(l.component_id as string, { pi: new Set(), po: new Set() });
       compActivity.get(l.component_id as string)!.pi.add(l.quote_id as number);
     }
@@ -314,7 +361,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
 
   const rootRows = query.trim().length >= 2 ? results : recents;
 
-  useEffect(() => { setIndex(0); }, [query, drill]);
+  useEffect(() => { setIndex(0); setOpenLines(null); }, [query, drill]);
   useEffect(() => {
     listRef.current?.querySelector(`[data-idx="${index}"]`)?.scrollIntoView({ block: 'nearest' });
   }, [index]);
@@ -338,6 +385,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
       if (e.key === 'ArrowDown') { e.preventDefault(); setIndex((i) => Math.min(i + 1, drill.refs.length - 1)); }
       else if (e.key === 'ArrowUp') { e.preventDefault(); setIndex((i) => Math.max(i - 1, 0)); }
       else if (e.key === 'ArrowLeft' || e.key === 'Backspace') { e.preventDefault(); setDrill(null); }
+      else if (e.key === 'ArrowRight') { if (drill.refs[index]?.lines?.length) { e.preventDefault(); setOpenLines((o) => (o === index ? null : index)); } }
       else if (e.key === 'Enter' && drill.refs[index]) go(drill.refs[index].href);
       return;
     }
@@ -401,22 +449,54 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
       ))}
 
       {drill && drill.refs.map((r, i) => (
-        <button
-          key={`${r.kind}-${r.number}-${i}`}
-          data-idx={i}
-          onClick={() => go(r.href)}
-          onMouseEnter={() => setIndex(i)}
-          className={`w-full text-left px-4 py-2.5 flex items-center gap-3 transition-colors ${i === index ? 'bg-slate-800' : ''}`}
-        >
-          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase flex-shrink-0 ${KIND_BADGE[r.kind].cls}`}>
-            {KIND_BADGE[r.kind].label}
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm text-slate-200 truncate">{r.number}</span>
-            <span className="block text-[11px] text-slate-500 truncate">{r.extra || '—'}</span>
-          </span>
-          <span className="text-[10px] text-slate-600 flex-shrink-0 tabular-nums">{r.date}</span>
-        </button>
+        <div key={`${r.kind}-${r.number}-${i}`} data-idx={i} className={`transition-colors ${i === index ? 'bg-slate-800' : ''}`}>
+          <div className="flex items-stretch">
+            <button
+              onClick={() => go(r.href)}
+              onMouseEnter={() => setIndex(i)}
+              className="flex-1 min-w-0 text-left px-4 py-2.5 flex items-center gap-3"
+            >
+              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase flex-shrink-0 ${KIND_BADGE[r.kind].cls}`}>
+                {r.altNumber ? 'PI+PO' : KIND_BADGE[r.kind].label}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-1.5">
+                  <span className="text-sm text-slate-200 truncate">{r.number}</span>
+                  {r.altNumber && (
+                    <span className="px-1 py-0.5 rounded text-[9px] font-semibold bg-blue-500/15 text-blue-300 flex-shrink-0 whitespace-nowrap" title="Same line items — PI and PO shown as one deal">
+                      PI {r.altNumber}
+                    </span>
+                  )}
+                </span>
+                <span className="block text-[11px] text-slate-500 truncate">{r.extra || '—'}</span>
+              </span>
+              <span className="text-[10px] text-slate-600 flex-shrink-0 tabular-nums">{r.date}</span>
+            </button>
+            {r.lines && r.lines.length > 0 && (
+              <button
+                onClick={() => setOpenLines((o) => (o === i ? null : i))}
+                title="Show items (→)"
+                className="px-3 flex items-center text-slate-600 hover:text-white transition-colors"
+              >
+                <svg className={`w-4 h-4 transition-transform ${openLines === i ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+              </button>
+            )}
+          </div>
+          {openLines === i && r.lines && r.lines.length > 0 && (
+            <div className="px-4 pb-3 pt-0.5">
+              <div className="rounded-lg border border-slate-800 bg-slate-950/50 divide-y divide-slate-800/60">
+                {r.lines.slice(0, 12).map((ln, li) => (
+                  <div key={li} className="flex items-center gap-3 px-3 py-1.5 text-[11px]">
+                    <span className="text-slate-500 tabular-nums flex-shrink-0 w-9 text-right">{ln.qty}×</span>
+                    <span className="text-slate-300 truncate flex-1">{ln.name}</span>
+                    <span className="text-slate-400 tabular-nums flex-shrink-0">{ln.price ? ln.price.toLocaleString('en-US') : '—'}{ln.ccy ? ` ${ln.ccy}` : ''}</span>
+                  </div>
+                ))}
+                {r.lines.length > 12 && <div className="px-3 py-1.5 text-[10px] text-slate-600">+{r.lines.length - 12} more line{r.lines.length - 12 > 1 ? 's' : ''}</div>}
+              </div>
+            </div>
+          )}
+        </div>
       ))}
     </div>
   );
@@ -459,7 +539,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
             {body}
             <div className="px-4 py-2 border-t border-slate-800 text-[10px] text-slate-600 flex gap-4">
               <span>↑↓ navigate</span>
-              {drill ? <span>← back</span> : <span>→ drill in</span>}
+              {drill ? <><span>← back</span><span>→ items</span></> : <span>→ drill in</span>}
               <span>↵ open in new tab</span>
             </div>
           </div>
@@ -512,7 +592,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
 
         <div className="px-4 py-2 border-t border-slate-800 text-[10px] text-slate-600 flex gap-4">
           <span>↑↓ navigate</span>
-          {drill ? <span>← back</span> : <span>→ drill in</span>}
+          {drill ? <><span>← back</span><span>→ items</span></> : <span>→ drill in</span>}
           <span>↵ open</span>
           <span>Esc close</span>
           <span className="ml-auto">{modKey} I</span>
