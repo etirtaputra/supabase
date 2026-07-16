@@ -270,6 +270,16 @@ export default function QuoteEditorPage() {
     setQtyEdit(null);
   }
 
+  // Excel-style "=" formulas for the price cells (cost / sell): on blur, a
+  // leading "=" is evaluated and replaced with the result. A valid formula
+  // resolves to its number; anything else is left as typed.
+  function evalCell(raw: string): string {
+    const t = raw.trim();
+    if (!t.startsWith('=')) return raw;
+    const v = evalFormula(t);
+    return v != null ? String(v) : raw;
+  }
+
   // ── Engineering notes (internal only, never exported) ─────────────────────
   const [openNotes, setOpenNotes] = useState<Set<string>>(new Set());
   function toggleNote(iid: string) {
@@ -1880,17 +1890,23 @@ export default function QuoteEditorPage() {
                                 onMouseEnter={(e) => showCostHistory(sec.section_id, item.item_id, item.component_id, item.description, e.currentTarget)}
                                 onMouseLeave={scheduleHoverClose}
                               >
-                                <input type="text" inputMode="decimal" value={item.cost_price}
+                                <input type="text" inputMode="text" value={item.cost_price}
                                   onChange={(e) => updateItem(sec.section_id, item.item_id, { cost_price: e.target.value })}
-                                  onKeyDown={(e) => navCell(e, item.item_id, 'cost')}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') { (e.target as HTMLInputElement).blur(); return; } navCell(e, item.item_id, 'cost'); }}
                                   data-nav-row={item.item_id} data-nav-col="cost"
                                   onBlur={() => {
-                                    if (num(item.sell_price)) return;
-                                    const sell = sellFromGroupGm(sec.group_key, num(item.cost_price));
-                                    if (sell) updateItem(sec.section_id, item.item_id, { sell_price: sell });
+                                    const val = evalCell(item.cost_price);
+                                    const patch: Partial<DraftItem> = {};
+                                    if (val !== item.cost_price) patch.cost_price = val;
+                                    // Auto-price the sell from the group GM using the evaluated cost
+                                    if (!num(item.sell_price)) {
+                                      const sell = sellFromGroupGm(sec.group_key, num(val));
+                                      if (sell) patch.sell_price = sell;
+                                    }
+                                    if (Object.keys(patch).length) updateItem(sec.section_id, item.item_id, patch);
                                   }}
-                                  placeholder="0"
-                                  title={drift ? `Outdated: today's cost is ${fmtIdr(drift.rec)} (${drift.pct > 0 ? '+' : ''}${(drift.pct * 100).toFixed(1)}%). The Costs button refreshes all items, keeping margins.` : undefined}
+                                  placeholder="0 or =800000+180000"
+                                  title={drift ? `Outdated: today's cost is ${fmtIdr(drift.rec)} (${drift.pct > 0 ? '+' : ''}${(drift.pct * 100).toFixed(1)}%). The Costs button refreshes all items, keeping margins.` : 'Type a number, or =800000+180000 to calculate'}
                                   className={`w-full bg-transparent outline-none text-right placeholder:text-slate-700 border-b transition-colors focus:border-violet-500 ${drift ? 'text-amber-300 border-amber-500/70 hover:border-amber-400' : 'text-slate-400 border-slate-800 hover:border-slate-600'} ${item.component_id || freeTextHistory.has(item.description.trim().toLowerCase()) ? 'cursor-help' : ''}`} />
                                 {drift && (
                                   <p className="text-right text-[10px] text-amber-400/90 leading-tight" title="Today's recommended cost">
@@ -1937,12 +1953,16 @@ export default function QuoteEditorPage() {
                                 )}
                               </td>
                               <td className="px-2 py-2">
-                                <input type="text" inputMode="decimal" value={item.sell_price}
+                                <input type="text" inputMode="text" value={item.sell_price}
                                   onChange={(e) => updateItem(sec.section_id, item.item_id, { sell_price: e.target.value })}
-                                  onKeyDown={(e) => navCell(e, item.item_id, 'sell')}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') { (e.target as HTMLInputElement).blur(); return; } navCell(e, item.item_id, 'sell'); }}
                                   data-nav-row={item.item_id} data-nav-col="sell"
-                                  placeholder="0"
-                                  title={(num(item.quantity) ?? 0) > 0 && !num(item.sell_price) ? 'This line has a quantity but no sell price' : undefined}
+                                  onBlur={() => {
+                                    const val = evalCell(item.sell_price);
+                                    if (val !== item.sell_price) updateItem(sec.section_id, item.item_id, { sell_price: val });
+                                  }}
+                                  placeholder="0 or =3800000*2"
+                                  title={(num(item.quantity) ?? 0) > 0 && !num(item.sell_price) ? 'This line has a quantity but no sell price' : 'Type a number, or =3800000*2 to calculate'}
                                   className={`w-full bg-transparent outline-none text-right text-slate-100 placeholder:text-slate-600 border-b transition-colors focus:border-violet-500 ${(num(item.quantity) ?? 0) > 0 && !num(item.sell_price) ? 'border-amber-500/60 hover:border-amber-400' : 'border-slate-800 hover:border-slate-600'}`} />
                               </td>
                               <td className="px-2 py-2 text-right bg-violet-500/[0.04]">
