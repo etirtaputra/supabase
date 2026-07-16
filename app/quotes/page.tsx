@@ -24,6 +24,14 @@ const STATUS_STYLES: Record<string, string> = {
   rejected: 'bg-red-500/20 text-red-400',
 };
 
+// The list is split into these sections, in this order; empty ones are hidden.
+const STATUS_SECTIONS: { key: string; label: string; accent: string; rule: string }[] = [
+  { key: 'draft',    label: 'Drafts',   accent: 'text-slate-300',   rule: 'bg-slate-500/20' },
+  { key: 'sent',     label: 'Sent',     accent: 'text-blue-300',    rule: 'bg-blue-500/20' },
+  { key: 'accepted', label: 'Accepted', accent: 'text-emerald-300', rule: 'bg-emerald-500/20' },
+  { key: 'rejected', label: 'Rejected', accent: 'text-red-400',     rule: 'bg-red-500/20' },
+];
+
 function fmtDate(d: string) {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -382,11 +390,22 @@ export default function QuotesListPage() {
             </button>
           </div>
         ) : (
-          <div className="space-y-2">
-            {quotes.map((q) => {
-              const t = totalsByQuote.get(q.quote_id);
+          <div className="space-y-7">
+            {STATUS_SECTIONS.map(({ key, label, accent, rule }) => {
+              const groupQuotes = quotes.filter((q) => q.status === key);
+              if (!groupQuotes.length) return null;
               return (
-              <div key={q.quote_id} className="group flex items-center gap-3 sm:gap-4 bg-slate-900/50 hover:bg-slate-900/80 border border-slate-800 hover:border-slate-700 rounded-2xl px-4 sm:px-5 py-4 transition-all">
+              <div key={key}>
+                <div className="flex items-center gap-3 mb-2.5 px-1">
+                  <h2 className={`text-xs font-bold uppercase tracking-widest ${accent}`}>{label}</h2>
+                  <span className="text-[11px] text-slate-600 tabular-nums">{groupQuotes.length}</span>
+                  <div className={`flex-1 h-px ${rule}`} />
+                </div>
+                <div className="space-y-2">
+                  {groupQuotes.map((q) => {
+                    const t = totalsByQuote.get(q.quote_id);
+                    return (
+                    <div key={q.quote_id} className="group flex items-center gap-3 sm:gap-4 bg-slate-900/50 hover:bg-slate-900/80 border border-slate-800 hover:border-slate-700 rounded-2xl px-4 sm:px-5 py-4 transition-all">
                 <Link href={`/quotes/${q.quote_id}`} className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2 mb-1">
                     <span className="font-semibold text-white truncate max-w-full">{q.quote_number || '—'}</span>
@@ -461,6 +480,10 @@ export default function QuotesListPage() {
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                   </button>
                   )}
+                    </div>
+                    </div>
+                    );
+                  })}
                 </div>
               </div>
               );
