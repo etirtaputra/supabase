@@ -40,6 +40,7 @@ interface Item {
   date?: string;
   weight?: number;
   drill?: DealRef[];
+  lines?: DealLine[];       // PI / PO line items, for the tap preview
 }
 
 const KIND_BADGE: Record<Item['kind'], { label: string; cls: string }> = {
@@ -272,6 +273,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
       sub: ['Supplier quote', supplierName.get(q.supplier_id as string), q.quote_date as string].filter(Boolean).join(' · '),
       href: dealLookupHref((q.pi_number as string) || String(q.quote_id)),
       date: (q.quote_date as string) ?? '',
+      lines: linesByPi.get(q.quote_id as number),
     }));
     const poItemsList: Item[] = (pos.data ?? []).map((p) => ({
       kind: 'po' as const,
@@ -280,6 +282,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
       sub: ['Purchase order', p.po_date as string].filter(Boolean).join(' · '),
       href: dealLookupHref((p.po_number as string) || String(p.po_id)),
       date: (p.po_date as string) ?? '',
+      lines: linesByPo.get(p.po_id as number),
     }));
 
     const list: Item[] = [
@@ -380,6 +383,22 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
     setDrill({ title: item.title, refs: item.drill });
   }
 
+  // Compact item/qty/price list — shared by the drill rows and the root rows
+  const linePreview = (lines: DealLine[]) => (
+    <div className="px-4 pb-3 pt-0.5">
+      <div className="rounded-lg border border-slate-800 bg-slate-950/50 divide-y divide-slate-800/60">
+        {lines.slice(0, 12).map((ln, li) => (
+          <div key={li} className="flex items-center gap-3 px-3 py-1.5 text-[11px]">
+            <span className="text-slate-500 tabular-nums flex-shrink-0 w-9 text-right">{ln.qty}×</span>
+            <span className="text-slate-300 truncate flex-1">{ln.name}</span>
+            <span className="text-slate-400 tabular-nums flex-shrink-0">{ln.price ? ln.price.toLocaleString('en-US') : '—'}{ln.ccy ? ` ${ln.ccy}` : ''}</span>
+          </div>
+        ))}
+        {lines.length > 12 && <div className="px-3 py-1.5 text-[10px] text-slate-600">+{lines.length - 12} more line{lines.length - 12 > 1 ? 's' : ''}</div>}
+      </div>
+    </div>
+  );
+
   const onInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (drill) {
       if (e.key === 'ArrowDown') { e.preventDefault(); setIndex((i) => Math.min(i + 1, drill.refs.length - 1)); }
@@ -393,7 +412,8 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
     else if (e.key === 'ArrowUp') { e.preventDefault(); setIndex((i) => Math.max(i - 1, 0)); }
     else if (e.key === 'ArrowRight') {
       const r = rootRows[index];
-      if (r?.drill) { e.preventDefault(); drillInto(r); }
+      if (r?.drill && r.drill.length) { e.preventDefault(); drillInto(r); }
+      else if (r?.lines?.length) { e.preventDefault(); setOpenLines((o) => (o === index ? null : index)); }
     }
     else if (e.key === 'Enter' && rootRows[index]) go(rootRows[index].href);
   };
@@ -421,30 +441,41 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
       )}
 
       {!drill && items !== null && rootRows.map((r, i) => (
-        <div key={`${r.kind}-${r.id}`} data-idx={i} className={`flex items-stretch transition-colors ${i === index ? 'bg-slate-800' : ''}`}>
-          <button
-            onClick={() => go(r.href)}
-            onMouseEnter={() => setIndex(i)}
-            className="flex-1 min-w-0 text-left px-4 py-2.5 flex items-center gap-3"
-          >
-            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase flex-shrink-0 ${KIND_BADGE[r.kind].cls}`}>
-              {KIND_BADGE[r.kind].label}
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm text-slate-200 truncate">{r.title}</span>
-              <span className="block text-[11px] text-slate-500 truncate">{r.sub}</span>
-            </span>
-            {r.date && <span className="text-[10px] text-slate-600 flex-shrink-0 tabular-nums">{r.date}</span>}
-          </button>
-          {r.drill && r.drill.length > 0 && (
+        <div key={`${r.kind}-${r.id}`} data-idx={i} className={`transition-colors ${i === index ? 'bg-slate-800' : ''}`}>
+          <div className="flex items-stretch">
             <button
-              onClick={() => { setIndex(i); drillInto(r); }}
-              title="Show latest quotes & POs (→)"
-              className="px-3 flex items-center text-slate-600 hover:text-white transition-colors"
+              onClick={() => go(r.href)}
+              onMouseEnter={() => setIndex(i)}
+              className="flex-1 min-w-0 text-left px-4 py-2.5 flex items-center gap-3"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase flex-shrink-0 ${KIND_BADGE[r.kind].cls}`}>
+                {KIND_BADGE[r.kind].label}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm text-slate-200 truncate">{r.title}</span>
+                <span className="block text-[11px] text-slate-500 truncate">{r.sub}</span>
+              </span>
+              {r.date && <span className="text-[10px] text-slate-600 flex-shrink-0 tabular-nums">{r.date}</span>}
             </button>
-          )}
+            {r.drill && r.drill.length > 0 ? (
+              <button
+                onClick={() => { setIndex(i); drillInto(r); }}
+                title="Show latest quotes & POs (→)"
+                className="px-3 flex items-center text-slate-600 hover:text-white transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+              </button>
+            ) : r.lines && r.lines.length > 0 ? (
+              <button
+                onClick={() => setOpenLines((o) => (o === i ? null : i))}
+                title="Show items (→)"
+                className="px-3 flex items-center text-slate-600 hover:text-white transition-colors"
+              >
+                <svg className={`w-4 h-4 transition-transform ${openLines === i ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+              </button>
+            ) : null}
+          </div>
+          {openLines === i && r.lines && r.lines.length > 0 && linePreview(r.lines)}
         </div>
       ))}
 
@@ -482,20 +513,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
               </button>
             )}
           </div>
-          {openLines === i && r.lines && r.lines.length > 0 && (
-            <div className="px-4 pb-3 pt-0.5">
-              <div className="rounded-lg border border-slate-800 bg-slate-950/50 divide-y divide-slate-800/60">
-                {r.lines.slice(0, 12).map((ln, li) => (
-                  <div key={li} className="flex items-center gap-3 px-3 py-1.5 text-[11px]">
-                    <span className="text-slate-500 tabular-nums flex-shrink-0 w-9 text-right">{ln.qty}×</span>
-                    <span className="text-slate-300 truncate flex-1">{ln.name}</span>
-                    <span className="text-slate-400 tabular-nums flex-shrink-0">{ln.price ? ln.price.toLocaleString('en-US') : '—'}{ln.ccy ? ` ${ln.ccy}` : ''}</span>
-                  </div>
-                ))}
-                {r.lines.length > 12 && <div className="px-3 py-1.5 text-[10px] text-slate-600">+{r.lines.length - 12} more line{r.lines.length - 12 > 1 ? 's' : ''}</div>}
-              </div>
-            </div>
-          )}
+          {openLines === i && r.lines && r.lines.length > 0 && linePreview(r.lines)}
         </div>
       ))}
     </div>
