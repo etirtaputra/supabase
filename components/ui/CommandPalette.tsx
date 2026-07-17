@@ -41,6 +41,7 @@ interface Item {
   weight?: number;
   drill?: DealRef[];
   lines?: DealLine[];       // PI / PO line items, for the tap preview
+  keywords?: string;        // extra searchable text (line-item names) — not shown
 }
 
 const KIND_BADGE: Record<Item['kind'], { label: string; cls: string }> = {
@@ -134,7 +135,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
       return all;
     };
 
-    const [comps, projectQuotes, suppliers, companies, pis, pos, piLines, poLines] = await Promise.all([
+    const [comps, projectQuotes, suppliers, companies, pis, pos, piLines, poLines, quoteLineItems] = await Promise.all([
       fetchAllComponents(),
       supabase.from('10.0_project_quotes').select('quote_id, quote_number, quote_date, customer_name, status').order('quote_date', { ascending: false }).limit(500),
       supabase.from('2.0_suppliers').select('supplier_id, supplier_name, supplier_code'),
@@ -143,6 +144,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
       supabase.from('5.0_purchases').select('po_id, po_number, po_date, quote_id, company_id, status').order('po_date', { ascending: false }).limit(1500),
       supabase.from('4.1_price_quote_line_items').select('quote_id, component_id, quantity, unit_price, currency, supplier_description').limit(8000),
       supabase.from('5.1_purchase_line_items').select('po_id, component_id, quantity, unit_cost, currency, supplier_description').limit(8000),
+      supabase.from('10.2_quote_items').select('quote_id, description').limit(8000),
     ]);
 
     const supplierName = new Map((suppliers.data ?? []).map((s) => [s.supplier_id as string, (s.supplier_name as string) || '']));
@@ -171,6 +173,18 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
     const sig = (parts?: string[]) => (parts && parts.length ? [...parts].sort().join('|') : '');
     const sigByPi = new Map<number, string>(); for (const [k, v] of sigPartsPi) sigByPi.set(k, sig(v));
     const sigByPo = new Map<number, string>(); for (const [k, v] of sigPartsPo) sigByPo.set(k, sig(v));
+
+    // Searchable keywords per deal = the distinct item names on its lines, so
+    // searching an item surfaces the PIs/POs/quotes that contain it.
+    const kwFromLines = (lines?: DealLine[]) => lines ? [...new Set(lines.map((l) => l.name))].join(' ') : '';
+    const kwByQuote = new Map<string, Set<string>>();
+    for (const it of quoteLineItems.data ?? []) {
+      const id = it.quote_id as string;
+      const d = String(it.description ?? '').trim();
+      if (!d) continue;
+      const s = kwByQuote.get(id); if (s) s.add(d); else kwByQuote.set(id, new Set([d]));
+    }
+    const kwForQuote = (id: string) => { const s = kwByQuote.get(id); return s ? [...s].join(' ') : ''; };
 
     // A PO whose line items exactly match its originating PI is the same deal —
     // merge them into a single entry (the PO carries the PI's number as altNumber).
@@ -265,6 +279,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
       sub: [(q.customer_name as string) || 'No customer', ((q.status as string) || 'draft').toUpperCase()].join(' · '),
       href: `/quotes/${q.quote_id}`,
       date: (q.quote_date as string) ?? '',
+      keywords: kwForQuote(q.quote_id as string),
     }));
     const piItemsList: Item[] = (pis.data ?? []).map((q) => ({
       kind: 'pi' as const,
@@ -274,6 +289,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
       href: dealLookupHref((q.pi_number as string) || String(q.quote_id)),
       date: (q.quote_date as string) ?? '',
       lines: linesByPi.get(q.quote_id as number),
+      keywords: kwFromLines(linesByPi.get(q.quote_id as number)),
     }));
     const poItemsList: Item[] = (pos.data ?? []).map((p) => ({
       kind: 'po' as const,
@@ -283,6 +299,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
       href: dealLookupHref((p.po_number as string) || String(p.po_id)),
       date: (p.po_date as string) ?? '',
       lines: linesByPo.get(p.po_id as number),
+      keywords: kwFromLines(linesByPo.get(p.po_id as number)),
     }));
 
     const list: Item[] = [
@@ -337,10 +354,15 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
     if (q.length < 2) return [];
     const tokens = q.split(/\s+/).filter(Boolean);
     const first = tokens[0];
+    // A "strong" match hits the name/sub directly; a "weak" match hits only the
+    // line-item keywords (i.e. this deal/quote *contains* the searched item).
+    const strongText = (i: Item) => `${i.title} ${i.sub}`.toLowerCase();
+    const fullText = (i: Item) => `${i.title} ${i.sub} ${i.keywords ?? ''}`.toLowerCase();
     const matched = items.filter((i) => {
-      const hay = `${i.title} ${i.sub}`.toLowerCase();
+      const hay = fullText(i);
       return tokens.every((t) => hay.includes(t));
     });
+    const isStrong = (i: Item) => { const h = strongText(i); return tokens.every((t) => h.includes(t)); };
     // Tier priority: (0) suppliers/companies — matched by code or name —
     // then (1) project quotes / supplier quotes (PI) / POs, then (2) items.
     const tier = (k: Item['kind']) =>
@@ -349,6 +371,9 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
     const startsWith = (i: Item) =>
       i.title.toLowerCase().startsWith(first) || i.sub.toLowerCase().startsWith(first);
     matched.sort((a, b) => {
+      // Direct name/sub matches always rank above deals matched only via their items
+      const sa = isStrong(a) ? 0 : 1, sb = isStrong(b) ? 0 : 1;
+      if (sa !== sb) return sa - sb;
       const ta = tier(a.kind), tb = tier(b.kind);
       if (ta !== tb) return ta - tb;
       const ap = startsWith(a) ? 0 : 1;
@@ -359,7 +384,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
       if (a.kind === 'component') return (b.weight ?? 0) - (a.weight ?? 0);
       return (b.date ?? '').localeCompare(a.date ?? '') || a.title.localeCompare(b.title);
     });
-    return matched.slice(0, 14);
+    return matched.slice(0, 20);
   }, [items, query]);
 
   const rootRows = query.trim().length >= 2 ? results : recents;

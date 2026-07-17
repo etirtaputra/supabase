@@ -707,6 +707,16 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [addLinkNotes, setAddLinkNotes] = useState('');
   const [addLinkSaving, setAddLinkSaving] = useState(false);
   const [confirmDeleteLinkId, setConfirmDeleteLinkId] = useState<string | null>(null);
+
+  // Phones get a tappable card list instead of the wide table (view & search).
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const onChange = () => setIsMobile(mq.matches);
+    onChange();
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
   // ── Hover preview popup ──────────────────────────────────────────────────
   const [hoverPreviewId, setHoverPreviewId] = useState<string | null>(null);
   const [hoverRect, setHoverRect] = useState<DOMRect | null>(null);
@@ -2432,7 +2442,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         </div>
       )}
 
-      {/* Table */}
+      {/* Table (desktop) / card list (mobile) */}
       <div className="overflow-x-auto">
         {filtered.length === 0 ? (
           <div className="py-16 text-center text-slate-500">
@@ -2440,6 +2450,50 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <p className="font-medium">No components match your filters</p>
+          </div>
+        ) : isMobile ? (
+          <div className="divide-y divide-slate-800/60">
+            {filtered.map((c) => {
+              const tuc = tucByComponent.get(c.component_id);
+              const lq  = lastQuoteByComponent.get(c.component_id);
+              const lpo = lastPoByComponent.get(c.component_id);
+              const isDup = duplicateModels.has(c.supplier_model?.toLowerCase().trim() ?? '');
+              const qN = quoteLinesByComponent.get(c.component_id)?.length ?? 0;
+              const pN = poLinesByComponent.get(c.component_id)?.length ?? 0;
+              const price = tuc
+                ? { amt: fmtAmt(tuc.actualTucIdr, 'IDR'), tag: 'TUC',    cls: 'text-amber-500/80' }
+                : lq && (!lpo || lq.date >= lpo.date)
+                ? { amt: fmtAmt(lq.price, lq.currency),   tag: 'quoted', cls: 'text-slate-500' }
+                : lpo
+                ? { amt: fmtAmt(lpo.price, lpo.currency), tag: 'PO',     cls: 'text-sky-500/80' }
+                : null;
+              return (
+                <button
+                  key={c.component_id}
+                  onClick={() => setLineItemModalId(c.component_id)}
+                  className="w-full text-left flex items-start gap-3 px-4 py-3 active:bg-white/[0.04] transition-colors"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-semibold text-white break-words">{c.supplier_model || '(no model)'}</span>
+                      {isDup && <span className="px-1.5 py-0.5 bg-red-500/15 border border-red-500/25 text-red-400 text-[9px] font-bold rounded flex-shrink-0">dup</span>}
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5 break-words">{[c.brand, c.category, c.unit].filter(Boolean).join(' · ') || '—'}</p>
+                    {(qN > 0 || pN > 0) && (
+                      <p className="text-[10px] text-slate-600 mt-1">{qN} quote{qN !== 1 ? 's' : ''} · {pN} PO{pN !== 1 ? 's' : ''}</p>
+                    )}
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    {price ? (
+                      <>
+                        <p className="text-sm font-semibold text-slate-200 tabular-nums whitespace-nowrap">{price.amt}</p>
+                        <p className={`text-[10px] font-medium ${price.cls}`}>{price.tag}</p>
+                      </>
+                    ) : <span className="text-xs text-slate-700">—</span>}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         ) : (
           <table className="w-full">
