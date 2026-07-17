@@ -1,8 +1,38 @@
 # ICAPROC — Distribution ERP Roadmap
 
-> Read this first when starting an ERP-module thread. It defines the vision,
-> the build sequence, the locked architectural decisions, naming conventions,
-> and kickoff specs for the first two modules. Build **one module per thread**.
+> Read this first when starting an ERP-module thread. It defines the mission,
+> the vision, the build sequence, the locked architectural decisions, naming
+> conventions, and kickoff specs for the first two modules. Build **one module
+> per thread**.
+
+## Mission & philosophy (why this matters)
+
+ICAPROC is not a set of forms — it is the company's bid to **own its own
+operating system**. The long-term goal is a **full ERP that needs only servers
+and subscriptions to run**, so the business controls its own tooling instead of
+renting it.
+
+- **Own the DATA.** Today an IT department (or an outside vendor) that holds the
+  data effectively holds the business. *Whoever controls the data controls the
+  business.* ICAPROC exists so ICA/PTMBS controls its own data end-to-end — every
+  item, price, customer, PO, stock movement, and payment lives in **our** system.
+- **Distribution is air-traffic control, and the Cash Conversion Cycle is the
+  runway.** In a trading/distribution business you win by **cycling items through
+  at a profit** — buy, stock, sell, collect, repeat. *The cycle is the most
+  important thing.* Every module must ultimately serve the question "how fast is
+  cash turning into more cash, per item?" (CCC = DIO + DSO − DPO). This is why the
+  **stock ledger** and **item economics** are the spine of the whole build.
+- **ICAPROC feeds the outside, too.** The same clean item/price/spec data is meant
+  to feed a future **public website** and let us attach **technical specs** to
+  projects and products — the internal system of record becomes the source for
+  everything customer-facing.
+- **AI-first operating principle.** *The old era was: we tell the AI what to do.
+  The new era is: we ask the AI what it thinks we should do next.* When building a
+  module, don't just transcribe a request — propose the next best step, surface the
+  economic consequence, and let the human decide. Build for that posture.
+
+Keep every module decision anchored to this: does it help us **own the data** and
+**tighten the cash-conversion cycle**?
 
 ## Vision & framing
 

@@ -4,6 +4,23 @@
 
 - Always commit and push directly to **main**. Never push to feature branches — merge to main instead.
 
+## Mission (why ICAPROC exists)
+
+ICAPROC is the company's bid to **own its own operating system** — a full ERP
+that needs only servers + subscriptions, so the business controls its own data
+and tooling instead of renting it. Core beliefs that should shape every module:
+
+- **Own the DATA** — *whoever controls the data controls the business.* Every item,
+  price, customer, PO, stock movement, and payment lives in **our** system.
+- **The Cash Conversion Cycle is the runway** — distribution is air-traffic control;
+  you win by cycling items through at a profit. *The cycle is the most important
+  thing.* The stock ledger + item economics are the spine of the build.
+- **The internal system feeds the outside** — the same clean item/price/spec data
+  is meant to power a future public website and per-project technical specs.
+- **AI-first** — *the old era was telling the AI what to do; the new era is asking
+  the AI what it thinks we should do next.* Propose the next best step, surface the
+  economic consequence, let the human decide.
+
 ## Distribution ERP Roadmap
 
 ICAPROC is being built into an **item-centric distribution ERP** — two mirror
