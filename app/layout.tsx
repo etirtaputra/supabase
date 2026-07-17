@@ -68,6 +68,13 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: TAILWIND_THEME }} />
         <style dangerouslySetInnerHTML={{ __html: `
           body { background: #141518; font-family: Rubik, Inter, system-ui, -apple-system, 'Segoe UI', sans-serif; }
+          /* iOS zooms into any focused field whose text is under 16px. Force
+             16px on phones so tapping a search bar / input never zooms. The
+             !important is needed to beat Tailwind's text-xs/text-sm utilities. */
+          @media (max-width: 767px) {
+            input:not([type=checkbox]):not([type=radio]):not([type=range]),
+            textarea, select { font-size: 16px !important; }
+          }
         ` }} />
       </head>
       <body>
