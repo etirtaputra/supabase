@@ -515,7 +515,9 @@ export default function DealLookupTab({
 
     return (
       <div className="mt-3 pt-3 border-t border-slate-700/40">
-        <div className={hasBoth ? 'grid grid-cols-2 gap-3 items-start' : 'space-y-5'}>
+        {/* Quote + PO sit side-by-side only on wide screens; on phones/tablets
+            they stack so the dense fields aren't crushed into half-width columns */}
+        <div className={hasBoth ? 'grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-3 items-start' : 'space-y-5'}>
 
         {/* ── Quote section ── */}
         {g.quotes.length > 0 && (
@@ -966,7 +968,7 @@ export default function DealLookupTab({
                               { label: '1st Payment → Received', days: ltPayment },
                             ].map(({ label, days }) => (
                               <div key={label}>
-                                <p className={`text-sm font-bold tabular-nums ${days != null && days >= 0 ? 'text-emerald-300' : 'text-slate-600'}`}>
+                                <p className={`text-sm font-bold tabular-nums whitespace-nowrap ${days != null && days >= 0 ? 'text-emerald-300' : 'text-slate-600'}`}>
                                   {fmt(days)}
                                 </p>
                                 <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">{label}</p>
@@ -1371,9 +1373,9 @@ export default function DealLookupTab({
                         {rows.map((c) => {
                           const rowIdr = toIdrLocal(c);
                           return (
-                            <div key={c.cost_id} className={`flex justify-between text-xs py-1 border-b border-slate-800/30 last:border-0 ${dim ? 'opacity-50' : ''}`}>
-                              <span className="text-slate-400 capitalize">{c.cost_category.replace(/_/g, ' ')}{c.notes ? ` · ${c.notes}` : ''}</span>
-                              <span className="text-right flex-shrink-0 ml-3">
+                            <div key={c.cost_id} className={`flex justify-between gap-3 text-xs py-1 border-b border-slate-800/30 last:border-0 ${dim ? 'opacity-50' : ''}`}>
+                              <span className="text-slate-400 capitalize min-w-0 break-words">{c.cost_category.replace(/_/g, ' ')}{c.notes ? ` · ${c.notes}` : ''}</span>
+                              <span className="text-right flex-shrink-0">
                                 <span className="text-white font-semibold tabular-nums">{fmtCcy(Number(c.amount), c.currency)}</span>
                                 {c.currency !== 'IDR' && (
                                   <span className="block text-[10px] text-slate-500 tabular-nums">= {fmtIdr(rowIdr)}</span>
