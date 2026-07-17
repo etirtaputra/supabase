@@ -403,8 +403,9 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
     if (drill) {
       if (e.key === 'ArrowDown') { e.preventDefault(); setIndex((i) => Math.min(i + 1, drill.refs.length - 1)); }
       else if (e.key === 'ArrowUp') { e.preventDefault(); setIndex((i) => Math.max(i - 1, 0)); }
-      else if (e.key === 'ArrowLeft' || e.key === 'Backspace') { e.preventDefault(); setDrill(null); }
-      else if (e.key === 'ArrowRight') { if (drill.refs[index]?.lines?.length) { e.preventDefault(); setOpenLines((o) => (o === index ? null : index)); } }
+      // ← closes an open item preview first; otherwise steps back out of the drill
+      else if (e.key === 'ArrowLeft' || e.key === 'Backspace') { e.preventDefault(); if (openLines !== null) setOpenLines(null); else setDrill(null); }
+      else if (e.key === 'ArrowRight') { if (drill.refs[index]?.lines?.length) { e.preventDefault(); setOpenLines(index); } }
       else if (e.key === 'Enter' && drill.refs[index]) go(drill.refs[index].href);
       return;
     }
@@ -413,8 +414,9 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
     else if (e.key === 'ArrowRight') {
       const r = rootRows[index];
       if (r?.drill && r.drill.length) { e.preventDefault(); drillInto(r); }
-      else if (r?.lines?.length) { e.preventDefault(); setOpenLines((o) => (o === index ? null : index)); }
+      else if (r?.lines?.length) { e.preventDefault(); setOpenLines(index); }
     }
+    else if (e.key === 'ArrowLeft') { if (openLines !== null) { e.preventDefault(); setOpenLines(null); } }
     else if (e.key === 'Enter' && rootRows[index]) go(rootRows[index].href);
   };
 
@@ -525,9 +527,9 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
       <div className="relative w-full max-w-2xl mx-auto">
         <div className="relative flex items-center gap-3 px-5 h-14 rounded-full bg-slate-900/80 border border-slate-700/80 focus-within:border-emerald-500/60 hover:border-emerald-500/40 shadow-xl ring-1 ring-white/5 transition-colors">
           {drill ? (
-            <button onClick={() => { setDrill(null); inputRef.current?.focus(); }} onMouseDown={(e) => e.preventDefault()} className="flex items-center gap-1.5 text-slate-400 hover:text-white text-xs flex-shrink-0 transition-colors">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
-              <span className="max-w-[200px] truncate font-medium text-slate-300">{drill.title}</span>
+            <button onClick={() => { setDrill(null); inputRef.current?.focus(); }} onMouseDown={(e) => e.preventDefault()} className="flex items-center gap-1.5 min-w-0 text-slate-400 hover:text-white text-xs flex-shrink transition-colors">
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+              <span className="truncate font-medium text-slate-300">{drill.title}</span>
             </button>
           ) : (
             <svg className="w-5 h-5 text-slate-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
@@ -540,9 +542,11 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
             onBlur={() => setFocused(false)}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onInputKeyDown}
-            placeholder={drill ? 'Latest supplier quotes & POs — Enter opens Deal Lookup' : 'Search vendors, components, quotes, PI / PO numbers…'}
-            // text-base (16px) on phones stops iOS from auto-zooming on focus
-            className="flex-1 bg-transparent outline-none text-white text-base sm:text-sm placeholder:text-slate-500"
+            placeholder={drill ? 'Enter opens Deal Lookup' : 'Search vendors, components, quotes, PI / PO numbers…'}
+            // text-base (16px) on phones stops iOS from auto-zooming on focus.
+            // min-w-0 lets the field shrink so the placeholder clips instead of
+            // overflowing the pill on narrow screens.
+            className="flex-1 min-w-0 bg-transparent outline-none text-white text-base sm:text-sm placeholder:text-slate-500"
           />
           <span className="hidden sm:flex items-center gap-1 flex-shrink-0">
             <kbd className="text-[11px] font-mono text-slate-400 border border-slate-700 rounded px-1.5 py-0.5 leading-none">{modKey}</kbd>
@@ -587,9 +591,9 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
       <div className="w-full max-w-xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-800">
           {drill ? (
-            <button onClick={() => setDrill(null)} className="flex items-center gap-1.5 text-slate-400 hover:text-white text-xs flex-shrink-0 transition-colors">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
-              <span className="max-w-[220px] truncate font-medium text-slate-300">{drill.title}</span>
+            <button onClick={() => setDrill(null)} className="flex items-center gap-1.5 min-w-0 text-slate-400 hover:text-white text-xs flex-shrink transition-colors">
+              <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+              <span className="truncate font-medium text-slate-300">{drill.title}</span>
             </button>
           ) : (
             <svg className="w-4 h-4 text-slate-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
@@ -600,8 +604,8 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
             readOnly={!!drill}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onInputKeyDown}
-            placeholder={drill ? 'Latest supplier quotes & POs — Enter opens Deal Lookup' : 'Search vendors, companies, items, quote/PI/PO numbers…'}
-            className="flex-1 bg-transparent outline-none text-white text-base sm:text-sm placeholder:text-slate-600"
+            placeholder={drill ? 'Enter opens Deal Lookup' : 'Search vendors, companies, items, quote/PI/PO numbers…'}
+            className="flex-1 min-w-0 bg-transparent outline-none text-white text-base sm:text-sm placeholder:text-slate-600"
           />
           <kbd className="text-[10px] text-slate-600 border border-slate-700 rounded px-1.5 py-0.5">Esc</kbd>
         </div>
