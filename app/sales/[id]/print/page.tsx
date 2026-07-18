@@ -1,7 +1,8 @@
 /**
  * Client-facing Sales Quote / Order PDF. Same corporate steel-blue language as
- * the Project Quote print. Line items are grouped into sections by product
- * category. Selling prices are client-facing; no cost/margin ever appears here.
+ * the Project Quote print. Line items render under user-defined sections (if
+ * any). Selling prices are client-facing; no cost/margin ever appears here.
+ * The user chooses which columns / comments show (persisted in localStorage).
  * PDF via the browser's Print → Save as PDF (document.title = filename).
  */
 'use client';
@@ -9,21 +10,20 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { DEFAULT_SALES_COLS, SALES_COL_KEYS, SALES_COL_LABELS, loadSalesCols, saveSalesCols, type SalesExportCols } from '@/lib/salesExportCols';
 
 function fmtIdr(v: number) { return `Rp${Math.round(v).toLocaleString('en-US')}`; }
 function fmtDate(d?: string | null) {
   if (!d) return '';
   return new Date(d.length <= 10 ? `${d}T00:00:00` : d).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
 }
-function humanize(s: string) { return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()); }
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
   customer_id: string | null; company_id: string | null; quote_date: string; status: string;
   ppn_pct: number; notes: string;
 }
-interface Line { item_id: string; component_id: string | null; description: string; unit: string; quantity: number; unit_price: number; line_total: number; sort_order: number; }
-interface Section { key: string; label: string; items: Line[]; }
+interface Line { item_id: string; is_section: boolean; description: string; brand: string; note: string; unit: string; quantity: number; unit_price: number; sort_order: number; }
 
 export default function SalesPrintPage() {
   const { id } = useParams<{ id: string }>();
@@ -32,11 +32,15 @@ export default function SalesPrintPage() {
   const { user, loading: authLoading } = useAuth();
 
   const [quote, setQuote] = useState<Quote | null>(null);
-  const [sections, setSections] = useState<Section[]>([]);
+  const [lines, setLines] = useState<Line[]>([]);
   const [companyName, setCompanyName] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerAddr, setCustomerAddr] = useState('');
   const [loading, setLoading] = useState(true);
+  const [cols, setCols] = useState<SalesExportCols>(DEFAULT_SALES_COLS);
+
+  useEffect(() => { setCols(loadSalesCols()); }, []);
+  const setCol = (k: keyof SalesExportCols, v: boolean) => setCols((prev) => { const next = { ...prev, [k]: v }; saveSalesCols(next); return next; });
 
   useEffect(() => { if (!authLoading && !user) router.replace(`/login?next=${encodeURIComponent(`/sales/${id}/print`)}`); }, [authLoading, user, id, router]);
 
@@ -52,28 +56,11 @@ export default function SalesPrintPage() {
       const q = qRes.data as Quote;
       setQuote(q);
       setCompanyName(((coRes.data ?? []).find((c) => c.company_id === q.company_id)?.legal_name as string) ?? '');
-
       if (q.customer_id) {
         const { data: cust } = await supabase.from('20.0_customers').select('display_name, legal_name, billing_address').eq('customer_id', q.customer_id).single();
         if (cust) { setCustomerName((cust.legal_name as string) || (cust.display_name as string) || ''); setCustomerAddr((cust.billing_address as string) || ''); }
       }
-
-      const items = (iRes.data as Line[]) ?? [];
-      // Group into sections by product category (client-friendly headings).
-      const compIds = [...new Set(items.map((i) => i.component_id).filter(Boolean))] as string[];
-      const catById = new Map<string, string>();
-      if (compIds.length) {
-        const { data: comps } = await supabase.from('3.0_components').select('component_id, category').in('component_id', compIds);
-        for (const c of comps ?? []) catById.set(c.component_id as string, (c.category as string) || '');
-      }
-      const order: string[] = [];
-      const byCat = new Map<string, Line[]>();
-      for (const it of items) {
-        const cat = (it.component_id && catById.get(it.component_id)) || 'lain_lain';
-        if (!byCat.has(cat)) { byCat.set(cat, []); order.push(cat); }
-        byCat.get(cat)!.push(it);
-      }
-      setSections(order.map((key) => ({ key, label: key === 'lain_lain' ? 'Lain-lain' : humanize(key), items: byCat.get(key)! })));
+      setLines((iRes.data as Line[]) ?? []);
       setLoading(false);
     }
     load();
@@ -88,11 +75,23 @@ export default function SalesPrintPage() {
   }
 
   const ppnPct = Number(quote.ppn_pct) || 11;
-  const sectionTotal = (sec: Section) => sec.items.reduce((s, i) => s + (Number(i.quantity) || 0) * (Number(i.unit_price) || 0), 0);
-  const subtotal = sections.reduce((s, sec) => s + sectionTotal(sec), 0);
+  const items = lines.filter((l) => !l.is_section);
+  const subtotal = items.reduce((s, i) => s + (Number(i.quantity) || 0) * (Number(i.unit_price) || 0), 0);
   const ppn = subtotal * ppnPct / 100;
   const grandTotal = subtotal + ppn;
   const isOrder = ['ordered', 'invoiced', 'delivered'].includes(quote.status);
+  const hasSections = lines.some((l) => l.is_section);
+
+  const colCount = 1 + (cols.brand ? 1 : 0) + (cols.qty ? 1 : 0) + (cols.unit ? 1 : 0) + (cols.price ? 1 : 0) + (cols.amount ? 1 : 0);
+
+  // Subtotal for the section starting at index `from` (until the next header).
+  const sectionSubtotal = (from: number) => {
+    let sum = 0;
+    for (let j = from + 1; j < lines.length && !lines[j].is_section; j++) {
+      sum += (Number(lines[j].quantity) || 0) * (Number(lines[j].unit_price) || 0);
+    }
+    return sum;
+  };
 
   return (
     <>
@@ -119,6 +118,7 @@ export default function SalesPrintPage() {
         tbody tr.group-row td { padding: 4.5mm 1.5mm 1.6mm; font-weight: 800; font-size: 9.5pt; color: #1f5aa8; text-transform: uppercase; letter-spacing: 1.5px; border-bottom: 1pt solid #1f5aa8; }
         tbody tr.item-row td { padding: 1.7mm 1.5mm; border-bottom: 0.4pt solid #e8edf3; vertical-align: top; color: #334155; }
         tbody tr.item-row td:first-child { color: #1f2937; }
+        tbody tr.note-row td { padding: 0 1.5mm 1.7mm; border-bottom: 0.4pt solid #e8edf3; color: #64748b; font-size: 8.5pt; font-style: italic; }
         td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
         tbody tr.subtotal-row td { padding: 1.6mm 1.5mm; text-align: right; font-weight: 650; color: #1f5aa8; font-size: 8.5pt; background: #f6f9fc; }
         .totals-wrap { display: flex; justify-content: flex-end; margin-top: 5mm; }
@@ -135,7 +135,7 @@ export default function SalesPrintPage() {
         .sig-label { font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #94a3b8; margin-bottom: 10mm; }
         .sig-line { border-bottom: 0.6pt solid #cbd5e1; margin-bottom: 1.2mm; height: 8mm; }
         .sig-name { font-size: 8pt; color: #475569; text-align: center; font-weight: 600; }
-        .print-btn { padding: 11px 22px; background: #1f5aa8; color: #fff; border: none; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: 0 6px 20px rgba(15,23,42,0.25); }
+        .print-btn { padding: 11px 22px; background: #1f5aa8; color: #fff; border: none; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: 0 6px 20px rgba(15,23,42,0.25); width: 100%; }
         .print-btn:hover { background: #1a4e91; }
       `}</style>
 
@@ -166,34 +166,44 @@ export default function SalesPrintPage() {
           <thead>
             <tr>
               <th>Items</th>
-              <th className="right" style={{ width: '60px' }}>Qty</th>
-              <th style={{ width: '55px' }}>Unit</th>
-              <th className="right" style={{ width: '95px' }}>Harga</th>
-              <th className="right" style={{ width: '105px' }}>Jumlah</th>
+              {cols.brand && <th style={{ width: '75px' }}>Brand</th>}
+              {cols.qty && <th className="right" style={{ width: '55px' }}>Qty</th>}
+              {cols.unit && <th style={{ width: '55px' }}>Unit</th>}
+              {cols.price && <th className="right" style={{ width: '95px' }}>Harga</th>}
+              {cols.amount && <th className="right" style={{ width: '105px' }}>Jumlah</th>}
             </tr>
           </thead>
           <tbody>
-            {sections.map((sec) => (
-              <React.Fragment key={sec.key}>
-                {sections.length > 1 && (
-                  <tr className="group-row"><td colSpan={5}>{sec.label}</td></tr>
-                )}
-                {sec.items.map((it) => (
-                  <tr key={it.item_id} className="item-row">
-                    <td>{it.description || '—'}</td>
-                    <td className="num">{Number(it.quantity).toLocaleString('en-US')}</td>
-                    <td style={{ color: '#64748b', whiteSpace: 'nowrap' }}>{it.unit}</td>
-                    <td className="num">{fmtIdr(Number(it.unit_price))}</td>
-                    <td className="num">{fmtIdr(Number(it.quantity) * Number(it.unit_price))}</td>
+            {lines.map((l, idx) => {
+              if (l.is_section) {
+                return (
+                  <React.Fragment key={l.item_id}>
+                    <tr className="group-row"><td colSpan={colCount}>{l.description}</td></tr>
+                    {cols.amount && (
+                      <tr className="subtotal-row"><td colSpan={colCount}>Subtotal {l.description}: {fmtIdr(sectionSubtotal(idx))}</td></tr>
+                    )}
+                  </React.Fragment>
+                );
+              }
+              const amt = (Number(l.quantity) || 0) * (Number(l.unit_price) || 0);
+              return (
+                <React.Fragment key={l.item_id}>
+                  <tr className="item-row">
+                    <td>{l.description || '—'}</td>
+                    {cols.brand && <td style={{ color: '#64748b' }}>{l.brand}</td>}
+                    {cols.qty && <td className="num">{Number(l.quantity).toLocaleString('en-US')}</td>}
+                    {cols.unit && <td style={{ color: '#64748b', whiteSpace: 'nowrap' }}>{l.unit}</td>}
+                    {cols.price && <td className="num">{fmtIdr(Number(l.unit_price))}</td>}
+                    {cols.amount && <td className="num">{fmtIdr(amt)}</td>}
                   </tr>
-                ))}
-                {sections.length > 1 && (
-                  <tr className="subtotal-row"><td colSpan={5}>Subtotal {sec.label}: {fmtIdr(sectionTotal(sec))}</td></tr>
-                )}
-              </React.Fragment>
-            ))}
-            {sections.length === 0 && (
-              <tr className="item-row"><td colSpan={5} style={{ color: '#94a3b8', fontStyle: 'italic' }}>Tidak ada item.</td></tr>
+                  {cols.notes && l.note && (
+                    <tr className="note-row"><td colSpan={colCount}>↳ {l.note}</td></tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+            {items.length === 0 && !hasSections && (
+              <tr className="item-row"><td colSpan={colCount} style={{ color: '#94a3b8', fontStyle: 'italic' }}>Tidak ada item.</td></tr>
             )}
           </tbody>
         </table>
@@ -232,7 +242,17 @@ export default function SalesPrintPage() {
         </div>
       </div>
 
-      <div className="no-print" style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 50 }}>
+      {/* Column toggles + print button (hidden when printing) */}
+      <div className="no-print" style={{ position: 'fixed', bottom: '20px', right: '20px', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '10px', width: '190px', zIndex: 50 }}>
+        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px 14px', boxShadow: '0 6px 20px rgba(15,23,42,0.15)', fontSize: '12px', color: '#334155' }}>
+          <p style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: '#94a3b8', marginBottom: '8px' }}>Show in PDF</p>
+          {SALES_COL_KEYS.map((k) => (
+            <label key={k} style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '5px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={cols[k]} onChange={(e) => setCol(k, e.target.checked)} />
+              {SALES_COL_LABELS[k]}
+            </label>
+          ))}
+        </div>
         <button className="print-btn" onClick={() => window.print()}>Print / Save PDF</button>
       </div>
     </>

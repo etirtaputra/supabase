@@ -52,7 +52,10 @@ CREATE TABLE IF NOT EXISTS "22.1_sales_quote_items" (
   item_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   quote_id     UUID NOT NULL REFERENCES "22.0_sales_quotes"(quote_id) ON DELETE CASCADE,
   component_id UUID REFERENCES "3.0_components"(component_id) ON DELETE SET NULL,
+  is_section   BOOLEAN NOT NULL DEFAULT FALSE,  -- a section header row (title only)
   description  TEXT DEFAULT '',
+  brand        TEXT DEFAULT '',
+  note         TEXT DEFAULT '',                 -- optional comment; PDF can show/hide
   unit         TEXT DEFAULT '',
   quantity     NUMERIC NOT NULL DEFAULT 0,
   unit_price   NUMERIC NOT NULL DEFAULT 0,
@@ -60,6 +63,9 @@ CREATE TABLE IF NOT EXISTS "22.1_sales_quote_items" (
   sort_order   INTEGER NOT NULL DEFAULT 0,
   created_at   TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE "22.1_sales_quote_items" ADD COLUMN IF NOT EXISTS is_section BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE "22.1_sales_quote_items" ADD COLUMN IF NOT EXISTS brand      TEXT DEFAULT '';
+ALTER TABLE "22.1_sales_quote_items" ADD COLUMN IF NOT EXISTS note       TEXT DEFAULT '';
 CREATE INDEX IF NOT EXISTS sales_quote_items_quote_idx     ON "22.1_sales_quote_items" (quote_id);
 CREATE INDEX IF NOT EXISTS sales_quote_items_component_idx ON "22.1_sales_quote_items" (component_id);
 
