@@ -13,13 +13,21 @@ import { useState } from 'react';
  * Replaces the old always-visible nav buttons / AppSwitcher pills so the
  * header stays clean, especially on mobile.
  */
-const APPS = [
-  { href: '/',          label: 'Dashboard' },
-  { href: '/catalog',   label: 'Catalog' },
-  { href: '/customers', label: 'Customers' },
-  { href: '/pricing',   label: 'Pricing' },
-  { href: '/insights',  label: 'Insights' },
-  { href: '/quotes',    label: 'Quotes' },
+// Grouped into the two mirror flows of the ERP: buy-side (procure-to-pay) and
+// sell-side (order-to-cash), with the shared dashboard and EPC projects apart.
+const APP_GROUPS: { title: string | null; apps: { href: string; label: string }[] }[] = [
+  { title: null, apps: [{ href: '/', label: 'Dashboard' }] },
+  { title: 'Buy side', apps: [
+    { href: '/catalog',  label: 'Catalog' },
+    { href: '/insights', label: 'Insights' },
+  ] },
+  { title: 'Sell side', apps: [
+    { href: '/customers', label: 'Customers' },
+    { href: '/pricing',   label: 'Pricing' },
+    { href: '/sales',     label: 'Sales' },
+    { href: '/stock',     label: 'Stock' },
+  ] },
+  { title: 'Projects', apps: [{ href: '/quotes', label: 'Quotes' }] },
 ];
 
 export default function BrandMenu({
@@ -55,24 +63,28 @@ export default function BrandMenu({
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-full mt-2 z-50 w-44 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-1.5">
-            <p className="px-2.5 pt-1 pb-1.5 text-[9px] uppercase tracking-widest text-slate-600">Switch app</p>
-            {APPS.map((a) => {
-              const active = isActive(a.href);
-              return (
-                <Link
-                  key={a.href}
-                  href={a.href}
-                  onClick={() => setOpen(false)}
-                  className={`flex items-center justify-between px-2.5 py-2 rounded-lg text-sm transition-colors ${
-                    active ? 'bg-emerald-500/15 text-emerald-300' : 'text-slate-300 hover:bg-white/10 hover:text-white'
-                  }`}
-                >
-                  {a.label}
-                  {active && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
-                </Link>
-              );
-            })}
+          <div className="absolute left-0 top-full mt-2 z-50 w-48 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-1.5 max-h-[80vh] overflow-y-auto">
+            {APP_GROUPS.map((group, gi) => (
+              <div key={gi} className={gi > 0 ? 'mt-1 pt-1 border-t border-slate-800/70' : ''}>
+                {group.title && <p className="px-2.5 pt-1 pb-1 text-[9px] uppercase tracking-widest text-slate-600">{group.title}</p>}
+                {group.apps.map((a) => {
+                  const active = isActive(a.href);
+                  return (
+                    <Link
+                      key={a.href}
+                      href={a.href}
+                      onClick={() => setOpen(false)}
+                      className={`flex items-center justify-between px-2.5 py-2 rounded-lg text-sm transition-colors ${
+                        active ? 'bg-emerald-500/15 text-emerald-300' : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                      }`}
+                    >
+                      {a.label}
+                      {active && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+                    </Link>
+                  );
+                })}
+              </div>
+            ))}
           </div>
         </>
       )}

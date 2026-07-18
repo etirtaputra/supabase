@@ -21,6 +21,7 @@ export interface RolePermissions {
   canManageCustomers: boolean; // CRM: create/edit customers + contacts, assign AM
   canEditSalesDocs: boolean;   // sell-side docs (product quotes, sales orders, DOs) — used by later modules
   canManagePricing: boolean;   // price tiers + item tier prices; sees margin vs landed cost (internal)
+  canManageStock: boolean;     // inventory: receive / adjust stock movements
 }
 
 export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
@@ -36,6 +37,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canManageCustomers: true,
     canEditSalesDocs: true,
     canManagePricing: true,
+    canManageStock: true,
   },
   data_entry: {
     tabs: { catalog: true, quoting: true, ordering: true, financials: false, lookup: true, 'market-intel': false },
@@ -49,6 +51,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canManageCustomers: false,
     canEditSalesDocs: false,
     canManagePricing: false,
+    canManageStock: true,
   },
   finance: {
     tabs: { catalog: false, quoting: false, ordering: false, financials: true, lookup: true, 'market-intel': false },
@@ -62,6 +65,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canManageCustomers: false,
     canEditSalesDocs: false,
     canManagePricing: false,
+    canManageStock: false,
   },
   // Sell-side rep. Owns the CRM + sell-side docs; no buy-side procurement,
   // payments, or user management. Sees selling prices (they quote them).
@@ -77,6 +81,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canManageCustomers: true,
     canEditSalesDocs: true,
     canManagePricing: false,
+    canManageStock: false,
   },
   viewer: {
     tabs: { catalog: false, quoting: false, ordering: false, financials: false, lookup: true, 'market-intel': false },
@@ -90,6 +95,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canManageCustomers: false,
     canEditSalesDocs: false,
     canManagePricing: false,
+    canManageStock: false,
   },
 };
 
