@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS "22.1_sales_quote_items" (
   description  TEXT DEFAULT '',
   brand        TEXT DEFAULT '',
   note         TEXT DEFAULT '',                 -- optional comment; PDF can show/hide
+  lead_time    TEXT DEFAULT '',                 -- section lead-time tag (PDF)
   unit         TEXT DEFAULT '',
   quantity     NUMERIC NOT NULL DEFAULT 0,
   unit_price   NUMERIC NOT NULL DEFAULT 0,
@@ -66,6 +67,7 @@ CREATE TABLE IF NOT EXISTS "22.1_sales_quote_items" (
 ALTER TABLE "22.1_sales_quote_items" ADD COLUMN IF NOT EXISTS is_section BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE "22.1_sales_quote_items" ADD COLUMN IF NOT EXISTS brand      TEXT DEFAULT '';
 ALTER TABLE "22.1_sales_quote_items" ADD COLUMN IF NOT EXISTS note       TEXT DEFAULT '';
+ALTER TABLE "22.1_sales_quote_items" ADD COLUMN IF NOT EXISTS lead_time  TEXT DEFAULT '';
 CREATE INDEX IF NOT EXISTS sales_quote_items_quote_idx     ON "22.1_sales_quote_items" (quote_id);
 CREATE INDEX IF NOT EXISTS sales_quote_items_component_idx ON "22.1_sales_quote_items" (component_id);
 

@@ -9,11 +9,12 @@ export interface SalesExportCols {
   price: boolean;   // unit price column (Harga)
   amount: boolean;  // line amount column (Jumlah)
   notes: boolean;   // per-line comments/descriptions under each item
+  lead: boolean;    // lead-time tag on section headers
 }
 
-export const DEFAULT_SALES_COLS: SalesExportCols = { brand: false, qty: true, unit: true, price: true, amount: true, notes: true };
+export const DEFAULT_SALES_COLS: SalesExportCols = { brand: false, qty: true, unit: true, price: true, amount: true, notes: true, lead: true };
 
-export const SALES_COL_KEYS = ['qty', 'unit', 'price', 'amount', 'brand', 'notes'] as const;
+export const SALES_COL_KEYS = ['qty', 'unit', 'price', 'amount', 'brand', 'notes', 'lead'] as const;
 
 export const SALES_COL_LABELS: Record<keyof SalesExportCols, string> = {
   brand: 'Brand',
@@ -22,6 +23,7 @@ export const SALES_COL_LABELS: Record<keyof SalesExportCols, string> = {
   price: 'Unit price',
   amount: 'Amounts',
   notes: 'Comments',
+  lead: 'Lead time',
 };
 
 const KEY = 'sales_export_cols';

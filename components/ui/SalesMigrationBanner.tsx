@@ -16,7 +16,7 @@ export default function SalesMigrationBanner() {
     async function check() {
       const probes = await Promise.all([
         supabase.from('22.0_sales_quotes').select('quote_id, status, grand_total').limit(1),
-        supabase.from('22.1_sales_quote_items').select('item_id, is_section, note, brand').limit(1),
+        supabase.from('22.1_sales_quote_items').select('item_id, is_section, note, brand, lead_time').limit(1),
         supabase.from('30.0_stock_movements').select('movement_id').limit(1),
         supabase.from('30.1_stock_balances').select('component_id, qty_on_hand').limit(1),
       ]);

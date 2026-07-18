@@ -1,0 +1,472 @@
+/**
+ * ICAPROC — Sell-side: a single Sales Quote at its own URL (/sales/[id], or
+ * /sales/new). One document with a status lifecycle. Owner + sales.
+ *  - Advancing status stays on this page (the quote's own link).
+ *  - Confirm Customer Order reserves Live Stock; cancel/revert releases it;
+ *    deliver writes stock-out movements.
+ */
+'use client';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { createSupabaseClient } from '@/lib/supabase';
+import { useAuth } from '@/hooks/useAuth';
+import { useRouter, useParams } from 'next/navigation';
+import { ROLE_PERMISSIONS } from '@/constants/roles';
+import BrandMenu from '@/components/ui/BrandMenu';
+import { SALES_STATUS as STATUS, COMMITTED_STATUSES as COMMITTED } from '@/lib/salesStatus';
+
+interface Quote {
+  quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
+  customer_id: string | null; company_id: string | null; quote_date: string; status: string;
+  ppn_pct: number; subtotal: number; ppn_amount: number; grand_total: number; notes: string;
+  updated_at?: string; updated_by_email?: string;
+}
+interface DbLine { item_id: string; component_id: string | null; is_section: boolean; description: string; brand: string; note: string; lead_time: string; unit: string; quantity: number; unit_price: number; sort_order: number; }
+interface EditLine { key: string; component_id: string | null; is_section: boolean; description: string; brand: string; note: string; lead_time: string; unit: string; quantity: string; unit_price: string; showNote: boolean; }
+interface Customer { customer_id: string; display_name: string; legal_name: string; tier: string; }
+interface Company { company_id: string; legal_name: string; }
+interface Tier { tier_id: string; tier_code: string; default_discount_pct: number; }
+interface Override { component_id: string; tier_id: string; override_price_idr: number | null; override_discount_pct: number | null; }
+interface Comp { component_id: string; supplier_model: string; brand: string | null; unit: string | null; selling_price_idr: number | null; }
+
+const fmtInt = (n: number) => Math.round(n).toLocaleString('en-US');
+const num = (v: unknown): number => {
+  if (v === '' || v === null || v === undefined) return 0;
+  const n = Number(String(v).replace(/[, ]/g, ''));
+  return isNaN(n) ? 0 : n;
+};
+
+function effectivePrice(list: number | null, tier: Tier | undefined, ov: Override | undefined): number | null {
+  if (ov?.override_price_idr != null) return ov.override_price_idr;
+  if (list == null || list <= 0) return null;
+  const disc = ov?.override_discount_pct ?? tier?.default_discount_pct ?? 0;
+  return list * (1 - disc / 100);
+}
+
+const blankLine = (): EditLine => ({ key: `new-${Date.now()}-${Math.random()}`, component_id: null, is_section: false, description: '', brand: '', note: '', lead_time: '', unit: '', quantity: '', unit_price: '', showNote: false });
+const blankQuote = (companyId: string | null): Quote => ({
+  quote_id: '', quote_number: '', customer_id: null, company_id: companyId,
+  quote_date: new Date().toISOString().slice(0, 10), status: 'draft', ppn_pct: 11,
+  subtotal: 0, ppn_amount: 0, grand_total: 0, notes: '',
+});
+const mapLine = (it: DbLine): EditLine => ({
+  key: `db-${it.item_id}`, component_id: it.component_id, is_section: !!it.is_section,
+  description: it.description, brand: it.brand ?? '', note: it.note ?? '', lead_time: it.lead_time ?? '', unit: it.unit,
+  quantity: String(it.quantity ?? ''), unit_price: String(it.unit_price ?? ''), showNote: !!(it.note ?? ''),
+});
+
+export default function SalesQuotePage() {
+  const supabase = createSupabaseClient();
+  const router = useRouter();
+  const { id } = useParams<{ id: string }>();
+  const isNew = id === 'new';
+  const { user, profile, loading: authLoading } = useAuth();
+  const canEdit = !!profile && ROLE_PERMISSIONS[profile.role].canEditSalesDocs;
+
+  const [editing, setEditing] = useState<Quote | null>(null);
+  const [lines, setLines] = useState<EditLine[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [tiers, setTiers] = useState<Tier[]>([]);
+  const [overrides, setOverrides] = useState<Override[]>([]);
+  const [comps, setComps] = useState<Comp[]>([]);
+  const [physical, setPhysical] = useState<Record<string, number>>({});
+  const [reserved, setReserved] = useState<Record<string, number>>({});
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2400); };
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) { router.replace(`/login?next=${encodeURIComponent(`/sales/${id}`)}`); return; }
+    if (profile && !ROLE_PERMISSIONS[profile.role].canEditSalesDocs) router.replace('/unauthorized');
+  }, [authLoading, user, profile, id, router]);
+
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    const [custRes, coRes, tierRes, ovRes, compRes, balRes, allQRes, allIRes] = await Promise.all([
+      supabase.from('20.0_customers').select('customer_id, display_name, legal_name, tier').order('display_name'),
+      supabase.from('1.0_companies').select('company_id, legal_name').order('legal_name'),
+      supabase.from('21.0_price_tiers').select('tier_id, tier_code, default_discount_pct'),
+      supabase.from('21.1_item_tier_prices').select('component_id, tier_id, override_price_idr, override_discount_pct'),
+      supabase.from('3.0_components').select('component_id, supplier_model, brand, unit, selling_price_idr').order('supplier_model').limit(2000),
+      supabase.from('30.1_stock_balances').select('component_id, qty_on_hand'),
+      supabase.from('22.0_sales_quotes').select('quote_id, status'),
+      supabase.from('22.1_sales_quote_items').select('quote_id, component_id, quantity, is_section'),
+    ]);
+    const coList = (coRes.data as Company[]) ?? [];
+    setCustomers((custRes.data as Customer[]) ?? []);
+    setCompanies(coList);
+    setTiers((tierRes.data as Tier[]) ?? []);
+    setOverrides((ovRes.data as Override[]) ?? []);
+    setComps((compRes.data as Comp[]) ?? []);
+    const phys: Record<string, number> = {};
+    for (const b of (balRes.data as { component_id: string; qty_on_hand: number }[]) ?? []) phys[b.component_id] = Number(b.qty_on_hand) || 0;
+    setPhysical(phys);
+
+    // Reserved = qty on committed quotes.
+    const committed = new Set(((allQRes.data as { quote_id: string; status: string }[]) ?? []).filter((q) => COMMITTED.has(q.status)).map((q) => q.quote_id));
+    const rsv: Record<string, number> = {};
+    for (const it of (allIRes.data as { quote_id: string; component_id: string | null; quantity: number; is_section: boolean }[]) ?? []) {
+      if (it.component_id && !it.is_section && committed.has(it.quote_id)) rsv[it.component_id] = (rsv[it.component_id] ?? 0) + (Number(it.quantity) || 0);
+    }
+    setReserved(rsv);
+
+    if (isNew) {
+      setEditing((prev) => prev ?? blankQuote(coList[0]?.company_id ?? null));
+      setLines((prev) => (prev.length ? prev : [blankLine()]));
+    } else {
+      const [qRes, iRes] = await Promise.all([
+        supabase.from('22.0_sales_quotes').select('*').eq('quote_id', id).single(),
+        supabase.from('22.1_sales_quote_items').select('*').eq('quote_id', id).order('sort_order'),
+      ]);
+      if (!qRes.data) { setNotFound(true); setLoading(false); return; }
+      setEditing(qRes.data as Quote);
+      setLines([...((iRes.data as DbLine[]) ?? []).map(mapLine), blankLine()]);
+    }
+    setLoading(false);
+  }, [id, isNew]);
+
+  useEffect(() => { if (canEdit) load(); }, [canEdit, load]);
+
+  const custById = useMemo(() => new Map(customers.map((c) => [c.customer_id, c])), [customers]);
+  const compById = useMemo(() => new Map(comps.map((c) => [c.component_id, c])), [comps]);
+  const tierByCode = useMemo(() => new Map(tiers.map((t) => [t.tier_code, t])), [tiers]);
+  const ovByKey = useMemo(() => { const m = new Map<string, Override>(); for (const o of overrides) m.set(`${o.component_id}:${o.tier_id}`, o); return m; }, [overrides]);
+
+  const availableOf = (componentId: string | null) =>
+    componentId ? (physical[componentId] ?? 0) - (reserved[componentId] ?? 0) : null;
+
+  function priceFor(componentId: string): number | null {
+    const comp = compById.get(componentId);
+    const list = comp?.selling_price_idr ?? null;
+    const cust = editing?.customer_id ? custById.get(editing.customer_id) : undefined;
+    const tier = cust?.tier ? tierByCode.get(cust.tier) : undefined;
+    const ov = tier ? ovByKey.get(`${componentId}:${tier.tier_id}`) : undefined;
+    return effectivePrice(list, tier, ov);
+  }
+
+  const setHeader = <K extends keyof Quote>(k: K, v: Quote[K]) => setEditing((e) => (e ? { ...e, [k]: v } : e));
+  const setLine = (key: string, patch: Partial<EditLine>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  const removeLine = (key: string) => setLines((ls) => ls.filter((l) => l.key !== key));
+  const addItem = () => setLines((ls) => [...ls, blankLine()]);
+  const addSection = () => setLines((ls) => [...ls, { ...blankLine(), is_section: true }]);
+
+  function pickComponent(key: string, comp: Comp) {
+    const price = priceFor(comp.component_id);
+    setLines((ls) => ls.map((l) => (l.key === key ? {
+      ...l, component_id: comp.component_id, description: comp.supplier_model || l.description,
+      brand: comp.brand ?? l.brand, unit: comp.unit || l.unit,
+      unit_price: price != null ? String(Math.round(price)) : l.unit_price, quantity: l.quantity || '1',
+    } : l)));
+  }
+
+  const totals = useMemo(() => {
+    const subtotal = lines.reduce((s, l) => s + (l.is_section ? 0 : num(l.quantity) * num(l.unit_price)), 0);
+    const ppn = subtotal * (num(editing?.ppn_pct ?? 11) / 100);
+    return { subtotal, ppn, grand: subtotal + ppn };
+  }, [lines, editing?.ppn_pct]);
+
+  async function persist(status?: string): Promise<string | null> {
+    if (!editing) return null;
+    const kept = lines.filter((l) => l.is_section ? l.description.trim() : ((l.component_id || l.description.trim()) && num(l.quantity) > 0));
+    const header = {
+      customer_id: editing.customer_id, company_id: editing.company_id, quote_date: editing.quote_date,
+      status: status ?? editing.status, ppn_pct: num(editing.ppn_pct),
+      subtotal: totals.subtotal, ppn_amount: totals.ppn, grand_total: totals.grand, notes: editing.notes,
+    };
+    let qid = editing.quote_id;
+    if (qid) {
+      const { error } = await supabase.from('22.0_sales_quotes').update(header).eq('quote_id', qid);
+      if (error) { flash(`Error: ${error.message}`); return null; }
+    } else {
+      const { data, error } = await supabase.from('22.0_sales_quotes').insert(header).select('quote_id').single();
+      if (error || !data) { flash(`Error: ${error?.message ?? 'insert failed'}`); return null; }
+      qid = data.quote_id as string;
+    }
+    await supabase.from('22.1_sales_quote_items').delete().eq('quote_id', qid);
+    if (kept.length) {
+      const rows = kept.map((l, i) => ({
+        quote_id: qid, component_id: l.is_section ? null : l.component_id, is_section: l.is_section,
+        description: l.description.trim(), brand: l.brand.trim(), note: l.note.trim(), lead_time: l.lead_time.trim(), unit: l.unit.trim(),
+        quantity: l.is_section ? 0 : num(l.quantity), unit_price: l.is_section ? 0 : num(l.unit_price),
+        line_total: l.is_section ? 0 : num(l.quantity) * num(l.unit_price), sort_order: i,
+      }));
+      const { error } = await supabase.from('22.1_sales_quote_items').insert(rows);
+      if (error) flash(`Lines failed: ${error.message}`);
+    }
+    return qid;
+  }
+
+  async function save() {
+    setBusy(true);
+    const wasNew = !editing?.quote_id;
+    const qid = await persist();
+    setBusy(false);
+    if (!qid) return;
+    flash('Saved');
+    if (wasNew) router.replace(`/sales/${qid}`); else load(true);
+  }
+
+  async function printPdf() {
+    setBusy(true);
+    const qid = await persist();
+    setBusy(false);
+    if (qid) { if (!editing?.quote_id) router.replace(`/sales/${qid}`); window.open(`/sales/${qid}/print`, '_blank', 'noopener'); }
+  }
+
+  // Advance / revert status — stays on this page. Delivery writes stock-out movements.
+  async function transition(next: string) {
+    if (!editing) return;
+    setBusy(true);
+    const wasNew = !editing.quote_id;
+    const qid = await persist(next);
+    if (!qid) { setBusy(false); return; }
+    if (next === 'delivered') {
+      const moves = lines.filter((l) => l.component_id && num(l.quantity) > 0).map((l) => ({
+        component_id: l.component_id, location: 'MAIN', direction: 'out', quantity: num(l.quantity),
+        unit_cost_idr: 0, source_type: 'delivery', source_id: qid, notes: `DO for ${editing.quote_number || qid}`,
+      }));
+      if (moves.length) {
+        const { error } = await supabase.from('30.0_stock_movements').insert(moves);
+        if (error) flash(`Delivered, but stock-out failed: ${error.message}`);
+      }
+    }
+    setBusy(false);
+    flash(`Marked ${STATUS[next]?.label ?? next}`);
+    if (wasNew) router.replace(`/sales/${qid}`); else load(true); // refresh status + stamped numbers in place
+  }
+
+  if (authLoading || !profile || (loading && !editing)) return <CenterSpinner />;
+  if (!canEdit) return <CenterSpinner />;
+  if (notFound) return (
+    <div className="min-h-screen bg-[#0f1012] flex flex-col items-center justify-center gap-3 text-slate-400">
+      <p>Sales quote not found.</p>
+      <button onClick={() => router.push('/sales')} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 text-sm">← Back to Sales</button>
+    </div>
+  );
+  if (!editing) return <CenterSpinner />;
+
+  const cust = editing.customer_id ? custById.get(editing.customer_id) : undefined;
+  const newDoc = !editing.quote_id;
+  const st = editing.status;
+  const actions: { label: string; to: string; primary?: boolean; danger?: boolean }[] = [];
+  if (st === 'draft') actions.push({ label: 'Mark Sent', to: 'sent' });
+  if (st === 'sent') actions.push({ label: 'Mark Accepted', to: 'accepted' });
+  if (['draft', 'sent', 'accepted'].includes(st)) actions.push({ label: 'Confirm Customer Order', to: 'ordered', primary: true });
+  if (st === 'ordered') actions.push({ label: 'Mark Invoiced', to: 'invoiced', primary: true });
+  if (st === 'invoiced') actions.push({ label: 'Mark Delivered', to: 'delivered', primary: true });
+  if (st === 'ordered') actions.push({ label: 'Revert to Quote', to: 'accepted' });
+  if (st === 'invoiced') actions.push({ label: 'Revert to Order', to: 'ordered' });
+  if (['cancelled', 'rejected'].includes(st)) actions.push({ label: 'Reopen', to: 'draft' });
+  if (['draft', 'sent'].includes(st)) actions.push({ label: 'Reject', to: 'rejected', danger: true });
+  if (['accepted', 'ordered', 'invoiced'].includes(st)) actions.push({ label: 'Cancel Order', to: 'cancelled', danger: true });
+
+  return (
+    <div className="min-h-screen bg-[#0f1012] text-slate-200 font-sans text-sm">
+      <div className="border-b border-slate-800/60 bg-[#0f1012]/80 backdrop-blur-md sticky top-0 z-30">
+        <div className="max-w-[1200px] mx-auto px-4 md:px-8 py-4 flex items-center justify-between gap-4">
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Sales · Quote" />
+          <button onClick={() => router.push('/sales')} className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors">← Back to list</button>
+        </div>
+      </div>
+      <main className="max-w-[1200px] mx-auto px-4 md:px-8 py-6 space-y-5">
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-lg font-bold text-white">{newDoc ? 'New Sales Quote' : editing.quote_number}</h1>
+          <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS[st]?.cls ?? ''}`}>{STATUS[st]?.label ?? st}</span>
+          <div className="flex flex-wrap gap-2 ml-auto">
+            {editing.order_number && <DocTag label="SO" value={editing.order_number} />}
+            {editing.invoice_number && <DocTag label="INV" value={editing.invoice_number} />}
+            {editing.do_number && <DocTag label="DO" value={editing.do_number} />}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4">
+          <FieldBox label="Customer" full>
+            <select value={editing.customer_id ?? ''} onChange={(e) => setHeader('customer_id', e.target.value || null)} className={inp}>
+              <option value="">— Select customer —</option>
+              {customers.map((c) => <option key={c.customer_id} value={c.customer_id}>{c.display_name || c.legal_name}{c.tier ? ` (${c.tier})` : ''}</option>)}
+            </select>
+          </FieldBox>
+          <FieldBox label="Selling company" full>
+            <select value={editing.company_id ?? ''} onChange={(e) => setHeader('company_id', e.target.value || null)} className={inp}>
+              <option value="">— Select company —</option>
+              {companies.map((c) => <option key={c.company_id} value={c.company_id}>{c.legal_name}</option>)}
+            </select>
+          </FieldBox>
+          <FieldBox label="Quote date">
+            <input type="date" value={editing.quote_date} onChange={(e) => setHeader('quote_date', e.target.value)} className={inp} />
+          </FieldBox>
+          <FieldBox label="PPN %">
+            <input value={String(editing.ppn_pct)} onChange={(e) => setHeader('ppn_pct', num(e.target.value) as any)} className={`${inp} text-right tabular-nums`} />
+          </FieldBox>
+        </div>
+
+        <div className="space-y-2">
+          {lines.map((l) => (
+            <LineCard key={l.key} line={l} comps={comps} available={availableOf(l.component_id)}
+              onPick={(c) => pickComponent(l.key, c)} onField={(patch) => setLine(l.key, patch)} onRemove={() => removeLine(l.key)} />
+          ))}
+          <div className="flex flex-wrap gap-2 pt-1">
+            <button onClick={addItem} className="px-3.5 py-2 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs font-semibold transition-colors">+ Add item</button>
+            <button onClick={addSection} className="px-3.5 py-2 rounded-xl bg-slate-800/60 text-slate-300 hover:bg-slate-700 text-xs font-semibold transition-colors">+ Add section</button>
+            <span className="text-[11px] text-slate-600 self-center">Pick a catalog product to autofill price, or just type a custom item.</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-[11px] font-medium text-slate-500 mb-1">Notes / terms</label>
+            <textarea value={editing.notes} onChange={(e) => setHeader('notes', e.target.value)} rows={4} className={inp} />
+          </div>
+          <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4 space-y-2 text-sm">
+            <Row label="Subtotal" value={fmtInt(totals.subtotal)} />
+            <Row label={`PPN (${num(editing.ppn_pct)}%)`} value={fmtInt(totals.ppn)} />
+            <div className="border-t border-slate-800 pt-2 flex justify-between items-baseline">
+              <span className="text-slate-300 font-semibold">Grand Total</span>
+              <span className="text-xl font-extrabold text-emerald-300 tabular-nums">IDR {fmtInt(totals.grand)}</span>
+            </div>
+            {cust?.tier && <p className="text-[10px] text-slate-600">Prices auto-filled at the customer’s <span className="text-slate-400">{cust.tier}</span> tier.</p>}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 sticky bottom-0 bg-[#0f1012]/95 backdrop-blur border-t border-slate-800 py-3">
+          <button onClick={save} disabled={busy} className="px-5 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold transition-colors disabled:opacity-50">Save</button>
+          <button onClick={printPdf} disabled={busy} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 text-sm font-semibold transition-colors disabled:opacity-50 inline-flex items-center gap-2">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z" /></svg>
+            Print / PDF
+          </button>
+          {actions.map((a) => (
+            <button key={a.to} onClick={() => transition(a.to)} disabled={busy}
+              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 ${a.danger ? 'bg-red-500/15 text-red-300 ring-1 ring-red-500/30 hover:bg-red-500/25' : a.primary ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+              {a.label}
+            </button>
+          ))}
+          {busy && <span className="w-4 h-4 border-2 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin" />}
+          {['draft', 'sent', 'accepted'].includes(st) && (
+            <span className="text-[11px] text-slate-600 w-full sm:w-auto sm:ml-1">Confirming reserves these quantities from Live Stock.</span>
+          )}
+        </div>
+      </main>
+      {toast && <Toast msg={toast} />}
+    </div>
+  );
+}
+
+// ── Styles + small building blocks ──────────────────────────────────────────
+const inp = 'w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 focus:border-emerald-500/60 outline-none text-white text-sm placeholder:text-slate-600 transition-colors';
+const inpSm = 'w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 focus:border-emerald-500/50 outline-none text-white text-xs placeholder:text-slate-600 transition-colors';
+
+function CenterSpinner() {
+  return <div className="min-h-screen bg-[#0f1012] flex items-center justify-center"><div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" /></div>;
+}
+function FieldBox({ label, children, full }: { label: string; children: React.ReactNode; full?: boolean }) {
+  return <div className={full ? 'col-span-2' : ''}><label className="block text-[11px] font-medium text-slate-500 mb-1">{label}</label>{children}</div>;
+}
+function Row({ label, value }: { label: string; value: string }) {
+  return <div className="flex justify-between text-slate-400"><span>{label}</span><span className="tabular-nums text-slate-200">{value}</span></div>;
+}
+function DocTag({ label, value }: { label: string; value: string }) {
+  return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 text-[11px]"><span className="text-slate-500 font-semibold">{label}</span><span className="font-mono text-slate-300">{value}</span></span>;
+}
+function Toast({ msg }: { msg: string }) {
+  return <div className="fixed bottom-6 right-6 z-[110] px-4 py-2.5 bg-slate-800 border border-slate-700 text-white text-sm font-semibold rounded-xl shadow-lg">{msg}</div>;
+}
+
+function LineCard({ line, comps, available, onPick, onField, onRemove }: {
+  line: EditLine; comps: Comp[]; available: number | null;
+  onPick: (c: Comp) => void; onField: (patch: Partial<EditLine>) => void; onRemove: () => void;
+}) {
+  if (line.is_section) {
+    return (
+      <div className="flex flex-wrap items-center gap-2 bg-slate-800/40 border border-slate-700/60 rounded-xl px-3 py-2">
+        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-500 flex-shrink-0">Section</span>
+        <input value={line.description} onChange={(e) => onField({ description: e.target.value })} placeholder="Section title (e.g. Solar Panels)"
+          className="flex-1 min-w-[140px] bg-transparent outline-none text-sm font-semibold text-slate-100 placeholder:text-slate-600" />
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-slate-500">Lead time</span>
+          <input value={line.lead_time} onChange={(e) => onField({ lead_time: e.target.value })} placeholder="e.g. 4–6 weeks"
+            className="w-28 px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 focus:border-emerald-500/50 outline-none text-xs text-white placeholder:text-slate-600" />
+        </div>
+        <button onClick={onRemove} className="text-slate-600 hover:text-red-400 transition-colors flex-shrink-0" title="Remove">×</button>
+      </div>
+    );
+  }
+  const qty = num(line.quantity);
+  const short = available != null && qty > available;
+  return (
+    <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-3 space-y-2">
+      <div className="flex items-start gap-2">
+        <div className="flex-1 min-w-0">
+          <ProductAutocomplete comps={comps} value={line.description} onText={(t) => onField({ description: t, component_id: null })} onPick={onPick} />
+        </div>
+        <button onClick={onRemove} className="text-slate-600 hover:text-red-400 transition-colors text-lg leading-none px-1 flex-shrink-0" title="Remove line">×</button>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-[80px_80px_1fr_1fr] gap-2">
+        <LabeledField label={`Qty${short ? ' ⚠' : ''}`} labelCls={short ? 'text-red-400' : ''}>
+          <input value={line.quantity} inputMode="decimal" onChange={(e) => onField({ quantity: e.target.value })} placeholder="0" className={`${inpSm} text-right tabular-nums`} />
+        </LabeledField>
+        <LabeledField label="Unit">
+          <input value={line.unit} onChange={(e) => onField({ unit: e.target.value })} placeholder="pcs" className={inpSm} />
+        </LabeledField>
+        <LabeledField label="Unit price">
+          <input value={line.unit_price} inputMode="decimal" onChange={(e) => onField({ unit_price: e.target.value })} placeholder="0" className={`${inpSm} text-right tabular-nums`} />
+        </LabeledField>
+        <LabeledField label="Line total">
+          <div className="px-2.5 py-1.5 text-right tabular-nums text-sm text-slate-200">{fmtInt(qty * num(line.unit_price))}</div>
+        </LabeledField>
+      </div>
+      <div className="flex items-center gap-3 flex-wrap">
+        {available != null && <span className={`text-[11px] tabular-nums ${short ? 'text-red-400' : 'text-slate-500'}`}>Live stock: {fmtInt(available)}{short ? ' — short' : ''}</span>}
+        <button onClick={() => onField({ showNote: !line.showNote })} className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors ml-auto">
+          {line.showNote || line.note ? 'Comment' : '+ Comment'}
+        </button>
+      </div>
+      {(line.showNote || line.note) && (
+        <input value={line.note} onChange={(e) => onField({ note: e.target.value })} placeholder="Comment / extra description (toggle in PDF)" className={inpSm} />
+      )}
+    </div>
+  );
+}
+
+function LabeledField({ label, labelCls, children }: { label: string; labelCls?: string; children: React.ReactNode }) {
+  return <div><label className={`block text-[10px] font-medium text-slate-500 mb-0.5 ${labelCls ?? ''}`}>{label}</label>{children}</div>;
+}
+
+function ProductAutocomplete({ comps, value, onText, onPick }: { comps: Comp[]; value: string; onText: (t: string) => void; onPick: (c: Comp) => void }) {
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
+  const results = useMemo(() => {
+    const s = value.trim().toLowerCase();
+    const list = s ? comps.filter((c) => `${c.supplier_model} ${c.brand ?? ''}`.toLowerCase().includes(s)) : comps;
+    return list.slice(0, 25);
+  }, [comps, value]);
+  useEffect(() => { setActive(-1); }, [value]);
+
+  const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!open || results.length === 0) { if (e.key === 'ArrowDown') setOpen(true); return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => Math.min(i + 1, results.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((i) => Math.max(i - 1, -1)); }
+    else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); onPick(results[active]); setOpen(false); }
+    else if (e.key === 'Escape') setOpen(false);
+  };
+  return (
+    <div className="relative">
+      <input value={value} onChange={(e) => { onText(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)} onKeyDown={onKey}
+        placeholder="Type a product or custom item…" autoComplete="off" className={inpSm} />
+      {open && results.length > 0 && (
+        <div className="absolute z-30 left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-slate-900 border border-emerald-500/40 rounded-lg shadow-2xl">
+          {results.map((c, i) => (
+            <button key={c.component_id} onMouseDown={(e) => { e.preventDefault(); onPick(c); setOpen(false); }}
+              className={`w-full text-left px-3 py-1.5 text-xs border-b border-slate-800/50 last:border-0 ${i === active ? 'bg-emerald-600/30 text-white' : 'hover:bg-slate-800 text-slate-300'}`}>
+              <span className="block truncate">{c.supplier_model}</span>
+              <span className="block text-[10px] text-slate-500 truncate">{[c.brand, c.unit, c.selling_price_idr ? `Rp${fmtInt(c.selling_price_idr)}` : ''].filter(Boolean).join(' · ')}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

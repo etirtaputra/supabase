@@ -23,7 +23,7 @@ interface Quote {
   customer_id: string | null; company_id: string | null; quote_date: string; status: string;
   ppn_pct: number; notes: string;
 }
-interface Line { item_id: string; is_section: boolean; description: string; brand: string; note: string; unit: string; quantity: number; unit_price: number; sort_order: number; }
+interface Line { item_id: string; is_section: boolean; description: string; brand: string; note: string; lead_time: string; unit: string; quantity: number; unit_price: number; sort_order: number; }
 
 export default function SalesPrintPage() {
   const { id } = useParams<{ id: string }>();
@@ -116,6 +116,7 @@ export default function SalesPrintPage() {
         thead th { padding: 2mm 1.5mm; text-align: left; font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #64748b; border-bottom: 1.5pt solid #1f5aa8; white-space: nowrap; }
         thead th.right { text-align: right; }
         tbody tr.group-row td { padding: 4.5mm 1.5mm 1.6mm; font-weight: 800; font-size: 9.5pt; color: #1f5aa8; text-transform: uppercase; letter-spacing: 1.5px; border-bottom: 1pt solid #1f5aa8; }
+        .lead-tag { font-weight: 500; font-style: italic; font-size: 8pt; color: #64748b; text-transform: none; letter-spacing: 0; }
         tbody tr.item-row td { padding: 1.7mm 1.5mm; border-bottom: 0.4pt solid #e8edf3; vertical-align: top; color: #334155; }
         tbody tr.item-row td:first-child { color: #1f2937; }
         tbody tr.note-row td { padding: 0 1.5mm 1.7mm; border-bottom: 0.4pt solid #e8edf3; color: #64748b; font-size: 8.5pt; font-style: italic; }
@@ -178,7 +179,7 @@ export default function SalesPrintPage() {
               if (l.is_section) {
                 return (
                   <React.Fragment key={l.item_id}>
-                    <tr className="group-row"><td colSpan={colCount}>{l.description}</td></tr>
+                    <tr className="group-row"><td colSpan={colCount}>{l.description}{cols.lead && l.lead_time ? <span className="lead-tag"> · lead time {l.lead_time}</span> : null}</td></tr>
                     {cols.amount && (
                       <tr className="subtotal-row"><td colSpan={colCount}>Subtotal {l.description}: {fmtIdr(sectionSubtotal(idx))}</td></tr>
                     )}
