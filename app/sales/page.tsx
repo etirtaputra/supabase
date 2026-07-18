@@ -39,14 +39,20 @@ export default function SalesListPage() {
     if (profile && !ROLE_PERMISSIONS[profile.role].canEditSalesDocs) router.replace('/unauthorized');
   }, [authLoading, user, profile, router]);
 
+  const [receivedByQuote, setReceivedByQuote] = useState<Record<string, number>>({});
+
   const fetchAll = useCallback(async () => {
     setLoading(true);
-    const [qRes, custRes] = await Promise.all([
+    const [qRes, custRes, rRes] = await Promise.all([
       supabase.from('22.0_sales_quotes').select('quote_id, quote_number, order_number, invoice_number, do_number, customer_id, status, grand_total, updated_at').order('updated_at', { ascending: false }),
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name'),
+      supabase.from('26.0_customer_receipts').select('quote_id, amount'),
     ]);
     setQuotes((qRes.data as Quote[]) ?? []);
     setCustomers((custRes.data as Customer[]) ?? []);
+    const rcv: Record<string, number> = {};
+    for (const r of ((rRes.data as { quote_id: string; amount: number }[]) ?? [])) rcv[r.quote_id] = (rcv[r.quote_id] ?? 0) + (Number(r.amount) || 0);
+    setReceivedByQuote(rcv);
     setLoading(false);
   }, []);
   useEffect(() => { if (canEdit) fetchAll(); }, [canEdit, fetchAll]);
@@ -92,12 +98,29 @@ export default function SalesListPage() {
             <div className="divide-y divide-slate-800/60">
               {filtered.map((q) => {
                 const c = q.customer_id ? custById.get(q.customer_id) : undefined;
+                const total = Number(q.grand_total) || 0;
+                const rcv = receivedByQuote[q.quote_id] ?? 0;
+                const billed = ['ordered', 'invoiced', 'delivered'].includes(q.status);
+                const pct = total > 0 ? Math.min(100, (rcv / total) * 100) : 0;
                 return (
                   <button key={q.quote_id} onClick={() => router.push(`/sales/${q.quote_id}`)} className="w-full text-left grid grid-cols-1 md:grid-cols-[150px_1fr_130px_140px_110px] gap-1 md:gap-3 px-4 py-3 hover:bg-slate-800/40 transition-colors items-center">
                     <span className="font-mono text-[11px] text-slate-300">{q.quote_number}</span>
                     <span className="text-sm text-slate-100 truncate">{c?.display_name || c?.legal_name || <span className="text-slate-600">No customer</span>}</span>
-                    <span><span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS[q.status]?.cls ?? ''}`}>{STATUS[q.status]?.label ?? q.status}</span></span>
-                    <span className="text-right tabular-nums text-slate-200">{fmtInt(Number(q.grand_total) || 0)}</span>
+                    <span className="flex items-center gap-1.5 flex-wrap">
+                      <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS[q.status]?.cls ?? ''}`}>{STATUS[q.status]?.label ?? q.status}</span>
+                      {billed && pct >= 100 && <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300">PAID</span>}
+                    </span>
+                    <span className="text-right">
+                      <span className="block tabular-nums text-slate-200">{fmtInt(total)}</span>
+                      {billed && total > 0 && (
+                        <span className="mt-1 ml-auto flex items-center gap-1.5 justify-end">
+                          <span className="w-12 h-1 bg-slate-700 rounded-full overflow-hidden inline-block">
+                            <span className={`block h-full rounded-full ${pct >= 100 ? 'bg-emerald-500' : pct > 0 ? 'bg-amber-400' : 'bg-slate-600'}`} style={{ width: `${pct}%` }} />
+                          </span>
+                          <span className={`text-[10px] tabular-nums ${pct >= 100 ? 'text-emerald-400' : pct > 0 ? 'text-amber-300' : 'text-slate-600'}`}>{pct.toFixed(0)}%</span>
+                        </span>
+                      )}
+                    </span>
                     <span className="text-right text-[11px] text-slate-500 tabular-nums">{fmtDate(q.updated_at)}</span>
                   </button>
                 );

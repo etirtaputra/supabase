@@ -22,6 +22,7 @@ export interface RolePermissions {
   canEditSalesDocs: boolean;   // sell-side docs (product quotes, sales orders, DOs) — used by later modules
   canManagePricing: boolean;   // price tiers + item tier prices; sees margin vs landed cost (internal)
   canManageStock: boolean;     // inventory: receive / adjust stock movements
+  canRecordReceipts: boolean;  // AR: record customer payments against sales invoices
 }
 
 export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
@@ -38,6 +39,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canEditSalesDocs: true,
     canManagePricing: true,
     canManageStock: true,
+    canRecordReceipts: true,
   },
   data_entry: {
     tabs: { catalog: true, quoting: true, ordering: true, financials: false, lookup: true, 'market-intel': false },
@@ -52,6 +54,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canEditSalesDocs: false,
     canManagePricing: false,
     canManageStock: true,
+    canRecordReceipts: false,
   },
   finance: {
     tabs: { catalog: false, quoting: false, ordering: false, financials: true, lookup: true, 'market-intel': false },
@@ -66,6 +69,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canEditSalesDocs: false,
     canManagePricing: false,
     canManageStock: false,
+    canRecordReceipts: true,
   },
   // Sell-side rep. Owns the CRM + sell-side docs; no buy-side procurement,
   // payments, or user management. Sees selling prices (they quote them).
@@ -82,6 +86,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canEditSalesDocs: true,
     canManagePricing: false,
     canManageStock: false,
+    canRecordReceipts: false,
   },
   viewer: {
     tabs: { catalog: false, quoting: false, ordering: false, financials: false, lookup: true, 'market-intel': false },
@@ -96,6 +101,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canEditSalesDocs: false,
     canManagePricing: false,
     canManageStock: false,
+    canRecordReceipts: false,
   },
 };
 

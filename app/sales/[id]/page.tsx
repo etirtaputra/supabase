@@ -27,6 +27,18 @@ interface Company { company_id: string; legal_name: string; }
 interface Tier { tier_id: string; tier_code: string; default_discount_pct: number; }
 interface Override { component_id: string; tier_id: string; override_price_idr: number | null; override_discount_pct: number | null; }
 interface Comp { component_id: string; supplier_model: string; brand: string | null; unit: string | null; selling_price_idr: number | null; }
+interface Receipt {
+  receipt_id: string; quote_id: string; receipt_number: string; category: string;
+  amount: number; payment_method: string; payment_date: string; bank_ref: string; notes: string; created_by_email?: string;
+}
+
+const METHOD_LABELS: Record<string, string> = {
+  bank_transfer: 'Bank Transfer', cash: 'Cash', cheque: 'Cheque', giro: 'Giro', other: 'Other',
+};
+const RECEIPT_CATS: { value: string; label: string }[] = [
+  { value: 'down_payment', label: 'Down Payment (DP)' },
+  { value: 'balance_payment', label: 'Balance Payment' },
+];
 
 const fmtInt = (n: number) => Math.round(n).toLocaleString('en-US');
 const num = (v: unknown): number => {
@@ -71,6 +83,7 @@ export default function SalesQuotePage() {
   const [comps, setComps] = useState<Comp[]>([]);
   const [physical, setPhysical] = useState<Record<string, number>>({});
   const [reserved, setReserved] = useState<Record<string, number>>({});
+  const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -117,13 +130,15 @@ export default function SalesQuotePage() {
       setEditing((prev) => prev ?? blankQuote(coList[0]?.company_id ?? null));
       setLines((prev) => (prev.length ? prev : [blankLine()]));
     } else {
-      const [qRes, iRes] = await Promise.all([
+      const [qRes, iRes, rRes] = await Promise.all([
         supabase.from('22.0_sales_quotes').select('*').eq('quote_id', id).single(),
         supabase.from('22.1_sales_quote_items').select('*').eq('quote_id', id).order('sort_order'),
+        supabase.from('26.0_customer_receipts').select('*').eq('quote_id', id).order('payment_date', { ascending: false }),
       ]);
       if (!qRes.data) { setNotFound(true); setLoading(false); return; }
       setEditing(qRes.data as Quote);
       setLines([...((iRes.data as DbLine[]) ?? []).map(mapLine), blankLine()]);
+      setReceipts(rRes.error ? [] : ((rRes.data as Receipt[]) ?? []));
     }
     setLoading(false);
   }, [id, isNew]);
@@ -251,6 +266,11 @@ export default function SalesQuotePage() {
   const cust = editing.customer_id ? custById.get(editing.customer_id) : undefined;
   const newDoc = !editing.quote_id;
   const st = editing.status;
+  const canRecord = ROLE_PERMISSIONS[profile.role].canRecordReceipts;
+  const received = receipts.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+  const billTotal = Number(editing.grand_total) || totals.grand;
+  const fullyPaid = billTotal > 0 && received >= billTotal - 0.5;
+  const showPayments = !newDoc && ['ordered', 'invoiced', 'delivered'].includes(st);
   const actions: { label: string; to: string; primary?: boolean; danger?: boolean }[] = [];
   if (st === 'draft') actions.push({ label: 'Mark Sent', to: 'sent' });
   if (st === 'sent') actions.push({ label: 'Mark Accepted', to: 'accepted' });
@@ -275,6 +295,12 @@ export default function SalesQuotePage() {
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-lg font-bold text-white">{newDoc ? 'New Sales Quote' : editing.quote_number}</h1>
           <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS[st]?.cls ?? ''}`}>{STATUS[st]?.label ?? st}</span>
+          {showPayments && fullyPaid && (
+            <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40">PAID</span>
+          )}
+          {showPayments && !fullyPaid && received > 0 && (
+            <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/15 text-amber-300">PARTIAL</span>
+          )}
           <div className="flex flex-wrap gap-2 ml-auto">
             {editing.order_number && <DocTag label="SO" value={editing.order_number} />}
             {editing.invoice_number && <DocTag label="INV" value={editing.invoice_number} />}
@@ -330,6 +356,14 @@ export default function SalesQuotePage() {
             {cust?.tier && <p className="text-[10px] text-slate-600">Prices auto-filled at the customer’s <span className="text-slate-400">{cust.tier}</span> tier.</p>}
           </div>
         </div>
+
+        {showPayments && (
+          <PaymentsPanel
+            receipts={receipts} billTotal={billTotal} received={received} canRecord={canRecord}
+            quoteId={editing.quote_id} invoiceNumber={editing.invoice_number || editing.order_number || editing.quote_number}
+            onChanged={() => load(true)} flash={flash}
+          />
+        )}
 
         <div className="flex flex-wrap items-center gap-3 sticky bottom-0 bg-[#0f1012]/95 backdrop-blur border-t border-slate-800 py-3">
           <button onClick={save} disabled={busy} className="px-5 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold transition-colors disabled:opacity-50">Save</button>
@@ -432,6 +466,165 @@ function LineCard({ line, comps, available, onPick, onField, onRemove }: {
 
 function LabeledField({ label, labelCls, children }: { label: string; labelCls?: string; children: React.ReactNode }) {
   return <div><label className={`block text-[10px] font-medium text-slate-500 mb-0.5 ${labelCls ?? ''}`}>{label}</label>{children}</div>;
+}
+
+// ── Payments (AR) — mirrors the buy-side PO payment pattern ─────────────────
+function PaymentsPanel({ receipts, billTotal, received, canRecord, quoteId, invoiceNumber, onChanged, flash }: {
+  receipts: Receipt[]; billTotal: number; received: number; canRecord: boolean;
+  quoteId: string; invoiceNumber: string; onChanged: () => void; flash: (m: string) => void;
+}) {
+  const supabase = createSupabaseClient();
+  const [showModal, setShowModal] = useState(false);
+  const outstanding = Math.max(0, billTotal - received);
+  const pct = billTotal > 0 ? Math.min(100, (received / billTotal) * 100) : 0;
+  const fmtD = (d?: string | null) => d ? new Date(d.length <= 10 ? `${d}T00:00:00` : d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '';
+
+  async function removeReceipt(r: Receipt) {
+    const { error } = await supabase.from('26.0_customer_receipts').delete().eq('receipt_id', r.receipt_id);
+    if (error) { flash(`Failed: ${error.message}`); return; }
+    flash('Payment removed');
+    onChanged();
+  }
+
+  return (
+    <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4 space-y-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Payments · {invoiceNumber}</h3>
+        <div className="flex items-center gap-2 ml-auto">
+          <div className="w-28 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+            <div className={`h-full rounded-full ${pct >= 100 ? 'bg-emerald-500' : pct > 0 ? 'bg-amber-400' : 'bg-slate-600'}`} style={{ width: `${pct}%` }} />
+          </div>
+          <span className={`text-[11px] font-semibold tabular-nums ${pct >= 100 ? 'text-emerald-400' : pct > 0 ? 'text-amber-300' : 'text-slate-600'}`}>{pct.toFixed(0)}%</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 text-center">
+        <MiniStat label="Invoice total" value={fmtInt(billTotal)} cls="text-slate-200" />
+        <MiniStat label="Received" value={fmtInt(received)} cls={received > 0 ? 'text-emerald-300' : 'text-slate-500'} />
+        <MiniStat label="Outstanding" value={fmtInt(outstanding)} cls={outstanding > 0 ? 'text-amber-300' : 'text-emerald-400'} />
+      </div>
+
+      {receipts.length > 0 && (
+        <div className="rounded-xl border border-slate-800 divide-y divide-slate-800/60">
+          {receipts.map((r) => (
+            <div key={r.receipt_id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-xs">
+              <span className="font-mono text-[10px] text-slate-500">{r.receipt_number}</span>
+              <span className="text-slate-400">{RECEIPT_CATS.find((c) => c.value === r.category)?.label ?? r.category}</span>
+              <span className="text-slate-500">{METHOD_LABELS[r.payment_method] ?? r.payment_method}{r.bank_ref ? ` · ${r.bank_ref}` : ''}</span>
+              <span className="ml-auto tabular-nums text-emerald-200 font-semibold">{fmtInt(Number(r.amount))}</span>
+              <span className="text-slate-600 tabular-nums">{fmtD(r.payment_date)}</span>
+              {canRecord && (
+                <button onClick={() => removeReceipt(r)} className="text-slate-600 hover:text-red-400 transition-colors" title="Remove payment">×</button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {canRecord ? (
+        <button onClick={() => setShowModal(true)}
+          className="px-4 py-2 rounded-xl bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 text-xs font-semibold transition-colors">
+          + Record Payment
+        </button>
+      ) : (
+        <p className="text-[10px] text-slate-600">Payments are recorded by Finance / Owner.</p>
+      )}
+
+      {showModal && (
+        <RecordPaymentModal quoteId={quoteId} outstanding={outstanding} received={received}
+          onClose={() => setShowModal(false)} onDone={() => { setShowModal(false); onChanged(); }} flash={flash} />
+      )}
+    </div>
+  );
+}
+
+function MiniStat({ label, value, cls }: { label: string; value: string; cls: string }) {
+  return (
+    <div className="bg-slate-950/50 border border-slate-800 rounded-xl py-2 px-1">
+      <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-600 mb-0.5">{label}</p>
+      <p className={`text-sm font-bold tabular-nums ${cls}`}>{value}</p>
+    </div>
+  );
+}
+
+function RecordPaymentModal({ quoteId, outstanding, received, onClose, onDone, flash }: {
+  quoteId: string; outstanding: number; received: number;
+  onClose: () => void; onDone: () => void; flash: (m: string) => void;
+}) {
+  const supabase = createSupabaseClient();
+  // First payment defaults to DP; later ones to balance — mirroring PO practice.
+  const [category, setCategory] = useState(received > 0 ? 'balance_payment' : 'down_payment');
+  const [amount, setAmount] = useState('');
+  const [method, setMethod] = useState('bank_transfer');
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [bankRef, setBankRef] = useState('');
+  const [notes, setNotes] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    const amt = num(amount);
+    if (amt <= 0) { flash('Enter an amount'); return; }
+    setBusy(true);
+    const { error } = await supabase.from('26.0_customer_receipts').insert({
+      quote_id: quoteId, category, amount: amt, payment_method: method,
+      payment_date: date, bank_ref: bankRef.trim(), notes: notes.trim(),
+    });
+    setBusy(false);
+    if (error) { flash(`Failed: ${error.message}`); return; }
+    flash('Payment recorded');
+    onDone();
+  }
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center px-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60" />
+      <div className="relative w-full max-w-md bg-[#141518] border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-3" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-base font-bold text-white">Record customer payment</h3>
+
+        <div className="grid grid-cols-2 gap-3">
+          <FieldBox label="Type" full>
+            <select value={category} onChange={(e) => setCategory(e.target.value)} className={inp}>
+              {RECEIPT_CATS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
+          </FieldBox>
+          <FieldBox label="Amount (IDR)" full>
+            <div className="flex gap-2">
+              <input value={amount} inputMode="decimal" onChange={(e) => setAmount(e.target.value)} placeholder="0" className={`${inp} text-right tabular-nums`} />
+              {outstanding > 0 && (
+                <button onClick={() => setAmount(String(Math.round(outstanding)))}
+                  className="px-3 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 text-[11px] font-semibold whitespace-nowrap transition-colors">
+                  Fill remaining
+                </button>
+              )}
+            </div>
+          </FieldBox>
+          <FieldBox label="Method">
+            <select value={method} onChange={(e) => setMethod(e.target.value)} className={inp}>
+              {Object.entries(METHOD_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </FieldBox>
+          <FieldBox label="Payment date">
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inp} />
+          </FieldBox>
+          <FieldBox label="Bank ref / cheque no." full>
+            <input value={bankRef} onChange={(e) => setBankRef(e.target.value)} placeholder="Optional reference" className={inp} />
+          </FieldBox>
+          <FieldBox label="Notes" full>
+            <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" className={inp} />
+          </FieldBox>
+        </div>
+
+        <div className="flex justify-end gap-3 pt-1">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl text-slate-400 hover:text-white text-sm transition-colors">Cancel</button>
+          <button onClick={submit} disabled={busy}
+            className="px-5 py-2 rounded-xl bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 text-sm font-semibold transition-colors disabled:opacity-50 flex items-center gap-2">
+            {busy && <span className="w-3.5 h-3.5 border-2 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin" />}
+            Record payment
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function ProductAutocomplete({ comps, value, onText, onPick }: { comps: Comp[]; value: string; onText: (t: string) => void; onPick: (c: Comp) => void }) {

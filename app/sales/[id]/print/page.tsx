@@ -36,6 +36,7 @@ export default function SalesPrintPage() {
   const [companyName, setCompanyName] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerAddr, setCustomerAddr] = useState('');
+  const [received, setReceived] = useState(0);
   const [loading, setLoading] = useState(true);
   const [cols, setCols] = useState<SalesExportCols>(DEFAULT_SALES_COLS);
 
@@ -47,11 +48,13 @@ export default function SalesPrintPage() {
   useEffect(() => {
     if (!user) return;
     async function load() {
-      const [qRes, iRes, coRes] = await Promise.all([
+      const [qRes, iRes, coRes, rRes] = await Promise.all([
         supabase.from('22.0_sales_quotes').select('*').eq('quote_id', id).single(),
         supabase.from('22.1_sales_quote_items').select('*').eq('quote_id', id).order('sort_order'),
         supabase.from('1.0_companies').select('company_id, legal_name'),
+        supabase.from('26.0_customer_receipts').select('amount').eq('quote_id', id),
       ]);
+      setReceived(rRes.error ? 0 : ((rRes.data ?? []) as { amount: number }[]).reduce((s, r) => s + (Number(r.amount) || 0), 0));
       if (!qRes.data) { setLoading(false); return; }
       const q = qRes.data as Quote;
       setQuote(q);
@@ -79,8 +82,11 @@ export default function SalesPrintPage() {
   const subtotal = items.reduce((s, i) => s + (Number(i.quantity) || 0) * (Number(i.unit_price) || 0), 0);
   const ppn = subtotal * ppnPct / 100;
   const grandTotal = subtotal + ppn;
-  const isOrder = ['ordered', 'invoiced', 'delivered'].includes(quote.status);
+  const isInvoice = ['invoiced', 'delivered'].includes(quote.status) && !!quote.invoice_number;
+  const isOrder = !isInvoice && quote.status === 'ordered' && !!quote.order_number;
   const hasSections = lines.some((l) => l.is_section);
+  const outstanding = Math.max(0, grandTotal - received);
+  const fullyPaid = grandTotal > 0 && received >= grandTotal - 0.5;
 
   const colCount = 1 + (cols.brand ? 1 : 0) + (cols.qty ? 1 : 0) + (cols.unit ? 1 : 0) + (cols.price ? 1 : 0) + (cols.amount ? 1 : 0);
 
@@ -108,6 +114,7 @@ export default function SalesPrintPage() {
         .quote-num { font-size: 12.5pt; font-weight: 700; color: #1f5aa8; }
         .quote-date { font-size: 8.5pt; color: #64748b; margin-top: 0.5mm; }
         .quote-sub { font-size: 8pt; color: #64748b; margin-top: 0.8mm; }
+        .paid-stamp { display: inline-block; margin-top: 1.5mm; padding: 1mm 2.5mm; border: 1.5pt solid #16a34a; border-radius: 1.5mm; color: #16a34a; font-size: 9pt; font-weight: 800; letter-spacing: 1.5px; }
         .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; margin-bottom: 5mm; }
         .meta-label { font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #94a3b8; margin-bottom: 1mm; }
         .meta-value { font-size: 10.5pt; font-weight: 600; color: #0f172a; line-height: 1.4; }
@@ -144,10 +151,13 @@ export default function SalesPrintPage() {
         <div className="header">
           <div className="company-name">{companyName || 'ICAPROC'}</div>
           <div className="doc-title">
-            <div className="doc-label">{isOrder ? 'Konfirmasi Pesanan' : 'Penawaran Harga'}</div>
-            <div className="quote-num">{isOrder && quote.order_number ? quote.order_number : quote.quote_number}</div>
+            <div className="doc-label">{isInvoice ? 'Invoice' : isOrder ? 'Konfirmasi Pesanan' : 'Penawaran Harga'}</div>
+            <div className="quote-num">{isInvoice ? quote.invoice_number : isOrder ? quote.order_number : quote.quote_number}</div>
             <div className="quote-date">{fmtDate(quote.quote_date)}</div>
-            {isOrder && quote.order_number && <div className="quote-sub">Ref. Penawaran: {quote.quote_number}</div>}
+            {(isInvoice || isOrder) && (
+              <div className="quote-sub">Ref. Penawaran: {quote.quote_number}{isInvoice && quote.order_number ? ` · Pesanan: ${quote.order_number}` : ''}</div>
+            )}
+            {isInvoice && fullyPaid && <div className="paid-stamp">LUNAS / PAID</div>}
           </div>
         </div>
 
@@ -214,6 +224,12 @@ export default function SalesPrintPage() {
             <div className="totals-row"><span>Total (excld. PPN {ppnPct}%)</span><span>{fmtIdr(subtotal)}</span></div>
             <div className="totals-row"><span>PPN {ppnPct}%</span><span>{fmtIdr(ppn)}</span></div>
             <div className="totals-row grand"><span>GRAND TOTAL</span><span>{fmtIdr(grandTotal)}</span></div>
+            {isInvoice && received > 0 && !fullyPaid && (
+              <>
+                <div className="totals-row" style={{ marginTop: '2mm' }}><span>Terbayar</span><span>{fmtIdr(received)}</span></div>
+                <div className="totals-row" style={{ fontWeight: 700 }}><span>Sisa Tagihan</span><span>{fmtIdr(outstanding)}</span></div>
+              </>
+            )}
           </div>
         </div>
 
