@@ -50,6 +50,13 @@ interface AmUser {
   role: UserRole;
 }
 
+interface Tier {
+  tier_code: string;
+  name: string;
+  sort_order: number;
+  is_active: boolean;
+}
+
 const CURRENCIES = ['IDR', 'USD', 'EUR', 'CNY', 'SGD'];
 
 const blankCustomer = (): Customer => ({
@@ -107,6 +114,7 @@ function CustomersInner() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [contactsByCustomer, setContactsByCustomer] = useState<Record<string, Contact[]>>({});
   const [amUsers, setAmUsers] = useState<AmUser[]>([]);
+  const [tiers, setTiers] = useState<Tier[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
@@ -131,10 +139,11 @@ function CustomersInner() {
   // ── Data ──────────────────────────────────────────────────────────────────
   const fetchAll = useCallback(async () => {
     setLoading(true);
-    const [custRes, contactRes, userRes] = await Promise.all([
+    const [custRes, contactRes, userRes, tierRes] = await Promise.all([
       supabase.from('20.0_customers').select('*').order('updated_at', { ascending: false }),
       supabase.from('20.1_customer_contacts').select('*').order('is_primary', { ascending: false }),
       supabase.from('user_profiles').select('id, email, display_name, role').in('role', ['owner', 'sales']),
+      supabase.from('21.0_price_tiers').select('tier_code, name, sort_order, is_active').order('sort_order'),
     ]);
     setCustomers((custRes.data as Customer[]) ?? []);
     const grouped: Record<string, Contact[]> = {};
@@ -143,6 +152,8 @@ function CustomersInner() {
     }
     setContactsByCustomer(grouped);
     setAmUsers((userRes.data as AmUser[]) ?? []);
+    // Pricing module may not be installed yet — tolerate its absence.
+    setTiers(tierRes.error ? [] : ((tierRes.data as Tier[]) ?? []));
     setLoading(false);
   }, []);
 
@@ -151,6 +162,9 @@ function CustomersInner() {
   const amById = useMemo(
     () => new Map(amUsers.map((u) => [u.id, u.display_name || u.email])),
     [amUsers]);
+  const tierLabel = useMemo(
+    () => new Map(tiers.map((t) => [t.tier_code, t.name])),
+    [tiers]);
 
   // ── Deep link: ?open=<customer_id> opens the drawer once data has loaded ────
   useEffect(() => {
@@ -319,7 +333,7 @@ function CustomersInner() {
                       <span className="block text-sm text-slate-100 font-medium truncate">{c.display_name || c.legal_name || '(no name)'}</span>
                       {primary && <span className="block text-[11px] text-slate-500 truncate">{primary.name}{primary.email ? ` · ${primary.email}` : ''}</span>}
                     </span>
-                    <span className="text-xs text-slate-400">{c.tier ? <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-[11px]">{c.tier}</span> : <span className="text-slate-600">—</span>}</span>
+                    <span className="text-xs text-slate-400">{c.tier ? <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-[11px]">{tierLabel.get(c.tier) ?? c.tier}</span> : <span className="text-slate-600">—</span>}</span>
                     <span className="text-xs text-slate-400 truncate">{c.account_manager_id ? (amById.get(c.account_manager_id) ?? '—') : <span className="text-slate-600">Unassigned</span>}</span>
                     <span>
                       <span className={`inline-flex items-center gap-1.5 text-[11px] font-medium ${c.is_active ? 'text-emerald-400' : 'text-slate-500'}`}>
@@ -341,6 +355,7 @@ function CustomersInner() {
           customer={editing}
           contacts={draftContacts}
           amUsers={amUsers}
+          tiers={tiers}
           saving={saving}
           onField={setField}
           onClose={closeDrawer}
@@ -363,12 +378,13 @@ function CustomersInner() {
 
 // ── Drawer (slide-over) ──────────────────────────────────────────────────────
 function Drawer({
-  customer, contacts, amUsers, saving,
+  customer, contacts, amUsers, tiers, saving,
   onField, onClose, onSave, onAddContact, onRemoveContact, onContactField, onSetPrimary,
 }: {
   customer: Customer;
   contacts: Contact[];
   amUsers: AmUser[];
+  tiers: Tier[];
   saving: boolean;
   onField: <K extends keyof Customer>(k: K, v: Customer[K]) => void;
   onClose: () => void;
@@ -414,7 +430,19 @@ function Drawer({
               <input value={customer.legal_name} onChange={(e) => onField('legal_name', e.target.value)} placeholder="PT Acme Solar Nusantara" className={inputCls} />
             </Field>
             <Field label="Tier">
-              <input value={customer.tier} onChange={(e) => onField('tier', e.target.value)} placeholder="e.g. Gold" className={inputCls} />
+              {tiers.length > 0 ? (
+                <select value={customer.tier} onChange={(e) => onField('tier', e.target.value)} className={inputCls}>
+                  <option value="">— None —</option>
+                  {tiers.filter((t) => t.is_active || t.tier_code === customer.tier).map((t) => (
+                    <option key={t.tier_code} value={t.tier_code}>{t.name}</option>
+                  ))}
+                  {customer.tier && !tiers.some((t) => t.tier_code === customer.tier) && (
+                    <option value={customer.tier}>{customer.tier} (legacy)</option>
+                  )}
+                </select>
+              ) : (
+                <input value={customer.tier} onChange={(e) => onField('tier', e.target.value)} placeholder="e.g. Gold" className={inputCls} />
+              )}
             </Field>
             <Field label="Tax ID (NPWP)">
               <input value={customer.tax_id} onChange={(e) => onField('tax_id', e.target.value)} className={inputCls} />

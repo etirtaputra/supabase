@@ -17,6 +17,7 @@ const APPS = [
   { href: '/',          label: 'Dashboard' },
   { href: '/catalog',   label: 'Catalog' },
   { href: '/customers', label: 'Customers' },
+  { href: '/pricing',   label: 'Pricing' },
   { href: '/insights',  label: 'Insights' },
   { href: '/quotes',    label: 'Quotes' },
 ];

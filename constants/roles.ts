@@ -20,6 +20,7 @@ export interface RolePermissions {
   canEditQuotes: boolean;     // project quotes / BOM builder (costs & margins visible)
   canManageCustomers: boolean; // CRM: create/edit customers + contacts, assign AM
   canEditSalesDocs: boolean;   // sell-side docs (product quotes, sales orders, DOs) — used by later modules
+  canManagePricing: boolean;   // price tiers + item tier prices; sees margin vs landed cost (internal)
 }
 
 export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
@@ -34,6 +35,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canEditQuotes: true,
     canManageCustomers: true,
     canEditSalesDocs: true,
+    canManagePricing: true,
   },
   data_entry: {
     tabs: { catalog: true, quoting: true, ordering: true, financials: false, lookup: true, 'market-intel': false },
@@ -46,6 +48,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canEditQuotes: true,
     canManageCustomers: false,
     canEditSalesDocs: false,
+    canManagePricing: false,
   },
   finance: {
     tabs: { catalog: false, quoting: false, ordering: false, financials: true, lookup: true, 'market-intel': false },
@@ -58,6 +61,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canEditQuotes: true,
     canManageCustomers: false,
     canEditSalesDocs: false,
+    canManagePricing: false,
   },
   // Sell-side rep. Owns the CRM + sell-side docs; no buy-side procurement,
   // payments, or user management. Sees selling prices (they quote them).
@@ -72,6 +76,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canEditQuotes: false,
     canManageCustomers: true,
     canEditSalesDocs: true,
+    canManagePricing: false,
   },
   viewer: {
     tabs: { catalog: false, quoting: false, ordering: false, financials: false, lookup: true, 'market-intel': false },
@@ -84,6 +89,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canEditQuotes: false,
     canManageCustomers: false,
     canEditSalesDocs: false,
+    canManagePricing: false,
   },
 };
 
