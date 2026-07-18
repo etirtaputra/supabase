@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { ROLE_LABELS, ROLE_DESCRIPTIONS, type UserRole } from '@/constants/roles';
 import type { UserProfile } from '@/hooks/useAuth';
 
-const ROLES: UserRole[] = ['owner', 'data_entry', 'finance', 'viewer'];
+const ROLES: UserRole[] = ['owner', 'data_entry', 'finance', 'sales', 'viewer'];
 
 export default function AdminPage() {
   const supabase = createSupabaseClient();

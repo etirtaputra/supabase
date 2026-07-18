@@ -14,10 +14,11 @@ import { useState } from 'react';
  * header stays clean, especially on mobile.
  */
 const APPS = [
-  { href: '/',         label: 'Dashboard' },
-  { href: '/catalog',  label: 'Catalog' },
-  { href: '/insights', label: 'Insights' },
-  { href: '/quotes',   label: 'Quotes' },
+  { href: '/',          label: 'Dashboard' },
+  { href: '/catalog',   label: 'Catalog' },
+  { href: '/customers', label: 'Customers' },
+  { href: '/insights',  label: 'Insights' },
+  { href: '/quotes',    label: 'Quotes' },
 ];
 
 export default function BrandMenu({

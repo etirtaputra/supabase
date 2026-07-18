@@ -32,7 +32,7 @@ interface DealRef {
 }
 
 interface Item {
-  kind: 'supplier' | 'company' | 'quote' | 'pi' | 'po' | 'component';
+  kind: 'supplier' | 'company' | 'customer' | 'quote' | 'pi' | 'po' | 'component';
   id: string;
   title: string;
   sub: string;
@@ -47,13 +47,14 @@ interface Item {
 const KIND_BADGE: Record<Item['kind'], { label: string; cls: string }> = {
   supplier:  { label: 'Supplier', cls: 'bg-sky-500/15 text-sky-300' },
   company:   { label: 'Company',  cls: 'bg-rose-500/15 text-rose-300' },
+  customer:  { label: 'Customer', cls: 'bg-teal-500/15 text-teal-300' },
   quote:     { label: 'Quote',    cls: 'bg-violet-500/15 text-violet-300' },
   pi:        { label: 'PI',       cls: 'bg-blue-500/15 text-blue-300' },
   po:        { label: 'PO',       cls: 'bg-amber-500/15 text-amber-300' },
   component: { label: 'Item',     cls: 'bg-emerald-500/15 text-emerald-300' },
 };
 
-const KIND_ORDER: Item['kind'][] = ['supplier', 'company', 'quote', 'pi', 'po', 'component'];
+const KIND_ORDER: Item['kind'][] = ['supplier', 'company', 'customer', 'quote', 'pi', 'po', 'component'];
 
 const dealLookupHref = (n: string) => `/catalog?tab=lookup&q=${encodeURIComponent(n)}`;
 
@@ -135,11 +136,12 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
       return all;
     };
 
-    const [comps, projectQuotes, suppliers, companies, pis, pos, piLines, poLines, quoteLineItems] = await Promise.all([
+    const [comps, projectQuotes, suppliers, companies, customers, pis, pos, piLines, poLines, quoteLineItems] = await Promise.all([
       fetchAllComponents(),
       supabase.from('10.0_project_quotes').select('quote_id, quote_number, quote_date, customer_name, status').order('quote_date', { ascending: false }).limit(500),
       supabase.from('2.0_suppliers').select('supplier_id, supplier_name, supplier_code'),
       supabase.from('1.0_companies').select('company_id, legal_name'),
+      supabase.from('20.0_customers').select('customer_id, customer_code, display_name, legal_name, tier, is_active').order('display_name'),
       supabase.from('4.0_price_quotes').select('quote_id, pi_number, quote_date, supplier_id, company_id, status').order('quote_date', { ascending: false }).limit(1500),
       supabase.from('5.0_purchases').select('po_id, po_number, po_date, quote_id, company_id, status').order('po_date', { ascending: false }).limit(1500),
       supabase.from('4.1_price_quote_line_items').select('quote_id, component_id, quantity, unit_price, currency, supplier_description').limit(8000),
@@ -319,6 +321,13 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
         href: dealLookupHref((c.legal_name as string) || ''),
         drill: byCompany.get(c.company_id as string) ?? [],
       })),
+      ...(customers.data ?? []).map((c) => ({
+        kind: 'customer' as const,
+        id: c.customer_id as string,
+        title: (c.display_name as string) || (c.legal_name as string) || '(no name)',
+        sub: [(c.customer_code as string), (c.tier as string), (c.is_active === false ? 'Inactive' : 'Customer')].filter(Boolean).join(' · '),
+        href: `/customers?open=${encodeURIComponent(c.customer_id as string)}`,
+      })),
       ...quoteItemsList,
       ...piItemsList,
       ...poItemsList,
@@ -363,10 +372,10 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
       return tokens.every((t) => hay.includes(t));
     });
     const isStrong = (i: Item) => { const h = strongText(i); return tokens.every((t) => h.includes(t)); };
-    // Tier priority: (0) suppliers/companies — matched by code or name —
-    // then (1) project quotes / supplier quotes (PI) / POs, then (2) items.
+    // Tier priority: (0) suppliers/companies/customers — matched by code or
+    // name — then (1) project quotes / supplier quotes (PI) / POs, then (2) items.
     const tier = (k: Item['kind']) =>
-      k === 'supplier' || k === 'company' ? 0 : k === 'component' ? 2 : 1;
+      k === 'supplier' || k === 'company' || k === 'customer' ? 0 : k === 'component' ? 2 : 1;
     // Prefix match on the name OR the sub line (supplier_code lives in sub)
     const startsWith = (i: Item) =>
       i.title.toLowerCase().startsWith(first) || i.sub.toLowerCase().startsWith(first);

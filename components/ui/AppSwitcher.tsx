@@ -3,9 +3,10 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const APPS = [
-  { href: '/catalog',  label: 'Catalog' },
-  { href: '/insights', label: 'Insights' },
-  { href: '/quotes',   label: 'Quotes' },
+  { href: '/catalog',   label: 'Catalog' },
+  { href: '/customers', label: 'Customers' },
+  { href: '/insights',  label: 'Insights' },
+  { href: '/quotes',    label: 'Quotes' },
 ];
 
 /**
