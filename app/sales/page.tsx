@@ -36,7 +36,7 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   draft:     { label: 'Draft',     cls: 'bg-slate-700/40 text-slate-300' },
   sent:      { label: 'Sent',      cls: 'bg-blue-500/15 text-blue-300' },
   accepted:  { label: 'Accepted',  cls: 'bg-teal-500/15 text-teal-300' },
-  ordered:   { label: 'Order',     cls: 'bg-violet-500/15 text-violet-300' },
+  ordered:   { label: 'Confirmed Order', cls: 'bg-violet-500/15 text-violet-300' },
   invoiced:  { label: 'Invoiced',  cls: 'bg-amber-500/15 text-amber-300' },
   delivered: { label: 'Delivered', cls: 'bg-emerald-500/15 text-emerald-300' },
   cancelled: { label: 'Cancelled', cls: 'bg-red-500/15 text-red-300' },
@@ -228,6 +228,14 @@ export default function SalesPage() {
     if (id) { flash('Saved'); closeEditor(); fetchAll(); }
   }
 
+  // Persist latest edits, then open the client-facing PDF (reads from the DB).
+  async function printPdf() {
+    setBusy(true);
+    const id = await persist();
+    setBusy(false);
+    if (id) window.open(`/sales/${id}/print`, '_blank', 'noopener');
+  }
+
   // Advance the document; delivery writes stock-out movements.
   async function transition(next: string) {
     if (!editing) return;
@@ -264,9 +272,11 @@ export default function SalesPage() {
     const isNew = !editing.quote_id;
     const st = editing.status;
     const actions: { label: string; to: string; primary?: boolean; danger?: boolean }[] = [];
-    if (st === 'draft') actions.push({ label: 'Mark Sent', to: 'sent', primary: true });
-    if (st === 'sent') actions.push({ label: 'Mark Accepted', to: 'accepted', primary: true });
-    if (st === 'accepted') actions.push({ label: 'Convert to Order', to: 'ordered', primary: true });
+    // Secondary quote steps (optional); the primary CTA jumps straight to a
+    // Confirmed Customer Order, which reserves Live Stock.
+    if (st === 'draft') actions.push({ label: 'Mark Sent', to: 'sent' });
+    if (st === 'sent') actions.push({ label: 'Mark Accepted', to: 'accepted' });
+    if (['draft', 'sent', 'accepted'].includes(st)) actions.push({ label: 'Confirm Customer Order', to: 'ordered', primary: true });
     if (st === 'ordered') actions.push({ label: 'Mark Invoiced', to: 'invoiced', primary: true });
     if (st === 'invoiced') actions.push({ label: 'Mark Delivered', to: 'delivered', primary: true });
     if (['draft', 'sent'].includes(st)) actions.push({ label: 'Reject', to: 'rejected', danger: true });
@@ -375,6 +385,10 @@ export default function SalesPage() {
           {/* Action bar */}
           <div className="flex flex-wrap items-center gap-3 sticky bottom-0 bg-[#0f1012]/95 backdrop-blur border-t border-slate-800 py-3">
             <button onClick={save} disabled={busy} className="px-5 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold transition-colors disabled:opacity-50">Save</button>
+            <button onClick={printPdf} disabled={busy} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 text-sm font-semibold transition-colors disabled:opacity-50 inline-flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z" /></svg>
+              Print / PDF
+            </button>
             {actions.map((a) => (
               <button key={a.to} onClick={() => transition(a.to)} disabled={busy}
                 className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 ${a.danger ? 'bg-red-500/15 text-red-300 ring-1 ring-red-500/30 hover:bg-red-500/25' : a.primary ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
@@ -382,6 +396,9 @@ export default function SalesPage() {
               </button>
             ))}
             {busy && <span className="w-4 h-4 border-2 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin" />}
+            {['draft', 'sent', 'accepted'].includes(st) && (
+              <span className="text-[11px] text-slate-600 w-full sm:w-auto sm:ml-1">Confirming reserves these quantities from Live Stock.</span>
+            )}
           </div>
         </main>
         {toast && <Toast msg={toast} />}
