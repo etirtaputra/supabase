@@ -11,6 +11,7 @@ import SpecRenderer from './SpecRenderer';
 import TierPricingModal from './TierPricingModal';
 import StockModal from './StockModal';
 import StockSummaryCard from './StockSummaryCard';
+import TucQuoteToggle from './TucQuoteToggle';
 import type { Component, PriceQuoteLineItem, PriceQuote, PurchaseOrder, PurchaseLineItem, CompetitorPrice, POCost, ComponentLink } from '../../types/database';
 import { computeTUC, computeTUCMap } from '../../lib/computeTUC';
 import { PRINCIPAL_CATS, BALANCE_CATS, BANK_FEE_CATS, TAX_CATS } from '../../constants/costCategories';
@@ -598,6 +599,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [filterUnused, setFilterUnused] = useState(false);
   const [filterDuplicates, setFilterDuplicates] = useState(false);
   const [filterHasIntel, setFilterHasIntel] = useState(false);
+  const [filterTucHidden, setFilterTucHidden] = useState(false); // TUC hidden from Project Quotes
   const [filterLinked, setFilterLinked] = useState(false);
   const [filterHasSpecs, setFilterHasSpecs] = useState(false);
   const [filterHasLeadTime, setFilterHasLeadTime] = useState(false);
@@ -1062,6 +1064,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     );
     if (filterDuplicates) result = result.filter((c) => duplicateModels.has(c.supplier_model?.toLowerCase().trim() ?? ''));
     if (filterHasIntel) result = result.filter((c) => intelComponentIds.has(c.component_id));
+    if (filterTucHidden) result = result.filter((c) => (optimistic[c.component_id]?.show_tuc_in_quotes ?? c.show_tuc_in_quotes) === false);
     if (filterLinked) result = result.filter((c) => linkedComponentIds.has(c.component_id));
     if (filterHasSpecs) result = result.filter((c) => {
       const s = c.specifications;
@@ -1116,7 +1119,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       const bv = ((b[sortCol as keyof Component] as string) || '').toLowerCase();
       return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
     });
-  }, [components, search, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs, filterHasLeadTime, filterHasCashCycle, filterLowMargin, marginThreshold, filterBelowMarket, sortCol, sortDir, usageMap, duplicateModels, intelComponentIds, linkedComponentIds, compIdsWithLeadTime, compIdsWithCashCycle, sparklineLinesByComponent, marginByComponent, marketAvgIdrByComponent, lastPoByComponent]);
+  }, [components, search, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, filterTucHidden, optimistic, filterLinked, filterHasSpecs, filterHasLeadTime, filterHasCashCycle, filterLowMargin, marginThreshold, filterBelowMarket, sortCol, sortDir, usageMap, duplicateModels, intelComponentIds, linkedComponentIds, compIdsWithLeadTime, compIdsWithCashCycle, sparklineLinesByComponent, marginByComponent, marketAvgIdrByComponent, lastPoByComponent]);
 
   const toggleSort = (col: SortCol) => {
     if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -2255,6 +2258,17 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
               title="Show only components with market intel entries"
             >
               Has Intel{filterHasIntel ? ` (${filtered.length})` : ''}
+            </button>
+            <button
+              onClick={() => setFilterTucHidden((v) => !v)}
+              className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all flex-shrink-0 ${
+                filterTucHidden
+                  ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+                  : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-amber-300 hover:border-amber-500/30'
+              }`}
+              title="Show only items whose TUC is hidden from Project Quotes (owner setting on the Inspect panel's TUC card)"
+            >
+              TUC Hidden{filterTucHidden ? ` (${filtered.length})` : ''}
             </button>
             <button
               onClick={() => { setFilterLinked((v) => !v); setFilterUnused(false); setFilterDuplicates(false); }}
@@ -3840,6 +3854,11 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           ) : (
                             <p className="text-sm text-slate-600 italic mt-1">No paid PO data</p>
                           )}
+                          <TucQuoteToggle
+                            componentId={comp.component_id}
+                            value={(optimistic[comp.component_id]?.show_tuc_in_quotes ?? comp.show_tuc_in_quotes) !== false}
+                            onChanged={(v) => setOptimistic((prev) => ({ ...prev, [comp.component_id]: { ...prev[comp.component_id], show_tuc_in_quotes: v } }))}
+                          />
                         </div>
                         <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
                           <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400/70 mb-1">Last Received</p>

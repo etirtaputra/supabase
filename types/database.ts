@@ -75,6 +75,8 @@ export interface Component extends BaseEntity {
   datasheet_url?: string | null;
   norm_value?: number | null; // Normalized capacity in category's canonical unit (Wp, W, Ah, m, etc.)
   unit?: string | null;       // Default selling unit (pcs, set, meter, Wp…) — referenced by Quotes
+  warranty?: string | null;   // Warranty period shown on the sell-side Products list
+  show_tuc_in_quotes?: boolean; // false = owner hid this item's TUC from the Project Quote BOM builder
 }
 
 // 4.0 Price Quotes

@@ -185,6 +185,11 @@ export function quotePriceHistory(
  *
  * Pass a precomputed tucMap (from computeTUCMap) — callers looping over many
  * components must build it once.
+ *
+ * suppressTuc: the per-product "show TUC in Project Quotes" switch
+ * (3.0_components.show_tuc_in_quotes = false). When set, TUC is neither
+ * recommended nor listed in history — the fallback order (supplier quote /
+ * last-used cost) takes over. Catalog/Insights callers never pass it.
  */
 export function getComponentCost(
   componentId: string,
@@ -192,8 +197,9 @@ export function getComponentCost(
   quotes: PriceQuote[],
   quoteItems: PriceQuoteLineItem[],
   usedEntries: CostEntry[] = [],
+  suppressTuc = false,
 ): ComponentCost | null {
-  const tuc = tucMap.get(componentId) ?? null;
+  const tuc = suppressTuc ? null : (tucMap.get(componentId) ?? null);
   const quoteEntries = quotePriceHistory(componentId, quotes, quoteItems);
 
   const history = [...(tuc?.entries ?? []), ...quoteEntries, ...usedEntries]

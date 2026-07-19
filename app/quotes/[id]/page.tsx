@@ -526,8 +526,9 @@ export default function QuoteEditorPage() {
   );
 
   const costFor = useCallback((componentId: string) =>
-    getComponentCost(componentId, tucMap, catalog.quotes, catalog.quoteItems, prevUsed.get(componentId) ?? []),
-  [tucMap, catalog.quotes, catalog.quoteItems, prevUsed]);
+    getComponentCost(componentId, tucMap, catalog.quotes, catalog.quoteItems, prevUsed.get(componentId) ?? [],
+      compById.get(componentId)?.show_tuc_in_quotes === false),
+  [tucMap, catalog.quotes, catalog.quoteItems, prevUsed, compById]);
 
   // ── System size (Wp) ───────────────────────────────────────────────────────
   // Shared rules in lib/quoteWp.ts (also used by the quotes list): catalog
