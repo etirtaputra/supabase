@@ -332,6 +332,7 @@ export default function SalesQuotePage() {
         <div className="space-y-2">
           {lines.map((l) => (
             <LineCard key={l.key} line={l} comps={comps} available={availableOf(l.component_id)}
+              linkedName={l.component_id ? (compById.get(l.component_id)?.supplier_model ?? '') : ''}
               onPick={(c) => pickComponent(l.key, c)} onField={(patch) => setLine(l.key, patch)} onRemove={() => removeLine(l.key)} />
           ))}
           <div className="flex flex-wrap gap-2 pt-1">
@@ -408,18 +409,18 @@ function Toast({ msg }: { msg: string }) {
   return <div className="fixed bottom-6 right-6 z-[110] px-4 py-2.5 bg-slate-800 border border-slate-700 text-white text-sm font-semibold rounded-xl shadow-lg">{msg}</div>;
 }
 
-function LineCard({ line, comps, available, onPick, onField, onRemove }: {
-  line: EditLine; comps: Comp[]; available: number | null;
+function LineCard({ line, comps, available, linkedName, onPick, onField, onRemove }: {
+  line: EditLine; comps: Comp[]; available: number | null; linkedName: string;
   onPick: (c: Comp) => void; onField: (patch: Partial<EditLine>) => void; onRemove: () => void;
 }) {
   if (line.is_section) {
     return (
-      <div className="flex flex-wrap items-center gap-2 bg-slate-800/40 border border-slate-700/60 rounded-xl px-3 py-2">
-        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-500 flex-shrink-0">Section</span>
+      <div className="flex flex-wrap items-center gap-2 bg-emerald-500/[0.06] border border-emerald-500/20 border-l-2 border-l-emerald-500/50 rounded-xl px-3 py-2.5 mt-3">
+        <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-500/70 flex-shrink-0">Section</span>
         <input value={line.description} onChange={(e) => onField({ description: e.target.value })} placeholder="Section title (e.g. Solar Panels)"
-          className="flex-1 min-w-[140px] bg-transparent outline-none text-sm font-semibold text-slate-100 placeholder:text-slate-600" />
+          className="flex-1 min-w-[140px] bg-transparent outline-none text-sm font-bold text-slate-100 placeholder:text-slate-600" />
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] text-slate-500">Lead time</span>
+          <span className="text-[10px] text-slate-500 whitespace-nowrap">Lead time</span>
           <input value={line.lead_time} onChange={(e) => onField({ lead_time: e.target.value })} placeholder="e.g. 4–6 weeks"
             className="w-28 px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 focus:border-emerald-500/50 outline-none text-xs text-white placeholder:text-slate-600" />
         </div>
@@ -430,35 +431,48 @@ function LineCard({ line, comps, available, onPick, onField, onRemove }: {
   const qty = num(line.quantity);
   const short = available != null && qty > available;
   return (
-    <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-3 space-y-2">
-      <div className="flex items-start gap-2">
+    <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl px-3 py-2.5">
+      {/* One aligned row on desktop: product grows, numbers in fixed columns */}
+      <div className="flex flex-col lg:flex-row lg:items-end gap-2">
         <div className="flex-1 min-w-0">
-          <ProductAutocomplete comps={comps} value={line.description} onText={(t) => onField({ description: t, component_id: null })} onPick={onPick} />
+          <LabeledField label="Product / description">
+            <ProductAutocomplete comps={comps} value={line.description} onText={(t) => onField({ description: t })} onPick={onPick} />
+          </LabeledField>
         </div>
-        <button onClick={onRemove} className="text-slate-600 hover:text-red-400 transition-colors text-lg leading-none px-1 flex-shrink-0" title="Remove line">×</button>
+        <div className="grid grid-cols-4 gap-2 lg:w-[400px] flex-shrink-0">
+          <LabeledField label={`Qty${short ? ' ⚠' : ''}`} labelCls={short ? 'text-red-400' : ''}>
+            <input value={line.quantity} inputMode="decimal" onChange={(e) => onField({ quantity: e.target.value })} placeholder="0" className={`${inpSm} text-right tabular-nums`} />
+          </LabeledField>
+          <LabeledField label="Unit">
+            <input value={line.unit} onChange={(e) => onField({ unit: e.target.value })} placeholder="pcs" className={inpSm} />
+          </LabeledField>
+          <LabeledField label="Unit price">
+            <input value={line.unit_price} inputMode="decimal" onChange={(e) => onField({ unit_price: e.target.value })} placeholder="0" className={`${inpSm} text-right tabular-nums`} />
+          </LabeledField>
+          <LabeledField label="Line total">
+            <div className="px-2 py-1.5 text-right tabular-nums text-sm font-semibold text-slate-200">{fmtInt(qty * num(line.unit_price))}</div>
+          </LabeledField>
+        </div>
+        <button onClick={onRemove} className="text-slate-600 hover:text-red-400 transition-colors text-lg leading-none px-1 self-start lg:self-end lg:pb-1.5 flex-shrink-0" title="Remove line">×</button>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-[80px_80px_1fr_1fr] gap-2">
-        <LabeledField label={`Qty${short ? ' ⚠' : ''}`} labelCls={short ? 'text-red-400' : ''}>
-          <input value={line.quantity} inputMode="decimal" onChange={(e) => onField({ quantity: e.target.value })} placeholder="0" className={`${inpSm} text-right tabular-nums`} />
-        </LabeledField>
-        <LabeledField label="Unit">
-          <input value={line.unit} onChange={(e) => onField({ unit: e.target.value })} placeholder="pcs" className={inpSm} />
-        </LabeledField>
-        <LabeledField label="Unit price">
-          <input value={line.unit_price} inputMode="decimal" onChange={(e) => onField({ unit_price: e.target.value })} placeholder="0" className={`${inpSm} text-right tabular-nums`} />
-        </LabeledField>
-        <LabeledField label="Line total">
-          <div className="px-2.5 py-1.5 text-right tabular-nums text-sm text-slate-200">{fmtInt(qty * num(line.unit_price))}</div>
-        </LabeledField>
-      </div>
-      <div className="flex items-center gap-3 flex-wrap">
-        {available != null && <span className={`text-[11px] tabular-nums ${short ? 'text-red-400' : 'text-slate-500'}`}>Live stock: {fmtInt(available)}{short ? ' — short' : ''}</span>}
-        <button onClick={() => onField({ showNote: !line.showNote })} className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors ml-auto">
-          {line.showNote || line.note ? 'Comment' : '+ Comment'}
-        </button>
-      </div>
+      {/* Meta row: catalog link, live stock, comment toggle */}
+      <div className="flex items-center gap-3 flex-wrap mt-1.5">
+          {line.component_id ? (
+            <span className="inline-flex items-center gap-1.5 text-[10px] text-slate-500 bg-slate-800/60 border border-slate-700/60 rounded-md px-1.5 py-0.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
+              <span className="truncate max-w-[200px]">{linkedName || 'Catalog item'}</span>
+              <span className={`tabular-nums ${short ? 'text-red-400' : 'text-slate-500'}`}>· live {available != null ? fmtInt(available) : '—'}{short ? ' — short' : ''}</span>
+              <button onClick={() => onField({ component_id: null })} className="text-slate-600 hover:text-red-400 transition-colors" title="Unlink from catalog (keep as custom entry)">×</button>
+            </span>
+          ) : (
+            <span className="text-[10px] text-slate-600 italic">Custom entry</span>
+          )}
+          <button onClick={() => onField({ showNote: !line.showNote })} className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors ml-auto">
+            {line.showNote || line.note ? 'Comment' : '+ Comment'}
+          </button>
+        </div>
       {(line.showNote || line.note) && (
-        <input value={line.note} onChange={(e) => onField({ note: e.target.value })} placeholder="Comment / extra description (toggle in PDF)" className={inpSm} />
+        <input value={line.note} onChange={(e) => onField({ note: e.target.value })} placeholder="Comment / extra description (toggle in PDF)" className={`${inpSm} mt-1.5`} />
       )}
     </div>
   );
