@@ -10,6 +10,7 @@ import { Spinner } from './LoadingSkeleton';
 import SpecRenderer from './SpecRenderer';
 import TierPricingModal from './TierPricingModal';
 import StockModal from './StockModal';
+import StockSummaryCard from './StockSummaryCard';
 import type { Component, PriceQuoteLineItem, PriceQuote, PurchaseOrder, PurchaseLineItem, CompetitorPrice, POCost, ComponentLink } from '../../types/database';
 import { computeTUC, computeTUCMap } from '../../lib/computeTUC';
 import { PRINCIPAL_CATS, BALANCE_CATS, BANK_FEE_CATS, TAX_CATS } from '../../constants/costCategories';
@@ -3852,6 +3853,9 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           )}
                         </div>
                       </div>
+
+                      {/* Stock on hand (Physical / Reserved / Live + value) */}
+                      <StockSummaryCard componentId={comp.component_id} unit={comp.unit} />
 
                       {/* Lead time */}
                       {leadTime && (

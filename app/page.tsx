@@ -51,6 +51,7 @@ export default function Home() {
   const { user, loading: authLoading } = useAuth();
   const { data, loading } = useSupabaseData();
   const [projectQuotes, setProjectQuotes] = useState<ProjectQuoteLite[]>([]);
+  const [stockValue, setStockValue] = useState<number | null>(null);
 
   const isMac = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform || '');
   const modKey = isMac ? '⌘' : 'Ctrl';
@@ -69,6 +70,13 @@ export default function Home() {
       .select('quote_id, quote_number, quote_date, customer_name, status, created_at, updated_at')
       .order('updated_at', { ascending: false })
       .then(({ data }) => setProjectQuotes((data as ProjectQuoteLite[]) ?? []));
+    // Warehouse value = Σ on-hand × moving-avg landed cost (30.1 balances)
+    supabase.from('30.1_stock_balances')
+      .select('qty_on_hand, avg_cost_idr')
+      .then(({ data, error }) => {
+        if (error || !data) { setStockValue(0); return; }
+        setStockValue(data.reduce((s, b) => s + (Number(b.qty_on_hand) || 0) * (Number(b.avg_cost_idr) || 0), 0));
+      });
   }, [user]);
 
   // ── Lookups ─────────────────────────────────────────────────────────────
@@ -200,13 +208,14 @@ export default function Home() {
         </div>
 
         {/* ── KPI row ── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 xl:gap-5">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 xl:gap-5">
           {[
             { label: 'Outstanding', value: loading ? '—' : fmtIdr(stats.outstandingIdr), sub: 'unpaid across active POs',
               color: stats.outstandingIdr > 0 ? 'text-amber-300' : 'text-emerald-300',
               ring: stats.outstandingIdr > 0 ? 'ring-amber-500/20' : 'ring-emerald-500/20' },
             { label: 'Paid This Month', value: loading ? '—' : fmtIdr(stats.paidThisMonthIdr),
               sub: new Date().toLocaleDateString('en-US', { month: 'long' }), color: 'text-rose-300', ring: 'ring-rose-500/20' },
+            { label: 'Stock Value', value: stockValue == null ? '—' : fmtIdr(stockValue), sub: 'on-hand × avg landed cost', color: 'text-violet-300', ring: 'ring-violet-500/20' },
             { label: 'Active POs', value: loading ? '—' : stats.activePOs.toString(), sub: 'not cancelled', color: 'text-sky-300', ring: 'ring-sky-500/20' },
             { label: 'Components', value: loading ? '—' : stats.componentCount.toLocaleString('en-US'), sub: 'in catalog', color: 'text-emerald-300', ring: 'ring-emerald-500/20' },
           ].map(({ label, value, sub, color, ring }) => (
