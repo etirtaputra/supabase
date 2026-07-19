@@ -6,9 +6,10 @@ import { useAuth } from '@/hooks/useAuth';
 /**
  * Owner-only control on the Inspect panel's "Actual TUC" card: what does the
  * Project Quote BOM builder show as this item's cost?
- *   TUC        → the raw landed cost
- *   Cost Basis → TUC + safety buffer % (global default, per-item override)
- *   Hidden     → no TUC; quotes fall back to supplier-quote / last-used cost
+ *   TUC      → the raw landed cost
+ *   Std Cost → TUC + safety buffer % (global default, per-item override);
+ *              stored as mode 'buffered'
+ *   Hidden   → no TUC; quotes fall back to supplier-quote / last-used cost
  * The global buffer lives in app_settings.quote_cost_buffer_pct and is
  * editable inline here. Catalog/Insights always show raw TUC regardless.
  * Non-owners see a quiet note only when the item is not on raw TUC.
@@ -18,7 +19,7 @@ export type QuoteCostMode = 'tuc' | 'buffered' | 'hidden';
 
 const MODES: { value: QuoteCostMode; label: string }[] = [
   { value: 'tuc', label: 'TUC' },
-  { value: 'buffered', label: 'Cost Basis' },
+  { value: 'buffered', label: 'Std Cost' },
   { value: 'hidden', label: 'Hidden' },
 ];
 
@@ -57,7 +58,7 @@ export default function CostBasisControl({ componentId, mode, bufferPct, tuc, on
       <p className="mt-2 pt-2 border-t border-sky-500/10 text-[10px] text-slate-500">
         {m === 'hidden'
           ? 'Cost is hidden in Project Quotes for this item (owner setting).'
-          : 'Project Quotes use this item’s Cost Basis (landed cost + safety buffer, owner setting).'}
+          : 'Project Quotes use this item’s Standard Cost (landed cost + safety buffer, owner setting).'}
       </p>
     );
   }
@@ -100,18 +101,22 @@ export default function CostBasisControl({ componentId, mode, bufferPct, tuc, on
     <div className="mt-2 pt-2 border-t border-sky-500/10 space-y-1.5">
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-[9px] font-bold uppercase tracking-wider text-slate-600">In Project Quotes</span>
-        <div className="flex gap-0.5 p-0.5 bg-slate-900/80 border border-slate-700/60 rounded-lg">
-          {MODES.map(({ value, label }) => (
-            <button key={value} onClick={() => setModeDb(value)} disabled={busy}
-              className={`px-2 py-0.5 rounded-md text-[10px] font-semibold transition-colors disabled:opacity-60 ${
-                m === value
-                  ? value === 'hidden' ? 'bg-amber-500/20 text-amber-300' : 'bg-slate-700 text-white'
-                  : 'text-slate-500 hover:text-slate-300'
-              }`}>
-              {label}
-            </button>
+        {/* Quiet text toggle — no boxes, dot separators; active mode carries the color */}
+        <span className="flex items-center gap-1.5">
+          {MODES.map(({ value, label }, i) => (
+            <span key={value} className="flex items-center gap-1.5">
+              {i > 0 && <span className="text-slate-700 text-[10px]">·</span>}
+              <button onClick={() => setModeDb(value)} disabled={busy}
+                className={`text-[10px] font-semibold transition-colors disabled:opacity-60 ${
+                  m === value
+                    ? value === 'hidden' ? 'text-amber-300' : 'text-emerald-300'
+                    : 'text-slate-600 hover:text-slate-300'
+                }`}>
+                {label}
+              </button>
+            </span>
           ))}
-        </div>
+        </span>
         {busy && <span className="w-3 h-3 border border-slate-600 border-t-slate-300 rounded-full animate-spin" />}
       </div>
 
@@ -143,7 +148,7 @@ export default function CostBasisControl({ componentId, mode, bufferPct, tuc, on
           )}
           {basisPreview != null && (
             <span className="text-slate-400 tabular-nums ml-auto">
-              → Cost Basis <span className="text-slate-200 font-semibold">{Math.round(basisPreview).toLocaleString('en-US')}</span>
+              → Std Cost <span className="text-slate-200 font-semibold">{Math.round(basisPreview).toLocaleString('en-US')}</span>
             </span>
           )}
         </div>

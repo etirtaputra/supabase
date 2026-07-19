@@ -2272,9 +2272,9 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                   ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
                   : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-amber-300 hover:border-amber-500/30'
               }`}
-              title="Show only items not exposing raw TUC to Project Quotes (Cost Basis or Hidden — owner setting on the Inspect panel's TUC card)"
+              title="Show only items not exposing raw TUC to Project Quotes (Std Cost or Hidden — owner setting on the Inspect panel's TUC card)"
             >
-              Cost Basis{filterTucHidden ? ` (${filtered.length})` : ''}
+              Std Cost{filterTucHidden ? ` (${filtered.length})` : ''}
             </button>
             <button
               onClick={() => { setFilterLinked((v) => !v); setFilterUnused(false); setFilterDuplicates(false); }}

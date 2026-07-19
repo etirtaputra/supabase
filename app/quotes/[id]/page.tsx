@@ -100,8 +100,8 @@ const LEAD_TIMES = ['Ready', '1 minggu', '2 minggu', '3 minggu', '1 bulan', '2 b
 
 // Cost source presentation (TUC from POs / supplier price quote / last used in a project quote)
 const SOURCE_LABEL: Record<string, string> = { tuc: 'TUC', quote: 'latest quote', used: 'last used' };
-// Buffered items surface as "Cost Basis", never as raw TUC
-const srcLabel = (cc: { source: string; buffered?: boolean }) => (cc.buffered ? 'Cost Basis' : SOURCE_LABEL[cc.source]);
+// Buffered items surface as "Std Cost", never as raw TUC
+const srcLabel = (cc: { source: string; buffered?: boolean }) => (cc.buffered ? 'Std Cost' : SOURCE_LABEL[cc.source]);
 const SOURCE_TEXT:  Record<string, string> = { tuc: 'text-violet-400', quote: 'text-sky-400', used: 'text-amber-400' };
 const SOURCE_BADGE: Record<string, string> = {
   tuc: 'bg-violet-500/20 text-violet-300',
@@ -1949,14 +1949,14 @@ export default function QuoteEditorPage() {
                                       </div>
                                     )}
                                     <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-2"
-                                      title={costHover.buffered ? 'Cost basis — recent landed cost plus a safety buffer set by management' : undefined}>
-                                      Price history · using {costHover.buffered ? 'Cost Basis' : costHover.source === 'tuc' ? 'weighted TUC' : SOURCE_LABEL[costHover.source]}
+                                      title={costHover.buffered ? 'Standard cost — recent landed cost plus a safety buffer set by management' : undefined}>
+                                      Price history · using {costHover.buffered ? 'Std Cost' : costHover.source === 'tuc' ? 'weighted TUC' : SOURCE_LABEL[costHover.source]}
                                     </p>
                                     <div className="space-y-1">
                                       {costHover.history.map((h, i) => (
                                         <div key={i} className="flex items-center justify-between gap-2 text-[11px]">
                                           <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold flex-shrink-0 ${SOURCE_BADGE[h.kind]}`}>
-                                            {h.kind === 'tuc' ? (costHover.buffered ? 'BASIS' : 'TUC') : h.kind === 'quote' ? 'QUOTE' : 'USED'}
+                                            {h.kind === 'tuc' ? (costHover.buffered ? 'STD' : 'TUC') : h.kind === 'quote' ? 'QUOTE' : 'USED'}
                                           </span>
                                           <span className="text-slate-400 truncate flex-1">{h.label}</span>
                                           <span className="text-slate-500 flex-shrink-0">{h.date}</span>
@@ -2150,8 +2150,8 @@ export default function QuoteEditorPage() {
             weighted true unit cost from settled POs
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-violet-500/20 text-violet-300">BASIS</span>
-            cost basis — recent landed cost incl. safety buffer
+            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-violet-500/20 text-violet-300">STD</span>
+            standard cost — recent landed cost incl. safety buffer
           </span>
           <span className="flex items-center gap-1.5">
             <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-500/20 text-sky-300">QUOTE</span>
