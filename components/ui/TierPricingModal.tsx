@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useMemo, useCallback, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
@@ -164,7 +165,9 @@ export default function TierPricingModal({ componentId, componentName, listPrice
 
   const visibleTiers = useMemo(() => (manageOpen ? tiers : tiers.filter((t) => t.is_active)), [tiers, manageOpen]);
 
-  return (
+  // Portal to <body>: ancestors with transform/backdrop-filter would otherwise
+  // hijack position:fixed and strand the popover away from its button.
+  return createPortal(
     <div className={`fixed inset-0 z-[120] ${asPopover ? '' : 'flex items-end sm:items-center justify-center sm:px-4'}`} onClick={onClose}>
       <div className={`absolute inset-0 ${asPopover ? 'bg-black/20' : 'bg-black/60'}`} />
       <div
@@ -287,7 +290,8 @@ export default function TierPricingModal({ componentId, componentName, listPrice
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
