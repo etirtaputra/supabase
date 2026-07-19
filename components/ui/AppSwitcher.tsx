@@ -4,11 +4,13 @@ import { usePathname } from 'next/navigation';
 
 const APPS = [
   { href: '/catalog',   label: 'Catalog' },
+  { href: '/insights',  label: 'Insights' },
   { href: '/customers', label: 'Customers' },
   { href: '/products',  label: 'Products' },
   { href: '/sales',     label: 'Sales' },
+  { href: '/invoices',  label: 'Invoices' },
+  { href: '/delivery',  label: 'Delivery' },
   { href: '/stock',     label: 'Stock' },
-  { href: '/insights',  label: 'Insights' },
   { href: '/quotes',    label: 'Quotes' },
 ];
 
