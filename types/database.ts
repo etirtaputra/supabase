@@ -76,7 +76,9 @@ export interface Component extends BaseEntity {
   norm_value?: number | null; // Normalized capacity in category's canonical unit (Wp, W, Ah, m, etc.)
   unit?: string | null;       // Default selling unit (pcs, set, meter, Wp…) — referenced by Quotes
   warranty?: string | null;   // Warranty period shown on the sell-side Products list
-  show_tuc_in_quotes?: boolean; // false = owner hid this item's TUC from the Project Quote BOM builder
+  show_tuc_in_quotes?: boolean;        // legacy boolean, superseded by quote_cost_mode
+  quote_cost_mode?: 'tuc' | 'buffered' | 'hidden'; // what Project Quotes show as cost (default 'buffered' = Cost Basis)
+  quote_cost_buffer_pct?: number | null;           // per-item buffer override; NULL = global app_settings value
 }
 
 // 4.0 Price Quotes

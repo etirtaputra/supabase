@@ -44,6 +44,14 @@ export interface ComponentCost {
   source: CostKind;
   asOf: string;             // date the recommended cost is based on ('' if unknown)
   history: CostEntry[];     // all TUC + quote + last-used entries, newest first
+  buffered?: boolean;       // true when cost (and TUC history) carry the Cost Basis safety buffer
+}
+
+/** How a component's cost appears in the Project Quote BOM builder. */
+export type QuoteCostMode = 'tuc' | 'buffered' | 'hidden';
+export interface QuoteCostOpts {
+  mode?: QuoteCostMode;   // default 'tuc' (raw)
+  bufferPct?: number;     // applied only when mode === 'buffered'
 }
 
 /**
@@ -186,10 +194,15 @@ export function quotePriceHistory(
  * Pass a precomputed tucMap (from computeTUCMap) — callers looping over many
  * components must build it once.
  *
- * suppressTuc: the per-product "show TUC in Project Quotes" switch
- * (3.0_components.show_tuc_in_quotes = false). When set, TUC is neither
- * recommended nor listed in history — the fallback order (supplier quote /
- * last-used cost) takes over. Catalog/Insights callers never pass it.
+ * opts: the per-product Cost Basis setting for Project Quotes
+ * (3.0_components.quote_cost_mode / quote_cost_buffer_pct + global default):
+ * - mode 'tuc'       → raw TUC (Catalog/Insights callers never pass opts, so
+ *                      they always get this).
+ * - mode 'buffered'  → Cost Basis: TUC × (1 + bufferPct/100). Every per-PO TUC
+ *                      history entry carries the same multiplier so the raw
+ *                      number never leaks; result is flagged `buffered`.
+ * - mode 'hidden'    → TUC neither recommended nor listed — the fallback order
+ *                      (supplier quote / last-used cost) takes over.
  */
 export function getComponentCost(
   componentId: string,
@@ -197,15 +210,21 @@ export function getComponentCost(
   quotes: PriceQuote[],
   quoteItems: PriceQuoteLineItem[],
   usedEntries: CostEntry[] = [],
-  suppressTuc = false,
+  opts?: QuoteCostOpts,
 ): ComponentCost | null {
-  const tuc = suppressTuc ? null : (tucMap.get(componentId) ?? null);
+  const mode: QuoteCostMode = opts?.mode ?? 'tuc';
+  const mul = mode === 'buffered' ? 1 + (Math.max(0, opts?.bufferPct ?? 0) / 100) : 1;
+  const raw = mode === 'hidden' ? null : (tucMap.get(componentId) ?? null);
+  const buffered = mul !== 1 && !!raw;
+
+  const tucEntries = (raw?.entries ?? []).map((e) =>
+    mul === 1 ? e : { ...e, unitCost: e.unitCost * mul });
   const quoteEntries = quotePriceHistory(componentId, quotes, quoteItems);
 
-  const history = [...(tuc?.entries ?? []), ...quoteEntries, ...usedEntries]
+  const history = [...tucEntries, ...quoteEntries, ...usedEntries]
     .sort((a, b) => b.date.localeCompare(a.date));
 
-  if (tuc) return { cost: tuc.tuc, source: 'tuc', asOf: tuc.latestPoDate, history };
+  if (raw) return { cost: raw.tuc * mul, source: 'tuc', asOf: raw.latestPoDate, history, buffered };
   const fallback = history.find((h) => h.kind !== 'tuc');
   if (fallback) return { cost: fallback.unitCost, source: fallback.kind, asOf: fallback.date, history };
   return null;

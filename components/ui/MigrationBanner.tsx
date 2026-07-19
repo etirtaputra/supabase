@@ -152,7 +152,28 @@ DROP POLICY IF EXISTS "library write" ON "10.4_description_library";
 CREATE POLICY "library write" ON "10.4_description_library"
   FOR ALL TO authenticated
   USING (EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'owner'))
-  WITH CHECK (EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'owner'));`;
+  WITH CHECK (EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'owner'));
+
+-- Cost Basis for Project Quotes (per-item mode + global safety buffer)
+CREATE TABLE IF NOT EXISTS app_settings (
+  key              TEXT PRIMARY KEY,
+  value            TEXT NOT NULL DEFAULT '',
+  updated_at       TIMESTAMPTZ DEFAULT NOW(),
+  updated_by_email TEXT DEFAULT ''
+);
+ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "app settings read" ON app_settings;
+CREATE POLICY "app settings read" ON app_settings
+  FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "app settings write" ON app_settings;
+CREATE POLICY "app settings write" ON app_settings
+  FOR ALL TO authenticated
+  USING (EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'owner'))
+  WITH CHECK (EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'owner'));
+INSERT INTO app_settings (key, value) VALUES ('quote_cost_buffer_pct', '5')
+  ON CONFLICT (key) DO NOTHING;
+ALTER TABLE "3.0_components" ADD COLUMN IF NOT EXISTS quote_cost_mode TEXT NOT NULL DEFAULT 'buffered';
+ALTER TABLE "3.0_components" ADD COLUMN IF NOT EXISTS quote_cost_buffer_pct NUMERIC;`;
 
 /**
  * Probes the quote tables for the columns this build writes. Renders an
@@ -173,6 +194,9 @@ export default function MigrationBanner() {
         supabase.from('10.2_quote_items').select('qty_formula, eng_note').limit(1),
         supabase.from('10.3_quote_activity').select('activity_id').limit(1),
         supabase.from('10.4_description_library').select('entry_id').limit(1),
+        // Cost Basis (migrations/add_cost_basis.sql)
+        supabase.from('3.0_components').select('quote_cost_mode, quote_cost_buffer_pct').limit(1),
+        supabase.from('app_settings').select('key, value').limit(1),
       ]);
       if (!cancelled && probes.some((p) => p.error)) setMissing(true);
     }

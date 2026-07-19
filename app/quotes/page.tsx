@@ -147,10 +147,21 @@ export default function QuotesListPage() {
     [catalog.pos, catalog.poItems, catalog.poCosts],
   );
 
-  // Items whose TUC the owner hid from Project Quotes (3.0 show_tuc_in_quotes = false)
-  const tucHiddenIds = useMemo(
-    () => new Set(catalog.components.filter((c) => c.show_tuc_in_quotes === false).map((c) => c.component_id)),
-    [catalog.components]);
+  // Per-item Cost Basis settings for Project Quotes (mode + buffer; global default 5%)
+  const [globalBufferPct, setGlobalBufferPct] = useState(5);
+  useEffect(() => {
+    supabase.from('app_settings').select('value').eq('key', 'quote_cost_buffer_pct').maybeSingle()
+      .then(({ data }) => { const v = Number(data?.value); if (!isNaN(v)) setGlobalBufferPct(v); });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const costOptsFor = useMemo(() => {
+    const byId = new Map(catalog.components.map((c) => [c.component_id, c]));
+    return (componentId: string) => {
+      const c = byId.get(componentId);
+      const mode = (c?.quote_cost_mode ?? (c?.show_tuc_in_quotes === false ? 'hidden' : 'buffered'));
+      return { mode, bufferPct: c?.quote_cost_buffer_pct ?? globalBufferPct };
+    };
+  }, [catalog.components, globalBufferPct]);
 
   const driftByQuote = useMemo(() => {
     const map = new Map<string, number>();
@@ -159,7 +170,7 @@ export default function QuotesListPage() {
       if (!it.component_id || it.parent_item_id) continue;
       const stored = Number(it.cost_price);
       if (!(stored > 0)) continue;
-      const cc = getComponentCost(it.component_id, listTucMap, catalog.quotes, catalog.quoteItems, usedEntries.get(it.component_id) ?? [], tucHiddenIds.has(it.component_id));
+      const cc = getComponentCost(it.component_id, listTucMap, catalog.quotes, catalog.quoteItems, usedEntries.get(it.component_id) ?? [], costOptsFor(it.component_id));
       if (!cc || !(cc.cost > 0)) continue;
       // Flag only cost increases — margin risk; price drops are fine
       if ((cc.cost - stored) / stored > DRIFT_THRESHOLD) {
@@ -167,7 +178,7 @@ export default function QuotesListPage() {
       }
     }
     return map;
-  }, [openItems, usedEntries, catalogLoading, listTucMap, catalog.quotes, catalog.quoteItems, tucHiddenIds]);
+  }, [openItems, usedEntries, catalogLoading, listTucMap, catalog.quotes, catalog.quoteItems, costOptsFor]);
 
   const [createError, setCreateError] = useState('');
 
@@ -271,7 +282,7 @@ export default function QuotesListPage() {
       const newItems = srcItems.map((it) => {
         let cost = it.cost_price, sell = it.sell_price;
         if (dupRefresh && it.component_id) {
-          const cc = getComponentCost(it.component_id, dupTucMap, catalog.quotes, catalog.quoteItems, usedMap?.get(it.component_id) ?? [], tucHiddenIds.has(it.component_id));
+          const cc = getComponentCost(it.component_id, dupTucMap, catalog.quotes, catalog.quoteItems, usedMap?.get(it.component_id) ?? [], costOptsFor(it.component_id));
           if (cc) {
             const newCost = Math.round(cc.cost);
             const oldCost = Number(it.cost_price), oldSell = Number(it.sell_price);

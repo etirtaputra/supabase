@@ -11,7 +11,7 @@ import SpecRenderer from './SpecRenderer';
 import TierPricingModal from './TierPricingModal';
 import StockModal from './StockModal';
 import StockSummaryCard from './StockSummaryCard';
-import TucQuoteToggle from './TucQuoteToggle';
+import CostBasisControl from './CostBasisControl';
 import type { Component, PriceQuoteLineItem, PriceQuote, PurchaseOrder, PurchaseLineItem, CompetitorPrice, POCost, ComponentLink } from '../../types/database';
 import { computeTUC, computeTUCMap } from '../../lib/computeTUC';
 import { PRINCIPAL_CATS, BALANCE_CATS, BANK_FEE_CATS, TAX_CATS } from '../../constants/costCategories';
@@ -1064,7 +1064,10 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     );
     if (filterDuplicates) result = result.filter((c) => duplicateModels.has(c.supplier_model?.toLowerCase().trim() ?? ''));
     if (filterHasIntel) result = result.filter((c) => intelComponentIds.has(c.component_id));
-    if (filterTucHidden) result = result.filter((c) => (optimistic[c.component_id]?.show_tuc_in_quotes ?? c.show_tuc_in_quotes) === false);
+    if (filterTucHidden) result = result.filter((c) => {
+      const mode = optimistic[c.component_id]?.quote_cost_mode ?? c.quote_cost_mode ?? (c.show_tuc_in_quotes === false ? 'hidden' : 'buffered');
+      return mode !== 'tuc'; // hidden or buffered — anything not showing raw TUC
+    });
     if (filterLinked) result = result.filter((c) => linkedComponentIds.has(c.component_id));
     if (filterHasSpecs) result = result.filter((c) => {
       const s = c.specifications;
@@ -2266,9 +2269,9 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                   ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
                   : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-amber-300 hover:border-amber-500/30'
               }`}
-              title="Show only items whose TUC is hidden from Project Quotes (owner setting on the Inspect panel's TUC card)"
+              title="Show only items not exposing raw TUC to Project Quotes (Cost Basis or Hidden — owner setting on the Inspect panel's TUC card)"
             >
-              TUC Hidden{filterTucHidden ? ` (${filtered.length})` : ''}
+              Cost Basis{filterTucHidden ? ` (${filtered.length})` : ''}
             </button>
             <button
               onClick={() => { setFilterLinked((v) => !v); setFilterUnused(false); setFilterDuplicates(false); }}
@@ -3854,10 +3857,12 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           ) : (
                             <p className="text-sm text-slate-600 italic mt-1">No paid PO data</p>
                           )}
-                          <TucQuoteToggle
+                          <CostBasisControl
                             componentId={comp.component_id}
-                            value={(optimistic[comp.component_id]?.show_tuc_in_quotes ?? comp.show_tuc_in_quotes) !== false}
-                            onChanged={(v) => setOptimistic((prev) => ({ ...prev, [comp.component_id]: { ...prev[comp.component_id], show_tuc_in_quotes: v } }))}
+                            mode={(optimistic[comp.component_id]?.quote_cost_mode ?? comp.quote_cost_mode ?? (comp.show_tuc_in_quotes === false ? 'hidden' : 'buffered'))}
+                            bufferPct={(optimistic[comp.component_id]?.quote_cost_buffer_pct ?? comp.quote_cost_buffer_pct) ?? null}
+                            tuc={actualTucIdr}
+                            onChanged={(patch) => setOptimistic((prev) => ({ ...prev, [comp.component_id]: { ...prev[comp.component_id], ...patch } }))}
                           />
                         </div>
                         <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">

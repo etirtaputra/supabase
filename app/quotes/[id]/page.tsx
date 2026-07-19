@@ -100,6 +100,8 @@ const LEAD_TIMES = ['Ready', '1 minggu', '2 minggu', '3 minggu', '1 bulan', '2 b
 
 // Cost source presentation (TUC from POs / supplier price quote / last used in a project quote)
 const SOURCE_LABEL: Record<string, string> = { tuc: 'TUC', quote: 'latest quote', used: 'last used' };
+// Buffered items surface as "Cost Basis", never as raw TUC
+const srcLabel = (cc: { source: string; buffered?: boolean }) => (cc.buffered ? 'Cost Basis' : SOURCE_LABEL[cc.source]);
 const SOURCE_TEXT:  Record<string, string> = { tuc: 'text-violet-400', quote: 'text-sky-400', used: 'text-amber-400' };
 const SOURCE_BADGE: Record<string, string> = {
   tuc: 'bg-violet-500/20 text-violet-300',
@@ -525,10 +527,19 @@ export default function QuoteEditorPage() {
     [catalog.pos, catalog.poItems, catalog.poCosts],
   );
 
-  const costFor = useCallback((componentId: string) =>
-    getComponentCost(componentId, tucMap, catalog.quotes, catalog.quoteItems, prevUsed.get(componentId) ?? [],
-      compById.get(componentId)?.show_tuc_in_quotes === false),
-  [tucMap, catalog.quotes, catalog.quoteItems, prevUsed, compById]);
+  // Global Cost Basis buffer % (app_settings), per-item override on the component
+  const [globalBufferPct, setGlobalBufferPct] = useState(5);
+  useEffect(() => {
+    supabase.from('app_settings').select('value').eq('key', 'quote_cost_buffer_pct').maybeSingle()
+      .then(({ data }) => { const v = Number(data?.value); if (!isNaN(v)) setGlobalBufferPct(v); });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const costFor = useCallback((componentId: string) => {
+    const c = compById.get(componentId);
+    const mode = (c?.quote_cost_mode ?? (c?.show_tuc_in_quotes === false ? 'hidden' : 'buffered'));
+    return getComponentCost(componentId, tucMap, catalog.quotes, catalog.quoteItems, prevUsed.get(componentId) ?? [],
+      { mode, bufferPct: c?.quote_cost_buffer_pct ?? globalBufferPct });
+  }, [tucMap, catalog.quotes, catalog.quoteItems, prevUsed, compById, globalBufferPct]);
 
   // ── System size (Wp) ───────────────────────────────────────────────────────
   // Shared rules in lib/quoteWp.ts (also used by the quotes list): catalog
@@ -658,7 +669,7 @@ export default function QuoteEditorPage() {
   }, [sections, itemDrift]);
 
   // ── Cost history hover popup ───────────────────────────────────────────────
-  const [costHover, setCostHover] = useState<{ sectionId: string; itemId: string; history: CostEntry[]; source: string; linkedModel: string | null; x: number; y: number } | null>(null);
+  const [costHover, setCostHover] = useState<{ sectionId: string; itemId: string; history: CostEntry[]; source: string; buffered?: boolean; linkedModel: string | null; x: number; y: number } | null>(null);
   const hoverCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function cancelHoverClose() {
@@ -673,9 +684,10 @@ export default function QuoteEditorPage() {
     cancelHoverClose();
     let history: CostEntry[] = [];
     let source = 'used';
+    let buffered = false;
     if (componentId) {
       const cc = costFor(componentId);
-      if (cc) { history = cc.history; source = cc.source; }
+      if (cc) { history = cc.history; source = cc.source; buffered = !!cc.buffered; }
     } else {
       // Free-text items: match previous usage by description
       history = freeTextHistory.get(description.trim().toLowerCase()) ?? [];
@@ -687,6 +699,7 @@ export default function QuoteEditorPage() {
       itemId,
       history: history.slice(0, 10),
       source,
+      buffered,
       linkedModel: componentId ? (compById.get(componentId)?.supplier_model ?? '(unknown component)') : null,
       x: r.right,
       y: r.bottom,
@@ -1743,10 +1756,10 @@ export default function QuoteEditorPage() {
                                             {cc && (
                                               priceAgeDays(cc.asOf) > AGED_PRICE_DAYS ? (
                                                 <p className="text-[10px] text-amber-400 font-semibold" title={`Price is from ${cc.asOf || 'an unknown date'} — consider re-checking with the supplier`}>
-                                                  ⚠ aged · {SOURCE_LABEL[cc.source]}
+                                                  ⚠ aged · {srcLabel(cc)}
                                                 </p>
                                               ) : (
-                                                <p className="text-[10px] text-slate-600">{SOURCE_LABEL[cc.source]}</p>
+                                                <p className="text-[10px] text-slate-600">{srcLabel(cc)}</p>
                                               )
                                             )}
                                           </div>
@@ -1935,14 +1948,15 @@ export default function QuoteEditorPage() {
                                         </button>
                                       </div>
                                     )}
-                                    <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-2">
-                                      Price history · using {costHover.source === 'tuc' ? 'weighted TUC' : SOURCE_LABEL[costHover.source]}
+                                    <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-2"
+                                      title={costHover.buffered ? 'Cost basis — recent landed cost plus a safety buffer set by management' : undefined}>
+                                      Price history · using {costHover.buffered ? 'Cost Basis' : costHover.source === 'tuc' ? 'weighted TUC' : SOURCE_LABEL[costHover.source]}
                                     </p>
                                     <div className="space-y-1">
                                       {costHover.history.map((h, i) => (
                                         <div key={i} className="flex items-center justify-between gap-2 text-[11px]">
                                           <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold flex-shrink-0 ${SOURCE_BADGE[h.kind]}`}>
-                                            {h.kind === 'tuc' ? 'TUC' : h.kind === 'quote' ? 'QUOTE' : 'USED'}
+                                            {h.kind === 'tuc' ? (costHover.buffered ? 'BASIS' : 'TUC') : h.kind === 'quote' ? 'QUOTE' : 'USED'}
                                           </span>
                                           <span className="text-slate-400 truncate flex-1">{h.label}</span>
                                           <span className="text-slate-500 flex-shrink-0">{h.date}</span>
@@ -2134,6 +2148,10 @@ export default function QuoteEditorPage() {
           <span className="flex items-center gap-1.5">
             <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-violet-500/20 text-violet-300">TUC</span>
             weighted true unit cost from settled POs
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-violet-500/20 text-violet-300">BASIS</span>
+            cost basis — recent landed cost incl. safety buffer
           </span>
           <span className="flex items-center gap-1.5">
             <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-500/20 text-sky-300">QUOTE</span>
