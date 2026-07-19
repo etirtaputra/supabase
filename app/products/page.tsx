@@ -1,10 +1,13 @@
 /**
  * ICAPROC — Sell-side: Products
- * The sell-side view of the catalog: every item with its description, brand,
- * category, unit, capacity, sell price (linked to Pricing), and stock truth —
- * Physical, Live (= Physical − Reserved on confirmed orders), and Incoming
- * (qty on POs ordered but not yet Fully Received).
- * Row expand shows the per-tier price list for the item.
+ * The sell-side catalog, built for selling: price + stock first.
+ *  - Columns: Description · Sell Price (tiered) · Stock (Live/Physical + unit) ·
+ *    Incoming · Brand · Category · Capacity · Warranty · Datasheet · Updated.
+ *  - Default sort = trading activity (POs + supplier quotes + sales quotes);
+ *    headers sort by price/stock/brand/category/capacity/updated asc/desc.
+ *  - Row expand: full tier price list, warranty & datasheet (editable), last 10
+ *    customer orders and last 10 deliveries for the item.
+ *  - Mobile: card list highlighting available stock and tier prices.
  * Gated to roles that can see selling prices (owner + sales).
  */
 'use client';
@@ -21,21 +24,41 @@ interface Comp {
   component_id: string; supplier_model: string; internal_description: string | null;
   brand: string | null; category: string | null; unit: string | null;
   norm_value: number | null; selling_price_idr: number | null;
+  datasheet_url: string | null; warranty: string | null; updated_at: string | null;
 }
 interface Tier { tier_id: string; tier_code: string; name: string; default_discount_pct: number; sort_order: number; is_active: boolean; }
 interface Override { component_id: string; tier_id: string; override_price_idr: number | null; override_discount_pct: number | null; }
+interface DocRef { number: string; customer: string; qty: number; date: string; }
 
 // PO statuses that mean "ordered, on the way, not yet arrived".
 const INCOMING_PO_STATUSES = new Set(['Sent', 'Confirmed', 'Partially Received']);
 
 const fmtInt = (n: number) => Math.round(n).toLocaleString('en-US');
+const fmtCompact = (n: number) =>
+  n >= 1_000_000_000 ? `${(n / 1_000_000_000).toFixed(2)}B`
+  : n >= 1_000_000   ? `${(n / 1_000_000).toFixed(1)}M`
+  : Math.round(n).toLocaleString('en-US');
+const fmtDate = (d?: string | null) => d ? new Date(d.length <= 10 ? `${d}T00:00:00` : d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '';
 const humanize = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+type SortKey = 'activity' | 'updated' | 'price' | 'stock' | 'brand' | 'category' | 'capacity';
+const SORT_LABELS: Record<SortKey, string> = {
+  activity: 'Most traded', updated: 'Last updated', price: 'Sell price',
+  stock: 'Live stock', brand: 'Brand', category: 'Category', capacity: 'Capacity',
+};
+// Text columns default ascending; numeric/recency default descending.
+const DEFAULT_DIR: Record<SortKey, 1 | -1> = {
+  activity: -1, updated: -1, price: -1, stock: -1, brand: 1, category: 1, capacity: -1,
+};
+
+interface Row { c: Comp; phys: number; rsv: number; live: number; inc: number; activity: number; }
 
 export default function ProductsPage() {
   const supabase = createSupabaseClient();
   const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
   const canView = !!profile && ROLE_PERMISSIONS[profile.role].canViewSellingPrice;
+  const canEditMeta = !!profile && ROLE_PERMISSIONS[profile.role].canEdit; // warranty / datasheet edits
 
   const [comps, setComps] = useState<Comp[]>([]);
   const [tiers, setTiers] = useState<Tier[]>([]);
@@ -43,13 +66,19 @@ export default function ProductsPage() {
   const [physical, setPhysical] = useState<Record<string, number>>({});
   const [reserved, setReserved] = useState<Record<string, number>>({});
   const [incoming, setIncoming] = useState<Record<string, number>>({});
+  const [activityByComp, setActivityByComp] = useState<Record<string, number>>({});
+  const [ordersByComp, setOrdersByComp] = useState<Record<string, DocRef[]>>({});
+  const [deliveriesByComp, setDeliveriesByComp] = useState<Record<string, DocRef[]>>({});
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterBrand, setFilterBrand] = useState('');
   const [stockOnly, setStockOnly] = useState(false);
+  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'activity', dir: -1 });
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2200); };
 
   useEffect(() => { document.title = 'Products — ICAPROC'; }, []);
   useEffect(() => {
@@ -66,7 +95,7 @@ export default function ProductsPage() {
       let from = 0;
       for (;;) {
         const { data: page } = await supabase.from('3.0_components')
-          .select('component_id, supplier_model, internal_description, brand, category, unit, norm_value, selling_price_idr')
+          .select('component_id, supplier_model, internal_description, brand, category, unit, norm_value, selling_price_idr, datasheet_url, warranty, updated_at')
           .order('supplier_model').range(from, from + PAGE - 1);
         if (!page || page.length === 0) break;
         all = all.concat(page as Comp[]);
@@ -75,15 +104,17 @@ export default function ProductsPage() {
       }
       return all;
     };
-    const [allComps, tierRes, ovRes, balRes, sqRes, sqiRes, poRes, poiRes] = await Promise.all([
+    const [allComps, tierRes, ovRes, balRes, sqRes, sqiRes, poRes, poiRes, piiRes, custRes] = await Promise.all([
       fetchAllComponents(),
       supabase.from('21.0_price_tiers').select('tier_id, tier_code, name, default_discount_pct, sort_order, is_active').order('sort_order'),
       supabase.from('21.1_item_tier_prices').select('component_id, tier_id, override_price_idr, override_discount_pct'),
       supabase.from('30.1_stock_balances').select('component_id, qty_on_hand'),
-      supabase.from('22.0_sales_quotes').select('quote_id, status'),
+      supabase.from('22.0_sales_quotes').select('quote_id, status, order_number, do_number, ordered_at, delivered_at, updated_at, customer_id'),
       supabase.from('22.1_sales_quote_items').select('quote_id, component_id, quantity, is_section'),
       supabase.from('5.0_purchases').select('po_id, status'),
       supabase.from('5.1_purchase_line_items').select('po_id, component_id, quantity'),
+      supabase.from('4.1_price_quote_line_items').select('quote_id, component_id').limit(8000),
+      supabase.from('20.0_customers').select('customer_id, display_name, legal_name'),
     ]);
     setComps(allComps);
     setTiers((tierRes.data as Tier[]) ?? []);
@@ -93,19 +124,60 @@ export default function ProductsPage() {
     for (const b of (balRes.data as { component_id: string; qty_on_hand: number }[]) ?? []) phys[b.component_id] = Number(b.qty_on_hand) || 0;
     setPhysical(phys);
 
-    const committed = new Set(((sqRes.data as { quote_id: string; status: string }[]) ?? []).filter((q) => COMMITTED.has(q.status)).map((q) => q.quote_id));
-    const rsv: Record<string, number> = {};
-    for (const it of (sqiRes.data as { quote_id: string; component_id: string | null; quantity: number; is_section: boolean }[]) ?? []) {
-      if (it.component_id && !it.is_section && committed.has(it.quote_id)) rsv[it.component_id] = (rsv[it.component_id] ?? 0) + (Number(it.quantity) || 0);
-    }
-    setReserved(rsv);
+    const custName = new Map(((custRes.data as { customer_id: string; display_name: string; legal_name: string }[]) ?? [])
+      .map((c) => [c.customer_id, c.display_name || c.legal_name || '']));
+    const docs = (sqRes.data as { quote_id: string; status: string; order_number: string | null; do_number: string | null; ordered_at: string | null; delivered_at: string | null; updated_at: string | null; customer_id: string | null }[]) ?? [];
+    const docById = new Map(docs.map((d) => [d.quote_id, d]));
+    const committed = new Set(docs.filter((q) => COMMITTED.has(q.status)).map((q) => q.quote_id));
 
-    const incomingPos = new Set(((poRes.data as { po_id: number; status: string }[]) ?? []).filter((p) => INCOMING_PO_STATUSES.has(p.status ?? '')).map((p) => String(p.po_id)));
+    const rsv: Record<string, number> = {};
+    const orders: Record<string, DocRef[]> = {};
+    const deliveries: Record<string, DocRef[]> = {};
+    const sqSets: Record<string, Set<string>> = {};
+    for (const it of (sqiRes.data as { quote_id: string; component_id: string | null; quantity: number; is_section: boolean }[]) ?? []) {
+      if (!it.component_id || it.is_section) continue;
+      const cid = it.component_id;
+      const qty = Number(it.quantity) || 0;
+      if (committed.has(it.quote_id)) rsv[cid] = (rsv[cid] ?? 0) + qty;
+      (sqSets[cid] ??= new Set()).add(it.quote_id);
+      const doc = docById.get(it.quote_id);
+      if (!doc) continue;
+      if (doc.order_number) {
+        (orders[cid] ??= []).push({ number: doc.order_number, customer: custName.get(doc.customer_id ?? '') ?? '', qty, date: doc.ordered_at ?? doc.updated_at ?? '' });
+      }
+      if (doc.do_number) {
+        (deliveries[cid] ??= []).push({ number: doc.do_number, customer: custName.get(doc.customer_id ?? '') ?? '', qty, date: doc.delivered_at ?? doc.updated_at ?? '' });
+      }
+    }
+    const top10 = (m: Record<string, DocRef[]>) => {
+      for (const k of Object.keys(m)) m[k] = m[k].sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 10);
+      return m;
+    };
+    setReserved(rsv);
+    setOrdersByComp(top10(orders));
+    setDeliveriesByComp(top10(deliveries));
+
+    const poStatus = new Map(((poRes.data as { po_id: number; status: string }[]) ?? []).map((p) => [String(p.po_id), p.status ?? '']));
     const inc: Record<string, number> = {};
+    const poSets: Record<string, Set<string>> = {};
     for (const li of (poiRes.data as { po_id: number; component_id: string | null; quantity: number }[]) ?? []) {
-      if (li.component_id && incomingPos.has(String(li.po_id))) inc[li.component_id] = (inc[li.component_id] ?? 0) + (Number(li.quantity) || 0);
+      if (!li.component_id) continue;
+      const pid = String(li.po_id);
+      (poSets[li.component_id] ??= new Set()).add(pid);
+      if (INCOMING_PO_STATUSES.has(poStatus.get(pid) ?? '')) inc[li.component_id] = (inc[li.component_id] ?? 0) + (Number(li.quantity) || 0);
     }
     setIncoming(inc);
+
+    const piSets: Record<string, Set<string>> = {};
+    for (const li of (piiRes.data as { quote_id: number; component_id: string | null }[]) ?? []) {
+      if (li.component_id) (piSets[li.component_id] ??= new Set()).add(String(li.quote_id));
+    }
+    // Activity = how actively the item trades: distinct POs + supplier quotes + sales quotes.
+    const act: Record<string, number> = {};
+    for (const c of allComps) {
+      act[c.component_id] = (poSets[c.component_id]?.size ?? 0) + (piSets[c.component_id]?.size ?? 0) + (sqSets[c.component_id]?.size ?? 0);
+    }
+    setActivityByComp(act);
     setLoading(false);
   }, []);
 
@@ -114,36 +186,66 @@ export default function ProductsPage() {
   const activeTiers = useMemo(() => tiers.filter((t) => t.is_active), [tiers]);
   const ovByKey = useMemo(() => { const m = new Map<string, Override>(); for (const o of overrides) m.set(`${o.component_id}:${o.tier_id}`, o); return m; }, [overrides]);
 
-  const tierPrice = (c: Comp, t: Tier): number | null => {
+  const tierPrice = useCallback((c: Comp, t: Tier): number | null => {
     const ov = ovByKey.get(`${c.component_id}:${t.tier_id}`);
     if (ov?.override_price_idr != null) return ov.override_price_idr;
     const list = c.selling_price_idr;
     if (list == null || list <= 0) return null;
     const disc = ov?.override_discount_pct ?? t.default_discount_pct ?? 0;
     return list * (1 - disc / 100);
-  };
+  }, [ovByKey]);
 
   const categories = useMemo(() => [...new Set(comps.map((c) => c.category).filter(Boolean))].sort() as string[], [comps]);
   const brands = useMemo(() => [...new Set(comps.map((c) => c.brand).filter(Boolean))].sort() as string[], [comps]);
 
-  const rows = useMemo(() => {
+  const rows: Row[] = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return comps
+    const list = comps
       .map((c) => {
         const phys = physical[c.component_id] ?? 0;
         const rsv = reserved[c.component_id] ?? 0;
-        return { c, phys, rsv, live: phys - rsv, inc: incoming[c.component_id] ?? 0 };
+        return { c, phys, rsv, live: phys - rsv, inc: incoming[c.component_id] ?? 0, activity: activityByComp[c.component_id] ?? 0 };
       })
       .filter(({ c, phys, inc }) => {
         if (filterCategory && c.category !== filterCategory) return false;
         if (filterBrand && c.brand !== filterBrand) return false;
         if (stockOnly && phys <= 0 && inc <= 0) return false;
         if (!q) return true;
-        return [c.supplier_model, c.internal_description, c.brand, c.category].filter(Boolean).join(' ').toLowerCase().includes(q);
+        return [c.supplier_model, c.internal_description, c.brand, c.category, c.warranty].filter(Boolean).join(' ').toLowerCase().includes(q);
       });
-  }, [comps, physical, reserved, incoming, search, filterCategory, filterBrand, stockOnly]);
+
+    const { key, dir } = sort;
+    const cmpText = (a: string | null, b: string | null) => (a || '').localeCompare(b || '') || 0;
+    list.sort((a, b) => {
+      let d = 0;
+      if (key === 'activity') d = a.activity - b.activity;
+      else if (key === 'updated') d = (a.c.updated_at || '').localeCompare(b.c.updated_at || '');
+      else if (key === 'price') d = (a.c.selling_price_idr ?? -1) - (b.c.selling_price_idr ?? -1);
+      else if (key === 'stock') d = a.live - b.live;
+      else if (key === 'capacity') d = (Number(a.c.norm_value) || 0) - (Number(b.c.norm_value) || 0);
+      else if (key === 'brand') d = cmpText(a.c.brand, b.c.brand);
+      else if (key === 'category') d = cmpText(a.c.category, b.c.category);
+      d *= dir;
+      // Stable tie-breaks: activity desc, then recency desc, then name.
+      if (d !== 0) return d;
+      return (b.activity - a.activity)
+        || (b.c.updated_at || '').localeCompare(a.c.updated_at || '')
+        || (a.c.supplier_model || '').localeCompare(b.c.supplier_model || '');
+    });
+    return list;
+  }, [comps, physical, reserved, incoming, activityByComp, search, filterCategory, filterBrand, stockOnly, sort]);
+
+  const toggleSort = (key: SortKey) =>
+    setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: DEFAULT_DIR[key] }));
 
   const hasFilters = !!(search.trim() || filterCategory || filterBrand || stockOnly);
+
+  async function saveMeta(componentId: string, patch: { warranty?: string; datasheet_url?: string }) {
+    const { error } = await supabase.from('3.0_components').update(patch).eq('component_id', componentId);
+    if (error) { flash(`Failed: ${error.message}`); return; }
+    setComps((cs) => cs.map((c) => (c.component_id === componentId ? { ...c, ...patch } : c)));
+    flash('Saved');
+  }
 
   if (authLoading || !profile) return <CenterSpinner />;
   if (!canView) return <CenterSpinner />;
@@ -151,18 +253,18 @@ export default function ProductsPage() {
   return (
     <div className="min-h-screen bg-[#0f1012] text-slate-200 font-sans text-sm">
       <div className="border-b border-slate-800/60 bg-[#0f1012]/80 backdrop-blur-md sticky top-0 z-30">
-        <div className="max-w-[1500px] mx-auto px-4 md:px-8 py-4 flex items-center justify-between gap-4">
+        <div className="max-w-[1600px] mx-auto px-4 md:px-8 py-4 flex items-center justify-between gap-4">
           <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Products · Sell-side catalog" />
-          <Link href="/pricing" className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap">
+          <Link href="/pricing" className="hidden sm:block text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap">
             Manage Pricing →
           </Link>
         </div>
       </div>
 
-      <main className="max-w-[1500px] mx-auto px-4 md:px-8 py-6 space-y-4">
-        {/* Search + filters (ComponentEditor-style) */}
+      <main className="max-w-[1600px] mx-auto px-4 md:px-8 py-6 space-y-4">
+        {/* Search + filters */}
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[220px]">
+          <div className="relative flex-1 min-w-[200px]">
             <svg className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search model, description, brand, category…"
               className="w-full pl-10 pr-4 h-11 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-slate-500 transition-colors" />
@@ -175,6 +277,15 @@ export default function ProductsPage() {
             <option value="">All brands</option>
             {brands.map((b) => <option key={b} value={b}>{b}</option>)}
           </select>
+          {/* Sort — the dropdown drives mobile; desktop headers also sort */}
+          <select value={`${sort.key}:${sort.dir}`} onChange={(e) => { const [k, d] = e.target.value.split(':'); setSort({ key: k as SortKey, dir: Number(d) as 1 | -1 }); }} className={selCls}>
+            {(Object.keys(SORT_LABELS) as SortKey[]).map((k) => (
+              <Fragment key={k}>
+                <option value={`${k}:${DEFAULT_DIR[k]}`}>{SORT_LABELS[k]} {DEFAULT_DIR[k] === -1 ? '↓' : '↑'}</option>
+                <option value={`${k}:${-DEFAULT_DIR[k]}`}>{SORT_LABELS[k]} {DEFAULT_DIR[k] === -1 ? '↑' : '↓'}</option>
+              </Fragment>
+            ))}
+          </select>
           <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none whitespace-nowrap">
             <input type="checkbox" checked={stockOnly} onChange={(e) => setStockOnly(e.target.checked)} className="accent-emerald-500 w-4 h-4" />
             In stock / incoming
@@ -186,72 +297,74 @@ export default function ProductsPage() {
           <span className="text-xs text-slate-600 tabular-nums ml-auto">{rows.length} of {comps.length}</span>
         </div>
 
-        <p className="text-[11px] text-slate-600">
-          <span className="text-slate-400">Physical</span> = in warehouse · <span className="text-slate-400">Live</span> = Physical − reserved on confirmed orders ·{' '}
-          <span className="text-slate-400">Incoming</span> = on POs not yet fully received. Click a row for its tier price list.
+        <p className="hidden md:block text-[11px] text-slate-600">
+          Stock reads <span className="text-slate-400">Live/Physical</span> — e.g. 100/150 means 150 in the warehouse, 100 still free to sell (50 reserved on confirmed orders).{' '}
+          <span className="text-slate-400">Incoming</span> = on POs not yet fully received. Click a row for tier prices + last orders &amp; deliveries.
         </p>
 
-        <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-x-auto">
-          <table className="w-full min-w-[900px]">
+        {/* ── Desktop table ── */}
+        <div className="hidden md:block bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-x-auto">
+          <table className="w-full min-w-[1000px]">
             <thead>
               <tr className="border-b border-slate-800 text-[10px] uppercase tracking-widest text-slate-500">
                 <th className="text-left font-semibold px-4 py-2.5">Description</th>
-                <th className="text-left font-semibold px-3 py-2.5">Brand</th>
-                <th className="text-left font-semibold px-3 py-2.5">Category</th>
-                <th className="text-left font-semibold px-3 py-2.5">Unit</th>
-                <th className="text-right font-semibold px-3 py-2.5">Capacity</th>
-                <th className="text-right font-semibold px-3 py-2.5">Sell Price</th>
-                <th className="text-right font-semibold px-3 py-2.5">Physical</th>
-                <th className="text-right font-semibold px-3 py-2.5">Live</th>
+                <Th label="Sell Price" right active={sort.key === 'price'} dir={sort.dir} onClick={() => toggleSort('price')} />
+                <Th label="Stock" right active={sort.key === 'stock'} dir={sort.dir} onClick={() => toggleSort('stock')} hint="Live/Physical" />
                 <th className="text-right font-semibold px-3 py-2.5">Incoming</th>
+                <Th label="Brand" active={sort.key === 'brand'} dir={sort.dir} onClick={() => toggleSort('brand')} />
+                <Th label="Category" active={sort.key === 'category'} dir={sort.dir} onClick={() => toggleSort('category')} />
+                <Th label="Capacity" right active={sort.key === 'capacity'} dir={sort.dir} onClick={() => toggleSort('capacity')} />
+                <th className="text-left font-semibold px-3 py-2.5">Warranty</th>
+                <th className="text-center font-semibold px-3 py-2.5">Sheet</th>
+                <Th label="Updated" right active={sort.key === 'updated'} dir={sort.dir} onClick={() => toggleSort('updated')} />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
               {loading ? (
-                [...Array(8)].map((_, i) => <tr key={i}><td colSpan={9} className="px-4 py-2"><div className="h-9 bg-slate-800/40 rounded-lg animate-pulse" /></td></tr>)
+                [...Array(8)].map((_, i) => <tr key={i}><td colSpan={10} className="px-4 py-2"><div className="h-9 bg-slate-800/40 rounded-lg animate-pulse" /></td></tr>)
               ) : rows.length === 0 ? (
-                <tr><td colSpan={9} className="px-4 py-12 text-center text-slate-600 text-sm">No products match.</td></tr>
-              ) : rows.map(({ c, phys, rsv, live, inc }) => (
-                <Fragment key={c.component_id}>
-                  <tr onClick={() => setExpanded((e) => (e === c.component_id ? null : c.component_id))}
-                    className={`cursor-pointer transition-colors ${expanded === c.component_id ? 'bg-slate-800/40' : 'hover:bg-slate-800/20'}`}>
+                <tr><td colSpan={10} className="px-4 py-12 text-center text-slate-600 text-sm">No products match.</td></tr>
+              ) : rows.map((r) => (
+                <Fragment key={r.c.component_id}>
+                  <tr onClick={() => setExpanded((e) => (e === r.c.component_id ? null : r.c.component_id))}
+                    className={`cursor-pointer transition-colors ${expanded === r.c.component_id ? 'bg-slate-800/40' : 'hover:bg-slate-800/20'}`}>
                     <td className="px-4 py-2">
-                      <span className="block text-sm text-slate-100 font-medium truncate max-w-[280px]">{c.supplier_model || '(no model)'}</span>
-                      {c.internal_description && <span className="block text-[11px] text-slate-500 truncate max-w-[280px]">{c.internal_description}</span>}
+                      <span className="flex items-center gap-1.5">
+                        <span className="text-sm text-slate-100 font-medium truncate max-w-[260px]">{r.c.supplier_model || '(no model)'}</span>
+                        {r.activity > 0 && <span className="px-1 py-0.5 rounded bg-slate-800 text-[9px] text-slate-500 tabular-nums flex-shrink-0" title={`${r.activity} POs / quotes / orders`}>{r.activity}</span>}
+                      </span>
+                      {r.c.internal_description && <span className="block text-[11px] text-slate-500 truncate max-w-[260px]">{r.c.internal_description}</span>}
                     </td>
-                    <td className="px-3 py-2 text-xs text-slate-400 whitespace-nowrap">{c.brand || '—'}</td>
-                    <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{c.category ? humanize(c.category) : '—'}</td>
-                    <td className="px-3 py-2 text-xs text-slate-500">{c.unit || '—'}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400">{c.norm_value != null && c.norm_value !== 0 ? Number(c.norm_value).toLocaleString('en-US') : '—'}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-sm text-slate-200">{c.selling_price_idr ? fmtInt(c.selling_price_idr) : <span className="text-slate-700">—</span>}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-slate-300">{phys ? fmtInt(phys) : <span className="text-slate-700">0</span>}</td>
-                    <td className={`px-3 py-2 text-right tabular-nums font-semibold ${live < 0 ? 'text-red-400' : live === 0 ? 'text-slate-600' : 'text-emerald-300'}`}>{fmtInt(live)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-sky-300/80">{inc ? fmtInt(inc) : <span className="text-slate-700">0</span>}</td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap">
+                      <span className="block tabular-nums text-sm text-slate-200">{r.c.selling_price_idr ? fmtCompact(r.c.selling_price_idr) : <span className="text-slate-700">—</span>}</span>
+                      {activeTiers.length > 0 && r.c.selling_price_idr ? (
+                        <span className="block text-[10px] text-slate-500 tabular-nums">{activeTiers.length} tier{activeTiers.length > 1 ? 's' : ''} ▾</span>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap">
+                      <StockCell live={r.live} phys={r.phys} unit={r.c.unit} />
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums text-sky-300/80">{r.inc ? fmtInt(r.inc) : <span className="text-slate-700">0</span>}</td>
+                    <td className="px-3 py-2 text-xs text-slate-400 whitespace-nowrap">{r.c.brand || '—'}</td>
+                    <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{r.c.category ? humanize(r.c.category) : '—'}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400">{r.c.norm_value != null && Number(r.c.norm_value) !== 0 ? Number(r.c.norm_value).toLocaleString('en-US') : '—'}</td>
+                    <td className="px-3 py-2 text-xs text-slate-400 whitespace-nowrap">{r.c.warranty || <span className="text-slate-700">—</span>}</td>
+                    <td className="px-3 py-2 text-center">
+                      {r.c.datasheet_url ? (
+                        <a href={r.c.datasheet_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                          title="Open datasheet" className="inline-flex text-sky-400 hover:text-sky-300 transition-colors">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 010 5.656l-4 4a4 4 0 01-5.656-5.656l1.1-1.1m9.556-3.9l1.1-1.1a4 4 0 10-5.656-5.656l-4 4a4 4 0 000 5.656" /></svg>
+                        </a>
+                      ) : <span className="text-slate-700">—</span>}
+                    </td>
+                    <td className="px-3 py-2 text-right text-[11px] text-slate-500 tabular-nums whitespace-nowrap">{fmtDate(r.c.updated_at)}</td>
                   </tr>
-                  {expanded === c.component_id && (
+                  {expanded === r.c.component_id && (
                     <tr>
-                      <td colSpan={9} className="px-4 pb-3 pt-1 bg-slate-950/40">
-                        <div className="flex flex-wrap gap-2 items-center">
-                          <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 mr-1">Price list</span>
-                          {c.selling_price_idr ? (
-                            <span className="px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700 text-[11px]">
-                              <span className="text-slate-500">List</span> <span className="tabular-nums text-slate-200 font-semibold">{fmtInt(c.selling_price_idr)}</span>
-                            </span>
-                          ) : (
-                            <span className="text-[11px] text-slate-600 italic">No list price set — <Link href="/pricing" className="text-emerald-400 hover:text-emerald-300" onClick={(e) => e.stopPropagation()}>set it in Pricing</Link></span>
-                          )}
-                          {activeTiers.map((t) => {
-                            const p = tierPrice(c, t);
-                            const ov = ovByKey.get(`${c.component_id}:${t.tier_id}`);
-                            return (
-                              <span key={t.tier_id} className={`px-2.5 py-1 rounded-lg border text-[11px] ${ov?.override_price_idr != null ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-slate-800/60 border-slate-700'}`}>
-                                <span className="text-slate-500">{t.name}</span>{' '}
-                                <span className="tabular-nums text-slate-200 font-semibold">{p != null ? fmtInt(p) : '—'}</span>
-                              </span>
-                            );
-                          })}
-                          {rsv > 0 && <span className="text-[11px] text-amber-300/80 ml-auto tabular-nums">Reserved on orders: {fmtInt(rsv)}</span>}
-                        </div>
+                      <td colSpan={10} className="px-4 pb-4 pt-1 bg-slate-950/40">
+                        <ProductDetail row={r} activeTiers={activeTiers} tierPrice={tierPrice}
+                          orders={ordersByComp[r.c.component_id] ?? []} deliveries={deliveriesByComp[r.c.component_id] ?? []}
+                          canEditMeta={canEditMeta} onSaveMeta={(patch) => saveMeta(r.c.component_id, patch)} />
                       </td>
                     </tr>
                   )}
@@ -260,13 +373,199 @@ export default function ProductsPage() {
             </tbody>
           </table>
         </div>
+
+        {/* ── Mobile cards: stock + tier prices front and center ── */}
+        <div className="md:hidden space-y-2">
+          {loading ? (
+            [...Array(6)].map((_, i) => <div key={i} className="h-24 bg-slate-800/40 rounded-xl animate-pulse" />)
+          ) : rows.length === 0 ? (
+            <p className="px-4 py-12 text-center text-slate-600 text-sm">No products match.</p>
+          ) : rows.map((r) => {
+            const open = expanded === r.c.component_id;
+            return (
+              <div key={r.c.component_id} className={`bg-slate-900/40 border rounded-xl transition-colors ${open ? 'border-emerald-500/30' : 'border-slate-800/80'}`}>
+                <button onClick={() => setExpanded(open ? null : r.c.component_id)} className="w-full text-left px-3.5 py-3">
+                  <div className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-slate-100 font-medium truncate">{r.c.supplier_model || '(no model)'}</p>
+                      <p className="text-[11px] text-slate-500 truncate">
+                        {[r.c.brand, r.c.category ? humanize(r.c.category) : '', r.c.norm_value ? Number(r.c.norm_value).toLocaleString('en-US') : ''].filter(Boolean).join(' · ') || '—'}
+                      </p>
+                    </div>
+                    {r.c.datasheet_url && (
+                      <a href={r.c.datasheet_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                        className="p-1.5 -m-0.5 text-sky-400 flex-shrink-0" title="Datasheet">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 010 5.656l-4 4a4 4 0 01-5.656-5.656l1.1-1.1m9.556-3.9l1.1-1.1a4 4 0 10-5.656-5.656l-4 4a4 4 0 000 5.656" /></svg>
+                      </a>
+                    )}
+                  </div>
+                  {/* Highlights: stock + tier prices */}
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                    <span className={`px-2 py-1 rounded-lg text-[11px] font-bold tabular-nums ${r.live > 0 ? 'bg-emerald-500/15 text-emerald-300' : r.live < 0 ? 'bg-red-500/15 text-red-300' : 'bg-slate-800 text-slate-500'}`}>
+                      {fmtInt(r.live)}/{fmtInt(r.phys)}{r.c.unit ? ` ${r.c.unit}` : ''}
+                    </span>
+                    {r.inc > 0 && <span className="px-2 py-1 rounded-lg bg-sky-500/10 text-sky-300 text-[11px] tabular-nums">+{fmtInt(r.inc)} incoming</span>}
+                    {r.c.selling_price_idr ? (
+                      <span className="px-2 py-1 rounded-lg bg-slate-800 text-slate-200 text-[11px] font-semibold tabular-nums">Rp{fmtCompact(r.c.selling_price_idr)}</span>
+                    ) : null}
+                    {activeTiers.slice(0, 2).map((t) => {
+                      const p = tierPrice(r.c, t);
+                      return p != null ? (
+                        <span key={t.tier_id} className="px-2 py-1 rounded-lg bg-slate-800/60 text-[11px] tabular-nums text-slate-400">
+                          {t.name} <span className="text-slate-200 font-semibold">{fmtCompact(p)}</span>
+                        </span>
+                      ) : null;
+                    })}
+                    {r.c.warranty && <span className="px-2 py-1 rounded-lg bg-slate-800/60 text-[11px] text-slate-400">Warranty {r.c.warranty}</span>}
+                  </div>
+                </button>
+                {open && (
+                  <div className="px-3.5 pb-3.5">
+                    <ProductDetail row={r} activeTiers={activeTiers} tierPrice={tierPrice}
+                      orders={ordersByComp[r.c.component_id] ?? []} deliveries={deliveriesByComp[r.c.component_id] ?? []}
+                      canEditMeta={canEditMeta} onSaveMeta={(patch) => saveMeta(r.c.component_id, patch)} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </main>
+
+      {toast && <div className="fixed bottom-6 right-6 z-[110] px-4 py-2.5 bg-slate-800 border border-slate-700 text-white text-sm font-semibold rounded-xl shadow-lg">{toast}</div>}
     </div>
   );
 }
 
+// ── Pieces ──────────────────────────────────────────────────────────────────
 const selCls = 'h-11 px-3 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-slate-300 text-xs transition-colors cursor-pointer';
 
 function CenterSpinner() {
   return <div className="min-h-screen bg-[#0f1012] flex items-center justify-center"><div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" /></div>;
+}
+
+function Th({ label, hint, right, active, dir, onClick }: { label: string; hint?: string; right?: boolean; active: boolean; dir: 1 | -1; onClick: () => void }) {
+  return (
+    <th className={`font-semibold px-3 py-2.5 ${right ? 'text-right' : 'text-left'}`}>
+      <button onClick={onClick} className={`inline-flex items-center gap-1 uppercase tracking-widest transition-colors ${active ? 'text-emerald-400' : 'hover:text-slate-300'}`} title={hint}>
+        {label}
+        <span className="text-[8px]">{active ? (dir === 1 ? '▲' : '▼') : '↕'}</span>
+      </button>
+      {hint && <span className="block normal-case tracking-normal text-[9px] text-slate-600 font-normal">{hint}</span>}
+    </th>
+  );
+}
+
+function StockCell({ live, phys, unit }: { live: number; phys: number; unit: string | null }) {
+  const cls = live < 0 ? 'text-red-400' : live === 0 ? 'text-slate-600' : 'text-emerald-300';
+  return (
+    <span className="tabular-nums text-sm">
+      <span className={`font-semibold ${cls}`}>{fmtInt(live)}</span>
+      <span className="text-slate-600">/{fmtInt(phys)}</span>
+      {unit && <span className="text-slate-600 text-[10px]"> {unit}</span>}
+    </span>
+  );
+}
+
+function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEditMeta, onSaveMeta }: {
+  row: Row;
+  activeTiers: Tier[];
+  tierPrice: (c: Comp, t: Tier) => number | null;
+  orders: DocRef[];
+  deliveries: DocRef[];
+  canEditMeta: boolean;
+  onSaveMeta: (patch: { warranty?: string; datasheet_url?: string }) => void;
+}) {
+  const { c, rsv } = row;
+  const [warranty, setWarranty] = useState(c.warranty ?? '');
+  const [sheet, setSheet] = useState(c.datasheet_url ?? '');
+
+  return (
+    <div className="space-y-3 pt-1">
+      {/* Tier price list */}
+      <div className="flex flex-wrap gap-1.5 items-center">
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 mr-1 w-full sm:w-auto">Price list</span>
+        {c.selling_price_idr ? (
+          <span className="px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700 text-[11px]">
+            <span className="text-slate-500">List</span> <span className="tabular-nums text-slate-200 font-semibold">{fmtInt(c.selling_price_idr)}</span>
+          </span>
+        ) : (
+          <span className="text-[11px] text-slate-600 italic">No list price — <Link href="/pricing" className="text-emerald-400 hover:text-emerald-300">set it in Pricing</Link></span>
+        )}
+        {activeTiers.map((t) => {
+          const p = tierPrice(c, t);
+          return (
+            <span key={t.tier_id} className="px-2.5 py-1 rounded-lg bg-slate-800/60 border border-slate-700 text-[11px]">
+              <span className="text-slate-500">{t.name}</span>{' '}
+              <span className="tabular-nums text-slate-200 font-semibold">{p != null ? fmtInt(p) : '—'}</span>
+            </span>
+          );
+        })}
+        {rsv > 0 && <span className="text-[11px] text-amber-300/80 tabular-nums sm:ml-auto">Reserved on orders: {fmtInt(rsv)}</span>}
+      </div>
+
+      {/* Warranty + datasheet */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div>
+          <label className="block text-[10px] font-medium text-slate-500 mb-0.5">Warranty</label>
+          {canEditMeta ? (
+            <input value={warranty} onChange={(e) => setWarranty(e.target.value)}
+              onBlur={() => { if (warranty.trim() !== (c.warranty ?? '')) onSaveMeta({ warranty: warranty.trim() }); }}
+              placeholder="e.g. 12 years product / 30 years performance"
+              className={dInp} />
+          ) : (
+            <p className="text-xs text-slate-300 py-1.5">{c.warranty || <span className="text-slate-600">—</span>}</p>
+          )}
+        </div>
+        <div>
+          <label className="block text-[10px] font-medium text-slate-500 mb-0.5">Datasheet URL (Drive or web)</label>
+          {canEditMeta ? (
+            <div className="flex gap-1.5">
+              <input value={sheet} onChange={(e) => setSheet(e.target.value)}
+                onBlur={() => { if (sheet.trim() !== (c.datasheet_url ?? '')) onSaveMeta({ datasheet_url: sheet.trim() }); }}
+                placeholder="https://…" className={dInp} />
+              {c.datasheet_url && (
+                <a href={c.datasheet_url} target="_blank" rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-lg bg-sky-500/10 text-sky-300 text-xs font-semibold hover:bg-sky-500/20 transition-colors whitespace-nowrap self-start">Open</a>
+              )}
+            </div>
+          ) : c.datasheet_url ? (
+            <a href={c.datasheet_url} target="_blank" rel="noopener noreferrer" className="text-xs text-sky-400 hover:text-sky-300 break-all">{c.datasheet_url}</a>
+          ) : (
+            <p className="text-xs text-slate-600 py-1.5">—</p>
+          )}
+        </div>
+      </div>
+
+      {/* Last orders + deliveries */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <DocList title="Last Customer Orders" empty="No customer orders yet." refs={orders} accent="text-violet-300" unit={c.unit} />
+        <DocList title="Last Deliveries" empty="No deliveries yet." refs={deliveries} accent="text-emerald-300" unit={c.unit} />
+      </div>
+    </div>
+  );
+}
+
+const dInp = 'w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 focus:border-emerald-500/50 outline-none text-white text-xs placeholder:text-slate-600 transition-colors';
+
+function DocList({ title, empty, refs, accent, unit }: { title: string; empty: string; refs: DocRef[]; accent: string; unit: string | null }) {
+  return (
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 mb-1.5">{title}</p>
+      {refs.length === 0 ? (
+        <p className="text-[11px] text-slate-600 italic">{empty}</p>
+      ) : (
+        <div className="rounded-lg border border-slate-800 bg-slate-950/50 divide-y divide-slate-800/60">
+          {refs.map((r, i) => (
+            <div key={i} className="flex items-center gap-2.5 px-2.5 py-1.5 text-[11px]">
+              <span className={`font-mono flex-shrink-0 ${accent}`}>{r.number}</span>
+              <span className="text-slate-400 truncate flex-1">{r.customer || '—'}</span>
+              <span className="text-slate-300 tabular-nums flex-shrink-0">{fmtInt(r.qty)}{unit ? ` ${unit}` : ''}</span>
+              <span className="text-slate-600 tabular-nums flex-shrink-0">{fmtDate(r.date)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
