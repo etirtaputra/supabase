@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, type CSSProperties } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
@@ -27,11 +27,13 @@ const num = (v: unknown): number | null => {
   return isNaN(n) ? null : n;
 };
 
-export default function TierPricingModal({ componentId, componentName, listPrice, cost, onClose, onListPriceChange }: {
+export default function TierPricingModal({ componentId, componentName, listPrice, cost, anchor, onClose, onListPriceChange }: {
   componentId: string;
   componentName: string;
   listPrice: number | null;
   cost: number | null; // landed cost (TUC) in IDR — internal margin basis
+  /** Trigger-button rect: on desktop the panel pops up anchored to it; null / phones → bottom sheet */
+  anchor?: { top: number; bottom: number; left: number; right: number } | null;
   onClose: () => void;
   onListPriceChange: (v: number | null) => void;
 }) {
@@ -67,6 +69,29 @@ export default function TierPricingModal({ componentId, componentName, listPrice
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  // Phones always get the bottom sheet; desktop pops up in place at the button.
+  const [isPhone, setIsPhone] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const f = () => setIsPhone(mq.matches);
+    f();
+    mq.addEventListener('change', f);
+    return () => mq.removeEventListener('change', f);
+  }, []);
+  const asPopover = !isPhone && !!anchor;
+  const popStyle = useMemo<CSSProperties | undefined>(() => {
+    if (!asPopover || !anchor) return undefined;
+    const W = 380;
+    const maxH = Math.min(540, window.innerHeight - 24);
+    const left = Math.max(8, Math.min(anchor.left - 40, window.innerWidth - W - 12));
+    const spaceBelow = window.innerHeight - anchor.bottom;
+    // Open downward when there's room; otherwise grow upward from the button.
+    if (spaceBelow >= 340 || spaceBelow >= anchor.top) {
+      return { position: 'fixed', top: anchor.bottom + 6, left, width: W, maxHeight: Math.min(maxH, spaceBelow - 12) };
+    }
+    return { position: 'fixed', bottom: window.innerHeight - anchor.top + 6, left, width: W, maxHeight: Math.min(maxH, anchor.top - 12) };
+  }, [asPopover, anchor]);
 
   const listVal = num(listStr);
 
@@ -140,10 +165,13 @@ export default function TierPricingModal({ componentId, componentName, listPrice
   const visibleTiers = useMemo(() => (manageOpen ? tiers : tiers.filter((t) => t.is_active)), [tiers, manageOpen]);
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center sm:px-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60" />
+    <div className={`fixed inset-0 z-[120] ${asPopover ? '' : 'flex items-end sm:items-center justify-center sm:px-4'}`} onClick={onClose}>
+      <div className={`absolute inset-0 ${asPopover ? 'bg-black/20' : 'bg-black/60'}`} />
       <div
-        className="relative w-full sm:max-w-lg max-h-[88vh] overflow-y-auto bg-[#141518] border border-slate-800 sm:rounded-2xl rounded-t-2xl shadow-2xl"
+        style={popStyle}
+        className={asPopover
+          ? 'overflow-y-auto bg-[#141518] border border-slate-700 rounded-2xl shadow-2xl'
+          : 'relative w-full sm:max-w-lg max-h-[88vh] overflow-y-auto bg-[#141518] border border-slate-800 sm:rounded-2xl rounded-t-2xl shadow-2xl'}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
