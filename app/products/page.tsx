@@ -255,8 +255,9 @@ export default function ProductsPage() {
       <div className="border-b border-slate-800/60 bg-[#0f1012]/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1600px] mx-auto px-4 md:px-8 py-4 flex items-center justify-between gap-4">
           <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Products · Sell-side catalog" />
-          <Link href="/pricing" className="hidden sm:block text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap">
-            Manage Pricing →
+          <Link href="/catalog" className="hidden sm:block text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap"
+            title="Prices are set in the Catalog's Component Editor — Sell Price column → Tiers">
+            Set pricing in Catalog →
           </Link>
         </div>
       </div>
@@ -490,7 +491,7 @@ function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEdi
             <span className="text-slate-500">List</span> <span className="tabular-nums text-slate-200 font-semibold">{fmtInt(c.selling_price_idr)}</span>
           </span>
         ) : (
-          <span className="text-[11px] text-slate-600 italic">No list price — <Link href="/pricing" className="text-emerald-400 hover:text-emerald-300">set it in Pricing</Link></span>
+          <span className="text-[11px] text-slate-600 italic">No list price — <Link href="/catalog" className="text-emerald-400 hover:text-emerald-300">set it in Catalog</Link></span>
         )}
         {activeTiers.map((t) => {
           const p = tierPrice(c, t);

@@ -6,7 +6,6 @@ const APPS = [
   { href: '/catalog',   label: 'Catalog' },
   { href: '/customers', label: 'Customers' },
   { href: '/products',  label: 'Products' },
-  { href: '/pricing',   label: 'Pricing' },
   { href: '/sales',     label: 'Sales' },
   { href: '/stock',     label: 'Stock' },
   { href: '/insights',  label: 'Insights' },

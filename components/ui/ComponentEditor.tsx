@@ -8,6 +8,7 @@ import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom';
 import { Spinner } from './LoadingSkeleton';
 import SpecRenderer from './SpecRenderer';
+import TierPricingModal from './TierPricingModal';
 import type { Component, PriceQuoteLineItem, PriceQuote, PurchaseOrder, PurchaseLineItem, CompetitorPrice, POCost, ComponentLink } from '../../types/database';
 import { computeTUC, computeTUCMap } from '../../lib/computeTUC';
 import { PRINCIPAL_CATS, BALANCE_CATS, BANK_FEE_CATS, TAX_CATS } from '../../constants/costCategories';
@@ -680,6 +681,8 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [lineItemSaving, setLineItemSaving] = useState(false);
   const [hoveredTooltip, setHoveredTooltip] = useState<{ id: string; style: React.CSSProperties; kind: 'usage' | 'sellPrice' } | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  // ── Tier pricing modal (per-item sell prices, 21.x) ───────────────────────
+  const [tierPricingId, setTierPricingId] = useState<string | null>(null);
   const [addRows, setAddRows] = useState<(typeof EMPTY_ADD)[]>([{ ...EMPTY_ADD }]);
   const [addRowsExpanded, setAddRowsExpanded] = useState<Set<number>>(new Set());
   const [addSaving, setAddSaving] = useState(false);
@@ -1907,6 +1910,23 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         </div>
       </div>
 
+      {/* Tier pricing modal — per-item sell prices (list, tiers, margin floor) */}
+      {tierPricingId && (() => {
+        const tc = components.find((x) => x.component_id === tierPricingId);
+        if (!tc) return null;
+        const sp = (optimistic[tc.component_id]?.selling_price_idr ?? tc.selling_price_idr) as number | null;
+        return (
+          <TierPricingModal
+            componentId={tc.component_id}
+            componentName={tc.supplier_model || tc.internal_description || '(no model)'}
+            listPrice={sp ?? null}
+            cost={tucByComponent.get(tc.component_id)?.actualTucIdr ?? null}
+            onClose={() => setTierPricingId(null)}
+            onListPriceChange={(v) => setOptimistic((prev) => ({ ...prev, [tc.component_id]: { ...prev[tc.component_id], selling_price_idr: v as any } }))}
+          />
+        );
+      })()}
+
       {/* Inline Add Component form — multi-row */}
       {showAddForm && onAdd && (
         <div className="p-4 md:p-5 border-b border-emerald-500/20 bg-emerald-500/[0.04]">
@@ -2914,7 +2934,16 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           const sp = (getVal(c, 'selling_price_idr' as any) ?? optimistic[c.component_id]?.selling_price_idr ?? c.selling_price_idr) as number | null;
                           const gm = marginByComponent.get(c.component_id);
                           const mktIdr = marketAvgIdrByComponent.get(c.component_id);
-                          if (sp == null) return <span className="text-xs text-slate-700">—</span>;
+                          const tiersBtn = (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setHoveredTooltip(null); setTierPricingId(c.component_id); }}
+                              title="Tier pricing — list price, per-tier prices, margin floor"
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 hover:text-emerald-300 hover:bg-slate-700 border border-slate-700/60 transition-colors font-semibold"
+                            >
+                              Tiers
+                            </button>
+                          );
+                          if (sp == null) return <div className="flex items-center gap-1.5"><span className="text-xs text-slate-700">—</span>{tiersBtn}</div>;
                           const gmColor = gm == null ? 'text-slate-500' : gm < 0 ? 'text-red-400' : gm < 10 ? 'text-orange-400' : gm < 20 ? 'text-amber-300' : gm < 30 ? 'text-emerald-300' : 'text-emerald-400';
                           return (
                             <div>
@@ -2932,6 +2961,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                                     {sp < mktIdr ? '▼' : '▲'} mkt
                                   </span>
                                 )}
+                                {tiersBtn}
                               </div>
                             </div>
                           );
