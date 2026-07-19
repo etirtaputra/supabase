@@ -1,7 +1,8 @@
 'use client';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { useAuth } from '@/hooks/useAuth';
 
 /**
  * ICAPROC wordmark that doubles as the cross-app navigator.
@@ -36,6 +37,8 @@ export default function BrandMenu({
   subtitle,
 }: { wordmarkClass?: string; subtitle?: string }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { profile, signOut } = useAuth();
   const [open, setOpen] = useState(false);
 
   const isActive = (href: string) =>
@@ -86,6 +89,26 @@ export default function BrandMenu({
                 })}
               </div>
             ))}
+            {/* Signed-in user + sign out — lives here so headers stay clean on mobile */}
+            {profile && (
+              <div className="mt-1 pt-1.5 border-t border-slate-800/70">
+                <div className="flex items-center gap-2 px-2.5 py-1.5">
+                  <span className="w-5 h-5 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-[9px] font-bold text-emerald-400 uppercase flex-shrink-0">
+                    {(profile.display_name || profile.email).charAt(0)}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[11px] text-slate-300 truncate">{profile.display_name || profile.email}</span>
+                    {profile.display_name && <span className="block text-[9px] text-slate-600 truncate">{profile.email}</span>}
+                  </span>
+                  <button
+                    onClick={() => { setOpen(false); signOut().then(() => router.replace('/login')); }}
+                    className="text-[10px] text-slate-500 hover:text-red-400 font-semibold px-1.5 py-1 transition-colors flex-shrink-0"
+                  >
+                    Sign out
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}

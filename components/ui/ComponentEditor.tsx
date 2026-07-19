@@ -680,6 +680,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [specsOpenIds, setSpecsOpenIds] = useState<Set<string>>(new Set());
   const [lineItemModalId, setLineItemModalId] = useState<string | null>(null);
+  const [lineItemEditId, setLineItemEditId] = useState<number | string | null>(null); // which association row is in edit mode
   const [lineItemDraft, setLineItemDraft] = useState<Record<number | string, Partial<PriceQuoteLineItem>>>({});
   const [newLineItem, setNewLineItem] = useState<{ quote_id: string; quantity: string; unit_price: string; currency: string; supplier_description: string } | null>(null);
   const [lineItemSaving, setLineItemSaving] = useState(false);
@@ -1250,6 +1251,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
 
   const openLineItemModal = (componentId: string) => {
     setLineItemModalId(componentId);
+    setLineItemEditId(null);
     setLineItemDraft({});
     setNewLineItem(null);
   };
@@ -1260,6 +1262,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     try {
       await onSaveLineItem({ ...original, ...draft });
       setLineItemDraft((prev) => { const n = { ...prev }; delete n[original.quote_line_id]; return n; });
+      setLineItemEditId(null); // back to read-only view after save
     } finally { setLineItemSaving(false); }
   };
 
@@ -3291,7 +3294,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                 {/* Modal header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
                   <div>
-                    <h3 className="text-base font-bold text-white">Quote Associations</h3>
+                    <h3 className="text-base font-bold text-white">Supplier Quotes &amp; POs</h3>
                     <p className="text-xs text-slate-500 mt-0.5 font-mono">{comp.supplier_model}</p>
                   </div>
                   <button onClick={() => setLineItemModalId(null)} className="text-slate-500 hover:text-white transition-colors">
@@ -3303,13 +3306,48 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                 <div className="overflow-y-auto flex-1 px-6 py-4 space-y-3">
                   {/* Existing line items */}
                   {items.length === 0 && !newLineItem && (
-                    <p className="text-sm text-slate-500 py-6 text-center">No quote associations yet.</p>
+                    <p className="text-sm text-slate-500 py-6 text-center">Not on any supplier quote yet.</p>
+                  )}
+                  {items.length > 0 && (
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Supplier Quotes (PI)</p>
                   )}
                   {items.map((item) => {
                     const draft = (lineItemDraft[item.quote_line_id] ?? {}) as Partial<PriceQuoteLineItem>;
                     const eff = { ...item, ...draft };
                     const isDraftDirty = Object.keys(draft).length > 0;
                     const linkedPos = posByQuote.get(eff.quote_id) ?? [];
+                    // Read-only card by default — Edit opens the form (mobile-friendly, no accidental edits)
+                    if (item.quote_line_id !== lineItemEditId && !isDraftDirty) {
+                      const q = quotes.find((x) => String(x.quote_id) === String(item.quote_id));
+                      return (
+                        <div key={item.quote_line_id} className="rounded-xl border border-slate-800 bg-slate-800/30 p-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-semibold font-mono text-blue-300 truncate">{(q?.pi_number as string) || `Quote ${item.quote_id}`}</p>
+                              <p className="text-[11px] text-slate-300 mt-0.5 tabular-nums">
+                                {Number(item.quantity).toLocaleString('en-US')} × {Number(item.unit_price).toLocaleString('en-US')} {item.currency}
+                              </p>
+                              {item.supplier_description && <p className="text-[10px] text-slate-500 truncate mt-0.5">{item.supplier_description}</p>}
+                              {(linkedPos.length > 0 || q?.quote_date) && (
+                                <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                                  {q?.quote_date && <span className="text-[10px] text-slate-600 tabular-nums">{q.quote_date as string}</span>}
+                                  {linkedPos.map((p) => (
+                                    <span key={p} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">{p}</span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => setLineItemEditId(item.quote_line_id)}
+                              title="Edit this association"
+                              className="px-2 py-1 text-slate-600 hover:text-white hover:bg-slate-700/60 rounded-lg transition-all flex-shrink-0"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
                     return (
                       <div key={item.quote_line_id} className={`rounded-xl border p-3 space-y-2 ${isDraftDirty ? 'border-amber-500/40 bg-amber-500/5' : 'border-slate-800 bg-slate-800/30'}`}>
                         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -3391,6 +3429,12 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                                 title="Delete this line item"
                               >🗑</button>
                             )}
+                            {!isDraftDirty && (
+                              <button
+                                onClick={() => setLineItemEditId(null)}
+                                className="px-2 py-1 text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded hover:bg-emerald-500/20 transition-all"
+                              >Done</button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -3454,6 +3498,38 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                       + Add to a quote
                     </button>
                   )}
+
+                  {/* Purchase Orders containing this item — read-only (edit POs in PI/PO tab) */}
+                  {(() => {
+                    const poLines = poLinesByComponent.get(lineItemModalId!) ?? [];
+                    if (poLines.length === 0) return null;
+                    const statusByNumber = new Map(pos.map((p) => [p.po_number, p.status]));
+                    return (
+                      <div className="pt-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">Purchase Orders</p>
+                        <div className="rounded-xl border border-slate-800 divide-y divide-slate-800/60">
+                          {poLines.map((l, i) => {
+                            const st = statusByNumber.get(l.po_number);
+                            return (
+                              <div key={i} className="flex items-center gap-2.5 px-3 py-2 text-[11px] flex-wrap">
+                                <span className="font-mono text-amber-300 flex-shrink-0">{l.po_number}</span>
+                                <span className="text-slate-600 tabular-nums flex-shrink-0">{l.po_date}</span>
+                                <span className="text-slate-300 tabular-nums ml-auto flex-shrink-0">
+                                  {Number(l.quantity).toLocaleString('en-US')} × {Number(l.unit_cost).toLocaleString('en-US')} {l.currency}
+                                </span>
+                                {st && (
+                                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold flex-shrink-0 ${st === 'Fully Received' ? 'bg-emerald-500/15 text-emerald-300' : st === 'Cancelled' ? 'bg-red-500/10 text-red-400/80' : 'bg-slate-800 text-slate-400'}`}>
+                                    {st}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <p className="text-[10px] text-slate-600 mt-1.5">POs are managed in the PI / PO tab.</p>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Panel footer */}
@@ -4313,19 +4389,27 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                                       <p className="text-xs text-slate-600 italic mt-0.5">No data</p>
                                     )
                                   )}
-                                  {/* Delta — always in the linked column */}
-                                  {directDelta != null && link.link_type !== 'normalized' && (
-                                    <p className={`text-[10px] font-semibold mt-1 ${directDelta > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                      linked {directDelta > 0 ? '+' : ''}{directDelta.toFixed(1)}%
-                                      {(selfIsEst || otherIsEst) && <span className="text-slate-600 font-normal ml-0.5">(est.)</span>}
-                                    </p>
-                                  )}
-                                  {normDelta != null && link.link_type === 'normalized' && (
-                                    <p className={`text-[10px] font-semibold mt-1 ${normDelta > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                      linked {normDelta > 0 ? '+' : ''}{normDelta.toFixed(1)}% /{link.normalization_unit}
-                                      {(selfIsEst || otherIsEst) && <span className="text-slate-600 font-normal ml-0.5">(est.)</span>}
-                                    </p>
-                                  )}
+                                  {/* Delta — phrased for the OPENED item: how much pricier/cheaper is it vs this link */}
+                                  {directDelta != null && link.link_type !== 'normalized' && (() => {
+                                    const d = ((selfPrIdr! - otherPrIdr!) / otherPrIdr!) * 100;
+                                    return (
+                                      <p className={`text-[10px] font-semibold mt-1 ${d > 0 ? 'text-red-400' : 'text-emerald-400'}`}
+                                        title={`The opened item is ${Math.abs(d).toFixed(1)}% ${d > 0 ? 'more expensive' : 'cheaper'} than this linked item`}>
+                                        this item {d > 0 ? '+' : ''}{d.toFixed(1)}% {d > 0 ? 'pricier' : 'cheaper'}
+                                        {(selfIsEst || otherIsEst) && <span className="text-slate-600 font-normal ml-0.5">(est.)</span>}
+                                      </p>
+                                    );
+                                  })()}
+                                  {normDelta != null && link.link_type === 'normalized' && (() => {
+                                    const d = ((selfNorm! - otherNorm!) / otherNorm!) * 100;
+                                    return (
+                                      <p className={`text-[10px] font-semibold mt-1 ${d > 0 ? 'text-red-400' : 'text-emerald-400'}`}
+                                        title={`Per ${link.normalization_unit}, the opened item is ${Math.abs(d).toFixed(1)}% ${d > 0 ? 'more expensive' : 'cheaper'} than this linked item`}>
+                                        this item {d > 0 ? '+' : ''}{d.toFixed(1)}% {d > 0 ? 'pricier' : 'cheaper'} /{link.normalization_unit}
+                                        {(selfIsEst || otherIsEst) && <span className="text-slate-600 font-normal ml-0.5">(est.)</span>}
+                                      </p>
+                                    );
+                                  })()}
                                 </div>
                               </div>
 

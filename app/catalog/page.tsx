@@ -478,9 +478,9 @@ function MasterInsertPage() {
       <div className="sticky top-0 z-50 bg-[#141518]/90 backdrop-blur-xl border-b border-white/[0.07]">
         <header className="px-4 md:px-8 xl:px-12 pt-4 xl:pt-5 pb-2 max-w-[1800px] mx-auto flex flex-col sm:flex-row sm:items-end justify-between gap-1">
           <BrandMenu wordmarkClass="text-lg md:text-xl xl:text-2xl font-bold" subtitle={`Catalog${activeItem?.label ? ` · ${activeItem.label}` : ''}`} />
-          {/* User badge + sign out */}
+          {/* User badge + sign out — desktop only; mobile signs out via the ICAPROC menu */}
           {profile && (
-            <div className="flex items-center gap-2 pb-1">
+            <div className="hidden sm:flex items-center gap-2 pb-1">
               {perms?.canManageUsers && (
                 <Link href="/admin" className="hidden sm:inline-block text-[10px] px-2 py-1 border border-slate-700 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors">
                   Manage users

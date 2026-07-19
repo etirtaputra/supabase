@@ -611,7 +611,8 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
       <button
         onClick={() => setOpen(true)}
         title={`Spotlight search — ${modKey} + I`}
-        className="fixed bottom-5 right-5 z-[90] flex items-center gap-2 px-3 py-2 rounded-full bg-slate-900/90 backdrop-blur border border-slate-700/80 text-slate-400 hover:text-white hover:border-emerald-500/40 shadow-lg transition-colors group"
+        // z-30: below every modal/side-panel backdrop (z-40+) so open panels cover the pill
+        className="fixed bottom-5 right-5 z-30 flex items-center gap-2 px-3 py-2 rounded-full bg-slate-900/90 backdrop-blur border border-slate-700/80 text-slate-400 hover:text-white hover:border-emerald-500/40 shadow-lg transition-colors group"
       >
         <svg className="w-3.5 h-3.5 text-slate-500 group-hover:text-emerald-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
         <span className="text-[11px] font-medium hidden sm:inline">Search</span>
