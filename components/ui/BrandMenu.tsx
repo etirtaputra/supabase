@@ -28,7 +28,6 @@ const APP_GROUPS: { title: string | null; apps: { href: string; label: string }[
     { href: '/invoices',  label: 'Invoices' },
     { href: '/delivery',  label: 'Delivery' },
   ] },
-  { title: 'Inventory', apps: [{ href: '/stock', label: 'Stock' }] },
   { title: 'Projects', apps: [{ href: '/quotes', label: 'Quotes' }] },
 ];
 

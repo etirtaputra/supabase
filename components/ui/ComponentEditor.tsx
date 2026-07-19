@@ -9,6 +9,7 @@ import { createPortal } from 'react-dom';
 import { Spinner } from './LoadingSkeleton';
 import SpecRenderer from './SpecRenderer';
 import TierPricingModal from './TierPricingModal';
+import StockModal from './StockModal';
 import type { Component, PriceQuoteLineItem, PriceQuote, PurchaseOrder, PurchaseLineItem, CompetitorPrice, POCost, ComponentLink } from '../../types/database';
 import { computeTUC, computeTUCMap } from '../../lib/computeTUC';
 import { PRINCIPAL_CATS, BALANCE_CATS, BANK_FEE_CATS, TAX_CATS } from '../../constants/costCategories';
@@ -684,6 +685,8 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   // ── Tier pricing popover (per-item sell prices, 21.x) ─────────────────────
   // rect = trigger button position (desktop popover anchor); null → bottom sheet
   const [tierPricing, setTierPricing] = useState<{ id: string; rect: { top: number; bottom: number; left: number; right: number } | null } | null>(null);
+  // ── Stock popover (Physical/Reserved/Live + receive/adjust, 30.x) ─────────
+  const [stockPanel, setStockPanel] = useState<{ id: string; rect: { top: number; bottom: number; left: number; right: number } | null } | null>(null);
   const [addRows, setAddRows] = useState<(typeof EMPTY_ADD)[]>([{ ...EMPTY_ADD }]);
   const [addRowsExpanded, setAddRowsExpanded] = useState<Set<number>>(new Set());
   const [addSaving, setAddSaving] = useState(false);
@@ -1929,6 +1932,21 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         );
       })()}
 
+      {/* Stock popover — Physical/Reserved/Live + receive/adjust */}
+      {stockPanel && (() => {
+        const sc = components.find((x) => x.component_id === stockPanel.id);
+        if (!sc) return null;
+        return (
+          <StockModal
+            componentId={sc.component_id}
+            componentName={sc.supplier_model || sc.internal_description || '(no model)'}
+            unit={sc.unit}
+            anchor={stockPanel.rect}
+            onClose={() => setStockPanel(null)}
+          />
+        );
+      })()}
+
       {/* Inline Add Component form — multi-row */}
       {showAddForm && onAdd && (
         <div className="p-4 md:p-5 border-b border-emerald-500/20 bg-emerald-500/[0.04]">
@@ -2512,15 +2530,27 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                         <p className={`text-[10px] font-medium ${price.cls}`}>{price.tag}</p>
                       </>
                     ) : <span className="text-xs text-slate-700">—</span>}
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={(e) => { e.stopPropagation(); setTierPricing({ id: c.component_id, rect: null }); }}
-                      className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-slate-700/60 bg-slate-800/60 text-[10px] text-slate-400 active:text-emerald-300"
-                      title="Tier pricing"
-                    >
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.99 1.99 0 013 12V7a4 4 0 014-4z" /></svg>
-                      Tiers
+                    <span className="mt-1 flex items-center gap-1 justify-end">
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => { e.stopPropagation(); setTierPricing({ id: c.component_id, rect: null }); }}
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-slate-700/60 bg-slate-800/60 text-[10px] text-slate-400 active:text-emerald-300"
+                        title="Tier pricing"
+                      >
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.99 1.99 0 013 12V7a4 4 0 014-4z" /></svg>
+                        Tiers
+                      </span>
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => { e.stopPropagation(); setStockPanel({ id: c.component_id, rect: null }); }}
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-slate-700/60 bg-slate-800/60 text-[10px] text-slate-400 active:text-emerald-300"
+                        title="Stock"
+                      >
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                        Stock
+                      </span>
                     </span>
                   </div>
                 </button>
@@ -3044,6 +3074,17 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                         ) : null}
                         {/* While editing, only the datasheet input + Done show — keeps the row inside the table */}
                         {!isEditing && (<>
+                        {/* Stock — Physical/Reserved/Live + receive/adjust */}
+                        <button
+                          onClick={(e) => {
+                            const r = e.currentTarget.getBoundingClientRect();
+                            setStockPanel({ id: c.component_id, rect: { top: r.top, bottom: r.bottom, left: r.left, right: r.right } });
+                          }}
+                          title="Stock — Physical / Reserved / Live, receive & adjust"
+                          className="px-2 py-1 text-xs text-slate-600 bg-transparent border border-transparent rounded-lg hover:bg-emerald-500/10 hover:border-emerald-500/30 hover:text-emerald-300 transition-all"
+                        >
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                        </button>
                         {/* Inspect panel */}
                         <button
                           onClick={() => { setInspectId(c.component_id); setInspectTab('costs'); }}
