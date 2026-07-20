@@ -199,12 +199,14 @@ export function quotePriceHistory(
  * - mode 'tuc'       → raw TUC (Catalog/Insights callers never pass opts, so
  *                      they always get this).
  * - mode 'buffered'  → Cost Basis: recommended cost × (1 + bufferPct/100). The
- *                      buffer applies to whatever cost wins — TUC when a settled
- *                      PO exists, otherwise the supplier-quote / last-used
- *                      fallback. Every history entry carries the same multiplier
- *                      so the raw number never leaks; result is flagged
- *                      `buffered`. (When both a quote and TUC exist, TUC still
- *                      wins and keeps its own conservative max(latest,avg) rule.)
+ *                      buffer applies to raw cost sources — TUC entries and
+ *                      supplier-quote prices — so neither raw number leaks and a
+ *                      quote-only item still gets its safety margin. "Last used"
+ *                      entries are costs stored on previous project quotes,
+ *                      which already carried the buffer when they were entered,
+ *                      so they are NEVER multiplied again (no compounding).
+ *                      (When both a quote and TUC exist, TUC still wins and
+ *                      keeps its own conservative max(latest,avg) rule.)
  * - mode 'hidden'    → TUC neither recommended nor listed — the fallback order
  *                      (supplier quote / last-used cost) takes over, unbuffered.
  */
@@ -219,21 +221,29 @@ export function getComponentCost(
   const mode: QuoteCostMode = opts?.mode ?? 'tuc';
   const mul = mode === 'buffered' ? 1 + (Math.max(0, opts?.bufferPct ?? 0) / 100) : 1;
   const raw = mode === 'hidden' ? null : (tucMap.get(componentId) ?? null);
-  const buffered = mul !== 1;
 
-  // In buffered mode the buffer covers every cost path — TUC and the
-  // quote / last-used fallback alike — so a quote-only item is still buffered.
+  // Buffer raw cost sources (TUC, supplier quotes); 'used' entries are past
+  // project-quote costs that already carried the buffer — never re-buffer them.
   const applyMul = (e: CostEntry) => (mul === 1 ? e : { ...e, unitCost: e.unitCost * mul });
   const tucEntries = (raw?.entries ?? []).map(applyMul);
   const quoteEntries = quotePriceHistory(componentId, quotes, quoteItems).map(applyMul);
-  const used = usedEntries.map(applyMul);
 
-  const history = [...tucEntries, ...quoteEntries, ...used]
+  const history = [...tucEntries, ...quoteEntries, ...usedEntries]
     .sort((a, b) => b.date.localeCompare(a.date));
 
-  if (raw) return { cost: raw.tuc * mul, source: 'tuc', asOf: raw.latestPoDate, history, buffered };
+  if (raw) return { cost: raw.tuc * mul, source: 'tuc', asOf: raw.latestPoDate, history, buffered: mul !== 1 };
   const fallback = history.find((h) => h.kind !== 'tuc');
-  if (fallback) return { cost: fallback.unitCost, source: fallback.kind, asOf: fallback.date, history, buffered };
+  if (fallback) {
+    // Only a supplier-quote fallback carries the buffer; a last-used fallback
+    // is passed through untouched and is not flagged as Std Cost.
+    return {
+      cost: fallback.unitCost,
+      source: fallback.kind,
+      asOf: fallback.date,
+      history,
+      buffered: mul !== 1 && fallback.kind === 'quote',
+    };
+  }
   return null;
 }
 
