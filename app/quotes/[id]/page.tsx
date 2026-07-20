@@ -2198,11 +2198,16 @@ export default function QuoteEditorPage() {
                                     <span className="text-[10px] text-slate-600 normal-case tracking-normal">shown here by default — off the PDF / Excel unless you tick “Eng. notes” in Export columns</span>
                                   </div>
                                   <textarea
+                                    ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; } }}
                                     value={item.eng_note}
-                                    onChange={(e) => updateItem(sec.section_id, item.item_id, { eng_note: e.target.value })}
-                                    rows={5}
+                                    onChange={(e) => {
+                                      updateItem(sec.section_id, item.item_id, { eng_note: e.target.value });
+                                      e.currentTarget.style.height = 'auto';
+                                      e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
+                                    }}
+                                    rows={1}
                                     placeholder={"Internal reference only.\nOne calc or note per line — e.g. Pondasi K250 0.64cbm x Rp1,250,000 = Rp800,000"}
-                                    className="w-full min-h-[7rem] bg-slate-950/40 border border-slate-800 focus:border-sky-600 rounded-lg px-3 py-2.5 text-xs leading-relaxed text-sky-200/90 outline-none transition-colors resize-y placeholder:text-slate-700 font-mono"
+                                    className="w-full min-h-[2.5rem] bg-slate-950/40 border border-slate-800 focus:border-sky-600 rounded-lg px-3 py-2.5 text-xs leading-relaxed text-sky-200/90 outline-none transition-colors resize-y placeholder:text-slate-700 font-mono overflow-hidden"
                                   />
                                 </td>
                               </tr>
