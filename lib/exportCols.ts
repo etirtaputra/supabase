@@ -9,11 +9,12 @@ export interface ExportCols {
   unit: boolean;
   lead: boolean;    // lead time tag on sub-section rows
   amount: boolean;  // sub-section amounts (turning off gives a scope-only BOM)
+  notes: boolean;   // engineering notes / comments (internal — off by default)
 }
 
-export const DEFAULT_EXPORT_COLS: ExportCols = { brand: true, qty: true, unit: true, lead: true, amount: true };
+export const DEFAULT_EXPORT_COLS: ExportCols = { brand: true, qty: true, unit: true, lead: true, amount: true, notes: false };
 
-export const EXPORT_COL_KEYS = ['brand', 'qty', 'unit', 'lead', 'amount'] as const;
+export const EXPORT_COL_KEYS = ['brand', 'qty', 'unit', 'lead', 'amount', 'notes'] as const;
 
 export const EXPORT_COL_LABELS: Record<keyof ExportCols, string> = {
   brand: 'Brand',
@@ -21,6 +22,7 @@ export const EXPORT_COL_LABELS: Record<keyof ExportCols, string> = {
   unit: 'Unit',
   lead: 'Lead time',
   amount: 'Amounts',
+  notes: 'Eng. notes',
 };
 
 const KEY = 'quote_export_cols';

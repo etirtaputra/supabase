@@ -837,6 +837,9 @@ export default function QuoteEditorPage() {
             sort_order: i.sort_order,
           })),
       })));
+      // Engineering notes default to shown in the editor (they stay off the PDF
+      // unless explicitly toggled on) — open every item that already has one.
+      setOpenNotes(new Set(dbItems.filter((i) => (i.eng_note ?? '').trim()).map((i) => i.item_id)));
       setLoadingQuote(false);
     }
     load();
@@ -1295,6 +1298,11 @@ export default function QuoteEditorPage() {
             ${ec.unit ? `<td>${item.unit}</td>` : ''}
             ${ec.amount ? '<td></td>' : ''}
           </tr>`;
+          if (ec.notes && (item.eng_note ?? '').trim()) {
+            rows += `<tr style="color:#0369a1;font-style:italic">
+              <td colspan="${colCount}" style="padding-left:${isChild ? '40' : '24'}px;white-space:pre-wrap">${item.eng_note.replace(/\n/g, '<br/>')}</td>
+            </tr>`;
+          }
           if (sec.group_key === 'solar_panels' && !isChild && itemWp(item) > 0 && item.unit.trim().toLowerCase() !== 'wp') {
             rows += `<tr style="font-style:italic;color:#1a7f4f">
               <td style="padding-left:24px">Total system size</td>
@@ -1787,6 +1795,11 @@ export default function QuoteEditorPage() {
                           {((secSubtotal / subtotal) * 100).toLocaleString('en-US', { maximumFractionDigits: 1 })}%
                         </span>
                       )}
+                      {totalWp > 0 && (
+                        <span className="ml-1.5 text-emerald-400/90 font-semibold" title="This section's contribution to price per Wp (excl. PPN)">
+                          {fmtIdr(secSubtotal / totalWp)}/Wp
+                        </span>
+                      )}
                     </span>
                   )}
                   <button onClick={() => deleteSection(sec.section_id)} className="text-slate-600 hover:text-red-400 transition-colors p-1">
@@ -2182,7 +2195,7 @@ export default function QuoteEditorPage() {
                                   <div className="flex items-center gap-1.5 mb-1.5">
                                     <svg className="w-3 h-3 text-sky-400/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                                     <span className="text-[10px] uppercase tracking-widest text-sky-300/60">Engineering note</span>
-                                    <span className="text-[10px] text-slate-600 normal-case tracking-normal">internal only — never on the PDF / Excel</span>
+                                    <span className="text-[10px] text-slate-600 normal-case tracking-normal">shown here by default — off the PDF / Excel unless you tick “Eng. notes” in Export columns</span>
                                   </div>
                                   <textarea
                                     value={item.eng_note}
@@ -2348,6 +2361,22 @@ export default function QuoteEditorPage() {
                 <p className="text-right text-[10px] text-slate-600">
                   system size {totalWp.toLocaleString('en-US')} Wp
                 </p>
+              </div>
+            )}
+            {(quote.system_specs?.kwp_dc || quote.system_specs?.kw_ac) && (
+              <div className="border-t border-slate-800 pt-2 mt-2 space-y-1">
+                {quote.system_specs?.kwp_dc && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-500">PV Modules (DC)</span>
+                    <span className="text-slate-300 font-semibold tabular-nums">{quote.system_specs.kwp_dc} kWp DC</span>
+                  </div>
+                )}
+                {quote.system_specs?.kw_ac && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-500">Inverters (AC)</span>
+                    <span className="text-slate-300 font-semibold tabular-nums">{quote.system_specs.kw_ac} kW AC</span>
+                  </div>
+                )}
               </div>
             )}
           </div>

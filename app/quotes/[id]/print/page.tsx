@@ -269,6 +269,11 @@ export default function PrintPage() {
                                 {cols.unit && <td style={{ color: '#64748b', whiteSpace: 'nowrap' }}>{item.unit}</td>}
                                 {cols.amount && <td />}
                               </tr>
+                              {cols.notes && (item.eng_note ?? '').trim() && (
+                                <tr className="sub-row">
+                                  <td colSpan={colCount} style={{ color: '#1f5aa8', fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>{item.eng_note}</td>
+                                </tr>
+                              )}
                               {subItems.map((sub) => (
                                 <tr key={sub.item_id} className="sub-row">
                                   <td colSpan={1 + (cols.brand ? 1 : 0)}>↳ {sub.description}{sub.brand ? ` — ${sub.brand}` : ''}</td>
