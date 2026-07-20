@@ -67,6 +67,59 @@ function evalFormula(raw: string): number | null {
   }
 }
 
+// A qty formula may reference another line by its row number: "=R3*2" or "=#3/4"
+// (R3 = the quantity of row 3). getRow(n) returns that row's resolved quantity.
+const QTY_REF_RE = /[R#]\d+/i;
+function evalFormulaRefs(raw: string, getRow: (n: number) => number | null): number | null {
+  let bad = false;
+  const expr = raw.replace(/^=/, '').replace(/,/g, '')
+    .replace(/[R#](\d+)/gi, (_m, d: string) => {
+      const v = getRow(parseInt(d, 10));
+      if (v == null || !isFinite(v)) { bad = true; return '0'; }
+      return `(${v})`;
+    }).trim();
+  if (bad || !expr || !/^[0-9+\-*/().\s]+$/.test(expr)) return null;
+  try {
+    const v = Function(`"use strict"; return (${expr});`)();
+    return typeof v === 'number' && isFinite(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+// Ordered "rows" = non-deleted main line items in display order (row 1 = first).
+function orderedRows(sections: DraftSection[]): DraftItem[] {
+  const rows: DraftItem[] = [];
+  for (const s of sections) {
+    if (s._deleted) continue;
+    for (const it of s.items) if (!it.parent_item_id && !it._deleted) rows.push(it);
+  }
+  return rows;
+}
+// Resolve every row's quantity, honoring =R<n> references (cycle-safe via a
+// visited stack; a referenced-cell cycle falls back to the stored value).
+function resolveRowValues(sections: DraftSection[]): Map<string, number> {
+  const rows = orderedRows(sections);
+  const memo = new Map<string, number>();
+  const stack = new Set<string>();
+  const resolveIdx = (idx: number): number | null => {
+    const it = rows[idx];
+    if (!it) return null;
+    if (memo.has(it.item_id)) return memo.get(it.item_id)!;
+    const f = it.qty_formula;
+    if (!f || !QTY_REF_RE.test(f)) { const v = num(it.quantity) ?? 0; memo.set(it.item_id, v); return v; }
+    if (stack.has(it.item_id)) return null; // reference cycle
+    stack.add(it.item_id);
+    const v = evalFormulaRefs(f, (n) => resolveIdx(n - 1));
+    stack.delete(it.item_id);
+    const val = v ?? (num(it.quantity) ?? 0);
+    memo.set(it.item_id, val);
+    return val;
+  };
+  rows.forEach((_, i) => resolveIdx(i));
+  return memo;
+}
+
 function fmtIdr(v: number | null | undefined) {
   if (v == null) return '—';
   return `Rp${Math.round(v).toLocaleString('en-US')}`;
@@ -263,14 +316,48 @@ export default function QuoteEditorPage() {
   function commitQty(sid: string, iid: string, raw: string) {
     const t = raw.trim();
     if (t.startsWith('=')) {
-      const v = evalFormula(t);
-      if (v != null) updateItem(sid, iid, { quantity: String(v), qty_formula: t });
-      // invalid formula: leave the item untouched, the field reverts on blur
+      if (QTY_REF_RE.test(t)) {
+        // Reference formula (=R3*2): resolve against the current row quantities.
+        const rows = orderedRows(sections);
+        const v = evalFormulaRefs(t, (n) => { const it = rows[n - 1]; return it ? (num(it.quantity) ?? 0) : null; });
+        if (v != null) updateItem(sid, iid, { quantity: String(v), qty_formula: t });
+        else updateItem(sid, iid, { qty_formula: t }); // keep formula; the live pass retries as rows fill in
+      } else {
+        const v = evalFormula(t);
+        if (v != null) updateItem(sid, iid, { quantity: String(v), qty_formula: t });
+        // invalid formula: leave the item untouched, the field reverts on blur
+      }
     } else {
       updateItem(sid, iid, { quantity: t, qty_formula: '' });
     }
     setQtyEdit(null);
   }
+
+  // Row numbers (1-based) for the =R<n> reference gutter.
+  const rowNumById = useMemo(() => {
+    const m = new Map<string, number>();
+    orderedRows(sections).forEach((it, i) => m.set(it.item_id, i + 1));
+    return m;
+  }, [sections]);
+
+  // Live-recompute reference formulas: when a referenced row's qty changes,
+  // dependent =R<n> cells update. Cycle-safe; stops once values are stable.
+  useEffect(() => {
+    const hasRefs = sections.some((s) => !s._deleted && s.items.some((it) => !it.parent_item_id && !it._deleted && it.qty_formula && QTY_REF_RE.test(it.qty_formula)));
+    if (!hasRefs) return;
+    const vals = resolveRowValues(sections);
+    let changed = false;
+    const next = sections.map((s) => s._deleted ? s : ({
+      ...s,
+      items: s.items.map((it) => {
+        if (it.parent_item_id || it._deleted || !it.qty_formula || !QTY_REF_RE.test(it.qty_formula)) return it;
+        const v = vals.get(it.item_id);
+        if (v != null && String(v) !== it.quantity) { changed = true; return { ...it, quantity: String(v) }; }
+        return it;
+      }),
+    }));
+    if (changed) setSections(next);
+  }, [sections]);
 
   // Excel-style "=" formulas for the price cells (cost / sell): on blur, a
   // leading "=" is evaluated and replaced with the result. A valid formula
@@ -1937,7 +2024,10 @@ export default function QuoteEditorPage() {
                                   data-nav-row={item.item_id} data-nav-col="brand"
                                   placeholder="Brand" className="w-full bg-transparent outline-none text-slate-200 placeholder:text-slate-600 border-b border-slate-800 hover:border-slate-600 focus:border-violet-500 transition-colors" />
                               </td>
-                              <td className="px-2 py-2 relative" title={item.qty_formula ? `Formula: ${item.qty_formula}` : 'Type =2520*720 for a formula'}>
+                              <td className="px-2 py-2 relative" title={item.qty_formula ? `Formula: ${item.qty_formula}` : `Row ${rowNumById.get(item.item_id) ?? ''} — type =2520*720, or =R3*2 to reference another row's qty`}>
+                                {rowNumById.has(item.item_id) && (
+                                  <span className="absolute -top-0.5 left-0.5 text-[8px] font-semibold text-slate-600 tabular-nums pointer-events-none select-none" title={`This is row R${rowNumById.get(item.item_id)} — reference it elsewhere as =R${rowNumById.get(item.item_id)}`}>R{rowNumById.get(item.item_id)}</span>
+                                )}
                                 {item.qty_formula && qtyEdit?.itemId !== item.item_id && (
                                   <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[9px] font-bold text-sky-500/80 italic pointer-events-none">ƒ</span>
                                 )}
