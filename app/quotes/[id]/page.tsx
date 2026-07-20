@@ -623,15 +623,13 @@ export default function QuoteEditorPage() {
 
   const costFor = useCallback((componentId: string) => {
     const c = compById.get(componentId);
-    // Owners always see real numbers — raw TUC and raw supplier quotes. The
-    // item's Std Cost / Hidden setting governs what everyone else (engineers)
-    // sees: buffered values where possible, no raw cost leaking.
-    const mode = isOwner
-      ? 'tuc'
-      : (c?.quote_cost_mode ?? (c?.show_tuc_in_quotes === false ? 'hidden' : 'buffered'));
+    // Everyone resolves the item's Std Cost / Hidden setting, so owner and
+    // engineer work from the same recommended cost. Owners additionally see
+    // each entry's raw value in the price-history hover (extra context only).
+    const mode = (c?.quote_cost_mode ?? (c?.show_tuc_in_quotes === false ? 'hidden' : 'buffered'));
     return getComponentCost(componentId, tucMap, catalog.quotes, catalog.quoteItems, prevUsed.get(componentId) ?? [],
       { mode, bufferPct: c?.quote_cost_buffer_pct ?? globalBufferPct });
-  }, [tucMap, catalog.quotes, catalog.quoteItems, prevUsed, compById, globalBufferPct, isOwner]);
+  }, [tucMap, catalog.quotes, catalog.quoteItems, prevUsed, compById, globalBufferPct]);
 
   // ── System size (Wp) ───────────────────────────────────────────────────────
   // Shared rules in lib/quoteWp.ts (also used by the quotes list): catalog
@@ -2146,7 +2144,24 @@ export default function QuoteEditorPage() {
                                           </span>
                                           <span className="text-slate-400 truncate flex-1">{h.label}</span>
                                           <span className="text-slate-500 flex-shrink-0">{h.date}</span>
-                                          <span className="text-slate-200 font-medium tabular-nums flex-shrink-0">{fmtIdr(h.unitCost)}</span>
+                                          {/* Owner-only context: the raw pre-buffer number behind an STD value.
+                                              Click either figure to use it as this row's cost. */}
+                                          {isOwner && h.buffered && h.rawUnitCost != null && (
+                                            <button
+                                              onClick={() => { if (!locked) updateItem(costHover.sectionId, costHover.itemId, { cost_price: String(Math.round(h.rawUnitCost!)) }); }}
+                                              title={`Raw ${h.kind === 'quote' ? 'supplier quote' : 'TUC'} before buffer — click to use it as the cost`}
+                                              className="text-slate-500 tabular-nums flex-shrink-0 hover:text-slate-300 transition-colors"
+                                            >
+                                              raw {fmtIdr(h.rawUnitCost)}
+                                            </button>
+                                          )}
+                                          <button
+                                            onClick={() => { if (!locked) updateItem(costHover.sectionId, costHover.itemId, { cost_price: String(Math.round(h.unitCost)) }); }}
+                                            title="Click to use this cost for the row"
+                                            className="text-slate-200 font-medium tabular-nums flex-shrink-0 hover:text-emerald-300 transition-colors"
+                                          >
+                                            {fmtIdr(h.unitCost)}
+                                          </button>
                                         </div>
                                       ))}
                                     </div>

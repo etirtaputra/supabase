@@ -156,17 +156,12 @@ export default function QuotesListPage() {
 
   const costOptsFor = useMemo(() => {
     const byId = new Map(catalog.components.map((c) => [c.component_id, c]));
-    // Owners work with real numbers (raw TUC / raw quotes); everyone else gets
-    // the item's Std Cost / Hidden setting — same rule as the quote editor.
-    const owner = gate.profile?.role === 'owner';
     return (componentId: string) => {
       const c = byId.get(componentId);
-      const mode = owner
-        ? ('tuc' as const)
-        : (c?.quote_cost_mode ?? (c?.show_tuc_in_quotes === false ? 'hidden' : 'buffered'));
+      const mode = (c?.quote_cost_mode ?? (c?.show_tuc_in_quotes === false ? 'hidden' : 'buffered'));
       return { mode, bufferPct: c?.quote_cost_buffer_pct ?? globalBufferPct };
     };
-  }, [catalog.components, globalBufferPct, gate.profile?.role]);
+  }, [catalog.components, globalBufferPct]);
 
   const driftByQuote = useMemo(() => {
     const map = new Map<string, number>();

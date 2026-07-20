@@ -26,8 +26,9 @@ export interface CostEntry {
   kind: CostKind;
   label: string;      // PO number, supplier-quote PI number, or project-quote number
   date: string;
-  unitCost: number;   // IDR
-  buffered?: boolean; // unitCost carries the Std Cost safety buffer (badge shows STD)
+  unitCost: number;      // IDR
+  buffered?: boolean;    // unitCost carries the Std Cost safety buffer (badge shows STD)
+  rawUnitCost?: number;  // pre-buffer value — shown to owners only, for context
 }
 
 export interface TUCResult {
@@ -225,7 +226,7 @@ export function getComponentCost(
 
   // Buffer raw cost sources (TUC, supplier quotes); 'used' entries are past
   // project-quote costs that already carried the buffer — never re-buffer them.
-  const applyMul = (e: CostEntry) => (mul === 1 ? e : { ...e, unitCost: e.unitCost * mul, buffered: true });
+  const applyMul = (e: CostEntry) => (mul === 1 ? e : { ...e, unitCost: e.unitCost * mul, buffered: true, rawUnitCost: e.unitCost });
   const tucEntries = (raw?.entries ?? []).map(applyMul);
   const quoteEntries = quotePriceHistory(componentId, quotes, quoteItems).map(applyMul);
 
