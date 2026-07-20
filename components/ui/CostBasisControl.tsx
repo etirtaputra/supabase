@@ -9,7 +9,11 @@ import { useAuth } from '@/hooks/useAuth';
  *   TUC      → the raw landed cost
  *   Std Cost → TUC + safety buffer % (global default, per-item override);
  *              stored as mode 'buffered'
- *   Hidden   → no TUC; quotes fall back to supplier-quote / last-used cost
+ *   Hidden   → treated as not a PV-quote product: the item is kept out of the
+ *              Project Quote item autocomplete entirely (so unrelated / sensitive
+ *              lines like UPS or Stabilizer never surface there), and on any
+ *              existing quote its cost is hidden (falls back to supplier-quote /
+ *              last-used).
  * The global buffer lives in app_settings.quote_cost_buffer_pct and is
  * editable inline here. Catalog/Insights always show raw TUC regardless.
  * Non-owners see a quiet note only when the item is not on raw TUC.
@@ -57,7 +61,7 @@ export default function CostBasisControl({ componentId, mode, bufferPct, tuc, on
     return (
       <p className="mt-2 pt-2 border-t border-sky-500/10 text-[10px] text-slate-500">
         {m === 'hidden'
-          ? 'Cost is hidden in Project Quotes for this item (owner setting).'
+          ? 'This item is kept out of Project Quotes (owner setting).'
           : 'Project Quotes use this item’s Standard Cost (landed cost + safety buffer, owner setting).'}
       </p>
     );
@@ -107,6 +111,11 @@ export default function CostBasisControl({ componentId, mode, bufferPct, tuc, on
             <span key={value} className="flex items-center gap-1.5">
               {i > 0 && <span className="text-slate-700 text-[10px]">·</span>}
               <button onClick={() => setModeDb(value)} disabled={busy}
+                title={
+                  value === 'tuc' ? 'Show raw TUC (landed cost) in Project Quotes'
+                  : value === 'buffered' ? 'Show Std Cost (TUC + safety buffer) in Project Quotes'
+                  : 'Keep this item out of Project Quotes (hidden from the item picker; cost hidden on existing quotes)'
+                }
                 className={`text-[10px] font-semibold transition-colors disabled:opacity-60 ${
                   m === value
                     ? value === 'hidden' ? 'text-amber-300' : 'text-emerald-300'

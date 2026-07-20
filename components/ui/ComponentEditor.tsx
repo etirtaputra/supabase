@@ -2546,7 +2546,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                   onClick={() => applyBulkCostMode('hidden')}
                   disabled={bulkCostBusy != null}
                   className="px-2 py-1.5 rounded-lg text-[11px] font-semibold text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 transition-colors disabled:opacity-50"
-                  title="Hide cost in Project Quotes (fall back to supplier quote / last-used)"
+                  title="Keep out of Project Quotes (hidden from the item picker; cost hidden on existing quotes)"
                 >
                   {bulkCostBusy === 'hidden' ? '…' : 'Hidden'}
                 </button>

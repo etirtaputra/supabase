@@ -869,11 +869,18 @@ export default function QuoteEditorPage() {
     if (!acState || acState.query.length < 2) return { comps: [] as Component[], prev: [] as PrevItem[] };
     const q = acState.query.toLowerCase();
     const comps = catalog.components
-      .filter((c) =>
-        c.supplier_model?.toLowerCase().includes(q) ||
-        c.brand?.toLowerCase().includes(q) ||
-        c.category?.toLowerCase().includes(q)
-      )
+      .filter((c) => {
+        // Items whose cost is "Hidden" for Project Quotes are treated as not
+        // part of the PV catalog — keep unrelated/sensitive lines (UPS,
+        // Stabilizer, …) out of the Project Quote autocomplete entirely.
+        const mode = c.quote_cost_mode ?? (c.show_tuc_in_quotes === false ? 'hidden' : 'buffered');
+        if (mode === 'hidden') return false;
+        return (
+          c.supplier_model?.toLowerCase().includes(q) ||
+          c.brand?.toLowerCase().includes(q) ||
+          c.category?.toLowerCase().includes(q)
+        );
+      })
       .slice(0, 6);
     const compNames = new Set(comps.map((c) => (c.supplier_model ?? '').trim().toLowerCase()));
 
