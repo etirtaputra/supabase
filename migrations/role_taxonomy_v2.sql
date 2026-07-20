@@ -51,6 +51,18 @@ CREATE POLICY "customer receipts write" ON "26.0_customer_receipts" FOR ALL TO a
   USING (EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role IN ('owner','sell_admin')))
   WITH CHECK (EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role IN ('owner','sell_admin')));
 
+-- Project quotes: can_edit_quote() gated data_entry/finance (now migrated away),
+-- leaving only owners able to edit. Add engineer (keep legacy for safety).
+CREATE OR REPLACE FUNCTION public.can_edit_quote(qid uuid)
+ RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER
+AS $function$
+  SELECT EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'owner')
+      OR (
+        EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role IN ('engineer','data_entry','finance'))
+        AND NOT EXISTS (SELECT 1 FROM "10.0_project_quotes" q WHERE q.quote_id = qid AND q.status = 'sent')
+      );
+$function$;
+
 -- Stock ledger: receive/adjust = owner + buy_admin (+ legacy data_entry);
 -- delivery-out = owner + sales + sell_admin + engineer (completing their orders)
 DROP POLICY IF EXISTS "stock movements insert" ON "30.0_stock_movements";

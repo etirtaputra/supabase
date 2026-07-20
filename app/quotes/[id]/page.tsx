@@ -1098,6 +1098,58 @@ export default function QuoteEditorPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // ── Undo / redo ─────────────────────────────────────────────────────────────
+  // Snapshots of `sections` (edits are immutable, so keeping references is safe).
+  // Rapid keystrokes within 500ms coalesce into one undo step.
+  const history = useRef<{ past: DraftSection[][]; future: DraftSection[][]; present: DraftSection[]; ts: number; applying: boolean }>(
+    { past: [], future: [], present: [], ts: 0, applying: false });
+  const [, setHistVer] = useState(0);
+  useEffect(() => {
+    const h = history.current;
+    if (h.applying) { h.applying = false; h.present = sections; return; }
+    const now = Date.now();
+    if (h.present.length > 0 && now - h.ts > 500) {
+      h.past.push(h.present);
+      if (h.past.length > 100) h.past.shift();
+      h.future = [];
+      setHistVer((v) => v + 1);
+    }
+    h.ts = now;
+    h.present = sections;
+  }, [sections]);
+
+  function undo() {
+    const h = history.current;
+    if (!h.past.length || locked) return;
+    h.future.push(h.present);
+    const prev = h.past.pop()!;
+    h.applying = true;
+    setSections(prev);
+    markDirty();
+    setHistVer((v) => v + 1);
+  }
+  function redo() {
+    const h = history.current;
+    if (!h.future.length || locked) return;
+    h.past.push(h.present);
+    const next = h.future.pop()!;
+    h.applying = true;
+    setSections(next);
+    markDirty();
+    setHistVer((v) => v + 1);
+  }
+  const undoRedoRef = useRef({ undo, redo });
+  undoRedoRef.current = { undo, redo };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const z = e.key.toLowerCase() === 'z';
+      if ((e.metaKey || e.ctrlKey) && z && !e.shiftKey) { e.preventDefault(); undoRedoRef.current.undo(); }
+      else if ((e.metaKey || e.ctrlKey) && ((z && e.shiftKey) || e.key.toLowerCase() === 'y')) { e.preventDefault(); undoRedoRef.current.redo(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   // ── Unsaved-changes guard + autosave ───────────────────────────────────────
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -1270,6 +1322,20 @@ export default function QuoteEditorPage() {
               </span>
             )}
             {dirty && !saving && <span className="text-[11px] text-amber-400">Unsaved</span>}
+            {!locked && (
+              <div className="flex items-center gap-0.5">
+                <button onClick={undo} disabled={history.current.past.length === 0}
+                  title="Undo (Ctrl/Cmd+Z)"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] disabled:opacity-30 disabled:hover:bg-transparent transition-all">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 14L4 9l5-5M4 9h11a5 5 0 010 10h-1" /></svg>
+                </button>
+                <button onClick={redo} disabled={history.current.future.length === 0}
+                  title="Redo (Ctrl/Cmd+Shift+Z)"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] disabled:opacity-30 disabled:hover:bg-transparent transition-all">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 14l5-5-5-5m5 5H9a5 5 0 000 10h1" /></svg>
+                </button>
+              </div>
+            )}
             <div className="relative">
               <button onClick={() => setShowExportCols((v) => !v)}
                 title="Choose which columns appear on the PDF and Excel exports"
