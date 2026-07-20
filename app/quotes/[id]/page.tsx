@@ -2108,8 +2108,8 @@ export default function QuoteEditorPage() {
                                 )}
                                 {costHover?.itemId === item.item_id && (
                                   <div
-                                    className="fixed z-50 w-80 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-3"
-                                    style={{ left: Math.max(16, costHover.x - 320), top: costHover.y + 4 }}
+                                    className="fixed z-50 w-[30rem] max-w-[calc(100vw-2rem)] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-3"
+                                    style={{ left: Math.max(16, costHover.x - 480), top: costHover.y + 4 }}
                                     onMouseEnter={cancelHoverClose}
                                     onMouseLeave={scheduleHoverClose}
                                   >
