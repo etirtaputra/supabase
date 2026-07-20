@@ -11,7 +11,9 @@ import SpecRenderer from './SpecRenderer';
 import TierPricingModal from './TierPricingModal';
 import StockModal from './StockModal';
 import StockSummaryCard from './StockSummaryCard';
-import CostBasisControl from './CostBasisControl';
+import CostBasisControl, { type QuoteCostMode } from './CostBasisControl';
+import { createSupabaseClient } from '@/lib/supabase';
+import { useAuth } from '@/hooks/useAuth';
 import type { Component, PriceQuoteLineItem, PriceQuote, PurchaseOrder, PurchaseLineItem, CompetitorPrice, POCost, ComponentLink } from '../../types/database';
 import { computeTUC, computeTUCMap } from '../../lib/computeTUC';
 import { PRINCIPAL_CATS, BALANCE_CATS, BANK_FEE_CATS, TAX_CATS } from '../../constants/costCategories';
@@ -676,6 +678,18 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  // Bulk "In Project Quotes" cost basis (owner-only) — set TUC / Std Cost / Hidden
+  // for every selected component in one write.
+  const supabase = useMemo(() => createSupabaseClient(), []);
+  const { profile } = useAuth();
+  const isOwner = profile?.role === 'owner';
+  const [bulkCostBusy, setBulkCostBusy] = useState<QuoteCostMode | null>(null);
+  const [bulkBuffer, setBulkBuffer] = useState('');
+  const [globalBufferPct, setGlobalBufferPct] = useState(5);
+  useEffect(() => {
+    supabase.from('app_settings').select('value').eq('key', 'quote_cost_buffer_pct').maybeSingle()
+      .then(({ data }) => { const v = Number(data?.value); if (!isNaN(v)) setGlobalBufferPct(v); });
+  }, [supabase]);
   const selectAllRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [specsOpenIds, setSpecsOpenIds] = useState<Set<string>>(new Set());
@@ -1315,6 +1329,37 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     filtered.forEach((c) => {
       if (selectedIds.has(c.component_id)) setField(c, field, value || null);
     });
+  };
+
+  // Bulk-set the Project Quote cost basis for every selected component in one
+  // write, then reflect it optimistically (mirrors CostBasisControl per item).
+  const applyBulkCostMode = async (mode: QuoteCostMode) => {
+    const ids = [...selectedIds];
+    if (!ids.length || bulkCostBusy) return;
+    const patch: Partial<Component> = { quote_cost_mode: mode } as any;
+    // Only 'buffered' carries a buffer override; blank input = use the global %.
+    if (mode === 'buffered') {
+      const raw = bulkBuffer.trim();
+      if (raw !== '') {
+        const v = Number(raw);
+        if (isNaN(v) || v < 0) return;
+        (patch as any).quote_cost_buffer_pct = v;
+      } else {
+        (patch as any).quote_cost_buffer_pct = null; // fall back to global
+      }
+    }
+    setBulkCostBusy(mode);
+    try {
+      const { error } = await supabase.from('3.0_components').update(patch).in('component_id', ids);
+      if (error) { console.error('[ComponentEditor] bulk cost basis error:', error); return; }
+      setOptimistic((prev) => {
+        const next = { ...prev };
+        ids.forEach((id) => { next[id] = { ...next[id], ...patch }; });
+        return next;
+      });
+    } finally {
+      setBulkCostBusy(null);
+    }
   };
 
   const clearAllFilters = () => {
@@ -2467,6 +2512,46 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
               <option value="" disabled>Category…</option>
               {ENUMS.product_category.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
             </select>
+            {isOwner && (
+              <span className="flex items-center gap-1.5 pl-2 ml-0.5 border-l border-white/10">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600">In quotes</span>
+                <button
+                  onClick={() => applyBulkCostMode('tuc')}
+                  disabled={bulkCostBusy != null}
+                  className="px-2 py-1.5 rounded-lg text-[11px] font-semibold text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 transition-colors disabled:opacity-50"
+                  title="Show raw TUC as the cost in Project Quotes"
+                >
+                  {bulkCostBusy === 'tuc' ? '…' : 'TUC'}
+                </button>
+                <button
+                  onClick={() => applyBulkCostMode('buffered')}
+                  disabled={bulkCostBusy != null}
+                  className="px-2 py-1.5 rounded-lg text-[11px] font-semibold text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 transition-colors disabled:opacity-50"
+                  title="Show Std Cost (TUC + safety buffer) in Project Quotes"
+                >
+                  {bulkCostBusy === 'buffered' ? '…' : 'Std Cost'}
+                </button>
+                <span className="flex items-center gap-0.5">
+                  <input
+                    value={bulkBuffer}
+                    inputMode="decimal"
+                    onChange={(e) => setBulkBuffer(e.target.value)}
+                    placeholder={String(globalBufferPct)}
+                    title={`Buffer % applied when you press Std Cost — blank uses the global ${globalBufferPct}%`}
+                    className="w-11 px-1.5 py-1 rounded-md bg-slate-950 border border-slate-700 focus:border-emerald-500/50 outline-none text-white text-[11px] text-right tabular-nums transition-colors"
+                  />
+                  <span className="text-[10px] text-slate-600">%</span>
+                </span>
+                <button
+                  onClick={() => applyBulkCostMode('hidden')}
+                  disabled={bulkCostBusy != null}
+                  className="px-2 py-1.5 rounded-lg text-[11px] font-semibold text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 transition-colors disabled:opacity-50"
+                  title="Hide cost in Project Quotes (fall back to supplier quote / last-used)"
+                >
+                  {bulkCostBusy === 'hidden' ? '…' : 'Hidden'}
+                </button>
+              </span>
+            )}
             <button
               onClick={() => setSelectedIds(new Set())}
               className="ml-auto text-[11px] text-slate-600 hover:text-slate-400 transition-colors"
