@@ -623,10 +623,15 @@ export default function QuoteEditorPage() {
 
   const costFor = useCallback((componentId: string) => {
     const c = compById.get(componentId);
-    const mode = (c?.quote_cost_mode ?? (c?.show_tuc_in_quotes === false ? 'hidden' : 'buffered'));
+    // Owners always see real numbers — raw TUC and raw supplier quotes. The
+    // item's Std Cost / Hidden setting governs what everyone else (engineers)
+    // sees: buffered values where possible, no raw cost leaking.
+    const mode = isOwner
+      ? 'tuc'
+      : (c?.quote_cost_mode ?? (c?.show_tuc_in_quotes === false ? 'hidden' : 'buffered'));
     return getComponentCost(componentId, tucMap, catalog.quotes, catalog.quoteItems, prevUsed.get(componentId) ?? [],
       { mode, bufferPct: c?.quote_cost_buffer_pct ?? globalBufferPct });
-  }, [tucMap, catalog.quotes, catalog.quoteItems, prevUsed, compById, globalBufferPct]);
+  }, [tucMap, catalog.quotes, catalog.quoteItems, prevUsed, compById, globalBufferPct, isOwner]);
 
   // ── System size (Wp) ───────────────────────────────────────────────────────
   // Shared rules in lib/quoteWp.ts (also used by the quotes list): catalog
@@ -1924,7 +1929,7 @@ export default function QuoteEditorPage() {
                                             <p className="text-[10px] text-slate-500">{[comp.brand, comp.category].filter(Boolean).join(' · ')}</p>
                                           </div>
                                           <div className="text-right flex-shrink-0">
-                                            {cc ? <p className={`font-semibold text-xs ${SOURCE_TEXT[cc.source]}`}>{fmtIdr(cc.cost)}</p>
+                                            {cc ? <p className={`font-semibold text-xs ${cc.buffered ? SOURCE_TEXT.tuc : SOURCE_TEXT[cc.source]}`}>{fmtIdr(cc.cost)}</p>
                                                 : <p className="text-slate-600 text-[10px]">no price data</p>}
                                             {cc && (
                                               priceAgeDays(cc.asOf) > AGED_PRICE_DAYS ? (
@@ -2131,8 +2136,13 @@ export default function QuoteEditorPage() {
                                     <div className="space-y-1">
                                       {costHover.history.map((h, i) => (
                                         <div key={i} className="flex items-center justify-between gap-2 text-[11px]">
-                                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold flex-shrink-0 ${SOURCE_BADGE[h.kind]}`}>
-                                            {h.kind === 'tuc' ? (costHover.buffered ? 'STD' : 'TUC') : h.kind === 'quote' ? 'QUOTE' : 'USED'}
+                                          {/* Badge follows the calculation, not the source: any value carrying
+                                              the safety buffer reads STD (the label still names the PO / PI) */}
+                                          <span
+                                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold flex-shrink-0 ${h.buffered ? SOURCE_BADGE.tuc : SOURCE_BADGE[h.kind]}`}
+                                            title={h.buffered ? `Std Cost — ${h.kind === 'quote' ? 'supplier quote' : 'landed cost'} plus safety buffer` : undefined}
+                                          >
+                                            {h.buffered ? 'STD' : h.kind === 'tuc' ? 'TUC' : h.kind === 'quote' ? 'QUOTE' : 'USED'}
                                           </span>
                                           <span className="text-slate-400 truncate flex-1">{h.label}</span>
                                           <span className="text-slate-500 flex-shrink-0">{h.date}</span>
