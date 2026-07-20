@@ -34,12 +34,13 @@ interface DocRef { number: string; customer: string; qty: number; date: string; 
 const INCOMING_PO_STATUSES = new Set(['Sent', 'Confirmed', 'Partially Received']);
 
 const fmtInt = (n: number) => Math.round(n).toLocaleString('en-US');
-const fmtCompact = (n: number) =>
-  n >= 1_000_000_000 ? `${(n / 1_000_000_000).toFixed(2)}B`
-  : n >= 1_000_000   ? `${(n / 1_000_000).toFixed(1)}M`
-  : Math.round(n).toLocaleString('en-US');
+const fmtRp = (n: number) => `Rp ${fmtInt(n)}`;
 const fmtDate = (d?: string | null) => d ? new Date(d.length <= 10 ? `${d}T00:00:00` : d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '';
+const fmtDateLong = (d: Date) => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
 const humanize = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+// The product's customer-facing name: our internal description, never the supplier's model/SKU.
+const descOf = (c: { internal_description: string | null; supplier_model: string }) =>
+  (c.internal_description && c.internal_description.trim()) || c.supplier_model || '(no description)';
 
 type SortKey = 'activity' | 'updated' | 'price' | 'stock' | 'brand' | 'category' | 'capacity';
 const SORT_LABELS: Record<SortKey, string> = {
@@ -198,6 +199,17 @@ export default function ProductsPage() {
   const categories = useMemo(() => [...new Set(comps.map((c) => c.category).filter(Boolean))].sort() as string[], [comps]);
   const brands = useMemo(() => [...new Set(comps.map((c) => c.brand).filter(Boolean))].sort() as string[], [comps]);
 
+  // Click a price → copy a WhatsApp-ready quote (description + price excl. PPN + today's date)
+  const copyPrice = useCallback(async (c: Comp, price: number) => {
+    const text = `${descOf(c)}\nRp ${fmtInt(price)} (excld. PPN)\nQuote date: ${fmtDateLong(new Date())}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      flash('Price copied — ready to paste');
+    } catch {
+      flash('Copy failed — long-press to select');
+    }
+  }, []);
+
   const rows: Row[] = useMemo(() => {
     const q = search.trim().toLowerCase();
     const list = comps
@@ -331,13 +343,18 @@ export default function ProductsPage() {
                     className={`cursor-pointer transition-colors ${expanded === r.c.component_id ? 'bg-slate-800/40' : 'hover:bg-slate-800/20'}`}>
                     <td className="px-4 py-2">
                       <span className="flex items-center gap-1.5">
-                        <span className="text-sm text-slate-100 font-medium truncate max-w-[260px]">{r.c.supplier_model || '(no model)'}</span>
+                        <span className="text-sm text-slate-100 font-medium truncate max-w-[320px]">{descOf(r.c)}</span>
                         {r.activity > 0 && <span className="px-1 py-0.5 rounded bg-slate-800 text-[9px] text-slate-500 tabular-nums flex-shrink-0" title={`${r.activity} POs / quotes / orders`}>{r.activity}</span>}
                       </span>
-                      {r.c.internal_description && <span className="block text-[11px] text-slate-500 truncate max-w-[260px]">{r.c.internal_description}</span>}
                     </td>
                     <td className="px-3 py-2 text-right whitespace-nowrap">
-                      <span className="block tabular-nums text-sm text-slate-200">{r.c.selling_price_idr ? fmtCompact(r.c.selling_price_idr) : <span className="text-slate-700">—</span>}</span>
+                      {r.c.selling_price_idr ? (
+                        <button onClick={(e) => { e.stopPropagation(); copyPrice(r.c, r.c.selling_price_idr!); }}
+                          title="Click to copy this price (excl. PPN) for WhatsApp"
+                          className="block ml-auto tabular-nums text-sm text-slate-200 hover:text-emerald-300 transition-colors">
+                          {fmtRp(r.c.selling_price_idr)}
+                        </button>
+                      ) : <span className="block tabular-nums text-sm text-slate-700">—</span>}
                       {activeTiers.length > 0 && r.c.selling_price_idr ? (
                         <span className="block text-[10px] text-slate-500 tabular-nums">{activeTiers.length} tier{activeTiers.length > 1 ? 's' : ''} ▾</span>
                       ) : null}
@@ -365,7 +382,7 @@ export default function ProductsPage() {
                       <td colSpan={10} className="px-4 pb-4 pt-1 bg-slate-950/40">
                         <ProductDetail row={r} activeTiers={activeTiers} tierPrice={tierPrice}
                           orders={ordersByComp[r.c.component_id] ?? []} deliveries={deliveriesByComp[r.c.component_id] ?? []}
-                          canEditMeta={canEditMeta} onSaveMeta={(patch) => saveMeta(r.c.component_id, patch)} />
+                          canEditMeta={canEditMeta} onSaveMeta={(patch) => saveMeta(r.c.component_id, patch)} onCopyPrice={copyPrice} />
                       </td>
                     </tr>
                   )}
@@ -388,7 +405,7 @@ export default function ProductsPage() {
                 <button onClick={() => setExpanded(open ? null : r.c.component_id)} className="w-full text-left px-3.5 py-3">
                   <div className="flex items-start gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm text-slate-100 font-medium truncate">{r.c.supplier_model || '(no model)'}</p>
+                      <p className="text-sm text-slate-100 font-medium truncate">{descOf(r.c)}</p>
                       <p className="text-[11px] text-slate-500 truncate">
                         {[r.c.brand, r.c.category ? humanize(r.c.category) : '', r.c.norm_value ? Number(r.c.norm_value).toLocaleString('en-US') : ''].filter(Boolean).join(' · ') || '—'}
                       </p>
@@ -400,20 +417,28 @@ export default function ProductsPage() {
                       </a>
                     )}
                   </div>
-                  {/* Highlights: stock + tier prices */}
+                  {/* Highlights: stock (Live colored / Physical muted) + tap-to-copy prices */}
                   <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                    <span className={`px-2 py-1 rounded-lg text-[11px] font-bold tabular-nums ${r.live > 0 ? 'bg-emerald-500/15 text-emerald-300' : r.live < 0 ? 'bg-red-500/15 text-red-300' : 'bg-slate-800 text-slate-500'}`}>
-                      {fmtInt(r.live)}/{fmtInt(r.phys)}{r.c.unit ? ` ${r.c.unit}` : ''}
+                    <span className="px-2 py-1 rounded-lg bg-slate-800/80 text-[11px] font-bold tabular-nums">
+                      <span className={r.live > 0 ? 'text-emerald-300' : r.live < 0 ? 'text-red-300' : 'text-slate-500'}>{fmtInt(r.live)}</span>
+                      <span className="text-slate-500">/{fmtInt(r.phys)}</span>
+                      {r.c.unit && <span className="text-slate-600 font-normal"> {r.c.unit}</span>}
                     </span>
                     {r.inc > 0 && <span className="px-2 py-1 rounded-lg bg-sky-500/10 text-sky-300 text-[11px] tabular-nums">+{fmtInt(r.inc)} incoming</span>}
                     {r.c.selling_price_idr ? (
-                      <span className="px-2 py-1 rounded-lg bg-slate-800 text-slate-200 text-[11px] font-semibold tabular-nums">Rp{fmtCompact(r.c.selling_price_idr)}</span>
+                      <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); copyPrice(r.c, r.c.selling_price_idr!); }}
+                        title="Tap to copy this price for WhatsApp"
+                        className="px-2 py-1 rounded-lg bg-slate-800 text-slate-200 text-[11px] font-semibold tabular-nums active:text-emerald-300">
+                        {fmtRp(r.c.selling_price_idr)}
+                      </span>
                     ) : null}
-                    {activeTiers.slice(0, 2).map((t) => {
+                    {activeTiers.map((t) => {
                       const p = tierPrice(r.c, t);
                       return p != null ? (
-                        <span key={t.tier_id} className="px-2 py-1 rounded-lg bg-slate-800/60 text-[11px] tabular-nums text-slate-400">
-                          {t.name} <span className="text-slate-200 font-semibold">{fmtCompact(p)}</span>
+                        <span key={t.tier_id} role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); copyPrice(r.c, p); }}
+                          title={`Tap to copy ${t.name} price for WhatsApp`}
+                          className="px-2 py-1 rounded-lg bg-slate-800/60 text-[11px] tabular-nums text-slate-400 active:text-emerald-300">
+                          {t.name} <span className="text-slate-200 font-semibold">{fmtRp(p)}</span>
                         </span>
                       ) : null;
                     })}
@@ -424,7 +449,7 @@ export default function ProductsPage() {
                   <div className="px-3.5 pb-3.5">
                     <ProductDetail row={r} activeTiers={activeTiers} tierPrice={tierPrice}
                       orders={ordersByComp[r.c.component_id] ?? []} deliveries={deliveriesByComp[r.c.component_id] ?? []}
-                      canEditMeta={canEditMeta} onSaveMeta={(patch) => saveMeta(r.c.component_id, patch)} />
+                      canEditMeta={canEditMeta} onSaveMeta={(patch) => saveMeta(r.c.component_id, patch)} onCopyPrice={copyPrice} />
                   </div>
                 )}
               </div>
@@ -468,7 +493,7 @@ function StockCell({ live, phys, unit }: { live: number; phys: number; unit: str
   );
 }
 
-function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEditMeta, onSaveMeta }: {
+function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEditMeta, onSaveMeta, onCopyPrice }: {
   row: Row;
   activeTiers: Tier[];
   tierPrice: (c: Comp, t: Tier) => number | null;
@@ -476,6 +501,7 @@ function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEdi
   deliveries: DocRef[];
   canEditMeta: boolean;
   onSaveMeta: (patch: { warranty?: string; datasheet_url?: string }) => void;
+  onCopyPrice: (c: Comp, price: number) => void;
 }) {
   const { c, rsv } = row;
   const [warranty, setWarranty] = useState(c.warranty ?? '');
@@ -483,23 +509,30 @@ function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEdi
 
   return (
     <div className="space-y-3 pt-1">
-      {/* Tier price list */}
+      {/* Tier price list — click any price to copy it (excl. PPN) for WhatsApp */}
       <div className="flex flex-wrap gap-1.5 items-center">
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 mr-1 w-full sm:w-auto">Price list</span>
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 mr-1 w-full sm:w-auto">Price list · tap to copy</span>
         {c.selling_price_idr ? (
-          <span className="px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700 text-[11px]">
-            <span className="text-slate-500">List</span> <span className="tabular-nums text-slate-200 font-semibold">{fmtInt(c.selling_price_idr)}</span>
-          </span>
+          <button onClick={() => onCopyPrice(c, c.selling_price_idr!)} title="Copy this price (excl. PPN) for WhatsApp"
+            className="px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700 hover:border-emerald-500/40 text-[11px] transition-colors">
+            <span className="text-slate-500">List</span> <span className="tabular-nums text-slate-200 font-semibold">{fmtRp(c.selling_price_idr)}</span>
+          </button>
         ) : (
           <span className="text-[11px] text-slate-600 italic">No list price — <Link href="/catalog" className="text-emerald-400 hover:text-emerald-300">set it in Catalog</Link></span>
         )}
         {activeTiers.map((t) => {
           const p = tierPrice(c, t);
-          return (
+          if (p == null) return (
             <span key={t.tier_id} className="px-2.5 py-1 rounded-lg bg-slate-800/60 border border-slate-700 text-[11px]">
-              <span className="text-slate-500">{t.name}</span>{' '}
-              <span className="tabular-nums text-slate-200 font-semibold">{p != null ? fmtInt(p) : '—'}</span>
+              <span className="text-slate-500">{t.name}</span> <span className="text-slate-600">—</span>
             </span>
+          );
+          return (
+            <button key={t.tier_id} onClick={() => onCopyPrice(c, p)} title={`Copy ${t.name} price (excl. PPN) for WhatsApp`}
+              className="px-2.5 py-1 rounded-lg bg-slate-800/60 border border-slate-700 hover:border-emerald-500/40 text-[11px] transition-colors">
+              <span className="text-slate-500">{t.name}</span>{' '}
+              <span className="tabular-nums text-slate-200 font-semibold">{fmtRp(p)}</span>
+            </button>
           );
         })}
         {rsv > 0 && <span className="text-[11px] text-amber-300/80 tabular-nums sm:ml-auto">Reserved on orders: {fmtInt(rsv)}</span>}
