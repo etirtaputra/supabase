@@ -7,6 +7,8 @@
  * they never drift apart.
  */
 
+import type { EconAssumptions } from './energyEconomics';
+
 export type ProjectType = 'on_grid' | 'hybrid_bess' | 'off_grid' | 'evcs' | 'custom';
 
 export type Phase = 'single' | 'triple';
@@ -18,6 +20,7 @@ export interface SystemSpecs {
   kwh_bess?: number | null; // BESS energy
   kw_evcs?: number | null;  // EV charger power (EVCS only)
   phase?: Phase | null;     // supply phase (EVCS only)
+  econ?: EconAssumptions | null; // LCOE / NPV / IRR assumptions (on-grid & hybrid)
 }
 
 export const PROJECT_TYPES: { key: ProjectType; label: string }[] = [

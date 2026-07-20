@@ -7,6 +7,7 @@ import { quoteFileName } from '@/lib/quoteFilename';
 import { specFileTag, type SystemSpecs } from '@/lib/projectSpec';
 import { useQuotesGate } from '@/hooks/useQuotesGate';
 import { DEFAULT_EXPORT_COLS, EXPORT_COL_KEYS, EXPORT_COL_LABELS, loadExportCols, saveExportCols, type ExportCols } from '@/lib/exportCols';
+import { computeEnergyEconomics, ECON_DEFAULTS } from '@/lib/energyEconomics';
 
 function fmtIdr(v: number) {
   return `Rp${Math.round(v).toLocaleString('en-US')}`;
@@ -122,6 +123,18 @@ export default function PrintPage() {
   const ppn = subtotal * ppnPct / 100;
   const grandTotal = subtotal + ppn;
 
+  // Energy-economics page (on-grid & hybrid, when enabled on the quote):
+  // CAPEX = subtotal excl. PPN, DC kWp = live system size, assumptions from
+  // the quote's Energy Economics card. Same engine as the editor preview.
+  const specs = (quote.system_specs as SystemSpecs) ?? {};
+  const econAssump = specs.econ ?? null;
+  const econHybrid = quote.project_type === 'hybrid_bess';
+  const econDcKwp = totalWp > 0 ? totalWp / 1000 : (specs.kwp_dc ?? 0);
+  const econ = (quote.project_type === 'on_grid' || econHybrid) && econAssump?.enabled !== false
+    ? computeEnergyEconomics(subtotal, econDcKwp, econAssump ?? {}, econHybrid)
+    : null;
+  const econTariff0 = econAssump?.pln_tariff ?? ECON_DEFAULTS.pln_tariff;
+
   return (
     <>
       <style>{`
@@ -176,6 +189,25 @@ export default function PrintPage() {
         .terms-header { font-weight: 650; text-decoration: underline; text-underline-offset: 2px; margin-top: 1.8mm; line-height: 1.55; color: #1f2937; font-size: 8.5pt; white-space: pre-wrap; }
         .terms-line { font-style: italic; line-height: 1.55; color: #475569; font-size: 8.5pt; white-space: pre-wrap; }
         .terms-thanks { font-weight: 700; font-style: italic; margin-top: 2.5mm; line-height: 1.5; color: #1f5aa8; font-size: 8.5pt; white-space: pre-wrap; }
+
+        .econ { page-break-before: always; padding-top: 2mm; }
+        .econ-title { font-size: 8pt; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; color: #1f5aa8; border-left: 2.5pt solid #1f5aa8; padding-left: 2.5mm; margin-bottom: 1.5mm; }
+        .econ-sub { font-size: 8pt; color: #64748b; margin-bottom: 3.5mm; }
+        .econ-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2.5mm; margin-bottom: 4mm; }
+        .econ-kpi { border: 0.5pt solid #dbe4ef; border-radius: 1.5mm; padding: 2mm 2.5mm; }
+        .econ-kpi .k { font-size: 6.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 0.8mm; }
+        .econ-kpi .v { font-size: 11pt; font-weight: 800; color: #1f5aa8; font-variant-numeric: tabular-nums; }
+        .econ-kpi .s { font-size: 7pt; color: #64748b; margin-top: 0.5mm; }
+        .econ-assump { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.2mm 4mm; margin-bottom: 4mm; font-size: 8pt; }
+        .econ-assump div { display: flex; justify-content: space-between; border-bottom: 0.4pt solid #eef2f7; padding: 0.8mm 0; }
+        .econ-assump .al { color: #64748b; }
+        .econ-assump .av { font-weight: 650; color: #0f172a; font-variant-numeric: tabular-nums; }
+        table.econ-table { font-size: 7.5pt; }
+        table.econ-table thead th { font-size: 6.5pt; padding: 1.4mm 1.2mm; }
+        table.econ-table td { padding: 0.9mm 1.2mm; border-bottom: 0.4pt solid #eef2f7; font-variant-numeric: tabular-nums; color: #334155; }
+        table.econ-table td.pos { color: #157347; font-weight: 650; }
+        table.econ-table td.neg { color: #b02a37; }
+        .econ-note { font-size: 7pt; color: #94a3b8; margin-top: 2mm; line-height: 1.5; }
 
         .footer { margin-top: 10mm; padding-top: 4mm; border-top: 0.5pt solid #e2e8f0; display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; font-size: 8.5pt; color: #64748b; }
         .sig-label { font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #94a3b8; margin-bottom: 10mm; }
@@ -331,6 +363,95 @@ export default function PrintPage() {
             )}
           </div>
         </div>
+
+        {/* Energy Production & Financial Analysis (on-grid & hybrid) */}
+        {econ && (
+          <div className="econ">
+            <div className="econ-title">Energy Production &amp; Financial Analysis</div>
+            <div className="econ-sub">
+              {econDcKwp.toLocaleString('en-US', { maximumFractionDigits: 2 })} kWp DC
+              {specs.kw_ac ? ` / ${specs.kw_ac.toLocaleString('en-US', { maximumFractionDigits: 2 })} kW AC` : ''}
+              {' · '}investment {fmtIdr(subtotal)} (excl. PPN{ppnPct}%) · {(econAssump?.lifetime_years ?? ECON_DEFAULTS.lifetime_years)}-year projection
+            </div>
+
+            {/* Headline KPIs */}
+            <div className="econ-kpis">
+              <div className="econ-kpi">
+                <div className="k">LCOE</div>
+                <div className="v">{'Rp' + econ.lcoe.toLocaleString('en-US', { maximumFractionDigits: 2 })}<span style={{ fontSize: '7pt', fontWeight: 500 }}>/kWh</span></div>
+                <div className="s">{econ.economical ? `✓ cheaper than PLN (Rp${econTariff0.toLocaleString('en-US', { maximumFractionDigits: 2 })}/kWh)` : `above today's PLN tariff`}</div>
+              </div>
+              <div className="econ-kpi">
+                <div className="k">NPV @ {(econAssump?.hurdle_rate_pct ?? ECON_DEFAULTS.hurdle_rate_pct)}%</div>
+                <div className="v">{fmtIdr(econ.npv)}</div>
+                <div className="s">IRR {econ.irr != null ? `${(econ.irr * 100).toFixed(1)}%` : '—'}</div>
+              </div>
+              <div className="econ-kpi">
+                <div className="k">Payback</div>
+                <div className="v">{econ.paybackYears != null ? `${econ.paybackYears} yrs` : '—'}</div>
+                <div className="s">cumulative cash flow turns positive</div>
+              </div>
+              <div className="econ-kpi">
+                <div className="k">Lifetime savings</div>
+                <div className="v">{fmtIdr(econ.costAvoided)}</div>
+                <div className="s">{Math.round(econ.lifetimeKwh).toLocaleString('en-US')} kWh generated</div>
+              </div>
+            </div>
+
+            {/* Assumptions */}
+            <div className="econ-assump">
+              <div><span className="al">Specific production</span><span className="av">{(econAssump?.specific_production ?? ECON_DEFAULTS.specific_production).toLocaleString('en-US')} kWh/kWp·yr</span></div>
+              <div><span className="al">First-year degradation</span><span className="av">{econAssump?.first_year_deg_pct ?? ECON_DEFAULTS.first_year_deg_pct}%</span></div>
+              <div><span className="al">Yearly degradation</span><span className="av">{econAssump?.yearly_deg_pct ?? ECON_DEFAULTS.yearly_deg_pct}%/yr</span></div>
+              <div><span className="al">System lifetime</span><span className="av">{econAssump?.lifetime_years ?? ECON_DEFAULTS.lifetime_years} years</span></div>
+              <div><span className="al">PLN tariff (today)</span><span className="av">Rp{econTariff0.toLocaleString('en-US', { maximumFractionDigits: 2 })}/kWh</span></div>
+              <div><span className="al">Tariff inflation</span><span className="av">{econAssump?.tariff_inflation_pct ?? ECON_DEFAULTS.tariff_inflation_pct}%/yr</span></div>
+              <div><span className="al">Discount rate</span><span className="av">{econAssump?.hurdle_rate_pct ?? ECON_DEFAULTS.hurdle_rate_pct}%</span></div>
+              <div><span className="al">Price per Wp</span><span className="av">Rp{econ.pricePerWp.toLocaleString('en-US', { maximumFractionDigits: 2 })}</span></div>
+              {econHybrid && (econAssump?.battery_kwh_day ?? 0) > 0 && (
+                <>
+                  <div><span className="al">Battery output</span><span className="av">{econAssump!.battery_kwh_day} kWh/day</span></div>
+                  <div><span className="al">Battery lifetime</span><span className="av">{econAssump?.battery_lifetime_years ?? 0} years</span></div>
+                  <div><span className="al">Battery degradation</span><span className="av">{econAssump?.battery_deg_pct ?? 0}%/yr</span></div>
+                </>
+              )}
+            </div>
+
+            {/* Year-by-year cash flows */}
+            <table className="econ-table">
+              <thead>
+                <tr>
+                  <th>Year</th>
+                  <th className="right">Performance</th>
+                  <th className="right">PV Generation (kWh)</th>
+                  {econHybrid && <th className="right">Battery (kWh)</th>}
+                  <th className="right">Tariff (Rp/kWh)</th>
+                  <th className="right">Annual Savings (Rp)</th>
+                  <th className="right">Net Cash Flow (Rp)</th>
+                  <th className="right">Cumulative (Rp)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {econ.years.map((r) => (
+                  <tr key={r.year}>
+                    <td>{r.year}</td>
+                    <td className="num">{r.year === 0 ? '—' : `${r.pvPerfPct.toFixed(2)}%`}</td>
+                    <td className="num">{Math.round(r.pvGenKwh).toLocaleString('en-US')}</td>
+                    {econHybrid && <td className="num">{Math.round(r.battOutKwh).toLocaleString('en-US')}</td>}
+                    <td className="num">{r.tariff.toLocaleString('en-US', { maximumFractionDigits: 0 })}</td>
+                    <td className="num">{Math.round(r.savings).toLocaleString('en-US')}</td>
+                    <td className="num">{Math.round(r.net).toLocaleString('en-US')}</td>
+                    <td className={`num ${r.cumulative >= 0 ? 'pos' : 'neg'}`}>{Math.round(r.cumulative).toLocaleString('en-US')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="econ-note">
+              Projection based on the assumptions above; actual generation depends on site conditions, weather, and system availability.
+              LCOE = total investment ÷ lifetime energy generated. NPV and IRR computed on annual net cash flows including the initial investment (year 0).
+            </p>
+          </div>
+        )}
 
         {/* Terms and Conditions */}
         {quote.notes && (

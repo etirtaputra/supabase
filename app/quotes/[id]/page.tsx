@@ -13,6 +13,8 @@ import { quoteFileName } from '@/lib/quoteFilename';
 import { lineWp, wpPerModule } from '@/lib/quoteWp';
 import MigrationBanner from '@/components/ui/MigrationBanner';
 import MobileNotice from '@/components/ui/MobileNotice';
+import EnergyEconomicsCard from '@/components/ui/EnergyEconomicsCard';
+import type { EconAssumptions } from '@/lib/energyEconomics';
 import { PROJECT_TYPES, composeDescription, specFileTag, isSolarType, type ProjectType, type SystemSpecs, type Phase } from '@/lib/projectSpec';
 import { SECTION_GROUPS, STANDARD_SECTIONS, QUOTE_UNITS, type SectionGroup, type ProjectQuote, type QuoteSection, type QuoteItem } from '@/types/quotes';
 import type { Component } from '@/types/database';
@@ -969,6 +971,18 @@ export default function QuoteEditorPage() {
         ? q.project_description
         : composeDescription(type, specs, location);
       return { ...q, project_type: type, system_specs: specs, location, project_description: description };
+    });
+    markDirty();
+  }
+
+  // Energy-economics assumptions live inside system_specs so they save with
+  // the quote; description/filename composition doesn't touch them.
+  function updateEcon(patch: Partial<EconAssumptions>) {
+    setQuote((q) => {
+      if (!q) return q;
+      const specs: SystemSpecs = { ...(q.system_specs ?? {}) };
+      specs.econ = { ...(specs.econ ?? {}), ...patch };
+      return { ...q, system_specs: specs };
     });
     markDirty();
   }
@@ -2401,6 +2415,18 @@ export default function QuoteEditorPage() {
               </div>
             )}
           </div>
+        )}
+
+        {/* ── Energy Economics (LCOE / NPV / IRR) — on-grid & hybrid ── */}
+        {(quote.project_type === 'on_grid' || quote.project_type === 'hybrid_bess') && (
+          <EnergyEconomicsCard
+            econ={quote.system_specs?.econ}
+            onChange={updateEcon}
+            capexIdr={subtotal}
+            dcKwp={totalWp > 0 ? totalWp / 1000 : (quote.system_specs?.kwp_dc ?? 0)}
+            hybrid={quote.project_type === 'hybrid_bess'}
+            locked={locked}
+          />
         )}
 
         {/* ── Terms & Conditions ── */}
