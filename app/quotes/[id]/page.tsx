@@ -2368,22 +2368,6 @@ export default function QuoteEditorPage() {
                 </p>
               </div>
             )}
-            {(quote.system_specs?.kwp_dc || quote.system_specs?.kw_ac) && (
-              <div className="border-t border-slate-800 pt-2 mt-2 space-y-1">
-                {quote.system_specs?.kwp_dc && (
-                  <div className="flex justify-between text-xs">
-                    <span className="text-slate-500">PV Modules (DC)</span>
-                    <span className="text-slate-300 font-semibold tabular-nums">{quote.system_specs.kwp_dc} kWp DC</span>
-                  </div>
-                )}
-                {quote.system_specs?.kw_ac && (
-                  <div className="flex justify-between text-xs">
-                    <span className="text-slate-500">Inverters (AC)</span>
-                    <span className="text-slate-300 font-semibold tabular-nums">{quote.system_specs.kw_ac} kW AC</span>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         )}
 
@@ -2453,6 +2437,12 @@ export default function QuoteEditorPage() {
             <span className="text-slate-500">Grand Total <span className="ml-1 text-white font-bold tabular-nums">{fmtIdr(grandTotal)}</span></span>
             {totalWp > 0 && (
               <span className="text-slate-500">per Wp <span className="ml-1 text-amber-300 font-semibold tabular-nums">{fmtIdr(subtotal / totalWp)}</span></span>
+            )}
+            {quote.system_specs?.kwp_dc && (
+              <span className="text-slate-500">DC <span className="ml-1 text-slate-200 font-semibold tabular-nums">{quote.system_specs.kwp_dc} kWp</span></span>
+            )}
+            {quote.system_specs?.kw_ac && (
+              <span className="text-slate-500">AC <span className="ml-1 text-slate-200 font-semibold tabular-nums">{quote.system_specs.kw_ac} kW</span></span>
             )}
             {blendedGm != null && (
               <span className="text-slate-500">Blended GM
