@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { ROLE_PERMISSIONS } from '@/constants/roles';
 
 /**
  * ICAPROC wordmark that doubles as the cross-app navigator.
@@ -16,20 +17,21 @@ import { useAuth } from '@/hooks/useAuth';
  */
 // Grouped into the two mirror flows of the ERP: buy-side (procure-to-pay) and
 // sell-side (order-to-cash), with the shared dashboard and EPC projects apart.
-const APP_GROUPS: { title: string | null; apps: { href: string; label: string }[] }[] = [
-  { title: null, apps: [{ href: '/', label: 'Dashboard' }] },
-  { title: 'Buy side', apps: [
+type Section = 'buySide' | 'sellSide' | 'projects' | null;
+const APP_GROUPS: { title: string | null; section: Section; apps: { href: string; label: string }[] }[] = [
+  { title: null, section: null, apps: [{ href: '/', label: 'Dashboard' }] },
+  { title: 'Buy side', section: 'buySide', apps: [
     { href: '/catalog',  label: 'Catalog' },
     { href: '/insights', label: 'Insights' },
   ] },
-  { title: 'Sell side', apps: [
+  { title: 'Sell side', section: 'sellSide', apps: [
     { href: '/customers', label: 'Customers' },
     { href: '/products',  label: 'Products' },
     { href: '/sales',     label: 'Sales' },
     { href: '/invoices',  label: 'Invoices' },
     { href: '/delivery',  label: 'Delivery' },
   ] },
-  { title: 'Projects', apps: [{ href: '/quotes', label: 'Quotes' }] },
+  { title: 'Projects', section: 'projects', apps: [{ href: '/quotes', label: 'Quotes' }] },
 ];
 
 export default function BrandMenu({
@@ -43,6 +45,11 @@ export default function BrandMenu({
 
   const isActive = (href: string) =>
     href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(href + '/');
+
+  // Show only the flows this role can access (Dashboard always). While the
+  // profile loads, show everything to avoid a nav flash.
+  const perms = profile ? ROLE_PERMISSIONS[profile.role] : null;
+  const groups = APP_GROUPS.filter((g) => !g.section || !perms || perms[g.section]);
 
   return (
     <div
@@ -68,7 +75,7 @@ export default function BrandMenu({
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div className="absolute left-0 top-full mt-2 z-50 w-48 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-1.5 max-h-[80vh] overflow-y-auto">
-            {APP_GROUPS.map((group, gi) => (
+            {groups.map((group, gi) => (
               <div key={gi} className={gi > 0 ? 'mt-1 pt-1 border-t border-slate-800/70' : ''}>
                 {group.title && <p className="px-2.5 pt-1 pb-1 text-[9px] uppercase tracking-widest text-slate-600">{group.title}</p>}
                 {group.apps.map((a) => {

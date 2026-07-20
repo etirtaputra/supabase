@@ -59,6 +59,9 @@ export default function ProductsPage() {
   const { user, profile, loading: authLoading } = useAuth();
   const canView = !!profile && ROLE_PERMISSIONS[profile.role].canViewSellingPrice;
   const canEditMeta = !!profile && ROLE_PERMISSIONS[profile.role].canEdit; // warranty / datasheet edits
+  // Brand reveals the supplier relationship — buy-side sensitive. Not fetched at
+  // all for sell-side roles, so it never reaches the client.
+  const canViewBrand = !!profile && ROLE_PERMISSIONS[profile.role].canViewBrand;
 
   const [comps, setComps] = useState<Comp[]>([]);
   const [tiers, setTiers] = useState<Tier[]>([]);
@@ -94,11 +97,12 @@ export default function ProductsPage() {
       let all: Comp[] = [];
       let from = 0;
       for (;;) {
+        const cols = `component_id, supplier_model, internal_description, category, unit, norm_value, selling_price_idr, datasheet_url, warranty, updated_at${canViewBrand ? ', brand' : ''}`;
         const { data: page } = await supabase.from('3.0_components')
-          .select('component_id, supplier_model, internal_description, brand, category, unit, norm_value, selling_price_idr, datasheet_url, warranty, updated_at')
+          .select(cols)
           .order('supplier_model').range(from, from + PAGE - 1);
         if (!page || page.length === 0) break;
-        all = all.concat(page as Comp[]);
+        all = all.concat(page as unknown as Comp[]);
         if (page.length < PAGE) break;
         from += PAGE;
       }
@@ -179,7 +183,7 @@ export default function ProductsPage() {
     }
     setActivityByComp(act);
     setLoading(false);
-  }, []);
+  }, [canViewBrand]);
 
   useEffect(() => { if (canView) fetchAll(); }, [canView, fetchAll]);
 
@@ -196,7 +200,9 @@ export default function ProductsPage() {
   }, [ovByKey]);
 
   const categories = useMemo(() => [...new Set(comps.map((c) => c.category).filter(Boolean))].sort() as string[], [comps]);
-  const brands = useMemo(() => [...new Set(comps.map((c) => c.brand).filter(Boolean))].sort() as string[], [comps]);
+  const brands = useMemo(() => canViewBrand ? [...new Set(comps.map((c) => c.brand).filter(Boolean))].sort() as string[] : [], [comps, canViewBrand]);
+  // Sort keys available to this role — brand sort only when brands are visible.
+  const sortKeys = useMemo(() => (Object.keys(SORT_LABELS) as SortKey[]).filter((k) => canViewBrand || k !== 'brand'), [canViewBrand]);
 
   // Click a price → copy a WhatsApp-ready quote in Bahasa Indonesia.
   // Indonesian number format uses "." as the thousands separator (Rp 1.395.000).
@@ -281,20 +287,22 @@ export default function ProductsPage() {
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[200px]">
             <svg className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search model, description, brand, category…"
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={canViewBrand ? 'Search model, description, brand, category…' : 'Search description, category…'}
               className="w-full pl-10 pr-4 h-11 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-slate-500 transition-colors" />
           </div>
           <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className={selCls}>
             <option value="">All categories</option>
             {categories.map((c) => <option key={c} value={c}>{humanize(c)}</option>)}
           </select>
-          <select value={filterBrand} onChange={(e) => setFilterBrand(e.target.value)} className={selCls}>
-            <option value="">All brands</option>
-            {brands.map((b) => <option key={b} value={b}>{b}</option>)}
-          </select>
+          {canViewBrand && (
+            <select value={filterBrand} onChange={(e) => setFilterBrand(e.target.value)} className={selCls}>
+              <option value="">All brands</option>
+              {brands.map((b) => <option key={b} value={b}>{b}</option>)}
+            </select>
+          )}
           {/* Sort — the dropdown drives mobile; desktop headers also sort */}
           <select value={`${sort.key}:${sort.dir}`} onChange={(e) => { const [k, d] = e.target.value.split(':'); setSort({ key: k as SortKey, dir: Number(d) as 1 | -1 }); }} className={selCls}>
-            {(Object.keys(SORT_LABELS) as SortKey[]).map((k) => (
+            {sortKeys.map((k) => (
               <Fragment key={k}>
                 <option value={`${k}:${DEFAULT_DIR[k]}`}>{SORT_LABELS[k]} {DEFAULT_DIR[k] === -1 ? '↓' : '↑'}</option>
                 <option value={`${k}:${-DEFAULT_DIR[k]}`}>{SORT_LABELS[k]} {DEFAULT_DIR[k] === -1 ? '↑' : '↓'}</option>
@@ -326,7 +334,7 @@ export default function ProductsPage() {
                 <Th label="Sell Price" right active={sort.key === 'price'} dir={sort.dir} onClick={() => toggleSort('price')} />
                 <Th label="Stock" right active={sort.key === 'stock'} dir={sort.dir} onClick={() => toggleSort('stock')} hint="Live/Physical" />
                 <th className="text-right font-semibold px-3 py-2.5">Incoming</th>
-                <Th label="Brand" active={sort.key === 'brand'} dir={sort.dir} onClick={() => toggleSort('brand')} />
+                {canViewBrand && <Th label="Brand" active={sort.key === 'brand'} dir={sort.dir} onClick={() => toggleSort('brand')} />}
                 <Th label="Category" active={sort.key === 'category'} dir={sort.dir} onClick={() => toggleSort('category')} />
                 <Th label="Capacity" right active={sort.key === 'capacity'} dir={sort.dir} onClick={() => toggleSort('capacity')} />
                 <th className="text-left font-semibold px-3 py-2.5">Warranty</th>
@@ -365,7 +373,7 @@ export default function ProductsPage() {
                       <StockCell live={r.live} phys={r.phys} unit={r.c.unit} />
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums text-sky-300/80">{r.inc ? fmtInt(r.inc) : <span className="text-slate-700">0</span>}</td>
-                    <td className="px-3 py-2 text-xs text-slate-400 whitespace-nowrap">{r.c.brand || '—'}</td>
+                    {canViewBrand && <td className="px-3 py-2 text-xs text-slate-400 whitespace-nowrap">{r.c.brand || '—'}</td>}
                     <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{r.c.category ? humanize(r.c.category) : '—'}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400">{r.c.norm_value != null && Number(r.c.norm_value) !== 0 ? Number(r.c.norm_value).toLocaleString('en-US') : '—'}</td>
                     <td className="px-3 py-2 text-xs text-slate-400 whitespace-nowrap">{r.c.warranty || <span className="text-slate-700">—</span>}</td>

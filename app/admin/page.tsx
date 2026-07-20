@@ -3,10 +3,10 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
-import { ROLE_LABELS, ROLE_DESCRIPTIONS, type UserRole } from '@/constants/roles';
+import { ROLE_LABELS, ROLE_DESCRIPTIONS, ASSIGNABLE_ROLES, type UserRole } from '@/constants/roles';
 import type { UserProfile } from '@/hooks/useAuth';
 
-const ROLES: UserRole[] = ['owner', 'data_entry', 'finance', 'sales', 'viewer'];
+const ROLES: UserRole[] = ASSIGNABLE_ROLES;
 
 export default function AdminPage() {
   const supabase = createSupabaseClient();
