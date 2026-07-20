@@ -96,6 +96,19 @@ export default function BrandMenu({
                 })}
               </div>
             ))}
+            {/* Owner-only: user management */}
+            {perms?.canManageUsers && (
+              <div className="mt-1 pt-1 border-t border-slate-800/70">
+                <p className="px-2.5 pt-1 pb-1 text-[9px] uppercase tracking-widest text-slate-600">Admin</p>
+                <Link href="/admin" onClick={() => setOpen(false)}
+                  className={`flex items-center justify-between px-2.5 py-2 rounded-lg text-sm transition-colors ${
+                    isActive('/admin') ? 'bg-emerald-500/15 text-emerald-300' : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                  }`}>
+                  Manage users
+                  {isActive('/admin') && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+                </Link>
+              </div>
+            )}
             {/* Signed-in user + sign out — lives here so headers stay clean on mobile */}
             {profile && (
               <div className="mt-1 pt-1.5 border-t border-slate-800/70">
