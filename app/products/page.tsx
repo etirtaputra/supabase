@@ -36,7 +36,6 @@ const INCOMING_PO_STATUSES = new Set(['Sent', 'Confirmed', 'Partially Received']
 const fmtInt = (n: number) => Math.round(n).toLocaleString('en-US');
 const fmtRp = (n: number) => `Rp ${fmtInt(n)}`;
 const fmtDate = (d?: string | null) => d ? new Date(d.length <= 10 ? `${d}T00:00:00` : d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '';
-const fmtDateLong = (d: Date) => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
 const humanize = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 // The product's customer-facing name: our internal description, never the supplier's model/SKU.
 const descOf = (c: { internal_description: string | null; supplier_model: string }) =>
@@ -199,14 +198,17 @@ export default function ProductsPage() {
   const categories = useMemo(() => [...new Set(comps.map((c) => c.category).filter(Boolean))].sort() as string[], [comps]);
   const brands = useMemo(() => [...new Set(comps.map((c) => c.brand).filter(Boolean))].sort() as string[], [comps]);
 
-  // Click a price → copy a WhatsApp-ready quote (description + price excl. PPN + today's date)
+  // Click a price → copy a WhatsApp-ready quote in Bahasa Indonesia.
+  // Indonesian number format uses "." as the thousands separator (Rp 1.395.000).
   const copyPrice = useCallback(async (c: Comp, price: number) => {
-    const text = `${descOf(c)}\nRp ${fmtInt(price)} (excld. PPN)\nQuote date: ${fmtDateLong(new Date())}`;
+    const rp = Math.round(price).toLocaleString('id-ID');
+    const tgl = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+    const text = `${descOf(c)}\nHarga: Rp ${rp} (belum termasuk PPN)\nTanggal penawaran: ${tgl}`;
     try {
       await navigator.clipboard.writeText(text);
-      flash('Price copied — ready to paste');
+      flash('Harga disalin — siap ditempel');
     } catch {
-      flash('Copy failed — long-press to select');
+      flash('Gagal menyalin — tekan lama untuk memilih');
     }
   }, []);
 
