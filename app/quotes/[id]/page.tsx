@@ -874,6 +874,7 @@ export default function QuoteEditorPage() {
       ]);
       if (!qRes.data) { router.push('/quotes'); return; }
       setQuote(qRes.data as ProjectQuote);
+      loadedStampRef.current = (qRes.data as ProjectQuote).updated_at ?? null;
 
       const dbSections = (secRes.data ?? []) as QuoteSection[];
       const dbItems    = (itemRes.data ?? []) as QuoteItem[];
@@ -1167,11 +1168,35 @@ export default function QuoteEditorPage() {
   }
 
   // ── Save ───────────────────────────────────────────────────────────────────
+  // Stale-save guard: Save writes the WHOLE quote (every line), so a tab
+  // opened before a colleague's save would silently overwrite their work —
+  // costs included (this is how "fixed" costs kept reverting: another open
+  // tab saved older values over them). We stamp updated_at at load and warn
+  // before overwriting anything saved after that.
+  const loadedStampRef = useRef<string | null>(null);
   async function save() {
     if (!quote) return;
     if (locked) { setSaveMsg('Locked: SENT quotes can only be edited by an Owner'); return; }
     setSaving(true);
     try {
+      // Conflict check before any write
+      const { data: cur } = await supabase
+        .from('10.0_project_quotes').select('updated_at, updated_by_email')
+        .eq('quote_id', quote.quote_id).single();
+      if (cur?.updated_at && loadedStampRef.current && cur.updated_at > loadedStampRef.current) {
+        const who = cur.updated_by_email || 'someone else';
+        const when = new Date(cur.updated_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+        const overwrite = window.confirm(
+          `⚠ ${who} saved this quote at ${when} — AFTER you opened it.\n\n` +
+          `Saving now will REPLACE their version with what's in your tab (all items, costs, and prices).\n\n` +
+          `OK = overwrite their version\nCancel = don't save (reload the page to get the latest version)`
+        );
+        if (!overwrite) {
+          setSaving(false);
+          setSaveMsg(`Not saved — ${who} saved a newer version. Reload to get it.`);
+          return;
+        }
+      }
       // 1. Upsert quote header
       const { error: qErr } = await supabase.from('10.0_project_quotes').upsert({
         quote_id: quote.quote_id,
@@ -1243,6 +1268,11 @@ export default function QuoteEditorPage() {
         const { error } = await supabase.from('10.2_quote_items').upsert(liveItems);
         if (error) throw error;
       }
+
+      // Re-stamp: this tab is now the latest version
+      const { data: fresh } = await supabase
+        .from('10.0_project_quotes').select('updated_at').eq('quote_id', quote.quote_id).single();
+      if (fresh?.updated_at) loadedStampRef.current = fresh.updated_at;
 
       setDirty(false);
       setSaveMsg('Saved');
