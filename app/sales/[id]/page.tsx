@@ -30,7 +30,9 @@ interface Customer { customer_id: string; display_name: string; legal_name: stri
 interface Company { company_id: string; legal_name: string; }
 interface Tier { tier_id: string; tier_code: string; default_discount_pct: number; }
 interface Override { component_id: string; tier_id: string; override_price_idr: number | null; override_discount_pct: number | null; }
-interface Comp { component_id: string; supplier_model: string; brand: string | null; unit: string | null; selling_price_idr: number | null; }
+interface Comp { component_id: string; supplier_model: string; internal_description: string | null; brand: string | null; unit: string | null; selling_price_idr: number | null; }
+// Customer-facing product name: our internal description, never the supplier MODEL/SKU.
+const compName = (c?: Comp | null) => (c?.internal_description?.trim() || c?.supplier_model || '');
 interface Receipt {
   receipt_id: string; quote_id: string; receipt_number: string; category: string;
   amount: number; payment_method: string; payment_date: string; bank_ref: string; notes: string; created_by_email?: string;
@@ -107,7 +109,7 @@ export default function SalesQuotePage() {
       supabase.from('1.0_companies').select('company_id, legal_name').order('legal_name'),
       supabase.from('21.0_price_tiers').select('tier_id, tier_code, default_discount_pct'),
       supabase.from('21.1_item_tier_prices').select('component_id, tier_id, override_price_idr, override_discount_pct'),
-      supabase.from('3.0_components').select('component_id, supplier_model, brand, unit, selling_price_idr').order('supplier_model').limit(2000),
+      supabase.from('3.0_components').select('component_id, supplier_model, internal_description, brand, unit, selling_price_idr').order('supplier_model').limit(2000),
       supabase.from('30.1_stock_balances').select('component_id, qty_on_hand'),
       supabase.from('22.0_sales_quotes').select('quote_id, status'),
       supabase.from('22.1_sales_quote_items').select('quote_id, component_id, quantity, is_section'),
@@ -175,7 +177,7 @@ export default function SalesQuotePage() {
   function pickComponent(key: string, comp: Comp) {
     const price = priceFor(comp.component_id);
     setLines((ls) => ls.map((l) => (l.key === key ? {
-      ...l, component_id: comp.component_id, description: comp.supplier_model || l.description,
+      ...l, component_id: comp.component_id, description: compName(comp) || l.description,
       brand: comp.brand ?? l.brand, unit: comp.unit || l.unit,
       unit_price: price != null ? String(Math.round(price)) : l.unit_price, quantity: l.quantity || '1',
     } : l)));
@@ -358,7 +360,7 @@ export default function SalesQuotePage() {
         <div className="space-y-2">
           {lines.map((l) => (
             <LineCard key={l.key} line={l} comps={comps} available={availableOf(l.component_id)}
-              linkedName={l.component_id ? (compById.get(l.component_id)?.supplier_model ?? '') : ''}
+              linkedName={l.component_id ? compName(compById.get(l.component_id)) : ''}
               onPick={(c) => pickComponent(l.key, c)} onField={(patch) => setLine(l.key, patch)} onRemove={() => removeLine(l.key)} />
           ))}
           <div className="flex flex-wrap gap-2 pt-1">
@@ -679,7 +681,7 @@ function ProductAutocomplete({ comps, value, onText, onPick }: { comps: Comp[]; 
   const [active, setActive] = useState(-1);
   const results = useMemo(() => {
     const s = value.trim().toLowerCase();
-    const list = s ? comps.filter((c) => `${c.supplier_model} ${c.brand ?? ''}`.toLowerCase().includes(s)) : comps;
+    const list = s ? comps.filter((c) => `${c.internal_description ?? ''} ${c.supplier_model} ${c.brand ?? ''}`.toLowerCase().includes(s)) : comps;
     return list.slice(0, 25);
   }, [comps, value]);
   useEffect(() => { setActive(-1); }, [value]);
@@ -701,7 +703,7 @@ function ProductAutocomplete({ comps, value, onText, onPick }: { comps: Comp[]; 
           {results.map((c, i) => (
             <button key={c.component_id} onMouseDown={(e) => { e.preventDefault(); onPick(c); setOpen(false); }}
               className={`w-full text-left px-3 py-1.5 text-xs border-b border-slate-800/50 last:border-0 ${i === active ? 'bg-emerald-600/30 text-white' : 'hover:bg-slate-800 text-slate-300'}`}>
-              <span className="block truncate">{c.supplier_model}</span>
+              <span className="block truncate">{compName(c)}</span>
               <span className="block text-[10px] text-slate-500 truncate">{[c.brand, c.unit, c.selling_price_idr ? `Rp${fmtInt(c.selling_price_idr)}` : ''].filter(Boolean).join(' · ')}</span>
             </button>
           ))}
