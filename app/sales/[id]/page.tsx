@@ -35,6 +35,10 @@ interface Override { component_id: string; tier_id: string; override_price_idr: 
 interface Comp { component_id: string; supplier_model: string; internal_description: string | null; unit: string | null; selling_price_idr: number | null; }
 // Customer-facing product name: our internal description, never the supplier MODEL/SKU.
 const compName = (c?: Comp | null) => (c?.internal_description?.trim() || c?.supplier_model || '');
+interface LibEntry { entry_id: string; description: string; unit: string; default_price: number | null; }
+// Non-catalog suggestions: custom lines from past sales quotes (PREV) and
+// owner-curated library entries (LIB)
+interface Extra { kind: 'prev' | 'lib'; description: string; unit: string; price: number | null; count: number }
 interface Receipt {
   receipt_id: string; quote_id: string; receipt_number: string; category: string;
   amount: number; payment_method: string; payment_date: string; bank_ref: string; notes: string; created_by_email?: string;
@@ -89,6 +93,7 @@ export default function SalesQuotePage() {
   const [tiers, setTiers] = useState<Tier[]>([]);
   const [overrides, setOverrides] = useState<Override[]>([]);
   const [comps, setComps] = useState<Comp[]>([]);
+  const [extras, setExtras] = useState<Extra[]>([]);
   const [physical, setPhysical] = useState<Record<string, number>>({});
   const [reserved, setReserved] = useState<Record<string, number>>({});
   const [receipts, setReceipts] = useState<Receipt[]>([]);
@@ -106,7 +111,7 @@ export default function SalesQuotePage() {
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
-    const [custRes, coRes, tierRes, ovRes, compRes, balRes, allQRes, allIRes] = await Promise.all([
+    const [custRes, coRes, tierRes, ovRes, compRes, balRes, allQRes, allIRes, libRes] = await Promise.all([
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name, tier').order('display_name'),
       supabase.from('1.0_companies').select('company_id, legal_name').order('legal_name'),
       supabase.from('21.0_price_tiers').select('tier_id, tier_code, default_discount_pct'),
@@ -114,7 +119,8 @@ export default function SalesQuotePage() {
       supabase.from('3.0_components').select('component_id, supplier_model, internal_description, unit, selling_price_idr').order('supplier_model').limit(2000),
       supabase.from('30.1_stock_balances').select('component_id, qty_on_hand'),
       supabase.from('22.0_sales_quotes').select('quote_id, status'),
-      supabase.from('22.1_sales_quote_items').select('quote_id, component_id, quantity, is_section'),
+      supabase.from('22.1_sales_quote_items').select('quote_id, component_id, quantity, is_section, description, unit, unit_price, created_at'),
+      supabase.from('22.2_sales_description_library').select('entry_id, description, unit, default_price'),
     ]);
     const coList = (coRes.data as Company[]) ?? [];
     setCustomers((custRes.data as Customer[]) ?? []);
@@ -133,6 +139,32 @@ export default function SalesQuotePage() {
       if (it.component_id && !it.is_section && committed.has(it.quote_id)) rsv[it.component_id] = (rsv[it.component_id] ?? 0) + (Number(it.quantity) || 0);
     }
     setReserved(rsv);
+
+    // Custom (non-catalog) lines from other sales quotes → PREV suggestions
+    type PastLine = { quote_id: string; component_id: string | null; is_section: boolean; description: string; unit: string; unit_price: number; created_at: string };
+    const past = new Map<string, Extra & { at: string }>();
+    for (const it of ((allIRes.data as unknown as PastLine[]) ?? [])) {
+      if (it.is_section || it.component_id || it.quote_id === id) continue;
+      const desc = (it.description ?? '').trim();
+      if (desc.length < 3) continue;
+      const k = desc.toLowerCase();
+      const existing = past.get(k);
+      if (existing) {
+        existing.count += 1;
+        if ((it.created_at ?? '') > existing.at) {
+          Object.assign(existing, { description: desc, unit: it.unit ?? '', price: Number(it.unit_price) || null, at: it.created_at ?? '' });
+        }
+      } else {
+        past.set(k, { kind: 'prev', description: desc, unit: it.unit ?? '', price: Number(it.unit_price) || null, count: 1, at: it.created_at ?? '' });
+      }
+    }
+    // Owner-curated library entries join in where no past usage carries the text
+    for (const e of ((libRes.error ? [] : libRes.data) as LibEntry[] ?? [])) {
+      const desc = (e.description ?? '').trim();
+      if (desc.length < 3 || past.has(desc.toLowerCase())) continue;
+      past.set(desc.toLowerCase(), { kind: 'lib', description: desc, unit: e.unit ?? '', price: e.default_price != null ? Number(e.default_price) : null, count: 0, at: '' });
+    }
+    setExtras([...past.values()].sort((a, b) => (b.at || '').localeCompare(a.at || '')).map(({ at: _at, ...x }) => x));
 
     if (isNew) {
       setEditing((prev) => prev ?? blankQuote(coList[0]?.company_id ?? null));
@@ -212,6 +244,15 @@ export default function SalesQuotePage() {
       ...l, component_id: comp.component_id, description: compName(comp) || l.description,
       unit: comp.unit || l.unit,
       unit_price: price != null ? String(Math.round(price)) : l.unit_price, quantity: l.quantity || '1',
+    } : l)));
+  }
+
+  function pickExtra(key: string, x: Extra) {
+    setLines((ls) => ls.map((l) => (l.key === key ? {
+      ...l, component_id: null, description: x.description,
+      unit: x.unit || l.unit,
+      unit_price: x.price != null ? String(Math.round(x.price)) : l.unit_price,
+      quantity: l.quantity || '1',
     } : l)));
   }
 
@@ -398,9 +439,10 @@ export default function SalesQuotePage() {
               onDrop={(e) => { e.preventDefault(); if (dragKey) moveLines(dragKey, l.key); endDrag(); }}
               className={`rounded-xl transition-shadow ${dropKey === l.key ? 'ring-1 ring-violet-500/70' : ''} ${dragKey === l.key ? 'opacity-50' : ''}`}
             >
-              <LineCard line={l} comps={comps} available={availableOf(l.component_id)}
+              <LineCard line={l} comps={comps} extras={extras} available={availableOf(l.component_id)}
                 linkedName={l.component_id ? compName(compById.get(l.component_id)) : ''}
-                onPick={(c) => pickComponent(l.key, c)} onField={(patch) => setLine(l.key, patch)} onRemove={() => removeLine(l.key)}
+                onPick={(c) => pickComponent(l.key, c)} onPickExtra={(x) => pickExtra(l.key, x)}
+                onField={(patch) => setLine(l.key, patch)} onRemove={() => removeLine(l.key)}
                 onDragStart={() => setDragKey(l.key)} onDragEnd={endDrag} />
             </div>
           ))}
@@ -499,9 +541,9 @@ const GRIP = (
   <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" /><circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" /><circle cx="9" cy="18" r="1.5" /><circle cx="15" cy="18" r="1.5" /></svg>
 );
 
-function LineCard({ line, comps, available, linkedName, onPick, onField, onRemove, onDragStart, onDragEnd }: {
-  line: EditLine; comps: Comp[]; available: number | null; linkedName: string;
-  onPick: (c: Comp) => void; onField: (patch: Partial<EditLine>) => void; onRemove: () => void;
+function LineCard({ line, comps, extras, available, linkedName, onPick, onPickExtra, onField, onRemove, onDragStart, onDragEnd }: {
+  line: EditLine; comps: Comp[]; extras: Extra[]; available: number | null; linkedName: string;
+  onPick: (c: Comp) => void; onPickExtra: (x: Extra) => void; onField: (patch: Partial<EditLine>) => void; onRemove: () => void;
   onDragStart: () => void; onDragEnd: () => void;
 }) {
   const grip = (title: string) => (
@@ -540,7 +582,7 @@ function LineCard({ line, comps, available, linkedName, onPick, onField, onRemov
         <div className="hidden lg:flex items-center self-center">{grip('Drag to reorder')}</div>
         <div className="flex-1 min-w-0">
           <LabeledField label="Product / description">
-            <ProductAutocomplete comps={comps} value={line.description} onText={(t) => onField({ description: t })} onPick={onPick} />
+            <ProductAutocomplete comps={comps} extras={extras} value={line.description} onText={(t) => onField({ description: t })} onPick={onPick} onPickExtra={onPickExtra} />
           </LabeledField>
         </div>
         <div className="grid grid-cols-4 gap-2 lg:w-[400px] flex-shrink-0">
@@ -745,21 +787,37 @@ function RecordPaymentModal({ quoteId, outstanding, received, onClose, onDone, f
   );
 }
 
-function ProductAutocomplete({ comps, value, onText, onPick }: { comps: Comp[]; value: string; onText: (t: string) => void; onPick: (c: Comp) => void }) {
+function ProductAutocomplete({ comps, extras, value, onText, onPick, onPickExtra }: {
+  comps: Comp[]; extras: Extra[]; value: string;
+  onText: (t: string) => void; onPick: (c: Comp) => void; onPickExtra: (x: Extra) => void;
+}) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const results = useMemo(() => {
     const s = value.trim().toLowerCase();
     const list = s ? comps.filter((c) => `${c.internal_description ?? ''} ${c.supplier_model}`.toLowerCase().includes(s)) : comps;
-    return list.slice(0, 25);
+    return list.slice(0, 20);
   }, [comps, value]);
+  // PREV / LIB suggestions, excluding texts that duplicate a shown catalog item
+  const extraResults = useMemo(() => {
+    const s = value.trim().toLowerCase();
+    const shown = new Set(results.map((c) => compName(c).trim().toLowerCase()));
+    const list = extras.filter((x) => !shown.has(x.description.toLowerCase()) && (!s || x.description.toLowerCase().includes(s)));
+    return list.slice(0, 6);
+  }, [extras, results, value]);
+  const total = results.length + extraResults.length;
   useEffect(() => { setActive(-1); }, [value]);
 
+  const choose = (i: number) => {
+    if (i < results.length) onPick(results[i]);
+    else onPickExtra(extraResults[i - results.length]);
+    setOpen(false);
+  };
   const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!open || results.length === 0) { if (e.key === 'ArrowDown') setOpen(true); return; }
-    if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => Math.min(i + 1, results.length - 1)); }
+    if (!open || total === 0) { if (e.key === 'ArrowDown') setOpen(true); return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => Math.min(i + 1, total - 1)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((i) => Math.max(i - 1, -1)); }
-    else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); onPick(results[active]); setOpen(false); }
+    else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); choose(active); }
     else if (e.key === 'Escape') setOpen(false);
   };
   return (
@@ -767,15 +825,33 @@ function ProductAutocomplete({ comps, value, onText, onPick }: { comps: Comp[]; 
       <input value={value} onChange={(e) => { onText(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)} onKeyDown={onKey}
         placeholder="Type a product or custom item…" autoComplete="off" className={inpSm} />
-      {open && results.length > 0 && (
+      {open && total > 0 && (
         <div className="absolute z-30 left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-slate-900 border border-emerald-500/40 rounded-lg shadow-2xl">
           {results.map((c, i) => (
-            <button key={c.component_id} onMouseDown={(e) => { e.preventDefault(); onPick(c); setOpen(false); }}
+            <button key={c.component_id} onMouseDown={(e) => { e.preventDefault(); choose(i); }}
               className={`w-full text-left px-3 py-1.5 text-xs border-b border-slate-800/50 last:border-0 ${i === active ? 'bg-emerald-600/30 text-white' : 'hover:bg-slate-800 text-slate-300'}`}>
               <span className="block truncate">{compName(c)}</span>
               <span className="block text-[10px] text-slate-500 truncate">{[c.unit, c.selling_price_idr ? `Rp${fmtInt(c.selling_price_idr)}` : ''].filter(Boolean).join(' · ')}</span>
             </button>
           ))}
+          {extraResults.length > 0 && (
+            <p className="px-3 pt-1.5 pb-0.5 text-[9px] uppercase tracking-wider text-slate-600 border-t border-slate-800">Previous &amp; library entries</p>
+          )}
+          {extraResults.map((x, xi) => {
+            const i = results.length + xi;
+            return (
+              <button key={`${x.kind}-${x.description}`} onMouseDown={(e) => { e.preventDefault(); choose(i); }}
+                className={`w-full text-left px-3 py-1.5 text-xs border-b border-slate-800/50 last:border-0 ${i === active ? 'bg-emerald-600/30 text-white' : 'hover:bg-slate-800 text-slate-300'}`}>
+                <span className="block truncate">
+                  <span className={`mr-1.5 px-1 py-0.5 rounded text-[9px] font-bold align-middle ${x.kind === 'prev' ? 'bg-amber-500/20 text-amber-300' : 'bg-violet-500/20 text-violet-300'}`}>{x.kind === 'prev' ? 'PREV' : 'LIB'}</span>
+                  {x.description}
+                </span>
+                <span className="block text-[10px] text-slate-500 truncate">
+                  {[x.unit, x.price != null ? `Rp${fmtInt(x.price)}` : '', x.kind === 'prev' && x.count > 1 ? `used ${x.count}×` : ''].filter(Boolean).join(' · ')}
+                </span>
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
