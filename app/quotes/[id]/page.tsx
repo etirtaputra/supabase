@@ -276,6 +276,63 @@ const GRIP = (
 
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
+// ── Collaborative-editing helpers ──────────────────────────────────────────
+// Simultaneous editing is the norm: a save writes only the rows THIS tab
+// changed since it last synced (its "base" snapshot), colleagues' saves are
+// merged in automatically, and only rows BOTH sides edited count as
+// conflicts. Nothing ever overwrites a whole quote again.
+const ITEM_CMP_FIELDS = ['parent_item_id', 'component_id', 'description', 'brand', 'quantity', 'qty_formula', 'eng_note', 'unit', 'cost_price', 'sell_price'] as const;
+
+function sameItem(a: DraftItem | undefined, b: DraftItem | undefined): boolean {
+  if (!a || !b) return false;
+  return ITEM_CMP_FIELDS.every((f) => String(a[f] ?? '') === String(b[f] ?? ''));
+}
+
+interface ItemPos { item: DraftItem; secId: string; idx: number }
+// Live rows only: id → row + owning section + per-section sort index
+function itemPositions(secs: DraftSection[]): Map<string, ItemPos> {
+  const m = new Map<string, ItemPos>();
+  for (const s of secs) {
+    if (s._deleted) continue;
+    s.items.filter((i) => !i._deleted).forEach((item, idx) => m.set(item.item_id, { item, secId: s.section_id, idx }));
+  }
+  return m;
+}
+
+function headerFingerprint(q: ProjectQuote | null): string {
+  if (!q) return '';
+  return JSON.stringify([q.quote_number, q.quote_date, q.company_id ?? null, q.customer_name, q.customer_address,
+    q.project_description, q.project_type ?? 'custom', q.system_specs ?? {}, q.location ?? '',
+    String(q.ppn_pct), q.status, q.notes, q.group_margins ?? {}]);
+}
+
+// DB rows → the editor's draft shape (used by initial load and by remote merges)
+function dbToDraft(dbSections: QuoteSection[], dbItems: QuoteItem[]): DraftSection[] {
+  return dbSections.map((sec) => ({
+    section_id: sec.section_id,
+    group_key: (sec.group_key as SectionGroup) || 'bos',
+    title: sec.title,
+    lead_time: sec.lead_time,
+    sort_order: sec.sort_order,
+    items: dbItems
+      .filter((i) => i.section_id === sec.section_id)
+      .map((i) => ({
+        item_id: i.item_id,
+        parent_item_id: i.parent_item_id,
+        component_id: i.component_id,
+        description: i.description,
+        brand: i.brand,
+        quantity: i.quantity != null ? String(i.quantity) : '',
+        qty_formula: i.qty_formula ?? '',
+        eng_note: i.eng_note ?? '',
+        unit: i.unit,
+        cost_price: i.cost_price != null ? String(i.cost_price) : '',
+        sell_price: i.sell_price != null ? String(i.sell_price) : '',
+        sort_order: i.sort_order,
+      })),
+  }));
+}
+
 export default function QuoteEditorPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -875,33 +932,14 @@ export default function QuoteEditorPage() {
       if (!qRes.data) { router.push('/quotes'); return; }
       setQuote(qRes.data as ProjectQuote);
       loadedStampRef.current = (qRes.data as ProjectQuote).updated_at ?? null;
+      baseHeaderRef.current = qRes.data as ProjectQuote;
 
       const dbSections = (secRes.data ?? []) as QuoteSection[];
       const dbItems    = (itemRes.data ?? []) as QuoteItem[];
 
-      setSections(dbSections.map((sec) => ({
-        section_id: sec.section_id,
-        group_key: (sec.group_key as SectionGroup) || 'bos',
-        title: sec.title,
-        lead_time: sec.lead_time,
-        sort_order: sec.sort_order,
-        items: dbItems
-          .filter((i) => i.section_id === sec.section_id)
-          .map((i) => ({
-            item_id: i.item_id,
-            parent_item_id: i.parent_item_id,
-            component_id: i.component_id,
-            description: i.description,
-            brand: i.brand,
-            quantity: i.quantity != null ? String(i.quantity) : '',
-            qty_formula: i.qty_formula ?? '',
-            eng_note: i.eng_note ?? '',
-            unit: i.unit,
-            cost_price: i.cost_price != null ? String(i.cost_price) : '',
-            sell_price: i.sell_price != null ? String(i.sell_price) : '',
-            sort_order: i.sort_order,
-          })),
-      })));
+      const draft = dbToDraft(dbSections, dbItems);
+      baseRef.current = draft; // the snapshot deltas are computed against
+      setSections(draft);
       // Engineering notes default to shown in the editor (they stay off the PDF
       // unless explicitly toggled on) — open every item that already has one.
       setOpenNotes(new Set(dbItems.filter((i) => (i.eng_note ?? '').trim()).map((i) => i.item_id)));
@@ -1167,66 +1205,173 @@ export default function QuoteEditorPage() {
     setAcState(null);
   }
 
-  // ── Save ───────────────────────────────────────────────────────────────────
-  // Stale-save guard: Save writes the WHOLE quote (every line), so a tab
-  // opened before a colleague's save would silently overwrite their work —
-  // costs included (this is how "fixed" costs kept reverting: another open
-  // tab saved older values over them). We stamp updated_at at load and warn
-  // before overwriting anything saved after that.
+  // ── Collaborative save & sync ──────────────────────────────────────────────
+  // Multiple people edit the same quote at once. Each tab keeps a BASE
+  // snapshot of the last version it synced with the database. Saving writes
+  // only rows that differ from base; a background poll (and every save)
+  // folds colleagues' changes into rows this tab hasn't touched. Only rows
+  // both sides edited are conflicts — the saver is warned and their version
+  // wins for those rows only.
   const loadedStampRef = useRef<string | null>(null);
+  const baseRef = useRef<DraftSection[]>([]);
+  const baseHeaderRef = useRef<ProjectQuote | null>(null);
+  const sectionsRef = useRef<DraftSection[]>([]);
+  sectionsRef.current = sections;
+  const quoteRef = useRef<ProjectQuote | null>(null);
+  quoteRef.current = quote;
+  const mergingRef = useRef(false);
+
+  interface MergeResult { remoteChanged: boolean; actor: string; conflicts: number; merged: DraftSection[]; header: ProjectQuote | null }
+
+  async function mergeRemote(): Promise<MergeResult> {
+    const localHeader = quoteRef.current;
+    const noop: MergeResult = { remoteChanged: false, actor: '', conflicts: 0, merged: sectionsRef.current, header: localHeader };
+    if (!localHeader || mergingRef.current) return noop;
+    mergingRef.current = true;
+    try {
+      const [qRes, secRes, itemRes] = await Promise.all([
+        supabase.from('10.0_project_quotes').select('*').eq('quote_id', id).single(),
+        supabase.from('10.1_quote_sections').select('*').eq('quote_id', id).order('sort_order'),
+        supabase.from('10.2_quote_items').select('*').eq('quote_id', id).order('sort_order'),
+      ]);
+      if (!qRes.data) return noop;
+      const remoteHeader = qRes.data as ProjectQuote;
+      if (!(remoteHeader.updated_at && loadedStampRef.current && remoteHeader.updated_at > loadedStampRef.current)) {
+        return noop; // nothing new remotely
+      }
+
+      const remote = dbToDraft((secRes.data ?? []) as QuoteSection[], (itemRes.data ?? []) as QuoteItem[]);
+      const base = baseRef.current;
+      const basePos = itemPositions(base);
+      const remotePos = itemPositions(remote);
+      const local = sectionsRef.current;
+      const localById = new Map<string, DraftItem>();
+      const localSecById = new Map<string, DraftSection>();
+      for (const sec of local) { localSecById.set(sec.section_id, sec); for (const it of sec.items) localById.set(it.item_id, it); }
+      const baseSecById = new Map(base.map((sec) => [sec.section_id, sec]));
+      let conflicts = 0;
+
+      const merged: DraftSection[] = remote.map((rs) => {
+        const ls = localSecById.get(rs.section_id);
+        const bs = baseSecById.get(rs.section_id);
+        const secLocallyChanged = !!ls && (!bs || ls.title !== bs.title || ls.lead_time !== bs.lead_time || ls.group_key !== bs.group_key || !!ls._deleted);
+        const items: DraftItem[] = rs.items.map((ri) => {
+          const li = localById.get(ri.item_id);
+          const bp = basePos.get(ri.item_id);
+          const localChanged = !!li && (!bp || !sameItem(li, bp.item) || !!li._deleted);
+          if (localChanged && li) {
+            if (bp && !sameItem(ri, bp.item)) conflicts += 1; // both sides edited this row
+            return li;
+          }
+          return ri;
+        });
+        if (ls) {
+          for (const li of ls.items) {
+            if (li._deleted || remotePos.has(li.item_id)) continue;
+            const bp = basePos.get(li.item_id);
+            if (!bp) items.push(li);                       // created in this tab, unsaved
+            else if (!sameItem(li, bp.item)) items.push(li); // deleted remotely but edited here — keep ours
+          }
+        }
+        return { ...(secLocallyChanged && ls ? ls : rs), items };
+      });
+      for (const sec of local) {
+        if (!sec._deleted && !baseSecById.has(sec.section_id) && !remote.some((r) => r.section_id === sec.section_id)) merged.push(sec);
+      }
+
+      setSections(merged);
+      // Header: adopt the remote header unless this tab edited header fields
+      const localHeaderChanged = headerFingerprint(localHeader) !== headerFingerprint(baseHeaderRef.current);
+      const effHeader = localHeaderChanged ? localHeader : remoteHeader;
+      if (!localHeaderChanged) setQuote(remoteHeader);
+      baseRef.current = remote;
+      baseHeaderRef.current = remoteHeader;
+      loadedStampRef.current = remoteHeader.updated_at ?? loadedStampRef.current;
+      return { remoteChanged: true, actor: remoteHeader.updated_by_email || 'a colleague', conflicts, merged, header: effHeader };
+    } finally {
+      mergingRef.current = false;
+    }
+  }
+
+  // Background sync: cheap stamp check every 15s (and on window focus);
+  // full merge only when a colleague actually saved.
+  const collabRef = useRef({ mergeRemote, saving });
+  collabRef.current = { mergeRemote, saving };
+  useEffect(() => {
+    let stop = false;
+    const check = async () => {
+      const c = collabRef.current;
+      if (stop || c.saving || mergingRef.current || !loadedStampRef.current) return;
+      const { data } = await supabase.from('10.0_project_quotes').select('updated_at').eq('quote_id', id).single();
+      if (stop || !data?.updated_at || !loadedStampRef.current || data.updated_at <= loadedStampRef.current) return;
+      const res = await collabRef.current.mergeRemote();
+      if (res.remoteChanged) {
+        setSaveMsg(`↻ Merged ${res.actor}'s changes${res.conflicts ? ` — ${res.conflicts} line${res.conflicts > 1 ? 's' : ''} you both edited (yours shown)` : ''}`);
+        setTimeout(() => setSaveMsg(''), 4000);
+      }
+    };
+    const t = setInterval(check, 15_000);
+    const onFocus = () => { void check(); };
+    window.addEventListener('focus', onFocus);
+    return () => { stop = true; clearInterval(t); window.removeEventListener('focus', onFocus); };
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   async function save() {
-    if (!quote) return;
+    if (!quoteRef.current) return;
     if (locked) { setSaveMsg('Locked: SENT quotes can only be edited by an Owner'); return; }
     setSaving(true);
     try {
-      // Conflict check before any write
-      const { data: cur } = await supabase
-        .from('10.0_project_quotes').select('updated_at, updated_by_email')
-        .eq('quote_id', quote.quote_id).single();
-      if (cur?.updated_at && loadedStampRef.current && cur.updated_at > loadedStampRef.current) {
-        const who = cur.updated_by_email || 'someone else';
-        const when = new Date(cur.updated_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-        const overwrite = window.confirm(
-          `⚠ ${who} saved this quote at ${when} — AFTER you opened it.\n\n` +
-          `Saving now will REPLACE their version with what's in your tab (all items, costs, and prices).\n\n` +
-          `OK = overwrite their version\nCancel = don't save (reload the page to get the latest version)`
+      // 0. Sync: fold in whatever colleagues saved since our last sync
+      const pre = await mergeRemote();
+      if (pre.remoteChanged && pre.conflicts > 0) {
+        const ok = window.confirm(
+          `You and ${pre.actor} both edited ${pre.conflicts} of the same line${pre.conflicts > 1 ? 's' : ''}.\n\n` +
+          `Saving keeps YOUR version of those lines; all their other changes are already merged in.\n\nContinue?`
         );
-        if (!overwrite) {
-          setSaving(false);
-          setSaveMsg(`Not saved — ${who} saved a newer version. Reload to get it.`);
-          return;
-        }
+        if (!ok) { setSaving(false); setSaveMsg('Not saved'); return; }
       }
-      // 1. Upsert quote header
-      const { error: qErr } = await supabase.from('10.0_project_quotes').upsert({
-        quote_id: quote.quote_id,
-        quote_number: quote.quote_number,
-        quote_date: quote.quote_date,
-        company_id: quote.company_id ?? null,
-        customer_name: quote.customer_name,
-        customer_address: quote.customer_address,
-        project_description: quote.project_description,
-        project_type: quote.project_type ?? 'custom',
-        system_specs: quote.system_specs ?? {},
-        location: quote.location ?? '',
-        ppn_pct: num(String(quote.ppn_pct)) ?? 11,
-        status: quote.status,
-        notes: quote.notes,
-        group_margins: quote.group_margins ?? {},
-        updated_at: new Date().toISOString(),
-      });
-      if (qErr) throw qErr;
-      // sent_at is stamped by the DB trigger on the draft→sent transition;
-      // read it back so the header shows the date without a reload
-      if (quote.status === 'sent' && !quote.sent_at) {
+      const live = pre.merged;                 // post-merge working state
+      const quoteNow = pre.header ?? quoteRef.current;
+      const base = baseRef.current;
+      const basePos = itemPositions(base);
+
+      // 1. Header — write only if this tab changed header fields; otherwise
+      //    just touch updated_at so other tabs' sync notices this save.
+      const headerChanged = headerFingerprint(quoteNow) !== headerFingerprint(baseHeaderRef.current);
+      if (headerChanged) {
+        const { error: qErr } = await supabase.from('10.0_project_quotes').upsert({
+          quote_id: quoteNow.quote_id,
+          quote_number: quoteNow.quote_number,
+          quote_date: quoteNow.quote_date,
+          company_id: quoteNow.company_id ?? null,
+          customer_name: quoteNow.customer_name,
+          customer_address: quoteNow.customer_address,
+          project_description: quoteNow.project_description,
+          project_type: quoteNow.project_type ?? 'custom',
+          system_specs: quoteNow.system_specs ?? {},
+          location: quoteNow.location ?? '',
+          ppn_pct: num(String(quoteNow.ppn_pct)) ?? 11,
+          status: quoteNow.status,
+          notes: quoteNow.notes,
+          group_margins: quoteNow.group_margins ?? {},
+          updated_at: new Date().toISOString(),
+        });
+        if (qErr) throw qErr;
+      } else {
+        const { error: tErr } = await supabase.from('10.0_project_quotes')
+          .update({ updated_at: new Date().toISOString() }).eq('quote_id', quoteNow.quote_id);
+        if (tErr) throw tErr;
+      }
+      // sent_at is stamped by the DB trigger on the draft→sent transition
+      if (quoteNow.status === 'sent' && !quoteNow.sent_at) {
         const { data: stamped } = await supabase
-          .from('10.0_project_quotes').select('sent_at').eq('quote_id', quote.quote_id).single();
+          .from('10.0_project_quotes').select('sent_at').eq('quote_id', quoteNow.quote_id).single();
         if (stamped?.sent_at) setQuote((q) => q ? { ...q, sent_at: stamped.sent_at } : q);
       }
 
-      // 2. Collect deletes
-      const deletedSecIds = sections.filter((s) => s._deleted).map((s) => s.section_id);
-      const deletedItemIds = sections.flatMap((s) => s.items.filter((i) => i._deleted).map((i) => i.item_id));
+      // 2. Deletes made in this tab
+      const deletedSecIds = live.filter((sec) => sec._deleted).map((sec) => sec.section_id);
+      const deletedItemIds = live.flatMap((sec) => sec.items.filter((i) => i._deleted).map((i) => i.item_id));
       if (deletedItemIds.length) {
         const { error } = await supabase.from('10.2_quote_items').delete().in('item_id', deletedItemIds);
         if (error) throw error;
@@ -1236,46 +1381,59 @@ export default function QuoteEditorPage() {
         if (error) throw error;
       }
 
-      // 3. Upsert live sections, ordered by group (solar → bos → services)
+      // 3. Sections — upsert only new / field-changed / re-ordered ones
       const groupOrder = SECTION_GROUPS.map((g) => g.key);
-      const liveSections = sections
-        .filter((s) => !s._deleted)
+      const liveSections = live
+        .filter((sec) => !sec._deleted)
         .sort((a, b) => groupOrder.indexOf(a.group_key) - groupOrder.indexOf(b.group_key));
-      if (liveSections.length) {
-        const { error } = await supabase.from('10.1_quote_sections').upsert(
-          liveSections.map((s, i) => ({
-            section_id: s.section_id, quote_id: id, group_key: s.group_key,
-            title: s.title, lead_time: s.lead_time, sort_order: i,
-          }))
-        );
+      const baseSections = base
+        .filter((sec) => !sec._deleted)
+        .sort((a, b) => groupOrder.indexOf(a.group_key) - groupOrder.indexOf(b.group_key));
+      const baseSecIdx = new Map(baseSections.map((sec, i) => [sec.section_id, { sec, i }]));
+      const secRows = liveSections
+        .map((sec, i) => ({ section_id: sec.section_id, quote_id: id, group_key: sec.group_key, title: sec.title, lead_time: sec.lead_time, sort_order: i }))
+        .filter((row, i) => {
+          const b = baseSecIdx.get(row.section_id);
+          return !b || b.i !== i || b.sec.title !== row.title || b.sec.lead_time !== row.lead_time || b.sec.group_key !== row.group_key;
+        });
+      if (secRows.length) {
+        const { error } = await supabase.from('10.1_quote_sections').upsert(secRows);
         if (error) throw error;
       }
 
-      // 4. Upsert live items
-      const liveItems = liveSections.flatMap((s) =>
-        s.items.filter((i) => !i._deleted).map((i, idx) => ({
-          item_id: i.item_id, section_id: s.section_id, quote_id: id,
-          parent_item_id: i.parent_item_id,
-          component_id: i.component_id ?? null,
-          description: i.description, brand: i.brand,
-          quantity: num(i.quantity), qty_formula: i.qty_formula, eng_note: i.eng_note,
-          unit: i.unit,
-          cost_price: num(i.cost_price), sell_price: num(i.sell_price),
+      // 4. Items — upsert only rows that differ from base (fields or position)
+      const itemRows = liveSections.flatMap((sec) =>
+        sec.items.filter((i) => !i._deleted).map((i, idx) => ({ draft: i, secId: sec.section_id, idx })))
+        .filter(({ draft, secId, idx }) => {
+          const b = basePos.get(draft.item_id);
+          return !b || b.secId !== secId || b.idx !== idx || !sameItem(draft, b.item);
+        })
+        .map(({ draft, secId, idx }) => ({
+          item_id: draft.item_id, section_id: secId, quote_id: id,
+          parent_item_id: draft.parent_item_id,
+          component_id: draft.component_id ?? null,
+          description: draft.description, brand: draft.brand,
+          quantity: num(draft.quantity), qty_formula: draft.qty_formula, eng_note: draft.eng_note,
+          unit: draft.unit,
+          cost_price: num(draft.cost_price), sell_price: num(draft.sell_price),
           sort_order: idx,
-        }))
-      );
-      if (liveItems.length) {
-        const { error } = await supabase.from('10.2_quote_items').upsert(liveItems);
+        }));
+      if (itemRows.length) {
+        const { error } = await supabase.from('10.2_quote_items').upsert(itemRows);
         if (error) throw error;
       }
 
-      // Re-stamp: this tab is now the latest version
+      // 5. Rebase: DB now matches this tab's live state; purge deleted rows
+      const newBase = liveSections.map((sec) => ({ ...sec, _deleted: undefined, items: sec.items.filter((i) => !i._deleted).map((i) => ({ ...i, _deleted: undefined })) }));
+      baseRef.current = newBase;
+      baseHeaderRef.current = quoteNow;
+      setSections((prev) => prev.filter((sec) => !sec._deleted).map((sec) => ({ ...sec, items: sec.items.filter((i) => !i._deleted) })));
       const { data: fresh } = await supabase
-        .from('10.0_project_quotes').select('updated_at').eq('quote_id', quote.quote_id).single();
+        .from('10.0_project_quotes').select('updated_at').eq('quote_id', quoteNow.quote_id).single();
       if (fresh?.updated_at) loadedStampRef.current = fresh.updated_at;
 
       setDirty(false);
-      setSaveMsg('Saved');
+      setSaveMsg(pre.remoteChanged ? `Saved · merged ${pre.actor}'s changes` : 'Saved');
       setTimeout(() => setSaveMsg(''), 2500);
       loadReferenceData(); // refresh autocomplete/history sources after save
     } catch (e) {
