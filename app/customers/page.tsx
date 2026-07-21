@@ -11,6 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS, ROLE_LABELS, type UserRole } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 import CrmMigrationBanner from '@/components/ui/CrmMigrationBanner';
+import { SALES_STATUS } from '@/lib/salesStatus';
 
 // ── Types ─────────────────────────────────────────────────────────────────
 interface Customer {
@@ -55,6 +56,16 @@ interface Tier {
   name: string;
   sort_order: number;
   is_active: boolean;
+}
+
+interface SalesDoc {
+  quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
+  status: string; grand_total: number; quote_date: string; updated_at?: string; revision?: number;
+}
+interface ProfileData {
+  docs: SalesDoc[];
+  received: Record<string, number>;
+  topItems: { desc: string; qty: number; value: number; unit: string; times: number }[];
 }
 
 const CURRENCIES = ['IDR', 'USD', 'EUR', 'CNY', 'SGD'];
@@ -124,6 +135,48 @@ function CustomersInner() {
   const [draftContacts, setDraftContacts] = useState<Contact[]>([]);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+
+  // Profile view (row click): the customer's documents, AR, and stats.
+  // Editing only starts from the profile's Edit button.
+  const [profileFor, setProfileFor] = useState<Customer | null>(null);
+  const [profileData, setProfileData] = useState<ProfileData | null>(null);
+
+  const openProfile = useCallback(async (c: Customer) => {
+    setProfileFor(c);
+    setProfileData(null);
+    const { data: docs } = await supabase.from('22.0_sales_quotes')
+      .select('quote_id, quote_number, order_number, invoice_number, do_number, status, grand_total, quote_date, updated_at, revision')
+      .eq('customer_id', c.customer_id)
+      .order('updated_at', { ascending: false });
+    const list = (docs as SalesDoc[]) ?? [];
+    const ids = list.map((d) => d.quote_id);
+    const received: Record<string, number> = {};
+    const agg = new Map<string, { desc: string; qty: number; value: number; unit: string; times: number }>();
+    if (ids.length) {
+      const [rRes, iRes] = await Promise.all([
+        supabase.from('26.0_customer_receipts').select('quote_id, amount').in('quote_id', ids),
+        supabase.from('22.1_sales_quote_items').select('quote_id, description, quantity, unit, line_total, is_section').in('quote_id', ids),
+      ]);
+      for (const r of (rRes.data as { quote_id: string; amount: number }[]) ?? []) {
+        received[r.quote_id] = (received[r.quote_id] ?? 0) + (Number(r.amount) || 0);
+      }
+      // "Most ordered" counts confirmed business only (SO onward), not quotes
+      const committed = new Set(list.filter((d) => ['ordered', 'invoiced', 'delivered'].includes(d.status)).map((d) => d.quote_id));
+      for (const it of (iRes.data as { quote_id: string; description: string; quantity: number; unit: string; line_total: number; is_section: boolean }[]) ?? []) {
+        if (it.is_section || !committed.has(it.quote_id)) continue;
+        const desc = (it.description || '').trim();
+        if (!desc) continue;
+        const k = desc.toLowerCase();
+        const a = agg.get(k) ?? { desc, qty: 0, value: 0, unit: it.unit || '', times: 0 };
+        a.qty += Number(it.quantity) || 0;
+        a.value += Number(it.line_total) || 0;
+        a.times += 1;
+        agg.set(k, a);
+      }
+    }
+    const topItems = [...agg.values()].sort((a, b) => b.value - a.value).slice(0, 6);
+    setProfileData({ docs: list, received, topItems });
+  }, [supabase]);
 
   const flash = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
 
@@ -325,7 +378,7 @@ function CustomersInner() {
                 return (
                   <button
                     key={c.customer_id}
-                    onClick={() => openDrawer(c)}
+                    onClick={() => openProfile(c)}
                     className="w-full text-left grid grid-cols-1 md:grid-cols-[130px_1fr_120px_180px_90px] gap-1 md:gap-3 px-4 py-3 hover:bg-slate-800/40 transition-colors items-center"
                   >
                     <span className="font-mono text-[11px] text-slate-400">{c.customer_code || '—'}</span>
@@ -348,6 +401,20 @@ function CustomersInner() {
           )}
         </div>
       </main>
+
+      {/* Profile drawer (row click) — activity, links, and stats */}
+      {profileFor && !editing && (
+        <ProfileDrawer
+          customer={profileFor}
+          data={profileData}
+          contacts={contactsByCustomer[profileFor.customer_id] ?? []}
+          amName={profileFor.account_manager_id ? (amById.get(profileFor.account_manager_id) ?? '') : ''}
+          tierName={profileFor.tier ? (tierLabel.get(profileFor.tier) ?? profileFor.tier) : ''}
+          onClose={() => { setProfileFor(null); setProfileData(null); }}
+          onEdit={() => openDrawer(profileFor)}
+          onOpenDoc={(qid) => router.push(`/sales/${qid}`)}
+        />
+      )}
 
       {/* Drawer */}
       {editing && (
@@ -372,6 +439,183 @@ function CustomersInner() {
           {toast}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Profile drawer (row click): activity, document links, stats ─────────────
+const fmtIdr = (n: number) => Math.round(n).toLocaleString('en-US');
+const fmtD = (d?: string | null) => d ? new Date(d.length <= 10 ? `${d}T00:00:00` : d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '';
+
+function ProfileDrawer({ customer, data, contacts, amName, tierName, onClose, onEdit, onOpenDoc }: {
+  customer: Customer;
+  data: ProfileData | null;
+  contacts: Contact[];
+  amName: string;
+  tierName: string;
+  onClose: () => void;
+  onEdit: () => void;
+  onOpenDoc: (quoteId: string) => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const docs = data?.docs ?? [];
+  const received = data?.received ?? {};
+  const committed = docs.filter((d) => ['ordered', 'invoiced', 'delivered'].includes(d.status));
+  const invoiced = docs.filter((d) => ['invoiced', 'delivered'].includes(d.status));
+  const totalSales = committed.reduce((s, d) => s + (Number(d.grand_total) || 0), 0);
+  const totalReceived = docs.reduce((s, d) => s + (received[d.quote_id] ?? 0), 0);
+  const outstandingAR = invoiced.reduce((s, d) => s + Math.max(0, (Number(d.grand_total) || 0) - (received[d.quote_id] ?? 0)), 0);
+  const quoteCount = docs.filter((d) => !['cancelled', 'rejected'].includes(d.status)).length;
+  const winRate = quoteCount > 0 ? (committed.length / quoteCount) * 100 : null;
+  const paidState = (d: SalesDoc) => {
+    const total = Number(d.grand_total) || 0;
+    const rcv = received[d.quote_id] ?? 0;
+    if (total > 0 && rcv >= total - 0.5) return 'paid';
+    if (rcv > 0) return 'partial';
+    return 'unpaid';
+  };
+  const primary = contacts.find((x) => x.is_primary) ?? contacts[0];
+
+  return (
+    <div className="fixed inset-0 z-[100] flex justify-end">
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+      <div className="relative w-full max-w-2xl h-full bg-[#141518] border-l border-slate-800 shadow-2xl overflow-y-auto">
+        {/* Header */}
+        <div className="sticky top-0 bg-[#141518]/95 backdrop-blur border-b border-slate-800 px-6 py-4 flex items-center gap-3 z-10">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-lg font-bold text-white truncate">{customer.display_name || customer.legal_name || '(no name)'}</h2>
+            <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+              <span className="font-mono">{customer.customer_code}</span>
+              {tierName ? ` · ${tierName}` : ''}
+              {amName ? ` · AM: ${amName}` : ''}
+              {primary ? ` · ${primary.name}${primary.phone ? ` (${primary.phone})` : ''}` : ''}
+            </p>
+          </div>
+          <button onClick={onEdit}
+            className="px-3.5 py-1.5 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs font-semibold transition-colors flex-shrink-0">
+            ✎ Edit
+          </button>
+          <button onClick={onClose} className="p-2 -m-2 text-slate-500 hover:text-white transition-colors flex-shrink-0">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        {!data ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+          </div>
+        ) : (
+          <div className="px-6 py-5 space-y-5">
+            {/* KPI row */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <Kpi label="Total sales (orders)" value={`Rp${fmtIdr(totalSales)}`} sub={`${committed.length} order${committed.length !== 1 ? 's' : ''}`} cls="text-emerald-300" />
+              <Kpi label="Received" value={`Rp${fmtIdr(totalReceived)}`} sub="all payments" cls="text-slate-200" />
+              <Kpi label="Outstanding AR" value={`Rp${fmtIdr(outstandingAR)}`} sub="on issued invoices" cls={outstandingAR > 0 ? 'text-amber-300' : 'text-emerald-400'} />
+              <Kpi label="Quotes → orders" value={winRate != null ? `${winRate.toFixed(0)}%` : '—'} sub={`${committed.length} of ${quoteCount} quotes`} cls="text-slate-200" />
+            </div>
+
+            {/* Documents: every quote/order/invoice/DO, linked */}
+            <section>
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">Documents & activity</h3>
+              {docs.length === 0 ? (
+                <p className="text-xs text-slate-600 italic">No sales documents yet — quotes for this customer will appear here.</p>
+              ) : (
+                <div className="rounded-xl border border-slate-800 divide-y divide-slate-800/60">
+                  {docs.map((d) => {
+                    const pay = paidState(d);
+                    return (
+                      <button key={d.quote_id} onClick={() => onOpenDoc(d.quote_id)}
+                        className="w-full text-left px-3 py-2.5 hover:bg-slate-800/40 transition-colors">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-[11px] text-slate-300">{d.quote_number}</span>
+                          {(d.revision ?? 0) > 0 && <span className="text-[9px] font-bold text-sky-400">R{d.revision}</span>}
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${SALES_STATUS[d.status]?.cls ?? ''}`}>{SALES_STATUS[d.status]?.label ?? d.status}</span>
+                          {['invoiced', 'delivered'].includes(d.status) && (
+                            pay === 'paid'
+                              ? <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300">PAID</span>
+                              : pay === 'partial'
+                              ? <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/15 text-amber-300">PARTIAL</span>
+                              : <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-500/10 text-red-400/90">UNPAID</span>
+                          )}
+                          <span className="ml-auto tabular-nums text-xs text-slate-200 font-semibold">Rp{fmtIdr(Number(d.grand_total) || 0)}</span>
+                          <span className="text-[10px] text-slate-600 tabular-nums">{fmtD(d.updated_at || d.quote_date)}</span>
+                        </div>
+                        {(d.order_number || d.invoice_number || d.do_number) && (
+                          <p className="mt-1 text-[10px] text-slate-500 font-mono flex flex-wrap gap-x-3">
+                            {d.order_number && <span>SO {d.order_number}</span>}
+                            {d.invoice_number && <span>INV {d.invoice_number}</span>}
+                            {d.do_number && <span>DO {d.do_number}</span>}
+                          </p>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            {/* Accounts receivable — unpaid / partial invoices */}
+            {invoiced.some((d) => paidState(d) !== 'paid') && (
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">Accounts receivable</h3>
+                <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.04] divide-y divide-slate-800/60">
+                  {invoiced.filter((d) => paidState(d) !== 'paid').map((d) => {
+                    const total = Number(d.grand_total) || 0;
+                    const out = Math.max(0, total - (received[d.quote_id] ?? 0));
+                    return (
+                      <button key={d.quote_id} onClick={() => onOpenDoc(d.quote_id)}
+                        className="w-full text-left flex items-center gap-2 px-3 py-2 hover:bg-slate-800/30 transition-colors text-xs">
+                        <span className="font-mono text-[11px] text-slate-300">{d.invoice_number || d.quote_number}</span>
+                        <span className="text-slate-500">{fmtD(d.updated_at || d.quote_date)}</span>
+                        <span className="ml-auto tabular-nums text-amber-300 font-semibold">Rp{fmtIdr(out)} outstanding</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {/* Most ordered items */}
+            <section>
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">Most ordered items</h3>
+              {data.topItems.length === 0 ? (
+                <p className="text-xs text-slate-600 italic">No confirmed orders yet.</p>
+              ) : (
+                <div className="rounded-xl border border-slate-800 divide-y divide-slate-800/60">
+                  {data.topItems.map((it) => (
+                    <div key={it.desc} className="flex items-center gap-3 px-3 py-2 text-xs">
+                      <span className="text-slate-300 truncate flex-1">{it.desc}</span>
+                      <span className="text-slate-500 tabular-nums flex-shrink-0">{it.qty.toLocaleString('en-US')} {it.unit}</span>
+                      <span className="text-slate-200 tabular-nums font-semibold flex-shrink-0 w-28 text-right">Rp{fmtIdr(it.value)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* After-sales services — module not built yet, reserved here */}
+            <section>
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">After-sales services</h3>
+              <p className="text-xs text-slate-600 italic">No after-sales module yet — service records, warranty claims, and maintenance visits will appear here once that module is built.</p>
+            </section>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Kpi({ label, value, sub, cls }: { label: string; value: string; sub: string; cls: string }) {
+  return (
+    <div className="bg-slate-900/60 border border-slate-800 rounded-xl px-3 py-2.5">
+      <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-600">{label}</p>
+      <p className={`text-sm font-bold tabular-nums mt-0.5 ${cls}`}>{value}</p>
+      <p className="text-[9px] text-slate-600">{sub}</p>
     </div>
   );
 }
