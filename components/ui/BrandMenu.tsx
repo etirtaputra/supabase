@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 
@@ -75,6 +76,8 @@ export default function BrandMenu({
   const [open, setOpen] = useState(false);         // caret dropdown (narrow widths)
   const [moreOpen, setMoreOpen] = useState(false); // mobile "More" sheet
   const [deskOpen, setDeskOpen] = useState<number | null>(null); // desktop group dropdown
+  const [mounted, setMounted] = useState(false);                 // portal target exists
+  useEffect(() => { setMounted(true); }, []);
 
   const isActive = (href: string) =>
     href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(href + '/');
@@ -261,8 +264,12 @@ export default function BrandMenu({
         })}
       </nav>
 
-      {/* ── Mobile: fixed bottom tab bar (thumb reach) + More sheet ── */}
-      {mobileNav && (
+      {/* ── Mobile: fixed bottom tab bar (thumb reach) + More sheet.
+             Portaled to <body>: page headers use backdrop-blur, which WebKit
+             treats as a containing block for fixed descendants — rendered
+             in place, the "bottom" bar pins to the header instead of the
+             viewport (same hijack as the import modal). ── */}
+      {mobileNav && mounted && createPortal(
         <div className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-[#0f1012]/95 backdrop-blur-xl border-t border-slate-800/80" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
           <div className="flex items-stretch">
             {[{ href: '/', label: 'Home', section: null as Section }, ...primary].map((a) => {
@@ -282,16 +289,18 @@ export default function BrandMenu({
               <span className="text-[10px] font-medium">More</span>
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-      {moreOpen && (
+      {moreOpen && mounted && createPortal(
         <div className="md:hidden fixed inset-0 z-[120]">
           <div className="absolute inset-0 bg-black/60" onClick={() => setMoreOpen(false)} />
           <div className="absolute inset-x-0 bottom-0 bg-slate-900 border-t border-slate-700 rounded-t-2xl p-3 max-h-[80vh] overflow-y-auto" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
             <div className="w-10 h-1 rounded-full bg-slate-700 mx-auto mb-3" />
             {menuPanel}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
