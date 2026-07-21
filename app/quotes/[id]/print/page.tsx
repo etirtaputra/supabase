@@ -7,7 +7,7 @@ import { quoteFileName } from '@/lib/quoteFilename';
 import { specFileTag, type SystemSpecs } from '@/lib/projectSpec';
 import { useQuotesGate } from '@/hooks/useQuotesGate';
 import { DEFAULT_EXPORT_COLS, EXPORT_COL_KEYS, EXPORT_COL_LABELS, loadExportCols, saveExportCols, type ExportCols } from '@/lib/exportCols';
-import { computeEnergyEconomics, ECON_DEFAULTS } from '@/lib/energyEconomics';
+import { computeEnergyEconomics, fmtPayback, ECON_DEFAULTS } from '@/lib/energyEconomics';
 
 function fmtIdr(v: number) {
   return `Rp${Math.round(v).toLocaleString('en-US')}`;
@@ -468,7 +468,7 @@ export default function PrintPage() {
               </div>
               <div className="econ-kpi">
                 <div className="k">Payback</div>
-                <div className="v">{econ.paybackYears != null ? `${econ.paybackYears} yrs` : '—'}</div>
+                <div className="v">{fmtPayback(econ.paybackYears)}</div>
                 <div className="s">cumulative cash flow turns positive</div>
               </div>
               <div className="econ-kpi">
@@ -508,8 +508,8 @@ export default function PrintPage() {
                     </tr>
                     <tr>
                       <td>Payback</td>
-                      <td className="s1">{econ.paybackYears != null ? `${econ.paybackYears} yrs` : '—'}</td>
-                      <td className="s2">{econAlt.paybackYears != null ? `${econAlt.paybackYears} yrs` : '—'}</td>
+                      <td className="s1">{fmtPayback(econ.paybackYears)}</td>
+                      <td className="s2">{fmtPayback(econAlt.paybackYears)}</td>
                     </tr>
                     <tr>
                       <td>Savings · {econLife} yrs</td>

@@ -1,6 +1,6 @@
 'use client';
 import { useMemo, useState } from 'react';
-import { computeEnergyEconomics, ECON_DEFAULTS, PLN_TARIFF_OPTIONS, PLN_TARIFF_PERIOD, type EconAssumptions } from '@/lib/energyEconomics';
+import { computeEnergyEconomics, fmtPayback, ECON_DEFAULTS, PLN_TARIFF_OPTIONS, PLN_TARIFF_PERIOD, type EconAssumptions } from '@/lib/energyEconomics';
 
 /**
  * "Energy Economics" card on the Project Quote editor (on-grid & hybrid).
@@ -160,25 +160,23 @@ export default function EnergyEconomicsCard({ econ, onChange, capexIdr, dcKwp, h
               placeholder="0" onChange={(v) => onChange({ om_per_mwp_year: v ?? undefined })} />
           </div>
 
-          {/* Tariff scenarios — full-width rows so the golongan names have room.
-              Scenario 1 (billed / with subsidy) drives every headline number;
-              scenario 2 (optional, e.g. tarif dasar without subsidy) adds a
-              side-by-side comparison here and on the PDF annex. */}
+          {/* PLN tariff — one dropdown; full-width row so the golongan names
+              have room. Picking a subsidized (billed) rate auto-fills the
+              without-subsidy comparison from the option's tarif dasar — the
+              engineer never chooses two tariffs by hand. */}
           <TariffRow
-            label="PLN tariff — scenario 1 (billed / with subsidy)"
+            label="PLN tariff"
             hint={`${PLN_TARIFF_PERIOD} · verify against the customer's bill`}
             valueLabel={a.pln_tariff_label ?? ''}
             value={a.pln_tariff}
             placeholder={String(ECON_DEFAULTS.pln_tariff)}
-            onPick={(v, label) => onChange({ pln_tariff: v ?? undefined, pln_tariff_label: label })}
-          />
-          <TariffRow
-            label="Scenario 2 — without subsidy (optional)"
-            hint="e.g. tarif dasar — leave empty for a single-scenario analysis"
-            valueLabel={a.pln_tariff_alt_label ?? ''}
-            value={a.pln_tariff_alt}
-            placeholder="—"
-            onPick={(v, label) => onChange({ pln_tariff_alt: v, pln_tariff_alt_label: label })}
+            onPick={(v, label) => {
+              const opt = PLN_TARIFF_OPTIONS.find((o) => o.label === label);
+              onChange({
+                pln_tariff: v ?? undefined, pln_tariff_label: label,
+                pln_tariff_alt: opt?.altValue ?? null, pln_tariff_alt_label: opt?.altLabel ?? '',
+              });
+            }}
           />
 
           {hybrid && (
@@ -212,7 +210,7 @@ export default function EnergyEconomicsCard({ econ, onChange, capexIdr, dcKwp, h
                 </div>
                 <div>
                   <p className="text-[10px] text-slate-500">Payback</p>
-                  <p className="text-sm font-bold text-white tabular-nums">{result.paybackYears != null ? `${result.paybackYears} yrs` : '—'}</p>
+                  <p className="text-sm font-bold text-white tabular-nums">{fmtPayback(result.paybackYears)}</p>
                   <p className="text-[9px] text-slate-600">cumulative cash flow turns positive</p>
                 </div>
                 <div>
@@ -231,13 +229,13 @@ export default function EnergyEconomicsCard({ econ, onChange, capexIdr, dcKwp, h
               { k: 'Tariff today', s1: fmtIdr2(a.pln_tariff ?? ECON_DEFAULTS.pln_tariff) + '/kWh', s2: fmtIdr2(a.pln_tariff_alt!) + '/kWh' },
               { k: `NPV @ ${(a.hurdle_rate_pct ?? ECON_DEFAULTS.hurdle_rate_pct)}% · ${life} yrs`, s1: fmtIdr(result.npv), s2: fmtIdr(resultAlt.npv) },
               { k: `IRR · ${life} yrs`, s1: result.irr != null ? `${(result.irr * 100).toFixed(1)}%` : '—', s2: resultAlt.irr != null ? `${(resultAlt.irr * 100).toFixed(1)}%` : '—' },
-              { k: 'Payback', s1: result.paybackYears != null ? `${result.paybackYears} yrs` : '—', s2: resultAlt.paybackYears != null ? `${resultAlt.paybackYears} yrs` : '—' },
+              { k: 'Payback', s1: fmtPayback(result.paybackYears), s2: fmtPayback(resultAlt.paybackYears) },
               { k: `Savings · ${life} yrs`, s1: fmtIdr(result.costAvoided), s2: fmtIdr(resultAlt.costAvoided) },
             ];
             return (
               <div className="mt-3 pt-2.5 border-t border-slate-800/60">
                 <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1.5">
-                  Scenario comparison <span className="normal-case tracking-normal text-slate-600">— headline numbers use scenario 1 (with subsidy)</span>
+                  Scenario comparison <span className="normal-case tracking-normal text-slate-600">— shown because the selected rate is subsidized; headline numbers use the billed rate</span>
                 </p>
                 <table className="w-full text-[11px] tabular-nums">
                   <thead>

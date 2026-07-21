@@ -45,23 +45,38 @@ export interface EconAssumptions {
  * custom Rp/kWh (e.g. blended WBP/LWBP or a B2B PPA rate).
  */
 export const PLN_TARIFF_PERIOD = 'Tarif Adjustment PLN · Triwulan III 2026 (Jul–Sep)';
-export const PLN_TARIFF_OPTIONS: { label: string; value: number }[] = [
+// altValue/altLabel: the without-subsidy counterpart of a subsidized (billed)
+// rate. Picking such an option auto-fills scenario 2 so the with/without-
+// subsidy comparison appears with a single dropdown choice — engineers never
+// pick two tariffs by hand.
+export const PLN_TARIFF_OPTIONS: { label: string; value: number; altValue?: number; altLabel?: string }[] = [
   { label: 'R-1/TR 900 VA RTM (rumah tangga)', value: 1352 },
   { label: 'R-1/TR 1.300–2.200 VA (rumah tangga)', value: 1444.70 },
   { label: 'R-2/TR 3.500–5.500 VA (rumah tangga)', value: 1699.53 },
   { label: 'R-3/TR ≥6.600 VA (rumah tangga besar)', value: 1699.53 },
   { label: 'B-2/TR 6.600 VA–200 kVA (bisnis)', value: 1444.70 },
-  { label: 'B-3/TM >200 kVA (bisnis besar — tarif dasar)', value: 1114.74 },
+  // TM customers are actually billed the subsidized LWBP rate (field-confirmed
+  // Jul 2026); the tarif dasar is the without-subsidy scenario for comparison.
+  { label: 'B-3/TM >200 kVA (bisnis — subsidi, billed)', value: 1035.78, altValue: 1114.74, altLabel: 'B-3/TM tarif dasar' },
+  { label: 'B-3/TM >200 kVA (bisnis — tarif dasar)', value: 1114.74 },
+  { label: 'I-3/TM >200 kVA (industri — subsidi, billed)', value: 1035.78, altValue: 1114.74, altLabel: 'I-3/TM tarif dasar' },
   { label: 'I-3/TM >200 kVA (industri — tarif dasar)', value: 1114.74 },
-  // What TM customers are actually billed after subsidy (LWBP block) — field-
-  // confirmed Jul 2026. Savings should offset the BILLED rate, not the base.
-  { label: 'B-3 / I-3 TM — LWBP setelah subsidi (billed)', value: 1035.78 },
   { label: 'I-4/TT ≥30.000 kVA (industri besar)', value: 996.74 },
   { label: 'P-1/TR 6.600 VA–200 kVA (pemerintah)', value: 1699.53 },
   { label: 'P-2/TM >200 kVA (pemerintah)', value: 1522.88 },
   { label: 'P-3/TR (penerangan jalan umum)', value: 1699.53 },
   { label: 'L/TR-TM-TT (layanan khusus)', value: 1644.52 },
 ];
+
+/** "6 yrs 3 mth" from a decimal payback; months interpolated within the payback year. */
+export function fmtPayback(years: number | null): string {
+  if (years == null) return '—';
+  const totalMonths = Math.round(years * 12);
+  const y = Math.floor(totalMonths / 12);
+  const m = totalMonths % 12;
+  if (y <= 0) return `${Math.max(1, m)} mth`;
+  return m ? `${y} yrs ${m} mth` : `${y} yrs`;
+}
 
 export const ECON_DEFAULTS: Required<Pick<EconAssumptions,
   'specific_production' | 'first_year_deg_pct' | 'yearly_deg_pct' | 'lifetime_years' |
@@ -147,7 +162,16 @@ export function computeEnergyEconomics(
   }
 
   const npv = years.reduce((s, r) => s + r.net / Math.pow(1 + hurdle, r.year), 0);
-  const payback = years.find((r) => r.year > 0 && r.cumulative >= 0)?.year ?? null;
+  // Fractional payback: interpolate within the year cumulative turns positive
+  // (assumes savings accrue evenly through the year) → "6 yrs 3 mth" displays
+  let payback: number | null = null;
+  for (const r of years) {
+    if (r.year > 0 && r.cumulative >= 0) {
+      const prevCum = years[r.year - 1].cumulative;
+      payback = r.net > 0 ? (r.year - 1) + (-prevCum / r.net) : r.year;
+      break;
+    }
+  }
   const lifetimeKwh = pvKwh + battKwh;
 
   // IRR by bisection — cash flows start negative, so f(r) is decreasing in r
