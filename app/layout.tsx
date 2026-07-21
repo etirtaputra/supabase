@@ -88,6 +88,10 @@ export default function RootLayout({
             text-align: left;
             margin: 0;
           }
+          /* Room for the fixed mobile bottom nav (BrandMenu adds this class) */
+          @media (max-width: 767px) {
+            body.has-bottom-nav { padding-bottom: calc(58px + env(safe-area-inset-bottom)); }
+          }
         ` }} />
       </head>
       <body>
