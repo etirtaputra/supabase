@@ -140,6 +140,12 @@ export default function PrintPage() {
   const econVisible = econ != null && (showEcon ?? (econAssump?.enabled !== false));
   const econTariff0 = econAssump?.pln_tariff ?? ECON_DEFAULTS.pln_tariff;
   const econLife = econAssump?.lifetime_years ?? ECON_DEFAULTS.lifetime_years;
+  // Scenario 2 (e.g. tarif dasar, without subsidy) — comparison only; the
+  // headline KPIs and yearly table stay on scenario 1 (billed, with subsidy)
+  const econAltTariff = econAssump?.pln_tariff_alt ?? null;
+  const econAlt = econ && econAltTariff && econAltTariff > 0
+    ? computeEnergyEconomics(subtotal, econDcKwp, { ...(econAssump ?? {}), pln_tariff: econAltTariff }, econHybrid)
+    : null;
 
   return (
     <>
@@ -214,6 +220,14 @@ export default function PrintPage() {
         table.econ-table td.pos { color: #157347; font-weight: 650; }
         table.econ-table td.neg { color: #b02a37; }
         .econ-note { font-size: 7pt; color: #94a3b8; margin-top: 2mm; line-height: 1.5; }
+        .econ-scen { margin-bottom: 4mm; }
+        .econ-scen-title { font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #64748b; margin-bottom: 1.5mm; }
+        table.econ-scen-table { font-size: 8pt; }
+        table.econ-scen-table th { padding: 1.4mm 2mm; font-size: 6.5pt; }
+        table.econ-scen-table td { padding: 1.2mm 2mm; border-bottom: 0.4pt solid #eef2f7; font-variant-numeric: tabular-nums; }
+        table.econ-scen-table td:first-child { color: #64748b; }
+        table.econ-scen-table td.s1 { text-align: right; font-weight: 700; color: #0f172a; }
+        table.econ-scen-table td.s2 { text-align: right; color: #475569; }
 
         .footer { margin-top: 10mm; padding-top: 4mm; border-top: 0.5pt solid #e2e8f0; display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; font-size: 8.5pt; color: #64748b; }
         .sig-label { font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #94a3b8; margin-bottom: 10mm; }
@@ -463,6 +477,50 @@ export default function PrintPage() {
                 <div className="s">{Math.round(econ.lifetimeKwh).toLocaleString('en-US')} kWh generated over {econLife} years</div>
               </div>
             </div>
+
+            {/* Scenario comparison — with vs without subsidy */}
+            {econAlt && (
+              <div className="econ-scen">
+                <div className="econ-scen-title">Tariff scenarios — headline figures use Scenario 1 (with subsidy)</div>
+                <table className="econ-scen-table">
+                  <thead>
+                    <tr>
+                      <th />
+                      <th className="right">Scenario 1 · with subsidy{econAssump?.pln_tariff_label ? ` (${econAssump.pln_tariff_label})` : ''}</th>
+                      <th className="right">Scenario 2 · without subsidy{econAssump?.pln_tariff_alt_label ? ` (${econAssump.pln_tariff_alt_label})` : ''}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Tariff today</td>
+                      <td className="s1">Rp{econTariff0.toLocaleString('en-US', { maximumFractionDigits: 2 })}/kWh</td>
+                      <td className="s2">Rp{econAltTariff!.toLocaleString('en-US', { maximumFractionDigits: 2 })}/kWh</td>
+                    </tr>
+                    <tr>
+                      <td>NPV @ {(econAssump?.hurdle_rate_pct ?? ECON_DEFAULTS.hurdle_rate_pct)}% · {econLife} yrs</td>
+                      <td className="s1">{fmtIdr(econ.npv)}</td>
+                      <td className="s2">{fmtIdr(econAlt.npv)}</td>
+                    </tr>
+                    <tr>
+                      <td>IRR · {econLife} yrs</td>
+                      <td className="s1">{econ.irr != null ? `${(econ.irr * 100).toFixed(1)}%` : '—'}</td>
+                      <td className="s2">{econAlt.irr != null ? `${(econAlt.irr * 100).toFixed(1)}%` : '—'}</td>
+                    </tr>
+                    <tr>
+                      <td>Payback</td>
+                      <td className="s1">{econ.paybackYears != null ? `${econ.paybackYears} yrs` : '—'}</td>
+                      <td className="s2">{econAlt.paybackYears != null ? `${econAlt.paybackYears} yrs` : '—'}</td>
+                    </tr>
+                    <tr>
+                      <td>Savings · {econLife} yrs</td>
+                      <td className="s1">{fmtIdr(econ.costAvoided)}</td>
+                      <td className="s2">{fmtIdr(econAlt.costAvoided)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p className="econ-note">LCOE (Rp{econ.lcoe.toLocaleString('en-US', { maximumFractionDigits: 2 })}/kWh) is tariff-independent — identical in both scenarios. The year-by-year table below uses Scenario 1.</p>
+              </div>
+            )}
 
             {/* Assumptions */}
             <div className="econ-assump">

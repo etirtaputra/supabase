@@ -27,8 +27,10 @@ export interface EconAssumptions {
   lifetime_years?: number;         // PV design life
   hurdle_rate_pct?: number;        // discount rate for NPV / IRR, %
   om_per_mwp_year?: number;        // O&M, IDR per MWp per year
-  pln_tariff?: number;             // Rp/kWh today
+  pln_tariff?: number;             // Rp/kWh today — scenario 1, the billed rate (with subsidy); drives the headline KPIs
   pln_tariff_label?: string;       // which PLN golongan the tariff came from ('' = custom)
+  pln_tariff_alt?: number | null;  // optional scenario 2 (e.g. tarif dasar, without subsidy) for the comparison block
+  pln_tariff_alt_label?: string;   // golongan label for scenario 2 ('' = custom)
   tariff_inflation_pct?: number;   // %/yr
   // Hybrid battery contribution (from the LCOS calculator)
   battery_kwh_day?: number;        // effective kWh dispatched per day

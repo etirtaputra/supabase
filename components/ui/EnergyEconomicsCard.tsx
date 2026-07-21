@@ -41,6 +41,50 @@ function Field({ label, unit, value, placeholder, onChange, disabled }: {
   );
 }
 
+function TariffRow({ label, hint, valueLabel, value, placeholder, onPick }: {
+  label: string; hint: string;
+  valueLabel: string; value: number | null | undefined; placeholder: string;
+  onPick: (value: number | null, label: string) => void;
+}) {
+  return (
+    <label className="block mb-2.5">
+      <span className="block text-[10px] text-slate-500 mb-0.5">
+        {label} <span className="text-slate-600">— {hint}</span>
+      </span>
+      <span className="flex items-center gap-1.5">
+        <select
+          value={valueLabel}
+          onChange={(e) => {
+            const opt = PLN_TARIFF_OPTIONS.find((o) => o.label === e.target.value);
+            if (opt) onPick(opt.value, opt.label);
+            else onPick(value ?? null, ''); // custom — keep the typed number
+          }}
+          className="flex-1 min-w-0 bg-slate-950/60 border border-slate-700 focus:border-emerald-500/60 rounded-lg px-2 py-1.5 text-xs text-white outline-none transition-colors"
+        >
+          <option value="">Custom rate…</option>
+          {PLN_TARIFF_OPTIONS.map((o) => (
+            <option key={o.label} value={o.label}>{o.label} — Rp{o.value.toLocaleString('en-US', { minimumFractionDigits: 2 })}</option>
+          ))}
+        </select>
+        <input
+          value={value ?? ''}
+          inputMode="decimal"
+          placeholder={placeholder}
+          title="Override with any Rp/kWh (e.g. blended WBP/LWBP or PPA rate) — typing switches the picker to Custom"
+          onChange={(e) => {
+            const raw = e.target.value.trim();
+            if (raw === '') { onPick(null, ''); return; }
+            const v = Number(raw);
+            if (!isNaN(v)) onPick(v, '');
+          }}
+          className="w-28 flex-shrink-0 bg-slate-950/60 border border-slate-700 focus:border-emerald-500/60 rounded-lg px-2 py-1.5 text-xs text-white text-right tabular-nums outline-none transition-colors placeholder:text-slate-600"
+        />
+        <span className="text-[9px] text-slate-600 whitespace-nowrap flex-shrink-0">Rp/kWh</span>
+      </span>
+    </label>
+  );
+}
+
 export default function EnergyEconomicsCard({ econ, onChange, capexIdr, dcKwp, hybrid, locked }: {
   econ: EconAssumptions | null | undefined;
   onChange: (patch: Partial<EconAssumptions>) => void;
@@ -53,6 +97,13 @@ export default function EnergyEconomicsCard({ econ, onChange, capexIdr, dcKwp, h
   const [showTable, setShowTable] = useState(false);
   const result = useMemo(
     () => computeEnergyEconomics(capexIdr, dcKwp, a, hybrid),
+    [capexIdr, dcKwp, a, hybrid],
+  );
+  // Scenario 2 (e.g. without subsidy): same model, only the tariff differs
+  const resultAlt = useMemo(
+    () => (a.pln_tariff_alt ?? 0) > 0
+      ? computeEnergyEconomics(capexIdr, dcKwp, { ...a, pln_tariff: a.pln_tariff_alt! }, hybrid)
+      : null,
     [capexIdr, dcKwp, a, hybrid],
   );
   const included = a.enabled !== false;
@@ -109,42 +160,26 @@ export default function EnergyEconomicsCard({ econ, onChange, capexIdr, dcKwp, h
               placeholder="0" onChange={(v) => onChange({ om_per_mwp_year: v ?? undefined })} />
           </div>
 
-          {/* PLN tariff — full-width row so the golongan names have room */}
-          <label className="block mb-2.5">
-            <span className="block text-[10px] text-slate-500 mb-0.5" title={PLN_TARIFF_PERIOD}>
-              PLN tariff <span className="text-slate-600">— {PLN_TARIFF_PERIOD} · verify against the customer&apos;s bill</span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <select
-                value={a.pln_tariff_label ?? ''}
-                onChange={(e) => {
-                  const opt = PLN_TARIFF_OPTIONS.find((o) => o.label === e.target.value);
-                  if (opt) onChange({ pln_tariff: opt.value, pln_tariff_label: opt.label });
-                  else onChange({ pln_tariff_label: '' }); // custom — keep the typed number
-                }}
-                className="flex-1 min-w-0 bg-slate-950/60 border border-slate-700 focus:border-emerald-500/60 rounded-lg px-2 py-1.5 text-xs text-white outline-none transition-colors"
-              >
-                <option value="">Custom rate…</option>
-                {PLN_TARIFF_OPTIONS.map((o) => (
-                  <option key={o.label} value={o.label}>{o.label} — Rp{o.value.toLocaleString('en-US', { minimumFractionDigits: 2 })}</option>
-                ))}
-              </select>
-              <input
-                value={a.pln_tariff ?? ''}
-                inputMode="decimal"
-                placeholder={String(ECON_DEFAULTS.pln_tariff)}
-                title="Override with any Rp/kWh (e.g. blended WBP/LWBP or PPA rate) — typing switches the picker to Custom"
-                onChange={(e) => {
-                  const raw = e.target.value.trim();
-                  if (raw === '') { onChange({ pln_tariff: undefined, pln_tariff_label: '' }); return; }
-                  const v = Number(raw);
-                  if (!isNaN(v)) onChange({ pln_tariff: v, pln_tariff_label: '' });
-                }}
-                className="w-28 flex-shrink-0 bg-slate-950/60 border border-slate-700 focus:border-emerald-500/60 rounded-lg px-2 py-1.5 text-xs text-white text-right tabular-nums outline-none transition-colors placeholder:text-slate-600"
-              />
-              <span className="text-[9px] text-slate-600 whitespace-nowrap flex-shrink-0">Rp/kWh</span>
-            </span>
-          </label>
+          {/* Tariff scenarios — full-width rows so the golongan names have room.
+              Scenario 1 (billed / with subsidy) drives every headline number;
+              scenario 2 (optional, e.g. tarif dasar without subsidy) adds a
+              side-by-side comparison here and on the PDF annex. */}
+          <TariffRow
+            label="PLN tariff — scenario 1 (billed / with subsidy)"
+            hint={`${PLN_TARIFF_PERIOD} · verify against the customer's bill`}
+            valueLabel={a.pln_tariff_label ?? ''}
+            value={a.pln_tariff}
+            placeholder={String(ECON_DEFAULTS.pln_tariff)}
+            onPick={(v, label) => onChange({ pln_tariff: v ?? undefined, pln_tariff_label: label })}
+          />
+          <TariffRow
+            label="Scenario 2 — without subsidy (optional)"
+            hint="e.g. tarif dasar — leave empty for a single-scenario analysis"
+            valueLabel={a.pln_tariff_alt_label ?? ''}
+            value={a.pln_tariff_alt}
+            placeholder="—"
+            onPick={(v, label) => onChange({ pln_tariff_alt: v, pln_tariff_alt_label: label })}
+          />
 
           {hybrid && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-2.5 pt-2 border-t border-slate-800/60 [&>*]:min-w-0">
@@ -185,6 +220,44 @@ export default function EnergyEconomicsCard({ econ, onChange, capexIdr, dcKwp, h
                   <p className="text-sm font-bold text-white tabular-nums">{fmtIdr(result.costAvoided)}</p>
                   <p className="text-[9px] text-slate-600">{Math.round(result.lifetimeKwh).toLocaleString('en-US')} kWh generated over {life} years</p>
                 </div>
+              </div>
+            );
+          })()}
+
+          {/* Scenario comparison — with vs without subsidy */}
+          {result && resultAlt && (() => {
+            const life = a.lifetime_years ?? ECON_DEFAULTS.lifetime_years;
+            const rows: { k: string; s1: string; s2: string }[] = [
+              { k: 'Tariff today', s1: fmtIdr2(a.pln_tariff ?? ECON_DEFAULTS.pln_tariff) + '/kWh', s2: fmtIdr2(a.pln_tariff_alt!) + '/kWh' },
+              { k: `NPV @ ${(a.hurdle_rate_pct ?? ECON_DEFAULTS.hurdle_rate_pct)}% · ${life} yrs`, s1: fmtIdr(result.npv), s2: fmtIdr(resultAlt.npv) },
+              { k: `IRR · ${life} yrs`, s1: result.irr != null ? `${(result.irr * 100).toFixed(1)}%` : '—', s2: resultAlt.irr != null ? `${(resultAlt.irr * 100).toFixed(1)}%` : '—' },
+              { k: 'Payback', s1: result.paybackYears != null ? `${result.paybackYears} yrs` : '—', s2: resultAlt.paybackYears != null ? `${resultAlt.paybackYears} yrs` : '—' },
+              { k: `Savings · ${life} yrs`, s1: fmtIdr(result.costAvoided), s2: fmtIdr(resultAlt.costAvoided) },
+            ];
+            return (
+              <div className="mt-3 pt-2.5 border-t border-slate-800/60">
+                <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1.5">
+                  Scenario comparison <span className="normal-case tracking-normal text-slate-600">— headline numbers use scenario 1 (with subsidy)</span>
+                </p>
+                <table className="w-full text-[11px] tabular-nums">
+                  <thead>
+                    <tr className="text-[10px] text-slate-500 border-b border-slate-800">
+                      <th className="text-left py-1 pr-2 font-normal" />
+                      <th className="text-right py-1 px-2 font-semibold text-emerald-400/90">Scenario 1 · with subsidy</th>
+                      <th className="text-right py-1 pl-2 font-semibold text-slate-400">Scenario 2 · without subsidy</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-slate-300">
+                    {rows.map((r) => (
+                      <tr key={r.k} className="border-b border-slate-800/40">
+                        <td className="py-1 pr-2 text-slate-500">{r.k}</td>
+                        <td className="py-1 px-2 text-right font-semibold text-slate-200">{r.s1}</td>
+                        <td className="py-1 pl-2 text-right">{r.s2}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="mt-1 text-[9px] text-slate-600">LCOE ({fmtIdr2(result.lcoe)}/kWh) is tariff-independent — identical in both scenarios.</p>
               </div>
             );
           })()}
