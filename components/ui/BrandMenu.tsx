@@ -36,6 +36,18 @@ const APP_GROUPS: { title: string | null; section: Section; apps: { href: string
 // Preferred order for the mobile bottom bar's primary slots
 const MOBILE_PRIORITY = ['/sales', '/products', '/catalog', '/quotes', '/customers', '/invoices', '/delivery', '/insights'];
 
+// Domain color language, used everywhere a module appears: buy-side is SKY
+// (the supplier/PI-PO color), sell-side is EMERALD (the house sell color),
+// projects is VIOLET (the project-quote accent). The nav teaches the split.
+const ACCENT: Record<string, { active: string; dot: string; label: string; tab: string }> = {
+  home:     { active: 'bg-white/10 text-white',              dot: 'bg-slate-300',   label: 'text-slate-600',    tab: 'text-white' },
+  buySide:  { active: 'bg-sky-500/15 text-sky-300',         dot: 'bg-sky-400',     label: 'text-sky-500/70',   tab: 'text-sky-300' },
+  sellSide: { active: 'bg-emerald-500/15 text-emerald-300', dot: 'bg-emerald-400', label: 'text-emerald-500/70', tab: 'text-emerald-300' },
+  projects: { active: 'bg-violet-500/15 text-violet-300',   dot: 'bg-violet-400',  label: 'text-violet-500/70', tab: 'text-violet-300' },
+};
+const accentOf = (section: Section) => ACCENT[section ?? 'home'];
+const GROUP_SHORT: Record<string, string> = { 'Buy side': 'Buy', 'Sell side': 'Sell', 'Projects': 'EPC' };
+
 const NAV_ICONS: Record<string, React.ReactNode> = {
   '/':          <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l9-9 9 9M5 10v10a1 1 0 001 1h3m10-11v10a1 1 0 01-1 1h-3m-6 0h6m-6 0v-6h6v6" />,
   '/catalog':   <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />,
@@ -66,12 +78,12 @@ export default function BrandMenu({
   // profile loads, show everything to avoid a nav flash.
   const perms = profile ? ROLE_PERMISSIONS[profile.role] : null;
   const groups = APP_GROUPS.filter((g) => !g.section || !perms || perms[g.section]);
-  const allLinks = groups.flatMap((g) => g.apps);
+  const allLinks = groups.flatMap((g) => g.apps.map((a) => ({ ...a, section: g.section })));
 
   // Mobile bottom bar: Home + the role's three primary modules + More
   const primary = MOBILE_PRIORITY
     .map((href) => allLinks.find((l) => l.href === href))
-    .filter((l): l is { href: string; label: string } => !!l)
+    .filter((l): l is { href: string; label: string; section: Section } => !!l)
     .slice(0, 3);
 
   // Reserve room under the page content for the fixed bottom bar (mobile only;
@@ -86,20 +98,21 @@ export default function BrandMenu({
     <>
       {groups.map((group, gi) => (
         <div key={gi} className={gi > 0 ? 'mt-1 pt-1 border-t border-slate-800/70' : ''}>
-          {group.title && <p className="px-2.5 pt-1 pb-1 text-[9px] uppercase tracking-widest text-slate-600">{group.title}</p>}
+          {group.title && <p className={`px-2.5 pt-1 pb-1 text-[9px] uppercase tracking-widest ${accentOf(group.section).label}`}>{group.title}</p>}
           {group.apps.map((a) => {
             const active = isActive(a.href);
+            const acc = accentOf(group.section);
             return (
               <Link
                 key={a.href}
                 href={a.href}
                 onClick={() => { setOpen(false); setMoreOpen(false); }}
                 className={`flex items-center justify-between px-2.5 py-2 rounded-lg text-sm transition-colors ${
-                  active ? 'bg-emerald-500/15 text-emerald-300' : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                  active ? acc.active : 'text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
               >
                 {a.label}
-                {active && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+                {active && <span className={`w-1.5 h-1.5 rounded-full ${acc.dot}`} />}
               </Link>
             );
           })}
@@ -172,20 +185,33 @@ export default function BrandMenu({
         )}
       </div>
 
-      {/* ── Desktop: persistent top-bar links — every module one click away ── */}
-      <nav className="hidden lg:flex items-center gap-0.5 min-w-0 overflow-x-auto scrollbar-none">
-        {allLinks.map((a) => {
-          const active = isActive(a.href);
+      {/* ── Desktop: persistent top-bar links, grouped by domain — the buy /
+             sell / projects split reads at a glance via dividers + colors ── */}
+      <nav className="hidden lg:flex items-center min-w-0 overflow-x-auto scrollbar-none">
+        {groups.map((group, gi) => {
+          const acc = accentOf(group.section);
           return (
-            <Link
-              key={a.href}
-              href={a.href}
-              className={`px-2.5 py-1.5 rounded-lg text-[13px] font-medium whitespace-nowrap transition-colors ${
-                active ? 'bg-emerald-500/15 text-emerald-300' : 'text-slate-400 hover:text-white hover:bg-white/[0.07]'
-              }`}
-            >
-              {a.label}
-            </Link>
+            <div key={gi} className={`flex items-center gap-0.5 ${gi > 0 ? 'ml-2 pl-2 border-l border-slate-800' : ''}`}>
+              {group.title && (
+                <span className={`mr-0.5 text-[8px] font-bold uppercase tracking-widest ${acc.label} select-none`}>
+                  {GROUP_SHORT[group.title] ?? group.title}
+                </span>
+              )}
+              {group.apps.map((a) => {
+                const active = isActive(a.href);
+                return (
+                  <Link
+                    key={a.href}
+                    href={a.href}
+                    className={`px-2.5 py-1.5 rounded-lg text-[13px] font-medium whitespace-nowrap transition-colors ${
+                      active ? acc.active : 'text-slate-400 hover:text-white hover:bg-white/[0.07]'
+                    }`}
+                  >
+                    {a.label}
+                  </Link>
+                );
+              })}
+            </div>
           );
         })}
       </nav>
@@ -194,11 +220,12 @@ export default function BrandMenu({
       {mobileNav && (
         <div className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-[#0f1012]/95 backdrop-blur-xl border-t border-slate-800/80" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
           <div className="flex items-stretch">
-            {[{ href: '/', label: 'Home' }, ...primary].map((a) => {
+            {[{ href: '/', label: 'Home', section: null as Section }, ...primary].map((a) => {
               const active = isActive(a.href);
+              const acc = accentOf(a.section);
               return (
                 <Link key={a.href} href={a.href}
-                  className={`flex-1 flex flex-col items-center gap-0.5 pt-2 pb-1.5 transition-colors ${active ? 'text-emerald-300' : 'text-slate-500 active:text-slate-300'}`}>
+                  className={`flex-1 flex flex-col items-center gap-0.5 pt-2 pb-1.5 transition-colors ${active ? acc.tab : 'text-slate-500 active:text-slate-300'}`}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">{NAV_ICONS[a.href] ?? NAV_ICONS['/']}</svg>
                   <span className="text-[10px] font-medium">{a.label}</span>
                 </Link>
