@@ -74,6 +74,42 @@ a separate product line and are *not* part of this distribution flow.)
 
 CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
 
+## Status (updated 2026-07-21)
+
+**Shipped and live on main:**
+- **Module 1 — CRM**: `20.0_customers` + `20.1_customer_contacts`, `/customers`
+  list + edit drawer + **profile drawer** (KPIs, linked documents, AR, most-ordered
+  items, EPC project quotes), CSV import/export, `sales` role, Spotlight wiring.
+- **Module 2 — pricing (partial)**: `21.0_price_tiers` + `21.1_item_tier_prices`
+  render on `/products` (tier price matrix per item). No dedicated tier-management
+  screen yet.
+- **Modules 4+5 — sell-side lifecycle (built ahead of sequence)**: `22.0/22.1`
+  sales quotes with milestone flow draft→validated→sent→accepted→**ordered (SO)**→
+  **invoiced (INV)**→**preparing (DO)**→delivered, revision counter, doc numbers
+  stamped by trigger (SQ/SO/INV/DO/RCPT), `22.2` description library,
+  `26.0_customer_receipts`, `/sales` `/invoices` `/delivery` pages, printable
+  quote/invoice + Surat Jalan (DO) print, delivery details (date/method/address/
+  contact). Sell-side never shows brand or supplier SKU (internal_description only).
+- **Stock (partial)**: `30.1_stock_balances` feeds Live/Physical/Reserved/Incoming
+  on `/products`. The movement **ledger (30.0) + GRN receive flow do NOT exist yet**.
+- **Vendor & customer 360**: `/suppliers` vendor profiles (purchase volume, quote→PO
+  conversion, outstanding); document graph — PI/PO/SO/INV/DO numbers are clickable
+  links everywhere (Deal Lookup / sales doc); EPC project quotes (`10.0`) carry
+  `customer_id` → CRM (picked in the quote editor's customer autocomplete).
+- **EPC**: collaborative delta-save editing with auto-merge + SENT locking; Energy
+  Simulation (verified LCOE model + PLN tariffs); customer-facing print annex.
+- **Platform**: grouped desktop nav + mobile bottom tabs (portaled), responsive
+  width caps (wider on 2xl monitors), Tailwind CDN theme in `app/layout.tsx`.
+
+**Next up (in order):**
+1. **Module 3 — stock ledger + GRN** (spec below): `30.0_stock_movements`,
+   moving-average landed cost via `computeTUC`, receive-against-PO screen;
+   rewire `30.1` to be trigger-maintained from the ledger.
+2. **Module 2 finish** — tier management UI (CRUD tiers, per-item overrides,
+   margin floor vs landed cost).
+3. **Module 6 — Item Economics dashboard** (GP/item, turnover, CCC) once the
+   ledger provides COGS.
+
 ## Locked architectural decisions
 
 - **Costing method: moving-average landed cost.** Valuation = running weighted-avg of landed cost (from `computeTUC`/GRN). Lot/serial tracking is a *later* enhancement (matters for panels/inverters and exact per-lot cash-cycle) — design the ledger so it can be added, but do not build it now.
