@@ -443,9 +443,11 @@ function CustomersInner() {
     <div className="min-h-screen bg-[#0f1012] text-slate-200 font-sans text-sm">
       {/* Header */}
       <div className="border-b border-slate-800/60 bg-[#0f1012]/80 backdrop-blur-md sticky top-0 z-30">
-        <div className="max-w-[1400px] 2xl:max-w-[1720px] mx-auto px-3 sm:px-4 md:px-8 py-4 flex items-center justify-between gap-4">
+        {/* Phones: wordmark row then actions row — side-by-side squeezes the
+            three buttons into the wordmark. sm+ keeps the single row. */}
+        <div className="max-w-[1400px] 2xl:max-w-[1720px] mx-auto px-3 sm:px-4 md:px-8 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4">
           <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Customers · CRM" />
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {canExport && (
               <button onClick={exportCsv}
                 title="Download the filtered customer list as CSV (includes primary contact)"
