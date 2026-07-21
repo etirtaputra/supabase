@@ -29,7 +29,7 @@ interface Comp {
 }
 interface Tier { tier_id: string; tier_code: string; name: string; default_discount_pct: number; sort_order: number; is_active: boolean; }
 interface Override { component_id: string; tier_id: string; override_price_idr: number | null; override_discount_pct: number | null; }
-interface DocRef { number: string; customer: string; qty: number; date: string; }
+interface DocRef { number: string; customer: string; qty: number; date: string; quote_id: string; }
 
 // PO statuses that mean "ordered, on the way, not yet arrived".
 const INCOMING_PO_STATUSES = new Set(['Sent', 'Confirmed', 'Partially Received']);
@@ -148,10 +148,10 @@ export default function ProductsPage() {
       const doc = docById.get(it.quote_id);
       if (!doc) continue;
       if (doc.order_number) {
-        (orders[cid] ??= []).push({ number: doc.order_number, customer: custName.get(doc.customer_id ?? '') ?? '', qty, date: doc.ordered_at ?? doc.updated_at ?? '' });
+        (orders[cid] ??= []).push({ number: doc.order_number, customer: custName.get(doc.customer_id ?? '') ?? '', qty, date: doc.ordered_at ?? doc.updated_at ?? '', quote_id: doc.quote_id });
       }
       if (doc.do_number) {
-        (deliveries[cid] ??= []).push({ number: doc.do_number, customer: custName.get(doc.customer_id ?? '') ?? '', qty, date: doc.delivered_at ?? doc.updated_at ?? '' });
+        (deliveries[cid] ??= []).push({ number: doc.do_number, customer: custName.get(doc.customer_id ?? '') ?? '', qty, date: doc.delivered_at ?? doc.updated_at ?? '', quote_id: doc.quote_id });
       }
     }
     const top10 = (m: Record<string, DocRef[]>) => {
@@ -764,12 +764,13 @@ function DocList({ title, empty, refs, accent, unit }: { title: string; empty: s
       ) : (
         <div className="rounded-lg border border-slate-800 bg-slate-950/50 divide-y divide-slate-800/60">
           {refs.map((r, i) => (
-            <div key={i} className="flex items-center gap-2.5 px-2.5 py-1.5 text-[11px]">
-              <span className={`font-mono flex-shrink-0 ${accent}`}>{r.number}</span>
+            <a key={i} href={`/sales/${r.quote_id}`}
+              className="flex items-center gap-2.5 px-2.5 py-1.5 text-[11px] hover:bg-slate-800/40 transition-colors">
+              <span className={`font-mono flex-shrink-0 hover:underline ${accent}`}>{r.number}</span>
               <span className="text-slate-400 truncate flex-1">{r.customer || '—'}</span>
               <span className="text-slate-300 tabular-nums flex-shrink-0">{fmtInt(r.qty)}{unit ? ` ${unit}` : ''}</span>
               <span className="text-slate-600 tabular-nums flex-shrink-0">{fmtDate(r.date)}</span>
-            </div>
+            </a>
           ))}
         </div>
       )}

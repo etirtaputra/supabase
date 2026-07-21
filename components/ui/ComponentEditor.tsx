@@ -3408,7 +3408,15 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                         <div key={item.quote_line_id} className="rounded-xl border border-slate-800 bg-slate-800/30 p-3">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0 flex-1">
-                              <p className="text-xs font-semibold font-mono text-blue-300 truncate">{(q?.pi_number as string) || `Quote ${item.quote_id}`}</p>
+                              {q?.pi_number ? (
+                                <a href={`/catalog?tab=lookup&q=${encodeURIComponent(q.pi_number as string)}`}
+                                  title="Open in Deal Lookup"
+                                  className="block text-xs font-semibold font-mono text-blue-300 truncate hover:text-blue-200 hover:underline">
+                                  {q.pi_number as string}
+                                </a>
+                              ) : (
+                                <p className="text-xs font-semibold font-mono text-blue-300 truncate">{`Quote ${item.quote_id}`}</p>
+                              )}
                               <p className="text-[11px] text-slate-300 mt-0.5 tabular-nums">
                                 {Number(item.quantity).toLocaleString('en-US')} × {Number(item.unit_price).toLocaleString('en-US')} {item.currency}
                               </p>
@@ -3417,7 +3425,9 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                                 <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
                                   {q?.quote_date && <span className="text-[10px] text-slate-600 tabular-nums">{q.quote_date as string}</span>}
                                   {linkedPos.map((p) => (
-                                    <span key={p} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">{p}</span>
+                                    <a key={p} href={`/catalog?tab=lookup&q=${encodeURIComponent(p)}`}
+                                      title="Open in Deal Lookup"
+                                      className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 hover:bg-emerald-500/20 hover:underline">{p}</a>
                                   ))}
                                 </div>
                               )}
@@ -4104,7 +4114,11 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                               <tbody className="divide-y divide-slate-800/60">
                                 {allQuoteLines.map((ql, i) => (
                                   <tr key={i} className="hover:bg-white/[0.02]">
-                                    <td className="px-3 py-1.5 font-mono text-blue-300">{ql.pi_number || '—'}</td>
+                                    <td className="px-3 py-1.5 font-mono text-blue-300">
+                                      {ql.pi_number
+                                        ? <a href={`/catalog?tab=lookup&q=${encodeURIComponent(ql.pi_number)}`} title="Open in Deal Lookup" className="hover:text-blue-200 hover:underline">{ql.pi_number}</a>
+                                        : '—'}
+                                    </td>
                                     <td className="px-3 py-1.5 text-slate-400">{fmtD(ql.quote_date)}</td>
                                     <td className="px-3 py-1.5 text-right text-slate-300 tabular-nums">{ql.quantity}</td>
                                     <td className="px-3 py-1.5 text-right text-blue-300 font-semibold tabular-nums">{fmtP(ql.unit_price, ql.currency)}</td>
@@ -4138,7 +4152,11 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                               <tbody className="divide-y divide-slate-800/60">
                                 {allPOLines.map((pl, i) => (
                                   <tr key={i} className="hover:bg-white/[0.02]">
-                                    <td className="px-3 py-1.5 font-mono text-emerald-300">{pl.po_number}</td>
+                                    <td className="px-3 py-1.5 font-mono text-emerald-300">
+                                      {pl.po_number
+                                        ? <a href={`/catalog?tab=lookup&q=${encodeURIComponent(pl.po_number)}`} title="Open in Deal Lookup" className="hover:text-emerald-200 hover:underline">{pl.po_number}</a>
+                                        : '—'}
+                                    </td>
                                     <td className="px-3 py-1.5 text-slate-400">{fmtD(pl.po_date)}</td>
                                     <td className="px-3 py-1.5 text-right text-slate-300 tabular-nums">{pl.quantity}</td>
                                     <td className="px-3 py-1.5 text-right text-amber-300 font-semibold tabular-nums">{fmtP(pl.unit_cost, pl.currency)}</td>

@@ -301,7 +301,7 @@ function itemPositions(secs: DraftSection[]): Map<string, ItemPos> {
 
 function headerFingerprint(q: ProjectQuote | null): string {
   if (!q) return '';
-  return JSON.stringify([q.quote_number, q.quote_date, q.company_id ?? null, q.customer_name, q.customer_address,
+  return JSON.stringify([q.quote_number, q.quote_date, q.company_id ?? null, q.customer_id ?? null, q.customer_name, q.customer_address,
     q.project_description, q.project_type ?? 'custom', q.system_specs ?? {}, q.location ?? '',
     String(q.ppn_pct), q.status, q.notes, q.group_margins ?? {}]);
 }
@@ -1094,9 +1094,19 @@ export default function QuoteEditorPage() {
   // Customer autocomplete: previously quoted customers, newest first, one
   // entry per name carrying the latest address used for that customer.
   const [pastCustomers, setPastCustomers] = useState<{ name: string; address: string }[]>([]);
+  const [crmCustomers, setCrmCustomers] = useState<{ customer_id: string; name: string; address: string }[]>([]);
   const [custAc, setCustAc] = useState<{ x: number; y: number; w: number } | null>(null);
 
   useEffect(() => {
+    // CRM customers link the quote into the customer's document graph
+    supabase.from('20.0_customers')
+      .select('customer_id, display_name, legal_name, billing_address, is_active')
+      .order('display_name')
+      .then(({ data }) => {
+        setCrmCustomers(((data ?? []) as { customer_id: string; display_name: string; legal_name: string; billing_address: string; is_active: boolean }[])
+          .filter((c) => c.is_active !== false)
+          .map((c) => ({ customer_id: c.customer_id, name: c.display_name || c.legal_name, address: c.billing_address ?? '' })));
+      });
     supabase.from('10.0_project_quotes')
       .select('quote_id, customer_name, customer_address, updated_at')
       .neq('customer_name', '')
@@ -1116,8 +1126,13 @@ export default function QuoteEditorPage() {
       });
   }, [id]);
 
-  function pickCustomer(c: { name: string; address: string }) {
-    setQuote((q) => q ? { ...q, customer_name: c.name, customer_address: c.address } : q);
+  function pickCustomer(c: { name: string; address: string; customer_id?: string }) {
+    setQuote((q) => q ? {
+      ...q,
+      customer_id: c.customer_id ?? null, // CRM pick links; a past-name pick stays unlinked
+      customer_name: c.name,
+      customer_address: c.address || q.customer_address,
+    } : q);
     markDirty();
     setCustAc(null);
   }
@@ -1365,6 +1380,7 @@ export default function QuoteEditorPage() {
           quote_number: quoteNow.quote_number,
           quote_date: quoteNow.quote_date,
           company_id: quoteNow.company_id ?? null,
+          customer_id: quoteNow.customer_id ?? null,
           customer_name: quoteNow.customer_name,
           customer_address: quoteNow.customer_address,
           project_description: quoteNow.project_description,
@@ -1822,9 +1838,14 @@ export default function QuoteEditorPage() {
             </select>
           </div>
           <div>
-            <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Customer</label>
+            <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">
+              Customer
+              {quote.customer_id && (
+                <span className="ml-1.5 normal-case tracking-normal px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-300 text-[9px] font-bold" title="Linked to a CRM customer — this quote shows on their profile. Typing a different name unlinks.">CRM ✓</span>
+              )}
+            </label>
             <input value={quote.customer_name}
-              onChange={(e) => setQuoteField('customer_name', e.target.value)}
+              onChange={(e) => { setQuote((q) => q ? { ...q, customer_name: e.target.value, customer_id: null } : q); markDirty(); }}
               onFocus={(e) => {
                 const r = e.target.getBoundingClientRect();
                 setCustAc({ x: r.left, y: r.bottom, w: Math.max(r.width, 320) });
@@ -1834,24 +1855,47 @@ export default function QuoteEditorPage() {
               placeholder="Customer name" className="w-full bg-transparent border-b border-slate-700 focus:border-violet-500 outline-none text-white py-1 text-sm placeholder:text-slate-600 transition-colors" />
             {custAc && (() => {
               const q = quote.customer_name.trim().toLowerCase();
-              const matches = (q ? pastCustomers.filter((c) => c.name.toLowerCase().includes(q)) : pastCustomers).slice(0, 8);
-              if (!matches.length) return null;
+              const crm = (q ? crmCustomers.filter((c) => c.name.toLowerCase().includes(q)) : crmCustomers).slice(0, 6);
+              const crmNames = new Set(crm.map((c) => c.name.toLowerCase()));
+              const matches = (q ? pastCustomers.filter((c) => c.name.toLowerCase().includes(q)) : pastCustomers)
+                .filter((c) => !crmNames.has(c.name.toLowerCase()))
+                .slice(0, 6);
+              if (!crm.length && !matches.length) return null;
               return (
                 <div
                   style={{ position: 'fixed', left: custAc.x, top: custAc.y + 6, width: custAc.w }}
                   className="z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1 max-h-64 overflow-y-auto"
                 >
-                  <p className="px-3 pt-1.5 pb-1 text-[9px] uppercase tracking-widest text-slate-600">Previous customers</p>
-                  {matches.map((c) => (
-                    <button
-                      key={c.name}
-                      onMouseDown={(e) => { e.preventDefault(); pickCustomer(c); }}
-                      className="block w-full text-left px-3 py-1.5 hover:bg-violet-500/20 transition-colors"
-                    >
-                      <span className="block text-xs text-slate-200">{c.name}</span>
-                      {c.address && <span className="block text-[10px] text-slate-500 truncate">{c.address}</span>}
-                    </button>
-                  ))}
+                  {crm.length > 0 && (
+                    <>
+                      <p className="px-3 pt-1.5 pb-1 text-[9px] uppercase tracking-widest text-emerald-500/70">CRM customers — picking links the quote</p>
+                      {crm.map((c) => (
+                        <button
+                          key={c.customer_id}
+                          onMouseDown={(e) => { e.preventDefault(); pickCustomer(c); }}
+                          className="block w-full text-left px-3 py-1.5 hover:bg-emerald-500/15 transition-colors"
+                        >
+                          <span className="block text-xs text-slate-200">{c.name} <span className="ml-1 px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-300 text-[9px] font-bold align-middle">CRM</span></span>
+                          {c.address && <span className="block text-[10px] text-slate-500 truncate">{c.address}</span>}
+                        </button>
+                      ))}
+                    </>
+                  )}
+                  {matches.length > 0 && (
+                    <>
+                      <p className={`px-3 pt-1.5 pb-1 text-[9px] uppercase tracking-widest text-slate-600 ${crm.length ? 'border-t border-slate-800 mt-1' : ''}`}>Previous customers</p>
+                      {matches.map((c) => (
+                        <button
+                          key={c.name}
+                          onMouseDown={(e) => { e.preventDefault(); pickCustomer(c); }}
+                          className="block w-full text-left px-3 py-1.5 hover:bg-violet-500/20 transition-colors"
+                        >
+                          <span className="block text-xs text-slate-200">{c.name}</span>
+                          {c.address && <span className="block text-[10px] text-slate-500 truncate">{c.address}</span>}
+                        </button>
+                      ))}
+                    </>
+                  )}
                 </div>
               );
             })()}

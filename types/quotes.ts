@@ -5,6 +5,7 @@ export interface ProjectQuote {
   quote_number: string;
   quote_date: string;
   company_id?: string | null;   // issuing company (1.0_companies)
+  customer_id?: string | null;  // CRM link (20.0_customers); free-text name stays the display source
   customer_name: string;
   customer_address: string;
   project_description: string;

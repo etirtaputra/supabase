@@ -63,10 +63,15 @@ interface SalesDoc {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
   status: string; grand_total: number; quote_date: string; updated_at?: string; revision?: number;
 }
+interface EpcQuote {
+  quote_id: string; quote_number: string; quote_date: string; status: string;
+  project_description: string; updated_at?: string;
+}
 interface ProfileData {
   docs: SalesDoc[];
   received: Record<string, number>;
   topItems: { desc: string; qty: number; value: number; unit: string; times: number }[];
+  epcQuotes: EpcQuote[];
 }
 
 const CURRENCIES = ['IDR', 'USD', 'EUR', 'CNY', 'SGD'];
@@ -145,10 +150,16 @@ function CustomersInner() {
   const openProfile = useCallback(async (c: Customer) => {
     setProfileFor(c);
     setProfileData(null);
-    const { data: docs } = await supabase.from('22.0_sales_quotes')
-      .select('quote_id, quote_number, order_number, invoice_number, do_number, status, grand_total, quote_date, updated_at, revision')
-      .eq('customer_id', c.customer_id)
-      .order('updated_at', { ascending: false });
+    const [{ data: docs }, { data: epc }] = await Promise.all([
+      supabase.from('22.0_sales_quotes')
+        .select('quote_id, quote_number, order_number, invoice_number, do_number, status, grand_total, quote_date, updated_at, revision')
+        .eq('customer_id', c.customer_id)
+        .order('updated_at', { ascending: false }),
+      supabase.from('10.0_project_quotes')
+        .select('quote_id, quote_number, quote_date, status, project_description, updated_at')
+        .eq('customer_id', c.customer_id)
+        .order('updated_at', { ascending: false }),
+    ]);
     const list = (docs as SalesDoc[]) ?? [];
     const ids = list.map((d) => d.quote_id);
     const received: Record<string, number> = {};
@@ -176,7 +187,7 @@ function CustomersInner() {
       }
     }
     const topItems = [...agg.values()].sort((a, b) => b.value - a.value).slice(0, 6);
-    setProfileData({ docs: list, received, topItems });
+    setProfileData({ docs: list, received, topItems, epcQuotes: (epc as EpcQuote[]) ?? [] });
   }, [supabase]);
 
   const flash = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
@@ -767,6 +778,33 @@ function ProfileDrawer({ customer, data, contacts, amName, tierName, onClose, on
                 </div>
               )}
             </section>
+
+            {/* EPC project quotes (10.x) linked to this customer via customer_id */}
+            {data.epcQuotes.length > 0 && (
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">Project quotes (EPC)</h3>
+                <div className="rounded-xl border border-violet-500/25 bg-violet-500/[0.04] divide-y divide-slate-800/60">
+                  {data.epcQuotes.map((q) => (
+                    <a key={q.quote_id} href={`/quotes/${q.quote_id}`}
+                      className="block px-3 py-2.5 hover:bg-slate-800/40 transition-colors">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-[11px] text-violet-300">{q.quote_number}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                          q.status === 'accepted' ? 'bg-emerald-500/20 text-emerald-300'
+                          : q.status === 'sent' ? 'bg-sky-500/15 text-sky-300'
+                          : q.status === 'rejected' ? 'bg-red-500/10 text-red-400/90'
+                          : 'bg-slate-700/50 text-slate-300'
+                        }`}>{q.status}</span>
+                        <span className="ml-auto text-[10px] text-slate-600 tabular-nums">{fmtD(q.updated_at || q.quote_date)}</span>
+                      </div>
+                      {q.project_description && (
+                        <p className="mt-1 text-[10px] text-slate-500 truncate">{q.project_description}</p>
+                      )}
+                    </a>
+                  ))}
+                </div>
+              </section>
+            )}
 
             {/* After-sales services — module not built yet, reserved here */}
             <section>
