@@ -30,7 +30,9 @@ interface Customer { customer_id: string; display_name: string; legal_name: stri
 interface Company { company_id: string; legal_name: string; }
 interface Tier { tier_id: string; tier_code: string; default_discount_pct: number; }
 interface Override { component_id: string; tier_id: string; override_price_idr: number | null; override_discount_pct: number | null; }
-interface Comp { component_id: string; supplier_model: string; internal_description: string | null; brand: string | null; unit: string | null; selling_price_idr: number | null; }
+// Brand is deliberately NOT fetched here — it's buy-side vendor info; the
+// customer-facing description already carries the brand when it should.
+interface Comp { component_id: string; supplier_model: string; internal_description: string | null; unit: string | null; selling_price_idr: number | null; }
 // Customer-facing product name: our internal description, never the supplier MODEL/SKU.
 const compName = (c?: Comp | null) => (c?.internal_description?.trim() || c?.supplier_model || '');
 interface Receipt {
@@ -109,7 +111,7 @@ export default function SalesQuotePage() {
       supabase.from('1.0_companies').select('company_id, legal_name').order('legal_name'),
       supabase.from('21.0_price_tiers').select('tier_id, tier_code, default_discount_pct'),
       supabase.from('21.1_item_tier_prices').select('component_id, tier_id, override_price_idr, override_discount_pct'),
-      supabase.from('3.0_components').select('component_id, supplier_model, internal_description, brand, unit, selling_price_idr').order('supplier_model').limit(2000),
+      supabase.from('3.0_components').select('component_id, supplier_model, internal_description, unit, selling_price_idr').order('supplier_model').limit(2000),
       supabase.from('30.1_stock_balances').select('component_id, qty_on_hand'),
       supabase.from('22.0_sales_quotes').select('quote_id, status'),
       supabase.from('22.1_sales_quote_items').select('quote_id, component_id, quantity, is_section'),
@@ -174,11 +176,41 @@ export default function SalesQuotePage() {
   const addItem = () => setLines((ls) => [...ls, blankLine()]);
   const addSection = () => setLines((ls) => [...ls, { ...blankLine(), is_section: true }]);
 
+  // ── Drag & drop reordering ─────────────────────────────────────────────────
+  // Native HTML5 DnD. Dropping on a line inserts before it; a section drags as
+  // a block (header + its items, up to the next section). Order persists via
+  // sort_order on save.
+  const [dragKey, setDragKey] = useState<string | null>(null);
+  const [dropKey, setDropKey] = useState<string | null>(null); // line key or '__end__'
+
+  function blockOf(ls: EditLine[], key: string): [number, number] {
+    const i = ls.findIndex((l) => l.key === key);
+    if (i < 0) return [-1, -1];
+    if (!ls[i].is_section) return [i, i + 1];
+    let j = i + 1;
+    while (j < ls.length && !ls[j].is_section) j++;
+    return [i, j];
+  }
+
+  function moveLines(fromKey: string, toKey: string) {
+    setLines((ls) => {
+      const [s, e] = blockOf(ls, fromKey);
+      if (s < 0) return ls;
+      const block = ls.slice(s, e);
+      const rest = [...ls.slice(0, s), ...ls.slice(e)];
+      const insert = toKey === '__end__' ? rest.length : rest.findIndex((l) => l.key === toKey);
+      if (insert < 0) return ls; // target was inside the dragged block
+      return [...rest.slice(0, insert), ...block, ...rest.slice(insert)];
+    });
+  }
+
+  const endDrag = () => { setDragKey(null); setDropKey(null); };
+
   function pickComponent(key: string, comp: Comp) {
     const price = priceFor(comp.component_id);
     setLines((ls) => ls.map((l) => (l.key === key ? {
       ...l, component_id: comp.component_id, description: compName(comp) || l.description,
-      brand: comp.brand ?? l.brand, unit: comp.unit || l.unit,
+      unit: comp.unit || l.unit,
       unit_price: price != null ? String(Math.round(price)) : l.unit_price, quantity: l.quantity || '1',
     } : l)));
   }
@@ -359,10 +391,29 @@ export default function SalesQuotePage() {
 
         <div className="space-y-2">
           {lines.map((l) => (
-            <LineCard key={l.key} line={l} comps={comps} available={availableOf(l.component_id)}
-              linkedName={l.component_id ? compName(compById.get(l.component_id)) : ''}
-              onPick={(c) => pickComponent(l.key, c)} onField={(patch) => setLine(l.key, patch)} onRemove={() => removeLine(l.key)} />
+            <div
+              key={l.key}
+              onDragOver={(e) => { if (dragKey && dragKey !== l.key) { e.preventDefault(); setDropKey(l.key); } }}
+              onDragLeave={() => setDropKey((k) => (k === l.key ? null : k))}
+              onDrop={(e) => { e.preventDefault(); if (dragKey) moveLines(dragKey, l.key); endDrag(); }}
+              className={`rounded-xl transition-shadow ${dropKey === l.key ? 'ring-1 ring-violet-500/70' : ''} ${dragKey === l.key ? 'opacity-50' : ''}`}
+            >
+              <LineCard line={l} comps={comps} available={availableOf(l.component_id)}
+                linkedName={l.component_id ? compName(compById.get(l.component_id)) : ''}
+                onPick={(c) => pickComponent(l.key, c)} onField={(patch) => setLine(l.key, patch)} onRemove={() => removeLine(l.key)}
+                onDragStart={() => setDragKey(l.key)} onDragEnd={endDrag} />
+            </div>
           ))}
+          {dragKey && (
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDropKey('__end__'); }}
+              onDragLeave={() => setDropKey((k) => (k === '__end__' ? null : k))}
+              onDrop={(e) => { e.preventDefault(); if (dragKey) moveLines(dragKey, '__end__'); endDrag(); }}
+              className={`h-9 rounded-xl border border-dashed flex items-center justify-center text-[10px] transition-colors ${dropKey === '__end__' ? 'border-violet-500 bg-violet-500/10 text-violet-300' : 'border-slate-800 text-slate-600'}`}
+            >
+              Drop here to move to the end
+            </div>
+          )}
           <div className="flex flex-wrap gap-2 pt-1">
             <button onClick={addItem} className="px-3.5 py-2 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs font-semibold transition-colors">+ Add item</button>
             <button onClick={addSection} className="px-3.5 py-2 rounded-xl bg-slate-800/60 text-slate-300 hover:bg-slate-700 text-xs font-semibold transition-colors">+ Add section</button>
@@ -444,13 +495,30 @@ function Toast({ msg }: { msg: string }) {
   return <div className="fixed bottom-6 right-6 z-[110] px-4 py-2.5 bg-slate-800 border border-slate-700 text-white text-sm font-semibold rounded-xl shadow-lg">{msg}</div>;
 }
 
-function LineCard({ line, comps, available, linkedName, onPick, onField, onRemove }: {
+const GRIP = (
+  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" /><circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" /><circle cx="9" cy="18" r="1.5" /><circle cx="15" cy="18" r="1.5" /></svg>
+);
+
+function LineCard({ line, comps, available, linkedName, onPick, onField, onRemove, onDragStart, onDragEnd }: {
   line: EditLine; comps: Comp[]; available: number | null; linkedName: string;
   onPick: (c: Comp) => void; onField: (patch: Partial<EditLine>) => void; onRemove: () => void;
+  onDragStart: () => void; onDragEnd: () => void;
 }) {
+  const grip = (title: string) => (
+    <span
+      draggable
+      onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
+      onDragEnd={onDragEnd}
+      title={title}
+      className="cursor-grab active:cursor-grabbing text-slate-600 hover:text-slate-300 flex-shrink-0 select-none -ml-1"
+    >
+      {GRIP}
+    </span>
+  );
   if (line.is_section) {
     return (
       <div className="flex flex-wrap items-center gap-2 bg-emerald-500/[0.06] border border-emerald-500/20 border-l-2 border-l-emerald-500/50 rounded-xl px-3 py-2.5 mt-3">
+        {grip('Drag to move this section together with its items')}
         <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-500/70 flex-shrink-0">Section</span>
         <input value={line.description} onChange={(e) => onField({ description: e.target.value })} placeholder="Section title (e.g. Solar Panels)"
           className="flex-1 min-w-[140px] bg-transparent outline-none text-sm font-bold text-slate-100 placeholder:text-slate-600" />
@@ -469,6 +537,7 @@ function LineCard({ line, comps, available, linkedName, onPick, onField, onRemov
     <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl px-3 py-2.5">
       {/* One aligned row on desktop: product grows, numbers in fixed columns */}
       <div className="flex flex-col lg:flex-row lg:items-end gap-2">
+        <div className="hidden lg:flex items-center self-center">{grip('Drag to reorder')}</div>
         <div className="flex-1 min-w-0">
           <LabeledField label="Product / description">
             <ProductAutocomplete comps={comps} value={line.description} onText={(t) => onField({ description: t })} onPick={onPick} />
@@ -681,7 +750,7 @@ function ProductAutocomplete({ comps, value, onText, onPick }: { comps: Comp[]; 
   const [active, setActive] = useState(-1);
   const results = useMemo(() => {
     const s = value.trim().toLowerCase();
-    const list = s ? comps.filter((c) => `${c.internal_description ?? ''} ${c.supplier_model} ${c.brand ?? ''}`.toLowerCase().includes(s)) : comps;
+    const list = s ? comps.filter((c) => `${c.internal_description ?? ''} ${c.supplier_model}`.toLowerCase().includes(s)) : comps;
     return list.slice(0, 25);
   }, [comps, value]);
   useEffect(() => { setActive(-1); }, [value]);
@@ -704,7 +773,7 @@ function ProductAutocomplete({ comps, value, onText, onPick }: { comps: Comp[]; 
             <button key={c.component_id} onMouseDown={(e) => { e.preventDefault(); onPick(c); setOpen(false); }}
               className={`w-full text-left px-3 py-1.5 text-xs border-b border-slate-800/50 last:border-0 ${i === active ? 'bg-emerald-600/30 text-white' : 'hover:bg-slate-800 text-slate-300'}`}>
               <span className="block truncate">{compName(c)}</span>
-              <span className="block text-[10px] text-slate-500 truncate">{[c.brand, c.unit, c.selling_price_idr ? `Rp${fmtInt(c.selling_price_idr)}` : ''].filter(Boolean).join(' · ')}</span>
+              <span className="block text-[10px] text-slate-500 truncate">{[c.unit, c.selling_price_idr ? `Rp${fmtInt(c.selling_price_idr)}` : ''].filter(Boolean).join(' · ')}</span>
             </button>
           ))}
         </div>
