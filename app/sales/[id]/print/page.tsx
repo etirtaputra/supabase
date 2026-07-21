@@ -88,16 +88,15 @@ export default function SalesPrintPage() {
   const outstanding = Math.max(0, grandTotal - received);
   const fullyPaid = grandTotal > 0 && received >= grandTotal - 0.5;
 
-  const colCount = 1 + (cols.brand ? 1 : 0) + (cols.qty ? 1 : 0) + (cols.unit ? 1 : 0) + (cols.price ? 1 : 0) + (cols.amount ? 1 : 0);
+  // No. + Items + optional columns
+  const colCount = 2 + (cols.qty ? 1 : 0) + (cols.unit ? 1 : 0) + (cols.price ? 1 : 0) + (cols.amount ? 1 : 0);
 
-  // Subtotal for the section starting at index `from` (until the next header).
-  const sectionSubtotal = (from: number) => {
-    let sum = 0;
-    for (let j = from + 1; j < lines.length && !lines[j].is_section; j++) {
-      sum += (Number(lines[j].quantity) || 0) * (Number(lines[j].unit_price) || 0);
-    }
-    return sum;
-  };
+  // Continuous item numbering across the document (sections don't count/reset)
+  const itemNo = new Map<string, number>();
+  {
+    let n = 0;
+    for (const l of lines) if (!l.is_section) itemNo.set(l.item_id, ++n);
+  }
 
   return (
     <>
@@ -128,7 +127,6 @@ export default function SalesPrintPage() {
         tbody tr.item-row td:first-child { color: #1f2937; }
         tbody tr.note-row td { padding: 0 1.5mm 1.7mm; border-bottom: 0.4pt solid #e8edf3; color: #64748b; font-size: 8.5pt; font-style: italic; }
         td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-        tbody tr.subtotal-row td { padding: 1.6mm 1.5mm; text-align: right; font-weight: 650; color: #1f5aa8; font-size: 8.5pt; background: #f6f9fc; }
         .totals-wrap { display: flex; justify-content: flex-end; margin-top: 5mm; }
         .totals { width: 88mm; }
         .totals-row { display: flex; justify-content: space-between; padding: 1.4mm 3mm; font-size: 9.5pt; color: #475569; border-bottom: 0.4pt solid #e8edf3; font-variant-numeric: tabular-nums; }
@@ -176,8 +174,8 @@ export default function SalesPrintPage() {
         <table>
           <thead>
             <tr>
+              <th style={{ width: '28px' }}>No.</th>
               <th>Items</th>
-              {cols.brand && <th style={{ width: '75px' }}>Brand</th>}
               {cols.qty && <th className="right" style={{ width: '55px' }}>Qty</th>}
               {cols.unit && <th style={{ width: '55px' }}>Unit</th>}
               {cols.price && <th className="right" style={{ width: '95px' }}>Harga</th>}
@@ -185,23 +183,19 @@ export default function SalesPrintPage() {
             </tr>
           </thead>
           <tbody>
-            {lines.map((l, idx) => {
+            {lines.map((l) => {
               if (l.is_section) {
                 return (
-                  <React.Fragment key={l.item_id}>
-                    <tr className="group-row"><td colSpan={colCount}>{l.description}{cols.lead && l.lead_time ? <span className="lead-tag"> · lead time {l.lead_time}</span> : null}</td></tr>
-                    {cols.amount && (
-                      <tr className="subtotal-row"><td colSpan={colCount}>Subtotal {l.description}: {fmtIdr(sectionSubtotal(idx))}</td></tr>
-                    )}
-                  </React.Fragment>
+                  // Sections are separators only — no per-section subtotal
+                  <tr key={l.item_id} className="group-row"><td colSpan={colCount}>{l.description}{cols.lead && l.lead_time ? <span className="lead-tag"> · lead time {l.lead_time}</span> : null}</td></tr>
                 );
               }
               const amt = (Number(l.quantity) || 0) * (Number(l.unit_price) || 0);
               return (
                 <React.Fragment key={l.item_id}>
                   <tr className="item-row">
+                    <td style={{ color: '#94a3b8' }} className="num">{itemNo.get(l.item_id)}</td>
                     <td>{l.description || '—'}</td>
-                    {cols.brand && <td style={{ color: '#64748b' }}>{l.brand}</td>}
                     {cols.qty && <td className="num">{Number(l.quantity).toLocaleString('en-US')}</td>}
                     {cols.unit && <td style={{ color: '#64748b', whiteSpace: 'nowrap' }}>{l.unit}</td>}
                     {cols.price && <td className="num">{fmtIdr(Number(l.unit_price))}</td>}

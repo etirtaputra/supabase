@@ -3,7 +3,6 @@
  * Persisted in localStorage so the choice sticks across quotes.
  */
 export interface SalesExportCols {
-  brand: boolean;
   qty: boolean;
   unit: boolean;
   price: boolean;   // unit price column (Harga)
@@ -12,12 +11,11 @@ export interface SalesExportCols {
   lead: boolean;    // lead-time tag on section headers
 }
 
-export const DEFAULT_SALES_COLS: SalesExportCols = { brand: false, qty: true, unit: true, price: true, amount: true, notes: true, lead: true };
+export const DEFAULT_SALES_COLS: SalesExportCols = { qty: true, unit: true, price: true, amount: true, notes: true, lead: true };
 
-export const SALES_COL_KEYS = ['qty', 'unit', 'price', 'amount', 'brand', 'notes', 'lead'] as const;
+export const SALES_COL_KEYS = ['qty', 'unit', 'price', 'amount', 'notes', 'lead'] as const;
 
 export const SALES_COL_LABELS: Record<keyof SalesExportCols, string> = {
-  brand: 'Brand',
   qty: 'Qty',
   unit: 'Unit',
   price: 'Unit price',
