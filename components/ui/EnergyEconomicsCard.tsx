@@ -14,23 +14,35 @@ import { computeEnergyEconomics, fmtPayback, ECON_DEFAULTS, PLN_TARIFF_OPTIONS, 
 const fmtIdr = (v: number) => 'Rp' + Math.round(v).toLocaleString('en-US');
 const fmtIdr2 = (v: number) => 'Rp' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+/**
+ * Numeric input that allows decimals while typing. A controlled input backed
+ * directly by the parsed number can never hold intermediate states like
+ * "0." (it re-renders as "0" and the dot vanishes — decimals become
+ * untypeable). While focused, the raw string lives in a local draft; the
+ * parsed number (comma or dot decimal) flows up on every valid keystroke.
+ */
 function Field({ label, unit, value, placeholder, onChange, disabled }: {
   label: string; unit: string; value: number | null | undefined;
   placeholder?: string; onChange: (v: number | null) => void; disabled?: boolean;
 }) {
+  const [draft, setDraft] = useState<string | null>(null); // null = not editing
   return (
     <label className="block">
       <span className="block text-[10px] text-slate-500 mb-0.5">{label}</span>
       <span className="flex items-center gap-1">
         <input
-          value={value ?? ''}
+          value={draft ?? (value ?? '')}
           inputMode="decimal"
           disabled={disabled}
           placeholder={placeholder}
+          onFocus={() => setDraft(value != null ? String(value) : '')}
+          onBlur={() => setDraft(null)}
           onChange={(e) => {
-            const raw = e.target.value.trim();
-            if (raw === '') { onChange(null); return; }
-            const v = Number(raw);
+            const raw = e.target.value;
+            setDraft(raw);
+            const t = raw.trim();
+            if (t === '') { onChange(null); return; }
+            const v = Number(t.replace(',', '.')); // accept 0,7 as well as 0.7
             if (!isNaN(v)) onChange(v);
           }}
           className="w-full bg-slate-950/60 border border-slate-700 focus:border-emerald-500/60 rounded-lg px-2 py-1.5 text-xs text-white text-right tabular-nums outline-none transition-colors disabled:opacity-50 placeholder:text-slate-600"
@@ -46,6 +58,7 @@ function TariffRow({ label, hint, valueLabel, value, placeholder, onPick }: {
   valueLabel: string; value: number | null | undefined; placeholder: string;
   onPick: (value: number | null, label: string) => void;
 }) {
+  const [draft, setDraft] = useState<string | null>(null); // decimal-safe while typing
   return (
     <label className="block mb-2.5">
       <span className="block text-[10px] text-slate-500 mb-0.5">
@@ -67,14 +80,18 @@ function TariffRow({ label, hint, valueLabel, value, placeholder, onPick }: {
           ))}
         </select>
         <input
-          value={value ?? ''}
+          value={draft ?? (value ?? '')}
           inputMode="decimal"
           placeholder={placeholder}
           title="Override with any Rp/kWh (e.g. blended WBP/LWBP or PPA rate) — typing switches the picker to Custom"
+          onFocus={() => setDraft(value != null ? String(value) : '')}
+          onBlur={() => setDraft(null)}
           onChange={(e) => {
-            const raw = e.target.value.trim();
-            if (raw === '') { onPick(null, ''); return; }
-            const v = Number(raw);
+            const raw = e.target.value;
+            setDraft(raw);
+            const t = raw.trim();
+            if (t === '') { onPick(null, ''); return; }
+            const v = Number(t.replace(',', '.'));
             if (!isNaN(v)) onPick(v, '');
           }}
           className="w-28 flex-shrink-0 bg-slate-950/60 border border-slate-700 focus:border-emerald-500/60 rounded-lg px-2 py-1.5 text-xs text-white text-right tabular-nums outline-none transition-colors placeholder:text-slate-600"
