@@ -1321,7 +1321,26 @@ export default function QuoteEditorPage() {
     if (locked) { setSaveMsg('Locked: SENT quotes can only be edited by an Owner'); return; }
     setSaving(true);
     try {
-      // 0. Sync: fold in whatever colleagues saved since our last sync
+      // 0a. SENT check against the DATABASE, not this tab's memory: a quote
+      // sent while this tab was open must lock here too (RLS already blocks
+      // non-owners server-side; this makes it clear instead of erroring).
+      const { data: liveStatus } = await supabase
+        .from('10.0_project_quotes').select('status').eq('quote_id', quoteRef.current.quote_id).single();
+      if (liveStatus?.status === 'sent' && quoteRef.current.status !== 'sent') {
+        if (!isOwner) {
+          setQuote((q) => q ? { ...q, status: 'sent' } : q); // lock this tab
+          setSaving(false);
+          setSaveMsg('Not saved — this quote was SENT while you had it open. It is now locked.');
+          return;
+        }
+        const ok = window.confirm(
+          'This quote was marked SENT while you had it open — it is locked in.\n\n' +
+          'As Owner you may still change it. Save your changes to the SENT quote?'
+        );
+        if (!ok) { setSaving(false); setSaveMsg('Not saved — quote is SENT'); return; }
+        setQuote((q) => q ? { ...q, status: 'sent' } : q); // keep it sent; don't un-send via stale header
+      }
+      // 0b. Sync: fold in whatever colleagues saved since our last sync
       const pre = await mergeRemote();
       if (pre.remoteChanged && pre.conflicts > 0) {
         const ok = window.confirm(
@@ -1331,7 +1350,9 @@ export default function QuoteEditorPage() {
         if (!ok) { setSaving(false); setSaveMsg('Not saved'); return; }
       }
       const live = pre.merged;                 // post-merge working state
-      const quoteNow = pre.header ?? quoteRef.current;
+      let quoteNow = pre.header ?? quoteRef.current;
+      // A stale tab must never un-send a sent quote via its header write
+      if (liveStatus?.status === 'sent' && quoteNow.status !== 'sent') quoteNow = { ...quoteNow, status: 'sent' };
       const base = baseRef.current;
       const basePos = itemPositions(base);
 
