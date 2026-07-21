@@ -1,6 +1,6 @@
 'use client';
 import { useMemo, useState } from 'react';
-import { computeEnergyEconomics, ECON_DEFAULTS, type EconAssumptions } from '@/lib/energyEconomics';
+import { computeEnergyEconomics, ECON_DEFAULTS, PLN_TARIFF_OPTIONS, PLN_TARIFF_PERIOD, type EconAssumptions } from '@/lib/energyEconomics';
 
 /**
  * "Energy Economics" card on the Project Quote editor (on-grid & hybrid).
@@ -99,8 +99,41 @@ export default function EnergyEconomicsCard({ econ, onChange, capexIdr, dcKwp, h
               placeholder={String(ECON_DEFAULTS.yearly_deg_pct)} onChange={(v) => onChange({ yearly_deg_pct: v ?? undefined })} />
             <Field label="System lifetime" unit="years" value={a.lifetime_years}
               placeholder={String(ECON_DEFAULTS.lifetime_years)} onChange={(v) => onChange({ lifetime_years: v ?? undefined })} />
-            <Field label="PLN tariff" unit="Rp/kWh" value={a.pln_tariff}
-              placeholder={String(ECON_DEFAULTS.pln_tariff)} onChange={(v) => onChange({ pln_tariff: v ?? undefined })} />
+            <label className="block col-span-2">
+              <span className="block text-[10px] text-slate-500 mb-0.5" title={PLN_TARIFF_PERIOD}>
+                PLN tariff <span className="text-slate-600">— {PLN_TARIFF_PERIOD}</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <select
+                  value={a.pln_tariff_label ?? ''}
+                  onChange={(e) => {
+                    const opt = PLN_TARIFF_OPTIONS.find((o) => o.label === e.target.value);
+                    if (opt) onChange({ pln_tariff: opt.value, pln_tariff_label: opt.label });
+                    else onChange({ pln_tariff_label: '' }); // custom — keep the typed number
+                  }}
+                  className="flex-1 min-w-0 bg-slate-950/60 border border-slate-700 focus:border-emerald-500/60 rounded-lg px-2 py-1.5 text-xs text-white outline-none transition-colors"
+                >
+                  <option value="">Custom rate…</option>
+                  {PLN_TARIFF_OPTIONS.map((o) => (
+                    <option key={o.label} value={o.label}>{o.label} — Rp{o.value.toLocaleString('en-US', { minimumFractionDigits: 2 })}</option>
+                  ))}
+                </select>
+                <input
+                  value={a.pln_tariff ?? ''}
+                  inputMode="decimal"
+                  placeholder={String(ECON_DEFAULTS.pln_tariff)}
+                  title="Override with any Rp/kWh (e.g. blended WBP/LWBP or PPA rate) — typing switches the picker to Custom"
+                  onChange={(e) => {
+                    const raw = e.target.value.trim();
+                    if (raw === '') { onChange({ pln_tariff: undefined, pln_tariff_label: '' }); return; }
+                    const v = Number(raw);
+                    if (!isNaN(v)) onChange({ pln_tariff: v, pln_tariff_label: '' });
+                  }}
+                  className="w-24 bg-slate-950/60 border border-slate-700 focus:border-emerald-500/60 rounded-lg px-2 py-1.5 text-xs text-white text-right tabular-nums outline-none transition-colors placeholder:text-slate-600"
+                />
+                <span className="text-[9px] text-slate-600 whitespace-nowrap">Rp/kWh</span>
+              </span>
+            </label>
             <Field label="Tariff inflation" unit="%/yr" value={a.tariff_inflation_pct}
               placeholder={String(ECON_DEFAULTS.tariff_inflation_pct)} onChange={(v) => onChange({ tariff_inflation_pct: v ?? undefined })} />
             <Field label="Hurdle rate" unit="%" value={a.hurdle_rate_pct}
@@ -124,30 +157,33 @@ export default function EnergyEconomicsCard({ econ, onChange, capexIdr, dcKwp, h
           )}
 
           {/* Headline results */}
-          {result && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2.5 border-t border-slate-800/60">
-              <div>
-                <p className="text-[10px] text-slate-500">LCOE</p>
-                <p className={`text-sm font-bold tabular-nums ${result.economical ? 'text-emerald-400' : 'text-red-400'}`}>{fmtIdr2(result.lcoe)}<span className="text-[10px] font-normal text-slate-500">/kWh</span></p>
-                <p className="text-[9px] text-slate-600">vs PLN {fmtIdr2(a.pln_tariff ?? ECON_DEFAULTS.pln_tariff)} — {result.economical ? 'cheaper than grid ✓' : 'above grid ✗'}</p>
+          {result && (() => {
+            const life = a.lifetime_years ?? ECON_DEFAULTS.lifetime_years;
+            return (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2.5 border-t border-slate-800/60">
+                <div>
+                  <p className="text-[10px] text-slate-500">LCOE · over {life} years</p>
+                  <p className={`text-sm font-bold tabular-nums ${result.economical ? 'text-emerald-400' : 'text-red-400'}`}>{fmtIdr2(result.lcoe)}<span className="text-[10px] font-normal text-slate-500">/kWh</span></p>
+                  <p className="text-[9px] text-slate-600">vs PLN {fmtIdr2(a.pln_tariff ?? ECON_DEFAULTS.pln_tariff)} — {result.economical ? 'cheaper than grid ✓' : 'above grid ✗'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-500">NPV @ {(a.hurdle_rate_pct ?? ECON_DEFAULTS.hurdle_rate_pct)}% · over {life} years</p>
+                  <p className={`text-sm font-bold tabular-nums ${result.npv >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtIdr(result.npv)}</p>
+                  <p className="text-[9px] text-slate-600">IRR {result.irr != null ? `${(result.irr * 100).toFixed(1)}%` : '—'} over {life} years</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-500">Payback</p>
+                  <p className="text-sm font-bold text-white tabular-nums">{result.paybackYears != null ? `${result.paybackYears} yrs` : '—'}</p>
+                  <p className="text-[9px] text-slate-600">cumulative cash flow turns positive</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-500">Savings · over {life} years</p>
+                  <p className="text-sm font-bold text-white tabular-nums">{fmtIdr(result.costAvoided)}</p>
+                  <p className="text-[9px] text-slate-600">{Math.round(result.lifetimeKwh).toLocaleString('en-US')} kWh generated over {life} years</p>
+                </div>
               </div>
-              <div>
-                <p className="text-[10px] text-slate-500">NPV @ {(a.hurdle_rate_pct ?? ECON_DEFAULTS.hurdle_rate_pct)}%</p>
-                <p className={`text-sm font-bold tabular-nums ${result.npv >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtIdr(result.npv)}</p>
-                <p className="text-[9px] text-slate-600">IRR {result.irr != null ? `${(result.irr * 100).toFixed(1)}%` : '—'}</p>
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-500">Payback</p>
-                <p className="text-sm font-bold text-white tabular-nums">{result.paybackYears != null ? `${result.paybackYears} yrs` : '—'}</p>
-                <p className="text-[9px] text-slate-600">cumulative cash flow turns positive</p>
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-500">Lifetime</p>
-                <p className="text-sm font-bold text-white tabular-nums">{Math.round(result.lifetimeKwh).toLocaleString('en-US')} kWh</p>
-                <p className="text-[9px] text-slate-600">avoids {fmtIdr(result.costAvoided)}</p>
-              </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Year-by-year table (collapsed by default in the editor; always full on the PDF) */}
           {result && (

@@ -32,6 +32,10 @@ export default function PrintPage() {
   const [wpMap, setWpMap] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
 
+  // Include the energy-analysis annex? Defaults to the quote's own setting
+  // (Energy Economics card → "Include in proposal PDF"); overridable here.
+  const [showEcon, setShowEcon] = useState<boolean | null>(null);
+
   // Column choices (shared with the editor's Excel export via localStorage)
   const [cols, setCols] = useState<ExportCols>(DEFAULT_EXPORT_COLS);
   useEffect(() => { setCols(loadExportCols()); }, []);
@@ -130,10 +134,12 @@ export default function PrintPage() {
   const econAssump = specs.econ ?? null;
   const econHybrid = quote.project_type === 'hybrid_bess';
   const econDcKwp = totalWp > 0 ? totalWp / 1000 : (specs.kwp_dc ?? 0);
-  const econ = (quote.project_type === 'on_grid' || econHybrid) && econAssump?.enabled !== false
+  const econ = (quote.project_type === 'on_grid' || econHybrid)
     ? computeEnergyEconomics(subtotal, econDcKwp, econAssump ?? {}, econHybrid)
     : null;
+  const econVisible = econ != null && (showEcon ?? (econAssump?.enabled !== false));
   const econTariff0 = econAssump?.pln_tariff ?? ECON_DEFAULTS.pln_tariff;
+  const econLife = econAssump?.lifetime_years ?? ECON_DEFAULTS.lifetime_years;
 
   return (
     <>
@@ -364,27 +370,87 @@ export default function PrintPage() {
           </div>
         </div>
 
-        {/* Energy Production & Financial Analysis (on-grid & hybrid) */}
-        {econ && (
+        {/* Terms and Conditions */}
+        {quote.notes && (
+          <div className="terms">
+            <div className="terms-title">Terms and Conditions</div>
+            {quote.notes.split('\n').map((line, i) => {
+              const t = line.trim();
+              if (!t) return <div key={i} style={{ height: '2mm' }} />;
+              if (/:$/.test(t)) return <div key={i} className="terms-header">{line}</div>;
+              if (/^thank you/i.test(t)) return <div key={i} className="terms-thanks">{line}</div>;
+              return <div key={i} className="terms-line">{line}</div>;
+            })}
+          </div>
+        )}
+
+        {/* Signature footer */}
+        <div className="footer">
+          <div>
+            <div className="sig-label">Hormat kami,</div>
+            <div className="sig-line" />
+            <div className="sig-name">{companyName || '(perusahaan)'}</div>
+          </div>
+          <div>
+            <div className="sig-label">Disetujui oleh,</div>
+            <div className="sig-line" />
+            <div className="sig-name">{quote.customer_name || '(nama & jabatan)'}</div>
+          </div>
+        </div>
+
+        {/* ── Annex: Energy Production & Financial Analysis ──
+            Rendered after the quote + T&C + signatures so it can stand alone
+            as its own document; carries full identification for that reason. */}
+        {econVisible && econ && (
           <div className="econ">
-            <div className="econ-title">Energy Production &amp; Financial Analysis</div>
+            <div className="header">
+              <div>
+                <div className="company-name">{companyName || 'ICAPROC'}</div>
+              </div>
+              <div className="doc-title">
+                <div className="doc-label">Energy &amp; Financial Analysis</div>
+                <div className="quote-num">{quote.quote_number}</div>
+                <div className="quote-date">Simulation date: {fmtDate(new Date().toISOString().slice(0, 10))}</div>
+              </div>
+            </div>
+            <div className="meta">
+              <div>
+                <div className="meta-label">Prepared for</div>
+                <div className="meta-value">{quote.customer_name || '—'}</div>
+                {quote.customer_address && (
+                  <div className="meta-sub" style={{ whiteSpace: 'pre-line' }}>{quote.customer_address}</div>
+                )}
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div className="meta-label">Reference</div>
+                <div className="meta-sub">Quotation {quote.quote_number} · {fmtDate(quote.quote_date)}</div>
+                {quote.location && <div className="meta-sub">Site: {quote.location}</div>}
+              </div>
+            </div>
+            {quote.project_description && (
+              <div className="project-bar">
+                <div className="project-label">Proposed system</div>
+                {quote.project_description}
+              </div>
+            )}
             <div className="econ-sub">
               {econDcKwp.toLocaleString('en-US', { maximumFractionDigits: 2 })} kWp DC
               {specs.kw_ac ? ` / ${specs.kw_ac.toLocaleString('en-US', { maximumFractionDigits: 2 })} kW AC` : ''}
-              {' · '}investment {fmtIdr(subtotal)} (excl. PPN{ppnPct}%) · {(econAssump?.lifetime_years ?? ECON_DEFAULTS.lifetime_years)}-year projection
+              {econHybrid && specs.kwh_bess ? ` / ${specs.kwh_bess.toLocaleString('en-US', { maximumFractionDigits: 2 })} kWh BESS` : ''}
+              {' · '}investment {fmtIdr(subtotal)} (excl. PPN{ppnPct}%) · {econLife}-year projection
             </div>
 
             {/* Headline KPIs */}
             <div className="econ-kpis">
               <div className="econ-kpi">
-                <div className="k">LCOE</div>
+                <div className="k">LCOE · over {econLife} years</div>
                 <div className="v">{'Rp' + econ.lcoe.toLocaleString('en-US', { maximumFractionDigits: 2 })}<span style={{ fontSize: '7pt', fontWeight: 500 }}>/kWh</span></div>
                 <div className="s">{econ.economical ? `✓ cheaper than PLN (Rp${econTariff0.toLocaleString('en-US', { maximumFractionDigits: 2 })}/kWh)` : `above today's PLN tariff`}</div>
               </div>
               <div className="econ-kpi">
-                <div className="k">NPV @ {(econAssump?.hurdle_rate_pct ?? ECON_DEFAULTS.hurdle_rate_pct)}%</div>
+                <div className="k">NPV @ {(econAssump?.hurdle_rate_pct ?? ECON_DEFAULTS.hurdle_rate_pct)}% · {econLife} yrs</div>
                 <div className="v">{fmtIdr(econ.npv)}</div>
-                <div className="s">IRR {econ.irr != null ? `${(econ.irr * 100).toFixed(1)}%` : '—'}</div>
+                <div className="s">IRR {econ.irr != null ? `${(econ.irr * 100).toFixed(1)}%` : '—'} over {econLife} years</div>
               </div>
               <div className="econ-kpi">
                 <div className="k">Payback</div>
@@ -392,9 +458,9 @@ export default function PrintPage() {
                 <div className="s">cumulative cash flow turns positive</div>
               </div>
               <div className="econ-kpi">
-                <div className="k">Lifetime savings</div>
+                <div className="k">Savings · over {econLife} years</div>
                 <div className="v">{fmtIdr(econ.costAvoided)}</div>
-                <div className="s">{Math.round(econ.lifetimeKwh).toLocaleString('en-US')} kWh generated</div>
+                <div className="s">{Math.round(econ.lifetimeKwh).toLocaleString('en-US')} kWh generated over {econLife} years</div>
               </div>
             </div>
 
@@ -403,8 +469,8 @@ export default function PrintPage() {
               <div><span className="al">Specific production</span><span className="av">{(econAssump?.specific_production ?? ECON_DEFAULTS.specific_production).toLocaleString('en-US')} kWh/kWp·yr</span></div>
               <div><span className="al">First-year degradation</span><span className="av">{econAssump?.first_year_deg_pct ?? ECON_DEFAULTS.first_year_deg_pct}%</span></div>
               <div><span className="al">Yearly degradation</span><span className="av">{econAssump?.yearly_deg_pct ?? ECON_DEFAULTS.yearly_deg_pct}%/yr</span></div>
-              <div><span className="al">System lifetime</span><span className="av">{econAssump?.lifetime_years ?? ECON_DEFAULTS.lifetime_years} years</span></div>
-              <div><span className="al">PLN tariff (today)</span><span className="av">Rp{econTariff0.toLocaleString('en-US', { maximumFractionDigits: 2 })}/kWh</span></div>
+              <div><span className="al">System lifetime</span><span className="av">{econLife} years</span></div>
+              <div><span className="al">Electricity tariff{econAssump?.pln_tariff_label ? ` — PLN ${econAssump.pln_tariff_label}` : ''}</span><span className="av">Rp{econTariff0.toLocaleString('en-US', { maximumFractionDigits: 2 })}/kWh</span></div>
               <div><span className="al">Tariff inflation</span><span className="av">{econAssump?.tariff_inflation_pct ?? ECON_DEFAULTS.tariff_inflation_pct}%/yr</span></div>
               <div><span className="al">Discount rate</span><span className="av">{econAssump?.hurdle_rate_pct ?? ECON_DEFAULTS.hurdle_rate_pct}%</span></div>
               <div><span className="al">Price per Wp</span><span className="av">Rp{econ.pricePerWp.toLocaleString('en-US', { maximumFractionDigits: 2 })}</span></div>
@@ -447,39 +513,11 @@ export default function PrintPage() {
               </tbody>
             </table>
             <p className="econ-note">
-              Projection based on the assumptions above; actual generation depends on site conditions, weather, and system availability.
-              LCOE = total investment ÷ lifetime energy generated. NPV and IRR computed on annual net cash flows including the initial investment (year 0).
+              Projection over {econLife} years based on the assumptions above; actual generation depends on site conditions, weather, and system availability.
+              LCOE = total investment ÷ energy generated over {econLife} years. NPV and IRR computed on annual net cash flows including the initial investment (year 0).
             </p>
           </div>
         )}
-
-        {/* Terms and Conditions */}
-        {quote.notes && (
-          <div className="terms">
-            <div className="terms-title">Terms and Conditions</div>
-            {quote.notes.split('\n').map((line, i) => {
-              const t = line.trim();
-              if (!t) return <div key={i} style={{ height: '2mm' }} />;
-              if (/:$/.test(t)) return <div key={i} className="terms-header">{line}</div>;
-              if (/^thank you/i.test(t)) return <div key={i} className="terms-thanks">{line}</div>;
-              return <div key={i} className="terms-line">{line}</div>;
-            })}
-          </div>
-        )}
-
-        {/* Signature footer */}
-        <div className="footer">
-          <div>
-            <div className="sig-label">Hormat kami,</div>
-            <div className="sig-line" />
-            <div className="sig-name">{companyName || '(perusahaan)'}</div>
-          </div>
-          <div>
-            <div className="sig-label">Disetujui oleh,</div>
-            <div className="sig-line" />
-            <div className="sig-name">{quote.customer_name || '(nama & jabatan)'}</div>
-          </div>
-        </div>
       </div>
 
       {/* Column toggles + print button, grouped together (hidden when printing) */}
@@ -492,6 +530,12 @@ export default function PrintPage() {
               {EXPORT_COL_LABELS[k]}
             </label>
           ))}
+          {econ && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '5px', cursor: 'pointer', paddingTop: '5px', borderTop: '1px solid #eef2f7' }}>
+              <input type="checkbox" checked={econVisible} onChange={(e) => setShowEcon(e.target.checked)} />
+              Energy analysis
+            </label>
+          )}
           <p style={{ fontSize: '10px', color: '#94a3b8', marginTop: '6px' }}>Also applies to the Excel export</p>
         </div>
         <button className="print-btn" onClick={() => window.print()}>

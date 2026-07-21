@@ -28,12 +28,35 @@ export interface EconAssumptions {
   hurdle_rate_pct?: number;        // discount rate for NPV / IRR, %
   om_per_mwp_year?: number;        // O&M, IDR per MWp per year
   pln_tariff?: number;             // Rp/kWh today
+  pln_tariff_label?: string;       // which PLN golongan the tariff came from ('' = custom)
   tariff_inflation_pct?: number;   // %/yr
   // Hybrid battery contribution (from the LCOS calculator)
   battery_kwh_day?: number;        // effective kWh dispatched per day
   battery_lifetime_years?: number; // whichever comes first: cycle life or warranty
   battery_deg_pct?: number;        // annual capacity degradation, %/yr
 }
+
+/**
+ * Official PLN "tarif adjustment" per golongan — Triwulan III 2026
+ * (July–September, unchanged from prior quarters per Kementerian ESDM).
+ * Pre-populates the tariff picker; the user can always override with a
+ * custom Rp/kWh (e.g. blended WBP/LWBP or a B2B PPA rate).
+ */
+export const PLN_TARIFF_PERIOD = 'Tarif Adjustment PLN · Triwulan III 2026 (Jul–Sep)';
+export const PLN_TARIFF_OPTIONS: { label: string; value: number }[] = [
+  { label: 'R-1/TR 900 VA RTM (rumah tangga)', value: 1352 },
+  { label: 'R-1/TR 1.300–2.200 VA (rumah tangga)', value: 1444.70 },
+  { label: 'R-2/TR 3.500–5.500 VA (rumah tangga)', value: 1699.53 },
+  { label: 'R-3/TR ≥6.600 VA (rumah tangga besar)', value: 1699.53 },
+  { label: 'B-2/TR 6.600 VA–200 kVA (bisnis)', value: 1444.70 },
+  { label: 'B-3/TM >200 kVA (bisnis besar)', value: 1114.74 },
+  { label: 'I-3/TM >200 kVA (industri)', value: 1114.74 },
+  { label: 'I-4/TT ≥30.000 kVA (industri besar)', value: 996.74 },
+  { label: 'P-1/TR 6.600 VA–200 kVA (pemerintah)', value: 1699.53 },
+  { label: 'P-2/TM >200 kVA (pemerintah)', value: 1522.88 },
+  { label: 'P-3/TR (penerangan jalan umum)', value: 1699.53 },
+  { label: 'L/TR-TM-TT (layanan khusus)', value: 1644.52 },
+];
 
 export const ECON_DEFAULTS: Required<Pick<EconAssumptions,
   'specific_production' | 'first_year_deg_pct' | 'yearly_deg_pct' | 'lifetime_years' |
