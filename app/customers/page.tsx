@@ -162,7 +162,7 @@ function CustomersInner() {
         received[r.quote_id] = (received[r.quote_id] ?? 0) + (Number(r.amount) || 0);
       }
       // "Most ordered" counts confirmed business only (SO onward), not quotes
-      const committed = new Set(list.filter((d) => ['ordered', 'invoiced', 'delivered'].includes(d.status)).map((d) => d.quote_id));
+      const committed = new Set(list.filter((d) => ['ordered', 'invoiced', 'preparing', 'delivered'].includes(d.status)).map((d) => d.quote_id));
       for (const it of (iRes.data as { quote_id: string; description: string; quantity: number; unit: string; line_total: number; is_section: boolean }[]) ?? []) {
         if (it.is_section || !committed.has(it.quote_id)) continue;
         const desc = (it.description || '').trim();
@@ -635,8 +635,8 @@ function ProfileDrawer({ customer, data, contacts, amName, tierName, onClose, on
 
   const docs = data?.docs ?? [];
   const received = data?.received ?? {};
-  const committed = docs.filter((d) => ['ordered', 'invoiced', 'delivered'].includes(d.status));
-  const invoiced = docs.filter((d) => ['invoiced', 'delivered'].includes(d.status));
+  const committed = docs.filter((d) => ['ordered', 'invoiced', 'preparing', 'delivered'].includes(d.status));
+  const invoiced = docs.filter((d) => ['invoiced', 'preparing', 'delivered'].includes(d.status));
   const totalSales = committed.reduce((s, d) => s + (Number(d.grand_total) || 0), 0);
   const totalReceived = docs.reduce((s, d) => s + (received[d.quote_id] ?? 0), 0);
   const outstandingAR = invoiced.reduce((s, d) => s + Math.max(0, (Number(d.grand_total) || 0) - (received[d.quote_id] ?? 0)), 0);
@@ -705,7 +705,7 @@ function ProfileDrawer({ customer, data, contacts, amName, tierName, onClose, on
                           <span className="font-mono text-[11px] text-slate-300">{d.quote_number}</span>
                           {(d.revision ?? 0) > 0 && <span className="text-[9px] font-bold text-sky-400">R{d.revision}</span>}
                           <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${SALES_STATUS[d.status]?.cls ?? ''}`}>{SALES_STATUS[d.status]?.label ?? d.status}</span>
-                          {['invoiced', 'delivered'].includes(d.status) && (
+                          {['invoiced', 'preparing', 'delivered'].includes(d.status) && (
                             pay === 'paid'
                               ? <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300">PAID</span>
                               : pay === 'partial'

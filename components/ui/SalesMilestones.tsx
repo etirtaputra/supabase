@@ -15,7 +15,8 @@ export interface MilestoneQuote {
   quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
   status: string; quote_date: string; revision?: number;
   validated_at?: string | null; sent_at?: string | null; accepted_at?: string | null;
-  ordered_at?: string | null; invoiced_at?: string | null; delivered_at?: string | null;
+  ordered_at?: string | null; invoiced_at?: string | null; preparing_at?: string | null; delivered_at?: string | null;
+  delivery_date?: string | null;
 }
 
 const fmtD = (d?: string | null) => {
@@ -76,8 +77,15 @@ export default function SalesMilestones({ q, received, billTotal }: {
     },
     {
       label: 'Delivery',
-      sub: q.do_number ? `${q.do_number} · ${fmtD(q.delivered_at)}` : '',
+      sub: q.do_number
+        ? `${q.do_number} · ${delivered
+            ? fmtD(q.delivered_at)
+            : q.status === 'preparing'
+            ? `preparing${q.delivery_date ? ` · target ${fmtD(q.delivery_date)}` : ''}`
+            : ''}`
+        : '',
       done: delivered,
+      active: q.status === 'preparing',
     },
     {
       label: 'Complete',

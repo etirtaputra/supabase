@@ -82,7 +82,7 @@ export default function SalesPrintPage() {
   const subtotal = items.reduce((s, i) => s + (Number(i.quantity) || 0) * (Number(i.unit_price) || 0), 0);
   const ppn = subtotal * ppnPct / 100;
   const grandTotal = subtotal + ppn;
-  const isInvoice = ['invoiced', 'delivered'].includes(quote.status) && !!quote.invoice_number;
+  const isInvoice = ['invoiced', 'preparing', 'delivered'].includes(quote.status) && !!quote.invoice_number;
   const isOrder = !isInvoice && quote.status === 'ordered' && !!quote.order_number;
   const hasSections = lines.some((l) => l.is_section);
   const outstanding = Math.max(0, grandTotal - received);

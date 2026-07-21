@@ -21,12 +21,15 @@ interface Quote {
   ppn_pct: number; subtotal: number; ppn_amount: number; grand_total: number; notes: string;
   revision?: number;
   validated_at?: string | null; sent_at?: string | null; accepted_at?: string | null;
-  ordered_at?: string | null; invoiced_at?: string | null; delivered_at?: string | null;
+  ordered_at?: string | null; invoiced_at?: string | null; preparing_at?: string | null; delivered_at?: string | null;
+  delivery_date?: string | null; delivery_time?: string; delivery_method?: string; delivery_via?: string;
+  delivery_address?: string; delivery_map_url?: string; delivery_contact?: string;
   updated_at?: string; updated_by_email?: string;
 }
+interface CustContact { customer_id: string; name: string; title: string; phone: string; }
 interface DbLine { item_id: string; component_id: string | null; is_section: boolean; description: string; brand: string; note: string; lead_time: string; unit: string; quantity: number; unit_price: number; sort_order: number; }
 interface EditLine { key: string; component_id: string | null; is_section: boolean; description: string; brand: string; note: string; lead_time: string; unit: string; quantity: string; unit_price: string; showNote: boolean; }
-interface Customer { customer_id: string; display_name: string; legal_name: string; tier: string; }
+interface Customer { customer_id: string; display_name: string; legal_name: string; tier: string; shipping_address?: string; billing_address?: string; }
 interface Company { company_id: string; legal_name: string; }
 interface Tier { tier_id: string; tier_code: string; default_discount_pct: number; }
 interface Override { component_id: string; tier_id: string; override_price_idr: number | null; override_discount_pct: number | null; }
@@ -39,6 +42,7 @@ interface LibEntry { entry_id: string; description: string; unit: string; defaul
 // Non-catalog suggestions: custom lines from past sales quotes (PREV) and
 // owner-curated library entries (LIB)
 interface Extra { kind: 'prev' | 'lib'; description: string; unit: string; price: number | null; count: number }
+interface DeliveryDetails { date: string; time: string; method: string; via: string; address: string; mapUrl: string; contact: string; }
 interface Receipt {
   receipt_id: string; quote_id: string; receipt_number: string; category: string;
   amount: number; payment_method: string; payment_date: string; bank_ref: string; notes: string; created_by_email?: string;
@@ -94,6 +98,7 @@ export default function SalesQuotePage() {
   const [overrides, setOverrides] = useState<Override[]>([]);
   const [comps, setComps] = useState<Comp[]>([]);
   const [extras, setExtras] = useState<Extra[]>([]);
+  const [custContacts, setCustContacts] = useState<CustContact[]>([]);
   const [physical, setPhysical] = useState<Record<string, number>>({});
   const [reserved, setReserved] = useState<Record<string, number>>({});
   const [receipts, setReceipts] = useState<Receipt[]>([]);
@@ -111,8 +116,8 @@ export default function SalesQuotePage() {
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
-    const [custRes, coRes, tierRes, ovRes, compRes, balRes, allQRes, allIRes, libRes] = await Promise.all([
-      supabase.from('20.0_customers').select('customer_id, display_name, legal_name, tier').order('display_name'),
+    const [custRes, coRes, tierRes, ovRes, compRes, balRes, allQRes, allIRes, libRes, contactRes] = await Promise.all([
+      supabase.from('20.0_customers').select('customer_id, display_name, legal_name, tier, shipping_address, billing_address').order('display_name'),
       supabase.from('1.0_companies').select('company_id, legal_name').order('legal_name'),
       supabase.from('21.0_price_tiers').select('tier_id, tier_code, default_discount_pct'),
       supabase.from('21.1_item_tier_prices').select('component_id, tier_id, override_price_idr, override_discount_pct'),
@@ -121,6 +126,7 @@ export default function SalesQuotePage() {
       supabase.from('22.0_sales_quotes').select('quote_id, status'),
       supabase.from('22.1_sales_quote_items').select('quote_id, component_id, quantity, is_section, description, unit, unit_price, created_at'),
       supabase.from('22.2_sales_description_library').select('entry_id, description, unit, default_price'),
+      supabase.from('20.1_customer_contacts').select('customer_id, name, title, phone'),
     ]);
     const coList = (coRes.data as Company[]) ?? [];
     setCustomers((custRes.data as Customer[]) ?? []);
@@ -128,6 +134,7 @@ export default function SalesQuotePage() {
     setTiers((tierRes.data as Tier[]) ?? []);
     setOverrides((ovRes.data as Override[]) ?? []);
     setComps((compRes.data as Comp[]) ?? []);
+    setCustContacts(contactRes.error ? [] : ((contactRes.data as CustContact[]) ?? []));
     const phys: Record<string, number> = {};
     for (const b of (balRes.data as { component_id: string; qty_on_hand: number }[]) ?? []) phys[b.component_id] = Number(b.qty_on_hand) || 0;
     setPhysical(phys);
@@ -333,6 +340,28 @@ export default function SalesQuotePage() {
     if (wasNew) router.replace(`/sales/${qid}`); else load(true); // refresh status + stamped numbers in place
   }
 
+  // Create Delivery Order: capture delivery instructions for the warehouse,
+  // then move to 'preparing' (DO number stamps in the DB trigger). Editing
+  // the details later (while still preparing) saves without a transition.
+  const [showDoModal, setShowDoModal] = useState(false);
+  async function submitDeliveryOrder(d: DeliveryDetails) {
+    if (!editing) return;
+    setBusy(true);
+    const fields = {
+      delivery_date: d.date || null, delivery_time: d.time, delivery_method: d.method,
+      delivery_via: d.method === 'pickup' ? '' : d.via,
+      delivery_address: d.method === 'pickup' ? '' : d.address,
+      delivery_map_url: d.method === 'pickup' ? '' : d.mapUrl,
+      delivery_contact: d.contact,
+    };
+    const qid = await persist(editing.status === 'preparing' ? undefined : 'preparing', fields);
+    setBusy(false);
+    if (!qid) return;
+    setShowDoModal(false);
+    flash(editing.status === 'preparing' ? 'Delivery details updated' : 'Delivery Order created — warehouse can start preparing');
+    load(true);
+  }
+
   // Revise: back to draft with the revision counter bumped (trigger stamps
   // revised_at and clears the downstream quote milestones for the new round).
   async function revise() {
@@ -362,19 +391,20 @@ export default function SalesQuotePage() {
   const received = receipts.reduce((s, r) => s + (Number(r.amount) || 0), 0);
   const billTotal = Number(editing.grand_total) || totals.grand;
   const fullyPaid = billTotal > 0 && received >= billTotal - 0.5;
-  const showPayments = !newDoc && ['ordered', 'invoiced', 'delivered'].includes(st);
+  const showPayments = !newDoc && ['ordered', 'invoiced', 'preparing', 'delivered'].includes(st);
   const actions: { label: string; to: string; primary?: boolean; danger?: boolean }[] = [];
   if (st === 'draft') { actions.push({ label: 'Mark Validated', to: 'validated', primary: true }); actions.push({ label: 'Mark Sent', to: 'sent' }); }
   if (st === 'validated') actions.push({ label: 'Mark Sent', to: 'sent', primary: true });
   if (st === 'sent') actions.push({ label: 'Mark Accepted', to: 'accepted' });
   if (['validated', 'sent', 'accepted'].includes(st)) actions.push({ label: 'Confirm Customer Order', to: 'ordered', primary: st !== 'validated' });
-  if (st === 'ordered') actions.push({ label: 'Mark Invoiced', to: 'invoiced', primary: true });
-  if (st === 'invoiced') actions.push({ label: 'Mark Delivered', to: 'delivered', primary: true });
+  if (st === 'ordered') actions.push({ label: 'Create Invoice', to: 'invoiced', primary: true });
+  if (st === 'preparing') actions.push({ label: 'Mark Delivered', to: 'delivered', primary: true });
   if (st === 'ordered') actions.push({ label: 'Revert to Quote', to: 'accepted' });
   if (st === 'invoiced') actions.push({ label: 'Revert to Order', to: 'ordered' });
+  if (st === 'preparing') actions.push({ label: 'Revert to Invoice', to: 'invoiced' });
   if (['cancelled', 'rejected'].includes(st)) actions.push({ label: 'Reopen', to: 'draft' });
   if (['draft', 'validated', 'sent'].includes(st)) actions.push({ label: 'Reject', to: 'rejected', danger: true });
-  if (['accepted', 'ordered', 'invoiced'].includes(st)) actions.push({ label: 'Cancel Order', to: 'cancelled', danger: true });
+  if (['accepted', 'ordered', 'invoiced', 'preparing'].includes(st)) actions.push({ label: 'Cancel Order', to: 'cancelled', danger: true });
   // Revising re-opens the quote for edits with a bumped revision counter
   const canRevise = !!editing.quote_id && ['validated', 'sent', 'accepted'].includes(st);
 
@@ -408,6 +438,30 @@ export default function SalesQuotePage() {
 
         {/* Milestone timeline — the defined progression with each stage's doc code */}
         {!newDoc && <SalesMilestones q={editing} received={received} billTotal={billTotal} />}
+
+        {/* Delivery instructions — the warehouse's brief once the DO exists */}
+        {['preparing', 'delivered'].includes(st) && (
+          <div className="bg-orange-500/[0.05] border border-orange-500/20 rounded-2xl p-4">
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-orange-300/90">Delivery Order · {editing.do_number}</h3>
+              <span className="text-[11px] text-slate-500">
+                {st === 'preparing' ? 'Warehouse: prepare these items' : 'Delivered'}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2 text-xs">
+              <div><p className="text-[10px] text-slate-500">Target date</p><p className="text-slate-200 font-semibold">{editing.delivery_date || '—'}{editing.delivery_time ? ` · ${editing.delivery_time}` : ''}</p></div>
+              <div><p className="text-[10px] text-slate-500">Method</p><p className="text-slate-200 font-semibold">{editing.delivery_method === 'pickup' ? 'Customer pick-up' : editing.delivery_method === 'delivery' ? `Delivery${editing.delivery_via ? ` · ${editing.delivery_via}` : ''}` : '—'}</p></div>
+              <div><p className="text-[10px] text-slate-500">Contact person</p><p className="text-slate-200 font-semibold">{editing.delivery_contact || '—'}</p></div>
+              <div>
+                <p className="text-[10px] text-slate-500">Address</p>
+                <p className="text-slate-300 whitespace-pre-line">{editing.delivery_method === 'pickup' ? 'Gudang / warehouse' : (editing.delivery_address || '—')}</p>
+                {editing.delivery_map_url && (
+                  <a href={editing.delivery_map_url} target="_blank" rel="noopener noreferrer" className="text-[11px] text-sky-400 hover:text-sky-300 underline">Google Maps ↗</a>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4">
           <FieldBox label="Customer" full>
@@ -499,6 +553,19 @@ export default function SalesQuotePage() {
               {a.label}
             </button>
           ))}
+          {st === 'invoiced' && (
+            <button onClick={() => setShowDoModal(true)} disabled={busy}
+              title="Issue the DO: delivery instructions for the warehouse — target date, method, address, contact"
+              className="px-4 py-2 rounded-xl text-sm font-semibold bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 transition-colors disabled:opacity-50">
+              Create Delivery Order
+            </button>
+          )}
+          {st === 'preparing' && (
+            <button onClick={() => setShowDoModal(true)} disabled={busy}
+              className="px-4 py-2 rounded-xl text-sm font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors disabled:opacity-50">
+              Edit Delivery Details
+            </button>
+          )}
           {canRevise && (
             <button onClick={revise} disabled={busy}
               title="Re-open for edits as a new revision (Rev n) — the quote goes back to Draft and re-runs validation"
@@ -512,6 +579,21 @@ export default function SalesQuotePage() {
           )}
         </div>
       </main>
+      {showDoModal && (
+        <DeliveryOrderModal
+          initial={{
+            date: editing.delivery_date ?? '', time: editing.delivery_time ?? '',
+            method: editing.delivery_method || 'delivery', via: editing.delivery_via ?? '',
+            address: editing.delivery_address || (editing.customer_id ? (custById.get(editing.customer_id)?.shipping_address || custById.get(editing.customer_id)?.billing_address || '') : ''),
+            mapUrl: editing.delivery_map_url ?? '', contact: editing.delivery_contact ?? '',
+          }}
+          contacts={custContacts.filter((c) => c.customer_id === editing.customer_id)}
+          isEdit={st === 'preparing'}
+          busy={busy}
+          onClose={() => setShowDoModal(false)}
+          onSubmit={submitDeliveryOrder}
+        />
+      )}
       {toast && <Toast msg={toast} />}
     </div>
   );
@@ -780,6 +862,95 @@ function RecordPaymentModal({ quoteId, outstanding, received, onClose, onDone, f
             className="px-5 py-2 rounded-xl bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 text-sm font-semibold transition-colors disabled:opacity-50 flex items-center gap-2">
             {busy && <span className="w-3.5 h-3.5 border-2 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin" />}
             Record payment
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Create Delivery Order — the warehouse instruction form ──────────────────
+const TIME_OF_DAY = ['Pagi (08–11)', 'Siang (11–14)', 'Sore (14–17)'];
+const VIA_SUGGESTIONS = ['Armada sendiri', 'Kurir instan (GoSend/Grab)', 'Ekspedisi / cargo', 'JNE/J&T', 'Truk sewa'];
+
+function DeliveryOrderModal({ initial, contacts, isEdit, busy, onClose, onSubmit }: {
+  initial: DeliveryDetails; contacts: CustContact[]; isEdit: boolean; busy: boolean;
+  onClose: () => void; onSubmit: (d: DeliveryDetails) => void;
+}) {
+  const [d, setD] = useState<DeliveryDetails>(initial);
+  const set = <K extends keyof DeliveryDetails>(k: K, v: DeliveryDetails[K]) => setD((x) => ({ ...x, [k]: v }));
+  const isPickup = d.method === 'pickup';
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center px-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60" />
+      <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto bg-[#141518] border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-3" onClick={(e) => e.stopPropagation()}>
+        <div>
+          <h3 className="text-base font-bold text-white">{isEdit ? 'Edit delivery details' : 'Create Delivery Order'}</h3>
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            {isEdit ? 'Update the warehouse instructions for this DO.' : 'This issues the DO number and moves the order to “Preparing Items” — the warehouse team\'s instruction to pick and pack.'}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <FieldBox label="Target delivery date">
+            <input type="date" value={d.date} onChange={(e) => set('date', e.target.value)} className={inp} />
+          </FieldBox>
+          <FieldBox label="Time of day">
+            <select value={d.time} onChange={(e) => set('time', e.target.value)} className={inp}>
+              <option value="">— Anytime —</option>
+              {TIME_OF_DAY.map((t) => <option key={t} value={t}>{t}</option>)}
+              {d.time && !TIME_OF_DAY.includes(d.time) && <option value={d.time}>{d.time}</option>}
+            </select>
+          </FieldBox>
+          <FieldBox label="Method" full>
+            <div className="flex gap-2">
+              {[{ v: 'delivery', l: 'Delivery (we send)' }, { v: 'pickup', l: 'Customer pick-up' }].map((m) => (
+                <button key={m.v} onClick={() => set('method', m.v)}
+                  className={`flex-1 px-3 py-2 rounded-xl text-sm font-semibold border transition-colors ${d.method === m.v ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-slate-500'}`}>
+                  {m.l}
+                </button>
+              ))}
+            </div>
+          </FieldBox>
+          {!isPickup && (
+            <FieldBox label="Through / carrier" full>
+              <input list="via-suggestions" value={d.via} onChange={(e) => set('via', e.target.value)}
+                placeholder="e.g. Armada sendiri, ekspedisi…" className={inp} />
+              <datalist id="via-suggestions">
+                {VIA_SUGGESTIONS.map((v) => <option key={v} value={v} />)}
+              </datalist>
+            </FieldBox>
+          )}
+          {!isPickup && (
+            <FieldBox label="Delivery address" full>
+              <textarea value={d.address} onChange={(e) => set('address', e.target.value)} rows={3}
+                placeholder="Street address for the driver" className={inp} />
+            </FieldBox>
+          )}
+          {!isPickup && (
+            <FieldBox label="Google Maps link" full>
+              <input value={d.mapUrl} onChange={(e) => set('mapUrl', e.target.value)}
+                placeholder="https://maps.app.goo.gl/…" className={inp} />
+            </FieldBox>
+          )}
+          <FieldBox label="Contact person (on site)" full>
+            <input list="do-contacts" value={d.contact} onChange={(e) => set('contact', e.target.value)}
+              placeholder={contacts.length ? 'Pick a customer contact or type one…' : 'Name · phone'} className={inp} />
+            <datalist id="do-contacts">
+              {contacts.map((c) => (
+                <option key={`${c.name}-${c.phone}`} value={`${c.name}${c.phone ? ` · ${c.phone}` : ''}`}>{c.title}</option>
+              ))}
+            </datalist>
+          </FieldBox>
+        </div>
+
+        <div className="flex justify-end gap-3 pt-1">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl text-slate-400 hover:text-white text-sm transition-colors">Cancel</button>
+          <button onClick={() => onSubmit(d)} disabled={busy}
+            className="px-5 py-2 rounded-xl bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 text-sm font-semibold transition-colors disabled:opacity-50 flex items-center gap-2">
+            {busy && <span className="w-3.5 h-3.5 border-2 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin" />}
+            {isEdit ? 'Save details' : 'Create Delivery Order'}
           </button>
         </div>
       </div>

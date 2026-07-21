@@ -50,7 +50,7 @@ export default function InvoicesPage() {
     const [qRes, custRes, rRes] = await Promise.all([
       supabase.from('22.0_sales_quotes')
         .select('quote_id, quote_number, order_number, invoice_number, do_number, customer_id, status, grand_total, invoiced_at, delivered_at')
-        .in('status', ['invoiced', 'delivered'])
+        .in('status', ['invoiced', 'preparing', 'delivered'])
         .order('invoiced_at', { ascending: false }),
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name'),
       supabase.from('26.0_customer_receipts').select('quote_id, amount'),

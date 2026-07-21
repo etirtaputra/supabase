@@ -116,7 +116,7 @@ export default function SalesListPage() {
                 const c = q.customer_id ? custById.get(q.customer_id) : undefined;
                 const total = Number(q.grand_total) || 0;
                 const rcv = receivedByQuote[q.quote_id] ?? 0;
-                const billed = ['ordered', 'invoiced', 'delivered'].includes(q.status);
+                const billed = ['ordered', 'invoiced', 'preparing', 'delivered'].includes(q.status);
                 const pct = total > 0 ? Math.min(100, (rcv / total) * 100) : 0;
                 const lines = linesByQuote[q.quote_id] ?? [];
                 const items = lines.filter((l) => !l.is_section);

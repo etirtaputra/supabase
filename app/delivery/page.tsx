@@ -16,6 +16,7 @@ import BrandMenu from '@/components/ui/BrandMenu';
 interface Quote {
   quote_id: string; quote_number: string; order_number: string | null; invoice_number: string | null; do_number: string | null;
   customer_id: string | null; status: string; ordered_at: string | null; delivered_at: string | null;
+  delivery_date: string | null; delivery_time: string | null; delivery_method: string | null; delivery_via: string | null; delivery_contact: string | null;
 }
 interface Customer { customer_id: string; display_name: string; legal_name: string; }
 interface ItemAgg { count: number; qty: number; }
@@ -46,8 +47,8 @@ export default function DeliveryPage() {
     setLoading(true);
     const [qRes, custRes, iRes] = await Promise.all([
       supabase.from('22.0_sales_quotes')
-        .select('quote_id, quote_number, order_number, invoice_number, do_number, customer_id, status, ordered_at, delivered_at')
-        .in('status', ['ordered', 'invoiced', 'delivered'])
+        .select('quote_id, quote_number, order_number, invoice_number, do_number, customer_id, status, ordered_at, delivered_at, delivery_date, delivery_time, delivery_method, delivery_via, delivery_contact')
+        .in('status', ['ordered', 'invoiced', 'preparing', 'delivered'])
         .order('updated_at', { ascending: false }),
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name'),
       supabase.from('22.1_sales_quote_items').select('quote_id, quantity, is_section'),
@@ -120,19 +121,30 @@ export default function DeliveryPage() {
                     <button key={q.quote_id} onClick={() => router.push(`/sales/${q.quote_id}`)}
                       className="w-full text-left grid grid-cols-2 md:grid-cols-[170px_1fr_140px_120px_110px] gap-1 md:gap-3 px-4 py-3 hover:bg-slate-800/40 transition-colors items-center">
                       <span>
-                        <span className="block font-mono text-[11px] text-violet-300">{q.order_number || q.quote_number}</span>
+                        <span className={`block font-mono text-[11px] ${q.status === 'preparing' ? 'text-orange-300' : 'text-violet-300'}`}>{(q.status === 'preparing' && q.do_number) || q.order_number || q.quote_number}</span>
                         {q.invoice_number && <span className="block text-[10px] text-amber-200/70 font-mono">{q.invoice_number}</span>}
                       </span>
-                      <span className="text-sm text-slate-100 truncate">{custName(q.customer_id) || <span className="text-slate-600">No customer</span>}</span>
+                      <span className="min-w-0">
+                        <span className="block text-sm text-slate-100 truncate">{custName(q.customer_id) || <span className="text-slate-600">No customer</span>}</span>
+                        {q.status === 'preparing' && (
+                          <span className="block text-[10px] text-orange-300/80 truncate">
+                            {[q.delivery_method === 'pickup' ? 'Pick-up' : `Delivery${q.delivery_via ? ` · ${q.delivery_via}` : ''}`, q.delivery_contact].filter(Boolean).join(' · ')}
+                          </span>
+                        )}
+                      </span>
                       <span className="text-[11px] text-slate-500 tabular-nums">
                         {agg ? `${agg.count} line${agg.count !== 1 ? 's' : ''} · ${fmtInt(agg.qty)} pcs` : '—'}
                       </span>
                       <span>
-                        <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${q.status === 'invoiced' ? 'bg-amber-500/15 text-amber-300' : 'bg-violet-500/15 text-violet-300'}`}>
-                          {q.status === 'invoiced' ? 'Invoiced' : 'Confirmed Order'}
+                        <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${q.status === 'preparing' ? 'bg-orange-500/15 text-orange-300' : q.status === 'invoiced' ? 'bg-amber-500/15 text-amber-300' : 'bg-violet-500/15 text-violet-300'}`}>
+                          {q.status === 'preparing' ? 'Preparing Items' : q.status === 'invoiced' ? 'Invoiced' : 'Confirmed Order'}
                         </span>
                       </span>
-                      <span className="md:text-right text-[11px] text-slate-500 tabular-nums">ordered {fmtDate(q.ordered_at)}</span>
+                      <span className="md:text-right text-[11px] text-slate-500 tabular-nums">
+                        {q.status === 'preparing' && q.delivery_date
+                          ? <>target {fmtDate(q.delivery_date)}{q.delivery_time ? <span className="block text-[10px] text-slate-600">{q.delivery_time}</span> : null}</>
+                          : <>ordered {fmtDate(q.ordered_at)}</>}
+                      </span>
                     </button>
                   );
                 })}
