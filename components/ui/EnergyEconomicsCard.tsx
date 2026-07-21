@@ -116,20 +116,13 @@ export default function EnergyEconomicsCard({ econ, onChange, capexIdr, dcKwp, h
     () => computeEnergyEconomics(capexIdr, dcKwp, a, hybrid),
     [capexIdr, dcKwp, a, hybrid],
   );
-  // Scenario 2 (e.g. without subsidy): same model, only the tariff differs
-  const resultAlt = useMemo(
-    () => (a.pln_tariff_alt ?? 0) > 0
-      ? computeEnergyEconomics(capexIdr, dcKwp, { ...a, pln_tariff: a.pln_tariff_alt! }, hybrid)
-      : null,
-    [capexIdr, dcKwp, a, hybrid],
-  );
   const included = a.enabled !== false;
 
   return (
     <div className={`bg-slate-900/50 border border-slate-800 rounded-2xl p-5 ${locked ? 'pointer-events-none opacity-70' : ''}`}>
       <div className="flex flex-wrap items-center gap-3 mb-3">
         <label className="block text-[10px] uppercase tracking-widest text-slate-500">
-          Energy Economics
+          Energy Simulation
           <span className="ml-2 normal-case tracking-normal text-slate-600">LCOE · NPV · IRR — CAPEX &amp; kWp flow live from this quote</span>
         </label>
         <label className="ml-auto flex items-center gap-1.5 text-[11px] text-slate-400 cursor-pointer">
@@ -177,23 +170,14 @@ export default function EnergyEconomicsCard({ econ, onChange, capexIdr, dcKwp, h
               placeholder="0" onChange={(v) => onChange({ om_per_mwp_year: v ?? undefined })} />
           </div>
 
-          {/* PLN tariff — one dropdown; full-width row so the golongan names
-              have room. Picking a subsidized (billed) rate auto-fills the
-              without-subsidy comparison from the option's tarif dasar — the
-              engineer never chooses two tariffs by hand. */}
+          {/* PLN tariff — one dropdown; full-width row so the golongan names have room */}
           <TariffRow
             label="PLN tariff"
             hint={`${PLN_TARIFF_PERIOD} · verify against the customer's bill`}
             valueLabel={a.pln_tariff_label ?? ''}
             value={a.pln_tariff}
             placeholder={String(ECON_DEFAULTS.pln_tariff)}
-            onPick={(v, label) => {
-              const opt = PLN_TARIFF_OPTIONS.find((o) => o.label === label);
-              onChange({
-                pln_tariff: v ?? undefined, pln_tariff_label: label,
-                pln_tariff_alt: opt?.altValue ?? null, pln_tariff_alt_label: opt?.altLabel ?? '',
-              });
-            }}
+            onPick={(v, label) => onChange({ pln_tariff: v ?? undefined, pln_tariff_label: label, pln_tariff_alt: null, pln_tariff_alt_label: '' })}
           />
 
           {hybrid && (
@@ -235,44 +219,6 @@ export default function EnergyEconomicsCard({ econ, onChange, capexIdr, dcKwp, h
                   <p className="text-sm font-bold text-white tabular-nums">{fmtIdr(result.costAvoided)}</p>
                   <p className="text-[9px] text-slate-600">{Math.round(result.lifetimeKwh).toLocaleString('en-US')} kWh generated over {life} years</p>
                 </div>
-              </div>
-            );
-          })()}
-
-          {/* Scenario comparison — with vs without subsidy */}
-          {result && resultAlt && (() => {
-            const life = a.lifetime_years ?? ECON_DEFAULTS.lifetime_years;
-            const rows: { k: string; s1: string; s2: string }[] = [
-              { k: 'Tariff today', s1: fmtIdr2(a.pln_tariff ?? ECON_DEFAULTS.pln_tariff) + '/kWh', s2: fmtIdr2(a.pln_tariff_alt!) + '/kWh' },
-              { k: `NPV @ ${(a.hurdle_rate_pct ?? ECON_DEFAULTS.hurdle_rate_pct)}% · ${life} yrs`, s1: fmtIdr(result.npv), s2: fmtIdr(resultAlt.npv) },
-              { k: `IRR · ${life} yrs`, s1: result.irr != null ? `${(result.irr * 100).toFixed(1)}%` : '—', s2: resultAlt.irr != null ? `${(resultAlt.irr * 100).toFixed(1)}%` : '—' },
-              { k: 'Payback', s1: fmtPayback(result.paybackYears), s2: fmtPayback(resultAlt.paybackYears) },
-              { k: `Savings · ${life} yrs`, s1: fmtIdr(result.costAvoided), s2: fmtIdr(resultAlt.costAvoided) },
-            ];
-            return (
-              <div className="mt-3 pt-2.5 border-t border-slate-800/60">
-                <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1.5">
-                  Scenario comparison <span className="normal-case tracking-normal text-slate-600">— shown because the selected rate is subsidized; headline numbers use the billed rate</span>
-                </p>
-                <table className="w-full text-[11px] tabular-nums">
-                  <thead>
-                    <tr className="text-[10px] text-slate-500 border-b border-slate-800">
-                      <th className="text-left py-1 pr-2 font-normal" />
-                      <th className="text-right py-1 px-2 font-semibold text-emerald-400/90">Scenario 1 · with subsidy</th>
-                      <th className="text-right py-1 pl-2 font-semibold text-slate-400">Scenario 2 · without subsidy</th>
-                    </tr>
-                  </thead>
-                  <tbody className="text-slate-300">
-                    {rows.map((r) => (
-                      <tr key={r.k} className="border-b border-slate-800/40">
-                        <td className="py-1 pr-2 text-slate-500">{r.k}</td>
-                        <td className="py-1 px-2 text-right font-semibold text-slate-200">{r.s1}</td>
-                        <td className="py-1 pl-2 text-right">{r.s2}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <p className="mt-1 text-[9px] text-slate-600">LCOE ({fmtIdr2(result.lcoe)}/kWh) is tariff-independent — identical in both scenarios.</p>
               </div>
             );
           })()}

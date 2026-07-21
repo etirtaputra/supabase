@@ -29,8 +29,8 @@ export interface EconAssumptions {
   om_per_mwp_year?: number;        // O&M, IDR per MWp per year
   pln_tariff?: number;             // Rp/kWh today — scenario 1, the billed rate (with subsidy); drives the headline KPIs
   pln_tariff_label?: string;       // which PLN golongan the tariff came from ('' = custom)
-  pln_tariff_alt?: number | null;  // optional scenario 2 (e.g. tarif dasar, without subsidy) for the comparison block
-  pln_tariff_alt_label?: string;   // golongan label for scenario 2 ('' = custom)
+  pln_tariff_alt?: number | null;  // legacy scenario-2 field — no longer used
+  pln_tariff_alt_label?: string;   // legacy
   tariff_inflation_pct?: number;   // %/yr
   // Hybrid battery contribution (from the LCOS calculator)
   battery_kwh_day?: number;        // effective kWh dispatched per day
@@ -45,11 +45,7 @@ export interface EconAssumptions {
  * custom Rp/kWh (e.g. blended WBP/LWBP or a B2B PPA rate).
  */
 export const PLN_TARIFF_PERIOD = 'Tarif Adjustment PLN · Triwulan III 2026 (Jul–Sep)';
-// altValue/altLabel: the without-subsidy counterpart of a subsidized (billed)
-// rate. Picking such an option auto-fills scenario 2 so the with/without-
-// subsidy comparison appears with a single dropdown choice — engineers never
-// pick two tariffs by hand.
-export const PLN_TARIFF_OPTIONS: { label: string; value: number; altValue?: number; altLabel?: string }[] = [
+export const PLN_TARIFF_OPTIONS: { label: string; value: number }[] = [
   { label: 'R-1/TR 900 VA RTM (rumah tangga)', value: 1352 },
   { label: 'R-1/TR 1.300–2.200 VA (rumah tangga)', value: 1444.70 },
   { label: 'R-2/TR 3.500–5.500 VA (rumah tangga)', value: 1699.53 },
@@ -57,9 +53,9 @@ export const PLN_TARIFF_OPTIONS: { label: string; value: number; altValue?: numb
   { label: 'B-2/TR 6.600 VA–200 kVA (bisnis)', value: 1444.70 },
   // TM customers are actually billed the subsidized LWBP rate (field-confirmed
   // Jul 2026); the tarif dasar is the without-subsidy scenario for comparison.
-  { label: 'B-3/TM >200 kVA (bisnis — subsidi, billed)', value: 1035.78, altValue: 1114.74, altLabel: 'B-3/TM tarif dasar' },
+  { label: 'B-3/TM >200 kVA (bisnis — subsidi, billed)', value: 1035.78 },
   { label: 'B-3/TM >200 kVA (bisnis — tarif dasar)', value: 1114.74 },
-  { label: 'I-3/TM >200 kVA (industri — subsidi, billed)', value: 1035.78, altValue: 1114.74, altLabel: 'I-3/TM tarif dasar' },
+  { label: 'I-3/TM >200 kVA (industri — subsidi, billed)', value: 1035.78 },
   { label: 'I-3/TM >200 kVA (industri — tarif dasar)', value: 1114.74 },
   { label: 'I-4/TT ≥30.000 kVA (industri besar)', value: 996.74 },
   { label: 'P-1/TR 6.600 VA–200 kVA (pemerintah)', value: 1699.53 },
