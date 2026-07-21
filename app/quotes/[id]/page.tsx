@@ -165,6 +165,10 @@ const LEAD_TIMES = ['Ready', '1 minggu', '2 minggu', '3 minggu', '1 bulan', '2 b
 
 // Cost source presentation (TUC from POs / supplier price quote / last used in a project quote)
 const SOURCE_LABEL: Record<string, string> = { tuc: 'TUC', quote: 'latest quote', used: 'last used' };
+
+// Client-facing name for a catalog component: our internal description, never
+// the supplier MODEL/SKU (which is buy-side info) — SKU only as a fallback.
+const compName = (c?: Component | null) => (c?.internal_description?.trim() || c?.supplier_model || '');
 // Buffered items surface as "Std Cost", never as raw TUC
 const srcLabel = (cc: { source: string; buffered?: boolean }) => (cc.buffered ? 'Std Cost' : SOURCE_LABEL[cc.source]);
 const SOURCE_TEXT:  Record<string, string> = { tuc: 'text-violet-400', quote: 'text-sky-400', used: 'text-amber-400' };
@@ -847,7 +851,7 @@ export default function QuoteEditorPage() {
       history: history.slice(0, 10),
       source,
       buffered,
-      linkedModel: componentId ? (compById.get(componentId)?.supplier_model ?? '(unknown component)') : null,
+      linkedModel: componentId ? (compName(compById.get(componentId)) || '(unknown component)') : null,
       x: r.right,
       y: r.bottom,
     });
@@ -936,13 +940,14 @@ export default function QuoteEditorPage() {
         const mode = c.quote_cost_mode ?? (c.show_tuc_in_quotes === false ? 'hidden' : 'buffered');
         if (mode === 'hidden') return false;
         return (
+          c.internal_description?.toLowerCase().includes(q) ||
           c.supplier_model?.toLowerCase().includes(q) ||
           c.brand?.toLowerCase().includes(q) ||
           c.category?.toLowerCase().includes(q)
         );
       })
       .slice(0, 6);
-    const compNames = new Set(comps.map((c) => (c.supplier_model ?? '').trim().toLowerCase()));
+    const compNames = new Set(comps.map((c) => compName(c).trim().toLowerCase()));
 
     // Rows already in this quote (draft state — works before saving), except
     // the row currently being typed in
@@ -1146,7 +1151,7 @@ export default function QuoteEditorPage() {
     const item = sec?.items.find((i) => i.item_id === iid);
     const patch: Partial<DraftItem> = {
       component_id: comp.component_id,
-      description: comp.supplier_model ?? '',
+      description: compName(comp),
       brand: comp.brand ?? '',
       // Prefer the component's own catalog unit; fall back to the old default
       unit: (comp.unit?.trim()) || (comp.category === 'pv_module' ? 'modules' : 'pcs'),
@@ -1976,7 +1981,7 @@ export default function QuoteEditorPage() {
                                 {item.component_id && (
                                   <span
                                     className="absolute right-1 top-1/2 -translate-y-1/2 text-emerald-400/70"
-                                    title={`Linked to catalog: ${compById.get(item.component_id)?.supplier_model ?? 'unknown component'} — costs and history come from this link; typing in the description unlinks`}
+                                    title={`Linked to catalog: ${compName(compById.get(item.component_id)) || 'unknown component'} — costs and history come from this link; typing in the description unlinks`}
                                   >
                                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 01-5.656-5.656l1.5-1.5m7.156-7.156a4 4 0 015.656 5.656l-1.5 1.5" /></svg>
                                   </span>
@@ -1999,7 +2004,7 @@ export default function QuoteEditorPage() {
                                           className={`w-full text-left px-4 py-2.5 transition-colors flex items-center justify-between gap-3 ${acIndex === ci ? 'bg-slate-800' : ''}`}
                                         >
                                           <div className="min-w-0">
-                                            <p className="text-slate-200 font-medium truncate">{comp.supplier_model}</p>
+                                            <p className="text-slate-200 font-medium truncate">{compName(comp)}</p>
                                             <p className="text-[10px] text-slate-500">{[comp.brand, comp.category].filter(Boolean).join(' · ')}</p>
                                           </div>
                                           <div className="text-right flex-shrink-0">
@@ -2079,7 +2084,7 @@ export default function QuoteEditorPage() {
                                                 // Surface hidden catalog links that don't match the description —
                                                 // picking this entry copies the link, so a wrong one must be visible
                                                 if (!p.component_id) return null;
-                                                const linked = compById.get(p.component_id)?.supplier_model ?? 'unknown component';
+                                                const linked = compName(compById.get(p.component_id)) || 'unknown component';
                                                 if (p.description.toLowerCase().includes(linked.toLowerCase())) return null;
                                                 return (
                                                   <p className="text-[10px] text-amber-400/90 truncate" title="This past entry carries a catalog link to a DIFFERENT item — picking it copies that link. Unlink after picking (link icon → Unlink) if it's wrong.">
