@@ -7,6 +7,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { PriceQuoteLineItem, Component } from '@/types/database';
 
 interface QuoteItemsImportModalProps {
@@ -99,10 +100,12 @@ export default function QuoteItemsImportModal({
     onClose();
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === 'undefined') return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+  // Portaled to <body>: a transformed ancestor inside the form hijacks
+  // position:fixed and strands the modal far below (same fix as TierPricing).
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/80 backdrop-blur-sm"
@@ -256,6 +259,7 @@ export default function QuoteItemsImportModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

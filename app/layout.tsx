@@ -75,6 +75,19 @@ export default function RootLayout({
             input:not([type=checkbox]):not([type=radio]):not([type=range]),
             textarea, select { font-size: 16px !important; }
           }
+          /* iOS/WebKit centers the value of date inputs and gives them their
+             own height, which mis-aligns them next to text inputs (Quote/PO
+             headers on mobile). Left-align and normalize the appearance. */
+          input[type="date"] {
+            -webkit-appearance: none;
+            appearance: none;
+            text-align: left;
+            min-height: 1.5em;
+          }
+          input[type="date"]::-webkit-date-and-time-value {
+            text-align: left;
+            margin: 0;
+          }
         ` }} />
       </head>
       <body>

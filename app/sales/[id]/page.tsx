@@ -447,6 +447,11 @@ export default function SalesQuotePage() {
               <span className="text-[11px] text-slate-500">
                 {st === 'preparing' ? 'Warehouse: prepare these items' : 'Delivered'}
               </span>
+              <a href={`/sales/${editing.quote_id}/do`} target="_blank" rel="noopener noreferrer"
+                className="ml-auto px-3 py-1 rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 text-[11px] font-semibold transition-colors"
+                title="Print the Surat Jalan — items, qty, unit, and delivery instructions; no prices">
+                Print DO / Surat Jalan
+              </a>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2 text-xs">
               <div><p className="text-[10px] text-slate-500">Target date</p><p className="text-slate-200 font-semibold">{editing.delivery_date || '—'}{editing.delivery_time ? ` · ${editing.delivery_time}` : ''}</p></div>

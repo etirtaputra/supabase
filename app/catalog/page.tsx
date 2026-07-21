@@ -1000,10 +1000,12 @@ function MasterInsertPage() {
 
                             const isSelected = singlePoId === poId;
                             return (
-                              <button
+                              <div
                                 key={poId}
+                                role="button"
+                                tabIndex={0}
                                 onClick={() => { setPaymentMode('single'); setSinglePoId(poId); }}
-                                className={`w-full text-left px-3 py-2.5 rounded-xl border transition-colors ${
+                                className={`w-full text-left px-3 py-2.5 rounded-xl border transition-colors cursor-pointer ${
                                   isSelected
                                     ? 'bg-rose-500/15 border-rose-500/30'
                                     : 'bg-slate-800/30 border-slate-700/30 hover:bg-slate-800/60 hover:border-slate-600/40'
@@ -1040,8 +1042,17 @@ function MasterInsertPage() {
                                   </div>
                                   <span className="text-[10px] text-slate-600 flex-shrink-0 tabular-nums">{pct.toFixed(0)}%</span>
                                   <span className="text-[10px] text-slate-600 tabular-nums">{fmtIdr(tIdr)}</span>
+                                  {/* Jump to this deal's full picture — set received status there */}
+                                  <a
+                                    href={`/catalog?tab=lookup&q=${encodeURIComponent(po.pi_number || po.po_number || '')}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="flex-shrink-0 px-1.5 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-[10px] font-semibold text-sky-300 hover:text-white hover:border-slate-500 transition-colors"
+                                    title="Open this deal in Deal Lookup — mark goods received there"
+                                  >
+                                    Deal Lookup ↗
+                                  </a>
                                 </div>
-                              </button>
+                              </div>
                             );
                           })}
                         </div>
