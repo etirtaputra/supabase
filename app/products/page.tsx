@@ -19,6 +19,7 @@ import Link from 'next/link';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { COMMITTED_STATUSES as COMMITTED } from '@/lib/salesStatus';
+import { downloadCsv, parseCsv, readFileText, csvNum } from '@/lib/csv';
 
 interface Comp {
   component_id: string; supplier_model: string; internal_description: string | null;
@@ -267,6 +268,100 @@ export default function ProductsPage() {
     flash('Saved');
   }
 
+  // ── Import / Export ────────────────────────────────────────────────────────
+  const canExport = !!profile && ROLE_PERMISSIONS[profile.role].canExportCsv;
+  const canImport = !!profile && (profile.role === 'owner' || ROLE_PERMISSIONS[profile.role].canManagePricing);
+  const [importBusy, setImportBusy] = useState(false);
+  const [importPreview, setImportPreview] = useState<{
+    updates: { id: string; label: string; patch: Record<string, unknown>; changes: string[] }[];
+    creates: Record<string, unknown>[];
+    skipped: string[];
+  } | null>(null);
+
+  function exportCsv() {
+    // Exports the FILTERED list, sorted as shown; brand/model only for buy-side viewers
+    const headers = ['component_id', 'description', ...(canViewBrand ? ['model', 'brand'] : []), 'category', 'unit', 'capacity', 'selling_price_idr', 'warranty', 'live_stock', 'physical_stock', 'incoming'];
+    const data = rows.map((r) => [
+      r.c.component_id, descOf(r.c),
+      ...(canViewBrand ? [r.c.supplier_model ?? '', r.c.brand ?? ''] : []),
+      r.c.category ?? '', r.c.unit ?? '', r.c.norm_value ?? '',
+      r.c.selling_price_idr ?? '', r.c.warranty ?? '',
+      r.live, r.phys, r.inc,
+    ]);
+    downloadCsv(`products-${new Date().toISOString().slice(0, 10)}`, headers, data);
+  }
+
+  async function handleImportFile(file: File) {
+    try {
+      const { rows: recs } = parseCsv(await readFileText(file));
+      if (!recs.length) { flash('No data rows found in the file'); return; }
+      const byId = new Map(comps.map((c) => [c.component_id, c]));
+      const byModel = new Map(comps.map((c) => [(c.supplier_model ?? '').trim().toLowerCase(), c]));
+      const byDesc = new Map(comps.map((c) => [descOf(c).trim().toLowerCase(), c]));
+      const validCats = new Set(comps.map((c) => c.category).filter(Boolean) as string[]);
+
+      const updates: { id: string; label: string; patch: Record<string, unknown>; changes: string[] }[] = [];
+      const creates: Record<string, unknown>[] = [];
+      const skipped: string[] = [];
+      for (const r of recs) {
+        const id = r.componentid || '';
+        const desc = r.description || r.internaldescription || '';
+        const model = r.model || r.suppliermodel || '';
+        const match = (id && byId.get(id))
+          || (model && byModel.get(model.trim().toLowerCase()))
+          || (desc && byDesc.get(desc.trim().toLowerCase()))
+          || null;
+        const price = csvNum(r.sellingpriceidr ?? r.sellingprice ?? r.price);
+        const rawCat = (r.category || '').trim().toLowerCase().replace(/ /g, '_');
+        const category = rawCat && validCats.has(rawCat) ? rawCat : null;
+
+        if (match) {
+          const patch: Record<string, unknown> = {};
+          const changes: string[] = [];
+          if (desc && desc !== (match.internal_description ?? '')) { patch.internal_description = desc; changes.push('description'); }
+          if (price != null && Math.round(price) !== Math.round(Number(match.selling_price_idr) || 0)) { patch.selling_price_idr = price; changes.push(`price ${fmtInt(Number(match.selling_price_idr) || 0)} → ${fmtInt(price)}`); }
+          if (r.warranty !== undefined && r.warranty !== (match.warranty ?? '')) { patch.warranty = r.warranty; changes.push('warranty'); }
+          if (r.unit && r.unit !== (match.unit ?? '')) { patch.unit = r.unit; changes.push('unit'); }
+          if (Object.keys(patch).length) updates.push({ id: match.component_id, label: descOf(match), patch, changes });
+        } else if (desc || model) {
+          creates.push({
+            supplier_model: model || desc,
+            internal_description: desc || null,
+            ...(canViewBrand && r.brand ? { brand: r.brand } : {}),
+            ...(category ? { category } : {}),
+            unit: r.unit || null,
+            selling_price_idr: price,
+            warranty: r.warranty || null,
+          });
+        } else {
+          skipped.push(JSON.stringify(r).slice(0, 80));
+        }
+      }
+      if (!updates.length && !creates.length) { flash('Nothing to import — no changes detected'); return; }
+      setImportPreview({ updates, creates, skipped });
+    } catch (e) {
+      flash(`Import failed: ${e instanceof Error ? e.message : 'could not read file'}`);
+    }
+  }
+
+  async function applyImport() {
+    if (!importPreview) return;
+    setImportBusy(true);
+    let ok = 0, failed = 0;
+    for (const u of importPreview.updates) {
+      const { error } = await supabase.from('3.0_components').update(u.patch).eq('component_id', u.id);
+      if (error) failed++; else ok++;
+    }
+    if (importPreview.creates.length) {
+      const { error } = await supabase.from('3.0_components').insert(importPreview.creates);
+      if (error) failed += importPreview.creates.length; else ok += importPreview.creates.length;
+    }
+    setImportBusy(false);
+    setImportPreview(null);
+    flash(failed ? `${ok} applied, ${failed} failed` : `${ok} row${ok !== 1 ? 's' : ''} imported`);
+    fetchAll();
+  }
+
   if (authLoading || !profile) return <CenterSpinner />;
   if (!canView) return <CenterSpinner />;
 
@@ -275,10 +370,27 @@ export default function ProductsPage() {
       <div className="border-b border-slate-800/60 bg-[#0f1012]/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1600px] mx-auto px-4 md:px-8 py-4 flex items-center justify-between gap-4">
           <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Products · Sell-side catalog" />
-          <Link href="/catalog" className="hidden sm:block text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap"
-            title="Prices are set in the Catalog's Component Editor — Sell Price column → Tiers">
-            Set pricing in Catalog →
-          </Link>
+          <div className="flex items-center gap-2">
+            {canExport && (
+              <button onClick={exportCsv}
+                title="Download the filtered list as CSV (opens in Excel)"
+                className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap">
+                ↓ Export CSV
+              </button>
+            )}
+            {canImport && (
+              <label className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap cursor-pointer"
+                title="Import a CSV: matches by component_id / model / description, updates description · price · warranty · unit, creates unmatched rows as new products. Export first for the right column layout.">
+                ↑ Import CSV
+                <input type="file" accept=".csv,text/csv" className="hidden"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportFile(f); e.target.value = ''; }} />
+              </label>
+            )}
+            <Link href="/catalog" className="hidden sm:block text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap"
+              title="Prices are set in the Catalog's Component Editor — Sell Price column → Tiers">
+              Set pricing in Catalog →
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -468,6 +580,57 @@ export default function ProductsPage() {
         </div>
       </main>
 
+      {/* Import preview — nothing writes until confirmed */}
+      {importPreview && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setImportPreview(null)} />
+          <div className="relative w-full max-w-2xl max-h-[85vh] flex flex-col bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl">
+            <div className="px-5 pt-4 pb-3 border-b border-slate-800">
+              <h3 className="text-sm font-bold text-white">Import products — preview</h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                {importPreview.updates.length} update{importPreview.updates.length !== 1 ? 's' : ''} · {importPreview.creates.length} new product{importPreview.creates.length !== 1 ? 's' : ''}
+                {importPreview.skipped.length ? ` · ${importPreview.skipped.length} skipped (no id/model/description)` : ''}
+              </p>
+            </div>
+            <div className="flex-1 overflow-y-auto px-5 py-3 space-y-3 text-xs">
+              {importPreview.updates.length > 0 && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Updates</p>
+                  <div className="rounded-lg border border-slate-800 divide-y divide-slate-800/60">
+                    {importPreview.updates.map((u) => (
+                      <div key={u.id} className="px-3 py-1.5 flex items-center gap-3">
+                        <span className="text-slate-300 truncate flex-1">{u.label}</span>
+                        <span className="text-slate-500 truncate">{u.changes.join(' · ')}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {importPreview.creates.length > 0 && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">New products</p>
+                  <div className="rounded-lg border border-slate-800 divide-y divide-slate-800/60">
+                    {importPreview.creates.map((c, i) => (
+                      <div key={i} className="px-3 py-1.5 flex items-center gap-3">
+                        <span className="text-emerald-300/90 truncate flex-1">{String(c.internal_description || c.supplier_model)}</span>
+                        <span className="text-slate-500 tabular-nums">{c.selling_price_idr != null ? `Rp${fmtInt(Number(c.selling_price_idr))}` : 'no price'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="px-5 py-3 border-t border-slate-800 flex items-center justify-end gap-2">
+              <button onClick={() => setImportPreview(null)} disabled={importBusy}
+                className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all">Cancel</button>
+              <button onClick={applyImport} disabled={importBusy}
+                className="px-4 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors disabled:opacity-50">
+                {importBusy ? 'Importing…' : `Apply ${importPreview.updates.length + importPreview.creates.length} rows`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {toast && <div className="fixed bottom-6 right-6 z-[110] px-4 py-2.5 bg-slate-800 border border-slate-700 text-white text-sm font-semibold rounded-xl shadow-lg">{toast}</div>}
     </div>
   );

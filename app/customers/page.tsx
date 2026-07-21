@@ -12,6 +12,7 @@ import { ROLE_PERMISSIONS, ROLE_LABELS, type UserRole } from '@/constants/roles'
 import BrandMenu from '@/components/ui/BrandMenu';
 import CrmMigrationBanner from '@/components/ui/CrmMigrationBanner';
 import { SALES_STATUS } from '@/lib/salesStatus';
+import { downloadCsv, parseCsv, readFileText } from '@/lib/csv';
 
 // ── Types ─────────────────────────────────────────────────────────────────
 interface Customer {
@@ -319,6 +320,111 @@ function CustomersInner() {
     fetchAll();
   }
 
+  // ── Import / Export ────────────────────────────────────────────────────────
+  const canExport = !!profile && ROLE_PERMISSIONS[profile.role].canExportCsv;
+  const [importBusy, setImportBusy] = useState(false);
+  const [importPreview, setImportPreview] = useState<{
+    updates: { id: string; label: string; patch: Record<string, unknown>; changes: string[] }[];
+    creates: Record<string, unknown>[];
+    skipped: number;
+  } | null>(null);
+
+  function exportCsv() {
+    const headers = ['customer_code', 'display_name', 'legal_name', 'tier', 'account_manager', 'payment_terms', 'default_currency', 'tax_id', 'billing_address', 'shipping_address', 'notes', 'active', 'primary_contact', 'contact_email', 'contact_phone'];
+    const data = filtered.map((c) => {
+      const contacts = contactsByCustomer[c.customer_id] ?? [];
+      const primary = contacts.find((x) => x.is_primary) ?? contacts[0];
+      return [
+        c.customer_code, c.display_name, c.legal_name, c.tier,
+        amById.get(c.account_manager_id ?? '') ?? '', c.payment_terms, c.default_currency,
+        c.tax_id, c.billing_address, c.shipping_address, c.notes, c.is_active ? 'yes' : 'no',
+        primary?.name ?? '', primary?.email ?? '', primary?.phone ?? '',
+      ];
+    });
+    downloadCsv(`customers-${new Date().toISOString().slice(0, 10)}`, headers, data);
+  }
+
+  async function handleImportFile(file: File) {
+    try {
+      const { rows: recs } = parseCsv(await readFileText(file));
+      if (!recs.length) { flash('No data rows found in the file'); return; }
+      const byCode = new Map(customers.filter((c) => c.customer_code).map((c) => [c.customer_code.trim().toLowerCase(), c]));
+      const byName = new Map<string, Customer>();
+      for (const c of customers) {
+        if (c.display_name) byName.set(c.display_name.trim().toLowerCase(), c);
+        if (c.legal_name) byName.set(c.legal_name.trim().toLowerCase(), c);
+      }
+      const validTiers = new Set(tiers.map((t) => t.tier_code));
+
+      const updates: { id: string; label: string; patch: Record<string, unknown>; changes: string[] }[] = [];
+      const creates: Record<string, unknown>[] = [];
+      let skipped = 0;
+      for (const r of recs) {
+        const code = (r.customercode || r.code || '').trim();
+        const display = (r.displayname || r.name || '').trim();
+        const legal = (r.legalname || '').trim();
+        const match = (code && byCode.get(code.toLowerCase()))
+          || (display && byName.get(display.toLowerCase()))
+          || (legal && byName.get(legal.toLowerCase()))
+          || null;
+        // Only set columns the file actually provides
+        const fields: [string, string | undefined, (v: string) => unknown][] = [
+          ['display_name', r.displayname || r.name, (v) => v],
+          ['legal_name', r.legalname, (v) => v],
+          ['tier', r.tier, (v) => (validTiers.has(v) ? v : v)],
+          ['payment_terms', r.paymentterms, (v) => v],
+          ['default_currency', r.defaultcurrency || r.currency, (v) => v.toUpperCase()],
+          ['tax_id', r.taxid || r.npwp, (v) => v],
+          ['billing_address', r.billingaddress, (v) => v],
+          ['shipping_address', r.shippingaddress, (v) => v],
+          ['notes', r.notes, (v) => v],
+          ['is_active', r.active, (v) => !/^(no|false|0|inactive)$/i.test(v)],
+        ];
+        if (match) {
+          const patch: Record<string, unknown> = {};
+          const changes: string[] = [];
+          for (const [key, raw, map] of fields) {
+            if (raw === undefined || raw === '') continue;
+            const v = map(raw.trim());
+            if (v !== (match as unknown as Record<string, unknown>)[key]) { patch[key] = v; changes.push(key.replace(/_/g, ' ')); }
+          }
+          if (Object.keys(patch).length) updates.push({ id: match.customer_id, label: match.display_name || match.legal_name, patch, changes });
+        } else if (display || legal) {
+          const row: Record<string, unknown> = { display_name: display || legal, legal_name: legal || display, is_active: true };
+          for (const [key, raw, map] of fields) {
+            if (raw === undefined || raw === '' || key === 'display_name' || key === 'legal_name') continue;
+            row[key] = map(raw.trim());
+          }
+          creates.push(row);
+        } else {
+          skipped++;
+        }
+      }
+      if (!updates.length && !creates.length) { flash('Nothing to import — no changes detected'); return; }
+      setImportPreview({ updates, creates, skipped });
+    } catch (e) {
+      flash(`Import failed: ${e instanceof Error ? e.message : 'could not read file'}`);
+    }
+  }
+
+  async function applyImport() {
+    if (!importPreview) return;
+    setImportBusy(true);
+    let ok = 0, failed = 0;
+    for (const u of importPreview.updates) {
+      const { error } = await supabase.from('20.0_customers').update(u.patch).eq('customer_id', u.id);
+      if (error) failed++; else ok++;
+    }
+    if (importPreview.creates.length) {
+      const { error } = await supabase.from('20.0_customers').insert(importPreview.creates);
+      if (error) failed += importPreview.creates.length; else ok += importPreview.creates.length;
+    }
+    setImportBusy(false);
+    setImportPreview(null);
+    flash(failed ? `${ok} applied, ${failed} failed` : `${ok} customer${ok !== 1 ? 's' : ''} imported`);
+    fetchAll();
+  }
+
   if (authLoading || !user || !profile) return <CenterSpinner />;
   if (!canManage) return <CenterSpinner />; // redirect in-flight
 
@@ -328,12 +434,27 @@ function CustomersInner() {
       <div className="border-b border-slate-800/60 bg-[#0f1012]/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1400px] mx-auto px-4 md:px-8 py-4 flex items-center justify-between gap-4">
           <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Customers · CRM" />
-          <button
-            onClick={() => openDrawer(null)}
-            className="px-4 py-2 rounded-xl bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 text-sm font-semibold transition-colors"
-          >
-            + New Customer
-          </button>
+          <div className="flex items-center gap-2">
+            {canExport && (
+              <button onClick={exportCsv}
+                title="Download the filtered customer list as CSV (includes primary contact)"
+                className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap">
+                ↓ Export CSV
+              </button>
+            )}
+            <label className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap cursor-pointer"
+              title="Import a CSV: matches by customer_code or name, updates provided columns, creates unmatched rows as new customers. Export first for the right column layout.">
+              ↑ Import CSV
+              <input type="file" accept=".csv,text/csv" className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportFile(f); e.target.value = ''; }} />
+            </label>
+            <button
+              onClick={() => openDrawer(null)}
+              className="px-4 py-2 rounded-xl bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 text-sm font-semibold transition-colors"
+            >
+              + New Customer
+            </button>
+          </div>
         </div>
       </div>
 
@@ -432,6 +553,55 @@ function CustomersInner() {
           onContactField={setContactField}
           onSetPrimary={setPrimary}
         />
+      )}
+
+      {/* Import preview — nothing writes until confirmed */}
+      {importPreview && (
+        <div className="fixed inset-0 z-[105] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setImportPreview(null)} />
+          <div className="relative w-full max-w-2xl max-h-[85vh] flex flex-col bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl">
+            <div className="px-5 pt-4 pb-3 border-b border-slate-800">
+              <h3 className="text-sm font-bold text-white">Import customers — preview</h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                {importPreview.updates.length} update{importPreview.updates.length !== 1 ? 's' : ''} · {importPreview.creates.length} new customer{importPreview.creates.length !== 1 ? 's' : ''}
+                {importPreview.skipped ? ` · ${importPreview.skipped} skipped (no code/name)` : ''} — contacts are not imported, edit those per customer
+              </p>
+            </div>
+            <div className="flex-1 overflow-y-auto px-5 py-3 space-y-3 text-xs">
+              {importPreview.updates.length > 0 && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Updates</p>
+                  <div className="rounded-lg border border-slate-800 divide-y divide-slate-800/60">
+                    {importPreview.updates.map((u) => (
+                      <div key={u.id} className="px-3 py-1.5 flex items-center gap-3">
+                        <span className="text-slate-300 truncate flex-1">{u.label}</span>
+                        <span className="text-slate-500 truncate">{u.changes.join(' · ')}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {importPreview.creates.length > 0 && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">New customers</p>
+                  <div className="rounded-lg border border-slate-800 divide-y divide-slate-800/60">
+                    {importPreview.creates.map((c, i) => (
+                      <div key={i} className="px-3 py-1.5 text-emerald-300/90 truncate">{String(c.display_name)}</div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="px-5 py-3 border-t border-slate-800 flex items-center justify-end gap-2">
+              <button onClick={() => setImportPreview(null)} disabled={importBusy}
+                className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all">Cancel</button>
+              <button onClick={applyImport} disabled={importBusy}
+                className="px-4 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors disabled:opacity-50">
+                {importBusy ? 'Importing…' : `Apply ${importPreview.updates.length + importPreview.creates.length} rows`}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {toast && (
