@@ -109,13 +109,13 @@ export default function SalesLibraryPage() {
   return (
     <div className="min-h-screen bg-[#0f1012] text-slate-200 font-sans text-sm">
       <div className="border-b border-slate-800/60 bg-[#0f1012]/80 backdrop-blur-md sticky top-0 z-30">
-        <div className="max-w-[1000px] mx-auto px-4 md:px-8 py-4 flex items-center justify-between gap-4">
+        <div className="max-w-[1000px] mx-auto px-3 sm:px-4 md:px-8 py-4 flex items-center justify-between gap-4">
           <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Sales · Description Library (owner)" />
           <button onClick={() => router.push('/sales')} className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors">← Back to Sales</button>
         </div>
       </div>
 
-      <main className="max-w-[1000px] mx-auto px-4 md:px-8 py-6 space-y-4">
+      <main className="max-w-[1000px] mx-auto px-3 sm:px-4 md:px-8 py-6 space-y-4">
         <p className="text-[11px] text-slate-600">
           Curated custom line texts that appear as <span className="px-1 py-0.5 rounded bg-violet-500/20 text-violet-300 text-[9px] font-bold">LIB</span> suggestions
           in the Sales Quote item picker for every sales user. Only owners see and manage this page.

@@ -368,7 +368,7 @@ export default function ProductsPage() {
   return (
     <div className="min-h-screen bg-[#0f1012] text-slate-200 font-sans text-sm">
       <div className="border-b border-slate-800/60 bg-[#0f1012]/80 backdrop-blur-md sticky top-0 z-30">
-        <div className="max-w-[1600px] mx-auto px-4 md:px-8 py-4 flex items-center justify-between gap-4">
+        <div className="max-w-[1600px] 2xl:max-w-[1920px] mx-auto px-3 sm:px-4 md:px-8 py-4 flex items-center justify-between gap-4">
           <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Products · Sell-side catalog" />
           <div className="flex items-center gap-2">
             {canExport && (
@@ -394,7 +394,7 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      <main className="max-w-[1600px] mx-auto px-4 md:px-8 py-6 space-y-4">
+      <main className="max-w-[1600px] 2xl:max-w-[1920px] mx-auto px-3 sm:px-4 md:px-8 py-6 space-y-4">
         {/* Search + filters */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[200px]">

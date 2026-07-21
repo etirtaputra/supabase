@@ -1686,7 +1686,7 @@ export default function QuoteEditorPage() {
 
       {/* ── Sticky header ── */}
       <div className="sticky top-0 z-40 bg-[#141518]/95 backdrop-blur-xl border-b border-white/[0.07]">
-        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+        <div className="max-w-[1400px] 2xl:max-w-[1720px] mx-auto px-3 sm:px-6 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <Link
               href="/quotes"
@@ -1796,7 +1796,7 @@ export default function QuoteEditorPage() {
         </div>
       </div>
 
-      <main className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6 pb-24 space-y-6">
+      <main className="max-w-[1400px] 2xl:max-w-[1720px] mx-auto px-3 sm:px-6 py-6 pb-24 space-y-6">
 
         <MobileNotice variant="edit" />
         <MigrationBanner />
@@ -2943,7 +2943,7 @@ export default function QuoteEditorPage() {
       {/* ── Sticky totals bar ── */}
       {subtotal > 0 && (
         <div className="fixed bottom-0 inset-x-0 z-40 bg-[#141518]/95 backdrop-blur-xl border-t border-white/[0.07]">
-          <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-2.5 flex items-center gap-4 sm:gap-5 text-xs overflow-x-auto whitespace-nowrap scrollbar-none">
+          <div className="max-w-[1400px] 2xl:max-w-[1720px] mx-auto px-3 sm:px-6 py-2.5 flex items-center gap-4 sm:gap-5 text-xs overflow-x-auto whitespace-nowrap scrollbar-none">
             <span className="text-slate-500">Subtotal <span className="ml-1 text-slate-200 font-semibold tabular-nums">{fmtIdr(subtotal)}</span></span>
             <span className="text-slate-500">Grand Total <span className="ml-1 text-white font-bold tabular-nums">{fmtIdr(grandTotal)}</span></span>
             {totalWp > 0 && (

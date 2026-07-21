@@ -143,7 +143,7 @@ export default function DatabaseViewPage() {
 
         {/* ── Sticky header + tab bar ── */}
         <div className="sticky top-0 z-50 bg-[#141518]/90 backdrop-blur-xl border-b border-white/[0.07]">
-          <header className="px-4 md:px-8 xl:px-12 pt-4 xl:pt-5 pb-2 max-w-[1800px] mx-auto flex items-start justify-between gap-4">
+          <header className="px-3 sm:px-4 md:px-8 xl:px-12 pt-4 xl:pt-5 pb-2 max-w-[1800px] 2xl:max-w-[2200px] mx-auto flex items-start justify-between gap-4">
             <BrandMenu wordmarkClass="text-lg md:text-xl xl:text-2xl font-bold" subtitle="Insights · TUC · Pricing · Cash Cycle" />
             {/* Refresh control */}
             <div className="flex items-center gap-2 mt-1 flex-shrink-0">
@@ -181,7 +181,7 @@ export default function DatabaseViewPage() {
               </button>
             </div>
           </header>
-          <nav className="px-4 md:px-8 xl:px-12 pb-3 xl:pb-4 max-w-[1800px] mx-auto flex overflow-x-auto gap-1.5 xl:gap-2 scrollbar-none snap-x snap-mandatory">
+          <nav className="px-3 sm:px-4 md:px-8 xl:px-12 pb-3 xl:pb-4 max-w-[1800px] 2xl:max-w-[2200px] mx-auto flex overflow-x-auto gap-1.5 xl:gap-2 scrollbar-none snap-x snap-mandatory">
             {TABS.map((tab) => (
               <button
                 key={tab.id}
@@ -200,7 +200,7 @@ export default function DatabaseViewPage() {
         </div>
 
         {/* ── Tab content ── */}
-        <main className="p-4 md:p-8 xl:p-10 2xl:p-12 max-w-[1800px] mx-auto animate-in fade-in duration-300">
+        <main className="p-4 md:p-8 xl:p-10 2xl:p-12 max-w-[1800px] 2xl:max-w-[2200px] mx-auto animate-in fade-in duration-300">
           <MobileNotice variant="view" />
 
           {/* Spend Overview */}
