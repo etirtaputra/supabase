@@ -103,7 +103,7 @@ export default function StockModal({ componentId, componentName, unit, anchor, o
 
   const live = physical - reserved;
 
-  async function submit() {
+  async function submit(allowNegative = false) {
     if (!mode) return;
     const q = numOf(qty);
     if (q === 0) { flash('Enter a quantity'); return; }
@@ -113,10 +113,21 @@ export default function StockModal({ componentId, componentName, unit, anchor, o
       quantity: mode === 'in' ? Math.abs(q) : q, // adjust may be negative
       unit_cost_idr: mode === 'in' ? numOf(cost) : 0,
       source_type: mode === 'in' ? 'receipt' : 'adjustment', source_id: '', notes: note.trim(),
+      allow_negative: allowNegative,
     };
     const { error } = await supabase.from('30.0_stock_movements').insert(row);
     setBusy(false);
-    if (error) { flash(`Failed: ${error.message}`); return; }
+    if (error) {
+      // The DB guard blocks movements that would push on-hand negative —
+      // let the user override explicitly (stocktake corrections etc).
+      if (!allowNegative && /insufficient stock/i.test(error.message)) {
+        if (window.confirm(`${error.message}\n\nPost anyway and allow negative on-hand?`)) { submit(true); return; }
+        flash('Blocked — would go negative');
+        return;
+      }
+      flash(`Failed: ${error.message}`);
+      return;
+    }
     flash(mode === 'in' ? 'Stock received' : 'Stock adjusted');
     setMode(null); setQty(''); setCost(''); setNote('');
     load();
@@ -192,7 +203,7 @@ export default function StockModal({ componentId, componentName, unit, anchor, o
                       )}
                       <input value={note} onChange={(e) => setNote(e.target.value)} placeholder={mode === 'in' ? 'PO / GRN reference' : 'Reason'} className={`${sInp} ${mode === 'in' ? 'col-span-2' : ''}`} />
                     </div>
-                    <button onClick={submit} disabled={busy}
+                    <button onClick={() => submit()} disabled={busy}
                       className="w-full px-4 py-2 rounded-xl bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 text-xs font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
                       {busy && <span className="w-3.5 h-3.5 border-2 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin" />}
                       Post movement

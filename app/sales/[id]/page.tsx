@@ -326,9 +326,13 @@ export default function SalesQuotePage() {
     const qid = await persist(next);
     if (!qid) { setBusy(false); return; }
     if (next === 'delivered') {
+      // allow_negative: the goods physically left — record the shipment even if
+      // the ledger is behind (the DB guard otherwise blocks negative on-hand).
+      // The trigger stamps unit_cost_idr with the current moving average (COGS).
       const moves = lines.filter((l) => l.component_id && num(l.quantity) > 0).map((l) => ({
         component_id: l.component_id, location: 'MAIN', direction: 'out', quantity: num(l.quantity),
         unit_cost_idr: 0, source_type: 'delivery', source_id: qid, notes: `DO for ${editing.quote_number || qid}`,
+        allow_negative: true,
       }));
       if (moves.length) {
         const { error } = await supabase.from('30.0_stock_movements').insert(moves);

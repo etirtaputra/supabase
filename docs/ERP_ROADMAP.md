@@ -90,8 +90,17 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   `26.0_customer_receipts`, `/sales` `/invoices` `/delivery` pages, printable
   quote/invoice + Surat Jalan (DO) print, delivery details (date/method/address/
   contact). Sell-side never shows brand or supplier SKU (internal_description only).
-- **Stock (partial)**: `30.1_stock_balances` feeds Live/Physical/Reserved/Incoming
-  on `/products`. The movement **ledger (30.0) + GRN receive flow do NOT exist yet**.
+- **Module 3 — stock ledger + GRN**: `30.0_stock_movements` append-only ledger →
+  trigger-maintained `30.1_stock_balances` (moving-average landed cost; outs
+  auto-priced at current avg = COGS basis; negative on-hand blocked unless the
+  movement carries `allow_negative`); `30.2_goods_receipts` GRN headers
+  (GRN-YYYYMMDD-NNNN by trigger); `/stock` warehouse view (on-hand, avg cost,
+  stock value, last movement, per-item ledger drill via StockModal);
+  `/stock/receive` receive-against-PO flow (landed-cost prefill from 6.0 PO
+  costs à la computeTUC, principal×FX fallback, partial receipts tracked per
+  component, advances PO to Partially/Fully Received + stamps
+  `actual_received_date`). `30.1` still feeds Live/Physical/Reserved/Incoming
+  on `/products`. Migration: `migrations/create_goods_receipts.sql`.
 - **Vendor & customer 360**: `/suppliers` vendor profiles (purchase volume, quote→PO
   conversion, outstanding); document graph — PI/PO/SO/INV/DO numbers are clickable
   links everywhere (Deal Lookup / sales doc); EPC project quotes (`10.0`) carry
@@ -102,13 +111,10 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   width caps (wider on 2xl monitors), Tailwind CDN theme in `app/layout.tsx`.
 
 **Next up (in order):**
-1. **Module 3 — stock ledger + GRN** (spec below): `30.0_stock_movements`,
-   moving-average landed cost via `computeTUC`, receive-against-PO screen;
-   rewire `30.1` to be trigger-maintained from the ledger.
-2. **Module 2 finish** — tier management UI (CRUD tiers, per-item overrides,
+1. **Module 2 finish** — tier management UI (CRUD tiers, per-item overrides,
    margin floor vs landed cost).
-3. **Module 6 — Item Economics dashboard** (GP/item, turnover, CCC) once the
-   ledger provides COGS.
+2. **Module 6 — Item Economics dashboard** (GP/item, turnover, CCC) — the
+   ledger now provides COGS (`out` movements are stamped at moving-avg cost).
 
 ## Locked architectural decisions
 
