@@ -151,6 +151,16 @@ function sellFromGm(cost: string, gm: string): string {
   return String(roundNice(c / (1 - g / 100)));
 }
 
+// New cost, same margin: recompute the sell from the GM% the row already
+// carried. Editing a COST moves the SELL and keeps GM% fixed — never the
+// other way around.
+function sellKeepingGm(oldCost: number | null, oldSell: number | null, newCost: number): string | null {
+  if (!oldCost || !oldSell || oldSell <= 0 || !(newCost > 0)) return null;
+  const gmFrac = 1 - oldCost / oldSell;
+  if (gmFrac >= 1) return null;
+  return String(roundNice(newCost / (1 - gmFrac)));
+}
+
 const LEAD_TIMES = ['Ready', '1 minggu', '2 minggu', '3 minggu', '1 bulan', '2 bulan', '3 bulan', 'Custom'];
 
 // Cost source presentation (TUC from POs / supplier price quote / last used in a project quote)
@@ -311,6 +321,9 @@ export default function QuoteEditorPage() {
   // re-derived from cost/sell — otherwise every keystroke gets rewritten
   // (typing "3" of "30" snaps to the recomputed margin).
   const [gmEdit, setGmEdit] = useState<{ itemId: string; value: string } | null>(null);
+  // Cost/sell as they were when the cost cell got focus — the pre-edit GM%
+  // that a cost edit must preserve (onChange overwrites cost_price live).
+  const costFocusRef = useRef<{ itemId: string; cost: number | null; sell: number | null } | null>(null);
 
   // ── Qty formula editing (Excel-like: focus shows formula, blur shows value) ─
   const [qtyEdit, setQtyEdit] = useState<{ itemId: string; value: string } | null>(null);
@@ -2150,15 +2163,25 @@ export default function QuoteEditorPage() {
                                   onChange={(e) => updateItem(sec.section_id, item.item_id, { cost_price: e.target.value })}
                                   onKeyDown={(e) => { if (e.key === 'Enter') { (e.target as HTMLInputElement).blur(); return; } navCell(e, item.item_id, 'cost'); }}
                                   data-nav-row={item.item_id} data-nav-col="cost"
+                                  onFocus={() => {
+                                    costFocusRef.current = { itemId: item.item_id, cost: num(item.cost_price), sell: num(item.sell_price) };
+                                  }}
                                   onBlur={() => {
                                     const val = evalCell(item.cost_price);
                                     const patch: Partial<DraftItem> = {};
                                     if (val !== item.cost_price) patch.cost_price = val;
-                                    // Auto-price the sell from the group GM using the evaluated cost
+                                    const newCost = num(val) ?? 0;
+                                    const before = costFocusRef.current?.itemId === item.item_id ? costFocusRef.current : null;
                                     if (!num(item.sell_price)) {
-                                      const sell = sellFromGroupGm(sec.group_key, num(val));
+                                      // No sell yet — auto-price from the group GM
+                                      const sell = sellFromGroupGm(sec.group_key, newCost);
+                                      if (sell) patch.sell_price = sell;
+                                    } else if (before && before.cost !== newCost) {
+                                      // Cost changed: move the SELL, keep the GM% the row had
+                                      const sell = sellKeepingGm(before.cost, before.sell, newCost);
                                       if (sell) patch.sell_price = sell;
                                     }
+                                    costFocusRef.current = null;
                                     if (Object.keys(patch).length) updateItem(sec.section_id, item.item_id, patch);
                                   }}
                                   placeholder="0 or =800000+180000"
@@ -2211,16 +2234,26 @@ export default function QuoteEditorPage() {
                                               Click either figure to use it as this row's cost. */}
                                           {isOwner && h.buffered && h.rawUnitCost != null && (
                                             <button
-                                              onClick={() => { if (!locked) updateItem(costHover.sectionId, costHover.itemId, { cost_price: String(Math.round(h.rawUnitCost!)) }); }}
-                                              title={`Raw ${h.kind === 'quote' ? 'supplier quote' : 'TUC'} before buffer — click to use it as the cost`}
+                                              onClick={() => {
+                                                if (locked) return;
+                                                const c = Math.round(h.rawUnitCost!);
+                                                const sell = sellKeepingGm(num(item.cost_price), num(item.sell_price), c);
+                                                updateItem(costHover.sectionId, costHover.itemId, { cost_price: String(c), ...(sell ? { sell_price: sell } : {}) });
+                                              }}
+                                              title={`Raw ${h.kind === 'quote' ? 'supplier quote' : 'TUC'} before buffer — click to use it as the cost (GM% kept, sell recomputes)`}
                                               className="text-slate-500 tabular-nums flex-shrink-0 hover:text-slate-300 transition-colors"
                                             >
                                               raw {fmtIdr(h.rawUnitCost)}
                                             </button>
                                           )}
                                           <button
-                                            onClick={() => { if (!locked) updateItem(costHover.sectionId, costHover.itemId, { cost_price: String(Math.round(h.unitCost)) }); }}
-                                            title="Click to use this cost for the row"
+                                            onClick={() => {
+                                              if (locked) return;
+                                              const c = Math.round(h.unitCost);
+                                              const sell = sellKeepingGm(num(item.cost_price), num(item.sell_price), c);
+                                              updateItem(costHover.sectionId, costHover.itemId, { cost_price: String(c), ...(sell ? { sell_price: sell } : {}) });
+                                            }}
+                                            title="Click to use this cost for the row (GM% kept, sell recomputes)"
                                             className="text-slate-200 font-medium tabular-nums flex-shrink-0 hover:text-emerald-300 transition-colors"
                                           >
                                             {fmtIdr(h.unitCost)}
