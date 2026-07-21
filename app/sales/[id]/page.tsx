@@ -12,12 +12,16 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter, useParams } from 'next/navigation';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
+import SalesMilestones from '@/components/ui/SalesMilestones';
 import { SALES_STATUS as STATUS, COMMITTED_STATUSES as COMMITTED } from '@/lib/salesStatus';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
   customer_id: string | null; company_id: string | null; quote_date: string; status: string;
   ppn_pct: number; subtotal: number; ppn_amount: number; grand_total: number; notes: string;
+  revision?: number;
+  validated_at?: string | null; sent_at?: string | null; accepted_at?: string | null;
+  ordered_at?: string | null; invoiced_at?: string | null; delivered_at?: string | null;
   updated_at?: string; updated_by_email?: string;
 }
 interface DbLine { item_id: string; component_id: string | null; is_section: boolean; description: string; brand: string; note: string; lead_time: string; unit: string; quantity: number; unit_price: number; sort_order: number; }
@@ -183,13 +187,14 @@ export default function SalesQuotePage() {
     return { subtotal, ppn, grand: subtotal + ppn };
   }, [lines, editing?.ppn_pct]);
 
-  async function persist(status?: string): Promise<string | null> {
+  async function persist(status?: string, extra?: Record<string, unknown>): Promise<string | null> {
     if (!editing) return null;
     const kept = lines.filter((l) => l.is_section ? l.description.trim() : ((l.component_id || l.description.trim()) && num(l.quantity) > 0));
     const header = {
       customer_id: editing.customer_id, company_id: editing.company_id, quote_date: editing.quote_date,
       status: status ?? editing.status, ppn_pct: num(editing.ppn_pct),
       subtotal: totals.subtotal, ppn_amount: totals.ppn, grand_total: totals.grand, notes: editing.notes,
+      ...(extra ?? {}),
     };
     let qid = editing.quote_id;
     if (qid) {
@@ -253,6 +258,18 @@ export default function SalesQuotePage() {
     if (wasNew) router.replace(`/sales/${qid}`); else load(true); // refresh status + stamped numbers in place
   }
 
+  // Revise: back to draft with the revision counter bumped (trigger stamps
+  // revised_at and clears the downstream quote milestones for the new round).
+  async function revise() {
+    if (!editing?.quote_id) return;
+    setBusy(true);
+    const qid = await persist('draft', { revision: (editing.revision ?? 0) + 1 });
+    setBusy(false);
+    if (!qid) return;
+    flash(`Revision ${(editing.revision ?? 0) + 1} — back to draft`);
+    load(true);
+  }
+
   if (authLoading || !profile || (loading && !editing)) return <CenterSpinner />;
   if (!canEdit) return <CenterSpinner />;
   if (notFound) return (
@@ -272,16 +289,19 @@ export default function SalesQuotePage() {
   const fullyPaid = billTotal > 0 && received >= billTotal - 0.5;
   const showPayments = !newDoc && ['ordered', 'invoiced', 'delivered'].includes(st);
   const actions: { label: string; to: string; primary?: boolean; danger?: boolean }[] = [];
-  if (st === 'draft') actions.push({ label: 'Mark Sent', to: 'sent' });
+  if (st === 'draft') { actions.push({ label: 'Mark Validated', to: 'validated', primary: true }); actions.push({ label: 'Mark Sent', to: 'sent' }); }
+  if (st === 'validated') actions.push({ label: 'Mark Sent', to: 'sent', primary: true });
   if (st === 'sent') actions.push({ label: 'Mark Accepted', to: 'accepted' });
-  if (['draft', 'sent', 'accepted'].includes(st)) actions.push({ label: 'Confirm Customer Order', to: 'ordered', primary: true });
+  if (['validated', 'sent', 'accepted'].includes(st)) actions.push({ label: 'Confirm Customer Order', to: 'ordered', primary: st !== 'validated' });
   if (st === 'ordered') actions.push({ label: 'Mark Invoiced', to: 'invoiced', primary: true });
   if (st === 'invoiced') actions.push({ label: 'Mark Delivered', to: 'delivered', primary: true });
   if (st === 'ordered') actions.push({ label: 'Revert to Quote', to: 'accepted' });
   if (st === 'invoiced') actions.push({ label: 'Revert to Order', to: 'ordered' });
   if (['cancelled', 'rejected'].includes(st)) actions.push({ label: 'Reopen', to: 'draft' });
-  if (['draft', 'sent'].includes(st)) actions.push({ label: 'Reject', to: 'rejected', danger: true });
+  if (['draft', 'validated', 'sent'].includes(st)) actions.push({ label: 'Reject', to: 'rejected', danger: true });
   if (['accepted', 'ordered', 'invoiced'].includes(st)) actions.push({ label: 'Cancel Order', to: 'cancelled', danger: true });
+  // Revising re-opens the quote for edits with a bumped revision counter
+  const canRevise = !!editing.quote_id && ['validated', 'sent', 'accepted'].includes(st);
 
   return (
     <div className="min-h-screen bg-[#0f1012] text-slate-200 font-sans text-sm">
@@ -294,6 +314,9 @@ export default function SalesQuotePage() {
       <main className="max-w-[1200px] mx-auto px-4 md:px-8 py-6 space-y-5">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-lg font-bold text-white">{newDoc ? 'New Sales Quote' : editing.quote_number}</h1>
+          {(editing.revision ?? 0) > 0 && (
+            <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-sky-500/15 text-sky-300">Rev {editing.revision}</span>
+          )}
           <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS[st]?.cls ?? ''}`}>{STATUS[st]?.label ?? st}</span>
           {showPayments && fullyPaid && (
             <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40">PAID</span>
@@ -307,6 +330,9 @@ export default function SalesQuotePage() {
             {editing.do_number && <DocTag label="DO" value={editing.do_number} />}
           </div>
         </div>
+
+        {/* Milestone timeline — the defined progression with each stage's doc code */}
+        {!newDoc && <SalesMilestones q={editing} received={received} billTotal={billTotal} />}
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4">
           <FieldBox label="Customer" full>
@@ -378,6 +404,13 @@ export default function SalesQuotePage() {
               {a.label}
             </button>
           ))}
+          {canRevise && (
+            <button onClick={revise} disabled={busy}
+              title="Re-open for edits as a new revision (Rev n) — the quote goes back to Draft and re-runs validation"
+              className="px-4 py-2 rounded-xl text-sm font-semibold bg-sky-500/10 text-sky-300 ring-1 ring-sky-500/25 hover:bg-sky-500/20 transition-colors disabled:opacity-50">
+              Revise Quote
+            </button>
+          )}
           {busy && <span className="w-4 h-4 border-2 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin" />}
           {['draft', 'sent', 'accepted'].includes(st) && (
             <span className="text-[11px] text-slate-600 w-full sm:w-auto sm:ml-1">Confirming reserves these quantities from Live Stock.</span>

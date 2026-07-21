@@ -1,6 +1,7 @@
 /** Sales-quote lifecycle status metadata, shared by the list and editor. */
 export const SALES_STATUS: Record<string, { label: string; cls: string }> = {
   draft:     { label: 'Draft',           cls: 'bg-slate-700/40 text-slate-300' },
+  validated: { label: 'Validated',       cls: 'bg-cyan-500/15 text-cyan-300' },
   sent:      { label: 'Sent',            cls: 'bg-blue-500/15 text-blue-300' },
   accepted:  { label: 'Accepted',        cls: 'bg-teal-500/15 text-teal-300' },
   ordered:   { label: 'Confirmed Order', cls: 'bg-violet-500/15 text-violet-300' },
@@ -12,3 +13,14 @@ export const SALES_STATUS: Record<string, { label: string; cls: string }> = {
 
 // Statuses that reserve stock (Live = Physical − Reserved).
 export const COMMITTED_STATUSES = new Set(['ordered', 'invoiced']);
+
+/**
+ * The milestone ladder every sales document climbs:
+ *   Draft (SQ) → Validated → Sent → Accepted → Sales Order (SO) →
+ *   Invoice (INV) → Delivery (DO); payment (RCPT receipts) runs from SO
+ *   onward and "complete" = delivered AND fully paid (both derived).
+ * Index comparisons let the UI mark a milestone done even when an older
+ * document skipped a step (e.g. sent directly without validation).
+ */
+export const MILESTONE_ORDER = ['draft', 'validated', 'sent', 'accepted', 'ordered', 'invoiced', 'delivered'] as const;
+export const milestoneIndex = (status: string) => MILESTONE_ORDER.indexOf(status as (typeof MILESTONE_ORDER)[number]);

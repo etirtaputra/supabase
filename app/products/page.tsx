@@ -36,7 +36,7 @@ const INCOMING_PO_STATUSES = new Set(['Sent', 'Confirmed', 'Partially Received']
 const fmtInt = (n: number) => Math.round(n).toLocaleString('en-US');
 const fmtRp = (n: number) => `Rp ${fmtInt(n)}`;
 const fmtDate = (d?: string | null) => d ? new Date(d.length <= 10 ? `${d}T00:00:00` : d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '';
-const humanize = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+import { formatCategory as humanize } from '@/lib/formatCategory';
 // The product's customer-facing name: our internal description, never the supplier's model/SKU.
 const descOf = (c: { internal_description: string | null; supplier_model: string }) =>
   (c.internal_description && c.internal_description.trim()) || c.supplier_model || '(no description)';

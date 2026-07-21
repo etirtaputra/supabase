@@ -23,9 +23,7 @@ function fmtDate(d?: string | null) {
   if (isNaN(dt.getTime())) return '';
   return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
 }
-function humanize(s: string) {
-  return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-}
+import { formatCategory as humanize } from '@/lib/formatCategory';
 function today() { return new Date().toISOString().slice(0, 10); }
 function thisMonth() { return new Date().toISOString().slice(0, 7); }
 

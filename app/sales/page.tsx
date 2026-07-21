@@ -10,11 +10,11 @@ import { useRouter } from 'next/navigation';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 import SalesMigrationBanner from '@/components/ui/SalesMigrationBanner';
-import { SALES_STATUS as STATUS } from '@/lib/salesStatus';
+import { SALES_STATUS as STATUS, milestoneIndex } from '@/lib/salesStatus';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
-  customer_id: string | null; status: string; grand_total: number; updated_at?: string;
+  customer_id: string | null; status: string; grand_total: number; updated_at?: string; revision?: number;
 }
 interface Customer { customer_id: string; display_name: string; legal_name: string; }
 interface PreviewLine { quote_id: string; description: string; quantity: number; unit_price: number; is_section: boolean; sort_order: number; }
@@ -47,7 +47,7 @@ export default function SalesListPage() {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     const [qRes, custRes, rRes, iRes] = await Promise.all([
-      supabase.from('22.0_sales_quotes').select('quote_id, quote_number, order_number, invoice_number, do_number, customer_id, status, grand_total, updated_at').order('updated_at', { ascending: false }),
+      supabase.from('22.0_sales_quotes').select('quote_id, quote_number, order_number, invoice_number, do_number, customer_id, status, grand_total, updated_at, revision').order('updated_at', { ascending: false }),
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name'),
       supabase.from('26.0_customer_receipts').select('quote_id, amount'),
       supabase.from('22.1_sales_quote_items').select('quote_id, description, quantity, unit_price, is_section, sort_order').order('sort_order'),
@@ -117,11 +117,17 @@ export default function SalesListPage() {
                   <Fragment key={q.quote_id}>
                     <div className={`flex items-stretch transition-colors ${open ? 'bg-slate-800/30' : 'hover:bg-slate-800/40'}`}>
                       <button onClick={() => router.push(`/sales/${q.quote_id}`)} className="flex-1 min-w-0 text-left grid grid-cols-1 md:grid-cols-[150px_1fr_130px_140px_110px] gap-1 md:gap-3 px-4 py-3 items-center">
-                        <span className="font-mono text-[11px] text-slate-300">{q.quote_number}</span>
+                        <span className="font-mono text-[11px] text-slate-300">
+                          {q.quote_number}
+                          {(q.revision ?? 0) > 0 && <span className="ml-1 text-[9px] font-bold text-sky-400">R{q.revision}</span>}
+                        </span>
                         <span className="text-sm text-slate-100 truncate">{c?.display_name || c?.legal_name || <span className="text-slate-600">No customer</span>}</span>
-                        <span className="flex items-center gap-1.5 flex-wrap">
-                          <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS[q.status]?.cls ?? ''}`}>{STATUS[q.status]?.label ?? q.status}</span>
-                          {billed && pct >= 100 && <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300">PAID</span>}
+                        <span className="flex flex-col gap-1">
+                          <span className="flex items-center gap-1.5 flex-wrap">
+                            <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS[q.status]?.cls ?? ''}`}>{STATUS[q.status]?.label ?? q.status}</span>
+                            {billed && pct >= 100 && <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300">PAID</span>}
+                          </span>
+                          <MilestoneDots status={q.status} paid={billed && pct >= 100} delivered={q.status === 'delivered'} />
                         </span>
                         <span className="text-right">
                           <span className="block tabular-nums text-slate-200">{fmtInt(total)}</span>
@@ -178,4 +184,26 @@ export default function SalesListPage() {
 
 function CenterSpinner() {
   return <div className="min-h-screen bg-[#0f1012] flex items-center justify-center"><div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" /></div>;
+}
+
+/** Tiny funnel-progress dots: Quote → Validated → Sent → SO → INV → Paid → DO. */
+function MilestoneDots({ status, paid, delivered }: { status: string; paid: boolean; delivered: boolean }) {
+  if (['cancelled', 'rejected'].includes(status)) return null;
+  const idx = milestoneIndex(status);
+  const steps = [
+    { l: 'Quote', on: true },
+    { l: 'Validated', on: idx >= 1 },
+    { l: 'Sent', on: idx >= 2 },
+    { l: 'Sales Order', on: idx >= 4 },
+    { l: 'Invoice', on: idx >= 5 },
+    { l: 'Paid', on: paid },
+    { l: 'Delivered', on: delivered },
+  ];
+  return (
+    <span className="flex items-center gap-[3px]" title={steps.map((s) => `${s.on ? '✓' : '○'} ${s.l}`).join('\n')}>
+      {steps.map((s) => (
+        <span key={s.l} className={`w-1.5 h-1.5 rounded-full ${s.on ? 'bg-emerald-400' : 'bg-slate-700'}`} />
+      ))}
+    </span>
+  );
 }
