@@ -49,8 +49,11 @@ export const PLN_TARIFF_OPTIONS: { label: string; value: number }[] = [
   { label: 'R-2/TR 3.500–5.500 VA (rumah tangga)', value: 1699.53 },
   { label: 'R-3/TR ≥6.600 VA (rumah tangga besar)', value: 1699.53 },
   { label: 'B-2/TR 6.600 VA–200 kVA (bisnis)', value: 1444.70 },
-  { label: 'B-3/TM >200 kVA (bisnis besar)', value: 1114.74 },
-  { label: 'I-3/TM >200 kVA (industri)', value: 1114.74 },
+  { label: 'B-3/TM >200 kVA (bisnis besar — tarif dasar)', value: 1114.74 },
+  { label: 'I-3/TM >200 kVA (industri — tarif dasar)', value: 1114.74 },
+  // What TM customers are actually billed after subsidy (LWBP block) — field-
+  // confirmed Jul 2026. Savings should offset the BILLED rate, not the base.
+  { label: 'B-3 / I-3 TM — LWBP setelah subsidi (billed)', value: 1035.78 },
   { label: 'I-4/TT ≥30.000 kVA (industri besar)', value: 996.74 },
   { label: 'P-1/TR 6.600 VA–200 kVA (pemerintah)', value: 1699.53 },
   { label: 'P-2/TM >200 kVA (pemerintah)', value: 1522.88 },
