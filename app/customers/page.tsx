@@ -148,6 +148,8 @@ function CustomersInner() {
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
 
   const openProfile = useCallback(async (c: Customer) => {
+    // Clicking the already-open row collapses its preview
+    if (profileFor?.customer_id === c.customer_id) { setProfileFor(null); setProfileData(null); return; }
     setProfileFor(c);
     setProfileData(null);
     const [{ data: docs }, { data: epc }] = await Promise.all([
@@ -188,7 +190,8 @@ function CustomersInner() {
     }
     const topItems = [...agg.values()].sort((a, b) => b.value - a.value).slice(0, 6);
     setProfileData({ docs: list, received, topItems, epcQuotes: (epc as EpcQuote[]) ?? [] });
-  }, [supabase]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase, profileFor]);
 
   const flash = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
 
@@ -463,7 +466,7 @@ function CustomersInner() {
             </label>
             <button
               onClick={() => openDrawer(null)}
-              className="px-4 py-2 rounded-xl bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 text-sm font-semibold transition-colors"
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 transition-colors whitespace-nowrap"
             >
               + New Customer
             </button>
@@ -509,46 +512,49 @@ function CustomersInner() {
               {filtered.map((c) => {
                 const contacts = contactsByCustomer[c.customer_id] ?? [];
                 const primary = contacts.find((x) => x.is_primary) ?? contacts[0];
+                const open = profileFor?.customer_id === c.customer_id;
                 return (
-                  <button
-                    key={c.customer_id}
-                    onClick={() => openProfile(c)}
-                    className="w-full text-left grid grid-cols-1 md:grid-cols-[130px_1fr_120px_180px_90px] gap-1 md:gap-3 px-4 py-3 hover:bg-slate-800/40 transition-colors items-center"
-                  >
-                    <span className="font-mono text-[11px] text-slate-400">{c.customer_code || '—'}</span>
-                    <span className="min-w-0">
-                      <span className="block text-sm text-slate-100 font-medium truncate">{c.display_name || c.legal_name || '(no name)'}</span>
-                      {primary && <span className="block text-[11px] text-slate-500 truncate">{primary.name}{primary.email ? ` · ${primary.email}` : ''}</span>}
-                    </span>
-                    <span className="text-xs text-slate-400">{c.tier ? <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-[11px]">{tierLabel.get(c.tier) ?? c.tier}</span> : <span className="text-slate-600">—</span>}</span>
-                    <span className="text-xs text-slate-400 truncate">{c.account_manager_id ? (amById.get(c.account_manager_id) ?? '—') : <span className="text-slate-600">Unassigned</span>}</span>
-                    <span>
-                      <span className={`inline-flex items-center gap-1.5 text-[11px] font-medium ${c.is_active ? 'text-emerald-400' : 'text-slate-500'}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${c.is_active ? 'bg-emerald-400' : 'bg-slate-600'}`} />
-                        {c.is_active ? 'Active' : 'Inactive'}
+                  <div key={c.customer_id}>
+                    <button
+                      onClick={() => openProfile(c)}
+                      aria-expanded={open}
+                      className={`w-full text-left grid grid-cols-1 md:grid-cols-[130px_1fr_120px_180px_90px] gap-1 md:gap-3 px-4 py-3 transition-colors items-center ${open ? 'bg-slate-800/40' : 'hover:bg-slate-800/40'}`}
+                    >
+                      <span className="font-mono text-[11px] text-slate-400">{c.customer_code || '—'}</span>
+                      <span className="min-w-0">
+                        <span className="block text-sm text-slate-100 font-medium truncate">{c.display_name || c.legal_name || '(no name)'}</span>
+                        {primary && <span className="block text-[11px] text-slate-500 truncate">{primary.name}{primary.email ? ` · ${primary.email}` : ''}</span>}
                       </span>
-                    </span>
-                  </button>
+                      <span className="text-xs text-slate-400">{c.tier ? <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-[11px]">{tierLabel.get(c.tier) ?? c.tier}</span> : <span className="text-slate-600">—</span>}</span>
+                      <span className="text-xs text-slate-400 truncate">{c.account_manager_id ? (amById.get(c.account_manager_id) ?? '—') : <span className="text-slate-600">Unassigned</span>}</span>
+                      <span className="flex items-center justify-between gap-2">
+                        <span className={`inline-flex items-center gap-1.5 text-[11px] font-medium ${c.is_active ? 'text-emerald-400' : 'text-slate-500'}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${c.is_active ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+                          {c.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                        <svg className={`w-3.5 h-3.5 text-slate-600 transition-transform duration-150 ${open ? 'rotate-180 text-slate-400' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                      </span>
+                    </button>
+                    {/* Inline preview — expands under the row; editing opens the drawer */}
+                    {open && !editing && (
+                      <ProfilePanel
+                        customer={c}
+                        data={profileData}
+                        contacts={contacts}
+                        amName={c.account_manager_id ? (amById.get(c.account_manager_id) ?? '') : ''}
+                        tierName={c.tier ? (tierLabel.get(c.tier) ?? c.tier) : ''}
+                        onClose={() => { setProfileFor(null); setProfileData(null); }}
+                        onEdit={() => openDrawer(c)}
+                        onOpenDoc={(qid) => router.push(`/sales/${qid}`)}
+                      />
+                    )}
+                  </div>
                 );
               })}
             </div>
           )}
         </div>
       </main>
-
-      {/* Profile drawer (row click) — activity, links, and stats */}
-      {profileFor && !editing && (
-        <ProfileDrawer
-          customer={profileFor}
-          data={profileData}
-          contacts={contactsByCustomer[profileFor.customer_id] ?? []}
-          amName={profileFor.account_manager_id ? (amById.get(profileFor.account_manager_id) ?? '') : ''}
-          tierName={profileFor.tier ? (tierLabel.get(profileFor.tier) ?? profileFor.tier) : ''}
-          onClose={() => { setProfileFor(null); setProfileData(null); }}
-          onEdit={() => openDrawer(profileFor)}
-          onOpenDoc={(qid) => router.push(`/sales/${qid}`)}
-        />
-      )}
 
       {/* Drawer */}
       {editing && (
@@ -626,11 +632,12 @@ function CustomersInner() {
   );
 }
 
-// ── Profile drawer (row click): activity, document links, stats ─────────────
+// ── Profile panel (row click): expands inline under the row — activity,
+//    document links, and stats. Editing opens the slide-over drawer. ─────────
 const fmtIdr = (n: number) => Math.round(n).toLocaleString('en-US');
 const fmtD = (d?: string | null) => d ? new Date(d.length <= 10 ? `${d}T00:00:00` : d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '';
 
-function ProfileDrawer({ customer, data, contacts, amName, tierName, onClose, onEdit, onOpenDoc }: {
+function ProfilePanel({ customer, data, contacts, amName, tierName, onClose, onEdit, onOpenDoc }: {
   customer: Customer;
   data: ProfileData | null;
   contacts: Contact[];
@@ -665,35 +672,31 @@ function ProfileDrawer({ customer, data, contacts, amName, tierName, onClose, on
   const primary = contacts.find((x) => x.is_primary) ?? contacts[0];
 
   return (
-    <div className="fixed inset-0 z-[100] flex justify-end">
-      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative w-full max-w-2xl h-full bg-[#141518] border-l border-slate-800 shadow-2xl overflow-y-auto">
-        {/* Header */}
-        <div className="sticky top-0 bg-[#141518]/95 backdrop-blur border-b border-slate-800 px-6 py-4 flex items-center gap-3 z-10">
-          <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-bold text-white truncate">{customer.display_name || customer.legal_name || '(no name)'}</h2>
-            <p className="text-[11px] text-slate-500 mt-0.5 truncate">
-              <span className="font-mono">{customer.customer_code}</span>
-              {tierName ? ` · ${tierName}` : ''}
-              {amName ? ` · AM: ${amName}` : ''}
-              {primary ? ` · ${primary.name}${primary.phone ? ` (${primary.phone})` : ''}` : ''}
-            </p>
-          </div>
-          <button onClick={onEdit}
-            className="px-3.5 py-1.5 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs font-semibold transition-colors flex-shrink-0">
-            ✎ Edit
-          </button>
-          <button onClick={onClose} className="p-2 -m-2 text-slate-500 hover:text-white transition-colors flex-shrink-0">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-        </div>
+    <div className="border-t border-slate-800/60 bg-[#101214]">
+      {/* Context strip: code · tier · AM · primary contact, plus actions.
+          The row above already shows the name, so no repeated heading. */}
+      <div className="px-4 py-2.5 flex items-center gap-3 border-b border-slate-800/60">
+        <p className="text-[11px] text-slate-500 truncate flex-1">
+          <span className="font-mono">{customer.customer_code}</span>
+          {tierName ? ` · ${tierName}` : ''}
+          {amName ? ` · AM: ${amName}` : ''}
+          {primary ? ` · ${primary.name}${primary.phone ? ` (${primary.phone})` : ''}` : ''}
+        </p>
+        <button onClick={onEdit}
+          className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 text-[11px] font-semibold transition-colors flex-shrink-0">
+          ✎ Edit
+        </button>
+        <button onClick={onClose} title="Collapse" className="p-1.5 -m-1 text-slate-500 hover:text-white transition-colors flex-shrink-0">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" /></svg>
+        </button>
+      </div>
 
-        {!data ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
-          </div>
-        ) : (
-          <div className="px-6 py-5 space-y-5">
+      {!data ? (
+        <div className="flex items-center justify-center py-10">
+          <div className="w-5 h-5 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+        </div>
+      ) : (
+        <div className="px-4 py-4 space-y-5">
             {/* KPI row */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
               <Kpi label="Total sales (orders)" value={`Rp${fmtIdr(totalSales)}`} sub={`${committed.length} order${committed.length !== 1 ? 's' : ''}`} cls="text-emerald-300" />
@@ -814,8 +817,7 @@ function ProfileDrawer({ customer, data, contacts, amName, tierName, onClose, on
               <p className="text-xs text-slate-600 italic">No after-sales module yet — service records, warranty claims, and maintenance visits will appear here once that module is built.</p>
             </section>
           </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }
