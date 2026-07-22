@@ -12,7 +12,6 @@ import { lineWp } from '@/lib/quoteWp';
 import { fmtRp } from '@/lib/formatters';
 import MigrationBanner from '@/components/ui/MigrationBanner';
 import BrandMenu from '@/components/ui/BrandMenu';
-import CommandPalette from '@/components/ui/CommandPalette';
 import MobileNotice from '@/components/ui/MobileNotice';
 import { PROJECT_TYPES } from '@/lib/projectSpec';
 import { SECTION_GROUPS, STANDARD_SECTIONS, type ProjectQuote } from '@/types/quotes';
@@ -332,8 +331,6 @@ export default function QuotesListPage() {
 
   return (
     <div className="min-h-screen bg-[#141518] text-slate-200 font-sans text-sm">
-      {/* Spotlight is Owner-only in Quotes — keeps the data-entry team out of vendor/deal search */}
-      <CommandPalette enabled={gate.profile?.role === 'owner'} />
       {/* Header */}
       <div className="sticky top-0 z-40 bg-[#141518]/90 backdrop-blur-xl border-b border-white/[0.07]">
         <div className="max-w-6xl 2xl:max-w-[1400px] mx-auto px-3 sm:px-6 py-4 flex items-center justify-between gap-3">

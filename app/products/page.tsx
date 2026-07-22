@@ -11,10 +11,10 @@
  * Gated to roles that can see selling prices (owner + sales).
  */
 'use client';
-import { useState, useEffect, useMemo, useCallback, Fragment } from 'react';
+import { useState, useEffect, useMemo, useCallback, Fragment, Suspense } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
@@ -54,9 +54,19 @@ const DEFAULT_DIR: Record<SortKey, 1 | -1> = {
 
 interface Row { c: Comp; phys: number; rsv: number; live: number; inc: number; activity: number; }
 
+// Suspense wrapper: useSearchParams (?q= deep links from Spotlight) requires it
 export default function ProductsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#0f1012]" />}>
+      <ProductsInner />
+    </Suspense>
+  );
+}
+
+function ProductsInner() {
   const supabase = createSupabaseClient();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, profile, loading: authLoading } = useAuth();
   const canView = !!profile && ROLE_PERMISSIONS[profile.role].canViewSellingPrice;
   const canEditMeta = !!profile && ROLE_PERMISSIONS[profile.role].canEdit; // warranty / datasheet edits
@@ -75,7 +85,7 @@ export default function ProductsPage() {
   const [deliveriesByComp, setDeliveriesByComp] = useState<Record<string, DocRef[]>>({});
   const [loading, setLoading] = useState(true);
 
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(searchParams.get('q') ?? '');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterBrand, setFilterBrand] = useState('');
   const [stockOnly, setStockOnly] = useState(false);

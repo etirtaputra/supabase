@@ -2,21 +2,32 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
+import { useAuth } from '@/hooks/useAuth';
+import { ROLE_PERMISSIONS, type RolePermissions } from '@/constants/roles';
+import { SALES_STATUS } from '@/lib/salesStatus';
 
 /**
  * Global Spotlight search — two presentations of one search index:
  *
- *  • variant="modal"  (default): a Ctrl/Cmd+I overlay. When closed it shows a
- *    small bottom-right reminder pill (unless showHint=false). Used in Catalog,
- *    Insights, and — gated to owners via `enabled` — Quotes.
+ *  • variant="modal"  (default): a Ctrl/Cmd+I overlay, mounted app-wide via
+ *    GlobalSpotlight. When closed it shows a small reminder pill (unless
+ *    showHint=false).
  *  • variant="inline": an always-visible search bar that drops its results
  *    directly below it (the dashboard hero). No modal, no pill.
  *
- * Root results: suppliers, buying companies, project quotes, supplier quotes
- * (PI), POs, and catalog items. → drills a supplier/company/item into its
- * latest PIs & POs; Enter opens the item's context (Deal/Cost Lookup or the
- * quote editor). Ranking: prefix matches first; vendors/companies outrank
- * items; items sort by buying activity.
+ * The index is ROLE-SCOPED — each side of the ERP only ever fetches what its
+ * roles may see:
+ *  · buy-side:  suppliers, buying companies, supplier quotes (PI), POs, GRNs,
+ *    items (model + brand, → Insights cost lookup, drill into latest deals).
+ *  · sell-side: customers, sales documents (SQ/SO/INV/DO in one entry),
+ *    payments received (RCPT), items (internal description — no brand — → Products).
+ *  · projects:  EPC project quotes.
+ * Typing any document number (SQ/SO/INV/DO/PI/PO/GRN/RCPT) resolves it; a
+ * leading kind token filters (e.g. "inv 0007", "po jinko", "cust dea").
+ * Results group under kind headers with per-kind caps; the empty-query state
+ * shows YOUR recently opened results (localStorage), falling back to newest
+ * documents. Ranking: direct name/number matches, then vendors/companies/
+ * customers, documents, items (items by trading activity).
  */
 
 interface DealLine { name: string; qty: number; price: number; ccy: string }
@@ -32,7 +43,7 @@ interface DealRef {
 }
 
 interface Item {
-  kind: 'supplier' | 'company' | 'customer' | 'quote' | 'pi' | 'po' | 'component';
+  kind: 'supplier' | 'company' | 'customer' | 'quote' | 'sales' | 'pi' | 'po' | 'grn' | 'receipt' | 'component';
   id: string;
   title: string;
   sub: string;
@@ -40,8 +51,8 @@ interface Item {
   date?: string;
   weight?: number;
   drill?: DealRef[];
-  lines?: DealLine[];       // PI / PO line items, for the tap preview
-  keywords?: string;        // extra searchable text (line-item names) — not shown
+  lines?: DealLine[];       // PI / PO / sales-doc line items, for the tap preview
+  keywords?: string;        // extra searchable text (alt doc numbers, line-item names) — not shown
 }
 
 const KIND_BADGE: Record<Item['kind'], { label: string; cls: string }> = {
@@ -49,26 +60,81 @@ const KIND_BADGE: Record<Item['kind'], { label: string; cls: string }> = {
   company:   { label: 'Company',  cls: 'bg-rose-500/15 text-rose-300' },
   customer:  { label: 'Customer', cls: 'bg-teal-500/15 text-teal-300' },
   quote:     { label: 'Quote',    cls: 'bg-violet-500/15 text-violet-300' },
+  sales:     { label: 'Sales',    cls: 'bg-emerald-500/15 text-emerald-300' },
   pi:        { label: 'PI',       cls: 'bg-blue-500/15 text-blue-300' },
   po:        { label: 'PO',       cls: 'bg-amber-500/15 text-amber-300' },
+  grn:       { label: 'GRN',      cls: 'bg-cyan-500/15 text-cyan-300' },
+  receipt:   { label: 'RCPT',     cls: 'bg-lime-500/15 text-lime-300' },
   component: { label: 'Item',     cls: 'bg-emerald-500/15 text-emerald-300' },
 };
 
-const KIND_ORDER: Item['kind'][] = ['supplier', 'company', 'customer', 'quote', 'pi', 'po', 'component'];
+const KIND_ORDER: Item['kind'][] = ['supplier', 'company', 'customer', 'quote', 'sales', 'pi', 'po', 'grn', 'receipt', 'component'];
+
+const KIND_GROUP: Record<Item['kind'], string> = {
+  supplier: 'Suppliers', company: 'Buying companies', customer: 'Customers',
+  quote: 'Project quotes (EPC)', sales: 'Sales documents', pi: 'Supplier quotes (PI)',
+  po: 'Purchase orders', grn: 'Goods receipts', receipt: 'Payments received', component: 'Items',
+};
+
+// A leading token narrows the search to one kind: "inv 0007", "po jinko",
+// "cust dea", "item mc4". The alias alone lists that kind's latest entries.
+const KIND_ALIASES: Record<string, Item['kind']> = {
+  supplier: 'supplier', sup: 'supplier', vendor: 'supplier',
+  company: 'company',
+  customer: 'customer', cust: 'customer',
+  epc: 'quote', project: 'quote',
+  sales: 'sales', sq: 'sales', so: 'sales', inv: 'sales', invoice: 'sales', do: 'sales', order: 'sales',
+  pi: 'pi', po: 'po',
+  grn: 'grn',
+  rcpt: 'receipt', receipt: 'receipt', payment: 'receipt',
+  item: 'component', product: 'component',
+};
+
+// Which kinds each role's index may contain (and fetch) — buy-side info
+// (vendors, PI/PO, brands, landed costs) never reaches a sell-side client.
+const allowedKinds = (p: RolePermissions): Set<Item['kind']> => {
+  const s = new Set<Item['kind']>();
+  if (p.buySide) { s.add('supplier'); s.add('company'); s.add('pi'); s.add('po'); s.add('grn'); s.add('component'); }
+  if (p.sellSide) { s.add('customer'); s.add('sales'); s.add('receipt'); s.add('component'); }
+  if (p.projects) s.add('quote');
+  return s;
+};
 
 const dealLookupHref = (n: string) => `/catalog?tab=lookup&q=${encodeURIComponent(n)}`;
+
+// Personal "recently opened" list — survives reloads, per browser profile.
+const RECENTS_KEY = 'icaproc.spotlight.recents';
+const readStoredRecents = (allowed: Set<Item['kind']>): Item[] => {
+  try {
+    const arr = JSON.parse(localStorage.getItem(RECENTS_KEY) ?? '[]');
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .filter((r): r is Item => r && typeof r.href === 'string' && typeof r.title === 'string' && allowed.has(r.kind))
+      .slice(0, 10);
+  } catch { return []; }
+};
+const saveStoredRecent = (item: Item) => {
+  try {
+    const slim = { kind: item.kind, id: item.id, title: item.title, sub: item.sub, href: item.href, date: item.date };
+    const arr = JSON.parse(localStorage.getItem(RECENTS_KEY) ?? '[]');
+    const rest = (Array.isArray(arr) ? arr : []).filter((r: Item) => !(r.kind === slim.kind && r.id === slim.id));
+    localStorage.setItem(RECENTS_KEY, JSON.stringify([slim, ...rest].slice(0, 10)));
+  } catch { /* private mode etc. — recents just don't persist */ }
+};
 
 interface Props {
   variant?: 'modal' | 'inline';
   /** modal only: show the bottom-right reminder pill when closed */
   showHint?: boolean;
-  /** false renders nothing (e.g. Quotes for non-owners) */
+  /** false renders nothing */
   enabled?: boolean;
 }
 
 export default function CommandPalette({ variant = 'modal', showHint = true, enabled = true }: Props) {
   const supabase = createSupabaseClient();
   const inline = variant === 'inline';
+  const { profile } = useAuth();
+  const perms = profile ? ROLE_PERMISSIONS[profile.role] : null;
 
   const [open, setOpen] = useState(false);       // modal visibility
   const [focused, setFocused] = useState(false); // inline dropdown visibility
@@ -77,7 +143,8 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
   const [query, setQuery] = useState('');
   const [index, setIndex] = useState(0);
   const [items, setItems] = useState<Item[] | null>(null);
-  const [recents, setRecents] = useState<Item[]>([]);
+  const [recents, setRecents] = useState<Item[]>([]);       // fallback: newest documents
+  const [stored, setStored] = useState<Item[]>([]);         // personal: recently opened
   const [drill, setDrill] = useState<{ title: string; refs: DealRef[] } | null>(null);
   const [openLines, setOpenLines] = useState<number | null>(null); // drill row whose items are expanded
   const inputRef = useRef<HTMLInputElement>(null);
@@ -119,34 +186,54 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
     }
   }, [open]);
 
+  // Refresh the personal recents whenever the palette activates
+  useEffect(() => {
+    if (active && perms) setStored(readStoredRecents(allowedKinds(perms)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
+
   const loadData = useCallback(async () => {
+    if (!perms) return;
+    const canBuy = perms.buySide;
+    const canSell = perms.sellSide;
+    const canProjects = perms.projects;
+    const showBrand = perms.canViewBrand;
+
     const fetchAllComponents = async () => {
       const PAGE = 1000;
-      let all: { component_id: string; supplier_model: string; brand: string | null; category: string | null }[] = [];
+      const cols = `component_id, supplier_model, internal_description, category${showBrand ? ', brand' : ''}`;
+      let all: { component_id: string; supplier_model: string; internal_description: string | null; brand?: string | null; category: string | null }[] = [];
       let from = 0;
       for (;;) {
         const { data: page } = await supabase.from('3.0_components')
-          .select('component_id, supplier_model, brand, category')
+          .select(cols)
           .order('supplier_model').range(from, from + PAGE - 1);
         if (!page || page.length === 0) break;
-        all = all.concat(page);
+        all = all.concat(page as unknown as typeof all);
         if (page.length < PAGE) break;
         from += PAGE;
       }
       return all;
     };
 
-    const [comps, projectQuotes, suppliers, companies, customers, pis, pos, piLines, poLines, quoteLineItems] = await Promise.all([
-      fetchAllComponents(),
-      supabase.from('10.0_project_quotes').select('quote_id, quote_number, quote_date, customer_name, status').order('quote_date', { ascending: false }).limit(500),
-      supabase.from('2.0_suppliers').select('supplier_id, supplier_name, supplier_code'),
-      supabase.from('1.0_companies').select('company_id, legal_name'),
-      supabase.from('20.0_customers').select('customer_id, customer_code, display_name, legal_name, tier, is_active').order('display_name'),
-      supabase.from('4.0_price_quotes').select('quote_id, pi_number, quote_date, supplier_id, company_id, status').order('quote_date', { ascending: false }).limit(1500),
-      supabase.from('5.0_purchases').select('po_id, po_number, po_date, quote_id, company_id, status').order('po_date', { ascending: false }).limit(1500),
-      supabase.from('4.1_price_quote_line_items').select('quote_id, component_id, quantity, unit_price, currency, supplier_description').limit(8000),
-      supabase.from('5.1_purchase_line_items').select('po_id, component_id, quantity, unit_cost, currency, supplier_description').limit(8000),
-      supabase.from('10.2_quote_items').select('quote_id, description').limit(8000),
+    // Role-scoped fetches: skipped tables resolve to empty — the data never
+    // reaches a client whose role can't see it.
+    const none = Promise.resolve({ data: [] as any[] });
+    const [comps, projectQuotes, suppliers, companies, customers, pis, pos, piLines, poLines, quoteLineItems, salesDocs, salesLines, receipts, grns] = await Promise.all([
+      (canBuy || canSell) ? fetchAllComponents() : Promise.resolve([]),
+      canProjects ? supabase.from('10.0_project_quotes').select('quote_id, quote_number, quote_date, customer_name, status').order('quote_date', { ascending: false }).limit(500) : none,
+      canBuy ? supabase.from('2.0_suppliers').select('supplier_id, supplier_name, supplier_code') : none,
+      canBuy ? supabase.from('1.0_companies').select('company_id, legal_name') : none,
+      canSell ? supabase.from('20.0_customers').select('customer_id, customer_code, display_name, legal_name, tier, is_active').order('display_name') : none,
+      canBuy ? supabase.from('4.0_price_quotes').select('quote_id, pi_number, quote_date, supplier_id, company_id, status').order('quote_date', { ascending: false }).limit(1500) : none,
+      canBuy ? supabase.from('5.0_purchases').select('po_id, po_number, po_date, quote_id, company_id, status').order('po_date', { ascending: false }).limit(1500) : none,
+      canBuy ? supabase.from('4.1_price_quote_line_items').select('quote_id, component_id, quantity, unit_price, currency, supplier_description').limit(8000) : none,
+      canBuy ? supabase.from('5.1_purchase_line_items').select('po_id, component_id, quantity, unit_cost, currency, supplier_description').limit(8000) : none,
+      canProjects ? supabase.from('10.2_quote_items').select('quote_id, description').limit(8000) : none,
+      canSell ? supabase.from('22.0_sales_quotes').select('quote_id, quote_number, order_number, invoice_number, do_number, customer_id, status, grand_total, quote_date, updated_at, revision').order('updated_at', { ascending: false }).limit(1000) : none,
+      canSell ? supabase.from('22.1_sales_quote_items').select('quote_id, description, quantity, unit_price, is_section').limit(8000) : none,
+      canSell ? supabase.from('26.0_customer_receipts').select('receipt_id, receipt_number, quote_id, amount, payment_date').order('payment_date', { ascending: false }).limit(500) : none,
+      canBuy ? supabase.from('30.2_goods_receipts').select('grn_id, grn_number, po_id, received_at, location, notes').order('received_at', { ascending: false }).limit(500) : none,
     ]);
 
     const supplierName = new Map((suppliers.data ?? []).map((s) => [s.supplier_id as string, (s.supplier_name as string) || '']));
@@ -155,7 +242,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
     const compModel = new Map(comps.map((c) => [c.component_id, c.supplier_model]));
 
     // ── Line items + a component×qty signature per PI and per PO ──────────────
-    const pushArr = <T,>(m: Map<number, T[]>, k: number, v: T) => { const a = m.get(k); if (a) a.push(v); else m.set(k, [v]); };
+    const pushArr = <K, T>(m: Map<K, T[]>, k: K, v: T) => { const a = m.get(k); if (a) a.push(v); else m.set(k, [v]); };
     const linesByPi = new Map<number, DealLine[]>();
     const linesByPo = new Map<number, DealLine[]>();
     const sigPartsPi = new Map<number, string[]>();
@@ -304,6 +391,87 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
       keywords: kwFromLines(linesByPo.get(p.po_id as number)),
     }));
 
+    // ── Sell-side documents: one entry per sales doc carrying ALL its numbers,
+    //    so typing any of SQ / SO / INV / DO lands on /sales/[id]. ────────────
+    const custNameById = new Map((customers.data ?? []).map((c) => [c.customer_id as string, (c.display_name as string) || (c.legal_name as string) || '']));
+    const salesLinesBy = new Map<string, DealLine[]>();
+    for (const l of salesLines.data ?? []) {
+      if (l.is_section) continue;
+      pushArr(salesLinesBy, l.quote_id as string, { name: (l.description as string) || '(item)', qty: Number(l.quantity) || 0, price: Number(l.unit_price) || 0, ccy: 'IDR' });
+    }
+    const salesById = new Map((salesDocs.data ?? []).map((d) => [d.quote_id as string, d]));
+    const salesItemsList: Item[] = (salesDocs.data ?? []).map((d) => ({
+      kind: 'sales' as const,
+      id: d.quote_id as string,
+      title: (d.quote_number as string) || '(draft)',
+      sub: [
+        custNameById.get(d.customer_id as string) || 'No customer',
+        SALES_STATUS[d.status as string]?.label ?? (d.status as string),
+      ].join(' · '),
+      href: `/sales/${d.quote_id}`,
+      date: String(d.updated_at ?? d.quote_date ?? '').slice(0, 10),
+      lines: salesLinesBy.get(d.quote_id as string),
+      keywords: [d.order_number, d.invoice_number, d.do_number, kwFromLines(salesLinesBy.get(d.quote_id as string))]
+        .filter(Boolean).join(' '),
+    }));
+    const receiptItemsList: Item[] = (receipts.data ?? []).map((r) => {
+      const doc = salesById.get(r.quote_id as string);
+      return {
+        kind: 'receipt' as const,
+        id: r.receipt_id as string,
+        title: (r.receipt_number as string) || 'Receipt',
+        sub: [
+          `Rp ${Math.round(Number(r.amount) || 0).toLocaleString('en-US')}`,
+          doc ? custNameById.get(doc.customer_id as string) : '',
+          doc ? ((doc.invoice_number as string) || (doc.quote_number as string)) : '',
+        ].filter(Boolean).join(' · '),
+        href: `/sales/${r.quote_id}`,
+        date: (r.payment_date as string) ?? '',
+        keywords: doc ? [doc.quote_number, doc.order_number, doc.invoice_number, doc.do_number].filter(Boolean).join(' ') : '',
+      };
+    });
+
+    // ── Goods receipts (buy-side): GRN number → the PO's deal lookup ─────────
+    const poNumByUuid = new Map((pos.data ?? []).map((p) => [String(p.po_id), (p.po_number as string) || '']));
+    const grnItemsList: Item[] = (grns.data ?? []).map((g) => {
+      const poNum = g.po_id ? poNumByUuid.get(String(g.po_id)) : '';
+      return {
+        kind: 'grn' as const,
+        id: g.grn_id as string,
+        title: (g.grn_number as string) || 'GRN',
+        sub: ['Goods receipt', poNum ? `PO ${poNum}` : '', (g.location as string) !== 'MAIN' ? (g.location as string) : ''].filter(Boolean).join(' · '),
+        href: poNum ? dealLookupHref(poNum) : '/stock',
+        date: String(g.received_at ?? '').slice(0, 10),
+        keywords: [poNum, g.notes as string].filter(Boolean).join(' '),
+      };
+    });
+
+    // ── Items: buy-side sees model + brand (→ cost lookup, deal drill);
+    //    sell-side sees the customer-facing description (→ Products). ────────
+    const componentItems: Item[] = comps.map((c) => {
+      if (canBuy) {
+        const act = compActivity.get(c.component_id);
+        return {
+          kind: 'component' as const,
+          id: c.component_id,
+          title: c.supplier_model || '(no model)',
+          sub: [c.brand, c.category].filter(Boolean).join(' · '),
+          href: `/insights?tab=lookup&q=${encodeURIComponent(c.supplier_model ?? '')}`,
+          weight: (act?.po.size ?? 0) * 2 + (act?.pi.size ?? 0),
+          drill: byComponent.get(c.component_id) ?? [],
+          keywords: c.internal_description ?? '',
+        };
+      }
+      const desc = (c.internal_description && c.internal_description.trim()) || c.supplier_model || '(no description)';
+      return {
+        kind: 'component' as const,
+        id: c.component_id,
+        title: desc,
+        sub: c.category ?? '',
+        href: `/products?q=${encodeURIComponent(desc)}`,
+      };
+    });
+
     const list: Item[] = [
       ...(suppliers.data ?? []).map((s) => ({
         kind: 'supplier' as const,
@@ -329,58 +497,65 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
         href: `/customers?open=${encodeURIComponent(c.customer_id as string)}`,
       })),
       ...quoteItemsList,
+      ...salesItemsList,
       ...piItemsList,
       ...poItemsList,
-      ...comps.map((c) => {
-        const act = compActivity.get(c.component_id);
-        return {
-          kind: 'component' as const,
-          id: c.component_id,
-          title: c.supplier_model || '(no model)',
-          sub: [c.brand, c.category].filter(Boolean).join(' · '),
-          href: `/insights?tab=lookup&q=${encodeURIComponent(c.supplier_model ?? '')}`,
-          weight: (act?.po.size ?? 0) * 2 + (act?.pi.size ?? 0),
-          drill: byComponent.get(c.component_id) ?? [],
-        };
-      }),
+      ...grnItemsList,
+      ...receiptItemsList,
+      ...componentItems,
     ];
     setItems(list);
 
     setRecents(
-      [...quoteItemsList.slice(0, 4), ...piItemsList.slice(0, 5), ...poItemsList.slice(0, 5)]
+      [...quoteItemsList.slice(0, 4), ...salesItemsList.slice(0, 5), ...piItemsList.slice(0, 5), ...poItemsList.slice(0, 5)]
         .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))
         .slice(0, 8),
     );
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile]);
 
   useEffect(() => {
-    if (active && items === null) loadData();
-  }, [active, items, loadData]);
+    if (active && items === null && perms) loadData();
+  }, [active, items, perms, loadData]);
 
   const results = useMemo(() => {
     if (!items) return [];
     const q = query.trim().toLowerCase();
     if (q.length < 2) return [];
-    const tokens = q.split(/\s+/).filter(Boolean);
+    let tokens = q.split(/\s+/).filter(Boolean);
+    // Leading kind token ("inv", "po", "cust"…) narrows to that kind
+    let kindFilter: Item['kind'] | null = null;
+    if (tokens.length && KIND_ALIASES[tokens[0]]) {
+      kindFilter = KIND_ALIASES[tokens[0]];
+      tokens = tokens.slice(1);
+    }
+    const pool = kindFilter ? items.filter((i) => i.kind === kindFilter) : items;
+    // Alias alone → that kind's latest entries (documents by date, items by activity)
+    if (tokens.length === 0) {
+      if (!kindFilter) return [];
+      return [...pool]
+        .sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0) || (b.date ?? '').localeCompare(a.date ?? '') || a.title.localeCompare(b.title))
+        .slice(0, 20);
+    }
     const first = tokens[0];
     // A "strong" match hits the name/sub directly; a "weak" match hits only the
-    // line-item keywords (i.e. this deal/quote *contains* the searched item).
+    // keywords (alt doc numbers, line-item names — the entry *contains* it).
     const strongText = (i: Item) => `${i.title} ${i.sub}`.toLowerCase();
     const fullText = (i: Item) => `${i.title} ${i.sub} ${i.keywords ?? ''}`.toLowerCase();
-    const matched = items.filter((i) => {
+    const matched = pool.filter((i) => {
       const hay = fullText(i);
       return tokens.every((t) => hay.includes(t));
     });
     const isStrong = (i: Item) => { const h = strongText(i); return tokens.every((t) => h.includes(t)); };
     // Tier priority: (0) suppliers/companies/customers — matched by code or
-    // name — then (1) project quotes / supplier quotes (PI) / POs, then (2) items.
+    // name — then (1) documents (EPC/sales/PI/PO/GRN/RCPT), then (2) items.
     const tier = (k: Item['kind']) =>
       k === 'supplier' || k === 'company' || k === 'customer' ? 0 : k === 'component' ? 2 : 1;
     // Prefix match on the name OR the sub line (supplier_code lives in sub)
     const startsWith = (i: Item) =>
       i.title.toLowerCase().startsWith(first) || i.sub.toLowerCase().startsWith(first);
     matched.sort((a, b) => {
-      // Direct name/sub matches always rank above deals matched only via their items
+      // Direct name/sub matches always rank above entries matched only via keywords
       const sa = isStrong(a) ? 0 : 1, sb = isStrong(b) ? 0 : 1;
       if (sa !== sb) return sa - sb;
       const ta = tier(a.kind), tb = tier(b.kind);
@@ -393,17 +568,30 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
       if (a.kind === 'component') return (b.weight ?? 0) - (a.weight ?? 0);
       return (b.date ?? '').localeCompare(a.date ?? '') || a.title.localeCompare(b.title);
     });
-    return matched.slice(0, 20);
+    // Per-kind caps so one noisy kind (usually items) can't drown the rest
+    const capOf = (k: Item['kind']) => (k === 'component' ? 6 : 5);
+    const counts = new Map<Item['kind'], number>();
+    const capped: Item[] = [];
+    for (const m of matched) {
+      const n = counts.get(m.kind) ?? 0;
+      if (n >= capOf(m.kind)) continue;
+      counts.set(m.kind, n + 1);
+      capped.push(m);
+      if (capped.length >= 24) break;
+    }
+    return capped;
   }, [items, query]);
 
-  const rootRows = query.trim().length >= 2 ? results : recents;
+  const searching = query.trim().length >= 2;
+  const rootRows = searching ? results : (stored.length > 0 ? stored : recents);
 
   useEffect(() => { setIndex(0); setOpenLines(null); }, [query, drill]);
   useEffect(() => {
     listRef.current?.querySelector(`[data-idx="${index}"]`)?.scrollIntoView({ block: 'nearest' });
   }, [index]);
 
-  function go(href: string) {
+  function go(href: string, item?: Item) {
+    if (item) saveStoredRecent(item);
     if (inline) {
       window.open(href, '_blank', 'noopener');
       setFocused(false);
@@ -451,10 +639,10 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
       else if (r?.lines?.length) { e.preventDefault(); setOpenLines(index); }
     }
     else if (e.key === 'ArrowLeft') { if (openLines !== null) { e.preventDefault(); setOpenLines(null); } }
-    else if (e.key === 'Enter' && rootRows[index]) go(rootRows[index].href);
+    else if (e.key === 'Enter' && rootRows[index]) go(rootRows[index].href, rootRows[index]);
   };
 
-  if (!enabled) return null;
+  if (!enabled || !perms) return null;
 
   // Scrollable results list — shared by both variants
   const body = (
@@ -466,52 +654,60 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
         </div>
       )}
 
-      {!drill && items !== null && rootRows.length === 0 && query.trim().length >= 2 && (
+      {!drill && items !== null && rootRows.length === 0 && searching && (
         <p className="px-4 py-6 text-sm text-slate-500 text-center">No matches for “{query}”.</p>
       )}
-      {!drill && items !== null && query.trim().length < 2 && rootRows.length > 0 && (
-        <p className="px-4 pt-3 pb-1 text-[9px] uppercase tracking-wider text-slate-600">Recent activity</p>
+      {!drill && items !== null && !searching && rootRows.length > 0 && (
+        <p className="px-4 pt-3 pb-1 text-[9px] uppercase tracking-wider text-slate-600">
+          {stored.length > 0 ? 'Recently opened' : 'Recent activity'}
+        </p>
       )}
       {drill && drill.refs.length === 0 && (
         <p className="px-4 py-6 text-sm text-slate-500 text-center">No supplier quotes or POs recorded yet.</p>
       )}
 
       {!drill && items !== null && rootRows.map((r, i) => (
-        <div key={`${r.kind}-${r.id}`} data-idx={i} className={`transition-colors ${i === index ? 'bg-slate-800' : ''}`}>
-          <div className="flex items-stretch">
-            <button
-              onClick={() => go(r.href)}
-              onMouseEnter={() => setIndex(i)}
-              className="flex-1 min-w-0 text-left px-4 py-2.5 flex items-center gap-3"
-            >
-              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase flex-shrink-0 ${KIND_BADGE[r.kind].cls}`}>
-                {KIND_BADGE[r.kind].label}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm text-slate-200 truncate">{r.title}</span>
-                <span className="block text-[11px] text-slate-500 truncate">{r.sub}</span>
-              </span>
-              {r.date && <span className="text-[10px] text-slate-600 flex-shrink-0 tabular-nums">{r.date}</span>}
-            </button>
-            {r.drill && r.drill.length > 0 ? (
+        <div key={`${r.kind}-${r.id}`}>
+          {/* Kind headers group search results; the recents list stays flat */}
+          {searching && (i === 0 || rootRows[i - 1].kind !== r.kind) && (
+            <p className="px-4 pt-2.5 pb-1 text-[9px] uppercase tracking-wider text-slate-600">{KIND_GROUP[r.kind]}</p>
+          )}
+          <div data-idx={i} className={`transition-colors ${i === index ? 'bg-slate-800' : ''}`}>
+            <div className="flex items-stretch">
               <button
-                onClick={() => { setIndex(i); drillInto(r); }}
-                title="Show latest quotes & POs (→)"
-                className="px-3 flex items-center text-slate-600 hover:text-white transition-colors"
+                onClick={() => go(r.href, r)}
+                onMouseEnter={() => setIndex(i)}
+                className="flex-1 min-w-0 text-left px-4 py-2.5 flex items-center gap-3"
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+                <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase flex-shrink-0 ${KIND_BADGE[r.kind].cls}`}>
+                  {KIND_BADGE[r.kind].label}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm text-slate-200 truncate">{r.title}</span>
+                  <span className="block text-[11px] text-slate-500 truncate">{r.sub}</span>
+                </span>
+                {r.date && <span className="text-[10px] text-slate-600 flex-shrink-0 tabular-nums">{r.date}</span>}
               </button>
-            ) : r.lines && r.lines.length > 0 ? (
-              <button
-                onClick={() => setOpenLines((o) => (o === i ? null : i))}
-                title="Show items (→)"
-                className="px-3 flex items-center text-slate-600 hover:text-white transition-colors"
-              >
-                <svg className={`w-4 h-4 transition-transform ${openLines === i ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
-              </button>
-            ) : null}
+              {r.drill && r.drill.length > 0 ? (
+                <button
+                  onClick={() => { setIndex(i); drillInto(r); }}
+                  title="Show latest quotes & POs (→)"
+                  className="px-3 flex items-center text-slate-600 hover:text-white transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+                </button>
+              ) : r.lines && r.lines.length > 0 ? (
+                <button
+                  onClick={() => setOpenLines((o) => (o === i ? null : i))}
+                  title="Show items (→)"
+                  className="px-3 flex items-center text-slate-600 hover:text-white transition-colors"
+                >
+                  <svg className={`w-4 h-4 transition-transform ${openLines === i ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+                </button>
+              ) : null}
+            </div>
+            {openLines === i && r.lines && r.lines.length > 0 && linePreview(r.lines)}
           </div>
-          {openLines === i && r.lines && r.lines.length > 0 && linePreview(r.lines)}
         </div>
       ))}
 
@@ -576,7 +772,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
             onBlur={() => setFocused(false)}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onInputKeyDown}
-            placeholder={drill ? 'Enter opens Deal Lookup' : 'Search vendors, components, quotes, PI / PO numbers…'}
+            placeholder={drill ? 'Enter opens Deal Lookup' : 'Search names, items, any document number…'}
             // text-base (16px) on phones stops iOS from auto-zooming on focus.
             // min-w-0 lets the field shrink so the placeholder clips instead of
             // overflowing the pill on narrow screens.
@@ -587,7 +783,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
             <kbd className="text-[11px] font-mono text-slate-400 border border-slate-700 rounded px-1.5 py-0.5 leading-none">I</kbd>
           </span>
         </div>
-        {active && (query.trim().length >= 2 || rootRows.length > 0 || items === null || drill) && (
+        {active && (searching || rootRows.length > 0 || items === null || drill) && (
           <div
             onMouseDown={(e) => e.preventDefault()}
             className="absolute left-0 right-0 mt-2 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden z-50"
@@ -597,6 +793,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
               <span>↑↓ navigate</span>
               {drill ? <><span>← back</span><span>→ items</span></> : <span>→ drill in</span>}
               <span>↵ open in new tab</span>
+              <span className="ml-auto hidden sm:inline">filter: po · inv · cust · item …</span>
             </div>
           </div>
         )}
@@ -611,8 +808,9 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
       <button
         onClick={() => setOpen(true)}
         title={`Spotlight search — ${modKey} + I`}
-        // z-30: below every modal/side-panel backdrop (z-40+) so open panels cover the pill
-        className="fixed bottom-5 right-5 z-30 flex items-center gap-2 px-3 py-2 rounded-full bg-slate-900/90 backdrop-blur border border-slate-700/80 text-slate-400 hover:text-white hover:border-emerald-500/40 shadow-lg transition-colors group"
+        // z-30: below every modal/side-panel backdrop (z-40+) so open panels
+        // cover the pill. bottom-20 on phones clears the fixed bottom tab bar.
+        className="fixed bottom-20 md:bottom-5 right-4 md:right-5 z-30 flex items-center gap-2 px-3 py-2 rounded-full bg-slate-900/90 backdrop-blur border border-slate-700/80 text-slate-400 hover:text-white hover:border-emerald-500/40 shadow-lg transition-colors group print:hidden"
       >
         <svg className="w-3.5 h-3.5 text-slate-500 group-hover:text-emerald-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
         <span className="text-[11px] font-medium hidden sm:inline">Search</span>
@@ -622,7 +820,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
   }
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/60 flex items-start justify-center pt-[15vh] px-4" onClick={() => setOpen(false)}>
+    <div className="fixed inset-0 z-[100] bg-black/60 flex items-start justify-center pt-[12vh] sm:pt-[15vh] px-4" onClick={() => setOpen(false)}>
       <div className="w-full max-w-xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-800">
           {drill ? (
@@ -639,7 +837,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
             readOnly={!!drill}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onInputKeyDown}
-            placeholder={drill ? 'Enter opens Deal Lookup' : 'Search vendors, companies, items, quote/PI/PO numbers…'}
+            placeholder={drill ? 'Enter opens Deal Lookup' : 'Search names, items, any document number…'}
             className="flex-1 min-w-0 bg-transparent outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-600"
           />
           <kbd className="text-[10px] text-slate-600 border border-slate-700 rounded px-1.5 py-0.5">Esc</kbd>
@@ -651,8 +849,8 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
           <span>↑↓ navigate</span>
           {drill ? <><span>← back</span><span>→ items</span></> : <span>→ drill in</span>}
           <span>↵ open</span>
-          <span>Esc close</span>
-          <span className="ml-auto">{modKey} I</span>
+          <span className="hidden sm:inline">Esc close</span>
+          <span className="ml-auto hidden sm:inline">filter: po · inv · cust · item …</span>
         </div>
       </div>
     </div>

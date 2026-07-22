@@ -10,7 +10,6 @@ import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useAuth } from '@/hooks/useAuth';
 import ProductCostLookup from '@/components/ui/ProductCostLookup';
 import BrandMenu from '@/components/ui/BrandMenu';
-import CommandPalette from '@/components/ui/CommandPalette';
 import MobileNotice from '@/components/ui/MobileNotice';
 import POCashCycle from '@/components/ui/POCashCycle';
 import PricingIntelligence from '@/components/ui/PricingIntelligence';
@@ -139,7 +138,6 @@ export default function DatabaseViewPage() {
   return (
     <ToastProvider>
       <div className="min-h-screen bg-[#141518] text-slate-200 font-sans text-sm selection:bg-white/20">
-        <CommandPalette />
 
         {/* ── Sticky header + tab bar ── */}
         <div className="sticky top-0 z-50 bg-[#141518]/90 backdrop-blur-xl border-b border-white/[0.07]">

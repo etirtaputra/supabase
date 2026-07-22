@@ -12,7 +12,6 @@ import SimpleForm from '@/components/forms/SimpleForm';
 import BatchLineItemsForm from '@/components/forms/BatchLineItemsForm';
 import ComponentEditor from '@/components/ui/ComponentEditor';
 import BrandMenu from '@/components/ui/BrandMenu';
-import CommandPalette from '@/components/ui/CommandPalette';
 import MobileNotice from '@/components/ui/MobileNotice';
 import CompetitorPriceForm from '@/components/forms/CompetitorPriceForm';
 import MultiPaymentForm from '@/components/forms/MultiPaymentForm';
@@ -473,7 +472,6 @@ function MasterInsertPage() {
 
   return (
     <div className="min-h-screen bg-[#141518] text-slate-200 font-sans text-sm selection:bg-white/20">
-      <CommandPalette />
       {/* ── Sticky top header + tab bar ── */}
       <div className="sticky top-0 z-50 bg-[#141518]/90 backdrop-blur-xl border-b border-white/[0.07]">
         <header className="px-3 sm:px-4 md:px-8 xl:px-12 pt-4 xl:pt-5 pb-2 max-w-[1800px] 2xl:max-w-[2200px] mx-auto flex flex-col sm:flex-row sm:items-end justify-between gap-1">
