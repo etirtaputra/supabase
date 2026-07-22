@@ -145,7 +145,7 @@ export default function SalesLibraryPage() {
 
         {/* Search + list */}
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search entries…"
-          className="w-full px-4 h-11 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-slate-500 transition-colors" />
+          className="w-full px-4 h-11 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors" />
 
         <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
           {loading ? (

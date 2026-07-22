@@ -485,7 +485,7 @@ function CustomersInner() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search code, name, tier, account manager…"
-              className="w-full pl-10 pr-4 h-11 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-slate-500 transition-colors"
+              className="w-full pl-10 pr-4 h-11 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors"
             />
           </div>
           <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">

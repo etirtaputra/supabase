@@ -580,7 +580,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
             // text-base (16px) on phones stops iOS from auto-zooming on focus.
             // min-w-0 lets the field shrink so the placeholder clips instead of
             // overflowing the pill on narrow screens.
-            className="flex-1 min-w-0 bg-transparent outline-none text-white text-base sm:text-sm placeholder:text-slate-500"
+            className="flex-1 min-w-0 bg-transparent outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500"
           />
           <span className="hidden sm:flex items-center gap-1 flex-shrink-0">
             <kbd className="text-[11px] font-mono text-slate-400 border border-slate-700 rounded px-1.5 py-0.5 leading-none">{modKey}</kbd>
@@ -640,7 +640,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onInputKeyDown}
             placeholder={drill ? 'Enter opens Deal Lookup' : 'Search vendors, companies, items, quote/PI/PO numbers…'}
-            className="flex-1 min-w-0 bg-transparent outline-none text-white text-base sm:text-sm placeholder:text-slate-600"
+            className="flex-1 min-w-0 bg-transparent outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-600"
           />
           <kbd className="text-[10px] text-slate-600 border border-slate-700 rounded px-1.5 py-0.5">Esc</kbd>
         </div>
