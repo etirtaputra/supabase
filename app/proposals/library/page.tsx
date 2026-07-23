@@ -580,7 +580,7 @@ export default function DescriptionLibraryPage() {
     <div className="min-h-screen bg-[#141518] text-slate-200 font-sans text-sm">
       {/* Header */}
       <div className="sticky top-0 z-40 bg-[#141518]/90 backdrop-blur-xl border-b border-white/[0.07]">
-        <div className="max-w-6xl 2xl:max-w-[1400px] mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
+        <div className="max-w-6xl 2xl:max-w-[1760px] mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Link href="/proposals" className="text-slate-500 hover:text-slate-300 transition-colors">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
@@ -624,7 +624,7 @@ export default function DescriptionLibraryPage() {
         </div>
       </div>
 
-      <main className="max-w-6xl 2xl:max-w-[1400px] mx-auto px-4 sm:px-6 py-6 space-y-4">
+      <main className="max-w-6xl 2xl:max-w-[1760px] mx-auto px-4 sm:px-6 py-6 space-y-4">
         {libMissing && (
           <div className="bg-amber-500/10 border border-amber-500/40 rounded-2xl px-4 py-3 text-sm text-amber-300">
             The <span className="font-mono">10.4_description_library</span> table doesn&apos;t exist yet — creating new entries needs it.

@@ -333,7 +333,7 @@ export default function QuotesListPage() {
     <div className="min-h-screen bg-[#141518] text-slate-200 font-sans text-sm">
       {/* Header */}
       <div className="sticky top-0 z-40 bg-[#141518]/90 backdrop-blur-xl border-b border-white/[0.07]">
-        <div className="max-w-6xl 2xl:max-w-[1400px] mx-auto px-3 sm:px-6 py-4 flex items-center justify-between gap-3">
+        <div className="max-w-6xl 2xl:max-w-[1760px] mx-auto px-3 sm:px-6 py-4 flex items-center justify-between gap-3">
           <BrandMenu wordmarkClass="text-xl font-bold" subtitle="EPC Proposals" />
           <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
             {gate.profile?.role === 'owner' && (
@@ -375,7 +375,7 @@ export default function QuotesListPage() {
         </div>
       </div>
 
-      <main className="max-w-6xl 2xl:max-w-[1400px] mx-auto px-3 sm:px-6 py-6 sm:py-8 space-y-6">
+      <main className="max-w-6xl 2xl:max-w-[1760px] mx-auto px-3 sm:px-6 py-6 sm:py-8 space-y-6">
         <MobileNotice variant="edit" />
         <MigrationBanner />
         {createError && (

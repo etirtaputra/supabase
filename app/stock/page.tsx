@@ -147,7 +147,7 @@ export default function StockPage() {
   return (
     <div className="min-h-screen bg-[#0f1012] text-slate-200 font-sans text-sm">
       <div className="border-b border-slate-800/60 bg-[#0f1012]/80 backdrop-blur-md sticky top-0 z-30">
-        <div className="max-w-[1200px] 2xl:max-w-[1560px] mx-auto px-3 sm:px-4 md:px-8 py-4 flex items-center justify-between gap-4">
+        <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-4 flex items-center justify-between gap-4">
           <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Stock · Warehouse" />
           {canManage && (
             <Link href="/stock/receive"
@@ -158,7 +158,7 @@ export default function StockPage() {
         </div>
       </div>
 
-      <main className="max-w-[1200px] 2xl:max-w-[1560px] mx-auto px-3 sm:px-4 md:px-8 py-6 space-y-5">
+      <main className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-6 space-y-5">
         {schemaMissing && (
           <div className="bg-amber-500/10 border border-amber-500/40 rounded-2xl p-4 text-sm">
             <span className="text-amber-300 font-semibold">Inventory tables are behind the app.</span>

@@ -474,7 +474,7 @@ function MasterInsertPage() {
     <div className="min-h-screen bg-[#141518] text-slate-200 font-sans text-sm selection:bg-white/20">
       {/* ── Sticky top header + tab bar ── */}
       <div className="sticky top-0 z-50 bg-[#141518]/90 backdrop-blur-xl border-b border-white/[0.07]">
-        <header className="px-3 sm:px-4 md:px-8 xl:px-12 pt-4 xl:pt-5 pb-2 max-w-[1800px] 2xl:max-w-[2200px] mx-auto flex flex-col sm:flex-row sm:items-end justify-between gap-1">
+        <header className="px-3 sm:px-4 md:px-6 xl:px-8 pt-4 xl:pt-5 pb-2 max-w-[1800px] 2xl:max-w-[2460px] mx-auto flex flex-col sm:flex-row sm:items-end justify-between gap-1">
           <BrandMenu wordmarkClass="text-lg md:text-xl xl:text-2xl font-bold" subtitle={`Catalog${activeItem?.label ? ` · ${activeItem.label}` : ''}`} />
           {/* User badge + sign out — desktop only; mobile signs out via the ICAPROC menu */}
           {profile && (
@@ -497,7 +497,7 @@ function MasterInsertPage() {
           )}
         </header>
         {/* Tab bar */}
-        <nav className="px-3 sm:px-4 md:px-8 xl:px-12 pb-3 xl:pb-4 max-w-[1800px] 2xl:max-w-[2200px] mx-auto flex overflow-x-auto gap-1.5 xl:gap-2 scrollbar-none snap-x snap-mandatory">
+        <nav className="px-3 sm:px-4 md:px-6 xl:px-8 pb-3 xl:pb-4 max-w-[1800px] 2xl:max-w-[2460px] mx-auto flex overflow-x-auto gap-1.5 xl:gap-2 scrollbar-none snap-x snap-mandatory">
           {visibleMenuItems.map((item) => (
             <Link
               key={item.id}
@@ -517,7 +517,7 @@ function MasterInsertPage() {
       </div>
 
       {/* ── Main content ── */}
-      <main className={`max-w-[1800px] 2xl:max-w-[2200px] mx-auto animate-in fade-in duration-300 ${
+      <main className={`max-w-[1800px] 2xl:max-w-[2460px] mx-auto animate-in fade-in duration-300 ${
         activeTab === 'catalog' ? 'p-3 md:p-4 xl:p-5' : 'p-4 md:p-6 xl:p-8 2xl:p-10'
       }`}>
         <div className="pb-8 md:pb-4">

@@ -184,7 +184,7 @@ export default function Home() {
     <div className="min-h-screen bg-[#0f1012] text-slate-200 font-sans text-sm">
       {/* ── Header ── */}
       <div className="border-b border-slate-800/60 bg-[#0f1012]/80 backdrop-blur-md sticky top-0 z-30">
-        <div className="max-w-[1800px] 2xl:max-w-[2200px] mx-auto px-3 sm:px-4 md:px-8 xl:px-12 py-4 flex items-center justify-between gap-4">
+        <div className="max-w-[1800px] 2xl:max-w-[2460px] mx-auto px-3 sm:px-4 md:px-6 xl:px-8 py-4 flex items-center justify-between gap-4">
           <BrandMenu
             wordmarkClass="text-xl md:text-2xl font-extrabold"
             subtitle={new Date().toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
@@ -192,7 +192,7 @@ export default function Home() {
         </div>
       </div>
 
-      <main className="max-w-[1800px] 2xl:max-w-[2200px] mx-auto px-3 sm:px-4 md:px-8 xl:px-12 py-8 xl:py-10 space-y-8">
+      <main className="max-w-[1800px] 2xl:max-w-[2460px] mx-auto px-3 sm:px-4 md:px-6 xl:px-8 py-8 xl:py-10 space-y-8">
 
         {/* ── Spotlight hero (inline, searches in place — no popup) ── */}
         <div className="relative flex flex-col items-center pt-4 pb-2">

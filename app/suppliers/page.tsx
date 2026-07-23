@@ -102,13 +102,13 @@ export default function SuppliersPage() {
   return (
     <div className="min-h-screen bg-[#0f1012] text-slate-200 font-sans text-sm">
       <div className="border-b border-slate-800/60 bg-[#0f1012]/80 backdrop-blur-md sticky top-0 z-30">
-        <div className="max-w-[1200px] 2xl:max-w-[1560px] mx-auto px-3 sm:px-4 md:px-8 py-4 flex items-center justify-between gap-4">
+        <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-4 flex items-center justify-between gap-4">
           <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Suppliers · Vendors" />
           <span className="text-[11px] text-slate-500 whitespace-nowrap">Vendors are created in Catalog → Supplier Quotes</span>
         </div>
       </div>
 
-      <main className="max-w-[1200px] 2xl:max-w-[1560px] mx-auto px-3 sm:px-4 md:px-8 py-6 space-y-5">
+      <main className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-6 space-y-5">
         <div className="relative">
           <svg className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search supplier name, code, location…"
