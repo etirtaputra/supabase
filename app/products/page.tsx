@@ -20,6 +20,7 @@ import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { COMMITTED_STATUSES as COMMITTED } from '@/lib/salesStatus';
 import { downloadCsv, parseCsv, readFileText, csvNum } from '@/lib/csv';
+import { fetchDeliveredByQuoteComp } from '@/lib/reservedStock';
 
 interface Comp {
   component_id: string; supplier_model: string; internal_description: string | null;
@@ -168,6 +169,12 @@ function ProductsInner() {
       for (const k of Object.keys(m)) m[k] = m[k].sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 10);
       return m;
     };
+    // Split fulfillment: delivered DO quantities release their reserve share
+    const deliveredSplit = await fetchDeliveredByQuoteComp(supabase);
+    for (const [k, dq] of deliveredSplit) {
+      const [qid, cid] = k.split('·');
+      if (committed.has(qid)) rsv[cid] = Math.max(0, (rsv[cid] ?? 0) - dq);
+    }
     setReserved(rsv);
     setOrdersByComp(top10(orders));
     setDeliveriesByComp(top10(deliveries));

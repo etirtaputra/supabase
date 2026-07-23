@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 import { COMMITTED_STATUSES as COMMITTED } from '@/lib/salesStatus';
+import { fetchDeliveredByQuoteComp } from '@/lib/reservedStock';
 
 /**
  * Compact per-item stock summary for the Component Editor's Inspect panel:
@@ -35,6 +36,12 @@ export default function StockSummaryCard({ componentId, unit }: { componentId: s
       let reserved = 0;
       for (const it of ((sqiRes.data ?? []) as { quote_id: string; quantity: number; is_section: boolean }[])) {
         if (!it.is_section && committed.has(it.quote_id)) reserved += Number(it.quantity) || 0;
+      }
+      // Split fulfillment: delivered DO qty on committed orders releases its reserve
+      const deliveredSplit = await fetchDeliveredByQuoteComp(supabase);
+      for (const [k, dq] of deliveredSplit) {
+        const [qid, cid] = k.split('·');
+        if (cid === componentId && committed.has(qid)) reserved = Math.max(0, reserved - dq);
       }
       setData({ physical, reserved, avgCost });
     }

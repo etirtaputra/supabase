@@ -13,7 +13,10 @@ import { useRouter } from 'next/navigation';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 
+// One row per Delivery Order (24.0) once DOs exist, plus "awaiting DO" rows
+// for confirmed/invoiced orders with nothing shipped yet.
 interface Quote {
+  row_key: string;
   quote_id: string; quote_number: string; order_number: string | null; invoice_number: string | null; do_number: string | null;
   customer_id: string | null; status: string; ordered_at: string | null; delivered_at: string | null;
   delivery_date: string | null; delivery_time: string | null; delivery_method: string | null; delivery_via: string | null; delivery_contact: string | null;
@@ -45,15 +48,37 @@ export default function DeliveryPage() {
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
-    const [qRes, custRes, iRes] = await Promise.all([
+    const [qRes, custRes, iRes, dRes, diRes] = await Promise.all([
       supabase.from('22.0_sales_quotes')
         .select('quote_id, quote_number, order_number, invoice_number, do_number, customer_id, status, ordered_at, delivered_at, delivery_date, delivery_time, delivery_method, delivery_via, delivery_contact')
         .in('status', ['ordered', 'invoiced', 'preparing', 'delivered'])
         .order('updated_at', { ascending: false }),
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name'),
       supabase.from('22.1_sales_quote_items').select('quote_id, quantity, is_section'),
+      supabase.from('24.0_delivery_orders').select('*').order('created_at', { ascending: false }),
+      supabase.from('24.1_delivery_order_items').select('do_id, qty'),
     ]);
-    setQuotes((qRes.data as Quote[]) ?? []);
+    const orders = ((qRes.data as (Omit<Quote, 'row_key'>)[]) ?? []);
+    const orderById = new Map(orders.map((o) => [o.quote_id, o]));
+    type DoRow = { do_id: string; quote_id: string; do_number: string; status: string; delivered_at: string | null; delivery_date: string | null; delivery_time: string | null; delivery_method: string | null; delivery_via: string | null; delivery_contact: string | null };
+    const doList = dRes.error ? [] : ((dRes.data as DoRow[]) ?? []);
+    const rows: Quote[] = [];
+    // Confirmed / invoiced orders with no DO yet — awaiting the warehouse
+    for (const o of orders) if (['ordered', 'invoiced'].includes(o.status)) rows.push({ ...o, row_key: o.quote_id });
+    // One row per Delivery Order — its own status, dates, and instructions
+    for (const d of doList) {
+      const o = orderById.get(d.quote_id);
+      if (!o || d.status === 'cancelled') continue;
+      rows.push({
+        row_key: d.do_id, quote_id: o.quote_id, quote_number: o.quote_number,
+        order_number: o.order_number, invoice_number: o.invoice_number, do_number: d.do_number,
+        customer_id: o.customer_id, status: d.status === 'delivered' ? 'delivered' : 'preparing',
+        ordered_at: o.ordered_at, delivered_at: d.delivered_at,
+        delivery_date: d.delivery_date, delivery_time: d.delivery_time, delivery_method: d.delivery_method,
+        delivery_via: d.delivery_via, delivery_contact: d.delivery_contact,
+      });
+    }
+    setQuotes(rows);
     setCustomers((custRes.data as Customer[]) ?? []);
     const agg: Record<string, ItemAgg> = {};
     for (const it of ((iRes.data as { quote_id: string; quantity: number; is_section: boolean }[]) ?? [])) {
@@ -61,6 +86,14 @@ export default function DeliveryPage() {
       const a = (agg[it.quote_id] ??= { count: 0, qty: 0 });
       a.count += 1;
       a.qty += Number(it.quantity) || 0;
+    }
+    // Per-DO aggregates override the order-level ones for DO rows
+    if (!diRes.error) {
+      for (const it of ((diRes.data as { do_id: string; qty: number }[]) ?? [])) {
+        const a = (agg[it.do_id] ??= { count: 0, qty: 0 });
+        a.count += 1;
+        a.qty += Number(it.qty) || 0;
+      }
     }
     setItemsByQuote(agg);
     setLoading(false);
@@ -116,9 +149,9 @@ export default function DeliveryPage() {
             ) : (
               <div className="divide-y divide-slate-800/60">
                 {pending.map((q) => {
-                  const agg = itemsByQuote[q.quote_id];
+                  const agg = itemsByQuote[q.row_key];
                   return (
-                    <button key={q.quote_id} onClick={() => router.push(`/sales/${q.quote_id}`)}
+                    <button key={q.row_key} onClick={() => router.push(`/sales/${q.quote_id}`)}
                       className="w-full text-left grid grid-cols-2 md:grid-cols-[170px_1fr_140px_120px_110px] gap-1 md:gap-3 px-4 py-3 hover:bg-slate-800/40 transition-colors items-center">
                       <span>
                         <span className={`block font-mono text-[11px] ${q.status === 'preparing' ? 'text-orange-300' : 'text-violet-300'}`}>{(q.status === 'preparing' && q.do_number) || q.order_number || q.quote_number}</span>
@@ -164,9 +197,9 @@ export default function DeliveryPage() {
             ) : (
               <div className="divide-y divide-slate-800/60">
                 {delivered.map((q) => {
-                  const agg = itemsByQuote[q.quote_id];
+                  const agg = itemsByQuote[q.row_key];
                   return (
-                    <button key={q.quote_id} onClick={() => router.push(`/sales/${q.quote_id}`)}
+                    <button key={q.row_key} onClick={() => router.push(`/sales/${q.quote_id}`)}
                       className="w-full text-left grid grid-cols-2 md:grid-cols-[170px_1fr_140px_120px_110px] gap-1 md:gap-3 px-4 py-3 hover:bg-slate-800/40 transition-colors items-center">
                       <span>
                         <span className="block font-mono text-[11px] text-emerald-300">{q.do_number || '—'}</span>

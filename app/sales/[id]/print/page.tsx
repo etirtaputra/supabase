@@ -56,14 +56,32 @@ export default function SalesPrintPage() {
       ]);
       setReceived(rRes.error ? 0 : ((rRes.data ?? []) as { amount: number }[]).reduce((s, r) => s + (Number(r.amount) || 0), 0));
       if (!qRes.data) { setLoading(false); return; }
-      const q = qRes.data as Quote;
+      let q = qRes.data as Quote;
+      // ?inv=<invoice_id> prints a SPECIFIC invoice (split billing) — its own
+      // number, its own lines (so totals follow), payments against IT only.
+      const invId = new URLSearchParams(window.location.search).get('inv');
+      let invLines: Line[] | null = null;
+      if (invId) {
+        const [invRes, invIRes, invRcv] = await Promise.all([
+          supabase.from('25.0_sales_invoices').select('*').eq('invoice_id', invId).single(),
+          supabase.from('25.1_sales_invoice_items').select('*').eq('invoice_id', invId).order('sort_order'),
+          supabase.from('26.0_customer_receipts').select('amount').eq('invoice_id', invId),
+        ]);
+        if (invRes.data) {
+          const inv = invRes.data as { invoice_number: string; ppn_pct: number };
+          q = { ...q, invoice_number: inv.invoice_number, status: 'invoiced', ppn_pct: Number(inv.ppn_pct) || q.ppn_pct };
+          invLines = (((invIRes.data ?? []) as { inv_item_id: string; description: string; unit: string; qty: number; unit_price: number; sort_order: number }[])
+            .map((x) => ({ item_id: x.inv_item_id, is_section: false, description: x.description, brand: '', note: '', lead_time: '', unit: x.unit, quantity: Number(x.qty) || 0, unit_price: Number(x.unit_price) || 0, sort_order: x.sort_order })));
+          setReceived(invRcv.error ? 0 : ((invRcv.data ?? []) as { amount: number }[]).reduce((s, r) => s + (Number(r.amount) || 0), 0));
+        }
+      }
       setQuote(q);
       setCompanyName(((coRes.data ?? []).find((c) => c.company_id === q.company_id)?.legal_name as string) ?? '');
       if (q.customer_id) {
         const { data: cust } = await supabase.from('20.0_customers').select('display_name, legal_name, billing_address').eq('customer_id', q.customer_id).single();
         if (cust) { setCustomerName((cust.legal_name as string) || (cust.display_name as string) || ''); setCustomerAddr((cust.billing_address as string) || ''); }
       }
-      setLines((iRes.data as Line[]) ?? []);
+      setLines(invLines ?? ((iRes.data as Line[]) ?? []));
       setLoading(false);
     }
     load();

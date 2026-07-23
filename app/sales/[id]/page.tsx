@@ -13,6 +13,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 import SalesMilestones from '@/components/ui/SalesMilestones';
+import FulfillmentPanel, { type SoLine, type Invoice, type InvItem, type DeliveryOrder, type DoItem } from '@/components/ui/FulfillmentPanel';
 import { SALES_STATUS as STATUS, COMMITTED_STATUSES as COMMITTED } from '@/lib/salesStatus';
 
 interface Quote {
@@ -102,6 +103,12 @@ export default function SalesQuotePage() {
   const [physical, setPhysical] = useState<Record<string, number>>({});
   const [reserved, setReserved] = useState<Record<string, number>>({});
   const [receipts, setReceipts] = useState<Receipt[]>([]);
+  // Split fulfillment: this order's child invoices + delivery orders
+  const [savedLines, setSavedLines] = useState<SoLine[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [invItems, setInvItems] = useState<InvItem[]>([]);
+  const [dos, setDos] = useState<DeliveryOrder[]>([]);
+  const [doItems, setDoItems] = useState<DoItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -139,11 +146,35 @@ export default function SalesQuotePage() {
     for (const b of (balRes.data as { component_id: string; qty_on_hand: number }[]) ?? []) phys[b.component_id] = Number(b.qty_on_hand) || 0;
     setPhysical(phys);
 
-    // Reserved = qty on committed quotes.
+    // Reserved = qty on committed orders MINUS what their delivered DOs
+    // already shipped (partial shipments release their share of the reserve).
+    const [allDoRes, allDoItemRes] = await Promise.all([
+      supabase.from('24.0_delivery_orders').select('do_id, quote_id, status'),
+      supabase.from('24.1_delivery_order_items').select('do_id, component_id, qty'),
+    ]);
     const committed = new Set(((allQRes.data as { quote_id: string; status: string }[]) ?? []).filter((q) => COMMITTED.has(q.status)).map((q) => q.quote_id));
-    const rsv: Record<string, number> = {};
+    const orderedByQC = new Map<string, number>();
     for (const it of (allIRes.data as { quote_id: string; component_id: string | null; quantity: number; is_section: boolean }[]) ?? []) {
-      if (it.component_id && !it.is_section && committed.has(it.quote_id)) rsv[it.component_id] = (rsv[it.component_id] ?? 0) + (Number(it.quantity) || 0);
+      if (it.component_id && !it.is_section && committed.has(it.quote_id)) {
+        const k = `${it.quote_id}·${it.component_id}`;
+        orderedByQC.set(k, (orderedByQC.get(k) ?? 0) + (Number(it.quantity) || 0));
+      }
+    }
+    if (!allDoRes.error && !allDoItemRes.error) {
+      const doQuote = new Map(((allDoRes.data ?? []) as { do_id: string; quote_id: string; status: string }[])
+        .filter((d) => d.status === 'delivered').map((d) => [d.do_id, d.quote_id]));
+      for (const it of ((allDoItemRes.data ?? []) as { do_id: string; component_id: string | null; qty: number }[])) {
+        const qid = doQuote.get(it.do_id);
+        if (!qid || !it.component_id || !committed.has(qid)) continue;
+        const k = `${qid}·${it.component_id}`;
+        if (orderedByQC.has(k)) orderedByQC.set(k, (orderedByQC.get(k) ?? 0) - (Number(it.qty) || 0));
+      }
+    }
+    const rsv: Record<string, number> = {};
+    for (const [k, q] of orderedByQC) {
+      if (q <= 0) continue;
+      const cid = k.split('·')[1];
+      rsv[cid] = (rsv[cid] ?? 0) + q;
     }
     setReserved(rsv);
 
@@ -177,15 +208,31 @@ export default function SalesQuotePage() {
       setEditing((prev) => prev ?? blankQuote(coList[0]?.company_id ?? null));
       setLines((prev) => (prev.length ? prev : [blankLine()]));
     } else {
-      const [qRes, iRes, rRes] = await Promise.all([
+      const [qRes, iRes, rRes, invRes, invIRes, doRes, doIRes] = await Promise.all([
         supabase.from('22.0_sales_quotes').select('*').eq('quote_id', id).single(),
         supabase.from('22.1_sales_quote_items').select('*').eq('quote_id', id).order('sort_order'),
         supabase.from('26.0_customer_receipts').select('*').eq('quote_id', id).order('payment_date', { ascending: false }),
+        supabase.from('25.0_sales_invoices').select('*').eq('quote_id', id).order('created_at'),
+        supabase.from('25.1_sales_invoice_items').select('*'),
+        supabase.from('24.0_delivery_orders').select('*').eq('quote_id', id).order('created_at'),
+        supabase.from('24.1_delivery_order_items').select('*').order('sort_order'),
       ]);
       if (!qRes.data) { setNotFound(true); setLoading(false); return; }
       setEditing(qRes.data as Quote);
       setLines([...((iRes.data as DbLine[]) ?? []).map(mapLine), blankLine()]);
       setReceipts(rRes.error ? [] : ((rRes.data as Receipt[]) ?? []));
+      setSavedLines(((iRes.data as DbLine[]) ?? []).map((l) => ({
+        item_id: l.item_id, component_id: l.component_id, is_section: !!l.is_section,
+        description: l.description, unit: l.unit, quantity: Number(l.quantity) || 0, unit_price: Number(l.unit_price) || 0,
+      })));
+      const invList = invRes.error ? [] : ((invRes.data as Invoice[]) ?? []);
+      setInvoices(invList);
+      const invIds = new Set(invList.map((i) => i.invoice_id));
+      setInvItems(invIRes.error ? [] : (((invIRes.data as InvItem[]) ?? []).filter((x) => invIds.has(x.invoice_id))));
+      const doList = doRes.error ? [] : ((doRes.data as DeliveryOrder[]) ?? []);
+      setDos(doList);
+      const doIds = new Set(doList.map((d) => d.do_id));
+      setDoItems(doIRes.error ? [] : (((doIRes.data as DoItem[]) ?? []).filter((x) => doIds.has(x.do_id))));
     }
     setLoading(false);
   }, [id, isNew]);
@@ -325,20 +372,8 @@ export default function SalesQuotePage() {
     const wasNew = !editing.quote_id;
     const qid = await persist(next);
     if (!qid) { setBusy(false); return; }
-    if (next === 'delivered') {
-      // allow_negative: the goods physically left — record the shipment even if
-      // the ledger is behind (the DB guard otherwise blocks negative on-hand).
-      // The trigger stamps unit_cost_idr with the current moving average (COGS).
-      const moves = lines.filter((l) => l.component_id && num(l.quantity) > 0).map((l) => ({
-        component_id: l.component_id, location: 'MAIN', direction: 'out', quantity: num(l.quantity),
-        unit_cost_idr: 0, source_type: 'delivery', source_id: qid, notes: `DO for ${editing.quote_number || qid}`,
-        allow_negative: true,
-      }));
-      if (moves.length) {
-        const { error } = await supabase.from('30.0_stock_movements').insert(moves);
-        if (error) flash(`Delivered, but stock-out failed: ${error.message}`);
-      }
-    }
+    // Stock-outs are written PER DELIVERY ORDER (FulfillmentPanel), not on the
+    // order-level status — partial shipments each move their own quantities.
     setBusy(false);
     flash(`Marked ${STATUS[next]?.label ?? next}`);
     if (wasNew) router.replace(`/sales/${qid}`); else load(true); // refresh status + stamped numbers in place
@@ -401,11 +436,12 @@ export default function SalesQuotePage() {
   if (st === 'validated') actions.push({ label: 'Mark Sent', to: 'sent', primary: true });
   if (st === 'sent') actions.push({ label: 'Mark Accepted', to: 'accepted' });
   if (['validated', 'sent', 'accepted'].includes(st)) actions.push({ label: 'Confirm Customer Order', to: 'ordered', primary: st !== 'validated' });
-  if (st === 'ordered') actions.push({ label: 'Create Invoice', to: 'invoiced', primary: true });
-  if (st === 'preparing') actions.push({ label: 'Mark Delivered', to: 'delivered', primary: true });
+  // Invoices and DOs are created from the Fulfillment panel below; every stage
+  // stays revertible — including a delivered order.
   if (st === 'ordered') actions.push({ label: 'Revert to Quote', to: 'accepted' });
   if (st === 'invoiced') actions.push({ label: 'Revert to Order', to: 'ordered' });
   if (st === 'preparing') actions.push({ label: 'Revert to Invoice', to: 'invoiced' });
+  if (st === 'delivered') actions.push({ label: 'Reopen Order', to: 'preparing' });
   if (['cancelled', 'rejected'].includes(st)) actions.push({ label: 'Reopen', to: 'draft' });
   if (['draft', 'validated', 'sent'].includes(st)) actions.push({ label: 'Reject', to: 'rejected', danger: true });
   if (['accepted', 'ordered', 'invoiced', 'preparing'].includes(st)) actions.push({ label: 'Cancel Order', to: 'cancelled', danger: true });
@@ -443,33 +479,26 @@ export default function SalesQuotePage() {
         {/* Milestone timeline — the defined progression with each stage's doc code */}
         {!newDoc && <SalesMilestones q={editing} received={received} billTotal={billTotal} />}
 
-        {/* Delivery instructions — the warehouse's brief once the DO exists */}
-        {['preparing', 'delivered'].includes(st) && (
-          <div className="bg-orange-500/[0.05] border border-orange-500/20 rounded-2xl p-4">
-            <div className="flex flex-wrap items-center gap-2 mb-2">
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-orange-300/90">Delivery Order · {editing.do_number}</h3>
-              <span className="text-[11px] text-slate-500">
-                {st === 'preparing' ? 'Warehouse: prepare these items' : 'Delivered'}
-              </span>
-              <a href={`/sales/${editing.quote_id}/do`} target="_blank" rel="noopener noreferrer"
-                className="ml-auto px-3 py-1 rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 text-[11px] font-semibold transition-colors"
-                title="Print the Surat Jalan — items, qty, unit, and delivery instructions; no prices">
-                Print DO / Surat Jalan
-              </a>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2 text-xs">
-              <div><p className="text-[10px] text-slate-500">Target date</p><p className="text-slate-200 font-semibold">{editing.delivery_date || '—'}{editing.delivery_time ? ` · ${editing.delivery_time}` : ''}</p></div>
-              <div><p className="text-[10px] text-slate-500">Method</p><p className="text-slate-200 font-semibold">{editing.delivery_method === 'pickup' ? 'Customer pick-up' : editing.delivery_method === 'delivery' ? `Delivery${editing.delivery_via ? ` · ${editing.delivery_via}` : ''}` : '—'}</p></div>
-              <div><p className="text-[10px] text-slate-500">Contact person</p><p className="text-slate-200 font-semibold">{editing.delivery_contact || '—'}</p></div>
-              <div>
-                <p className="text-[10px] text-slate-500">Address</p>
-                <p className="text-slate-300 whitespace-pre-line">{editing.delivery_method === 'pickup' ? 'Gudang / warehouse' : (editing.delivery_address || '—')}</p>
-                {editing.delivery_map_url && (
-                  <a href={editing.delivery_map_url} target="_blank" rel="noopener noreferrer" className="text-[11px] text-sky-400 hover:text-sky-300 underline">Google Maps ↗</a>
-                )}
-              </div>
-            </div>
-          </div>
+        {/* Fulfillment: this order's invoices + delivery orders (split-capable) */}
+        {!newDoc && ['ordered', 'invoiced', 'preparing', 'delivered'].includes(st) && (
+          <FulfillmentPanel
+            quote={editing}
+            soLines={savedLines}
+            invoices={invoices}
+            invItems={invItems}
+            dos={dos}
+            doItems={doItems}
+            paidByInvoice={receipts.reduce((m, r) => {
+              const iid = (r as Receipt & { invoice_id?: string | null }).invoice_id;
+              if (iid) m[iid] = (m[iid] ?? 0) + (Number(r.amount) || 0);
+              return m;
+            }, {} as Record<string, number>)}
+            contacts={custContacts.filter((c) => c.customer_id === editing.customer_id)}
+            shippingAddress={editing.customer_id ? (custById.get(editing.customer_id)?.shipping_address || custById.get(editing.customer_id)?.billing_address || '') : ''}
+            canEdit={canEdit}
+            onChanged={() => load(true)}
+            flash={flash}
+          />
         )}
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4">
@@ -562,19 +591,6 @@ export default function SalesQuotePage() {
               {a.label}
             </button>
           ))}
-          {st === 'invoiced' && (
-            <button onClick={() => setShowDoModal(true)} disabled={busy}
-              title="Issue the DO: delivery instructions for the warehouse — target date, method, address, contact"
-              className="px-4 py-2 rounded-xl text-sm font-semibold bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 transition-colors disabled:opacity-50">
-              Create Delivery Order
-            </button>
-          )}
-          {st === 'preparing' && (
-            <button onClick={() => setShowDoModal(true)} disabled={busy}
-              className="px-4 py-2 rounded-xl text-sm font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors disabled:opacity-50">
-              Edit Delivery Details
-            </button>
-          )}
           {canRevise && (
             <button onClick={revise} disabled={busy}
               title="Re-open for edits as a new revision (Rev n) — the quote goes back to Draft and re-runs validation"
@@ -588,21 +604,6 @@ export default function SalesQuotePage() {
           )}
         </div>
       </main>
-      {showDoModal && (
-        <DeliveryOrderModal
-          initial={{
-            date: editing.delivery_date ?? '', time: editing.delivery_time ?? '',
-            method: editing.delivery_method || 'delivery', via: editing.delivery_via ?? '',
-            address: editing.delivery_address || (editing.customer_id ? (custById.get(editing.customer_id)?.shipping_address || custById.get(editing.customer_id)?.billing_address || '') : ''),
-            mapUrl: editing.delivery_map_url ?? '', contact: editing.delivery_contact ?? '',
-          }}
-          contacts={custContacts.filter((c) => c.customer_id === editing.customer_id)}
-          isEdit={st === 'preparing'}
-          busy={busy}
-          onClose={() => setShowDoModal(false)}
-          onSubmit={submitDeliveryOrder}
-        />
-      )}
       {toast && <Toast msg={toast} />}
     </div>
   );

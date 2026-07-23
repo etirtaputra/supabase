@@ -49,14 +49,36 @@ export default function DeliveryOrderPrintPage() {
         supabase.from('1.0_companies').select('company_id, legal_name'),
       ]);
       if (!qRes.data) { setLoading(false); return; }
-      const q = qRes.data as Quote;
+      let q = qRes.data as Quote;
+      // ?do=<do_id> prints a SPECIFIC delivery order (split shipments) — its
+      // own number, its own lines, its own instructions. No param = legacy
+      // order-level Surat Jalan.
+      const doId = new URLSearchParams(window.location.search).get('do');
+      let doLines: Line[] | null = null;
+      if (doId) {
+        const [dRes, diRes] = await Promise.all([
+          supabase.from('24.0_delivery_orders').select('*').eq('do_id', doId).single(),
+          supabase.from('24.1_delivery_order_items').select('do_item_id, description, unit, qty, sort_order').eq('do_id', doId).order('sort_order'),
+        ]);
+        if (dRes.data) {
+          const d = dRes.data as { do_number: string; delivery_date: string | null; delivery_time: string; delivery_method: string; delivery_via: string; delivery_address: string; delivery_map_url: string; delivery_contact: string; created_at: string; delivered_at: string | null };
+          q = {
+            ...q, do_number: d.do_number, delivery_date: d.delivery_date, delivery_time: d.delivery_time,
+            delivery_method: d.delivery_method, delivery_via: d.delivery_via, delivery_address: d.delivery_address,
+            delivery_map_url: d.delivery_map_url, delivery_contact: d.delivery_contact,
+            preparing_at: d.created_at, delivered_at: d.delivered_at,
+          };
+          doLines = (((diRes.data ?? []) as { do_item_id: string; description: string; unit: string; qty: number; sort_order: number }[])
+            .map((x) => ({ item_id: x.do_item_id, is_section: false, description: x.description, note: '', unit: x.unit, quantity: Number(x.qty) || 0, sort_order: x.sort_order })));
+        }
+      }
       setQuote(q);
       setCompanyName(((coRes.data ?? []).find((c) => c.company_id === q.company_id)?.legal_name as string) ?? '');
       if (q.customer_id) {
         const { data: cust } = await supabase.from('20.0_customers').select('display_name, legal_name').eq('customer_id', q.customer_id).single();
         if (cust) setCustomerName((cust.legal_name as string) || (cust.display_name as string) || '');
       }
-      setLines((iRes.data as Line[]) ?? []);
+      setLines(doLines ?? ((iRes.data as Line[]) ?? []));
       setLoading(false);
     }
     load();

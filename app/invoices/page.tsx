@@ -12,7 +12,10 @@ import { useRouter } from 'next/navigation';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 
+// One row per REAL invoice (25.0) — an order split across several invoices
+// shows several rows, each with its own payment state.
 interface Quote {
+  invoice_key: string; kind?: string; pct?: number | null;
   quote_id: string; quote_number: string; order_number: string | null; invoice_number: string | null; do_number: string | null;
   customer_id: string | null; status: string; grand_total: number; invoiced_at: string | null; delivered_at: string | null;
 }
@@ -47,18 +50,36 @@ export default function InvoicesPage() {
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
-    const [qRes, custRes, rRes] = await Promise.all([
-      supabase.from('22.0_sales_quotes')
-        .select('quote_id, quote_number, order_number, invoice_number, do_number, customer_id, status, grand_total, invoiced_at, delivered_at')
-        .in('status', ['invoiced', 'preparing', 'delivered'])
-        .order('invoiced_at', { ascending: false }),
+    const [invRes, qRes, custRes, rRes] = await Promise.all([
+      supabase.from('25.0_sales_invoices')
+        .select('invoice_id, quote_id, invoice_number, kind, pct, grand_total, issued_at')
+        .order('issued_at', { ascending: false }),
+      supabase.from('22.0_sales_quotes').select('quote_id, quote_number, order_number, do_number, customer_id, status, delivered_at'),
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name'),
-      supabase.from('26.0_customer_receipts').select('quote_id, amount'),
+      supabase.from('26.0_customer_receipts').select('quote_id, invoice_id, amount'),
     ]);
-    setQuotes((qRes.data as Quote[]) ?? []);
+    const qById = new Map((((qRes.data ?? []) as { quote_id: string; quote_number: string; order_number: string | null; do_number: string | null; customer_id: string | null; status: string; delivered_at: string | null }[])).map((q) => [q.quote_id, q]));
+    const invList = ((invRes.data ?? []) as { invoice_id: string; quote_id: string; invoice_number: string; kind: string; pct: number | null; grand_total: number; issued_at: string | null }[]);
+    setQuotes(invList.map((inv) => {
+      const q = qById.get(inv.quote_id);
+      return {
+        invoice_key: inv.invoice_id, kind: inv.kind, pct: inv.pct,
+        quote_id: inv.quote_id, quote_number: q?.quote_number ?? '', order_number: q?.order_number ?? null,
+        invoice_number: inv.invoice_number, do_number: q?.do_number ?? null, customer_id: q?.customer_id ?? null,
+        status: q?.status ?? 'invoiced', grand_total: Number(inv.grand_total) || 0,
+        invoiced_at: inv.issued_at, delivered_at: q?.delivered_at ?? null,
+      };
+    }));
     setCustomers((custRes.data as Customer[]) ?? []);
+    // Payments keyed per invoice; legacy receipts without invoice_id fall back
+    // to the order's first invoice so old data still reconciles.
+    const firstInvByQuote = new Map<string, string>();
+    for (const inv of [...invList].reverse()) firstInvByQuote.set(inv.quote_id, inv.invoice_id);
     const rcv: Record<string, number> = {};
-    for (const r of ((rRes.data as { quote_id: string; amount: number }[]) ?? [])) rcv[r.quote_id] = (rcv[r.quote_id] ?? 0) + (Number(r.amount) || 0);
+    for (const r of ((rRes.data as { quote_id: string; invoice_id: string | null; amount: number }[]) ?? [])) {
+      const key = r.invoice_id ?? firstInvByQuote.get(r.quote_id);
+      if (key) rcv[key] = (rcv[key] ?? 0) + (Number(r.amount) || 0);
+    }
     setReceivedByQuote(rcv);
     setLoading(false);
   }, []);
@@ -71,7 +92,7 @@ export default function InvoicesPage() {
     return quotes
       .map((q) => {
         const total = Number(q.grand_total) || 0;
-        const rcv = receivedByQuote[q.quote_id] ?? 0;
+        const rcv = receivedByQuote[q.invoice_key] ?? 0;
         return { q, total, rcv, out: Math.max(0, total - rcv), paid: total > 0 && rcv >= total - 0.5 };
       })
       .filter(({ q, paid }) => {
@@ -85,7 +106,7 @@ export default function InvoicesPage() {
 
   const kpi = useMemo(() => {
     const invoiced = quotes.reduce((s, q) => s + (Number(q.grand_total) || 0), 0);
-    const received = quotes.reduce((s, q) => s + (receivedByQuote[q.quote_id] ?? 0), 0);
+    const received = quotes.reduce((s, q) => s + (receivedByQuote[q.invoice_key] ?? 0), 0);
     return { invoiced, received, outstanding: Math.max(0, invoiced - received) };
   }, [quotes, receivedByQuote]);
 
@@ -142,11 +163,11 @@ export default function InvoicesPage() {
                 const c = q.customer_id ? custById.get(q.customer_id) : undefined;
                 const pct = total > 0 ? Math.min(100, (rcv / total) * 100) : 0;
                 return (
-                  <button key={q.quote_id} onClick={() => router.push(`/sales/${q.quote_id}`)}
+                  <button key={q.invoice_key} onClick={() => router.push(`/sales/${q.quote_id}`)}
                     className="w-full text-left grid grid-cols-2 md:grid-cols-[160px_1fr_100px_130px_150px_90px] gap-1 md:gap-3 px-4 py-3 hover:bg-slate-800/40 transition-colors items-center">
                     <span>
                       <span className="block font-mono text-[11px] text-amber-200">{q.invoice_number || '—'}</span>
-                      <span className="block text-[10px] text-slate-600 font-mono">{q.quote_number}</span>
+                      <span className="block text-[10px] text-slate-600 font-mono">{q.quote_number}{q.kind === 'progress' ? ` · ${Number(q.pct ?? 0)}%` : ''}</span>
                     </span>
                     <span className="text-sm text-slate-100 truncate">{c?.display_name || c?.legal_name || <span className="text-slate-600">No customer</span>}</span>
                     <span className="md:text-right text-[11px] text-slate-500 tabular-nums">{fmtDate(q.invoiced_at)}</span>

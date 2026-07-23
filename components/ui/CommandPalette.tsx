@@ -219,7 +219,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
     // Role-scoped fetches: skipped tables resolve to empty — the data never
     // reaches a client whose role can't see it.
     const none = Promise.resolve({ data: [] as any[] });
-    const [comps, projectQuotes, suppliers, companies, customers, pis, pos, piLines, poLines, quoteLineItems, salesDocs, salesLines, receipts, grns] = await Promise.all([
+    const [comps, projectQuotes, suppliers, companies, customers, pis, pos, piLines, poLines, quoteLineItems, salesDocs, salesLines, receipts, childInvoices, childDos, grns] = await Promise.all([
       (canBuy || canSell) ? fetchAllComponents() : Promise.resolve([]),
       canProjects ? supabase.from('10.0_project_quotes').select('quote_id, quote_number, quote_date, customer_name, status').order('quote_date', { ascending: false }).limit(500) : none,
       canBuy ? supabase.from('2.0_suppliers').select('supplier_id, supplier_name, supplier_code') : none,
@@ -233,6 +233,8 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
       canSell ? supabase.from('22.0_sales_quotes').select('quote_id, quote_number, order_number, invoice_number, do_number, customer_id, status, grand_total, quote_date, updated_at, revision').order('updated_at', { ascending: false }).limit(1000) : none,
       canSell ? supabase.from('22.1_sales_quote_items').select('quote_id, description, quantity, unit_price, is_section').limit(8000) : none,
       canSell ? supabase.from('26.0_customer_receipts').select('receipt_id, receipt_number, quote_id, amount, payment_date').order('payment_date', { ascending: false }).limit(500) : none,
+      canSell ? supabase.from('25.0_sales_invoices').select('invoice_id, quote_id, invoice_number').limit(2000) : none,
+      canSell ? supabase.from('24.0_delivery_orders').select('do_id, quote_id, do_number').limit(2000) : none,
       canBuy ? supabase.from('30.2_goods_receipts').select('grn_id, grn_number, po_id, received_at, location, notes').order('received_at', { ascending: false }).limit(500) : none,
     ]);
 
@@ -400,6 +402,14 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
       pushArr(salesLinesBy, l.quote_id as string, { name: (l.description as string) || '(item)', qty: Number(l.quantity) || 0, price: Number(l.unit_price) || 0, ccy: 'IDR' });
     }
     const salesById = new Map((salesDocs.data ?? []).map((d) => [d.quote_id as string, d]));
+    // Child invoice / DO numbers make their parent order findable by ANY number
+    const childNumsByQuote = new Map<string, string[]>();
+    for (const r of [...(childInvoices.data ?? []), ...(childDos.data ?? [])]) {
+      const k = r.quote_id as string;
+      const n = (r.invoice_number as string) || (r.do_number as string) || '';
+      if (!n) continue;
+      const a = childNumsByQuote.get(k); if (a) a.push(n); else childNumsByQuote.set(k, [n]);
+    }
     const salesItemsList: Item[] = (salesDocs.data ?? []).map((d) => ({
       kind: 'sales' as const,
       id: d.quote_id as string,
@@ -411,7 +421,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
       href: `/sales/${d.quote_id}`,
       date: String(d.updated_at ?? d.quote_date ?? '').slice(0, 10),
       lines: salesLinesBy.get(d.quote_id as string),
-      keywords: [d.order_number, d.invoice_number, d.do_number, kwFromLines(salesLinesBy.get(d.quote_id as string))]
+      keywords: [d.order_number, d.invoice_number, d.do_number, ...(childNumsByQuote.get(d.quote_id as string) ?? []), kwFromLines(salesLinesBy.get(d.quote_id as string))]
         .filter(Boolean).join(' '),
     }));
     const receiptItemsList: Item[] = (receipts.data ?? []).map((r) => {

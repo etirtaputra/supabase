@@ -5,6 +5,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { COMMITTED_STATUSES as COMMITTED } from '@/lib/salesStatus';
+import { fetchDeliveredByQuoteComp } from '@/lib/reservedStock';
 
 /**
  * Per-item stock panel, opened from the Catalog's Component Editor.
@@ -65,6 +66,12 @@ export default function StockModal({ componentId, componentName, unit, anchor, o
     let rsv = 0;
     for (const it of ((sqiRes.data ?? []) as { quote_id: string; quantity: number; is_section: boolean }[])) {
       if (!it.is_section && committed.has(it.quote_id)) rsv += Number(it.quantity) || 0;
+    }
+    // Split fulfillment: delivered DO qty on committed orders releases its reserve
+    const deliveredSplit = await fetchDeliveredByQuoteComp(supabase);
+    for (const [k, dq] of deliveredSplit) {
+      const [qid, cid] = k.split('·');
+      if (cid === componentId && committed.has(qid)) rsv = Math.max(0, rsv - dq);
     }
     setReserved(rsv);
     setMovements((movRes.data as Movement[]) ?? []);

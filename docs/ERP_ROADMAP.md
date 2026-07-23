@@ -110,14 +110,25 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
 - **Platform**: grouped desktop nav + mobile bottom tabs (portaled), responsive
   width caps (wider on 2xl monitors), Tailwind CDN theme in `app/layout.tsx`.
 
+- **Module 5B — Split fulfillment (SHIPPED 2026-07-23)**: 24.0/24.1 delivery
+  orders + 25.0/25.1 invoices as child documents of the 22.0 order (spec
+  below; migration `create_split_fulfillment.sql` applied + backfilled —
+  legacy stamped numbers became real child rows, receipts linked via
+  `invoice_id`). Order page has a Fulfillment panel (invoiced % / delivered
+  meters, per-doc paid state, prints via `?inv=` / `?do=`); "+ New Invoice"
+  (items-qty or %-progress) and "+ New Delivery Order" (per-line qty)
+  prefill the remaining amounts so the 1:1 case stays two clicks. Each DO
+  writes its own stock-outs on delivery; **everything is revertible** —
+  Reopen on a delivered DO writes compensating `in` movements and steps the
+  order back, and order statuses can always revert. /invoices lists real
+  per-invoice AR; /delivery lists per-DO rows; reservations subtract
+  delivered DO qty (lib/reservedStock.ts); Spotlight finds any child number.
+
 **Next up (in order):**
-1. **Module 5B — Split fulfillment** (spec below): one Sales Order → many
-   Invoices + many Delivery Orders, qty/nominal-proportioned, fully traceable.
-   ← owner priority (2026-07-23).
-2. **Module 2 finish** — tier management UI (CRUD tiers, per-item overrides,
+1. **Module 2 finish** — tier management UI (CRUD tiers, per-item overrides,
    margin floor vs landed cost).
-3. **Module 6 — Item Economics dashboard** (GP/item, turnover, CCC) — the
-   ledger now provides COGS (`out` movements are stamped at moving-avg cost).
+2. **Module 6 — Item Economics dashboard** (GP/item, turnover, CCC) — the
+   ledger provides COGS; DSO can now use per-invoice issued→paid dates.
 
 ---
 
