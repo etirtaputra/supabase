@@ -790,7 +790,7 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, onClose, onE
                 <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">EPC proposals</h3>
                 <div className="rounded-xl border border-violet-500/25 bg-violet-500/[0.04] divide-y divide-slate-800/60">
                   {data.epcQuotes.map((q) => (
-                    <a key={q.quote_id} href={`/quotes/${q.quote_id}`}
+                    <a key={q.quote_id} href={`/proposals/${q.quote_id}`}
                       className="block px-3 py-2.5 hover:bg-slate-800/40 transition-colors">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-mono text-[11px] text-violet-300">{q.quote_number}</span>

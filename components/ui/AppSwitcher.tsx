@@ -10,7 +10,7 @@ const APPS = [
   { href: '/sales',     label: 'Sales' },
   { href: '/invoices',  label: 'Invoices' },
   { href: '/delivery',  label: 'Delivery' },
-  { href: '/quotes',    label: 'Quotes' },
+  { href: '/proposals',    label: 'Quotes' },
 ];
 
 /**

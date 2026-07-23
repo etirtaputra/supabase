@@ -128,8 +128,9 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
 - **Quotation / Sales Quote** = the 22.x sell-side trading document (SQ- →
   SO → INV → DO). Standard ERP term; unchanged.
 - **EPC Proposal** = the 10.x project document (formerly "Project Quote").
-  UI labels, nav ("EPC Proposals"), Spotlight, and the customer-facing print
-  header say Proposal; tables, routes (/quotes), and Q- numbers unchanged.
+  UI labels, nav ("EPC Proposals"), Spotlight, the customer-facing print
+  header, and the routes (now `/proposals`, with permanent redirects from
+  `/quotes`) all say Proposal; tables and Q- numbers unchanged.
 
 ## Conventions to keep every module consistent
 

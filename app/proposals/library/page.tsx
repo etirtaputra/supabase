@@ -450,7 +450,7 @@ export default function DescriptionLibraryPage() {
     return (
       <div className="min-h-screen bg-[#141518] flex flex-col items-center justify-center gap-4 text-slate-400 text-sm">
         <p>The Description Library is only available to Owners.</p>
-        <Link href="/quotes" className="text-violet-400 hover:text-violet-300 underline">Back to quotes</Link>
+        <Link href="/proposals" className="text-violet-400 hover:text-violet-300 underline">Back to quotes</Link>
       </div>
     );
   }
@@ -582,7 +582,7 @@ export default function DescriptionLibraryPage() {
       <div className="sticky top-0 z-40 bg-[#141518]/90 backdrop-blur-xl border-b border-white/[0.07]">
         <div className="max-w-6xl 2xl:max-w-[1400px] mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Link href="/quotes" className="text-slate-500 hover:text-slate-300 transition-colors">
+            <Link href="/proposals" className="text-slate-500 hover:text-slate-300 transition-colors">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
             </Link>
             <div>

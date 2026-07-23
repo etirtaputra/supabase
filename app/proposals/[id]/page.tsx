@@ -929,7 +929,7 @@ export default function QuoteEditorPage() {
         supabase.from('10.1_quote_sections').select('*').eq('quote_id', id).order('sort_order'),
         supabase.from('10.2_quote_items').select('*').eq('quote_id', id).order('sort_order'),
       ]);
-      if (!qRes.data) { router.push('/quotes'); return; }
+      if (!qRes.data) { router.push('/proposals'); return; }
       setQuote(qRes.data as ProjectQuote);
       loadedStampRef.current = (qRes.data as ProjectQuote).updated_at ?? null;
       baseHeaderRef.current = qRes.data as ProjectQuote;
@@ -1689,7 +1689,7 @@ export default function QuoteEditorPage() {
         <div className="max-w-[1400px] 2xl:max-w-[1720px] mx-auto px-3 sm:px-6 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <Link
-              href="/quotes"
+              href="/proposals"
               onClick={(e) => { if (dirty && !window.confirm('You have unsaved changes — leave anyway?')) e.preventDefault(); }}
               className="text-slate-500 hover:text-slate-300 transition-colors flex-shrink-0"
             >
@@ -1776,7 +1776,7 @@ export default function QuoteEditorPage() {
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
               Costs
             </button>
-            <Link href={`/quotes/${id}/print`} target="_blank"
+            <Link href={`/proposals/${id}/print`} target="_blank"
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
               PDF

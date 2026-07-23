@@ -366,7 +366,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
       id: q.quote_id as string,
       title: (q.quote_number as string) || '(no number)',
       sub: [(q.customer_name as string) || 'No customer', ((q.status as string) || 'draft').toUpperCase()].join(' · '),
-      href: `/quotes/${q.quote_id}`,
+      href: `/proposals/${q.quote_id}`,
       date: (q.quote_date as string) ?? '',
       keywords: kwForQuote(q.quote_id as string),
     }));

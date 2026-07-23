@@ -199,7 +199,7 @@ export default function QuotesListPage() {
         .flatMap((g) => STANDARD_SECTIONS[g.key].map((title) => ({ group_key: g.key, title })))
         .map((s, i) => ({ quote_id: data.quote_id, ...s, lead_time: 'Ready', sort_order: i }));
       await supabase.from('10.1_quote_sections').insert(seed);
-      router.push(`/quotes/${data.quote_id}`);
+      router.push(`/proposals/${data.quote_id}`);
     } else {
       // Surface the real reason (e.g. an RLS policy rejecting the insert)
       setCreateError(error?.message || 'Could not create the quote');
@@ -312,7 +312,7 @@ export default function QuotesListPage() {
         if (error) throw error;
       }
 
-      router.push(`/quotes/${newQuoteId}`);
+      router.push(`/proposals/${newQuoteId}`);
     } catch (e) {
       // Supabase errors are plain objects, not Error instances — read .message either way
       const msg = (e as { message?: string })?.message;
@@ -338,7 +338,7 @@ export default function QuotesListPage() {
           <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
             {gate.profile?.role === 'owner' && (
               <Link
-                href="/quotes/library"
+                href="/proposals/library"
                 className="hidden sm:inline-block px-3 py-1.5 rounded-xl border border-white/[0.08] text-slate-400 hover:text-white hover:bg-white/10 text-xs font-semibold transition-all"
                 title="Description Library — review, dedupe and rename quote item texts (Owners only)"
               >
@@ -419,7 +419,7 @@ export default function QuotesListPage() {
                     const t = totalsByQuote.get(q.quote_id);
                     return (
                     <div key={q.quote_id} className="group flex items-center gap-3 sm:gap-4 bg-slate-900/50 hover:bg-slate-900/80 border border-slate-800 hover:border-slate-700 rounded-2xl px-4 sm:px-5 py-4 transition-all">
-                <Link href={`/quotes/${q.quote_id}`} className="flex-1 min-w-0">
+                <Link href={`/proposals/${q.quote_id}`} className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2 mb-1">
                     <span className="font-semibold text-white truncate max-w-full">{q.quote_number || '—'}</span>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap flex-shrink-0 ${STATUS_STYLES[q.status] ?? STATUS_STYLES.draft}`}>
@@ -477,7 +477,7 @@ export default function QuotesListPage() {
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                   </button>
                   <Link
-                    href={`/quotes/${q.quote_id}/print`}
+                    href={`/proposals/${q.quote_id}/print`}
                     target="_blank"
                     className="p-2 rounded-lg hover:bg-white/10 text-slate-500 hover:text-white transition-colors"
                     title="Print / PDF"
