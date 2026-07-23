@@ -671,6 +671,9 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [sortCol, setSortCol] = useState<SortCol>('updated_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [editingIds, setEditingIds] = useState<Set<string>>(new Set());
+  // Pricing mode: every visible row's Sell Price cell becomes an input —
+  // batch price entry without opening each row's edit mode first.
+  const [pricingMode, setPricingMode] = useState(false);
   const [pending, setPending] = useState<PendingEdits>({});
   const [saving, setSaving] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -1541,6 +1544,20 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     }
   };
 
+  // In pricing mode Enter / arrow keys walk the Sell Price column itself;
+  // outside it, fall through to the row-edit navigation.
+  const handlePriceKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, componentId: string) => {
+    if (!pricingMode) { handleCellKeyDown(e as React.KeyboardEvent<HTMLInputElement>, componentId, 'selling_price_idr' as unknown as typeof NAV_FIELDS[number]); return; }
+    const move = (delta: number) => {
+      const idx = filtered.findIndex((c) => c.component_id === componentId);
+      const target = filtered[idx + delta];
+      if (target) (document.querySelector(`[data-rid="${target.component_id}"][data-fld="selling_price_idr"]`) as HTMLElement)?.focus();
+    };
+    if (e.key === 'Enter' || e.key === 'ArrowDown') { e.preventDefault(); move(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
+    else if (e.key === 'Escape') (e.currentTarget as HTMLElement).blur();
+  };
+
   // ── CSV parser (handles quoted fields + CRLF) ─────────────────────────────
   const parseCSV = (text: string): string[][] => {
     const rows: string[][] = [];
@@ -1848,7 +1865,8 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   }, [filtered, usageMap, lastQuoteByComponent]);
 
   // Total visible column count for colSpan on expanded spec rows
-  const visibleColCount = 1 + (Object.keys(visibleCols) as ColKey[]).filter((k) => visibleCols[k]).length + 1;
+  const sellPriceOn = visibleCols.sellPrice || pricingMode; // pricing mode forces the column on
+  const visibleColCount = 1 + (Object.keys(visibleCols) as ColKey[]).filter((k) => visibleCols[k]).length + 1 + (sellPriceOn && !visibleCols.sellPrice ? 1 : 0);
 
   const fmtDate = (ts?: string) => {
     if (!ts) return '—';
@@ -2463,6 +2481,24 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                 </button>
               )
             )}
+            <button
+              onClick={() => {
+                setPricingMode((v) => {
+                  const next = !v;
+                  if (next) setTimeout(() => (document.querySelector('[data-fld="selling_price_idr"]') as HTMLElement)?.focus(), 50);
+                  return next;
+                });
+              }}
+              title="Open every row's Sell Price for direct entry — Enter/↓ jumps to the next item; Save Changes commits the batch"
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${
+                pricingMode
+                  ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+              }`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.99 1.99 0 013 12V7a4 4 0 014-4z" /></svg>
+              {pricingMode ? 'Exit Pricing Mode' : 'Pricing Mode'}
+            </button>
             {dirtyCount > 0 && (
               <button
                 onClick={discardAll}
@@ -2684,7 +2720,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                 {visibleCols.unit && <th className="hidden md:table-cell px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 min-w-[80px]">Unit</th>}
                 {visibleCols.normValue && <th className="hidden md:table-cell px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 min-w-[90px]">Capacity</th>}
                 {visibleCols.lastPrice && <SortTh col="priceDelta" label="Last Price" className="min-w-[120px]" />}
-                {visibleCols.sellPrice && <SortTh col="margin" label="Sell Price" className="min-w-[130px]" />}
+                {sellPriceOn && <SortTh col="margin" label="Sell Price" className="min-w-[130px]" />}
                 {visibleCols.usage && (
                   <th className="hidden md:table-cell px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 min-w-[140px]">
                     <div className="flex items-center gap-2">
@@ -3039,9 +3075,9 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                     )}
 
                     {/* Sell Price */}
-                    {visibleCols.sellPrice && (
+                    {sellPriceOn && (
                       <td className="px-3 py-1.5 align-middle min-w-[130px] cursor-default"
-                        onMouseEnter={!isEditing ? (e) => {
+                        onMouseEnter={!(isEditing || pricingMode) ? (e) => {
                           const rect = e.currentTarget.getBoundingClientRect();
                           const tooltipW = 300; const tooltipH = 200;
                           const spaceBelow = window.innerHeight - rect.bottom;
@@ -3049,9 +3085,9 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           const left = Math.min(rect.left, window.innerWidth - tooltipW - 8);
                           setHoveredTooltip({ id: c.component_id, kind: 'sellPrice', style: { position: 'fixed', top: Math.max(8, top), left: Math.max(8, left), zIndex: 9999 } });
                         } : undefined}
-                        onMouseLeave={!isEditing ? () => setHoveredTooltip(null) : undefined}
+                        onMouseLeave={!(isEditing || pricingMode) ? () => setHoveredTooltip(null) : undefined}
                       >
-                        {isEditing ? (
+                        {(isEditing || pricingMode) ? (
                           <div>
                             <div className="flex items-center gap-1">
                               <input
@@ -3062,7 +3098,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                                 data-fld="selling_price_idr"
                                 value={(getVal(c, 'selling_price_idr') as number | null) ?? ''}
                                 onChange={(e) => setField(c, 'selling_price_idr', e.target.value === '' ? null : parseFloat(e.target.value))}
-                                onKeyDown={(e) => handleCellKeyDown(e, c.component_id, 'selling_price_idr' as any)}
+                                onKeyDown={(e) => handlePriceKeyDown(e, c.component_id)}
                                 placeholder="0"
                                 className={`w-full px-2 py-1 rounded-lg text-xs text-white focus:outline-none focus:ring-2 transition-all tabular-nums ${
                                   isDirtyField(c, 'selling_price_idr' as any)
