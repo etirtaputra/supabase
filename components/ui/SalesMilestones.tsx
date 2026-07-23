@@ -98,10 +98,13 @@ export default function SalesMilestones({ q, received, billTotal }: {
   const currentIdx = steps.findIndex((s) => !s.done);
 
   return (
-    <div className="rounded-2xl border border-slate-800/80 bg-slate-900/40 px-4 py-3 overflow-x-auto scrollbar-none">
-      <div className="flex items-start min-w-[720px]">
+    // Each step column has a real width and its texts TRUNCATE inside it —
+    // nowrap subs used to overflow into neighboring columns on phones
+    // ("ValidatedSent"). The strip scrolls horizontally on narrow screens.
+    <div className="rounded-2xl border border-slate-800/80 bg-slate-900/40 px-3 sm:px-4 py-3 overflow-x-auto scrollbar-none">
+      <div className="flex items-start min-w-[880px]">
         {steps.map((s, i) => (
-          <div key={s.label} className="flex-1 flex flex-col items-center relative">
+          <div key={s.label} className="flex-1 min-w-0 px-1 flex flex-col items-center relative">
             {/* connector */}
             {i > 0 && (
               <div className={`absolute top-[9px] right-1/2 w-full h-0.5 ${steps[i - 1].done ? 'bg-emerald-500/50' : 'bg-slate-800'}`} />
@@ -115,10 +118,10 @@ export default function SalesMilestones({ q, received, billTotal }: {
             }`}>
               {s.done ? '✓' : i + 1}
             </div>
-            <p className={`mt-1 text-[10px] font-semibold whitespace-nowrap ${s.done ? 'text-emerald-300' : s.active || i === currentIdx ? 'text-amber-300' : 'text-slate-600'}`}>
+            <p className={`mt-1 max-w-full truncate text-[10px] font-semibold ${s.done ? 'text-emerald-300' : s.active || i === currentIdx ? 'text-amber-300' : 'text-slate-600'}`}>
               {s.label}
             </p>
-            {s.sub && <p className="text-[9px] text-slate-500 whitespace-nowrap font-mono">{s.sub}</p>}
+            {s.sub && <p className="max-w-full truncate text-center text-[9px] text-slate-500 font-mono" title={s.sub}>{s.sub}</p>}
           </div>
         ))}
       </div>
