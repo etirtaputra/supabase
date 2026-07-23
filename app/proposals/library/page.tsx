@@ -33,9 +33,12 @@ interface Usage {
   sell: number | null;
   isSub: boolean;
   component_id: string | null;
+  quote_id: string;
   quote_number: string;
   quote_date: string;
   status: string;
+  customer_name: string;
+  project_description: string;
   section_title: string;
   group_key: string;
   secSort: number;
@@ -63,6 +66,7 @@ interface Entry {
   linked: string[];       // distinct linked catalog models
   linkMismatch: boolean;  // a linked model not contained in the description
   dupSimilar: string[];   // display names of near-duplicate entries
+  dupKeys: string[];      // keys of those near-duplicates (for one-click merge)
   // Placement anchor = the most recent usage (or the curated row): keeps the
   // list in the same order the quotes read
   anchorGroup: string;
@@ -107,7 +111,7 @@ export default function DescriptionLibraryPage() {
       supabase.from('10.2_quote_items')
         .select('item_id, quote_id, section_id, parent_item_id, component_id, description, brand, unit, cost_price, sell_price, sort_order'),
       supabase.from('10.1_quote_sections').select('section_id, title, group_key, sort_order'),
-      supabase.from('10.0_project_quotes').select('quote_id, quote_number, quote_date, status'),
+      supabase.from('10.0_project_quotes').select('quote_id, quote_number, quote_date, status, customer_name, project_description'),
       supabase.from('3.0_components').select('component_id, supplier_model'),
       supabase.from(LIB_TABLE).select('*'),
     ]);
@@ -137,9 +141,12 @@ export default function DescriptionLibraryPage() {
         sell: it.sell_price != null ? Number(it.sell_price) : null,
         isSub: !!it.parent_item_id,
         component_id: (it.component_id as string | null) ?? null,
+        quote_id: it.quote_id as string,
         quote_number: String(q?.quote_number ?? '—'),
         quote_date: String(q?.quote_date ?? ''),
         status: String(q?.status ?? 'draft'),
+        customer_name: String(q?.customer_name ?? ''),
+        project_description: String(q?.project_description ?? ''),
         section_title: String(sec?.title ?? '—'),
         group_key: String(sec?.group_key ?? ''),
         secSort: sec?.sort_order != null ? Number(sec.sort_order) : 9999,
@@ -176,6 +183,7 @@ export default function DescriptionLibraryPage() {
         linked,
         linkMismatch: linked.some((m) => !key.includes(m.toLowerCase())),
         dupSimilar: [],
+        dupKeys: [],
         anchorGroup: anchor.group_key || 'bos',
         anchorSection: anchor.section_title !== '—' ? anchor.section_title : '',
         secSort: anchor.secSort,
@@ -192,7 +200,7 @@ export default function DescriptionLibraryPage() {
       byKey.set(key, {
         key, display, variants: [display], usages: [],
         latestCost: r.default_cost, minCost: null, maxCost: null,
-        linked: [], linkMismatch: false, dupSimilar: [],
+        linked: [], linkMismatch: false, dupSimilar: [], dupKeys: [],
         anchorGroup: r.group_key || 'bos',
         anchorSection: r.section_title,
         secSort: 9999, itemSort: 9999,
@@ -208,6 +216,8 @@ export default function DescriptionLibraryPage() {
         if (norms[i] === norms[j] || similarity(toks[i], toks[j]) >= 0.75) {
           list[i].dupSimilar.push(list[j].display);
           list[j].dupSimilar.push(list[i].display);
+          list[i].dupKeys.push(list[j].key);
+          list[j].dupKeys.push(list[i].key);
         }
       }
     }
@@ -303,6 +313,15 @@ export default function DescriptionLibraryPage() {
 
   // ── Merge selected entries into one spelling ────────────────────────────────
   const [merge, setMerge] = useState<{ keys: string[]; canonical: string } | null>(null);
+
+  // One-click merge straight from the "~N similar" badge: preselects this
+  // entry + its near-duplicates so the owner just picks which spelling wins.
+  function openMergeSimilar(e: Entry) {
+    setError('');
+    const keys = [...new Set([e.key, ...e.dupKeys])].filter((k) => entries.some((x) => x.key === k));
+    if (keys.length < 2) return;
+    setMerge({ keys, canonical: e.key });
+  }
 
   async function applyMerge() {
     if (!merge) return;
@@ -466,9 +485,13 @@ export default function DescriptionLibraryPage() {
         <input type="checkbox" checked={selected.has(e.key)}
           onChange={() => setSelected((s) => toggle(s, e.key))}
           className="accent-violet-600 flex-shrink-0" />
-        <button onClick={() => setExpanded((s) => toggle(s, e.key))} className="flex-1 min-w-0 text-left">
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-medium text-slate-100 truncate">{e.display}</span>
+            <button onClick={() => setExpanded((s) => toggle(s, e.key))}
+              className="font-medium text-slate-100 truncate text-left hover:text-white transition-colors"
+              title="Show every quote that uses this description">
+              {e.display}
+            </button>
             <span className="text-[10px] text-slate-600">×{e.usages.length}</span>
             {e.curated && (
               <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-violet-500/15 text-violet-300"
@@ -481,10 +504,11 @@ export default function DescriptionLibraryPage() {
               </span>
             )}
             {e.dupSimilar.length > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/15 text-amber-300"
-                title={`Similar to: ${e.dupSimilar.join(' | ')}`}>
-                ~{e.dupSimilar.length} similar
-              </span>
+              <button onClick={() => openMergeSimilar(e)}
+                className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/15 text-amber-300 hover:bg-amber-500/30 hover:text-amber-200 transition-colors"
+                title={`Similar to: ${e.dupSimilar.join(' | ')}\n\nClick to merge these into one spelling.`}>
+                ~{e.dupSimilar.length} similar · merge
+              </button>
             )}
             {e.linked.length > 0 && (
               <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${e.linkMismatch ? 'bg-red-500/15 text-red-300' : 'bg-emerald-500/15 text-emerald-300'}`}
@@ -495,8 +519,17 @@ export default function DescriptionLibraryPage() {
           </div>
           <div className="flex items-center gap-3 mt-0.5 text-[11px] text-slate-500">
             {e.usages.length > 0 ? (
-              <span className="flex-shrink-0">
-                {[...new Set(e.usages.map((u) => u.quote_number))].join(' · ')}
+              <span className="flex items-center gap-1 flex-wrap min-w-0">
+                {[...new Map(e.usages.map((u) => [u.quote_id, u])).values()].map((u, i, arr) => (
+                  <React.Fragment key={u.quote_id}>
+                    <a href={`/proposals/${u.quote_id}`} target="_blank" rel="noopener noreferrer"
+                      className="text-slate-400 hover:text-violet-300 underline decoration-dotted decoration-slate-600 underline-offset-2 transition-colors"
+                      title={`${u.customer_name || 'No customer'}${u.project_description ? `\n${u.project_description}` : ''}\n\nOpens ${u.quote_number} in a new tab`}>
+                      {u.quote_number}
+                    </a>
+                    {i < arr.length - 1 && <span className="text-slate-700">·</span>}
+                  </React.Fragment>
+                ))}
               </span>
             ) : (
               <span className="text-violet-400/70">not used in any quote yet</span>
@@ -513,7 +546,7 @@ export default function DescriptionLibraryPage() {
               </span>
             )}
           </div>
-        </button>
+        </div>
         <div className="text-right flex-shrink-0 tabular-nums">
           {e.latestCost != null && e.latestCost > 0 ? (
             <>
@@ -558,7 +591,14 @@ export default function DescriptionLibraryPage() {
               <tbody>
                 {e.usages.map((u) => (
                   <tr key={u.item_id} className="border-t border-slate-800/60">
-                    <td className="py-1.5 pr-4 font-medium text-slate-300 whitespace-nowrap">{u.quote_number}{u.isSub && <span className="ml-1.5 text-[9px] text-slate-600">sub-item</span>}</td>
+                    <td className="py-1.5 pr-4 font-medium whitespace-nowrap">
+                      <a href={`/proposals/${u.quote_id}`} target="_blank" rel="noopener noreferrer"
+                        className="text-slate-300 hover:text-violet-300 underline decoration-dotted decoration-slate-600 underline-offset-2 transition-colors"
+                        title={`${u.customer_name || 'No customer'}${u.project_description ? `\n${u.project_description}` : ''}\n\nOpens in a new tab`}>
+                        {u.quote_number}
+                      </a>
+                      {u.isSub && <span className="ml-1.5 text-[9px] text-slate-600">sub-item</span>}
+                    </td>
                     <td className="py-1.5 pr-4 text-slate-500 whitespace-nowrap">{u.quote_date || '—'}</td>
                     <td className="py-1.5 pr-4"><span className={`px-1.5 py-0.5 rounded-full text-[9px] font-semibold uppercase ${STATUS_STYLES[u.status] ?? STATUS_STYLES.draft}`}>{u.status}</span></td>
                     <td className="py-1.5 pr-4 text-slate-400">{u.section_title}</td>
