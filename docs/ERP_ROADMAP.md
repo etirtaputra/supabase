@@ -111,10 +111,92 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   width caps (wider on 2xl monitors), Tailwind CDN theme in `app/layout.tsx`.
 
 **Next up (in order):**
-1. **Module 2 finish** — tier management UI (CRUD tiers, per-item overrides,
+1. **Module 5B — Split fulfillment** (spec below): one Sales Order → many
+   Invoices + many Delivery Orders, qty/nominal-proportioned, fully traceable.
+   ← owner priority (2026-07-23).
+2. **Module 2 finish** — tier management UI (CRUD tiers, per-item overrides,
    margin floor vs landed cost).
-2. **Module 6 — Item Economics dashboard** (GP/item, turnover, CCC) — the
+3. **Module 6 — Item Economics dashboard** (GP/item, turnover, CCC) — the
    ledger now provides COGS (`out` movements are stamped at moving-avg cost).
+
+---
+
+## Module 5B — Split fulfillment: partial Invoices & Delivery Orders (kickoff spec)
+
+**Goal:** one customer order (SO on `22.0`) can be billed by several invoices
+and shipped by several delivery orders, with quantities/nominals proportioned
+per document — while the simple 1:1 case stays exactly as easy as today.
+
+**Why the model must change:** today INV/DO are *columns on the order row*
+(`invoice_number`, `do_number` stamped as status advances) — structurally one
+invoice and one DO per order. Splitting requires them to become child
+documents of the order.
+
+**Tables (idempotent SQL; reuse existing `sales_invoice_seq` / `sales_do_seq`
+so numbering continues unbroken):**
+- `24.0_delivery_orders`: `do_id uuid pk`, `quote_id fk → 22.0` (the order),
+  `do_number` (DO-… by trigger), `status` (`preparing`/`delivered`/`cancelled`),
+  delivery details (date/time/method/via/address/map/contact — MOVE from 22.0,
+  keep old columns for legacy reads), `delivered_at`, audit cols.
+- `24.1_delivery_order_items`: `do_id fk`, `so_item_id fk → 22.1`,
+  `component_id`, `description`, `qty` (≤ remaining on that SO line — UI guard
+  + DB trigger warn), `sort_order`.
+- `25.0_sales_invoices`: `invoice_id uuid pk`, `quote_id fk → 22.0`,
+  `invoice_number` (INV-… by trigger), `kind` (`items` | `progress`),
+  `pct` (progress: % of order grand total), `subtotal/ppn_pct/ppn_amount/
+  grand_total`, `do_id fk nullable` ("invoice this shipment"), `issued_at`,
+  `due_date`, `notes`, audit cols.
+- `25.1_sales_invoice_items`: `invoice_id fk`, `so_item_id fk → 22.1`,
+  `description`, `qty`, `unit_price`, `line_total`, `sort_order`. A `progress`
+  invoice has ONE line ("Down payment 30% — <SO number>"); its per-item value
+  allocation for economics is derived by value share, not stored.
+- `26.0_customer_receipts`: ADD `invoice_id fk nullable → 25.0`; keep
+  `quote_id`. Payments recorded against a specific invoice; order-level AR =
+  Σ invoices − Σ receipts.
+
+**Derived order state (no more hand-stamped single status):**
+- `invoiced_pct` = Σ invoice grand totals ÷ order grand total (warn > 100%).
+- per SO line: `delivered_qty` = Σ delivered DO-item qty; order is
+  `delivered` when every line is fully shipped, else `partially delivered`.
+- 22.0 `status` keeps the existing enum for the funnel, advanced by rollup:
+  first invoice → `invoiced`, first DO → `preparing`, all lines shipped →
+  `delivered`. Existing milestone dots gain fractions ("2 of 3 shipped",
+  "70% invoiced").
+- **Stock**: each DO writes its own `out` movements when THAT DO is marked
+  delivered (`source_type 'delivery'`, `source_id = do_id`). Reserved
+  becomes Σ max(0, ordered − delivered) per line on committed orders —
+  update `COMMITTED_STATUSES` consumers (Products, StockModal, dashboard).
+
+**Backfill (one migration, no data loss):** for every existing 22.0 row with
+an `invoice_number`, create ONE `25.0` invoice (kind `items`, full lines,
+same INV number, issued_at = invoiced_at); same for `do_number` → one full
+`24.0` DO (same DO number, delivery details copied, delivered state from
+status). Point existing receipts at the created invoice. Old columns stay
+(read-only legacy) so nothing breaks mid-deploy.
+
+**UX (the "seamless" contract):**
+- The order page's buttons stay: **Create Invoice** opens a modal prefilled
+  with 100% of the *remaining uninvoiced* amount/lines — one click for the
+  simple case; editing qty per line or switching to "% of order" (DP/progress)
+  is the split path. **Create Delivery Order** prefills all *undelivered*
+  qty — trim lines to split shipments. Both show a remaining meter.
+- Order page gains a **Fulfillment panel**: every invoice (number, nominal,
+  % of order, paid state from receipts) and every DO (number, qty summary,
+  status, delivered date), each linking to its own print; plus
+  "remaining to invoice" and "remaining to deliver" bars.
+- `/invoices` lists `25.0` rows (real per-invoice AR aging); `/delivery`
+  lists `24.0` DOs (per-shipment Surat Jalan print). Prints move to
+  `/sales/[id]/inv/[invoiceId]` and `/sales/[id]/do/[doId]`.
+- Spotlight: index `25.0`/`24.0` as their own entries (INV-/DO- numbers →
+  the order page), replacing the keyword-only match.
+- Receipts modal: pick which invoice the payment settles (default: oldest
+  unpaid).
+
+**Definition of done:** an order can issue 2+ invoices (mixed % and item
+kinds) and 2+ DOs; each DO decrements stock only for its own lines at
+delivery; AR is per invoice and rolls up per order/customer; legacy orders
+show identical numbers and totals after backfill; CCC's DSO input now uses
+per-invoice issued→paid dates; tsc + build green.
 
 ## Locked architectural decisions
 
