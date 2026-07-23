@@ -34,7 +34,7 @@ import { fmtIdr } from '@/lib/formatters';
 import type { Tab, MenuItem } from '@/types/forms';
 
 const MENU_ITEMS: MenuItem[] = [
-  { id: 'catalog', label: 'Catalog', icon: '🗂️',
+  { id: 'catalog', label: 'Items', icon: '🗂️',
     color: 'text-slate-400 hover:text-emerald-300 hover:bg-slate-800/50',
     activeColor: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30' },
   { id: 'quoting', label: 'Supplier Quotes', icon: '📝',
@@ -102,6 +102,13 @@ function MasterInsertPage() {
   const visibleMenuItems = MENU_ITEMS.filter(
     (item) => !perms || perms.tabs[item.id as keyof typeof perms.tabs]
   );
+
+  // Nav links (BrandMenu's Buy menu) change ?tab= directly — adopt it
+  useEffect(() => {
+    const t = (searchParams.get('tab') as Tab) || 'catalog';
+    setActiveTab((cur) => (cur === t ? cur : t));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const handleTabChange = (tab: Tab) => {
     setActiveTab(tab);
