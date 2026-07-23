@@ -13,6 +13,7 @@ import StockModal from './StockModal';
 import StockSummaryCard from './StockSummaryCard';
 import CostBasisControl, { type QuoteCostMode } from './CostBasisControl';
 import { createSupabaseClient } from '@/lib/supabase';
+import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { useAuth } from '@/hooks/useAuth';
 import type { Component, PriceQuoteLineItem, PriceQuote, PurchaseOrder, PurchaseLineItem, CompetitorPrice, POCost, ComponentLink } from '../../types/database';
 import { computeTUC, computeTUCMap } from '../../lib/computeTUC';
@@ -672,8 +673,13 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [editingIds, setEditingIds] = useState<Set<string>>(new Set());
   // Pricing mode: every visible row's Sell Price cell becomes an input —
-  // batch price entry without opening each row's edit mode first.
+  // batch price entry without opening each row's edit mode first. Roles with
+  // canManagePricing also get one column per tier (override price; empty =
+  // the tier's default discount off list).
   const [pricingMode, setPricingMode] = useState(false);
+  const [priceTiers, setPriceTiers] = useState<{ tier_id: string; tier_code: string; default_discount_pct: number }[]>([]);
+  const [tierOverrides, setTierOverrides] = useState<Map<string, number | null>>(new Map()); // `${cid}:${tid}` → override_price_idr
+  const [pendingTier, setPendingTier] = useState<Record<string, number | null>>({});          // dirty tier edits, same key
   const [pending, setPending] = useState<PendingEdits>({});
   const [saving, setSaving] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -1185,7 +1191,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     setEditingIds((prev) => { const n = new Set(prev); n.delete(id); return n; });
   };
 
-  const discardAll = () => { setPending({}); setEditingIds(new Set()); };
+  const discardAll = () => { setPending({}); setPendingTier({}); setEditingIds(new Set()); };
 
   const handleDelete = async (id: string) => {
     if (!onDelete) return;
@@ -1303,9 +1309,28 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     } finally { setLineItemSaving(false); }
   };
 
+  const canTier = !!profile && ROLE_PERMISSIONS[profile.role].canManagePricing;
+  const tierCols = pricingMode && canTier ? priceTiers : [];
+  useEffect(() => {
+    if (!pricingMode || !canTier || priceTiers.length) return;
+    (async () => {
+      const [tRes, oRes] = await Promise.all([
+        supabase.from('21.0_price_tiers').select('tier_id, tier_code, default_discount_pct, sort_order, is_active').order('sort_order'),
+        supabase.from('21.1_item_tier_prices').select('component_id, tier_id, override_price_idr'),
+      ]);
+      setPriceTiers((((tRes.data ?? []) as { tier_id: string; tier_code: string; default_discount_pct: number; is_active?: boolean }[])).filter((t) => t.is_active !== false));
+      const m = new Map<string, number | null>();
+      for (const o of ((oRes.data ?? []) as { component_id: string; tier_id: string; override_price_idr: number | null }[])) {
+        m.set(`${o.component_id}:${o.tier_id}`, o.override_price_idr != null ? Number(o.override_price_idr) : null);
+      }
+      setTierOverrides(m);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pricingMode, canTier]);
+
   // Derive dirty state from string keys — consistent with isDirty check below
   const dirtyKeys = useMemo(() => Object.keys(pending), [pending]);
-  const dirtyCount = dirtyKeys.length;
+  const dirtyCount = dirtyKeys.length + Object.keys(pendingTier).length;
 
   const handleSaveAll = async () => {
     if (!dirtyCount || saving) return;
@@ -1313,9 +1338,29 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     const snapshot: Record<string, Partial<Component>> = {};
     dirtyKeys.forEach((k) => { snapshot[k] = pending[k]; });
     try {
-      await onSave(
-        dirtyKeys.map((k) => ({ component_id: k, changes: pending[k] }))
-      );
+      if (dirtyKeys.length) {
+        await onSave(
+          dirtyKeys.map((k) => ({ component_id: k, changes: pending[k] }))
+        );
+      }
+      // Tier override edits (pricing mode): upsert per (component, tier);
+      // empty input = null override → the tier's default discount applies.
+      const tierEdits = Object.entries(pendingTier);
+      if (tierEdits.length) {
+        const rows = tierEdits.map(([k, v]) => {
+          const [component_id, tier_id] = k.split(':');
+          return { component_id, tier_id, override_price_idr: v, override_discount_pct: null };
+        });
+        const { error: tierErr } = await supabase.from('21.1_item_tier_prices')
+          .upsert(rows, { onConflict: 'component_id,tier_id' });
+        if (tierErr) throw tierErr;
+        setTierOverrides((prev) => {
+          const n = new Map(prev);
+          for (const r of rows) n.set(`${r.component_id}:${r.tier_id}`, r.override_price_idr);
+          return n;
+        });
+        setPendingTier({});
+      }
       setPending({});
       setEditingIds(new Set());
       // Show saved values immediately while refetch is in flight
@@ -1546,12 +1591,12 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
 
   // In pricing mode Enter / arrow keys walk the Sell Price column itself;
   // outside it, fall through to the row-edit navigation.
-  const handlePriceKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, componentId: string) => {
+  const handlePriceKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, componentId: string, fld = 'selling_price_idr') => {
     if (!pricingMode) { handleCellKeyDown(e as React.KeyboardEvent<HTMLInputElement>, componentId, 'selling_price_idr' as unknown as typeof NAV_FIELDS[number]); return; }
     const move = (delta: number) => {
       const idx = filtered.findIndex((c) => c.component_id === componentId);
       const target = filtered[idx + delta];
-      if (target) (document.querySelector(`[data-rid="${target.component_id}"][data-fld="selling_price_idr"]`) as HTMLElement)?.focus();
+      if (target) (document.querySelector(`[data-rid="${target.component_id}"][data-fld="${fld}"]`) as HTMLElement)?.focus();
     };
     if (e.key === 'Enter' || e.key === 'ArrowDown') { e.preventDefault(); move(1); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
@@ -1866,7 +1911,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
 
   // Total visible column count for colSpan on expanded spec rows
   const sellPriceOn = visibleCols.sellPrice || pricingMode; // pricing mode forces the column on
-  const visibleColCount = 1 + (Object.keys(visibleCols) as ColKey[]).filter((k) => visibleCols[k]).length + 1 + (sellPriceOn && !visibleCols.sellPrice ? 1 : 0);
+  const visibleColCount = 1 + (Object.keys(visibleCols) as ColKey[]).filter((k) => visibleCols[k]).length + 1 + (sellPriceOn && !visibleCols.sellPrice ? 1 : 0) + tierCols.length;
 
   const fmtDate = (ts?: string) => {
     if (!ts) return '—';
@@ -2721,6 +2766,11 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                 {visibleCols.normValue && <th className="hidden md:table-cell px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 min-w-[90px]">Capacity</th>}
                 {visibleCols.lastPrice && <SortTh col="priceDelta" label="Last Price" className="min-w-[120px]" />}
                 {sellPriceOn && <SortTh col="margin" label="Sell Price" className="min-w-[130px]" />}
+                {tierCols.map((t) => (
+                  <th key={t.tier_id} className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-emerald-500/80 min-w-[110px]">
+                    {t.tier_code} <span className="text-slate-600 font-normal normal-case">−{Number(t.default_discount_pct) || 0}%</span>
+                  </th>
+                ))}
                 {visibleCols.usage && (
                   <th className="hidden md:table-cell px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 min-w-[140px]">
                     <div className="flex items-center gap-2">
@@ -3176,6 +3226,39 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                         );
                       })()}
                     </td>}
+
+                    {/* Tier prices (pricing mode) — value = override; empty
+                        shows the tier default (list − discount) as placeholder */}
+                    {tierCols.map((t) => {
+                      const tkey = `${c.component_id}:${t.tier_id}`;
+                      const listP = (getVal(c, 'selling_price_idr' as any) ?? c.selling_price_idr) as number | null;
+                      const defP = listP != null && listP > 0 ? Math.round(listP * (1 - (Number(t.default_discount_pct) || 0) / 100)) : null;
+                      const cur = tkey in pendingTier ? pendingTier[tkey] : (tierOverrides.get(tkey) ?? null);
+                      const tDirty = tkey in pendingTier;
+                      return (
+                        <td key={t.tier_id} className="px-3 py-1.5 align-middle min-w-[110px]">
+                          <input
+                            type="number"
+                            step="1"
+                            min="0"
+                            data-rid={c.component_id}
+                            data-fld={`tier_${t.tier_id}`}
+                            value={cur ?? ''}
+                            placeholder={defP != null ? String(defP) : '—'}
+                            title={defP != null ? `Default (−${Number(t.default_discount_pct) || 0}%): ${defP.toLocaleString('en-US')} — type to override, clear to reset` : 'Set the list price first'}
+                            onChange={(e) => setPendingTier((prev) => ({ ...prev, [tkey]: e.target.value === '' ? null : parseFloat(e.target.value) }))}
+                            onKeyDown={(e) => handlePriceKeyDown(e, c.component_id, `tier_${t.tier_id}`)}
+                            className={`w-full px-2 py-1 rounded-lg text-xs text-white focus:outline-none focus:ring-2 transition-all tabular-nums ${
+                              tDirty
+                                ? 'bg-amber-500/10 border border-amber-500/50 focus:ring-amber-500/30'
+                                : cur != null
+                                ? 'bg-slate-950 border border-emerald-500/30 focus:ring-emerald-500/20 focus:border-emerald-500'
+                                : 'bg-slate-950 border border-slate-700 focus:ring-emerald-500/20 focus:border-emerald-500 placeholder:text-slate-600'
+                            }`}
+                          />
+                        </td>
+                      );
+                    })}
 
                     {/* Updated At */}
                     {visibleCols.updated && (
