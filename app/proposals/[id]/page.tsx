@@ -13,6 +13,7 @@ import { quoteFileName } from '@/lib/quoteFilename';
 import { lineWp, wpPerModule } from '@/lib/quoteWp';
 import MigrationBanner from '@/components/ui/MigrationBanner';
 import MobileNotice from '@/components/ui/MobileNotice';
+import ProposalPresence from '@/components/ui/ProposalPresence';
 import EnergyEconomicsCard from '@/components/ui/EnergyEconomicsCard';
 import type { EconAssumptions } from '@/lib/energyEconomics';
 import { PROJECT_TYPES, composeDescription, specFileTag, isSolarType, type ProjectType, type SystemSpecs, type Phase } from '@/lib/projectSpec';
@@ -1308,28 +1309,28 @@ export default function QuoteEditorPage() {
     }
   }
 
-  // Background sync: cheap stamp check every 15s (and on window focus);
-  // full merge only when a colleague actually saved.
+  // Background sync: cheap stamp check (interval + window focus + when a
+  // colleague's presence shows they just saved); full merge only when the
+  // remote stamp actually moved past what this tab last saw.
   const collabRef = useRef({ mergeRemote, saving });
   collabRef.current = { mergeRemote, saving };
-  useEffect(() => {
-    let stop = false;
-    const check = async () => {
-      const c = collabRef.current;
-      if (stop || c.saving || mergingRef.current || !loadedStampRef.current) return;
-      const { data } = await supabase.from('10.0_project_quotes').select('updated_at').eq('quote_id', id).single();
-      if (stop || !data?.updated_at || !loadedStampRef.current || data.updated_at <= loadedStampRef.current) return;
-      const res = await collabRef.current.mergeRemote();
-      if (res.remoteChanged) {
-        setSaveMsg(`↻ Merged ${res.actor}'s changes${res.conflicts ? ` — ${res.conflicts} line${res.conflicts > 1 ? 's' : ''} you both edited (yours shown)` : ''}`);
-        setTimeout(() => setSaveMsg(''), 4000);
-      }
-    };
-    const t = setInterval(check, 15_000);
-    const onFocus = () => { void check(); };
-    window.addEventListener('focus', onFocus);
-    return () => { stop = true; clearInterval(t); window.removeEventListener('focus', onFocus); };
+  const syncNow = useCallback(async () => {
+    const c = collabRef.current;
+    if (c.saving || mergingRef.current || !loadedStampRef.current) return;
+    const { data } = await supabase.from('10.0_project_quotes').select('updated_at').eq('quote_id', id).single();
+    if (!data?.updated_at || !loadedStampRef.current || data.updated_at <= loadedStampRef.current) return;
+    const res = await collabRef.current.mergeRemote();
+    if (res.remoteChanged) {
+      setSaveMsg(`↻ Merged ${res.actor}'s changes${res.conflicts ? ` — ${res.conflicts} line${res.conflicts > 1 ? 's' : ''} you both edited (yours shown)` : ''}`);
+      setTimeout(() => setSaveMsg(''), 4000);
+    }
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const t = setInterval(() => { void syncNow(); }, 15_000);
+    const onFocus = () => { void syncNow(); };
+    window.addEventListener('focus', onFocus);
+    return () => { clearInterval(t); window.removeEventListener('focus', onFocus); };
+  }, [syncNow]);
 
   async function save() {
     if (!quoteRef.current) return;
@@ -1699,6 +1700,16 @@ export default function QuoteEditorPage() {
               <p className="text-[11px] text-slate-500 truncate">{quote.customer_name || 'No customer'}</p>
               <p className="font-semibold text-white truncate text-base leading-tight">{quote.quote_number}</p>
             </div>
+            {/* Live presence — who else is in this proposal right now */}
+            {gate.profile?.email && (
+              <ProposalPresence
+                channelId={`proposal:${id}`}
+                email={gate.profile.email}
+                name={gate.profile.display_name || gate.profile.email}
+                editing={dirty}
+                onPeerSaved={syncNow}
+              />
+            )}
           </div>
           {/* Scrolls horizontally on phones so the toolbar never runs off-screen */}
           <div className="flex items-center gap-2 min-w-0 overflow-x-auto scrollbar-none [&>*]:flex-shrink-0">
