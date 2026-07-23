@@ -116,7 +116,7 @@ export default function SuppliersPage() {
         </div>
 
         <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
-          <div className="hidden md:grid grid-cols-[90px_1fr_120px_100px_150px_150px] gap-3 px-4 py-2.5 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+          <div className="hidden md:grid grid-cols-[130px_minmax(0,1fr)_120px_60px_150px_150px] gap-3 px-4 py-2.5 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
             <span>Code</span><span>Supplier</span><span className="text-right">Quotes / POs</span><span /><span className="text-right">Purchased</span><span className="text-right">Outstanding</span>
           </div>
           {loading ? (
@@ -131,15 +131,15 @@ export default function SuppliersPage() {
                 return (
                   <div key={s.supplier_id}>
                     <button onClick={() => setProfileFor(open ? null : s)} aria-expanded={open}
-                      className={`w-full text-left grid grid-cols-2 md:grid-cols-[90px_1fr_120px_100px_150px_150px] gap-1 md:gap-3 px-4 py-3 transition-colors items-center ${open ? 'bg-slate-800/40' : 'hover:bg-slate-800/40'}`}>
-                      <span className="font-mono text-[11px] text-sky-300">{s.supplier_code || '—'}</span>
+                      className={`w-full text-left grid grid-cols-1 md:grid-cols-[130px_minmax(0,1fr)_120px_60px_150px_150px] gap-1 md:gap-3 px-4 py-3 transition-colors items-center ${open ? 'bg-slate-800/40' : 'hover:bg-slate-800/40'}`}>
+                      <span className="font-mono text-[11px] text-sky-300 break-words leading-tight min-w-0">{s.supplier_code || '—'}</span>
                       <span className="min-w-0">
                         <span className="block text-sm text-slate-100 font-medium truncate">{s.supplier_name}</span>
                         {s.location && <span className="block text-[11px] text-slate-500 truncate">{s.location}</span>}
                       </span>
-                      <span className="text-right text-[11px] text-slate-400 tabular-nums">{st?.quotes.length ?? 0} / {st?.pos.length ?? 0}</span>
-                      <span />
-                      <span className="text-right tabular-nums text-slate-200">{st && st.purchasedIdr > 0 ? fmtIdr(st.purchasedIdr) : <span className="text-slate-600">—</span>}</span>
+                      <span className="text-left md:text-right text-[11px] text-slate-400 tabular-nums">{st?.quotes.length ?? 0} / {st?.pos.length ?? 0} <span className="md:hidden text-slate-600">quotes / POs</span></span>
+                      <span className="hidden md:block" />
+                      <span className="text-left md:text-right tabular-nums text-slate-200">{st && st.purchasedIdr > 0 ? fmtIdr(st.purchasedIdr) : <span className="text-slate-600">—</span>}</span>
                       <span className="flex items-center justify-end gap-2">
                         <span className={`text-right tabular-nums ${st && st.outstandingIdr > 0.5 ? 'text-amber-300 font-semibold' : 'text-emerald-400/70'}`}>
                           {st && st.outstandingIdr > 0.5 ? fmtIdr(st.outstandingIdr) : '✓ settled'}
