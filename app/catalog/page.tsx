@@ -503,20 +503,21 @@ function MasterInsertPage() {
             </div>
           )}
         </header>
-        {/* Tab bar */}
-        <nav className="px-3 sm:px-4 md:px-6 xl:px-8 pb-3 xl:pb-4 max-w-[1800px] 2xl:max-w-[2460px] mx-auto flex overflow-x-auto gap-1.5 xl:gap-2 scrollbar-none snap-x snap-mandatory">
+        {/* Tab bar — text-only underline tabs: the shared bottom rail groups
+            them as one control; the sky underline (buy-side accent) marks the
+            active workspace. */}
+        <nav className="px-3 sm:px-4 md:px-6 xl:px-8 max-w-[1800px] 2xl:max-w-[2460px] mx-auto flex overflow-x-auto gap-4 xl:gap-6 scrollbar-none snap-x snap-mandatory">
           {visibleMenuItems.map((item) => (
             <Link
               key={item.id}
               href={`/catalog?tab=${item.id}`}
               onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return; e.preventDefault(); handleTabChange(item.id); }}
-              className={`snap-start px-3 py-1.5 xl:px-4 xl:py-2 rounded-full text-xs xl:text-sm font-medium whitespace-nowrap transition-all duration-150 flex items-center gap-1.5 flex-shrink-0 ${
+              className={`snap-start pt-1 pb-2.5 xl:pb-3 text-xs xl:text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0 border-b-2 ${
                 activeTab === item.id
-                  ? 'bg-white/10 text-white'
-                  : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
+                  ? 'border-sky-400 text-white'
+                  : 'border-transparent text-slate-500 hover:text-slate-300'
               }`}
             >
-              {TAB_ICONS[item.id]}
               {item.label}
             </Link>
           ))}
