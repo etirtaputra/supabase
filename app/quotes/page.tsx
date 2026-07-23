@@ -334,7 +334,7 @@ export default function QuotesListPage() {
       {/* Header */}
       <div className="sticky top-0 z-40 bg-[#141518]/90 backdrop-blur-xl border-b border-white/[0.07]">
         <div className="max-w-6xl 2xl:max-w-[1400px] mx-auto px-3 sm:px-6 py-4 flex items-center justify-between gap-3">
-          <BrandMenu wordmarkClass="text-xl font-bold" subtitle="Project Quotes" />
+          <BrandMenu wordmarkClass="text-xl font-bold" subtitle="EPC Proposals" />
           <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
             {gate.profile?.role === 'owner' && (
               <Link
@@ -361,7 +361,7 @@ export default function QuotesListPage() {
           <button
             onClick={createNew}
             disabled={creating}
-            title="New Quote"
+            title="New Proposal"
             className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors disabled:opacity-50 flex-shrink-0"
           >
             {creating ? (
@@ -369,7 +369,7 @@ export default function QuotesListPage() {
             ) : (
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
             )}
-            <span className="hidden sm:inline">New Quote</span>
+            <span className="hidden sm:inline">New Proposal</span>
           </button>
           </div>
         </div>

@@ -123,6 +123,14 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
 - **Cash Conversion Cycle = DIO + DSO − DPO.** Sources: DPO = supplier payment dates (`po_costs`), DIO = PO received / stock-in dates, DSO = customer invoice→receipt dates (arrives with module 5). Agree the formula up front so module 6 only renders it.
 - **Customer is its own entity** — distinct from `2.0_suppliers` (vendors) and `1.0_companies` (internal). Do not overload companies.
 
+## Naming (decided 2026-07-23)
+
+- **Quotation / Sales Quote** = the 22.x sell-side trading document (SQ- →
+  SO → INV → DO). Standard ERP term; unchanged.
+- **EPC Proposal** = the 10.x project document (formerly "Project Quote").
+  UI labels, nav ("EPC Proposals"), Spotlight, and the customer-facing print
+  header say Proposal; tables, routes (/quotes), and Q- numbers unchanged.
+
 ## Conventions to keep every module consistent
 
 - **Table numbering (prefix ranges):** buy-side `1–9` (existing), EPC project quotes `10.x` (existing), then:

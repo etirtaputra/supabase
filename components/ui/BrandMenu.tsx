@@ -35,7 +35,7 @@ const APP_GROUPS: { title: string | null; section: Section; apps: { href: string
     { href: '/invoices',  label: 'Invoices' },
     { href: '/delivery',  label: 'Delivery' },
   ] },
-  { title: 'Projects', section: 'projects', apps: [{ href: '/quotes', label: 'Quotes' }] },
+  { title: 'Projects', section: 'projects', apps: [{ href: '/quotes', label: 'Proposals' }] },
 ];
 
 // Preferred order for the mobile bottom bar's primary slots

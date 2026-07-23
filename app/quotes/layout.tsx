@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Project Quotes',
+  title: 'EPC Proposals',
 };
 
 export default function QuotesLayout({ children }: { children: React.ReactNode }) {

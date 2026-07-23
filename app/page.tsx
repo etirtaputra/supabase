@@ -239,7 +239,7 @@ export default function Home() {
           </FeedPanel>
 
           {/* Recent Project Quotes */}
-          <FeedPanel title="Recent Project Quotes" accent="violet" href="/quotes" loading={loading} empty={recentProjectQuotes.length === 0} icon={ICONS.doc}>
+          <FeedPanel title="Recent EPC Proposals" accent="violet" href="/quotes" loading={loading} empty={recentProjectQuotes.length === 0} icon={ICONS.doc}>
             {recentProjectQuotes.map((q) => (
               <FeedRow key={q.quote_id} href={`/quotes/${q.quote_id}`} accent="violet"
                 title={q.quote_number || '(no number)'}
@@ -302,7 +302,7 @@ export default function Home() {
                 { href: '/catalog?tab=quoting',    label: 'Enter Supplier Quote / PI', accent: 'blue' },
                 { href: '/catalog?tab=ordering',   label: 'Create Purchase Order',      accent: 'amber' },
                 { href: '/catalog?tab=financials', label: 'Log Payment',                accent: 'rose' },
-                { href: '/quotes',                 label: 'New Project Quote',          accent: 'violet' },
+                { href: '/quotes',                 label: 'New EPC Proposal',          accent: 'violet' },
               ].map(({ href, label, accent }) => (
                 <Link key={href} href={href}
                   className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-800/30 hover:bg-slate-800/60 border border-transparent hover:border-slate-700 transition-colors group">

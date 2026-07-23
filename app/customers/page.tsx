@@ -787,7 +787,7 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, onClose, onE
             {/* EPC project quotes (10.x) linked to this customer via customer_id */}
             {data.epcQuotes.length > 0 && (
               <section>
-                <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">Project quotes (EPC)</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">EPC proposals</h3>
                 <div className="rounded-xl border border-violet-500/25 bg-violet-500/[0.04] divide-y divide-slate-800/60">
                   {data.epcQuotes.map((q) => (
                     <a key={q.quote_id} href={`/quotes/${q.quote_id}`}

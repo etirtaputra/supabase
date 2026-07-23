@@ -422,7 +422,7 @@ export default function PrintPage() {
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div className="meta-label">Reference</div>
-                <div className="meta-sub">Quotation {quote.quote_number} · {fmtDate(quote.quote_date)}</div>
+                <div className="meta-sub">Proposal {quote.quote_number} · {fmtDate(quote.quote_date)}</div>
                 {quote.location && <div className="meta-sub">Site: {quote.location}</div>}
               </div>
             </div>

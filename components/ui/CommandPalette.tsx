@@ -59,7 +59,7 @@ const KIND_BADGE: Record<Item['kind'], { label: string; cls: string }> = {
   supplier:  { label: 'Supplier', cls: 'bg-sky-500/15 text-sky-300' },
   company:   { label: 'Company',  cls: 'bg-rose-500/15 text-rose-300' },
   customer:  { label: 'Customer', cls: 'bg-teal-500/15 text-teal-300' },
-  quote:     { label: 'Quote',    cls: 'bg-violet-500/15 text-violet-300' },
+  quote:     { label: 'EPC',      cls: 'bg-violet-500/15 text-violet-300' },
   sales:     { label: 'Sales',    cls: 'bg-emerald-500/15 text-emerald-300' },
   pi:        { label: 'PI',       cls: 'bg-blue-500/15 text-blue-300' },
   po:        { label: 'PO',       cls: 'bg-amber-500/15 text-amber-300' },
@@ -72,7 +72,7 @@ const KIND_ORDER: Item['kind'][] = ['supplier', 'company', 'customer', 'quote', 
 
 const KIND_GROUP: Record<Item['kind'], string> = {
   supplier: 'Suppliers', company: 'Buying companies', customer: 'Customers',
-  quote: 'Project quotes (EPC)', sales: 'Sales documents', pi: 'Supplier quotes (PI)',
+  quote: 'EPC proposals', sales: 'Sales documents', pi: 'Supplier quotes (PI)',
   po: 'Purchase orders', grn: 'Goods receipts', receipt: 'Payments received', component: 'Items',
 };
 
@@ -82,7 +82,7 @@ const KIND_ALIASES: Record<string, Item['kind']> = {
   supplier: 'supplier', sup: 'supplier', vendor: 'supplier',
   company: 'company',
   customer: 'customer', cust: 'customer',
-  epc: 'quote', project: 'quote',
+  epc: 'quote', project: 'quote', proposal: 'quote',
   sales: 'sales', sq: 'sales', so: 'sales', inv: 'sales', invoice: 'sales', do: 'sales', order: 'sales',
   pi: 'pi', po: 'po',
   grn: 'grn',
