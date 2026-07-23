@@ -179,18 +179,19 @@ export default function DatabaseViewPage() {
               </button>
             </div>
           </header>
-          <nav className="px-3 sm:px-4 md:px-6 xl:px-8 pb-3 xl:pb-4 max-w-[1800px] 2xl:max-w-[2460px] mx-auto flex overflow-x-auto gap-1.5 xl:gap-2 scrollbar-none snap-x snap-mandatory">
+          {/* Text-only underline tabs — same treatment as the Catalog bar:
+              shared bottom rail groups them, sky underline marks the active one. */}
+          <nav className="px-3 sm:px-4 md:px-6 xl:px-8 max-w-[1800px] 2xl:max-w-[2460px] mx-auto flex overflow-x-auto gap-4 xl:gap-6 scrollbar-none snap-x snap-mandatory">
             {TABS.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`snap-start px-3 py-1.5 xl:px-4 xl:py-2 rounded-full text-xs xl:text-sm font-medium whitespace-nowrap transition-all duration-150 flex items-center gap-1.5 flex-shrink-0 ${
+                className={`snap-start pt-1 pb-2.5 xl:pb-3 text-xs xl:text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0 border-b-2 ${
                   activeTab === tab.id
-                    ? 'bg-white/10 text-white'
-                    : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
+                    ? 'border-sky-400 text-white'
+                    : 'border-transparent text-slate-500 hover:text-slate-300'
                 }`}
               >
-                {TAB_ICONS[tab.id]}
                 {tab.label}
               </button>
             ))}
