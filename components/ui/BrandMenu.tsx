@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -20,23 +20,10 @@ import { ROLE_PERMISSIONS } from '@/constants/roles';
  * Everything is role-filtered via ROLE_PERMISSIONS sections.
  */
 type Section = 'buySide' | 'sellSide' | 'projects' | null;
-interface AppSub { tab: string; label: string }
-interface AppLink { href: string; label: string; subs?: AppSub[] }
-// Catalog's workspaces surface as indented sub-links inside the Buy menu —
-// one tap from anywhere, no nested flyouts (they die on touch). The page's
-// own tab bar stays as the fast switcher once inside.
-const CATALOG_SUBS: AppSub[] = [
-  { tab: 'catalog',      label: 'Items' },
-  { tab: 'quoting',      label: 'Supplier Quotes' },
-  { tab: 'ordering',     label: 'PI / PO' },
-  { tab: 'financials',   label: 'Payment' },
-  { tab: 'lookup',       label: 'Deal Lookup' },
-  { tab: 'market-intel', label: 'Market Intel' },
-];
-const APP_GROUPS: { title: string | null; section: Section; apps: AppLink[] }[] = [
+const APP_GROUPS: { title: string | null; section: Section; apps: { href: string; label: string }[] }[] = [
   { title: null, section: null, apps: [{ href: '/', label: 'Dashboard' }] },
   { title: 'Buy side', section: 'buySide', apps: [
-    { href: '/catalog',   label: 'Catalog', subs: CATALOG_SUBS },
+    { href: '/catalog',   label: 'Catalog' },
     { href: '/suppliers', label: 'Suppliers' },
     { href: '/stock',     label: 'Stock' },
     { href: '/insights',  label: 'Insights' },
@@ -86,11 +73,8 @@ export default function BrandMenu({
   mobileNav = true,
 }: { wordmarkClass?: string; subtitle?: string; mobileNav?: boolean }) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const router = useRouter();
   const { profile, signOut } = useAuth();
-  // Which catalog workspace is open (drives sub-link highlight + button label)
-  const curTab = pathname === '/catalog' ? (searchParams.get('tab') ?? 'catalog') : null;
   const [open, setOpen] = useState(false);         // caret dropdown (narrow widths)
   const [moreOpen, setMoreOpen] = useState(false); // mobile "More" sheet
   const [deskOpen, setDeskOpen] = useState<number | null>(null); // desktop group dropdown
@@ -137,37 +121,17 @@ export default function BrandMenu({
             const active = isActive(a.href);
             const acc = accentOf(group.section);
             return (
-              <div key={a.href}>
-                <Link
-                  href={a.href}
-                  onClick={() => { setOpen(false); setMoreOpen(false); }}
-                  className={`flex items-center justify-between px-2.5 py-2 rounded-lg text-sm transition-colors ${
-                    active ? acc.active : 'text-slate-300 hover:bg-white/10 hover:text-white'
-                  }`}
-                >
-                  {a.label}
-                  {active && <span className={`w-1.5 h-1.5 rounded-full ${acc.dot}`} />}
-                </Link>
-                {a.subs && (
-                  <div className="pl-3 border-l border-slate-800 ml-3.5 mb-1">
-                    {a.subs.map((sub) => {
-                      const subActive = active && curTab === sub.tab;
-                      return (
-                        <Link
-                          key={sub.tab}
-                          href={`${a.href}?tab=${sub.tab}`}
-                          onClick={() => { setOpen(false); setMoreOpen(false); }}
-                          className={`block px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
-                            subActive ? acc.active : 'text-slate-400 hover:bg-white/10 hover:text-white'
-                          }`}
-                        >
-                          {sub.label}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+              <Link
+                key={a.href}
+                href={a.href}
+                onClick={() => { setOpen(false); setMoreOpen(false); }}
+                className={`flex items-center justify-between px-2.5 py-2 rounded-lg text-sm transition-colors ${
+                  active ? acc.active : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                {a.label}
+                {active && <span className={`w-1.5 h-1.5 rounded-full ${acc.dot}`} />}
+              </Link>
             );
           })}
         </div>
@@ -274,11 +238,7 @@ export default function BrandMenu({
                 }`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${acc.dot} ${activeApp ? '' : 'opacity-40'}`} />
                 {group.title ? (GROUP_SHORT[group.title] ?? group.title) : ''}
-                {activeApp && (
-                  <span className="font-normal opacity-80">
-                    · {(activeApp.subs && curTab && activeApp.subs.find((x) => x.tab === curTab)?.label) || activeApp.label}
-                  </span>
-                )}
+                {activeApp && <span className="font-normal opacity-80">· {activeApp.label}</span>}
                 <svg className={`w-3 h-3 transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
               </button>
               {isOpen && (
@@ -288,31 +248,14 @@ export default function BrandMenu({
                     {group.apps.map((a) => {
                       const active = isActive(a.href);
                       return (
-                        <div key={a.href}>
-                          <Link href={a.href} onClick={() => setDeskOpen(null)}
-                            className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-colors ${
-                              active ? acc.active : 'text-slate-300 hover:bg-white/10 hover:text-white'
-                            }`}>
-                            <svg className="w-4 h-4 flex-shrink-0 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">{NAV_ICONS[a.href] ?? NAV_ICONS['/']}</svg>
-                            {a.label}
-                            {active && <span className={`ml-auto w-1.5 h-1.5 rounded-full ${acc.dot}`} />}
-                          </Link>
-                          {a.subs && (
-                            <div className="pl-4 border-l border-slate-800 ml-4 mb-1">
-                              {a.subs.map((sub) => {
-                                const subActive = active && curTab === sub.tab;
-                                return (
-                                  <Link key={sub.tab} href={`${a.href}?tab=${sub.tab}`} onClick={() => setDeskOpen(null)}
-                                    className={`block px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
-                                      subActive ? acc.active : 'text-slate-400 hover:bg-white/10 hover:text-white'
-                                    }`}>
-                                    {sub.label}
-                                  </Link>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
+                        <Link key={a.href} href={a.href} onClick={() => setDeskOpen(null)}
+                          className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-colors ${
+                            active ? acc.active : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                          }`}>
+                          <svg className="w-4 h-4 flex-shrink-0 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">{NAV_ICONS[a.href] ?? NAV_ICONS['/']}</svg>
+                          {a.label}
+                          {active && <span className={`ml-auto w-1.5 h-1.5 rounded-full ${acc.dot}`} />}
+                        </Link>
                       );
                     })}
                   </div>
