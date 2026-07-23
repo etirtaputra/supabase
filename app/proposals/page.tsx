@@ -181,18 +181,35 @@ export default function QuotesListPage() {
     return map;
   }, [openItems, usedEntries, catalogLoading, listTucMap, catalog.quotes, catalog.quoteItems, costOptsFor]);
 
-  // Search (number / customer / description / location) + project-type filter.
+  const searchLc = search.trim().toLowerCase();
+
+  // Item-description search: which line items in each quote match the query,
+  // so you can find "every proposal that uses a JINKO panel" or any keyword.
+  const itemMatchByQuote = useMemo(() => {
+    const m = new Map<string, string[]>();
+    if (!searchLc || !allItems) return m;
+    for (const it of allItems) {
+      const d = (it.description ?? '').trim();
+      if (!d || !d.toLowerCase().includes(searchLc)) continue;
+      const arr = m.get(it.quote_id) ?? [];
+      if (!arr.some((x) => x.toLowerCase() === d.toLowerCase())) arr.push(d);
+      m.set(it.quote_id, arr);
+    }
+    return m;
+  }, [allItems, searchLc]);
+
+  // Search (number / customer / description / location / ITEMS) + type filter.
   // Applied before the status grouping so each section shows only matches.
   const visibleQuotes = useMemo(() => {
-    const s = search.trim().toLowerCase();
     return quotes.filter((q) => {
       if (filterType && (q.project_type || 'custom') !== filterType) return false;
-      if (!s) return true;
-      return [q.quote_number, q.customer_name, q.project_description, q.location,
+      if (!searchLc) return true;
+      const headerHit = [q.quote_number, q.customer_name, q.project_description, q.location,
         PROJECT_TYPES.find((t) => t.key === q.project_type)?.label]
-        .filter(Boolean).join(' ').toLowerCase().includes(s);
+        .filter(Boolean).join(' ').toLowerCase().includes(searchLc);
+      return headerHit || itemMatchByQuote.has(q.quote_id);
     });
-  }, [quotes, search, filterType]);
+  }, [quotes, searchLc, filterType, itemMatchByQuote]);
 
   // Project types actually present, so the dropdown never offers empty options
   const availableTypes = useMemo(() => {
@@ -412,7 +429,7 @@ export default function QuotesListPage() {
           <div className="flex flex-col sm:flex-row gap-2">
             <div className="relative flex-1">
               <svg className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search number, customer, description, location…"
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search number, customer, item / keyword, location…"
                 className="w-full pl-10 pr-4 h-11 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-violet-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors" />
             </div>
             <select value={filterType} onChange={(e) => setFilterType(e.target.value)}
@@ -502,6 +519,18 @@ export default function QuotesListPage() {
                       </span>
                     )}
                   </div>
+                  {/* Which items matched the search — shows why this proposal is here */}
+                  {searchLc && itemMatchByQuote.get(q.quote_id)?.length ? (
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                      <span className="text-[10px] text-slate-600 flex-shrink-0">contains</span>
+                      {itemMatchByQuote.get(q.quote_id)!.slice(0, 3).map((d, i) => (
+                        <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-300/90 truncate max-w-[220px]">{d}</span>
+                      ))}
+                      {itemMatchByQuote.get(q.quote_id)!.length > 3 && (
+                        <span className="text-[10px] text-slate-600">+{itemMatchByQuote.get(q.quote_id)!.length - 3} more</span>
+                      )}
+                    </div>
+                  ) : null}
                 </Link>
                 <div className="hidden sm:flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
