@@ -493,8 +493,9 @@ export default function QuotesListPage() {
                     return (
                     <div key={q.quote_id} className={`group flex items-center gap-3 sm:gap-4 bg-slate-900/50 hover:bg-slate-900/80 border rounded-2xl px-4 sm:px-5 py-4 transition-all ${someoneEditing ? 'border-amber-500/40' : livePeers.length ? 'border-emerald-500/30' : 'border-slate-800 hover:border-slate-700'}`}>
                 <Link href={`/proposals/${q.quote_id}`} className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 mb-1">
-                    <span className="font-semibold text-white truncate max-w-full">{q.quote_number || '—'}</span>
+                  {/* Primary focus: the customer + status/type */}
+                  <div className="flex flex-wrap items-center gap-2 mb-0.5">
+                    <span className="font-semibold text-white text-base truncate max-w-full">{q.customer_name || 'No customer'}</span>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap flex-shrink-0 ${STATUS_STYLES[q.status] ?? STATUS_STYLES.draft}`}>
                       {q.status}
                     </span>
@@ -512,9 +513,14 @@ export default function QuotesListPage() {
                       </span>
                     )}
                   </div>
+                  {/* Project name / scope */}
+                  {q.project_description && (
+                    <p className="text-xs text-slate-400 truncate max-w-full mb-1.5">{q.project_description}</p>
+                  )}
+                  {/* Price */}
                   {t && t.subtotal > 0 && (
-                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 mb-1 tabular-nums">
-                      <span className="text-sm font-semibold text-slate-300">
+                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 mb-1.5 tabular-nums">
+                      <span className="text-[15px] font-bold text-slate-100">
                         {fmtRp(t.subtotal)}
                         <span className="ml-1.5 text-[10px] font-normal text-slate-500">excl. PPN</span>
                       </span>
@@ -525,9 +531,9 @@ export default function QuotesListPage() {
                       )}
                     </div>
                   )}
+                  {/* Reference line: quote number, dates, editor */}
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
-                    <span className="truncate max-w-full">{q.customer_name || 'No customer'}</span>
-                    {q.project_description && <span className="truncate text-slate-600 hidden sm:block">{q.project_description}</span>}
+                    <span className="font-mono text-slate-500 flex-shrink-0" title="Proposal number">{q.quote_number || '—'}</span>
                     <span className="flex-shrink-0">{fmtDate(q.quote_date)}</span>
                     {q.sent_at && (
                       <span className="flex-shrink-0 text-blue-300/80" title="Stamped when the status was set to SENT">
