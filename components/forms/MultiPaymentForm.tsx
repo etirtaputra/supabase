@@ -156,6 +156,31 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
     [poIdrValues]
   );
 
+  // ── Outstanding per selected PO: committed − principal already paid ────
+  // THE allocation basis. A PO that already took a down payment must only
+  // draw its remaining balance from a shared remittance — splitting by full
+  // PO value overpays it and starves the others.
+  const poOutstanding = useMemo(() => {
+    const r: Record<string, number> = {};
+    for (const po of selectedPos) {
+      const key = String(po.po_id);
+      const st = poPaymentStatus[key];
+      r[key] = Math.max(0, (st?.totalIdr ?? poIdrValues[key] ?? 0) - (st?.paidIdr ?? 0));
+    }
+    return r;
+  }, [selectedPos, poPaymentStatus, poIdrValues]);
+  const totalOutstanding = useMemo(
+    () => Object.values(poOutstanding).reduce((s, v) => s + v, 0),
+    [poOutstanding]
+  );
+
+  // Share basis: outstanding when any PO still owes; equal-by-value fallback
+  const shareOf = (key: string): number => {
+    if (totalOutstanding > 0) return (poOutstanding[key] ?? 0) / totalOutstanding;
+    if (totalIdrValue > 0) return (poIdrValues[key] ?? 0) / totalIdrValue;
+    return 1 / (selectedPos.length || 1);
+  };
+
   // ── Grand total across all cost entries ───────────────────────────────
   const totalAmount = useMemo(
     () => costItems.reduce((s, item) => s + (parseFloat(item.amountStr) || 0), 0),
@@ -170,14 +195,12 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
       if (overrides[key] !== undefined) {
         r[key] = parseFloat(overrides[key]) || 0;
       } else {
-        const share = totalIdrValue > 0
-          ? (poIdrValues[key] ?? 0) / totalIdrValue
-          : 1 / (selectedPos.length || 1);
-        r[key] = Math.round(totalAmount * share);
+        r[key] = Math.round(totalAmount * shareOf(key));
       }
     }
     return r;
-  }, [selectedPos, overrides, totalAmount, poIdrValues, totalIdrValue]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPos, overrides, totalAmount, poIdrValues, totalIdrValue, poOutstanding, totalOutstanding]);
 
   const allocatedTotal = Object.values(allocations).reduce((s, v) => s + v, 0);
   const delta = totalAmount - allocatedTotal;
@@ -351,7 +374,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
           </div>
           {selectedIds.length > 0 && (
             <p className="text-xs text-rose-300 font-semibold mt-3">
-              {selectedIds.length} PO{selectedIds.length > 1 ? 's' : ''} selected · combined IDR value: {fmtIdr(totalIdrValue)}
+              {selectedIds.length} PO{selectedIds.length > 1 ? 's' : ''} selected · combined value: {fmtIdr(totalIdrValue)} · outstanding: {fmtIdr(totalOutstanding)}
             </p>
           )}
         </div>
@@ -462,14 +485,15 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
         <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-5">
           <h4 className="text-sm font-bold text-white mb-0.5">4 · Allocation</h4>
           <p className="text-xs text-slate-500 mb-4">
-            Split is proportional by PO IDR value. Edit any amount to override — the delta indicator shows if totals don&apos;t balance.
+            Split is proportional to each PO&apos;s <span className="text-slate-300">outstanding</span> (unpaid) amount — a PO that already took a down
+            payment only draws its remaining balance. Edit any amount to override; the delta indicator shows if totals don&apos;t balance.
           </p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="border-b border-slate-700">
                   <th className="text-left py-2 pr-4 text-[11px] font-bold uppercase text-slate-500">PO</th>
-                  <th className="text-left py-2 pr-4 text-[11px] font-bold uppercase text-slate-500">IDR Value</th>
+                  <th className="text-left py-2 pr-4 text-[11px] font-bold uppercase text-slate-500">Outstanding</th>
                   <th className="text-left py-2 pr-4 text-[11px] font-bold uppercase text-slate-500">Share</th>
                   <th className="text-left py-2 text-[11px] font-bold uppercase text-slate-500">Allocated (IDR)</th>
                 </tr>
@@ -477,7 +501,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
               <tbody>
                 {selectedPos.map((po) => {
                   const key        = String(po.po_id);
-                  const share      = totalIdrValue > 0 ? ((poIdrValues[key] ?? 0) / totalIdrValue) * 100 : 100 / selectedPos.length;
+                  const share      = shareOf(key) * 100;
                   const allocated  = allocations[key] ?? 0;
                   const overridden = overrides[key] !== undefined;
                   return (
@@ -493,7 +517,10 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
                         </div>
                         {po.pi_number && <div className="text-[11px] font-medium text-slate-300 mt-0.5">{po.pi_number}</div>}
                       </td>
-                      <td className="py-2.5 pr-4 text-xs text-slate-400">{fmtIdr(poIdrValues[key] ?? 0)}</td>
+                      <td className="py-2.5 pr-4 text-xs text-slate-400">
+                        {fmtIdr(poOutstanding[key] ?? 0)}
+                        <span className="block text-[10px] text-slate-600">of {fmtIdr(poIdrValues[key] ?? 0)}</span>
+                      </td>
                       <td className="py-2.5 pr-4 text-xs text-slate-400">{share.toFixed(1)}%</td>
                       <td className="py-2.5">
                         <div className="flex items-center gap-2">
