@@ -74,15 +74,29 @@ a separate product line and are *not* part of this distribution flow.)
 
 CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
 
-## Status (updated 2026-07-21)
+## Status (updated 2026-07-24)
 
 **Shipped and live on main:**
 - **Module 1 — CRM**: `20.0_customers` + `20.1_customer_contacts`, `/customers`
   list + edit drawer + **profile drawer** (KPIs, linked documents, AR, most-ordered
   items, EPC project quotes), CSV import/export, `sales` role, Spotlight wiring.
-- **Module 2 — pricing (partial)**: `21.0_price_tiers` + `21.1_item_tier_prices`
-  render on `/products` (tier price matrix per item). No dedicated tier-management
-  screen yet.
+- **Module 2 — pricing (COMPLETE 2026-07-24)**: `21.0_price_tiers` +
+  `21.1_item_tier_prices` render on `/products` (tier price matrix per item);
+  per-item entry via the Catalog's Pricing Mode + per-item Tiers popover; and
+  the dedicated **`/pricing`** management page (owner + sell_admin via
+  `canManagePricing`; nav link is capability-gated with the new `cap` field on
+  BrandMenu app entries): **Tiers tab** — CRUD the tier set (name, code,
+  % off list, margin floor, reorder, active) with live counts (customers on
+  tier, overrides, below-floor items); renaming a tier code migrates the
+  `20.0_customers.tier` values with it. **Floor Audit tab** — every item ×
+  active tier priced under the tier's margin floor vs moving-avg landed cost
+  (30.1), with the economic stake ("margin at risk" = shortfall × on-hand),
+  one-click "Raise to floor" (override at the compliant minimum, rounded up
+  to Rp 1,000), "Clear override" when the override itself breaks an otherwise
+  compliant default, and bulk raise. **Overrides tab** — all 21.1 rows with
+  default-vs-override delta, GP flag, audit stamp, one-click clear. No schema
+  change was needed (RLS from role_taxonomy_v2 already grants owner +
+  sell_admin writes on 21.x).
 - **Modules 4+5 — sell-side lifecycle (built ahead of sequence)**: `22.0/22.1`
   sales quotes with milestone flow draft→validated→sent→accepted→**ordered (SO)**→
   **invoiced (INV)**→**preparing (DO)**→delivered, revision counter, doc numbers
@@ -125,10 +139,12 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   delivered DO qty (lib/reservedStock.ts); Spotlight finds any child number.
 
 **Next up (in order):**
-1. **Module 2 finish** — tier management UI (CRUD tiers, per-item overrides,
-   margin floor vs landed cost).
-2. **Module 6 — Item Economics dashboard** (GP/item, turnover, CCC) — the
-   ledger provides COGS; DSO can now use per-invoice issued→paid dates.
+1. **Module 6 — Item Economics dashboard** (GP/item/customer/rep, stock aging
+   & turnover, already-in-profit stock, slow movers, CCC per item) — all
+   inputs exist: ledger outs carry COGS, invoices carry issued→paid dates.
+2. Small follow-ups when touched: Record Payment modal should offer an
+   invoice picker once an order carries 2+ unpaid invoices; optional live
+   cursors in the EPC editor (Presence broadcast).
 
 ---
 

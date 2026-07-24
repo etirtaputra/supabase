@@ -256,9 +256,12 @@ export default function TierPricingModal({ componentId, componentName, listPrice
               {/* Tier set management (owner) */}
               {canManage && (
                 <div className="border-t border-slate-800 pt-3">
-                  <button onClick={() => setManageOpen((v) => !v)} className="text-[11px] text-slate-500 hover:text-slate-300 font-semibold transition-colors">
-                    {manageOpen ? '▾ Hide tier settings' : '▸ Manage tiers (name · % off · floor)'}
-                  </button>
+                  <div className="flex items-center justify-between gap-2">
+                    <button onClick={() => setManageOpen((v) => !v)} className="text-[11px] text-slate-500 hover:text-slate-300 font-semibold transition-colors">
+                      {manageOpen ? '▾ Hide tier settings' : '▸ Manage tiers (name · % off · floor)'}
+                    </button>
+                    <a href="/pricing" className="text-[11px] text-emerald-500/80 hover:text-emerald-300 font-semibold transition-colors whitespace-nowrap" title="Tier management, floor audit & overrides">Pricing page →</a>
+                  </div>
                   {manageOpen && (
                     <div className="mt-2 space-y-2">
                       {tiers.map((t) => (

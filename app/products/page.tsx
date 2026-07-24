@@ -405,6 +405,12 @@ function ProductsInner() {
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportFile(f); e.target.value = ''; }} />
               </label>
             )}
+            {canImport && (
+              <Link href="/pricing" className="hidden sm:block text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap"
+                title="Manage price tiers, margin floors and per-item overrides">
+                Tiers &amp; floors →
+              </Link>
+            )}
             <Link href="/catalog" className="hidden sm:block text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap"
               title="Prices are set in the Catalog's Component Editor — Sell Price column → Tiers">
               Set pricing in Catalog →
