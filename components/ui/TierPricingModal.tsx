@@ -4,13 +4,15 @@ import { createPortal } from 'react-dom';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
+import { computeTierChain } from '@/lib/tierPricing';
 
 /**
  * Per-item tier pricing, opened from the Catalog's Component Editor (Sell Price
- * column). One stop for a product's pricing: list price, effective price per
- * tier (default % off list, per-item absolute override), margin vs landed cost
- * (TUC, internal-only) with the tier's floor warning, and — for owners — the
- * tier set itself (name, % off, floor, active).
+ * column). One stop for a product's pricing: the NET price (= Tier-1), each
+ * higher tier marked up from the previous by its step % (markup chain,
+ * lib/tierPricing — rounded up to Rp 1,000, actual margin shown), per-item
+ * absolute overrides, margin vs landed cost (TUC, internal-only) with the
+ * tier's floor warning, and — for pricing managers — the tier set itself.
  * Self-contained: fetches tiers/overrides itself; writes go straight to 21.x /
  * 3.0_components.selling_price_idr.
  */
@@ -96,13 +98,18 @@ export default function TierPricingModal({ componentId, componentName, listPrice
 
   const listVal = num(listStr);
 
-  const effective = (t: Tier): { price: number | null; overridden: boolean } => {
-    const ov = ovByTier.get(t.tier_id);
-    if (ov?.override_price_idr != null) return { price: ov.override_price_idr, overridden: true };
-    if (listVal == null || listVal <= 0) return { price: null, overridden: false };
-    const disc = ov?.override_discount_pct ?? t.default_discount_pct ?? 0;
-    return { price: listVal * (1 - disc / 100), overridden: false };
+  // Markup chain over the ACTIVE tier set; overrides re-anchor the chain.
+  const activeSorted = useMemo(() => tiers.filter((t) => t.is_active).sort((a, b) => a.sort_order - b.sort_order), [tiers]);
+  const chain = useMemo(() => computeTierChain(listVal, activeSorted, (tid) => ovByTier.get(tid)?.override_price_idr), [listVal, activeSorted, ovByTier]);
+  const effective = (t: Tier): { price: number | null; overridden: boolean; actualMarginPct: number | null } => {
+    const e = chain.get(t.tier_id);
+    if (e) return { price: e.price, overridden: e.overridden, actualMarginPct: e.actualMarginPct };
+    return { price: null, overridden: false, actualMarginPct: null }; // inactive tier — not in the chain
   };
+  // The chain default a tier WOULD have if its own override were cleared
+  // (other tiers' overrides still apply) — used to decide save vs clear.
+  const defaultOf = (t: Tier): number | null =>
+    computeTierChain(listVal, activeSorted, (tid) => (tid === t.tier_id ? null : ovByTier.get(tid)?.override_price_idr)).get(t.tier_id)?.price ?? null;
 
   async function saveListPrice() {
     const v = listVal;
@@ -115,7 +122,7 @@ export default function TierPricingModal({ componentId, componentName, listPrice
 
   async function saveOverride(t: Tier, raw: string) {
     const v = num(raw);
-    const defaultPrice = listVal != null && listVal > 0 ? listVal * (1 - (t.default_discount_pct || 0) / 100) : null;
+    const defaultPrice = defaultOf(t);
     const isDefault = v === null || (defaultPrice != null && Math.round(v) === Math.round(defaultPrice));
     const existing = ovByTier.get(t.tier_id);
     if (isDefault) {
@@ -200,7 +207,7 @@ export default function TierPricingModal({ componentId, componentName, listPrice
               {/* List price */}
               <div className="flex items-end gap-3">
                 <div className="flex-1">
-                  <label className="block text-[10px] font-medium text-slate-500 mb-1">List price (IDR)</label>
+                  <label className="block text-[10px] font-medium text-slate-500 mb-1">Net price · Tier-1 (IDR)</label>
                   {canManage ? (
                     <input value={listStr} inputMode="decimal" onChange={(e) => setListStr(e.target.value)} onBlur={saveListPrice}
                       placeholder="—" className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 focus:border-emerald-500/60 outline-none text-white text-sm text-right tabular-nums transition-colors" />
@@ -220,14 +227,17 @@ export default function TierPricingModal({ componentId, componentName, listPrice
                   <p className="px-3 py-4 text-xs text-slate-600 text-center">No tiers defined yet{canManage ? ' — add them below.' : '.'}</p>
                 )}
                 {visibleTiers.map((t) => {
-                  const { price, overridden } = effective(t);
+                  const { price, overridden, actualMarginPct } = effective(t);
+                  const isNetTier = activeSorted[0]?.tier_id === t.tier_id;
                   const margin = price != null && price > 0 && cost != null ? ((price - cost) / price) * 100 : null;
                   const belowFloor = margin != null && margin < t.margin_floor_pct;
                   return (
                     <div key={t.tier_id} className="flex items-center gap-2.5 px-3 py-2">
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-semibold text-slate-200 truncate">{t.name}{!t.is_active && <span className="text-slate-600 font-normal"> · inactive</span>}</p>
-                        <p className="text-[10px] text-slate-600">−{t.default_discount_pct}% · floor {t.margin_floor_pct}%</p>
+                        <p className="text-[10px] text-slate-600">
+                          {isNetTier ? 'net price' : `+${t.default_discount_pct}% step${actualMarginPct != null ? ` · actual ${actualMarginPct.toFixed(1)}%` : ''}`} · floor {t.margin_floor_pct}%
+                        </p>
                       </div>
                       {canManage ? (
                         <input
@@ -250,7 +260,8 @@ export default function TierPricingModal({ componentId, componentName, listPrice
                 })}
               </div>
               <p className="text-[10px] text-slate-600">
-                Tier price = list − tier %, unless overridden per item (green). GP is vs landed cost — internal only, never shown to clients.
+                Markup chain: Tier-1 = the net price; each next tier = previous ÷ (1 − step%), rounded up to Rp 1,000 — “actual” is the margin after rounding.
+                An override (green) pins a tier and the tiers above chain from it. GP is vs landed cost — internal only, never shown to clients.
               </p>
 
               {/* Tier set management (owner) */}
@@ -267,7 +278,7 @@ export default function TierPricingModal({ componentId, componentName, listPrice
                       {tiers.map((t) => (
                         <div key={t.tier_id} className="grid grid-cols-[1fr_64px_64px_28px_28px] gap-1.5 items-center">
                           <input value={t.name} onChange={(e) => setTierField(t.tier_id, 'name', e.target.value)} onBlur={() => saveTier(t)} placeholder="Tier name" className={mInp} />
-                          <input value={String(t.default_discount_pct)} onChange={(e) => setTierField(t.tier_id, 'default_discount_pct', e.target.value as never)} onBlur={() => saveTier(t)} title="% off list" className={`${mInp} text-right tabular-nums`} />
+                          <input value={String(t.default_discount_pct)} onChange={(e) => setTierField(t.tier_id, 'default_discount_pct', e.target.value as never)} onBlur={() => saveTier(t)} title="Step % — margin over the previous tier (first tier: ignored)" className={`${mInp} text-right tabular-nums`} />
                           <input value={String(t.margin_floor_pct)} onChange={(e) => setTierField(t.tier_id, 'margin_floor_pct', e.target.value as never)} onBlur={() => saveTier(t)} title="Margin floor %" className={`${mInp} text-right tabular-nums`} />
                           <input type="checkbox" checked={t.is_active} onChange={(e) => { const next = { ...t, is_active: e.target.checked }; setTierField(t.tier_id, 'is_active', e.target.checked); saveTier(next); }} title="Active" className="accent-emerald-500 w-4 h-4 justify-self-center" />
                           <button onClick={() => deleteTier(t)} className="text-slate-600 hover:text-red-400 transition-colors justify-self-center" title="Delete tier">×</button>
@@ -277,7 +288,7 @@ export default function TierPricingModal({ componentId, componentName, listPrice
                         <button
                           onClick={() => setTiers((ts) => [...ts, { tier_id: `tmp-${Date.now()}`, tier_code: '', name: '', default_discount_pct: 0, margin_floor_pct: 0, sort_order: (ts.length + 1), is_active: true }])}
                           className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold transition-colors">+ Add tier</button>
-                        <span className="text-[9px] text-slate-600">columns: % off list · margin floor % · active</span>
+                        <span className="text-[9px] text-slate-600">columns: step % over prev tier · margin floor % · active</span>
                       </div>
                     </div>
                   )}

@@ -15,6 +15,7 @@ import BrandMenu from '@/components/ui/BrandMenu';
 import SalesMilestones from '@/components/ui/SalesMilestones';
 import FulfillmentPanel, { type SoLine, type Invoice, type InvItem, type DeliveryOrder, type DoItem } from '@/components/ui/FulfillmentPanel';
 import { SALES_STATUS as STATUS, COMMITTED_STATUSES as COMMITTED } from '@/lib/salesStatus';
+import { tierPriceFor } from '@/lib/tierPricing';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
@@ -32,7 +33,7 @@ interface DbLine { item_id: string; component_id: string | null; is_section: boo
 interface EditLine { key: string; component_id: string | null; is_section: boolean; description: string; brand: string; note: string; lead_time: string; unit: string; quantity: string; unit_price: string; showNote: boolean; }
 interface Customer { customer_id: string; display_name: string; legal_name: string; tier: string; shipping_address?: string; billing_address?: string; }
 interface Company { company_id: string; legal_name: string; }
-interface Tier { tier_id: string; tier_code: string; default_discount_pct: number; }
+interface Tier { tier_id: string; tier_code: string; default_discount_pct: number; sort_order: number; is_active: boolean; }
 interface Override { component_id: string; tier_id: string; override_price_idr: number | null; override_discount_pct: number | null; }
 // Brand is deliberately NOT fetched here — it's buy-side vendor info; the
 // customer-facing description already carries the brand when it should.
@@ -64,12 +65,8 @@ const num = (v: unknown): number => {
   return isNaN(n) ? 0 : n;
 };
 
-function effectivePrice(list: number | null, tier: Tier | undefined, ov: Override | undefined): number | null {
-  if (ov?.override_price_idr != null) return ov.override_price_idr;
-  if (list == null || list <= 0) return null;
-  const disc = ov?.override_discount_pct ?? tier?.default_discount_pct ?? 0;
-  return list * (1 - disc / 100);
-}
+// Tier prices follow the markup chain (lib/tierPricing): the item's entered
+// price is the Tier-1 NET; higher tiers mark up from the previous tier.
 
 const blankLine = (): EditLine => ({ key: `new-${Date.now()}-${Math.random()}`, component_id: null, is_section: false, description: '', brand: '', note: '', lead_time: '', unit: '', quantity: '', unit_price: '', showNote: false });
 const blankQuote = (companyId: string | null): Quote => ({
@@ -126,7 +123,7 @@ export default function SalesQuotePage() {
     const [custRes, coRes, tierRes, ovRes, compRes, balRes, allQRes, allIRes, libRes, contactRes] = await Promise.all([
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name, tier, shipping_address, billing_address').order('display_name'),
       supabase.from('1.0_companies').select('company_id, legal_name').order('legal_name'),
-      supabase.from('21.0_price_tiers').select('tier_id, tier_code, default_discount_pct'),
+      supabase.from('21.0_price_tiers').select('tier_id, tier_code, default_discount_pct, sort_order, is_active'),
       supabase.from('21.1_item_tier_prices').select('component_id, tier_id, override_price_idr, override_discount_pct'),
       supabase.from('3.0_components').select('component_id, supplier_model, internal_description, unit, selling_price_idr').order('supplier_model').limit(2000),
       supabase.from('30.1_stock_balances').select('component_id, qty_on_hand'),
@@ -242,6 +239,7 @@ export default function SalesQuotePage() {
   const custById = useMemo(() => new Map(customers.map((c) => [c.customer_id, c])), [customers]);
   const compById = useMemo(() => new Map(comps.map((c) => [c.component_id, c])), [comps]);
   const tierByCode = useMemo(() => new Map(tiers.map((t) => [t.tier_code, t])), [tiers]);
+  const activeTiers = useMemo(() => [...tiers].filter((t) => t.is_active !== false).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)), [tiers]);
   const ovByKey = useMemo(() => { const m = new Map<string, Override>(); for (const o of overrides) m.set(`${o.component_id}:${o.tier_id}`, o); return m; }, [overrides]);
 
   const availableOf = (componentId: string | null) =>
@@ -249,11 +247,11 @@ export default function SalesQuotePage() {
 
   function priceFor(componentId: string): number | null {
     const comp = compById.get(componentId);
-    const list = comp?.selling_price_idr ?? null;
     const cust = editing?.customer_id ? custById.get(editing.customer_id) : undefined;
     const tier = cust?.tier ? tierByCode.get(cust.tier) : undefined;
-    const ov = tier ? ovByKey.get(`${componentId}:${tier.tier_id}`) : undefined;
-    return effectivePrice(list, tier, ov);
+    if (!tier) return comp?.selling_price_idr ?? null; // no tier → the net price
+    return tierPriceFor(comp?.selling_price_idr ?? null, activeTiers, tier.tier_id,
+      (tid) => ovByKey.get(`${componentId}:${tid}`)?.override_price_idr);
   }
 
   const setHeader = <K extends keyof Quote>(k: K, v: Quote[K]) => setEditing((e) => (e ? { ...e, [k]: v } : e));

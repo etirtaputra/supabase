@@ -227,6 +227,18 @@ per-invoice issued→paid dates; tsc + build green.
 
 ## Locked architectural decisions
 
+- **Tier pricing = markup chain (decided 2026-07-24, replaces "list − discount").**
+  The price entered on an item (`3.0_components.selling_price_idr`) IS the
+  **net price = Tier-1** (first active tier by `sort_order`). Each next tier =
+  previous tier ÷ (1 − step%), **rounded UP to the nearest Rp 1,000**, showing
+  the actual margin after rounding. Per-item overrides (21.1 absolute price)
+  pin a tier AND re-anchor the chain for the tiers above it. The step % is
+  stored in `21.0_price_tiers.default_discount_pct` (legacy column name kept —
+  no schema change); the net tier ignores its step. Canonical engine:
+  `lib/tierPricing.ts` (`computeTierChain` / `tierPriceFor`) — Products, the
+  sales editor, TierPricingModal, ComponentEditor Pricing Mode, and /pricing
+  all delegate to it. `override_discount_pct` is legacy and no longer read.
+
 - **Costing method: moving-average landed cost.** Valuation = running weighted-avg of landed cost (from `computeTUC`/GRN). Lot/serial tracking is a *later* enhancement (matters for panels/inverters and exact per-lot cash-cycle) — design the ledger so it can be added, but do not build it now.
 - **Warehouses: single to start, multi-ready.** Every stock row carries a `location` column so multi-location is a data change, not a rewrite.
 - **Cash Conversion Cycle = DIO + DSO − DPO.** Sources: DPO = supplier payment dates (`po_costs`), DIO = PO received / stock-in dates, DSO = customer invoice→receipt dates (arrives with module 5). Agree the formula up front so module 6 only renders it.

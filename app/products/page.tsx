@@ -21,6 +21,7 @@ import BrandMenu from '@/components/ui/BrandMenu';
 import { COMMITTED_STATUSES as COMMITTED } from '@/lib/salesStatus';
 import { downloadCsv, parseCsv, readFileText, csvNum } from '@/lib/csv';
 import { fetchDeliveredByQuoteComp } from '@/lib/reservedStock';
+import { computeTierChain } from '@/lib/tierPricing';
 
 interface Comp {
   component_id: string; supplier_model: string; internal_description: string | null;
@@ -205,17 +206,15 @@ function ProductsInner() {
 
   useEffect(() => { if (canView) fetchAll(); }, [canView, fetchAll]);
 
-  const activeTiers = useMemo(() => tiers.filter((t) => t.is_active), [tiers]);
+  const activeTiers = useMemo(() => [...tiers].filter((t) => t.is_active).sort((a, b) => a.sort_order - b.sort_order), [tiers]);
   const ovByKey = useMemo(() => { const m = new Map<string, Override>(); for (const o of overrides) m.set(`${o.component_id}:${o.tier_id}`, o); return m; }, [overrides]);
 
+  // Markup chain: entered price = Tier-1 net; each next tier = prev ÷ (1−step%),
+  // rounded up to Rp 1,000 (lib/tierPricing). Overrides re-anchor the chain.
   const tierPrice = useCallback((c: Comp, t: Tier): number | null => {
-    const ov = ovByKey.get(`${c.component_id}:${t.tier_id}`);
-    if (ov?.override_price_idr != null) return ov.override_price_idr;
-    const list = c.selling_price_idr;
-    if (list == null || list <= 0) return null;
-    const disc = ov?.override_discount_pct ?? t.default_discount_pct ?? 0;
-    return list * (1 - disc / 100);
-  }, [ovByKey]);
+    return computeTierChain(c.selling_price_idr, activeTiers,
+      (tid) => ovByKey.get(`${c.component_id}:${tid}`)?.override_price_idr).get(t.tier_id)?.price ?? null;
+  }, [ovByKey, activeTiers]);
 
   const categories = useMemo(() => [...new Set(comps.map((c) => c.category).filter(Boolean))].sort() as string[], [comps]);
   const brands = useMemo(() => canViewBrand ? [...new Set(comps.map((c) => c.brand).filter(Boolean))].sort() as string[] : [], [comps, canViewBrand]);
@@ -711,12 +710,12 @@ function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEdi
       <div className="flex flex-wrap gap-1.5 items-center">
         <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 mr-1 w-full sm:w-auto">Price list · tap to copy</span>
         {c.selling_price_idr ? (
-          <button onClick={() => onCopyPrice(c, c.selling_price_idr!)} title="Copy this price (excl. PPN) for WhatsApp"
+          <button onClick={() => onCopyPrice(c, c.selling_price_idr!)} title="Net price = Tier-1 · copy (excl. PPN) for WhatsApp"
             className="px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700 hover:border-emerald-500/40 text-[11px] transition-colors">
-            <span className="text-slate-500">List</span> <span className="tabular-nums text-slate-200 font-semibold">{fmtRp(c.selling_price_idr)}</span>
+            <span className="text-slate-500">Net</span> <span className="tabular-nums text-slate-200 font-semibold">{fmtRp(c.selling_price_idr)}</span>
           </button>
         ) : (
-          <span className="text-[11px] text-slate-600 italic">No list price — <Link href="/catalog" className="text-emerald-400 hover:text-emerald-300">set it in Catalog</Link></span>
+          <span className="text-[11px] text-slate-600 italic">No net price — <Link href="/catalog" className="text-emerald-400 hover:text-emerald-300">set it in Catalog</Link></span>
         )}
         {activeTiers.map((t) => {
           const p = tierPrice(c, t);

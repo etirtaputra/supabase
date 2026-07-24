@@ -1,10 +1,12 @@
 /**
  * ICAPROC — Sell-side: Pricing (Module 2 finish)
  * Tier management for owner + sell_admin (canManagePricing):
- *  - Tiers: CRUD the 21.0 tier set — name, code, % off list, margin floor,
+ *  - Tiers: CRUD the 21.0 tier set — name, code, markup step %, margin floor,
  *    reorder, active — with live counts (customers on the tier, item overrides,
  *    items priced below the floor). Renaming a tier code migrates the
- *    customers that carry it.
+ *    customers that carry it. Pricing model = markup chain (lib/tierPricing):
+ *    first active tier is the NET price entered on the item; each next tier =
+ *    previous ÷ (1 − step%), rounded up to Rp 1,000.
  *  - Floor audit: every item × active tier where the effective price sits
  *    below the tier's margin floor vs landed cost (moving-avg from 30.1).
  *    Surfaces the economic consequence (margin at risk on current stock) and
@@ -23,6 +25,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
+import { computeTierChain } from '@/lib/tierPricing';
 
 interface Tier {
   tier_id: string; tier_code: string; name: string;
@@ -150,14 +153,15 @@ export default function PricingPage() {
   const compById = useMemo(() => new Map(comps.map((c) => [c.component_id, c])), [comps]);
   const tierById = useMemo(() => new Map(tiers.map((t) => [t.tier_id, t])), [tiers]);
 
-  const effective = useCallback((c: Comp, t: Tier): { price: number | null; ov: Override | null } => {
-    const ov = ovByKey.get(`${c.component_id}:${t.tier_id}`) ?? null;
-    if (ov?.override_price_idr != null) return { price: ov.override_price_idr, ov };
-    const list = c.selling_price_idr;
-    if (list == null || list <= 0) return { price: null, ov };
-    const disc = ov?.override_discount_pct ?? t.default_discount_pct ?? 0;
-    return { price: list * (1 - disc / 100), ov };
-  }, [ovByKey]);
+  // Markup chain (lib/tierPricing): item's entered price = Tier-1 NET; each
+  // next ACTIVE tier = previous ÷ (1 − step%), rounded up to Rp 1,000.
+  // excludeTierId computes the chain as if that tier's override were cleared.
+  const activeSorted = useMemo(() => tiers.filter((t) => t.is_active).sort((a, b) => a.sort_order - b.sort_order), [tiers]);
+  const chainFor = useCallback((c: Comp, excludeTierId?: string) =>
+    computeTierChain(c.selling_price_idr, activeSorted, (tid) => {
+      if (excludeTierId && tid === excludeTierId) return null;
+      return ovByKey.get(`${c.component_id}:${tid}`)?.override_price_idr;
+    }), [activeSorted, ovByKey]);
 
   const costOf = useCallback((cid: string): number | null => {
     const b = bals.get(cid);
@@ -168,20 +172,21 @@ export default function PricingPage() {
   // Every (item, active tier) whose effective price sits below the tier floor.
   const violations: Violation[] = useMemo(() => {
     const out: Violation[] = [];
-    const active = tiers.filter((t) => t.is_active);
     for (const c of comps) {
       const cost = costOf(c.component_id);
       if (cost == null) continue;
       const onHand = Math.max(0, Number(bals.get(c.component_id)?.qty_on_hand) || 0);
-      for (const t of active) {
-        const { price, ov } = effective(c, t);
+      const chain = chainFor(c);
+      for (const t of activeSorted) {
+        const e = chain.get(t.tier_id);
+        const price = e?.price ?? null;
         if (price == null || price <= 0) continue;
+        const ov = e?.overridden ? (ovByKey.get(`${c.component_id}:${t.tier_id}`) ?? null) : null;
         const gp = ((price - cost) / price) * 100;
         if (gp >= (t.margin_floor_pct || 0) - 0.05) continue;
         const minPrice = minPriceFor(cost, t.margin_floor_pct || 0);
-        // Would the tier default alone (list − tier %) already clear the floor?
-        const list = c.selling_price_idr;
-        const defPrice = list != null && list > 0 ? list * (1 - (t.default_discount_pct || 0) / 100) : null;
+        // Would the chain default alone (this tier's override cleared) clear the floor?
+        const defPrice = ov ? (chainFor(c, t.tier_id).get(t.tier_id)?.price ?? null) : null;
         const defaultCompliant = !!ov && defPrice != null && defPrice > 0 && ((defPrice - cost) / defPrice) * 100 >= (t.margin_floor_pct || 0);
         out.push({
           comp: c, tier: t, price, cost, gp, minPrice, onHand,
@@ -192,7 +197,7 @@ export default function PricingPage() {
     }
     // Worst economics first: biggest at-stake rupiah, then deepest GP gap.
     return out.sort((a, b) => (b.leakage - a.leakage) || (a.gp - b.gp));
-  }, [comps, tiers, bals, costOf, effective]);
+  }, [comps, activeSorted, bals, costOf, chainFor, ovByKey]);
 
   const itemsNoCost = useMemo(
     () => comps.filter((c) => costOf(c.component_id) == null && (Number(c.selling_price_idr) || 0) > 0).length,
@@ -335,15 +340,15 @@ export default function PricingPage() {
         const comp = compById.get(o.component_id);
         const tier = tierById.get(o.tier_id);
         if (!comp || !tier) return null;
-        const list = comp.selling_price_idr;
-        const defPrice = list != null && list > 0 ? list * (1 - (tier.default_discount_pct || 0) / 100) : null;
-        const effPrice = o.override_price_idr ?? (list != null && list > 0 && o.override_discount_pct != null ? list * (1 - o.override_discount_pct / 100) : null);
+        // Chain default = what this tier would cost if the override were cleared
+        const defPrice = chainFor(comp, o.tier_id).get(o.tier_id)?.price ?? null;
+        const effPrice = o.override_price_idr ?? null;
         return { o, comp, tier, defPrice, effPrice };
       })
       .filter((r): r is NonNullable<typeof r> => !!r)
       .filter((r) => !q || descOf(r.comp).toLowerCase().includes(q) || r.tier.name.toLowerCase().includes(q))
       .sort((a, b) => (b.o.updated_at || '').localeCompare(a.o.updated_at || ''));
-  }, [overrides, compById, tierById, ovSearch]);
+  }, [overrides, compById, tierById, ovSearch, chainFor]);
 
   if (authLoading || !profile || !canManage) {
     return <div className="min-h-screen bg-[#0f1012] flex items-center justify-center"><div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" /></div>;
@@ -425,9 +430,10 @@ function TiersTab({ tiers, custTierCounts, overridesByTier, violationsByTier, sa
   return (
     <div className="space-y-4">
       <p className="text-[11px] text-slate-600 max-w-3xl">
-        A tier is a customer price level: its price = <span className="text-slate-400">list − “% off list”</span> unless an item carries an override.
-        The <span className="text-slate-400">margin floor</span> is the minimum GP vs landed cost — prices under it show up in the Floor Audit.
-        Customers pick a tier on their profile; the sales editor then auto-fills that tier’s prices.
+        Markup chain: the price entered on an item IS the first tier — the <span className="text-slate-400">net price</span>. Each next tier =
+        <span className="text-slate-400"> previous ÷ (1 − step %)</span>, rounded up to the nearest Rp 1,000 (the shown margin is the actual one after rounding).
+        Per-item overrides pin a tier and the tiers above chain from the pinned price. The <span className="text-slate-400">margin floor</span> is the minimum GP
+        vs landed cost — prices under it show up in the Floor Audit. Customers pick a tier on their profile; the sales editor auto-fills that tier’s prices.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -435,6 +441,7 @@ function TiersTab({ tiers, custTierCounts, overridesByTier, violationsByTier, sa
           const customers = custTierCounts.get(t.tier_code) ?? 0;
           const ovs = overridesByTier.get(t.tier_id) ?? 0;
           const viols = violationsByTier.get(t.tier_id) ?? 0;
+          const isNetTier = tiers.find((x) => x.is_active)?.tier_id === t.tier_id;
           return (
             <div key={t.tier_id} className={`bg-slate-900/40 border rounded-2xl p-4 space-y-3 transition-colors ${t.is_active ? 'border-slate-800/80' : 'border-slate-800/40 opacity-60'}`}>
               <div className="flex items-start justify-between gap-2">
@@ -446,6 +453,7 @@ function TiersTab({ tiers, custTierCounts, overridesByTier, violationsByTier, sa
                   <input defaultValue={t.name} key={`name-${t.tier_id}-${t.name}`}
                     onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== t.name) onSave(t, { name: v }); }}
                     className="bg-transparent text-white font-bold text-base outline-none border-b border-transparent focus:border-emerald-500/50 min-w-0 w-36 transition-colors" />
+                  {isNetTier && <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 text-[9px] font-bold tracking-wider flex-shrink-0" title="The chain's base: this tier's price is the net price entered on each item">NET</span>}
                 </div>
                 <label className="flex items-center gap-1.5 text-[10px] text-slate-500 cursor-pointer select-none flex-shrink-0">
                   <input type="checkbox" checked={t.is_active} onChange={(e) => onSave(t, { is_active: e.target.checked })} className="accent-emerald-500 w-3.5 h-3.5" />
@@ -459,10 +467,11 @@ function TiersTab({ tiers, custTierCounts, overridesByTier, violationsByTier, sa
                     onBlur={(e) => { const v = e.target.value.trim().toLowerCase().replace(/\s+/g, '_'); if (v && v !== t.tier_code) onSave(t, { tier_code: v }); }}
                     className={tInp} />
                 </Field>
-                <Field label="% off list">
+                <Field label={isNetTier ? 'Step % (net tier)' : 'Step %'} title={isNetTier ? 'This is the NET tier — its price is exactly what you enter on the item; the step is ignored' : 'Margin added over the previous tier: price = prev ÷ (1 − step%), rounded up to Rp 1,000'}>
                   <input defaultValue={String(t.default_discount_pct)} key={`disc-${t.tier_id}-${t.default_discount_pct}`} inputMode="decimal"
+                    disabled={isNetTier}
                     onBlur={(e) => { const v = num(e.target.value); if (v != null && v !== t.default_discount_pct) onSave(t, { default_discount_pct: v }); }}
-                    className={`${tInp} text-right tabular-nums`} />
+                    className={`${tInp} text-right tabular-nums ${isNetTier ? 'opacity-40 cursor-not-allowed' : ''}`} />
                 </Field>
                 <Field label="Floor GP %" title="Minimum margin vs landed cost — below it = Floor Audit">
                   <input defaultValue={String(t.margin_floor_pct)} key={`floor-${t.tier_id}-${t.margin_floor_pct}`} inputMode="decimal"
@@ -650,7 +659,7 @@ function AuditTab({ violations, allCount, totalLeakage, itemsNoCost, tiers, sear
       )}
       <p className="text-[10px] text-slate-600">
         GP = (price − landed cost) ÷ price, landed cost = moving average from received stock. “Raise to floor” writes a per-item override at the compliant
-        minimum (rounded up to Rp 1,000) — it shows as an override in the Catalog and here. Internal only — never shown to customers.
+        minimum (rounded up to Rp 1,000); tiers above the raised one re-chain from the new price automatically. Internal only — never shown to customers.
       </p>
     </div>
   );

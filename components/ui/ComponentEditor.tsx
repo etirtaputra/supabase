@@ -17,6 +17,7 @@ import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { useAuth } from '@/hooks/useAuth';
 import type { Component, PriceQuoteLineItem, PriceQuote, PurchaseOrder, PurchaseLineItem, CompetitorPrice, POCost, ComponentLink } from '../../types/database';
 import { computeTUC, computeTUCMap } from '../../lib/computeTUC';
+import { computeTierChain } from '../../lib/tierPricing';
 import { PRINCIPAL_CATS, BALANCE_CATS, BANK_FEE_CATS, TAX_CATS } from '../../constants/costCategories';
 import { ENUMS } from '../../constants/enums';
 import { CATEGORY_UNITS, hasCategoryUnit } from '../../constants/categoryUnits';
@@ -677,7 +678,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   // canManagePricing also get one column per tier (override price; empty =
   // the tier's default discount off list).
   const [pricingMode, setPricingMode] = useState(false);
-  const [priceTiers, setPriceTiers] = useState<{ tier_id: string; tier_code: string; default_discount_pct: number }[]>([]);
+  const [priceTiers, setPriceTiers] = useState<{ tier_id: string; tier_code: string; default_discount_pct: number; sort_order?: number }[]>([]);
   const [tierOverrides, setTierOverrides] = useState<Map<string, number | null>>(new Map()); // `${cid}:${tid}` → override_price_idr
   const [pendingTier, setPendingTier] = useState<Record<string, number | null>>({});          // dirty tier edits, same key
   const [pending, setPending] = useState<PendingEdits>({});
@@ -1318,7 +1319,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         supabase.from('21.0_price_tiers').select('tier_id, tier_code, default_discount_pct, sort_order, is_active').order('sort_order'),
         supabase.from('21.1_item_tier_prices').select('component_id, tier_id, override_price_idr'),
       ]);
-      setPriceTiers((((tRes.data ?? []) as { tier_id: string; tier_code: string; default_discount_pct: number; is_active?: boolean }[])).filter((t) => t.is_active !== false));
+      setPriceTiers((((tRes.data ?? []) as { tier_id: string; tier_code: string; default_discount_pct: number; sort_order?: number; is_active?: boolean }[])).filter((t) => t.is_active !== false));
       const m = new Map<string, number | null>();
       for (const o of ((oRes.data ?? []) as { component_id: string; tier_id: string; override_price_idr: number | null }[])) {
         m.set(`${o.component_id}:${o.tier_id}`, o.override_price_idr != null ? Number(o.override_price_idr) : null);
@@ -2766,9 +2767,9 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                 {visibleCols.normValue && <th className="hidden md:table-cell px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 min-w-[90px]">Capacity</th>}
                 {visibleCols.lastPrice && <SortTh col="priceDelta" label="Last Price" className="min-w-[120px]" />}
                 {sellPriceOn && <SortTh col="margin" label="Sell Price" className="min-w-[130px]" />}
-                {tierCols.map((t) => (
+                {tierCols.map((t, ti) => (
                   <th key={t.tier_id} className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-emerald-500/80 min-w-[110px]">
-                    {t.tier_code} <span className="text-slate-600 font-normal normal-case">−{Number(t.default_discount_pct) || 0}%</span>
+                    {t.tier_code} <span className="text-slate-600 font-normal normal-case">{ti === 0 ? 'net' : `+${Number(t.default_discount_pct) || 0}%`}</span>
                   </th>
                 ))}
                 {visibleCols.usage && (
@@ -3229,10 +3230,16 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
 
                     {/* Tier prices (pricing mode) — value = override; empty
                         shows the tier default (list − discount) as placeholder */}
-                    {tierCols.map((t) => {
+                    {tierCols.map((t, ti) => {
                       const tkey = `${c.component_id}:${t.tier_id}`;
                       const listP = (getVal(c, 'selling_price_idr' as any) ?? c.selling_price_idr) as number | null;
-                      const defP = listP != null && listP > 0 ? Math.round(listP * (1 - (Number(t.default_discount_pct) || 0) / 100)) : null;
+                      // Chain default: net (T1) marked up tier by tier; other
+                      // tiers' overrides (saved or pending) re-anchor the chain.
+                      const defP = computeTierChain(listP, tierCols, (tid) => {
+                        if (tid === t.tier_id) return null;
+                        const k = `${c.component_id}:${tid}`;
+                        return k in pendingTier ? pendingTier[k] : (tierOverrides.get(k) ?? null);
+                      }).get(t.tier_id)?.price ?? null;
                       const cur = tkey in pendingTier ? pendingTier[tkey] : (tierOverrides.get(tkey) ?? null);
                       const tDirty = tkey in pendingTier;
                       return (
@@ -3245,7 +3252,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                             data-fld={`tier_${t.tier_id}`}
                             value={cur ?? ''}
                             placeholder={defP != null ? String(defP) : '—'}
-                            title={defP != null ? `Default (−${Number(t.default_discount_pct) || 0}%): ${defP.toLocaleString('en-US')} — type to override, clear to reset` : 'Set the list price first'}
+                            title={defP != null ? `Chain default (${ti === 0 ? 'net' : `+${Number(t.default_discount_pct) || 0}% over prev tier`}): ${defP.toLocaleString('en-US')} — type to override, clear to reset` : 'Set the net (Tier-1) price first'}
                             onChange={(e) => setPendingTier((prev) => ({ ...prev, [tkey]: e.target.value === '' ? null : parseFloat(e.target.value) }))}
                             onKeyDown={(e) => handlePriceKeyDown(e, c.component_id, `tier_${t.tier_id}`)}
                             className={`w-full px-2 py-1 rounded-lg text-xs text-white focus:outline-none focus:ring-2 transition-all tabular-nums ${
