@@ -38,6 +38,15 @@ function fmtDate(d: string) {
   return new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+// Date + time (local tz, WIB for the team) for "last edited" — the list needs
+// the time of day, not just the day, to tell same-day edits apart.
+function fmtDateTime(d?: string | null) {
+  if (!d) return '—';
+  const dt = new Date(d);
+  if (isNaN(dt.getTime())) return '—';
+  return dt.toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
 export default function QuotesListPage() {
   const supabase = createSupabaseClient();
   const router = useRouter();
@@ -526,8 +535,10 @@ export default function QuotesListPage() {
                       </span>
                     )}
                     {(q.updated_by_email || q.created_by_email) && (
-                      <span className="flex-shrink-0 text-slate-600 hidden md:block" title={`Created by ${q.created_by_email || '—'} · last edited by ${q.updated_by_email || '—'}`}>
-                        ✎ {(q.updated_by_email || q.created_by_email)!.split('@')[0]}{q.updated_at ? ` · ${fmtDate(q.updated_at)}` : ''}
+                      <span className="flex-shrink-0 text-slate-500 hidden sm:block"
+                        title={`Created by ${q.created_by_email || '—'}${q.created_at ? ` on ${fmtDateTime(q.created_at)}` : ''}\nLast edited by ${q.updated_by_email || q.created_by_email || '—'}${q.updated_at ? ` on ${fmtDateTime(q.updated_at)}` : ''}`}>
+                        ✎ Edited by <span className="text-slate-400">{(q.updated_by_email || q.created_by_email)!.split('@')[0]}</span>
+                        {q.updated_at ? ` · ${fmtDateTime(q.updated_at)}` : ''}
                       </span>
                     )}
                   </div>
