@@ -15,6 +15,8 @@ import BrandMenu from '@/components/ui/BrandMenu';
 import MobileNotice from '@/components/ui/MobileNotice';
 import { PROJECT_TYPES } from '@/lib/projectSpec';
 import { SECTION_GROUPS, STANDARD_SECTIONS, type ProjectQuote } from '@/types/quotes';
+import { useEpcLobby, type LobbyPeer } from '@/hooks/useEpcLobby';
+import { initials, firstName } from '@/lib/presence';
 
 const STATUS_STYLES: Record<string, string> = {
   draft:    'bg-slate-700/60 text-slate-300',
@@ -47,6 +49,13 @@ export default function QuotesListPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('');   // '' = all project types
+
+  // Live presence: who else is in the EPC area and on which proposal. This page
+  // reports itself as "browsing" (no proposalId); editors report their proposal.
+  const { peersByProposal, online, onlineCount } = useEpcLobby({
+    email: gate.profile?.email,
+    name: gate.profile?.display_name || gate.profile?.email,
+  });
 
   // Set-password modal (for accounts created via magic link)
   const [pwOpen, setPwOpen] = useState(false);
@@ -374,6 +383,7 @@ export default function QuotesListPage() {
         <div className="max-w-6xl 2xl:max-w-[1760px] mx-auto px-3 sm:px-6 py-4 flex items-center justify-between gap-3">
           <BrandMenu wordmarkClass="text-xl font-bold" subtitle="EPC Proposals" />
           <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+            {onlineCount > 1 && <OnlineIndicator online={online} count={onlineCount} />}
             {gate.profile?.role === 'owner' && (
               <Link
                 href="/proposals/library"
@@ -469,8 +479,10 @@ export default function QuotesListPage() {
                 <div className="space-y-2">
                   {groupQuotes.map((q) => {
                     const t = totalsByQuote.get(q.quote_id);
+                    const livePeers = peersByProposal.get(q.quote_id) ?? [];
+                    const someoneEditing = livePeers.some((p) => p.editing);
                     return (
-                    <div key={q.quote_id} className="group flex items-center gap-3 sm:gap-4 bg-slate-900/50 hover:bg-slate-900/80 border border-slate-800 hover:border-slate-700 rounded-2xl px-4 sm:px-5 py-4 transition-all">
+                    <div key={q.quote_id} className={`group flex items-center gap-3 sm:gap-4 bg-slate-900/50 hover:bg-slate-900/80 border rounded-2xl px-4 sm:px-5 py-4 transition-all ${someoneEditing ? 'border-amber-500/40' : livePeers.length ? 'border-emerald-500/30' : 'border-slate-800 hover:border-slate-700'}`}>
                 <Link href={`/proposals/${q.quote_id}`} className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2 mb-1">
                     <span className="font-semibold text-white truncate max-w-full">{q.quote_number || '—'}</span>
@@ -532,6 +544,7 @@ export default function QuotesListPage() {
                     </div>
                   ) : null}
                 </Link>
+                {livePeers.length > 0 && <LivePresence peers={livePeers} />}
                 <div className="hidden sm:flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={() => { setDup({ id: q.quote_id, number: q.quote_number }); setDupToday(true); setDupRefresh(false); setDupInternal(true); setDupError(''); }}
@@ -669,6 +682,58 @@ export default function QuotesListPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Live presence on a proposal card: avatars of who is in that proposal right
+// now, amber ring + "editing" label when someone holds unsaved changes.
+function LivePresence({ peers }: { peers: LobbyPeer[] }) {
+  const editors = peers.filter((p) => p.editing);
+  return (
+    <div className="flex items-center gap-2 flex-shrink-0" title={peers.map((p) => `${p.name}${p.editing ? ' — editing (unsaved)' : ' — viewing'}`).join('\n')}>
+      <div className="flex -space-x-2">
+        {peers.slice(0, 4).map((p) => (
+          <span key={p.email}
+            className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-black/80 ring-2 ring-slate-900 relative"
+            style={{ backgroundColor: p.color }}>
+            {initials(p.name, p.email)}
+            {p.editing && <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-slate-900" />}
+          </span>
+        ))}
+        {peers.length > 4 && (
+          <span className="w-6 h-6 rounded-full bg-slate-700 text-slate-300 text-[9px] font-bold flex items-center justify-center ring-2 ring-slate-900">+{peers.length - 4}</span>
+        )}
+      </div>
+      <span className={`hidden md:inline text-[10px] font-semibold whitespace-nowrap ${editors.length ? 'text-amber-300' : 'text-emerald-300/90'}`}>
+        {editors.length ? `${firstName(editors[0].name, editors[0].email)} editing${editors.length > 1 ? ` +${editors.length - 1}` : ''}` : `${firstName(peers[0].name, peers[0].email)} viewing`}
+      </span>
+    </div>
+  );
+}
+
+// Header pill: how many people are in the EPC area right now, and where.
+function OnlineIndicator({ online, count }: { online: LobbyPeer[]; count: number }) {
+  const tip = online.map((p) => {
+    const where = p.editing && p.quoteNumber ? `editing ${p.quoteNumber}`
+      : p.quoteNumber ? `viewing ${p.quoteNumber}` : 'browsing the list';
+    return `${p.name} — ${where}`;
+  }).join('\n');
+  return (
+    <div className="hidden sm:flex items-center gap-2" title={tip}>
+      <div className="flex -space-x-2">
+        {online.slice(0, 4).map((p) => (
+          <span key={p.email}
+            className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-black/80 ring-2 ring-[#141518]"
+            style={{ backgroundColor: p.color }}>
+            {initials(p.name, p.email)}
+          </span>
+        ))}
+        {count > 4 && <span className="w-6 h-6 rounded-full bg-slate-700 text-slate-300 text-[9px] font-bold flex items-center justify-center ring-2 ring-[#141518]">+{count - 4}</span>}
+      </div>
+      <span className="flex items-center gap-1 text-[11px] text-slate-400 whitespace-nowrap">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> {count} online
+      </span>
     </div>
   );
 }

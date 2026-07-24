@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { createSupabaseClient } from '@/lib/supabase';
+import { colorFor, initials, firstName as firstNameOf } from '@/lib/presence';
 
 /**
  * Live presence for a shared document (Supabase Realtime Presence — no DB
@@ -18,20 +19,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 
 interface Peer { email: string; name: string; color: string; editing: boolean }
 
-// Deterministic bright color per person, so the same colleague is always the
-// same hue across sessions.
-const COLORS = ['#f87171', '#fb923c', '#fbbf24', '#a3e635', '#34d399', '#22d3ee', '#60a5fa', '#a78bfa', '#f472b6', '#e879f9'];
-function colorFor(s: string) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return COLORS[h % COLORS.length];
-}
-function initials(name: string, email: string) {
-  const base = (name || email).trim();
-  const parts = base.split(/[\s@._-]+/).filter(Boolean);
-  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || base[0]?.toUpperCase() || '?';
-}
-const firstName = (p: Peer) => (p.name || p.email).split(/[\s@._-]+/)[0];
+const firstName = (p: Peer) => firstNameOf(p.name, p.email);
 
 export default function ProposalPresence({ channelId, email, name, editing, onPeerSaved }: {
   channelId: string;

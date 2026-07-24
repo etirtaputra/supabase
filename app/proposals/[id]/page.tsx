@@ -14,6 +14,7 @@ import { lineWp, wpPerModule } from '@/lib/quoteWp';
 import MigrationBanner from '@/components/ui/MigrationBanner';
 import MobileNotice from '@/components/ui/MobileNotice';
 import ProposalPresence from '@/components/ui/ProposalPresence';
+import { useEpcLobby } from '@/hooks/useEpcLobby';
 import EnergyEconomicsCard from '@/components/ui/EnergyEconomicsCard';
 import type { EconAssumptions } from '@/lib/energyEconomics';
 import { PROJECT_TYPES, composeDescription, specFileTag, isSolarType, type ProjectType, type SystemSpecs, type Phase } from '@/lib/projectSpec';
@@ -348,9 +349,20 @@ export default function QuoteEditorPage() {
   const locked = quote?.status === 'sent' && !isOwner;
   const [sections, setSections] = useState<DraftSection[]>([]);
   const [loadingQuote, setLoadingQuote] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
+
+  // Announce presence to the EPC lobby so the proposals list shows who is live
+  // on this proposal and whether they're mid-edit (unsaved changes).
+  useEpcLobby({
+    email: gate.profile?.email,
+    name: gate.profile?.display_name || gate.profile?.email,
+    proposalId: id,
+    quoteNumber: quote?.quote_number || '',
+    editing: dirty,
+  });
 
   // ── Autocomplete state ─────────────────────────────────────────────────────
   // x/y anchor the dropdown with position:fixed so the table's overflow-x-auto
@@ -925,12 +937,23 @@ export default function QuoteEditorPage() {
   useEffect(() => {
     async function load() {
       setLoadingQuote(true);
+      setLoadError('');
       const [qRes, secRes, itemRes] = await Promise.all([
-        supabase.from('10.0_project_quotes').select('*').eq('quote_id', id).single(),
+        supabase.from('10.0_project_quotes').select('*').eq('quote_id', id).maybeSingle(),
         supabase.from('10.1_quote_sections').select('*').eq('quote_id', id).order('sort_order'),
         supabase.from('10.2_quote_items').select('*').eq('quote_id', id).order('sort_order'),
       ]);
-      if (!qRes.data) { router.push('/proposals'); return; }
+      // Never bounce silently: say WHY the proposal won't open, and let the
+      // user retry or go back. `.maybeSingle()` so a 0-row read isn't an error.
+      if (qRes.error || !qRes.data) {
+        setLoadError(
+          qRes.error
+            ? `Couldn't load this proposal: ${qRes.error.message}. Check your connection and retry.`
+            : "This proposal no longer exists, or you don't have access to it."
+        );
+        setLoadingQuote(false);
+        return;
+      }
       setQuote(qRes.data as ProjectQuote);
       loadedStampRef.current = (qRes.data as ProjectQuote).updated_at ?? null;
       baseHeaderRef.current = qRes.data as ProjectQuote;
@@ -1670,8 +1693,31 @@ export default function QuoteEditorPage() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
+  // A failed/empty load shows WHY, with retry + a way back — never a silent
+  // bounce or an endless spinner.
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-[#141518] flex items-center justify-center px-4">
+        <div className="max-w-sm w-full bg-slate-900 border border-slate-700 rounded-2xl p-6 text-center">
+          <div className="w-10 h-10 mx-auto mb-3 rounded-full bg-amber-500/15 flex items-center justify-center text-amber-300 text-lg">!</div>
+          <h2 className="text-white font-semibold mb-1">Can&apos;t open this proposal</h2>
+          <p className="text-slate-400 text-xs mb-5">{loadError}</p>
+          <div className="flex gap-2 justify-center">
+            <button onClick={() => router.push('/proposals')} className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors">Back to proposals</button>
+            <button onClick={() => window.location.reload()} className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors">Retry</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!gate.ready || loadingQuote || !quote) {
-    return <div className="min-h-screen bg-[#141518] flex items-center justify-center text-slate-500">Loading…</div>;
+    return (
+      <div className="min-h-screen bg-[#141518] flex flex-col items-center justify-center gap-3 text-slate-500">
+        <div className="w-6 h-6 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
+        <span className="text-xs">Loading proposal…</span>
+      </div>
+    );
   }
 
   const liveSections = sections.filter((s) => !s._deleted);
