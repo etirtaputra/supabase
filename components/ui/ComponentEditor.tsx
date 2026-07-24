@@ -3269,7 +3269,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
 
                     {/* Updated At */}
                     {visibleCols.updated && (
-                      <td className="hidden md:table-cell px-4 py-3 align-top">
+                      <td className="hidden md:table-cell px-4 py-1.5 align-middle">
                         <span className={`text-xs ${sortCol === 'updated_at' ? 'text-emerald-400 font-semibold' : 'text-slate-500'}`}>
                           {fmtDate(effectiveUpdatedAt.get(c.component_id))}
                         </span>
@@ -3277,7 +3277,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                     )}
 
                     {/* Row actions */}
-                    <td className="px-4 py-3 align-top">
+                    <td className="px-4 py-1.5 align-middle">
                       <div className="flex gap-1.5 justify-end items-center">
                         {/* Datasheet / file link */}
                         {isEditing ? (
