@@ -124,13 +124,15 @@ const saveStoredRecent = (item: Item) => {
 
 interface Props {
   variant?: 'modal' | 'inline';
+  /** modal only: lift the closed pill above a page's fixed bottom action bar */
+  raisedPill?: boolean;
   /** modal only: show the bottom-right reminder pill when closed */
   showHint?: boolean;
   /** false renders nothing */
   enabled?: boolean;
 }
 
-export default function CommandPalette({ variant = 'modal', showHint = true, enabled = true }: Props) {
+export default function CommandPalette({ variant = 'modal', raisedPill = false, showHint = true, enabled = true }: Props) {
   const supabase = createSupabaseClient();
   const inline = variant === 'inline';
   const { profile } = useAuth();
@@ -821,7 +823,7 @@ export default function CommandPalette({ variant = 'modal', showHint = true, ena
         // z-30: below every modal/side-panel backdrop (z-40+) so open panels
         // cover the pill. Desktop-only — on phones it collided with bottom
         // bars and content; every list page has its own search there.
-        className="hidden md:flex fixed bottom-5 right-5 z-30 items-center gap-2 px-3 py-2 rounded-full bg-slate-900/90 backdrop-blur border border-slate-700/80 text-slate-400 hover:text-white hover:border-emerald-500/40 shadow-lg transition-colors group print:hidden"
+        className={`hidden md:flex fixed ${raisedPill ? 'bottom-16' : 'bottom-5'} right-5 z-30 items-center gap-2 px-3 py-2 rounded-full bg-slate-900/90 backdrop-blur border border-slate-700/80 text-slate-400 hover:text-white hover:border-emerald-500/40 shadow-lg transition-colors group print:hidden`}
       >
         <svg className="w-3.5 h-3.5 text-slate-500 group-hover:text-emerald-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
         <span className="text-[11px] font-medium hidden sm:inline">Search</span>

@@ -19,5 +19,8 @@ export default function GlobalSpotlight() {
     pathname.endsWith('/print') ||
     pathname.endsWith('/do')
   ) return null;
-  return <CommandPalette />;
+  // The EPC editor has a fixed full-width bottom action bar (totals + save)
+  // at z-40 that would cover the z-30 pill — lift the pill above it there.
+  const raisedPill = /^\/proposals\/(?!library$)[^/]+$/.test(pathname);
+  return <CommandPalette raisedPill={raisedPill} />;
 }
