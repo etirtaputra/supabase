@@ -8,7 +8,7 @@
  * are supported; each cost entry is split using the resulting PO share.
  */
 'use client';
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 import type { PurchaseOrder, Supplier, PriceQuote, POCost } from '@/types/database';
 import { ENUMS } from '@/constants/enums';
@@ -16,6 +16,8 @@ import { PRINCIPAL_CATS } from '@/constants/costCategories';
 import { fmtIdr } from '@/lib/formatters';
 
 const ALL_COST_CATS = ENUMS.po_cost_category as readonly string[];
+
+const DRAFT_KEY = 'icaproc.paymentBatchDraft.v1';
 
 interface CostItem {
   uid: string;
@@ -43,6 +45,49 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
   ]);
   const [overrides,   setOverrides]   = useState<Record<string, string>>({});
   const [submitting,  setSubmitting]  = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
+
+  // ── Draft autosave: a refresh or deploy must never cost a filled form ──
+  // Progress persists in localStorage on every change and restores on mount;
+  // cleared on successful submit or explicit discard.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      const hasContent = (d?.selectedIds?.length ?? 0) > 0 || d?.bankRef ||
+        (Array.isArray(d?.costItems) && d.costItems.some((i: { amountStr?: string }) => i?.amountStr));
+      if (!hasContent) return;
+      if (Array.isArray(d.selectedIds)) setSelectedIds(d.selectedIds.map(String));
+      if (typeof d.paymentDate === 'string' && d.paymentDate) setPaymentDate(d.paymentDate);
+      if (typeof d.bankRef === 'string') setBankRef(d.bankRef);
+      if (Array.isArray(d.costItems) && d.costItems.length) {
+        setCostItems(d.costItems.map((i: Partial<CostItem>, idx: number) => ({
+          uid: i.uid ?? `item_${idx}`, category: i.category ?? 'balance_payment',
+          amountStr: i.amountStr ?? '', dateStr: i.dateStr ?? '',
+        })));
+      }
+      if (d.overrides && typeof d.overrides === 'object') setOverrides(d.overrides);
+      setDraftRestored(true);
+    } catch { /* corrupt draft — start clean */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    const empty = selectedIds.length === 0 && !bankRef && costItems.every((i) => !i.amountStr);
+    try {
+      if (empty) localStorage.removeItem(DRAFT_KEY);
+      else localStorage.setItem(DRAFT_KEY, JSON.stringify({ selectedIds, paymentDate, bankRef, costItems, overrides }));
+    } catch { /* storage full/blocked — silently skip */ }
+  }, [selectedIds, paymentDate, bankRef, costItems, overrides]);
+
+  const discardDraft = () => {
+    try { localStorage.removeItem(DRAFT_KEY); } catch {}
+    setSelectedIds([]);
+    setCostItems([{ uid: 'item_0', category: 'balance_payment', amountStr: '', dateStr: '' }]);
+    setBankRef('');
+    setOverrides({});
+    setDraftRestored(false);
+  };
 
   // ── Payment status per PO: po_id → { paidIdr, totalIdr, pct } ──────────
   const poPaymentStatus = useMemo(() => {
@@ -226,7 +271,9 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
       return;
     }
 
-    // Reset
+    // Reset (and drop the saved draft — it's submitted now)
+    try { localStorage.removeItem(DRAFT_KEY); } catch {}
+    setDraftRestored(false);
     setSelectedIds([]);
     setCostItems([{ uid: 'item_0', category: 'balance_payment', amountStr: '', dateStr: '' }]);
     setBankRef('');
@@ -239,6 +286,14 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
   const canSubmit = selectedPos.length > 0 && hasValidCosts && Math.abs(delta) <= 1 && !submitting;
 
   return (
+    <div>
+      {draftRestored && (
+        <div className="mb-4 flex items-center gap-3 px-4 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs">
+          <span className="text-emerald-300 font-semibold">Draft restored</span>
+          <span className="text-slate-400">Your unsubmitted batch from last time was brought back.</span>
+          <button onClick={discardDraft} className="ml-auto text-slate-500 hover:text-red-300 font-semibold transition-colors whitespace-nowrap">Discard draft</button>
+        </div>
+      )}
     <div className="xl:grid xl:grid-cols-[1fr_1fr] xl:gap-8 xl:items-start">
 
       {/* ── LEFT COLUMN: Step 1 Select POs ── */}
@@ -490,6 +545,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
         </button>
       )}
       </div>
+    </div>
     </div>
   );
 }
