@@ -7,7 +7,6 @@ import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useQuotesGate } from '@/hooks/useQuotesGate';
 import { computeTUCMap, getComponentCost, type TUCResult, type CostEntry } from '@/lib/computeTUC';
 import { fetchUsedEntries } from '@/lib/usedPrices';
-import { roundNice } from '@/lib/rounding';
 import { lineWp } from '@/lib/quoteWp';
 import { fmtRp } from '@/lib/formatters';
 import MigrationBanner from '@/components/ui/MigrationBanner';
@@ -343,7 +342,7 @@ export default function QuotesListPage() {
             const oldCost = Number(it.cost_price), oldSell = Number(it.sell_price);
             if (oldCost > 0 && oldSell > 0) {
               const gmFrac = 1 - oldCost / oldSell;
-              if (gmFrac < 1) sell = roundNice(newCost / (1 - gmFrac));
+              if (gmFrac < 1) sell = Math.round(newCost / (1 - gmFrac));
             }
             cost = newCost;
           }

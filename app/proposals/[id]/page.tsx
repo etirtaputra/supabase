@@ -7,7 +7,6 @@ import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useQuotesGate } from '@/hooks/useQuotesGate';
 import { computeTUCMap, getComponentCost, priceAgeDays, AGED_PRICE_DAYS, type CostEntry } from '@/lib/computeTUC';
 import { fetchUsedEntries } from '@/lib/usedPrices';
-import { roundNice } from '@/lib/rounding';
 import { DEFAULT_EXPORT_COLS, EXPORT_COL_KEYS, EXPORT_COL_LABELS, loadExportCols, saveExportCols, type ExportCols } from '@/lib/exportCols';
 import { quoteFileName } from '@/lib/quoteFilename';
 import { lineWp, wpPerModule } from '@/lib/quoteWp';
@@ -152,7 +151,7 @@ function gmFromPrices(cost: string, sell: string): string {
 function sellFromGm(cost: string, gm: string): string {
   const c = num(cost), g = num(gm);
   if (!c || g == null || g >= 100) return '';
-  return String(roundNice(c / (1 - g / 100)));
+  return String(Math.round(c / (1 - g / 100)));
 }
 
 // New cost, same margin: recompute the sell from the GM% the row already
@@ -162,7 +161,7 @@ function sellKeepingGm(oldCost: number | null, oldSell: number | null, newCost: 
   if (!oldCost || !oldSell || oldSell <= 0 || !(newCost > 0)) return null;
   const gmFrac = 1 - oldCost / oldSell;
   if (gmFrac >= 1) return null;
-  return String(roundNice(newCost / (1 - gmFrac)));
+  return String(Math.round(newCost / (1 - gmFrac)));
 }
 
 const LEAD_TIMES = ['Ready', '1 minggu', '2 minggu', '3 minggu', '1 bulan', '2 bulan', '3 bulan', 'Custom'];
@@ -759,7 +758,7 @@ export default function QuoteEditorPage() {
   function sellFromGroupGm(groupKey: SectionGroup, cost: number | null): string | null {
     const gm = groupGm(groupKey);
     if (gm == null || !cost || cost <= 0) return null;
-    return String(roundNice(cost / (1 - gm / 100)));
+    return String(Math.round(cost / (1 - gm / 100)));
   }
 
   function applyGmToGroup(groupKey: SectionGroup) {
@@ -773,7 +772,7 @@ export default function QuoteEditorPage() {
           if (it._deleted || it.parent_item_id) return it;
           const c = num(it.cost_price);
           if (!c || c <= 0) return it;
-          return { ...it, sell_price: String(roundNice(c / (1 - gm / 100))) };
+          return { ...it, sell_price: String(Math.round(c / (1 - gm / 100))) };
         }),
       };
     }));
@@ -807,7 +806,7 @@ export default function QuoteEditorPage() {
         let newSell: string | null = null;
         if (oldCost && oldSell && oldSell > 0) {
           const gmFrac = 1 - oldCost / oldSell;
-          if (gmFrac < 1) newSell = String(roundNice(newCost / (1 - gmFrac)));
+          if (gmFrac < 1) newSell = String(Math.round(newCost / (1 - gmFrac)));
         }
         rows.push({
           itemId: it.item_id, description: it.description, qty: num(it.quantity) ?? 0,
