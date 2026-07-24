@@ -527,7 +527,7 @@ function DoModal({ items, shippedQtyByLine, contacts, shippingAddress, busy, onC
     for (const l of items) m[l.item_id] = String(Math.max(0, l.quantity - (shippedQtyByLine[l.item_id] ?? 0)));
     return m;
   });
-  const [d, setD] = useState({ date: '', time: '', method: 'delivery', via: '', address: shippingAddress, mapUrl: '', contact: '' });
+  const [d, setD] = useState({ date: today(), time: '', method: 'delivery', via: '', address: shippingAddress, mapUrl: '', contact: '' });
   const set = (k: keyof typeof d, v: string) => setD((x) => ({ ...x, [k]: v }));
   const isPickup = d.method === 'pickup';
   const totalQty = items.reduce((s, l) => s + num(qtys[l.item_id]), 0);

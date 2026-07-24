@@ -21,6 +21,7 @@ interface CostItem {
   uid: string;
   category: string;
   amountStr: string;
+  dateStr: string; // per-entry payment date; '' = follow the batch date
 }
 
 interface Props {
@@ -38,7 +39,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
   const [bankRef,     setBankRef]     = useState('');
   const [costItems,   setCostItems]   = useState<CostItem[]>([
-    { uid: 'item_0', category: 'balance_payment', amountStr: '' },
+    { uid: 'item_0', category: 'balance_payment', amountStr: '', dateStr: '' },
   ]);
   const [overrides,   setOverrides]   = useState<Record<string, string>>({});
   const [submitting,  setSubmitting]  = useState(false);
@@ -147,7 +148,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
   const addCostItem = () =>
     setCostItems((prev) => [
       ...prev,
-      { uid: `item_${Date.now()}`, category: 'balance_payment', amountStr: '' },
+      { uid: `item_${Date.now()}`, category: 'balance_payment', amountStr: '', dateStr: '' },
     ]);
 
   const removeCostItem = (uid: string) =>
@@ -211,7 +212,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
           cost_category: item.category,
           amount,
           currency:      'IDR',
-          payment_date:  paymentDate,
+          payment_date:  item.dateStr || paymentDate,
           notes:         bankRef || null,
           batch_id:      batchId,
         });
@@ -227,7 +228,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
 
     // Reset
     setSelectedIds([]);
-    setCostItems([{ uid: 'item_0', category: 'balance_payment', amountStr: '' }]);
+    setCostItems([{ uid: 'item_0', category: 'balance_payment', amountStr: '', dateStr: '' }]);
     setBankRef('');
     setOverrides({});
     setSubmitting(false);
@@ -310,7 +311,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
           <h4 className="text-sm font-bold text-white mb-4">2 · Batch Details</h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-1.5">Payment Date</label>
+              <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-1.5">Batch Payment Date</label>
               <input
                 type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
@@ -340,18 +341,19 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
               + Add entry
             </button>
           </div>
-          <p className="text-xs text-slate-500 mb-4">Add one row per cost category. All entries are split proportionally across the selected POs.</p>
+          <p className="text-xs text-slate-500 mb-4">Add one row per cost category. Each entry is split proportionally across the selected POs; a batch can span several days — give an entry its own date when it was paid on a different day (empty = batch date).</p>
 
           <div className="space-y-2">
             {/* Header */}
-            <div className="grid grid-cols-[1fr_180px_32px] gap-3 px-1">
+            <div className="grid grid-cols-[1fr_130px_150px_32px] gap-2 px-1">
               <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Cost Category</span>
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Paid On</span>
               <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Amount (IDR)</span>
               <span />
             </div>
 
             {costItems.map((item, idx) => (
-              <div key={item.uid} className="grid grid-cols-[1fr_180px_32px] gap-3 items-center">
+              <div key={item.uid} className="grid grid-cols-[1fr_130px_150px_32px] gap-2 items-center">
                 <select
                   value={item.category}
                   onChange={(e) => updateCostItem(item.uid, { category: e.target.value })}
@@ -361,6 +363,13 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
                     <option key={c} value={c} className="bg-[#020617] text-white">{c.replace(/_/g, ' ')}</option>
                   ))}
                 </select>
+                <input
+                  type="date"
+                  value={item.dateStr || paymentDate}
+                  onChange={(e) => updateCostItem(item.uid, { dateStr: e.target.value === paymentDate ? '' : e.target.value })}
+                  title="Date this entry was paid — defaults to the batch date"
+                  className={`bg-slate-950 border rounded-lg px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 ${item.dateStr ? 'border-amber-500/60 text-white' : 'border-slate-700 text-slate-400'}`}
+                />
                 <input
                   type="number" min="0" step="1000"
                   value={item.amountStr}
