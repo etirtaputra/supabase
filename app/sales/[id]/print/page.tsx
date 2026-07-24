@@ -10,6 +10,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { DEFAULT_SALES_COLS, SALES_COL_KEYS, SALES_COL_LABELS, loadSalesCols, saveSalesCols, type SalesExportCols } from '@/lib/salesExportCols';
 
 function fmtIdr(v: number) { return `Rp${Math.round(v).toLocaleString('en-US')}`; }
@@ -29,7 +30,7 @@ export default function SalesPrintPage() {
   const { id } = useParams<{ id: string }>();
   const supabase = createSupabaseClient();
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
 
   const [quote, setQuote] = useState<Quote | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
@@ -43,7 +44,11 @@ export default function SalesPrintPage() {
   useEffect(() => { setCols(loadSalesCols()); }, []);
   const setCol = (k: keyof SalesExportCols, v: boolean) => setCols((prev) => { const next = { ...prev, [k]: v }; saveSalesCols(next); return next; });
 
-  useEffect(() => { if (!authLoading && !user) router.replace(`/login?next=${encodeURIComponent(`/sales/${id}/print`)}`); }, [authLoading, user, id, router]);
+  useEffect(() => {
+    if (!authLoading && !user) { router.replace(`/login?next=${encodeURIComponent(`/sales/${id}/print`)}`); return; }
+    // Sell-side document — hidden from roles without sell-side access
+    if (profile && !ROLE_PERMISSIONS[profile.role].sellSide) router.replace('/unauthorized');
+  }, [authLoading, user, profile, id, router]);
 
   useEffect(() => {
     if (!user) return;

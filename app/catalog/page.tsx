@@ -97,6 +97,11 @@ function MasterInsertPage() {
   useEffect(() => {
     if (!authLoading && !user) router.replace('/login');
   }, [authLoading, user, router]);
+  // Buy-side module: roles with no buy-side access and no visible catalog tab
+  // (e.g. sell-side sales) don't belong here at all.
+  useEffect(() => {
+    if (perms && !perms.buySide && !Object.values(perms.tabs).some(Boolean)) router.replace('/unauthorized');
+  }, [perms, router]);
 
   // Filter menu items to only tabs the user's role can see
   const visibleMenuItems = MENU_ITEMS.filter(

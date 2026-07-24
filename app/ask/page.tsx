@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 
 interface ChatMessage { role: 'user' | 'assistant'; content: string; error?: boolean }
@@ -32,10 +33,11 @@ export default function AskPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Company data behind this — sign-in required (any role may ask)
+  // Answers draw on buy-side data (suppliers, costs, brands) — buy-side only.
   useEffect(() => {
-    if (!authLoading && !user) router.replace('/login?next=/ask');
-  }, [authLoading, user]);
+    if (!authLoading && !user) { router.replace('/login?next=/ask'); return; }
+    if (profile && !ROLE_PERMISSIONS[profile.role].buySide) router.replace('/unauthorized');
+  }, [authLoading, user, profile, router]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;

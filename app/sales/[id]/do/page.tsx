@@ -10,6 +10,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { ROLE_PERMISSIONS } from '@/constants/roles';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
@@ -30,7 +31,7 @@ export default function DeliveryOrderPrintPage() {
   const { id } = useParams<{ id: string }>();
   const supabase = createSupabaseClient();
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
 
   const [quote, setQuote] = useState<Quote | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
@@ -38,7 +39,11 @@ export default function DeliveryOrderPrintPage() {
   const [customerName, setCustomerName] = useState('');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { if (!authLoading && !user) router.replace(`/login?next=${encodeURIComponent(`/sales/${id}/do`)}`); }, [authLoading, user, id, router]);
+  useEffect(() => {
+    if (!authLoading && !user) { router.replace(`/login?next=${encodeURIComponent(`/sales/${id}/do`)}`); return; }
+    // Sell-side document — hidden from roles without sell-side access
+    if (profile && !ROLE_PERMISSIONS[profile.role].sellSide) router.replace('/unauthorized');
+  }, [authLoading, user, profile, id, router]);
 
   useEffect(() => {
     if (!user) return;

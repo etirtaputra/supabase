@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import CommandPalette from '@/components/ui/CommandPalette';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
+import { ROLE_PERMISSIONS } from '@/constants/roles';
 
 // ── Formatting ──────────────────────────────────────────────────────────────
 const fmtCompact = (n: number) =>
@@ -46,8 +47,11 @@ const PQ_STATUS: Record<string, string> = {
 export default function Home() {
   const router = useRouter();
   const supabase = createSupabaseClient();
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const { data, loading } = useSupabaseData();
+  // Module visibility mirrors the nav: a role only sees panels for flows it
+  // can access (nothing sensitive renders until the profile has resolved).
+  const perms = profile ? ROLE_PERMISSIONS[profile.role] : null;
   const [projectQuotes, setProjectQuotes] = useState<ProjectQuoteLite[]>([]);
   const [stockValue, setStockValue] = useState<number | null>(null);
 
@@ -61,13 +65,17 @@ export default function Home() {
     if (!authLoading && !user) router.replace('/login?next=/');
   }, [authLoading, user, router]);
 
-  // Project quotes live in the Quotes app tables (not in useSupabaseData)
+  // Project quotes live in the Quotes app tables (not in useSupabaseData).
+  // Only fetched for roles that can open the EPC module (RLS enforces too).
   useEffect(() => {
-    if (!user) return;
+    if (!user || !perms?.projects) return;
     supabase.from('10.0_project_quotes')
       .select('quote_id, quote_number, quote_date, customer_name, status, created_at, updated_at')
       .order('updated_at', { ascending: false })
       .then(({ data }) => setProjectQuotes((data as ProjectQuoteLite[]) ?? []));
+  }, [user, perms?.projects]);
+  useEffect(() => {
+    if (!user || !perms?.buySide) return;
     // Warehouse value = Σ on-hand × moving-avg landed cost (30.1 balances)
     supabase.from('30.1_stock_balances')
       .select('qty_on_hand, avg_cost_idr')
@@ -75,7 +83,7 @@ export default function Home() {
         if (error || !data) { setStockValue(0); return; }
         setStockValue(data.reduce((s, b) => s + (Number(b.qty_on_hand) || 0) * (Number(b.avg_cost_idr) || 0), 0));
       });
-  }, [user]);
+  }, [user, perms?.buySide]);
 
   // ── Lookups ─────────────────────────────────────────────────────────────
   const supById = useMemo(
@@ -205,7 +213,8 @@ export default function Home() {
           </p>
         </div>
 
-        {/* ── KPI row ── */}
+        {/* ── KPI row (buy-side economics — hidden from sell-side-only roles) ── */}
+        {perms?.buySide && (
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 xl:gap-5">
           {[
             { label: 'Outstanding', value: loading ? '—' : fmtIdr(stats.outstandingIdr), sub: 'unpaid across active POs',
@@ -224,11 +233,13 @@ export default function Home() {
             </div>
           ))}
         </div>
+        )}
 
         {/* ── Recent feeds ── */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
 
           {/* Recent Components */}
+          {perms?.buySide && (
           <FeedPanel title="Recent Components" accent="emerald" href="/catalog" loading={loading} empty={recentComponents.length === 0} icon={ICONS.cube}>
             {recentComponents.map((c) => (
               <FeedRow key={c.component_id} href={`/insights?tab=lookup&q=${encodeURIComponent(c.supplier_model ?? '')}`} accent="emerald"
@@ -237,8 +248,10 @@ export default function Home() {
                 right={fmtDate(c.updated_at || c.created_at)} />
             ))}
           </FeedPanel>
+          )}
 
-          {/* Recent Project Quotes */}
+          {/* Recent EPC Proposals — only for roles with EPC access */}
+          {perms?.projects && (
           <FeedPanel title="Recent EPC Proposals" accent="violet" href="/proposals" loading={loading} empty={recentProjectQuotes.length === 0} icon={ICONS.doc}>
             {recentProjectQuotes.map((q) => (
               <FeedRow key={q.quote_id} href={`/proposals/${q.quote_id}`} accent="violet"
@@ -247,8 +260,10 @@ export default function Home() {
                 right={fmtDate(q.updated_at || q.created_at || q.quote_date)} />
             ))}
           </FeedPanel>
+          )}
 
           {/* Recent Supplier Quotes (PI) */}
+          {perms?.buySide && (
           <FeedPanel title="Recent Supplier Quotes" accent="blue" href="/catalog?tab=lookup" loading={loading} empty={recentSupplierQuotes.length === 0} icon={ICONS.tag}>
             {recentSupplierQuotes.map((q) => {
               const sup = q.supplier_id ? supById.get(q.supplier_id) : undefined;
@@ -260,8 +275,10 @@ export default function Home() {
               );
             })}
           </FeedPanel>
+          )}
 
           {/* Recent POs */}
+          {perms?.buySide && (
           <FeedPanel title="Recent Purchase Orders" accent="amber" href="/catalog?tab=lookup" loading={loading} empty={recentPos.length === 0} icon={ICONS.clipboard}>
             {recentPos.map((po) => {
               const key = String(po.po_id);
@@ -278,8 +295,10 @@ export default function Home() {
               );
             })}
           </FeedPanel>
+          )}
 
           {/* Recent Payments */}
+          {perms?.buySide && (
           <FeedPanel title="Recent Payments" accent="rose" href="/catalog?tab=financials" loading={loading} empty={recentPayments.length === 0} icon={ICONS.cash}>
             {recentPayments.map((c) => {
               const po = poById.get(String(c.po_id));
@@ -293,16 +312,25 @@ export default function Home() {
               );
             })}
           </FeedPanel>
+          )}
 
           {/* Quick actions (text only, no emoji) */}
           <div className="bg-slate-900/40 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl p-5">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-3">Quick Actions</p>
             <div className="space-y-2">
               {[
-                { href: '/catalog?tab=quoting',    label: 'Enter Supplier Quote / PI', accent: 'blue' },
-                { href: '/catalog?tab=ordering',   label: 'Create Purchase Order',      accent: 'amber' },
-                { href: '/catalog?tab=financials', label: 'Log Payment',                accent: 'rose' },
-                { href: '/proposals',                 label: 'New EPC Proposal',          accent: 'violet' },
+                ...(perms?.buySide ? [
+                  { href: '/catalog?tab=quoting',    label: 'Enter Supplier Quote / PI', accent: 'blue' },
+                  { href: '/catalog?tab=ordering',   label: 'Create Purchase Order',      accent: 'amber' },
+                  { href: '/catalog?tab=financials', label: 'Log Payment',                accent: 'rose' },
+                ] : []),
+                ...(perms?.sellSide ? [
+                  { href: '/sales/new',  label: 'New Sales Quotation', accent: 'emerald' },
+                  { href: '/customers',  label: 'Customers',           accent: 'emerald' },
+                ] : []),
+                ...(perms?.projects ? [
+                  { href: '/proposals',              label: 'New EPC Proposal',          accent: 'violet' },
+                ] : []),
               ].map(({ href, label, accent }) => (
                 <Link key={href} href={href}
                   className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-800/30 hover:bg-slate-800/60 border border-transparent hover:border-slate-700 transition-colors group">

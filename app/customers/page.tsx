@@ -127,6 +127,7 @@ function CustomersInner() {
   const { user, profile, loading: authLoading } = useAuth();
 
   const canManage = !!profile && ROLE_PERMISSIONS[profile.role].canManageCustomers;
+  const canSeeEpc = !!profile && ROLE_PERMISSIONS[profile.role].projects; // EPC module hidden from roles without access
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [contactsByCustomer, setContactsByCustomer] = useState<Record<string, Contact[]>>({});
@@ -538,6 +539,7 @@ function CustomersInner() {
                     {/* Inline preview — expands under the row; editing opens the drawer */}
                     {open && !editing && (
                       <ProfilePanel
+                        showEpc={canSeeEpc}
                         customer={c}
                         data={profileData}
                         contacts={contacts}
@@ -637,12 +639,13 @@ function CustomersInner() {
 const fmtIdr = (n: number) => Math.round(n).toLocaleString('en-US');
 const fmtD = (d?: string | null) => d ? new Date(d.length <= 10 ? `${d}T00:00:00` : d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '';
 
-function ProfilePanel({ customer, data, contacts, amName, tierName, onClose, onEdit, onOpenDoc }: {
+function ProfilePanel({ customer, data, contacts, amName, tierName, onClose, onEdit, onOpenDoc, showEpc }: {
   customer: Customer;
   data: ProfileData | null;
   contacts: Contact[];
   amName: string;
   tierName: string;
+  showEpc: boolean;
   onClose: () => void;
   onEdit: () => void;
   onOpenDoc: (quoteId: string) => void;
@@ -785,7 +788,7 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, onClose, onE
             </section>
 
             {/* EPC project quotes (10.x) linked to this customer via customer_id */}
-            {data.epcQuotes.length > 0 && (
+            {showEpc && data.epcQuotes.length > 0 && (
               <section>
                 <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">EPC proposals</h3>
                 <div className="rounded-xl border border-violet-500/25 bg-violet-500/[0.04] divide-y divide-slate-800/60">

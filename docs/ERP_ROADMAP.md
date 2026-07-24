@@ -123,6 +123,15 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   Simulation (verified LCOE model + PLN tariffs); customer-facing print annex.
 - **Platform**: grouped desktop nav + mobile bottom tabs (portaled), responsive
   width caps (wider on 2xl monitors), Tailwind CDN theme in `app/layout.tsx`.
+- **Access control (hardened 2026-07-24)**: modules a role can't access are
+  hidden AND unreachable — nav links are capability-gated (`cap` on BrandMenu
+  app entries); every route redirects to /unauthorized on a permission miss
+  (incl. the EPC print, sales prints, /catalog, /insights, /ask); the
+  dashboard renders only the panels/quick-actions/fetches for the role's
+  flows; the customer profile's EPC section needs the projects permission;
+  and 10.x table READS are RLS-restricted to EPC-capable roles
+  (owner/engineer/legacy — `migrations/epc_read_rls.sql`, mirrors
+  can_edit_quote), so sell-side logins can't pull proposal data via the API.
 
 - **Module 5B — Split fulfillment (SHIPPED 2026-07-23)**: 24.0/24.1 delivery
   orders + 25.0/25.1 invoices as child documents of the 22.0 order (spec

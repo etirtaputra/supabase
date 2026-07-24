@@ -8,6 +8,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useAuth } from '@/hooks/useAuth';
+import { ROLE_PERMISSIONS } from '@/constants/roles';
 import ProductCostLookup from '@/components/ui/ProductCostLookup';
 import BrandMenu from '@/components/ui/BrandMenu';
 import MobileNotice from '@/components/ui/MobileNotice';
@@ -97,6 +98,13 @@ export default function DatabaseViewPage() {
   useEffect(() => {
     if (!authLoading && !user) router.replace('/login?next=/insights');
   }, [authLoading, user, router]);
+  // Buy-side module (viewer keeps Deal Lookup): everyone else without buy-side
+  // access is redirected — costs/suppliers must stay hidden from sell-side.
+  useEffect(() => {
+    if (!profile) return;
+    const p = ROLE_PERMISSIONS[profile.role];
+    if (!p.buySide && !p.tabs.lookup) router.replace('/unauthorized');
+  }, [profile, router]);
 
   // Deep links from the global search palette: /insights?tab=lookup&q=<name>
   const [lookupQuery, setLookupQuery] = useState('');
