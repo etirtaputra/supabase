@@ -427,13 +427,19 @@ function TiersTab({ tiers, custTierCounts, overridesByTier, violationsByTier, sa
   const [draft, setDraft] = useState({ name: '', disc: '', floor: '' });
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
+  // A worked example makes the chain self-explanatory: what a Rp 100,000 net
+  // price becomes at every tier, with the actual margin after Rp-1,000 rounding.
+  const activeOrdered = useMemo(() => tiers.filter((t) => t.is_active), [tiers]);
+  const example = useMemo(() => computeTierChain(100_000, activeOrdered), [activeOrdered]);
+
   return (
     <div className="space-y-4">
       <p className="text-[11px] text-slate-600 max-w-3xl">
-        Markup chain: the price entered on an item IS the first tier — the <span className="text-slate-400">net price</span>. Each next tier =
-        <span className="text-slate-400"> previous ÷ (1 − step %)</span>, rounded up to the nearest Rp 1,000 (the shown margin is the actual one after rounding).
-        Per-item overrides pin a tier and the tiers above chain from the pinned price. The <span className="text-slate-400">margin floor</span> is the minimum GP
-        vs landed cost — prices under it show up in the Floor Audit. Customers pick a tier on their profile; the sales editor auto-fills that tier’s prices.
+        Markup chain: the price entered on an item IS the first tier — the <span className="text-slate-400">net price</span>. Each tier above it
+        adds its <span className="text-slate-400">markup %</span> on the tier before it (price = previous ÷ (1 − markup%)), rounded up to the
+        nearest Rp 1,000 — so the actual margin lands slightly above the setting. Per-item overrides pin a tier and the tiers above chain from the
+        pinned price. The <span className="text-slate-400">margin floor</span> is the minimum GP vs landed cost — prices under it show up in the
+        Floor Audit. Customers pick a tier on their profile; the sales editor auto-fills that tier’s prices.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -441,7 +447,10 @@ function TiersTab({ tiers, custTierCounts, overridesByTier, violationsByTier, sa
           const customers = custTierCounts.get(t.tier_code) ?? 0;
           const ovs = overridesByTier.get(t.tier_id) ?? 0;
           const viols = violationsByTier.get(t.tier_id) ?? 0;
-          const isNetTier = tiers.find((x) => x.is_active)?.tier_id === t.tier_id;
+          const activeIdx = activeOrdered.findIndex((x) => x.tier_id === t.tier_id);
+          const isNetTier = activeIdx === 0;
+          const prevTier = activeIdx > 0 ? activeOrdered[activeIdx - 1] : null;
+          const ex = activeIdx >= 0 ? example.get(t.tier_id) : undefined;
           return (
             <div key={t.tier_id} className={`bg-slate-900/40 border rounded-2xl p-4 space-y-3 transition-colors ${t.is_active ? 'border-slate-800/80' : 'border-slate-800/40 opacity-60'}`}>
               <div className="flex items-start justify-between gap-2">
@@ -467,18 +476,33 @@ function TiersTab({ tiers, custTierCounts, overridesByTier, violationsByTier, sa
                     onBlur={(e) => { const v = e.target.value.trim().toLowerCase().replace(/\s+/g, '_'); if (v && v !== t.tier_code) onSave(t, { tier_code: v }); }}
                     className={tInp} />
                 </Field>
-                <Field label={isNetTier ? 'Step % (net tier)' : 'Step %'} title={isNetTier ? 'This is the NET tier — its price is exactly what you enter on the item; the step is ignored' : 'Margin added over the previous tier: price = prev ÷ (1 − step%), rounded up to Rp 1,000'}>
-                  <input defaultValue={String(t.default_discount_pct)} key={`disc-${t.tier_id}-${t.default_discount_pct}`} inputMode="decimal"
-                    disabled={isNetTier}
-                    onBlur={(e) => { const v = num(e.target.value); if (v != null && v !== t.default_discount_pct) onSave(t, { default_discount_pct: v }); }}
-                    className={`${tInp} text-right tabular-nums ${isNetTier ? 'opacity-40 cursor-not-allowed' : ''}`} />
-                </Field>
+                {isNetTier ? (
+                  <Field label="Price basis" title="This is the NET tier — its price is exactly the net price entered on each item; no markup applies">
+                    <p className="px-2 py-1.5 text-xs text-emerald-300/90 font-semibold">Net — as entered per item</p>
+                  </Field>
+                ) : (
+                  <Field label={`Markup % on ${prevTier?.name ?? 'prev tier'}`}
+                    title={`This tier's price = ${prevTier?.name ?? 'previous tier'} ÷ (1 − markup%), rounded up to Rp 1,000`}>
+                    <input defaultValue={String(t.default_discount_pct)} key={`disc-${t.tier_id}-${t.default_discount_pct}`} inputMode="decimal"
+                      onBlur={(e) => { const v = num(e.target.value); if (v != null && v !== t.default_discount_pct) onSave(t, { default_discount_pct: v }); }}
+                      className={`${tInp} text-right tabular-nums`} />
+                  </Field>
+                )}
                 <Field label="Floor GP %" title="Minimum margin vs landed cost — below it = Floor Audit">
                   <input defaultValue={String(t.margin_floor_pct)} key={`floor-${t.tier_id}-${t.margin_floor_pct}`} inputMode="decimal"
                     onBlur={(e) => { const v = num(e.target.value); if (v != null && v !== t.margin_floor_pct) onSave(t, { margin_floor_pct: v }); }}
                     className={`${tInp} text-right tabular-nums`} />
                 </Field>
               </div>
+
+              {/* Worked example so the % is never abstract */}
+              {ex?.price != null && (
+                <p className="text-[10px] text-slate-600">
+                  {isNetTier
+                    ? 'e.g. item entered at Rp 100,000 → this tier sells at Rp 100,000.'
+                    : <>e.g. net Rp 100,000 → <span className="text-slate-400 tabular-nums">{fmtRp(ex.price)}</span> here{ex.actualMarginPct != null ? <> · actual +{ex.actualMarginPct.toFixed(1)}% on {prevTier?.name} after rounding</> : null}</>}
+                </p>
+              )}
 
               <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
                 <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 tabular-nums">{customers} customer{customers !== 1 ? 's' : ''}</span>

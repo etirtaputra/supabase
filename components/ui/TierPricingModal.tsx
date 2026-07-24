@@ -236,7 +236,7 @@ export default function TierPricingModal({ componentId, componentName, listPrice
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-semibold text-slate-200 truncate">{t.name}{!t.is_active && <span className="text-slate-600 font-normal"> · inactive</span>}</p>
                         <p className="text-[10px] text-slate-600">
-                          {isNetTier ? 'net price' : `+${t.default_discount_pct}% step${actualMarginPct != null ? ` · actual ${actualMarginPct.toFixed(1)}%` : ''}`} · floor {t.margin_floor_pct}%
+                          {isNetTier ? 'net price' : `+${t.default_discount_pct}% markup on prev tier${actualMarginPct != null ? ` · actual ${actualMarginPct.toFixed(1)}%` : ''}`} · floor {t.margin_floor_pct}%
                         </p>
                       </div>
                       {canManage ? (
@@ -278,7 +278,7 @@ export default function TierPricingModal({ componentId, componentName, listPrice
                       {tiers.map((t) => (
                         <div key={t.tier_id} className="grid grid-cols-[1fr_64px_64px_28px_28px] gap-1.5 items-center">
                           <input value={t.name} onChange={(e) => setTierField(t.tier_id, 'name', e.target.value)} onBlur={() => saveTier(t)} placeholder="Tier name" className={mInp} />
-                          <input value={String(t.default_discount_pct)} onChange={(e) => setTierField(t.tier_id, 'default_discount_pct', e.target.value as never)} onBlur={() => saveTier(t)} title="Step % — margin over the previous tier (first tier: ignored)" className={`${mInp} text-right tabular-nums`} />
+                          <input value={String(t.default_discount_pct)} onChange={(e) => setTierField(t.tier_id, 'default_discount_pct', e.target.value as never)} onBlur={() => saveTier(t)} title="Markup % on the previous tier (ignored on the first/net tier)" className={`${mInp} text-right tabular-nums`} />
                           <input value={String(t.margin_floor_pct)} onChange={(e) => setTierField(t.tier_id, 'margin_floor_pct', e.target.value as never)} onBlur={() => saveTier(t)} title="Margin floor %" className={`${mInp} text-right tabular-nums`} />
                           <input type="checkbox" checked={t.is_active} onChange={(e) => { const next = { ...t, is_active: e.target.checked }; setTierField(t.tier_id, 'is_active', e.target.checked); saveTier(next); }} title="Active" className="accent-emerald-500 w-4 h-4 justify-self-center" />
                           <button onClick={() => deleteTier(t)} className="text-slate-600 hover:text-red-400 transition-colors justify-self-center" title="Delete tier">×</button>
@@ -288,7 +288,7 @@ export default function TierPricingModal({ componentId, componentName, listPrice
                         <button
                           onClick={() => setTiers((ts) => [...ts, { tier_id: `tmp-${Date.now()}`, tier_code: '', name: '', default_discount_pct: 0, margin_floor_pct: 0, sort_order: (ts.length + 1), is_active: true }])}
                           className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold transition-colors">+ Add tier</button>
-                        <span className="text-[9px] text-slate-600">columns: step % over prev tier · margin floor % · active</span>
+                        <span className="text-[9px] text-slate-600">columns: markup % on prev tier · margin floor % · active</span>
                       </div>
                     </div>
                   )}
