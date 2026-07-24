@@ -69,9 +69,15 @@ export function composeDescription(type: ProjectType, specs: SystemSpecs, locati
     return `EPC for PV On-Grid ${dc} DC / ${ac} AC${loc}`;
   }
   if (type === 'hybrid_bess') {
-    const pcs = specs.kw_pcs ? fmtCap(specs.kw_pcs, 'kW', true) : '… kW';
+    // Inverter (AC) and PCS are alternative power-conversion paths — a hybrid
+    // may use only PCS. Show each only when entered, so there's no blank
+    // "… kW AC" segment when the inverter isn't part of the system.
     const bess = specs.kwh_bess ? fmtCap(specs.kwh_bess, 'kWh', true) : '… kWh';
-    return `EPC for PV Hybrid ${dc} DC / ${ac} AC / ${pcs} ${bess} BESS${loc}`;
+    const seg: string[] = [`${dc} DC`];
+    if (specs.kw_ac) seg.push(`${fmtCap(specs.kw_ac, 'kW', true)} AC`);
+    const storage = specs.kw_pcs ? `${fmtCap(specs.kw_pcs, 'kW', true)} ${bess} BESS` : `${bess} BESS`;
+    seg.push(storage);
+    return `EPC for PV Hybrid ${seg.join(' / ')}${loc}`;
   }
   // off_grid
   const bess = specs.kwh_bess ? fmtCap(specs.kwh_bess, 'kWh', true) : '… kWh';
