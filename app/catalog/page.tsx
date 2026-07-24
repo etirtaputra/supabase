@@ -512,10 +512,10 @@ function MasterInsertPage() {
               key={item.id}
               href={`/catalog?tab=${item.id}`}
               onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return; e.preventDefault(); handleTabChange(item.id); }}
-              className={`snap-start pt-1 pb-2.5 xl:pb-3 text-xs xl:text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0 border-b-2 ${
+              className={`snap-start pt-1 pb-2.5 xl:pb-3 text-xs xl:text-sm whitespace-nowrap transition-colors flex-shrink-0 border-b-2 ${
                 activeTab === item.id
-                  ? 'border-sky-400 text-white'
-                  : 'border-transparent text-slate-500 hover:text-slate-300'
+                  ? 'border-sky-400 text-white font-semibold tracking-tight'
+                  : 'border-transparent text-slate-500 hover:text-slate-300 font-light tracking-wide'
               }`}
             >
               {item.label}

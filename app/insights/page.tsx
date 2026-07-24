@@ -186,10 +186,10 @@ export default function DatabaseViewPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`snap-start pt-1 pb-2.5 xl:pb-3 text-xs xl:text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0 border-b-2 ${
+                className={`snap-start pt-1 pb-2.5 xl:pb-3 text-xs xl:text-sm whitespace-nowrap transition-colors flex-shrink-0 border-b-2 ${
                   activeTab === tab.id
-                    ? 'border-sky-400 text-white'
-                    : 'border-transparent text-slate-500 hover:text-slate-300'
+                    ? 'border-sky-400 text-white font-semibold tracking-tight'
+                    : 'border-transparent text-slate-500 hover:text-slate-300 font-light tracking-wide'
                 }`}
               >
                 {tab.label}
