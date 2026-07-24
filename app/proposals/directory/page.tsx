@@ -13,14 +13,15 @@ import { useQuotesGate } from '@/hooks/useQuotesGate';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { PROPOSAL_FIELDS, type ProposalFieldKey, clusterDuplicates } from '@/lib/proposalFields';
 
-interface Row { quote_id: string; customer_name: string; customer_address: string; location: string }
+interface Row { customer_name: string; customer_address: string; location: string }
 
 export default function ProposalDirectoryPage() {
   const supabase = createSupabaseClient();
   const gate = useQuotesGate();
   const isOwner = gate.profile?.role === 'owner';
 
-  const [rows, setRows] = useState<Row[]>([]);
+  const [rows, setRows] = useState<Row[]>([]);       // 10.0 header fields
+  const [brandVals, setBrandVals] = useState<string[]>([]); // 10.2 line-item brands (with repeats, for counts)
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<ProposalFieldKey>('customer_name');
   const [busy, setBusy] = useState(false);
@@ -32,26 +33,33 @@ export default function ProposalDirectoryPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase.from('10.0_project_quotes')
-      .select('quote_id, customer_name, customer_address, location');
-    if (error) setError(error.message);
-    setRows((data ?? []) as Row[]);
+    const [hdr, brands] = await Promise.all([
+      supabase.from('10.0_project_quotes').select('customer_name, customer_address, location'),
+      supabase.from('10.2_quote_items').select('brand').neq('brand', ''),
+    ]);
+    if (hdr.error) setError(hdr.error.message);
+    setRows((hdr.data ?? []) as Row[]);
+    setBrandVals(((brands.data ?? []) as { brand: string | null }[]).map((r) => String(r.brand ?? '').trim()).filter(Boolean));
     setLoading(false);
   }, [supabase]);
   useEffect(() => { if (gate.ready) load(); }, [gate.ready, load]);
 
   const flashMsg = (m: string) => { setFlash(m); setTimeout(() => setFlash(''), 3500); };
 
-  // Distinct values + usage counts for the active field
+  // Distinct values + usage counts for the active field (from its own source)
   const counts = useMemo(() => {
     const m = new Map<string, number>();
-    for (const r of rows) {
-      const v = String(r[tab] ?? '').trim();
-      if (!v) continue;
-      m.set(v, (m.get(v) ?? 0) + 1);
+    if (tab === 'brand') {
+      for (const v of brandVals) m.set(v, (m.get(v) ?? 0) + 1);
+    } else {
+      for (const r of rows) {
+        const v = String(r[tab as 'customer_name' | 'customer_address' | 'location'] ?? '').trim();
+        if (!v) continue;
+        m.set(v, (m.get(v) ?? 0) + 1);
+      }
     }
     return m;
-  }, [rows, tab]);
+  }, [rows, brandVals, tab]);
 
   const clusters = useMemo(() => clusterDuplicates(counts), [counts]);
   const distinct = useMemo(() => {
@@ -61,35 +69,38 @@ export default function ProposalDirectoryPage() {
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   }, [counts, search]);
 
-  // Merge every `variant` value into `canonical` (rewrites the field on all
-  // matching proposals). Exact-string match — variants are full field values.
+  // Merge every `variant` value into `canonical` (rewrites the column on all
+  // matching rows in the field's table). Exact-string match on full values.
   async function mergeInto(canonical: string, variants: string[]) {
     if (!isOwner || !variants.length) return;
+    const { table, column } = PROPOSAL_FIELDS[tab];
     setBusy(true); setError('');
     let moved = 0;
     for (const v of variants) {
       if (v === canonical) continue;
-      const { data, error } = await supabase.from('10.0_project_quotes')
-        .update({ [tab]: canonical }).eq(tab, v).select('quote_id');
+      const { data, error } = await supabase.from(table)
+        .update({ [column]: canonical }).eq(column, v).select(tab === 'brand' ? 'item_id' : 'quote_id');
       if (error) { setError(error.message); setBusy(false); return; }
       moved += data?.length ?? 0;
     }
     setBusy(false);
-    flashMsg(`Merged into “${canonical}” — ${moved} proposal${moved !== 1 ? 's' : ''} updated`);
+    flashMsg(`Merged into “${canonical}” — ${moved} ${unitWord(moved)} updated`);
     load();
   }
 
   async function renameValue(oldVal: string, newVal: string) {
     const nv = newVal.trim();
     if (!isOwner || !nv || nv === oldVal) return;
+    const { table, column } = PROPOSAL_FIELDS[tab];
     setBusy(true); setError('');
-    const { data, error } = await supabase.from('10.0_project_quotes')
-      .update({ [tab]: nv }).eq(tab, oldVal).select('quote_id');
+    const { data, error } = await supabase.from(table)
+      .update({ [column]: nv }).eq(column, oldVal).select(tab === 'brand' ? 'item_id' : 'quote_id');
     setBusy(false);
     if (error) { setError(error.message); return; }
-    flashMsg(`Renamed to “${nv}” — ${data?.length ?? 0} proposal${(data?.length ?? 0) !== 1 ? 's' : ''} updated`);
+    flashMsg(`Renamed to “${nv}” — ${data?.length ?? 0} ${unitWord(data?.length ?? 0)} updated`);
     load();
   }
+  const unitWord = (n: number) => tab === 'brand' ? `line item${n !== 1 ? 's' : ''}` : `proposal${n !== 1 ? 's' : ''}`;
 
   const dupCount = clusters.reduce((s, c) => s + c.variants.length, 0);
 
@@ -118,7 +129,7 @@ export default function ProposalDirectoryPage() {
           {(Object.keys(PROPOSAL_FIELDS) as ProposalFieldKey[]).map((k) => (
             <button key={k} onClick={() => { setTab(k); setSearch(''); }}
               className={`pb-2.5 -mb-px text-[13px] transition-colors border-b-2 ${tab === k ? 'border-violet-400 text-white font-bold' : 'border-transparent text-slate-500 hover:text-slate-300 font-normal'}`}>
-              {PROPOSAL_FIELDS[k]}
+              {PROPOSAL_FIELDS[k].label}
             </button>
           ))}
         </div>
@@ -130,8 +141,8 @@ export default function ProposalDirectoryPage() {
             {/* Duplicate warning + clusters */}
             <div className={`rounded-xl px-4 py-2.5 text-xs ${dupCount ? 'bg-amber-500/10 border border-amber-500/30 text-amber-200' : 'bg-emerald-500/10 border border-emerald-500/25 text-emerald-300'}`}>
               {dupCount
-                ? `⚠ ${clusters.length} group${clusters.length !== 1 ? 's' : ''} of possible duplicates (${dupCount} variant${dupCount !== 1 ? 's' : ''} to fold in) across ${counts.size} distinct ${PROPOSAL_FIELDS[tab].toLowerCase()}.`
-                : `✓ No likely duplicates — ${counts.size} distinct ${PROPOSAL_FIELDS[tab].toLowerCase()} look clean.`}
+                ? `⚠ ${clusters.length} group${clusters.length !== 1 ? 's' : ''} of possible duplicates (${dupCount} variant${dupCount !== 1 ? 's' : ''} to fold in) across ${counts.size} distinct ${PROPOSAL_FIELDS[tab].label.toLowerCase()}.`
+                : `✓ No likely duplicates — ${counts.size} distinct ${PROPOSAL_FIELDS[tab].label.toLowerCase()} look clean.`}
             </div>
 
             {clusters.length > 0 && (
@@ -146,7 +157,7 @@ export default function ProposalDirectoryPage() {
             {/* Full distinct list */}
             <div className="space-y-2">
               <div className="flex items-center gap-3">
-                <h2 className="text-[11px] font-bold uppercase tracking-widest text-slate-500">All {PROPOSAL_FIELDS[tab].toLowerCase()}</h2>
+                <h2 className="text-[11px] font-bold uppercase tracking-widest text-slate-500">All {PROPOSAL_FIELDS[tab].label.toLowerCase()}</h2>
                 <span className="text-[11px] text-slate-600 tabular-nums">{distinct.length}</span>
                 <div className="flex-1" />
                 <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search…"
@@ -154,7 +165,7 @@ export default function ProposalDirectoryPage() {
               </div>
               <div className="rounded-2xl border border-slate-800 divide-y divide-slate-800/60 overflow-hidden">
                 {distinct.map(([value, count]) => (
-                  <ValueRow key={value} value={value} count={count} canEdit={isOwner} busy={busy} onRename={renameValue} />
+                  <ValueRow key={value} value={value} count={count} unit={tab === 'brand' ? 'use' : 'proposal'} canEdit={isOwner} busy={busy} onRename={renameValue} />
                 ))}
                 {distinct.length === 0 && <p className="px-4 py-8 text-center text-slate-600 text-xs">No values{search ? ' match' : ''}.</p>}
               </div>
@@ -206,8 +217,8 @@ function DupClusterCard({ cluster, canMerge, busy, onMerge }: {
 }
 
 // A distinct value with its usage count and an owner rename affordance.
-function ValueRow({ value, count, canEdit, busy, onRename }: {
-  value: string; count: number; canEdit: boolean; busy: boolean;
+function ValueRow({ value, count, unit, canEdit, busy, onRename }: {
+  value: string; count: number; unit: string; canEdit: boolean; busy: boolean;
   onRename: (oldVal: string, newVal: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -225,7 +236,7 @@ function ValueRow({ value, count, canEdit, busy, onRename }: {
       ) : (
         <>
           <span className="flex-1 text-xs text-slate-200 truncate">{value}</span>
-          <span className="text-[10px] text-slate-600 tabular-nums flex-shrink-0">{count} proposal{count !== 1 ? 's' : ''}</span>
+          <span className="text-[10px] text-slate-600 tabular-nums flex-shrink-0">{count} {unit}{count !== 1 ? 's' : ''}</span>
           {canEdit && (
             <button onClick={() => setEditing(true)} className="text-[11px] text-slate-500 hover:text-white transition-colors flex-shrink-0">Rename</button>
           )}

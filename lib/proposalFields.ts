@@ -5,11 +5,16 @@
  * "did you mean" warning and the directory's duplicate clustering.
  */
 
+// Each directory field: its display label + where it lives (table.column), so
+// the merge/rename tools can target header fields (10.0) or line-item brands
+// (10.2) uniformly.
+export interface FieldConfig { label: string; table: string; column: string }
 export const PROPOSAL_FIELDS = {
-  customer_name: 'Customers',
-  location: 'Sites / Locations',
-  customer_address: 'Addresses',
-} as const;
+  customer_name:    { label: 'Customers',         table: '10.0_project_quotes', column: 'customer_name' },
+  location:         { label: 'Sites / Locations', table: '10.0_project_quotes', column: 'location' },
+  customer_address: { label: 'Addresses',         table: '10.0_project_quotes', column: 'customer_address' },
+  brand:            { label: 'Brands',            table: '10.2_quote_items',    column: 'brand' },
+} as const satisfies Record<string, FieldConfig>;
 export type ProposalFieldKey = keyof typeof PROPOSAL_FIELDS;
 
 export const normField = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();

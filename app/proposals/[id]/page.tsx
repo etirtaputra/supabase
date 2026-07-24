@@ -1129,6 +1129,23 @@ export default function QuoteEditorPage() {
     () => [...new Set([...crmCustomers.map((c) => c.name), ...pastCustomers.map((c) => c.name)])],
     [crmCustomers, pastCustomers]);
 
+  // Brand autocomplete: distinct brands used on past proposal line items +
+  // catalog brands, so the same brand is typed the same way every time.
+  const [pastBrands, setPastBrands] = useState<string[]>([]);
+  useEffect(() => {
+    supabase.from('10.2_quote_items').select('brand').neq('brand', '').then(({ data }) => {
+      const set = new Set<string>();
+      for (const r of (data ?? []) as { brand: string | null }[]) { const b = String(r.brand ?? '').trim(); if (b) set.add(b); }
+      setPastBrands([...set]);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const brandOptions = useMemo(() => {
+    const set = new Set<string>(pastBrands);
+    for (const c of catalog.components) { const b = String((c as { brand?: string | null }).brand ?? '').trim(); if (b) set.add(b); }
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [pastBrands, catalog.components]);
+
   useEffect(() => {
     // CRM customers link the quote into the customer's document graph
     supabase.from('20.0_customers')
@@ -1740,6 +1757,10 @@ export default function QuoteEditorPage() {
 
   return (
     <div className="min-h-screen bg-[#141518] text-slate-200 font-sans text-sm">
+      {/* Shared brand suggestions for every line-item brand input (native autocomplete) */}
+      <datalist id="epc-brands">
+        {brandOptions.map((b) => <option key={b} value={b} />)}
+      </datalist>
       {/* Hide native number spinners — rarely used and they collide with arrow-key cell navigation */}
       <style>{`
         input[type=number]::-webkit-outer-spin-button,
@@ -2394,7 +2415,7 @@ export default function QuoteEditorPage() {
                                                 value={prevEdit.brand}
                                                 onChange={(e) => setPrevEdit({ ...prevEdit, brand: e.target.value })}
                                                 onKeyDown={(e) => { if (e.key === 'Enter') renamePrevItem(); if (e.key === 'Escape') setPrevEdit(null); }}
-                                                placeholder="Brand"
+                                                placeholder="Brand" list="epc-brands"
                                                 className="flex-1 min-w-0 bg-slate-900 border border-slate-600 focus:border-violet-500 rounded-lg px-2 py-1 text-xs text-slate-200 outline-none transition-colors"
                                               />
                                               <button onClick={renamePrevItem} disabled={prevEditBusy}
@@ -2471,7 +2492,7 @@ export default function QuoteEditorPage() {
                               <td className="px-2 py-2">
                                 <input value={item.brand} onChange={(e) => updateItem(sec.section_id, item.item_id, { brand: e.target.value })}
                                   onKeyDown={(e) => navCell(e, item.item_id, 'brand')}
-                                  data-nav-row={item.item_id} data-nav-col="brand"
+                                  data-nav-row={item.item_id} data-nav-col="brand" list="epc-brands"
                                   placeholder="Brand" className="w-full bg-transparent outline-none text-slate-200 placeholder:text-slate-600 border-b border-slate-800 hover:border-slate-600 focus:border-violet-500 transition-colors" />
                               </td>
                               <td className="px-2 py-2 relative" title={item.qty_formula ? `Formula: ${item.qty_formula}` : `Row ${rowNumById.get(item.item_id) ?? ''} — type =2520*720, or =R3*2 to reference another row's qty`}>
@@ -2721,7 +2742,7 @@ export default function QuoteEditorPage() {
                                 <td className="px-2 py-1.5">
                                   <input value={sub.brand} onChange={(e) => updateItem(sec.section_id, sub.item_id, { brand: e.target.value })}
                                     onKeyDown={(e) => navCell(e, sub.item_id, 'brand')}
-                                    data-nav-row={sub.item_id} data-nav-col="brand"
+                                    data-nav-row={sub.item_id} data-nav-col="brand" list="epc-brands"
                                     className="w-full bg-transparent outline-none text-slate-400 text-xs border-b border-slate-800/70 hover:border-slate-600 focus:border-violet-500 transition-colors" />
                                 </td>
                                 <td className="px-2 py-1.5">
