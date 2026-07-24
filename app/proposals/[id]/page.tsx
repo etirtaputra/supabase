@@ -901,7 +901,7 @@ export default function QuoteEditorPage() {
     cancelHoverClose();
     // Generous grace period so the mouse can travel from the cost cell onto the
     // history popover and click a previously-entered value before it closes.
-    hoverCloseTimer.current = setTimeout(() => setCostHover(null), 600);
+    hoverCloseTimer.current = setTimeout(() => setCostHover(null), 1400);
   }
 
   function showCostHistory(sectionId: string, itemId: string, componentId: string | null, description: string, el: HTMLElement) {
