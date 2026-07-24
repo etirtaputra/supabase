@@ -394,13 +394,22 @@ export default function QuotesListPage() {
           <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
             {onlineCount > 1 && <OnlineIndicator online={online} count={onlineCount} />}
             {gate.profile?.role === 'owner' && (
-              <Link
-                href="/proposals/library"
-                className="hidden sm:inline-block px-3 py-1.5 rounded-xl border border-white/[0.08] text-slate-400 hover:text-white hover:bg-white/10 text-xs font-semibold transition-all"
-                title="Description Library — review, dedupe and rename quote item texts (Owners only)"
-              >
-                Library
-              </Link>
+              <>
+                <Link
+                  href="/proposals/directory"
+                  className="hidden sm:inline-block px-3 py-1.5 rounded-xl border border-white/[0.08] text-slate-400 hover:text-white hover:bg-white/10 text-xs font-semibold transition-all"
+                  title="Proposal Directory — dedupe & merge customer names, sites and addresses (Owners only)"
+                >
+                  Directory
+                </Link>
+                <Link
+                  href="/proposals/library"
+                  className="hidden sm:inline-block px-3 py-1.5 rounded-xl border border-white/[0.08] text-slate-400 hover:text-white hover:bg-white/10 text-xs font-semibold transition-all"
+                  title="Description Library — review, dedupe and rename quote item texts (Owners only)"
+                >
+                  Library
+                </Link>
+              </>
             )}
             {gate.profile && (
               <div className="text-right hidden sm:block">

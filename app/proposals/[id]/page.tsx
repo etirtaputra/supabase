@@ -15,6 +15,8 @@ import MigrationBanner from '@/components/ui/MigrationBanner';
 import MobileNotice from '@/components/ui/MobileNotice';
 import ProposalPresence from '@/components/ui/ProposalPresence';
 import { useEpcLobby } from '@/hooks/useEpcLobby';
+import { normField, nearestDuplicate } from '@/lib/proposalFields';
+import ProposalFieldInput from '@/components/ui/ProposalFieldInput';
 import EnergyEconomicsCard from '@/components/ui/EnergyEconomicsCard';
 import type { EconAssumptions } from '@/lib/energyEconomics';
 import { PROJECT_TYPES, composeDescription, specFileTag, isSolarType, type ProjectType, type SystemSpecs, type Phase } from '@/lib/projectSpec';
@@ -1119,7 +1121,13 @@ export default function QuoteEditorPage() {
   // entry per name carrying the latest address used for that customer.
   const [pastCustomers, setPastCustomers] = useState<{ name: string; address: string }[]>([]);
   const [crmCustomers, setCrmCustomers] = useState<{ customer_id: string; name: string; address: string }[]>([]);
+  const [pastLocations, setPastLocations] = useState<string[]>([]);
+  const [pastAddresses, setPastAddresses] = useState<string[]>([]);
   const [custAc, setCustAc] = useState<{ x: number; y: number; w: number } | null>(null);
+  // All known customer names (CRM + past proposals) for the dup warning.
+  const allCustomerNames = useMemo(
+    () => [...new Set([...crmCustomers.map((c) => c.name), ...pastCustomers.map((c) => c.name)])],
+    [crmCustomers, pastCustomers]);
 
   useEffect(() => {
     // CRM customers link the quote into the customer's document graph
@@ -1132,21 +1140,29 @@ export default function QuoteEditorPage() {
           .map((c) => ({ customer_id: c.customer_id, name: c.display_name || c.legal_name, address: c.billing_address ?? '' })));
       });
     supabase.from('10.0_project_quotes')
-      .select('quote_id, customer_name, customer_address, updated_at')
-      .neq('customer_name', '')
+      .select('quote_id, customer_name, customer_address, location, updated_at')
       .order('updated_at', { ascending: false })
       .then(({ data }) => {
         const seen = new Set<string>();
         const out: { name: string; address: string }[] = [];
+        // Distinct sites/addresses keep the most-recent spelling of each value.
+        const locSeen = new Set<string>();
+        const locs: string[] = [];
+        const addrSeen = new Set<string>();
+        const addrs: string[] = [];
         for (const r of data ?? []) {
           if (r.quote_id === id) continue;
           const name = String(r.customer_name ?? '').trim();
           const key = name.toLowerCase();
-          if (!key || seen.has(key)) continue;
-          seen.add(key);
-          out.push({ name, address: String(r.customer_address ?? '') });
+          if (name && !seen.has(key)) { seen.add(key); out.push({ name, address: String(r.customer_address ?? '') }); }
+          const loc = String(r.location ?? '').trim();
+          if (loc && !locSeen.has(loc.toLowerCase())) { locSeen.add(loc.toLowerCase()); locs.push(loc); }
+          const addr = String(r.customer_address ?? '').trim();
+          if (addr && !addrSeen.has(addr.toLowerCase())) { addrSeen.add(addr.toLowerCase()); addrs.push(addr); }
         }
         setPastCustomers(out);
+        setPastLocations(locs);
+        setPastAddresses(addrs);
       });
   }, [id]);
 
@@ -1912,10 +1928,13 @@ export default function QuoteEditorPage() {
               placeholder="Customer name" className="w-full bg-transparent border-b border-slate-700 focus:border-violet-500 outline-none text-white py-1 text-sm placeholder:text-slate-600 transition-colors" />
             {custAc && (() => {
               const q = quote.customer_name.trim().toLowerCase();
-              const crm = (q ? crmCustomers.filter((c) => c.name.toLowerCase().includes(q)) : crmCustomers).slice(0, 6);
+              const nq = normField(quote.customer_name); // hide the exact value already typed (any casing/spacing)
+              const crm = (q ? crmCustomers.filter((c) => c.name.toLowerCase().includes(q)) : crmCustomers)
+                .filter((c) => normField(c.name) !== nq)
+                .slice(0, 6);
               const crmNames = new Set(crm.map((c) => c.name.toLowerCase()));
               const matches = (q ? pastCustomers.filter((c) => c.name.toLowerCase().includes(q)) : pastCustomers)
-                .filter((c) => !crmNames.has(c.name.toLowerCase()))
+                .filter((c) => !crmNames.has(c.name.toLowerCase()) && normField(c.name) !== nq)
                 .slice(0, 6);
               if (!crm.length && !matches.length) return null;
               return (
@@ -1956,12 +1975,27 @@ export default function QuoteEditorPage() {
                 </div>
               );
             })()}
+            {/* Did-you-mean: near-duplicate customer already exists (not an exact match) */}
+            {!custAc && !quote.customer_id && (() => {
+              const dup = nearestDuplicate(quote.customer_name, allCustomerNames);
+              if (!dup) return null;
+              return (
+                <button type="button"
+                  onMouseDown={(e) => { e.preventDefault(); pickCustomer({ name: dup, address: quote.customer_address }); }}
+                  className="mt-1 inline-flex items-center gap-1 text-[10px] text-amber-300/90 hover:text-amber-200 transition-colors"
+                  title="A similar customer already exists — reuse that spelling to keep the list clean">
+                  ⚠ Similar exists: <span className="font-semibold underline">{dup}</span> — use it
+                </button>
+              );
+            })()}
           </div>
-          <div>
-            <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Address</label>
-            <input value={quote.customer_address} onChange={(e) => setQuoteField('customer_address', e.target.value)}
-              placeholder="Customer address" className="w-full bg-transparent border-b border-slate-700 focus:border-violet-500 outline-none text-white py-1 text-sm placeholder:text-slate-600 transition-colors" />
-          </div>
+          <ProposalFieldInput
+            label="Address"
+            value={quote.customer_address}
+            onChange={(v) => setQuoteField('customer_address', v)}
+            suggestions={pastAddresses}
+            placeholder="Customer address"
+          />
           <div>
             <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Project Type</label>
             <select
@@ -1974,11 +2008,13 @@ export default function QuoteEditorPage() {
               ))}
             </select>
           </div>
-          <div>
-            <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Location / Site</label>
-            <input value={quote.location ?? ''} onChange={(e) => updateProject({ location: e.target.value })}
-              placeholder="e.g. RIVERSIDE PV FARM, Kota Tangerang" className="w-full bg-transparent border-b border-slate-700 focus:border-violet-500 outline-none text-white py-1 text-sm placeholder:text-slate-600 transition-colors" />
-          </div>
+          <ProposalFieldInput
+            label="Location / Site"
+            value={quote.location ?? ''}
+            onChange={(v) => updateProject({ location: v })}
+            suggestions={pastLocations}
+            placeholder="e.g. RIVERSIDE PV FARM, Kota Tangerang"
+          />
           {isSolarType(quote.project_type) && (
             <div className="md:col-span-2 flex flex-wrap gap-6">
               <SpecInput label="PV Modules" unit="kWp DC" value={quote.system_specs?.kwp_dc}
