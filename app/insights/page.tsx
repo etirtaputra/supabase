@@ -93,6 +93,7 @@ export default function DatabaseViewPage() {
   const [activeTab, setActiveTab] = useState<TabId>('spend');
   const [refreshing, setRefreshing] = useState(false);
   const now = useNow(30_000); // tick every 30s to update "X min ago"
+  useEffect(() => { document.title = 'Insights — ICAPROC'; }, []);
 
   // Procurement-sensitive data — sign-in required
   useEffect(() => {

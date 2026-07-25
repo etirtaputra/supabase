@@ -70,7 +70,7 @@ function ReceivePage() {
   const [posted, setPosted] = useState<string | null>(null); // GRN number after posting
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 3000); };
 
-  useEffect(() => { document.title = 'Receive PO — ICAPROC'; }, []);
+  useEffect(() => { document.title = 'Stock · Receive against PO — ICAPROC'; }, []);
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/stock/receive')}`); return; }

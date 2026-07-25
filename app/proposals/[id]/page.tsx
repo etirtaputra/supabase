@@ -690,7 +690,7 @@ export default function QuoteEditorPage() {
   useEffect(() => {
     if (!quote) return;
     const parts = [quote.quote_number || 'Quote', quote.customer_name].filter(Boolean);
-    document.title = `${parts.join(' · ')} | ICAPROC`;
+    document.title = `EPC Proposals · ${parts.join(' · ')} — ICAPROC`;
   }, [quote?.quote_number, quote?.customer_name]);
 
   const compById = useMemo(

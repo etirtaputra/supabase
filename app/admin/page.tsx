@@ -17,6 +17,7 @@ export default function AdminPage() {
   const [saving, setSaving]   = useState<string | null>(null);
   const [toast, setToast]     = useState<string | null>(null);
 
+  useEffect(() => { document.title = 'Admin · Users — ICAPROC'; }, []);
   useEffect(() => {
     if (authLoading) return;
     if (!myProfile) { router.replace('/login'); return; }

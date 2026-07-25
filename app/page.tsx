@@ -58,7 +58,7 @@ export default function Home() {
   const isMac = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform || '');
   const modKey = isMac ? '⌘' : 'Ctrl';
 
-  useEffect(() => { document.title = 'Dashboard | ICAPROC'; }, []);
+  useEffect(() => { document.title = 'Dashboard — ICAPROC'; }, []);
 
   // PO values and payment status are sensitive — sign-in required
   useEffect(() => {

@@ -57,6 +57,7 @@ export default function QuotesListPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('');   // '' = all project types
+  useEffect(() => { document.title = 'EPC Proposals — ICAPROC'; }, []);
 
   // Live presence: who else is in the EPC area and on which proposal. This page
   // reports itself as "browsing" (no proposalId); editors report their proposal.

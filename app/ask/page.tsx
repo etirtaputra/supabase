@@ -32,6 +32,7 @@ export default function AskPage() {
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => { document.title = 'Ask — ICAPROC'; }, []);
 
   // Answers draw on buy-side data (suppliers, costs, brands) — buy-side only.
   useEffect(() => {
@@ -99,7 +100,7 @@ export default function AskPage() {
       {/* ── Header (house style) ── */}
       <div className="flex-none sticky top-0 z-40 bg-[#141518]/90 backdrop-blur-xl border-b border-white/[0.07]">
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
-          <BrandMenu wordmarkClass="text-xl font-bold" subtitle="AI Assistant · Supply chain & quotes" />
+          <BrandMenu wordmarkClass="text-xl font-bold" subtitle="Ask · AI assistant" />
           <div className="flex items-center gap-4">
             {profile && (
               <div className="text-right hidden sm:block">

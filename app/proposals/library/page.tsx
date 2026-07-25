@@ -103,7 +103,7 @@ export default function DescriptionLibraryPage() {
   const [flash, setFlash] = useState('');
   const [error, setError] = useState('');
 
-  useEffect(() => { document.title = 'Description Library | ICAPROC'; }, []);
+  useEffect(() => { document.title = 'EPC Proposals · Description Library — ICAPROC'; }, []);
 
   const load = useCallback(async () => {
     setLoading(true);

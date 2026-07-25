@@ -240,6 +240,12 @@ export default function SalesQuotePage() {
   const compById = useMemo(() => new Map(comps.map((c) => [c.component_id, c])), [comps]);
   const tierByCode = useMemo(() => new Map(tiers.map((t) => [t.tier_code, t])), [tiers]);
   const activeTiers = useMemo(() => [...tiers].filter((t) => t.is_active !== false).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)), [tiers]);
+
+  // Tab title mirrors the nav label + the document you are on
+  useEffect(() => {
+    const n = editing?.order_number || editing?.quote_number;
+    document.title = `Sales · ${n || 'New quotation'} — ICAPROC`;
+  }, [editing?.order_number, editing?.quote_number]);
   const ovByKey = useMemo(() => { const m = new Map<string, Override>(); for (const o of overrides) m.set(`${o.component_id}:${o.tier_id}`, o); return m; }, [overrides]);
 
   const availableOf = (componentId: string | null) =>
@@ -450,7 +456,7 @@ export default function SalesQuotePage() {
     <div className="min-h-screen bg-[#0f1012] text-slate-200 font-sans text-sm">
       <div className="border-b border-slate-800/60 bg-[#0f1012]/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-4 flex items-center justify-between gap-4">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Sales · Quote" mobileNav={false} />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Sales · Quotation" mobileNav={false} />
           <button onClick={() => router.push('/sales')} className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors">← Back to list</button>
         </div>
       </div>

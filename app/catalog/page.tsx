@@ -64,7 +64,7 @@ function MasterInsertPage() {
 
   useEffect(() => {
     const label = MENU_ITEMS.find((m) => m.id === activeTab)?.label ?? 'Data Entry';
-    document.title = `${label} — ICAPROC`;
+    document.title = `Catalog · ${label} — ICAPROC`;
   }, [activeTab]);
 
   const [showSupplierForm, setShowSupplierForm] = useState(false);

@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: {
-    template: '%s | ICAPROC',
+    template: '%s — ICAPROC',
     default: 'ICAPROC',
   },
   description: "ICAPROC Supply Chain Management",
