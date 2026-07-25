@@ -19,6 +19,8 @@ import { buildDealGroups, type DealGroup } from '@/lib/dealGroups';
 import { PRINCIPAL_CATS, BANK_FEE_CATS, TAX_CATS } from '@/constants/costCategories';
 import { fmtIdr, fmtCcy, fmtDate } from '@/lib/formatters';
 import DateRangeFilter from './DateRangeFilter';
+import LayoutToggle from './LayoutToggle';
+import { useListLayout } from '@/hooks/useListLayout';
 import { ALL_TIME, inRange, isOpenRange, type DateRange } from '@/lib/dateRange';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -300,7 +302,10 @@ export default function DealLookupTab({
   // Deals filter on latestDate = max(quote date, PO date) — the date the deal
   // last moved, which is what "POs this month" means on the buy side.
   const [range, setRange]                     = useState<DateRange>(ALL_TIME);
-  const [tableView, setTableView]             = useState(false);
+  // Table = the compact view; the house default comes from Settings › Layout
+  // and flipping it here is remembered for this screen only.
+  const [layout, setLayout]                   = useListLayout('deals');
+  const tableView = layout === 'compact';
   const [expandedKey, setExpandedKey]         = useState<string | null>(null);
   const [selectedSuppId, setSelectedSuppId]   = useState<string | null>(null);
   const [selectedCompId, setSelectedCompId]   = useState<string | null>(null);
@@ -2106,27 +2111,7 @@ export default function DealLookupTab({
               </button>
             )}
             <span className="flex-1" />
-            {/* Table / card toggle */}
-            <button
-              onClick={() => setTableView(!tableView)}
-              title={tableView ? 'Card view' : 'Table view'}
-              className={`p-1.5 rounded-lg border transition-colors ${
-                tableView
-                  ? 'bg-white/10 border-white/20 text-white'
-                  : 'border-white/10 text-slate-500 hover:text-slate-300 hover:bg-white/5'
-              }`}
-            >
-              {tableView ? (
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
-                  <rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
-                </svg>
-              ) : (
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 14h18M10 3v18" />
-                </svg>
-              )}
-            </button>
+            <LayoutToggle value={layout} onChange={setLayout} accent="sky" />
           </div>
 
           {/* ── Search ── */}

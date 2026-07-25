@@ -13,6 +13,8 @@ import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { fmtDay, fmtInt, fmtIdrShort as fmtIdr } from '@/lib/formatters';
 import DateRangeFilter from '@/components/ui/DateRangeFilter';
+import LayoutToggle from '@/components/ui/LayoutToggle';
+import { useListLayout } from '@/hooks/useListLayout';
 import { ALL_TIME, inRange, type DateRange } from '@/lib/dateRange';
 
 // One row per REAL invoice (25.0) — an order split across several invoices
@@ -40,6 +42,8 @@ export default function InvoicesPage() {
   const [unpaidOnly, setUnpaidOnly] = useState(false);
   // Filter on the issue date — "this month's AR" means invoices issued then.
   const [range, setRange] = useState<DateRange>(ALL_TIME);
+  const [layout, setLayout] = useListLayout('invoices');
+  const compact = layout === 'compact';
 
   useEffect(() => { document.title = 'Invoices — ICAPROC'; }, []);
   useEffect(() => {
@@ -152,10 +156,11 @@ export default function InvoicesPage() {
             Unpaid only
           </label>
           <span className="text-xs text-slate-600 tabular-nums">{rows.length} invoice{rows.length !== 1 ? 's' : ''}</span>
+          <LayoutToggle value={layout} onChange={setLayout} />
         </div>
 
         <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
-          <div className="hidden md:grid grid-cols-[160px_1fr_100px_130px_150px_90px] gap-3 px-4 py-2.5 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+          <div className={`hidden md:grid grid-cols-[160px_1fr_100px_130px_150px_90px] gap-3 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500 ${compact ? 'px-3 py-1.5' : 'px-4 py-2.5'}`}>
             <span>Invoice</span><span>Customer</span><span className="text-right">Date</span><span className="text-right">Total</span><span className="text-right">Received</span><span className="text-right">Status</span>
           </div>
           {loading ? (
@@ -169,28 +174,32 @@ export default function InvoicesPage() {
                 const pct = total > 0 ? Math.min(100, (rcv / total) * 100) : 0;
                 return (
                   <button key={q.invoice_key} onClick={() => router.push(`/sales/${q.quote_id}`)}
-                    className="w-full text-left grid grid-cols-2 md:grid-cols-[160px_1fr_100px_130px_150px_90px] gap-1 md:gap-3 px-4 py-3 hover:bg-slate-800/40 transition-colors items-center">
+                    className={`w-full text-left grid grid-cols-2 md:grid-cols-[160px_1fr_100px_130px_150px_90px] gap-1 md:gap-3 hover:bg-slate-800/40 transition-colors items-center ${compact ? 'px-3 py-1.5' : 'px-4 py-3'}`}>
                     <span>
                       <span className="block font-mono text-[11px] text-amber-200">{q.invoice_number || '—'}</span>
-                      <span className="block text-[10px] text-slate-600 font-mono">{q.quote_number}{q.kind === 'progress' ? ` · ${Number(q.pct ?? 0)}%` : ''}</span>
+                      {!compact && <span className="block text-[10px] text-slate-600 font-mono">{q.quote_number}{q.kind === 'progress' ? ` · ${Number(q.pct ?? 0)}%` : ''}</span>}
                     </span>
                     <span className="text-sm text-slate-100 truncate">{c?.display_name || c?.legal_name || <span className="text-slate-600">No customer</span>}</span>
                     <span className="md:text-right text-[11px] text-slate-500 tabular-nums">{fmtDay(q.invoiced_at)}</span>
                     <span className="md:text-right tabular-nums text-slate-200">{fmtInt(total)}</span>
                     <span className="md:text-right">
-                      <span className="block tabular-nums text-[13px] text-slate-300">{fmtInt(rcv)}</span>
-                      <span className="mt-0.5 flex items-center gap-1.5 md:justify-end">
-                        <span className="w-12 h-1 bg-slate-700 rounded-full overflow-hidden inline-block">
-                          <span className={`block h-full rounded-full ${pct >= 100 ? 'bg-emerald-500' : pct > 0 ? 'bg-amber-400' : 'bg-slate-600'}`} style={{ width: `${pct}%` }} />
-                        </span>
-                        {out > 0 && <span className="text-[10px] text-amber-300/80 tabular-nums">−{fmtInt(out)}</span>}
-                      </span>
+                      <span className={compact ? 'tabular-nums text-[13px] text-slate-300' : 'block tabular-nums text-[13px] text-slate-300'}>{fmtInt(rcv)}</span>
+                      {compact
+                        ? (out > 0 && <span className="ml-1.5 text-[10px] text-amber-300/80 tabular-nums">−{fmtInt(out)}</span>)
+                        : (
+                          <span className="mt-0.5 flex items-center gap-1.5 md:justify-end">
+                            <span className="w-12 h-1 bg-slate-700 rounded-full overflow-hidden inline-block">
+                              <span className={`block h-full rounded-full ${pct >= 100 ? 'bg-emerald-500' : pct > 0 ? 'bg-amber-400' : 'bg-slate-600'}`} style={{ width: `${pct}%` }} />
+                            </span>
+                            {out > 0 && <span className="text-[10px] text-amber-300/80 tabular-nums">−{fmtInt(out)}</span>}
+                          </span>
+                        )}
                     </span>
                     <span className="md:text-right">
                       <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${paid ? 'bg-emerald-500/20 text-emerald-300' : rcv > 0 ? 'bg-amber-500/15 text-amber-300' : 'bg-slate-800 text-slate-400'}`}>
                         {paid ? 'PAID' : rcv > 0 ? 'PARTIAL' : 'UNPAID'}
                       </span>
-                      {q.status === 'delivered' && <span className="block mt-0.5 text-[9px] text-emerald-500/70 uppercase font-semibold md:text-right">Delivered</span>}
+                      {q.status === 'delivered' && !compact && <span className="block mt-0.5 text-[9px] text-emerald-500/70 uppercase font-semibold md:text-right">Delivered</span>}
                     </span>
                   </button>
                 );

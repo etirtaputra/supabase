@@ -224,6 +224,18 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   **Delivery** (delivered rows on the delivery date, pending on the target
   date), the buy-side **Deal Lookup**, and the bank statement.
 
+- **Compact vs Card lists (2026-07-25)**: `listLayout` in Settings › Layout,
+  **defaulting to Compact** — dense rows, everything relevant on one line, the
+  row still expands where it did before. Card keeps the roomier treatment with
+  the secondary decoration inline (progress meters, milestone dots, sub-lines).
+  `hooks/useListLayout.ts` resolves the effective layout per screen: the house
+  default unless that person flipped THIS list, remembered in localStorage
+  under the page key so flipping Sales says nothing about Invoices and never
+  rewrites the owner's default. `components/ui/LayoutToggle.tsx` is the shared
+  switch. Wired into Sales, Customers, Invoices, Delivery, Suppliers, Products,
+  Proposals, Banks (accounts + statement) and Deal Lookup — whose older ad-hoc
+  card/table toggle now IS this setting.
+
 **Next up (in order):**
 1. Bank follow-ons: tag the historical payments/receipts through the
    "untagged movements" panel on /banks so every statement is complete; then

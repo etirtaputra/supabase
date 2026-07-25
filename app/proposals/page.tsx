@@ -10,6 +10,8 @@ import { fetchUsedEntries } from '@/lib/usedPrices';
 import { lineWp } from '@/lib/quoteWp';
 import { fmtDay, fmtDayTime, fmtRp } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
+import LayoutToggle from '@/components/ui/LayoutToggle';
+import { useListLayout } from '@/hooks/useListLayout';
 import MigrationBanner from '@/components/ui/MigrationBanner';
 import BrandMenu from '@/components/ui/BrandMenu';
 import MobileNotice from '@/components/ui/MobileNotice';
@@ -151,6 +153,8 @@ export default function QuotesListPage() {
   // Per-item Cost Basis settings for Project Quotes (mode + buffer). The global
   // buffer and the drift threshold both live in Settings › Defaults.
   const { epcCostBufferPct: globalBufferPct, costDriftPct } = useSettings();
+  const [layout, setLayout] = useListLayout('proposals');
+  const compact = layout === 'compact';
 
   // ── Cost-drift detection on open (draft/sent) quotes ────────────────────────
   // Compares each catalog-linked item's stored cost against today's
@@ -461,6 +465,7 @@ export default function QuotesListPage() {
               <option value="">All project types</option>
               {availableTypes.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
             </select>
+            <LayoutToggle value={layout} onChange={setLayout} accent="violet" />
           </div>
         )}
         {loading ? (
@@ -496,8 +501,29 @@ export default function QuotesListPage() {
                     const livePeers = peersByProposal.get(q.quote_id) ?? [];
                     const someoneEditing = livePeers.some((p) => p.editing);
                     return (
-                    <div key={q.quote_id} className={`group flex items-center gap-3 sm:gap-4 bg-slate-900/50 hover:bg-slate-900/80 border rounded-2xl px-4 sm:px-5 py-4 transition-all ${someoneEditing ? 'border-amber-500/40' : livePeers.length ? 'border-emerald-500/30' : 'border-slate-800 hover:border-slate-700'}`}>
+                    <div key={q.quote_id} className={`group flex items-center gap-3 sm:gap-4 bg-slate-900/50 hover:bg-slate-900/80 border transition-all ${compact ? 'rounded-lg px-3 py-1.5' : 'rounded-2xl px-4 sm:px-5 py-4'} ${someoneEditing ? 'border-amber-500/40' : livePeers.length ? 'border-emerald-500/30' : 'border-slate-800 hover:border-slate-700'}`}>
                 <Link href={`/proposals/${q.quote_id}`} className="flex-1 min-w-0">
+                  {compact ? (
+                    /* One line: who, what state, what it's worth, which number */
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-semibold text-slate-100 text-[13px] truncate flex-shrink-0 max-w-[38%]">{q.customer_name || 'No customer'}</span>
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider whitespace-nowrap flex-shrink-0 ${STATUS_STYLES[q.status] ?? STATUS_STYLES.draft}`}>{q.status}</span>
+                      {driftByQuote.has(q.quote_id) && (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold whitespace-nowrap flex-shrink-0 bg-amber-500/15 text-amber-300"
+                          title={`${driftByQuote.get(q.quote_id)} item${driftByQuote.get(q.quote_id)! > 1 ? 's' : ''} priced >${costDriftPct}% away from today's cost`}>
+                          ⚠ {driftByQuote.get(q.quote_id)}
+                        </span>
+                      )}
+                      {q.project_description && (
+                        <span className="text-[11px] text-slate-500 truncate hidden md:inline">{q.project_description}</span>
+                      )}
+                      <span className="ml-auto flex items-center gap-3 flex-shrink-0 tabular-nums">
+                        {t && t.subtotal > 0 && <span className="text-[13px] font-bold text-slate-100">{fmtRp(t.subtotal)}</span>}
+                        <span className="font-mono text-[10px] text-slate-600 hidden sm:inline">{q.quote_number || '—'}</span>
+                        <span className="text-[10px] text-slate-500">{fmtDate(q.quote_date)}</span>
+                      </span>
+                    </div>
+                  ) : (<>
                   {/* Primary focus: the customer + status/type */}
                   <div className="flex flex-wrap items-center gap-2 mb-0.5">
                     <span className="font-semibold text-white text-base truncate max-w-full">{q.customer_name || 'No customer'}</span>
@@ -565,6 +591,7 @@ export default function QuotesListPage() {
                       )}
                     </div>
                   ) : null}
+                  </>)}
                 </Link>
                 {livePeers.length > 0 && <LivePresence peers={livePeers} />}
                 <div className="hidden sm:flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">

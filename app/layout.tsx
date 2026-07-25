@@ -90,6 +90,10 @@ export default function RootLayout({
             text-align: left;
             margin: 0;
           }
+          /* Compact list density for tables — one class instead of touching
+             every cell, so a table can switch density without markup churn. */
+          table.dense-rows td { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+          table.dense-rows th { padding-top: 0.35rem; padding-bottom: 0.35rem; }
           /* Horizontally scrollable tab strips: keep the gesture, drop the bar */
           .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
           .scrollbar-none::-webkit-scrollbar { display: none; }

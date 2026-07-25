@@ -25,6 +25,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 import DateRangeFilter from '@/components/ui/DateRangeFilter';
+import LayoutToggle from '@/components/ui/LayoutToggle';
+import { useListLayout } from '@/hooks/useListLayout';
 import { ALL_TIME, inRange, isOpenRange, type DateRange } from '@/lib/dateRange';
 import { accountLabel, fetchStatement, signedAmount, type BankAccount, type StatementRow } from '@/lib/banks';
 import { fmtDay, fmtInt, fmtRupiah, fmtRupiahShort } from '@/lib/formatters';
@@ -62,6 +64,8 @@ export default function BanksPage() {
   const [schemaMissing, setSchemaMissing] = useState(false);
   const [range, setRange] = useState<DateRange>(ALL_TIME);
   const [search, setSearch] = useState('');
+  const [layout, setLayout] = useListLayout('banks');
+  const compact = layout === 'compact';
   const [entryOpen, setEntryOpen] = useState(false);
   const [balanceOpen, setBalanceOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -199,32 +203,70 @@ export default function BanksPage() {
           </div>
         ) : (
           <>
-            {/* Accounts */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-              {accounts.map((a) => {
-                const on = a.bank_account_id === selected;
-                const bal = balances.get(a.bank_account_id);
-                return (
-                  <button key={a.bank_account_id} onClick={() => setSelected(a.bank_account_id)}
-                    className={`text-left bg-slate-900/40 border rounded-2xl p-4 transition-colors ${
-                      on ? 'border-emerald-500/50 bg-emerald-500/[0.06]' : 'border-slate-800/80 hover:border-slate-700'
-                    }`}>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-white truncate">{a.bank_name || 'Bank not set'}</p>
-                        <p className="text-[11px] text-slate-500 truncate">{companyName.get(a.company_id ?? '') || a.account_name || '—'}</p>
-                      </div>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 flex-shrink-0">{a.currency}</span>
-                    </div>
-                    <p className="text-[11px] text-slate-600 font-mono mt-1.5 truncate">{a.account_number || 'no account number'}</p>
-                    <p className={`text-xl font-bold tabular-nums mt-2 ${bal == null ? 'text-slate-600' : bal < 0 ? 'text-rose-300' : 'text-emerald-300'}`}
-                      title={bal == null ? '' : fmtRupiah(bal)}>
-                      {bal == null ? '—' : fmtRupiahShort(bal)}
-                    </p>
-                  </button>
-                );
-              })}
+            {/* Accounts — one line each by default; the card view gives each
+                account its own tile. Selecting one loads its statement below. */}
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[10px] uppercase tracking-widest text-slate-600">Accounts</p>
+              <LayoutToggle value={layout} onChange={setLayout} />
             </div>
+            {compact ? (
+              <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
+                <div className="hidden md:grid grid-cols-[1fr_200px_120px_60px_140px] gap-3 px-3 py-1.5 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+                  <span>Bank</span><span>Company</span><span>Account no.</span><span>Ccy</span><span className="text-right">Balance</span>
+                </div>
+                <div className="divide-y divide-slate-800/60">
+                  {accounts.map((a) => {
+                    const on = a.bank_account_id === selected;
+                    const bal = balances.get(a.bank_account_id);
+                    return (
+                      <button key={a.bank_account_id} onClick={() => setSelected(a.bank_account_id)}
+                        className={`w-full text-left grid grid-cols-2 md:grid-cols-[1fr_200px_120px_60px_140px] gap-1 md:gap-3 px-3 py-1.5 items-center transition-colors ${
+                          on ? 'bg-emerald-500/[0.08]' : 'hover:bg-slate-800/40'
+                        }`}>
+                        <span className={`text-sm truncate ${on ? 'text-emerald-200 font-semibold' : 'text-slate-100'}`}>
+                          {a.bank_name || 'Bank not set'}
+                          {a.is_default_payment && <span className="ml-1.5 text-[9px] font-bold text-sky-400" title="Default account for supplier payments">PAY</span>}
+                          {a.is_default_receipt && <span className="ml-1.5 text-[9px] font-bold text-emerald-400" title="Default account for customer receipts">RCV</span>}
+                        </span>
+                        <span className="text-[11px] text-slate-500 truncate">{companyName.get(a.company_id ?? '') || '—'}</span>
+                        <span className="text-[11px] text-slate-500 font-mono truncate">{a.account_number || '—'}</span>
+                        <span className="text-[10px] text-slate-600">{a.currency}</span>
+                        <span className={`md:text-right tabular-nums font-semibold ${bal == null ? 'text-slate-600' : bal < 0 ? 'text-rose-300' : 'text-emerald-300'}`}
+                          title={bal == null ? '' : fmtRupiah(bal)}>
+                          {bal == null ? '—' : fmtInt(bal)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                {accounts.map((a) => {
+                  const on = a.bank_account_id === selected;
+                  const bal = balances.get(a.bank_account_id);
+                  return (
+                    <button key={a.bank_account_id} onClick={() => setSelected(a.bank_account_id)}
+                      className={`text-left bg-slate-900/40 border rounded-2xl p-4 transition-colors ${
+                        on ? 'border-emerald-500/50 bg-emerald-500/[0.06]' : 'border-slate-800/80 hover:border-slate-700'
+                      }`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-white truncate">{a.bank_name || 'Bank not set'}</p>
+                          <p className="text-[11px] text-slate-500 truncate">{companyName.get(a.company_id ?? '') || a.account_name || '—'}</p>
+                        </div>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 flex-shrink-0">{a.currency}</span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 font-mono mt-1.5 truncate">{a.account_number || 'no account number'}</p>
+                      <p className={`text-xl font-bold tabular-nums mt-2 ${bal == null ? 'text-slate-600' : bal < 0 ? 'text-rose-300' : 'text-emerald-300'}`}
+                        title={bal == null ? '' : fmtRupiah(bal)}>
+                        {bal == null ? '—' : fmtRupiahShort(bal)}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Statement */}
             {account && (
@@ -301,8 +343,8 @@ export default function BanksPage() {
                       <tbody className="divide-y divide-slate-800/60">
                         {view.rows.map((r) => (
                           <tr key={r.id} className="hover:bg-white/[0.02]">
-                            <td className="px-4 py-2 whitespace-nowrap text-slate-400 tabular-nums">{fmtDay(r.date) || '—'}</td>
-                            <td className="px-3 py-2">
+                            <td className={`px-4 whitespace-nowrap text-slate-400 tabular-nums ${compact ? 'py-1' : 'py-2'}`}>{fmtDay(r.date) || '—'}</td>
+                            <td className={`px-3 ${compact ? 'py-1' : 'py-2'}`}>
                               <div className="flex items-center gap-2 min-w-0">
                                 <span className={`text-[9px] px-1.5 py-0.5 rounded font-semibold flex-shrink-0 ${KIND_TONE[r.kind]}`}>{KIND_LABEL[r.kind]}</span>
                                 {r.href
@@ -310,15 +352,15 @@ export default function BanksPage() {
                                   : <span className="text-slate-200 truncate">{r.description}</span>}
                               </div>
                             </td>
-                            <td className="px-3 py-2 text-[11px] text-slate-500 max-w-[220px] truncate" title={r.reference}>
+                            <td className={`px-3 text-[11px] text-slate-500 max-w-[220px] truncate ${compact ? 'py-1' : 'py-2'}`} title={r.reference}>
                               {r.reference || '—'}
                               {r.original && (
                                 <span className="ml-1.5 text-slate-600">({r.original.currency} {fmtInt(r.original.amount)})</span>
                               )}
                             </td>
-                            <td className="px-3 py-2 text-right tabular-nums text-emerald-300">{r.direction === 'in' ? fmtInt(r.amount) : ''}</td>
-                            <td className="px-3 py-2 text-right tabular-nums text-sky-300">{r.direction === 'out' ? fmtInt(r.amount) : ''}</td>
-                            <td className="px-4 py-2 text-right tabular-nums text-slate-300">{fmtInt(view.runningById.get(r.id) ?? 0)}</td>
+                            <td className={`px-3 text-right tabular-nums text-emerald-300 ${compact ? 'py-1' : 'py-2'}`}>{r.direction === 'in' ? fmtInt(r.amount) : ''}</td>
+                            <td className={`px-3 text-right tabular-nums text-sky-300 ${compact ? 'py-1' : 'py-2'}`}>{r.direction === 'out' ? fmtInt(r.amount) : ''}</td>
+                            <td className={`px-4 text-right tabular-nums text-slate-300 ${compact ? 'py-1' : 'py-2'}`}>{fmtInt(view.runningById.get(r.id) ?? 0)}</td>
                           </tr>
                         ))}
                       </tbody>

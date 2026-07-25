@@ -15,6 +15,8 @@ import { PRINCIPAL_CATS } from '@/constants/costCategories';
 import BrandMenu from '@/components/ui/BrandMenu';
 import type { Supplier, PriceQuote, PurchaseOrder, POCost, PurchaseLineItem, Component } from '@/types/database';
 import { fmtDay, fmtInt, fmtRupiah as fmtIdr } from '@/lib/formatters';
+import LayoutToggle from '@/components/ui/LayoutToggle';
+import { useListLayout } from '@/hooks/useListLayout';
 
 
 const lookupHref = (n: string) => `/catalog?tab=lookup&q=${encodeURIComponent(n)}`;
@@ -34,6 +36,8 @@ export default function SuppliersPage() {
   const { data, loading } = useSupabaseData();
 
   const [search, setSearch] = useState('');
+  const [layout, setLayout] = useListLayout('suppliers');
+  const compact = layout === 'compact';
   const [profileFor, setProfileFor] = useState<Supplier | null>(null);
 
   useEffect(() => { document.title = 'Suppliers — ICAPROC'; }, []);
@@ -115,8 +119,12 @@ export default function SuppliersPage() {
             className="w-full pl-10 pr-4 h-11 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-sky-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors" />
         </div>
 
+        <div className="flex justify-end">
+          <LayoutToggle value={layout} onChange={setLayout} accent="sky" />
+        </div>
+
         <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
-          <div className="hidden md:grid grid-cols-[130px_minmax(0,1fr)_120px_60px_150px_150px] gap-3 px-4 py-2.5 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+          <div className={`hidden md:grid grid-cols-[130px_minmax(0,1fr)_120px_60px_150px_150px] gap-3 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500 ${compact ? 'px-3 py-1.5' : 'px-4 py-2.5'}`}>
             <span>Code</span><span>Supplier</span><span className="text-right">Quotes / POs</span><span /><span className="text-right">Purchased</span><span className="text-right">Outstanding</span>
           </div>
           {loading ? (
@@ -131,7 +139,7 @@ export default function SuppliersPage() {
                 return (
                   <div key={s.supplier_id}>
                     <button onClick={() => setProfileFor(open ? null : s)} aria-expanded={open}
-                      className={`w-full text-left grid grid-cols-1 md:grid-cols-[130px_minmax(0,1fr)_120px_60px_150px_150px] gap-1 md:gap-3 px-4 py-3 transition-colors items-center ${open ? 'bg-slate-800/40' : 'hover:bg-slate-800/40'}`}>
+                      className={`w-full text-left grid grid-cols-1 md:grid-cols-[130px_minmax(0,1fr)_120px_60px_150px_150px] gap-1 md:gap-3 transition-colors items-center ${compact ? 'px-3 py-1.5' : 'px-4 py-3'} ${open ? 'bg-slate-800/40' : 'hover:bg-slate-800/40'}`}>
                       <span className="font-mono text-[11px] text-sky-300 break-words leading-tight min-w-0">{s.supplier_code || '—'}</span>
                       <span className="min-w-0">
                         <span className="block text-sm text-slate-100 font-medium truncate">{s.supplier_name}</span>

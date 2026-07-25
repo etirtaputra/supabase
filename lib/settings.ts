@@ -54,6 +54,16 @@ export type DateStyle =
 
 export type DateLocale = 'en-GB' | 'en-US' | 'id-ID';
 
+/**
+ * How every list renders by default.
+ *   compact — dense rows, everything relevant on one line, click to expand
+ *   card    — roomier rows with the secondary decoration (progress meters,
+ *             milestone dots, per-row sub-lines) shown inline
+ * A list can still be flipped per screen; that choice is remembered locally and
+ * never changes this default.
+ */
+export type ListLayout = 'compact' | 'card';
+
 export interface AppSettings {
   // ── Internal screens ──────────────────────────────────────────────────────
   numberInternal: NumberFormat;
@@ -61,6 +71,7 @@ export interface AppSettings {
   dateInternal: DateStyle;
   dateLocaleInternal: DateLocale;
   time24h: boolean;
+  listLayout: ListLayout;
 
   // ── Customer-facing documents (quote / invoice / Surat Jalan / EPC print,
   //    WhatsApp price copy) ────────────────────────────────────────────────
@@ -129,6 +140,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   dateInternal:       'dd MMM yy',
   dateLocaleInternal: 'en-GB',
   time24h:            true,
+  listLayout:         'compact',
 
   numberDocument:     { thousands: ',', decimal: '.', decimals: 0 },
   currencyDocument:   { symbol: 'Rp', position: 'before', space: false },
@@ -234,6 +246,7 @@ export function coerceSettings(raw: Record<string, unknown>): AppSettings {
     dateInternal:       pick('dateInternal',       (v) => dateStyle(v, d.dateInternal), d.dateInternal),
     dateLocaleInternal: pick('dateLocaleInternal', (v) => dateLocale(v, d.dateLocaleInternal), d.dateLocaleInternal),
     time24h:            pick('time24h',            (v) => bool(v, d.time24h), d.time24h),
+    listLayout:         pick('listLayout',         (v) => (v === 'card' ? 'card' : 'compact'), d.listLayout),
 
     numberDocument:     pick('numberDocument',     (v) => numFmt(v, d.numberDocument), d.numberDocument),
     currencyDocument:   pick('currencyDocument',   (v) => ccyFmt(v, d.currencyDocument), d.currencyDocument),

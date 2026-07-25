@@ -14,6 +14,8 @@ import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { fmtDay, fmtInt } from '@/lib/formatters';
 import DateRangeFilter from '@/components/ui/DateRangeFilter';
+import LayoutToggle from '@/components/ui/LayoutToggle';
+import { useListLayout } from '@/hooks/useListLayout';
 import { ALL_TIME, inRange, type DateRange } from '@/lib/dateRange';
 
 // One row per Delivery Order (24.0) once DOs exist, plus "awaiting DO" rows
@@ -42,6 +44,8 @@ export default function DeliveryPage() {
   // Delivered rows filter on the delivery date; anything still pending filters
   // on its target date, so "this week" answers both halves of the page.
   const [range, setRange] = useState<DateRange>(ALL_TIME);
+  const [layout, setLayout] = useListLayout('delivery');
+  const compact = layout === 'compact';
 
   useEffect(() => { document.title = 'Delivery — ICAPROC'; }, []);
   useEffect(() => {
@@ -145,7 +149,10 @@ export default function DeliveryPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3 justify-between">
-          <DateRangeFilter value={range} onChange={setRange} label="Delivery date" align="left" />
+          <div className="flex items-center gap-2">
+            <DateRangeFilter value={range} onChange={setRange} label="Delivery date" align="left" />
+            <LayoutToggle value={layout} onChange={setLayout} />
+          </div>
           <span className="text-[11px] text-slate-500 tabular-nums">
             {pending.length} pending · {delivered.length} delivered
           </span>
@@ -165,14 +172,14 @@ export default function DeliveryPage() {
                   const agg = itemsByQuote[q.row_key];
                   return (
                     <button key={q.row_key} onClick={() => router.push(`/sales/${q.quote_id}`)}
-                      className="w-full text-left grid grid-cols-2 md:grid-cols-[170px_1fr_140px_120px_110px] gap-1 md:gap-3 px-4 py-3 hover:bg-slate-800/40 transition-colors items-center">
+                      className={`w-full text-left grid grid-cols-2 md:grid-cols-[170px_1fr_140px_120px_110px] gap-1 md:gap-3 hover:bg-slate-800/40 transition-colors items-center ${compact ? 'px-3 py-1.5' : 'px-4 py-3'}`}>
                       <span>
                         <span className={`block font-mono text-[11px] ${q.status === 'preparing' ? 'text-orange-300' : 'text-violet-300'}`}>{(q.status === 'preparing' && q.do_number) || q.order_number || q.quote_number}</span>
-                        {q.invoice_number && <span className="block text-[10px] text-amber-200/70 font-mono">{q.invoice_number}</span>}
+                        {q.invoice_number && !compact && <span className="block text-[10px] text-amber-200/70 font-mono">{q.invoice_number}</span>}
                       </span>
                       <span className="min-w-0">
                         <span className="block text-sm text-slate-100 truncate">{custName(q.customer_id) || <span className="text-slate-600">No customer</span>}</span>
-                        {q.status === 'preparing' && (
+                        {q.status === 'preparing' && !compact && (
                           <span className="block text-[10px] text-orange-300/80 truncate">
                             {[q.delivery_method === 'pickup' ? 'Pick-up' : `Delivery${q.delivery_via ? ` · ${q.delivery_via}` : ''}`, q.delivery_contact].filter(Boolean).join(' · ')}
                           </span>
@@ -188,7 +195,7 @@ export default function DeliveryPage() {
                       </span>
                       <span className="md:text-right text-[11px] text-slate-500 tabular-nums">
                         {q.status === 'preparing' && q.delivery_date
-                          ? <>target {fmtDay(q.delivery_date)}{q.delivery_time ? <span className="block text-[10px] text-slate-600">{q.delivery_time}</span> : null}</>
+                          ? <>target {fmtDay(q.delivery_date)}{q.delivery_time && !compact ? <span className="block text-[10px] text-slate-600">{q.delivery_time}</span> : null}</>
                           : <>ordered {fmtDay(q.ordered_at)}</>}
                       </span>
                     </button>
@@ -213,10 +220,10 @@ export default function DeliveryPage() {
                   const agg = itemsByQuote[q.row_key];
                   return (
                     <button key={q.row_key} onClick={() => router.push(`/sales/${q.quote_id}`)}
-                      className="w-full text-left grid grid-cols-2 md:grid-cols-[170px_1fr_140px_120px_110px] gap-1 md:gap-3 px-4 py-3 hover:bg-slate-800/40 transition-colors items-center">
+                      className={`w-full text-left grid grid-cols-2 md:grid-cols-[170px_1fr_140px_120px_110px] gap-1 md:gap-3 hover:bg-slate-800/40 transition-colors items-center ${compact ? 'px-3 py-1.5' : 'px-4 py-3'}`}>
                       <span>
                         <span className="block font-mono text-[11px] text-emerald-300">{q.do_number || '—'}</span>
-                        <span className="block text-[10px] text-slate-600 font-mono">{q.order_number || q.quote_number}</span>
+                        {!compact && <span className="block text-[10px] text-slate-600 font-mono">{q.order_number || q.quote_number}</span>}
                       </span>
                       <span className="text-sm text-slate-100 truncate">{custName(q.customer_id) || <span className="text-slate-600">No customer</span>}</span>
                       <span className="text-[11px] text-slate-500 tabular-nums">

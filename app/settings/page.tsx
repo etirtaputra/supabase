@@ -295,6 +295,42 @@ function NumberPanel({
 function FormatTab({ draft, set }: { draft: AppSettings; set: <K extends keyof AppSettings>(k: K, v: AppSettings[K]) => void }) {
   return (
     <div className="space-y-5">
+      {/* ── Layout ─────────────────────────────────────────────────────── */}
+      <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 space-y-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Layout</p>
+          <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+            How every list opens — Sales, Customers, Invoices, Delivery, Banks, Proposals, Deal Lookup.
+            Anyone can flip a single list without changing this; that choice is remembered on their device only.
+          </p>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-3 max-w-2xl">
+          {([
+            { v: 'compact' as const, title: 'Compact', blurb: 'Dense rows, everything relevant on one line. Click a row to expand it. Best once a list is long.' },
+            { v: 'card' as const,    title: 'Card',    blurb: 'Roomier rows that carry their secondary detail inline — progress meters, milestone dots, sub-lines.' },
+          ]).map((opt) => (
+            <button key={opt.v} onClick={() => set('listLayout', opt.v)}
+              className={`text-left rounded-xl border p-3 transition-colors ${
+                draft.listLayout === opt.v
+                  ? 'border-emerald-500/50 bg-emerald-500/[0.07]'
+                  : 'border-slate-700 hover:border-slate-600 hover:bg-slate-800/40'
+              }`}>
+              <div className="flex items-center gap-2">
+                <span className={`text-sm font-bold ${draft.listLayout === opt.v ? 'text-emerald-300' : 'text-slate-200'}`}>{opt.title}</span>
+                {draft.listLayout === opt.v && <span className="text-[10px] font-semibold text-emerald-400">DEFAULT</span>}
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1 leading-snug">{opt.blurb}</p>
+              {/* A miniature of what the choice looks like */}
+              <div className="mt-2.5 space-y-1">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className={`rounded bg-slate-800/70 ${opt.v === 'compact' ? 'h-2' : 'h-5'}`} />
+                ))}
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="bg-sky-500/[0.07] border border-sky-500/25 rounded-xl px-4 py-3">
         <p className="text-xs text-sky-100/90 leading-relaxed">
           <span className="font-bold">Two profiles, on purpose.</span> Internal screens are read by the team all day and

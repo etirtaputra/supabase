@@ -13,6 +13,8 @@ import SalesMigrationBanner from '@/components/ui/SalesMigrationBanner';
 import { SALES_STATUS as STATUS, milestoneIndex } from '@/lib/salesStatus';
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 import DateRangeFilter from '@/components/ui/DateRangeFilter';
+import LayoutToggle from '@/components/ui/LayoutToggle';
+import { useListLayout } from '@/hooks/useListLayout';
 import { ALL_TIME, inRange, type DateRange } from '@/lib/dateRange';
 
 interface Quote {
@@ -37,6 +39,8 @@ export default function SalesListPage() {
   // Date filter — the document date, so "this month's sales" means the quotes
   // dated this month, not the ones last touched this month.
   const [range, setRange] = useState<DateRange>(ALL_TIME);
+  const [layout, setLayout] = useListLayout('sales');
+  const compact = layout === 'compact';
 
   useEffect(() => { document.title = 'Sales — ICAPROC'; }, []);
   useEffect(() => {
@@ -117,7 +121,10 @@ export default function SalesListPage() {
 
         {/* Period filter + what the period is worth */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 justify-between">
-          <DateRangeFilter value={range} onChange={setRange} label="Quote date" align="left" />
+          <div className="flex items-center gap-2">
+            <DateRangeFilter value={range} onChange={setRange} label="Quote date" align="left" />
+            <LayoutToggle value={layout} onChange={setLayout} />
+          </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500">
             <span><span className="text-slate-300 font-semibold tabular-nums">{filtered.length}</span> quote{filtered.length !== 1 ? 's' : ''}</span>
             <span>Ordered+ <span className="text-emerald-300 font-semibold tabular-nums">{fmtRupiah(periodValue)}</span></span>
@@ -126,7 +133,7 @@ export default function SalesListPage() {
         </div>
 
         <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
-          <div className="hidden md:grid grid-cols-[150px_1fr_130px_140px_110px] gap-3 px-4 py-2.5 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+          <div className={`hidden md:grid grid-cols-[150px_1fr_130px_140px_110px] gap-3 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500 ${compact ? 'px-3 py-1.5' : 'px-4 py-2.5'}`}>
             <span>Number</span><span>Customer</span><span>Status</span><span className="text-right">Grand Total</span><span className="text-right">Updated</span>
           </div>
           {loading ? (
@@ -150,7 +157,7 @@ export default function SalesListPage() {
                     {/* Bar click = inline preview; the document opens from the
                         preview's "Open document" (or the doc number link). */}
                     <button onClick={() => setExpanded(open ? null : q.quote_id)} aria-expanded={open}
-                      className={`w-full min-w-0 text-left grid grid-cols-1 md:grid-cols-[150px_1fr_130px_140px_110px] gap-1 md:gap-3 px-4 py-3 items-center transition-colors ${open ? 'bg-slate-800/30' : 'hover:bg-slate-800/40'}`}>
+                      className={`w-full min-w-0 text-left grid grid-cols-1 md:grid-cols-[150px_1fr_130px_140px_110px] gap-1 md:gap-3 items-center transition-colors ${compact ? 'px-3 py-1.5' : 'px-4 py-3'} ${open ? 'bg-slate-800/30' : 'hover:bg-slate-800/40'}`}>
                       <span className="font-mono text-[11px] text-slate-300">
                         {q.quote_number}
                         {(q.revision ?? 0) > 0 && <span className="ml-1 text-[9px] font-bold text-sky-400">R{q.revision}</span>}
@@ -161,18 +168,20 @@ export default function SalesListPage() {
                           <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS[q.status]?.cls ?? ''}`}>{STATUS[q.status]?.label ?? q.status}</span>
                           {billed && pct >= 100 && <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300">PAID</span>}
                         </span>
-                        <MilestoneDots status={q.status} paid={billed && pct >= 100} delivered={q.status === 'delivered'} />
+                        {!compact && <MilestoneDots status={q.status} paid={billed && pct >= 100} delivered={q.status === 'delivered'} />}
                       </span>
-                      <span className="text-right">
-                        <span className="block tabular-nums text-slate-200">{fmtInt(total)}</span>
-                        {billed && total > 0 && (
+                      <span className={compact ? 'text-right whitespace-nowrap' : 'text-right'}>
+                        <span className={compact ? 'tabular-nums text-slate-200' : 'block tabular-nums text-slate-200'}>{fmtInt(total)}</span>
+                        {billed && total > 0 && (compact ? (
+                          <span className={`ml-1.5 text-[10px] tabular-nums ${pct >= 100 ? 'text-emerald-400' : pct > 0 ? 'text-amber-300' : 'text-slate-600'}`}>{pct.toFixed(0)}%</span>
+                        ) : (
                           <span className="mt-1 ml-auto flex items-center gap-1.5 justify-end">
                             <span className="w-12 h-1 bg-slate-700 rounded-full overflow-hidden inline-block">
                               <span className={`block h-full rounded-full ${pct >= 100 ? 'bg-emerald-500' : pct > 0 ? 'bg-amber-400' : 'bg-slate-600'}`} style={{ width: `${pct}%` }} />
                             </span>
                             <span className={`text-[10px] tabular-nums ${pct >= 100 ? 'text-emerald-400' : pct > 0 ? 'text-amber-300' : 'text-slate-600'}`}>{pct.toFixed(0)}%</span>
                           </span>
-                        )}
+                        ))}
                       </span>
                       <span className="text-right text-[11px] text-slate-500 tabular-nums flex items-center justify-end gap-2">
                         {fmtDay(q.updated_at)}

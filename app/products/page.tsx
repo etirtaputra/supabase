@@ -39,6 +39,8 @@ const INCOMING_PO_STATUSES = new Set(['Sent', 'Confirmed', 'Partially Received']
 
 import { formatCategory as humanize } from '@/lib/formatCategory';
 import { fmtDay, fmtInt, fmtRupiah, fmtIntDoc, fmtDayDoc } from '@/lib/formatters';
+import LayoutToggle from '@/components/ui/LayoutToggle';
+import { useListLayout } from '@/hooks/useListLayout';
 // The product's customer-facing name: our internal description, never the supplier's model/SKU.
 const descOf = (c: { internal_description: string | null; supplier_model: string }) =>
   (c.internal_description && c.internal_description.trim()) || c.supplier_model || '(no description)';
@@ -92,6 +94,8 @@ function ProductsInner() {
   const [stockOnly, setStockOnly] = useState(false);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'activity', dir: -1 });
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [layout, setLayout] = useListLayout('products');
+  const compact = layout === 'compact';
   const [toast, setToast] = useState<string | null>(null);
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2200); };
 
@@ -456,6 +460,7 @@ function ProductsInner() {
               className="text-[11px] text-slate-500 hover:text-white px-2 py-1 transition-colors">Clear ×</button>
           )}
           <span className="text-xs text-slate-600 tabular-nums ml-auto">{rows.length} of {comps.length}</span>
+          <LayoutToggle value={layout} onChange={setLayout} />
         </div>
 
         <p className="hidden md:block text-[11px] text-slate-600">
@@ -465,7 +470,7 @@ function ProductsInner() {
 
         {/* ── Desktop table ── */}
         <div className="hidden md:block bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-x-auto">
-          <table className="w-full min-w-[1000px]">
+          <table className={`w-full min-w-[1000px] ${compact ? 'dense-rows' : ''}`}>
             <thead>
               <tr className="border-b border-slate-800 text-[10px] uppercase tracking-widest text-slate-500">
                 {/* Sticky: the item name stays anchored while the numeric
