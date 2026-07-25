@@ -41,7 +41,7 @@ export default function DateRangeFilter({
   const place = () => {
     const r = btnRef.current?.getBoundingClientRect();
     if (!r) return;
-    const width = 320;
+    const width = Math.min(320, window.innerWidth - 16);
     setPos({
       top: r.bottom + 6,
       left: align === 'right' ? Math.max(8, Math.min(r.right - width, window.innerWidth - width - 8)) : Math.max(8, r.left),
@@ -75,7 +75,7 @@ export default function DateRangeFilter({
   const panel = pos && (
     <>
       <div className="fixed inset-0 z-[130]" onClick={() => setOpen(false)} />
-      <div className="fixed z-[131] w-[320px] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-3 space-y-3"
+      <div className="fixed z-[131] w-[320px] max-w-[calc(100vw-16px)] max-h-[70vh] overflow-y-auto bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-3 space-y-3"
         style={{ top: pos.top, left: pos.left }}>
         <div>
           <p className="text-[10px] uppercase tracking-widest text-slate-600 mb-1.5">Quick ranges</p>

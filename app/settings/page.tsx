@@ -60,11 +60,13 @@ const SAMPLE_DATE = '2026-07-24';
 
 // Field chrome, so every input on the page looks the same
 const inputCls = 'w-full bg-slate-900/80 border border-slate-700 rounded-lg px-2.5 py-1.5 text-sm text-white focus:outline-none focus:border-emerald-500/60 transition-colors';
-const labelCls = 'block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1';
+const labelCls = 'block text-[10px] sm:text-[11px] font-semibold uppercase tracking-wide sm:tracking-wider text-slate-500 mb-1 truncate';
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+function Field({ label, hint, children, className = '' }: {
+  label: string; hint?: string; children: React.ReactNode; className?: string;
+}) {
   return (
-    <div>
+    <div className={className}>
       <label className={labelCls}>{label}</label>
       {children}
       {hint && <p className="text-[11px] text-slate-600 mt-1 leading-snug">{hint}</p>}
@@ -167,10 +169,12 @@ export default function SettingsPage() {
       </div>
 
       <main className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-6 space-y-5">
-        <div className="flex items-center gap-5 border-b border-slate-800/80">
+        {/* 6 tabs never fit a phone: scroll horizontally rather than wrap into
+            a second row that pushes the content down. */}
+        <div className="flex items-center gap-4 sm:gap-5 border-b border-slate-800/80 overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0 scrollbar-none">
           {TABS.map(([k, label]) => (
             <button key={k} onClick={() => setTab(k)}
-              className={`pb-2.5 -mb-px text-[13px] transition-colors border-b-2 ${tab === k ? 'border-emerald-400 text-white font-bold' : 'border-transparent text-slate-500 hover:text-slate-300 font-medium'}`}>
+              className={`pb-2.5 -mb-px text-[13px] whitespace-nowrap transition-colors border-b-2 ${tab === k ? 'border-emerald-400 text-white font-bold' : 'border-transparent text-slate-500 hover:text-slate-300 font-medium'}`}>
               {label}
             </button>
           ))}
@@ -223,7 +227,7 @@ function NumberPanel({
       </div>
 
       <div className="p-4 space-y-3.5">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-[11px] text-slate-500">Presets:</span>
           <button onClick={() => onNumber({ ...NUMBER_PRESET_EN, decimals: number.decimals })}
             className="text-[11px] px-2.5 py-1 rounded-lg border border-slate-700 hover:bg-slate-800 text-slate-300 transition-colors">
@@ -235,7 +239,7 @@ function NumberPanel({
           </button>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <Field label="Thousands">
             <select className={inputCls} value={number.thousands} onChange={(e) => onNumber({ ...number, thousands: e.target.value })}>
               {SEPARATORS.map((s) => <option key={s.label} value={s.value}>{s.label}</option>)}
@@ -246,31 +250,31 @@ function NumberPanel({
               {DECIMAL_SEPARATORS.map((s) => <option key={s.label} value={s.value}>{s.label}</option>)}
             </select>
           </Field>
-          <Field label="Decimal places" hint="Rupiah amounts are whole numbers (0).">
+          <Field label="Decimal places" hint="Rupiah amounts are whole numbers (0)." className="col-span-2 sm:col-span-1">
             <input type="number" min={0} max={4} className={inputCls} value={number.decimals}
               onChange={(e) => onNumber({ ...number, decimals: Math.max(0, Math.min(4, Number(e.target.value) || 0)) })} />
           </Field>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <Field label="Currency symbol">
             <input className={inputCls} value={currency.symbol} onChange={(e) => onCurrency({ ...currency, symbol: e.target.value })} placeholder="Rp" />
           </Field>
           <Field label="Position">
             <select className={inputCls} value={currency.position} onChange={(e) => onCurrency({ ...currency, position: e.target.value as 'before' | 'after' })}>
-              <option value="before">Before the amount</option>
-              <option value="after">After the amount</option>
+              <option value="before">Before</option>
+              <option value="after">After</option>
             </select>
           </Field>
-          <Field label="Spacing">
+          <Field label="Spacing" className="col-span-2 sm:col-span-1">
             <select className={inputCls} value={currency.space ? 'yes' : 'no'} onChange={(e) => onCurrency({ ...currency, space: e.target.value === 'yes' })}>
-              <option value="yes">With a space</option>
+              <option value="yes">With space</option>
               <option value="no">No space</option>
             </select>
           </Field>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Date format">
             <select className={inputCls} value={dateStyle} onChange={(e) => onDateStyle(e.target.value as DateStyle)}>
               {DATE_STYLES.map((s) => <option key={s} value={s}>{s} — {formatDate(SAMPLE_DATE, s, dateLocale)}</option>)}
@@ -341,18 +345,19 @@ function FormatTab({ draft, set }: { draft: AppSettings; set: <K extends keyof A
             </select>
           </Field>
         </div>
-        <div className="pt-1 flex items-center gap-3">
-          <span className="text-[11px] text-slate-600">Preview:</span>
-          <span className="text-sm text-slate-200 tabular-nums">
-            {draft.useSymbolEverywhere
-              ? applyCurrency(formatNumber(Math.round(SAMPLE), draft.numberInternal, 0), draft.currencyInternal)
-              : `${draft.currencyCode} ${formatNumber(Math.round(SAMPLE), draft.numberInternal, 0)}`}
-          </span>
-          <span className="text-[11px] text-slate-600">·</span>
-          <Field label="">
-            <select className={`${inputCls} !py-1`} value={draft.time24h ? 'yes' : 'no'} onChange={(e) => set('time24h', e.target.value === 'yes')}>
-              <option value="yes">24-hour clock (14:32)</option>
-              <option value="no">12-hour clock (2:32 PM)</option>
+        <div className="grid sm:grid-cols-2 gap-3 max-w-xl pt-1">
+          <div>
+            <p className={labelCls}>Preview</p>
+            <p className="text-sm text-slate-200 tabular-nums py-1.5">
+              {draft.useSymbolEverywhere
+                ? applyCurrency(formatNumber(Math.round(SAMPLE), draft.numberInternal, 0), draft.currencyInternal)
+                : `${draft.currencyCode} ${formatNumber(Math.round(SAMPLE), draft.numberInternal, 0)}`}
+            </p>
+          </div>
+          <Field label="Clock" hint="Used by the “last edited” stamps.">
+            <select className={inputCls} value={draft.time24h ? 'yes' : 'no'} onChange={(e) => set('time24h', e.target.value === 'yes')}>
+              <option value="yes">24-hour (14:32)</option>
+              <option value="no">12-hour (2:32 PM)</option>
             </select>
           </Field>
         </div>
@@ -689,7 +694,7 @@ function BanksTab({ flash, email }: { flash: (m: string) => void; email: string 
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Company">
                 <select className={inputCls} value={a.company_id ?? ''} onChange={(e) => patch(a, { company_id: e.target.value || null })}>
                   <option value="">— none —</option>
@@ -703,7 +708,7 @@ function BanksTab({ flash, email }: { flash: (m: string) => void; email: string 
               </Field>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Bank">
                 <input className={inputCls} defaultValue={a.bank_name} placeholder="BCA"
                   onBlur={(e) => { if (e.target.value !== a.bank_name) patch(a, { bank_name: e.target.value }); }} />
@@ -719,7 +724,7 @@ function BanksTab({ flash, email }: { flash: (m: string) => void; email: string 
                 onBlur={(e) => { if (e.target.value !== a.account_name) patch(a, { account_name: e.target.value }); }} />
             </Field>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Opening balance" hint="Where the statement starts. Later corrections are recorded on Banks.">
                 <input className={`${inputCls} text-right tabular-nums`} defaultValue={String(a.opening_balance ?? 0)} inputMode="decimal"
                   onBlur={(e) => {
@@ -849,11 +854,11 @@ function UsersTab({ myId, flash }: { myId: string; flash: (m: string) => void })
         ) : (
           <div className="divide-y divide-slate-800/60">
             {users.map((u) => (
-              <div key={u.id} className="px-4 py-3 flex items-center gap-4">
+              <div key={u.id} className="px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-2">
                 <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-bold text-slate-300 flex-shrink-0 uppercase">
                   {(u.display_name || u.email).charAt(0)}
                 </div>
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-[140px]">
                   <p className="text-sm text-white truncate">{u.email}</p>
                   <input
                     defaultValue={u.display_name ?? ''}
@@ -862,7 +867,7 @@ function UsersTab({ myId, flash }: { myId: string; flash: (m: string) => void })
                     className="text-[11px] text-slate-500 bg-transparent focus:outline-none focus:text-slate-300 placeholder-slate-700 w-full"
                   />
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
                   {u.id === myId && <span className="text-[10px] text-emerald-500/70 font-semibold">You</span>}
                   <select
                     value={u.role}
@@ -913,16 +918,16 @@ function UsersTab({ myId, flash }: { myId: string; flash: (m: string) => void })
         ) : (
           <div className="divide-y divide-slate-800/60">
             {allow.map((a) => (
-              <div key={a.email} className="px-4 py-2.5 flex items-center gap-3">
-                <div className="flex-1 min-w-0">
+              <div key={a.email} className="px-4 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                <div className="flex-1 min-w-[150px]">
                   <p className="text-sm text-slate-200 truncate">{a.email}</p>
                   <p className="text-[10px] text-slate-600">
                     {signedUp.has(a.email.toLowerCase()) ? 'Signed up' : 'Invited — has not signed in yet'}
                   </p>
                 </div>
-                <select value={ASSIGNABLE_ROLES.includes(a.role) ? a.role : a.role}
+                <select value={a.role}
                   onChange={(e) => setAllowRole(a.email, e.target.value as UserRole)}
-                  className="text-xs bg-slate-800 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 cursor-pointer">
+                  className="text-xs bg-slate-800 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 cursor-pointer ml-auto">
                   {(ASSIGNABLE_ROLES.includes(a.role) ? ASSIGNABLE_ROLES : [...ASSIGNABLE_ROLES, a.role]).map((r) => (
                     <option key={r} value={r}>{ROLE_LABELS[r]}</option>
                   ))}

@@ -167,7 +167,7 @@ export default function BanksPage() {
         <div className="max-w-[1600px] 2xl:max-w-[2120px] mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4">
           <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Banks · Accounts & cash position" />
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[11px] text-slate-500">
+            <span className="text-[11px] text-slate-500 whitespace-nowrap">
               Cash across {accounts.length} account{accounts.length !== 1 ? 's' : ''}
               <span className="ml-1.5 text-slate-200 font-bold tabular-nums">{fmtRupiah(totalCash)}</span>
             </span>
@@ -241,10 +241,10 @@ export default function BanksPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <div className="relative">
+                    <div className="relative w-full sm:w-56">
                       <input value={search} onChange={(e) => setSearch(e.target.value)}
                         placeholder="Search description, reference…"
-                        className="w-56 pl-3 pr-3 h-8 rounded-lg bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-xs placeholder:text-slate-500 transition-colors" />
+                        className="w-full pl-3 pr-3 h-9 sm:h-8 rounded-lg bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-xs placeholder:text-slate-500 transition-colors" />
                     </div>
                     <DateRangeFilter value={range} onChange={setRange} label="Statement dates" />
                     {canEdit && (
@@ -263,7 +263,7 @@ export default function BanksPage() {
                 </div>
 
                 {/* Summary for the range in force */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-slate-800/60 border-b border-slate-800/60">
+                <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-slate-800/60 border-b border-slate-800/60">
                   {[
                     { label: isOpenRange(range) ? 'Opening balance' : 'Brought forward', value: isOpenRange(range) ? Number(account.opening_balance) || 0 : view.broughtForward, cls: 'text-slate-300' },
                     { label: 'Money in',  value: view.totalIn,  cls: 'text-emerald-300' },
@@ -452,13 +452,13 @@ function UntaggedPanel({ accounts, onAssigned }: { accounts: BankAccount[]; onAs
       {open && (
         <div className="divide-y divide-slate-800/60 border-t border-slate-800/60 max-h-[420px] overflow-y-auto">
           {rows.map((r) => (
-            <div key={r.id} className="px-4 py-2.5 flex items-center gap-3">
+            <div key={r.id} className="px-4 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
               <span className="text-[11px] text-slate-500 tabular-nums w-20 flex-shrink-0">{fmtDay(r.date) || '—'}</span>
-              <span className="text-sm text-slate-200 truncate flex-1 min-w-0">{r.label}</span>
+              <span className="text-sm text-slate-200 truncate flex-1 min-w-[140px]">{r.label}</span>
               <span className="text-xs tabular-nums text-slate-300 flex-shrink-0">{r.currency} {fmtInt(r.amount)}</span>
               <select defaultValue="" disabled={busy === r.id}
                 onChange={(e) => assign(r, e.target.value)}
-                className="text-xs bg-slate-800 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 disabled:opacity-50 cursor-pointer flex-shrink-0">
+                className="text-xs bg-slate-800 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 disabled:opacity-50 cursor-pointer flex-shrink-0 ml-auto">
                 <option value="">Assign to…</option>
                 {accounts.map((a) => <option key={a.bank_account_id} value={a.bank_account_id}>{accountLabel(a)}</option>)}
               </select>
@@ -498,7 +498,7 @@ function EntryModal({ account, onClose, onSaved }: { account: BankAccount; onClo
 
   return (
     <Modal title="Record a bank entry" subtitle="For movements that are not a PO payment or a customer receipt — transfers, bank charges, interest." onClose={onClose}>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Labeled label="Direction">
           <select value={direction} onChange={(e) => setDirection(e.target.value as 'in' | 'out')} className={modalInput}>
             <option value="out">Money out</option>
@@ -562,7 +562,7 @@ function SetBalanceModal({ account, current, onClose, onSaved }: {
 
   return (
     <Modal title="Set the balance" subtitle="Records the difference as a dated correction, so the statement still adds up and nothing is rewritten." onClose={onClose}>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Labeled label="Balance now">
           <p className="text-sm font-bold text-slate-300 tabular-nums px-2.5 py-2">{fmtRupiah(current)}</p>
         </Labeled>
