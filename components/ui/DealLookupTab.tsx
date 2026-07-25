@@ -8,7 +8,7 @@
  * Three view modes: All / By Vendor / By Company
  */
 'use client';
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { Fragment, useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type {
   PriceQuote, PriceQuoteLineItem,
@@ -1879,6 +1879,7 @@ export default function DealLookupTab({
         <tbody>
           {groups.map((g) => {
             const stage   = dealStage(g);
+            const expanded = expandedKey === g.key;
             const paidPct = g.totalIdr > 0 ? Math.min(100, (g.paidIdr / g.totalIdr) * 100) : 0;
             const stageLabel: Record<string, string> = {
               quote: 'Quote', active: 'Active PO', received: 'Received', completed: 'Completed', superseded: 'Void',
@@ -1887,10 +1888,12 @@ export default function DealLookupTab({
               quote: 'text-slate-400', active: 'text-indigo-300', received: 'text-emerald-300', completed: 'text-emerald-400', superseded: 'text-slate-600',
             };
             return (
+              <Fragment key={g.key}>
               <tr
-                key={g.key}
-                onClick={() => setExpandedKey(expandedKey === g.key ? null : g.key)}
+                onClick={() => setExpandedKey(expanded ? null : g.key)}
+                aria-expanded={expanded}
                 className={`border-b border-slate-800/40 last:border-0 cursor-pointer transition-colors hover:bg-slate-800/30 ${
+                  expanded ? 'bg-slate-800/40' :
                   stage === 'active'     ? 'bg-indigo-500/5' :
                   stage === 'received'   ? 'bg-emerald-500/5' :
                   stage === 'completed'  ? 'bg-emerald-500/8' :
@@ -1898,6 +1901,11 @@ export default function DealLookupTab({
                 }`}
               >
                 <td className="py-2 px-3 font-semibold text-white whitespace-nowrap">
+                  {/* The chevron is what says "this row opens" */}
+                  <svg className={`w-3 h-3 text-slate-600 inline-block mr-1.5 transition-transform duration-150 ${expanded ? 'rotate-90 text-slate-300' : ''}`}
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
                   {g.piNumber ?? (g.quotes[0] ? `Q#${g.quotes[0].quote_id}` : `PO#${g.pos[0]?.po_number ?? g.key}`)}
                 </td>
                 <td className="py-2 px-3 whitespace-nowrap">
@@ -1936,6 +1944,12 @@ export default function DealLookupTab({
                     : <span className="text-slate-600">—</span>}
                 </td>
               </tr>
+              {expanded && (
+                <tr className="border-b border-slate-800/40 bg-slate-950/50">
+                  <td colSpan={7} className="px-3 py-3">{renderDetail(g)}</td>
+                </tr>
+              )}
+              </Fragment>
             );
           })}
         </tbody>

@@ -8,6 +8,8 @@ import { ROLE_PERMISSIONS, type RolePermissions } from '@/constants/roles';
 
 /**
  * ICAPROC navigation, ERP-style:
+ *  • The wordmark opens the full menu (it is a button, not a link) — Dashboard
+ *    is the first entry inside it.
  *  • Desktop (lg+): the wordmark plus compact grouped dropdowns — Dashboard
  *    and single-app groups stay direct links; Buy/Sell open on hover or click
  *    and show their modules. The group you're inside keeps its domain color
@@ -206,14 +208,21 @@ export default function BrandMenu({
         onMouseLeave={() => setOpen(false)}
       >
         <div className="flex items-center gap-1">
-          <Link href="/" className={`${wordmarkClass} text-white tracking-tight hover:text-emerald-300 transition-colors`}>
-            ICAPROC
-          </Link>
+          {/* The wordmark IS the menu button — clicking it opens the app list
+              rather than jumping to the dashboard, which is the first entry in
+              that list anyway (and a direct link in the desktop bar). */}
           <button
             onClick={() => setOpen((o) => !o)}
-            aria-label="Switch app"
+            aria-label="Open menu"
             aria-expanded={open}
-            className="p-1 -m-0.5 text-slate-500 hover:text-white transition-colors flex-shrink-0 lg:hidden"
+            className={`${wordmarkClass} text-white tracking-tight hover:text-emerald-300 transition-colors`}>
+            ICAPROC
+          </button>
+          <button
+            onClick={() => setOpen((o) => !o)}
+            aria-label="Open menu"
+            aria-expanded={open}
+            className="p-1 -m-0.5 text-slate-500 hover:text-white transition-colors flex-shrink-0"
           >
             <svg className={`w-4 h-4 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
           </button>
