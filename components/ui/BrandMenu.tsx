@@ -31,7 +31,6 @@ const APP_GROUPS: { title: string | null; section: Section; apps: { href: string
     { href: '/suppliers', label: 'Suppliers' },
     { href: '/stock',     label: 'Stock' },
     { href: '/insights',  label: 'Insights' },
-    { href: '/banks',     label: 'Banks', cap: 'canViewBanks' },
   ] },
   { title: 'Sell side', section: 'sellSide', apps: [
     { href: '/customers', label: 'Customers' },
@@ -41,6 +40,9 @@ const APP_GROUPS: { title: string | null; section: Section; apps: { href: string
     { href: '/delivery',  label: 'Delivery' },
     { href: '/economics', label: 'Economics', cap: 'canManagePricing' },
   ] },
+  // Cash sits between the two flows: supplier payments leave a bank account and
+  // customer receipts arrive in one, so Banks is neither buy-side nor sell-side.
+  { title: null, section: null, apps: [{ href: '/banks', label: 'Banks', cap: 'canViewBanks' }] },
   { title: 'Projects', section: 'projects', apps: [{ href: '/proposals', label: 'Proposals' }] },
 ];
 
