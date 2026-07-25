@@ -25,11 +25,10 @@ export interface DoItem { do_item_id: string; do_id: string; so_item_id: string 
 interface OrderLite { quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string; status: string; ppn_pct: number; grand_total: number; }
 interface Contact { name: string; title: string; phone: string; }
 
-const fmtInt = (n: number) => Math.round(n).toLocaleString('en-US');
-const fmtD = (d?: string | null) => d ? new Date(d.length <= 10 ? `${d}T00:00:00` : d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '';
 const num = (v: unknown): number => { if (v === '' || v == null) return 0; const n = Number(String(v).replace(/[, ]/g, '')); return isNaN(n) ? 0 : n; };
 const today = () => new Date().toISOString().slice(0, 10);
 import { fetchWarehouses, defaultWarehouse, type Warehouse } from '@/lib/warehouses';
+import { fmtDay, fmtInt } from '@/lib/formatters';
 
 const TIME_OF_DAY = ['Pagi (08–11)', 'Siang (11–14)', 'Sore (14–17)'];
 const VIA_SUGGESTIONS = ['Armada sendiri', 'Kurir instan (GoSend/Grab)', 'Ekspedisi / cargo', 'JNE/J&T', 'Truk sewa'];
@@ -335,7 +334,7 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
                 </span>
                 <span className="ml-auto tabular-nums text-slate-200 font-semibold">Rp {fmtInt(total)}</span>
                 <span className="text-[10px] text-slate-600">{orderTotal > 0 ? `${((total / orderTotal) * 100).toFixed(0)}% of order` : ''}</span>
-                <span className="text-slate-600 tabular-nums">{fmtD(i.issued_at)}</span>
+                <span className="text-slate-600 tabular-nums">{fmtDay(i.issued_at)}</span>
                 <a href={`/sales/${quote.quote_id}/print?inv=${i.invoice_id}`} target="_blank" rel="noopener noreferrer"
                   className="px-2 py-1 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 text-[10px] font-semibold transition-colors">Print</a>
                 {canEdit && (
@@ -361,7 +360,7 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
                   <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${d.status === 'delivered' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-orange-500/15 text-orange-300'}`}>
                     {d.status === 'delivered' ? 'DELIVERED' : 'PREPARING'}
                   </span>
-                  <span className="text-slate-500 truncate">{lines.length} line{lines.length !== 1 ? 's' : ''} · {fmtInt(qty)} units{d.delivery_date ? ` · ${fmtD(d.delivery_date)}` : ''}{d.delivery_method === 'pickup' ? ' · pick-up' : d.delivery_via ? ` · ${d.delivery_via}` : ''}</span>
+                  <span className="text-slate-500 truncate">{lines.length} line{lines.length !== 1 ? 's' : ''} · {fmtInt(qty)} units{d.delivery_date ? ` · ${fmtDay(d.delivery_date)}` : ''}{d.delivery_method === 'pickup' ? ' · pick-up' : d.delivery_via ? ` · ${d.delivery_via}` : ''}</span>
                   <span className="ml-auto flex items-center gap-1.5">
                     <a href={`/sales/${quote.quote_id}/do?do=${d.do_id}`} target="_blank" rel="noopener noreferrer"
                       className="px-2 py-1 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 text-[10px] font-semibold transition-colors">Surat Jalan</a>

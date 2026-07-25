@@ -7,6 +7,7 @@ import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { fetchWarehouses, defaultWarehouse, rollUpOne, type Warehouse } from '@/lib/warehouses';
 import { COMMITTED_STATUSES as COMMITTED } from '@/lib/salesStatus';
 import { fetchDeliveredByQuoteComp } from '@/lib/reservedStock';
+import { fmtDay, fmtInt } from '@/lib/formatters';
 
 /**
  * Per-item stock panel, opened from the Catalog's Component Editor.
@@ -19,8 +20,6 @@ import { fetchDeliveredByQuoteComp } from '@/lib/reservedStock';
 
 interface Movement { movement_id: string; direction: string; quantity: number; unit_cost_idr: number; source_type: string; moved_at: string; notes: string; created_by_email: string; }
 
-const fmtInt = (n: number) => Math.round(n).toLocaleString('en-US');
-const fmtDate = (d?: string | null) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '';
 const numOf = (v: unknown): number => { if (v === '' || v == null) return 0; const n = Number(String(v).replace(/[, ]/g, '')); return isNaN(n) ? 0 : n; };
 
 export default function StockModal({ componentId, componentName, unit, anchor, onClose }: {
@@ -268,7 +267,7 @@ export default function StockModal({ componentId, componentName, unit, anchor, o
                         <span className="tabular-nums text-slate-300 w-14 text-right flex-shrink-0">{m.direction === 'out' ? '−' : ''}{fmtInt(Number(m.quantity))}</span>
                         <span className="text-slate-500 flex-1 truncate">{m.source_type}{m.notes ? ` · ${m.notes}` : ''}</span>
                         {Number(m.unit_cost_idr) > 0 && <span className="tabular-nums text-slate-500 flex-shrink-0">@ {fmtInt(Number(m.unit_cost_idr))}</span>}
-                        <span className="text-slate-600 w-16 text-right tabular-nums flex-shrink-0">{fmtDate(m.moved_at)}</span>
+                        <span className="text-slate-600 w-16 text-right tabular-nums flex-shrink-0">{fmtDay(m.moved_at)}</span>
                       </div>
                     ))}
                   </div>

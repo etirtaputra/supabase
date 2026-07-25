@@ -5,6 +5,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { computeTierChain } from '@/lib/tierPricing';
+import { fmtInt } from '@/lib/formatters';
 
 /**
  * Per-item tier pricing, opened from the Catalog's Component Editor (Sell Price
@@ -23,7 +24,6 @@ interface Tier {
 }
 interface Override { price_id?: string; tier_id: string; override_price_idr: number | null; override_discount_pct: number | null; }
 
-const fmtInt = (n: number) => Math.round(n).toLocaleString('en-US');
 const num = (v: unknown): number | null => {
   if (v === '' || v === null || v === undefined) return null;
   const n = Number(String(v).replace(/[, ]/g, ''));

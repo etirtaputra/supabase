@@ -4,6 +4,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { COMMITTED_STATUSES as COMMITTED } from '@/lib/salesStatus';
 import { rollUpOne } from '@/lib/warehouses';
 import { fetchDeliveredByQuoteComp } from '@/lib/reservedStock';
+import { fmtInt } from '@/lib/formatters';
 
 /**
  * Compact per-item stock summary for the Component Editor's Inspect panel:
@@ -11,7 +12,6 @@ import { fetchDeliveredByQuoteComp } from '@/lib/reservedStock';
  * Self-contained fetch; renders nothing until loaded (and a quiet dash row if
  * the inventory tables aren't installed).
  */
-const fmtInt = (n: number) => Math.round(n).toLocaleString('en-US');
 
 export default function StockSummaryCard({ componentId, unit }: { componentId: string; unit?: string | null }) {
   const supabase = createSupabaseClient();

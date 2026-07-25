@@ -12,6 +12,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
+import { fmtDay, fmtInt } from '@/lib/formatters';
 
 // One row per Delivery Order (24.0) once DOs exist, plus "awaiting DO" rows
 // for confirmed/invoiced orders with nothing shipped yet.
@@ -24,8 +25,6 @@ interface Quote {
 interface Customer { customer_id: string; display_name: string; legal_name: string; }
 interface ItemAgg { count: number; qty: number; }
 
-const fmtInt = (n: number) => Math.round(n).toLocaleString('en-US');
-const fmtDate = (d?: string | null) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '';
 
 export default function DeliveryPage() {
   const supabase = createSupabaseClient();
@@ -175,8 +174,8 @@ export default function DeliveryPage() {
                       </span>
                       <span className="md:text-right text-[11px] text-slate-500 tabular-nums">
                         {q.status === 'preparing' && q.delivery_date
-                          ? <>target {fmtDate(q.delivery_date)}{q.delivery_time ? <span className="block text-[10px] text-slate-600">{q.delivery_time}</span> : null}</>
-                          : <>ordered {fmtDate(q.ordered_at)}</>}
+                          ? <>target {fmtDay(q.delivery_date)}{q.delivery_time ? <span className="block text-[10px] text-slate-600">{q.delivery_time}</span> : null}</>
+                          : <>ordered {fmtDay(q.ordered_at)}</>}
                       </span>
                     </button>
                   );
@@ -210,7 +209,7 @@ export default function DeliveryPage() {
                         {agg ? `${agg.count} line${agg.count !== 1 ? 's' : ''} · ${fmtInt(agg.qty)} pcs` : '—'}
                       </span>
                       <span><span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/15 text-emerald-300">Delivered</span></span>
-                      <span className="md:text-right text-[11px] text-slate-500 tabular-nums">{fmtDate(q.delivered_at)}</span>
+                      <span className="md:text-right text-[11px] text-slate-500 tabular-nums">{fmtDay(q.delivered_at)}</span>
                     </button>
                   );
                 })}

@@ -37,10 +37,8 @@ interface DocRef { number: string; customer: string; qty: number; date: string; 
 // PO statuses that mean "ordered, on the way, not yet arrived".
 const INCOMING_PO_STATUSES = new Set(['Sent', 'Confirmed', 'Partially Received']);
 
-const fmtInt = (n: number) => Math.round(n).toLocaleString('en-US');
-const fmtRp = (n: number) => `Rp ${fmtInt(n)}`;
-const fmtDate = (d?: string | null) => d ? new Date(d.length <= 10 ? `${d}T00:00:00` : d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '';
 import { formatCategory as humanize } from '@/lib/formatCategory';
+import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 // The product's customer-facing name: our internal description, never the supplier's model/SKU.
 const descOf = (c: { internal_description: string | null; supplier_model: string }) =>
   (c.internal_description && c.internal_description.trim()) || c.supplier_model || '(no description)';
@@ -501,7 +499,7 @@ function ProductsInner() {
                         <button onClick={(e) => { e.stopPropagation(); copyPrice(r.c, r.c.selling_price_idr!); }}
                           title="Click to copy this price (excl. PPN) for WhatsApp"
                           className="block ml-auto tabular-nums text-sm text-slate-200 hover:text-emerald-300 transition-colors">
-                          {fmtRp(r.c.selling_price_idr)}
+                          {fmtRupiah(r.c.selling_price_idr)}
                         </button>
                       ) : <span className="block tabular-nums text-sm text-slate-700">—</span>}
                       {activeTiers.length > 0 && r.c.selling_price_idr ? (
@@ -524,7 +522,7 @@ function ProductsInner() {
                         </a>
                       ) : <span className="text-slate-700">—</span>}
                     </td>
-                    <td className="px-3 py-2 text-right text-[11px] text-slate-500 tabular-nums whitespace-nowrap">{fmtDate(r.c.updated_at)}</td>
+                    <td className="px-3 py-2 text-right text-[11px] text-slate-500 tabular-nums whitespace-nowrap">{fmtDay(r.c.updated_at)}</td>
                   </tr>
                   {expanded === r.c.component_id && (
                     <tr>
@@ -578,7 +576,7 @@ function ProductsInner() {
                       <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); copyPrice(r.c, r.c.selling_price_idr!); }}
                         title="Tap to copy this price for WhatsApp"
                         className="px-2 py-1 rounded-lg bg-slate-800 text-slate-200 text-[11px] font-semibold tabular-nums active:text-emerald-300">
-                        {fmtRp(r.c.selling_price_idr)}
+                        {fmtRupiah(r.c.selling_price_idr)}
                       </span>
                     ) : null}
                     {activeTiers.map((t) => {
@@ -587,7 +585,7 @@ function ProductsInner() {
                         <span key={t.tier_id} role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); copyPrice(r.c, p); }}
                           title={`Tap to copy ${t.name} price for WhatsApp`}
                           className="px-2 py-1 rounded-lg bg-slate-800/60 text-[11px] tabular-nums text-slate-400 active:text-emerald-300">
-                          {t.name} <span className="text-slate-200 font-semibold">{fmtRp(p)}</span>
+                          {t.name} <span className="text-slate-200 font-semibold">{fmtRupiah(p)}</span>
                         </span>
                       ) : null;
                     })}
@@ -715,7 +713,7 @@ function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEdi
         {c.selling_price_idr ? (
           <button onClick={() => onCopyPrice(c, c.selling_price_idr!)} title="Net price = Tier-1 · copy (excl. PPN) for WhatsApp"
             className="px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700 hover:border-emerald-500/40 text-[11px] transition-colors">
-            <span className="text-slate-500">Net</span> <span className="tabular-nums text-slate-200 font-semibold">{fmtRp(c.selling_price_idr)}</span>
+            <span className="text-slate-500">Net</span> <span className="tabular-nums text-slate-200 font-semibold">{fmtRupiah(c.selling_price_idr)}</span>
           </button>
         ) : (
           <span className="text-[11px] text-slate-600 italic">No net price — <Link href="/catalog" className="text-emerald-400 hover:text-emerald-300">set it in Catalog</Link></span>
@@ -731,7 +729,7 @@ function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEdi
             <button key={t.tier_id} onClick={() => onCopyPrice(c, p)} title={`Copy ${t.name} price (excl. PPN) for WhatsApp`}
               className="px-2.5 py-1 rounded-lg bg-slate-800/60 border border-slate-700 hover:border-emerald-500/40 text-[11px] transition-colors">
               <span className="text-slate-500">{t.name}</span>{' '}
-              <span className="tabular-nums text-slate-200 font-semibold">{fmtRp(p)}</span>
+              <span className="tabular-nums text-slate-200 font-semibold">{fmtRupiah(p)}</span>
             </button>
           );
         })}
@@ -796,7 +794,7 @@ function DocList({ title, empty, refs, accent, unit }: { title: string; empty: s
               <span className={`font-mono flex-shrink-0 hover:underline ${accent}`}>{r.number}</span>
               <span className="text-slate-400 truncate flex-1">{r.customer || '—'}</span>
               <span className="text-slate-300 tabular-nums flex-shrink-0">{fmtInt(r.qty)}{unit ? ` ${unit}` : ''}</span>
-              <span className="text-slate-600 tabular-nums flex-shrink-0">{fmtDate(r.date)}</span>
+              <span className="text-slate-600 tabular-nums flex-shrink-0">{fmtDay(r.date)}</span>
             </a>
           ))}
         </div>

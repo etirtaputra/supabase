@@ -26,6 +26,7 @@ import Link from 'next/link';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { computeTierChain } from '@/lib/tierPricing';
+import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 
 interface Tier {
   tier_id: string; tier_code: string; name: string;
@@ -43,9 +44,6 @@ interface Comp {
 }
 interface Bal { component_id: string; qty_on_hand: number; avg_cost_idr: number | null; }
 
-const fmtInt = (n: number) => Math.round(n).toLocaleString('en-US');
-const fmtRp = (n: number) => `Rp ${fmtInt(n)}`;
-const fmtDate = (d?: string | null) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '';
 const descOf = (c: Comp) => (c.internal_description && c.internal_description.trim()) || c.supplier_model || '(no description)';
 const num = (v: unknown): number | null => {
   if (v === '' || v === null || v === undefined) return null;
@@ -288,7 +286,7 @@ export default function PricingPage() {
       { component_id: v.comp.component_id, tier_id: v.tier.tier_id, override_price_idr: v.minPrice, override_discount_pct: null },
       { onConflict: 'component_id,tier_id' });
     if (error) { flash(`Failed: ${error.message}`); return; }
-    flash(`${descOf(v.comp)} · ${v.tier.name} → ${fmtRp(v.minPrice)}`);
+    flash(`${descOf(v.comp)} · ${v.tier.name} → ${fmtRupiah(v.minPrice)}`);
     fetchAll();
   }
 
@@ -500,7 +498,7 @@ function TiersTab({ tiers, custTierCounts, overridesByTier, violationsByTier, sa
                 <p className="text-[10px] text-slate-600">
                   {isNetTier
                     ? 'e.g. item entered at Rp 100,000 → this tier sells at Rp 100,000.'
-                    : <>e.g. net Rp 100,000 → <span className="text-slate-400 tabular-nums">{fmtRp(ex.price)}</span> here{ex.actualMarginPct != null ? <> · actual +{ex.actualMarginPct.toFixed(1)}% on {prevTier?.name} after rounding</> : null}</>}
+                    : <>e.g. net Rp 100,000 → <span className="text-slate-400 tabular-nums">{fmtRupiah(ex.price)}</span> here{ex.actualMarginPct != null ? <> · actual +{ex.actualMarginPct.toFixed(1)}% on {prevTier?.name} after rounding</> : null}</>}
                 </p>
               )}
 
@@ -586,7 +584,7 @@ function AuditTab({ violations, allCount, totalLeakage, itemsNoCost, tiers, sear
       {/* Economics up top: what's at stake if this stock sells at current prices */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
         <Stat label="Prices below floor" value={String(allCount)} tone={allCount ? 'red' : 'green'} />
-        <Stat label="Margin at risk (on-hand)" value={totalLeakage ? fmtRp(totalLeakage) : 'Rp 0'} tone={totalLeakage ? 'red' : 'green'}
+        <Stat label="Margin at risk (on-hand)" value={totalLeakage ? fmtRupiah(totalLeakage) : 'Rp 0'} tone={totalLeakage ? 'red' : 'green'}
           hint="If current on-hand stock sells at these prices instead of the floor minimum" />
         <Stat label="Tiers audited" value={String(tiers.length)} tone="neutral" />
         <Stat label="Priced items without landed cost" value={String(itemsNoCost)} tone={itemsNoCost ? 'amber' : 'green'}
@@ -653,13 +651,13 @@ function AuditTab({ violations, allCount, totalLeakage, itemsNoCost, tiers, sear
                     {v.tier.name}
                     {v.ov && <span className="block text-[9px] text-emerald-500/70">override</span>}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-sm text-slate-200 whitespace-nowrap">{fmtRp(v.price)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400 whitespace-nowrap">{fmtRp(v.cost)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-sm text-slate-200 whitespace-nowrap">{fmtRupiah(v.price)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400 whitespace-nowrap">{fmtRupiah(v.cost)}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-sm font-semibold text-red-400 whitespace-nowrap">{v.gp.toFixed(1)}%</td>
                   <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-500">{v.tier.margin_floor_pct}%</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-xs text-emerald-300/90 whitespace-nowrap">{v.minPrice != null ? fmtRp(v.minPrice) : '—'}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-xs text-emerald-300/90 whitespace-nowrap">{v.minPrice != null ? fmtRupiah(v.minPrice) : '—'}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-xs whitespace-nowrap">
-                    {v.leakage > 0 ? <span className="text-red-300">{fmtRp(v.leakage)}</span> : <span className="text-slate-700">—</span>}
+                    {v.leakage > 0 ? <span className="text-red-300">{fmtRupiah(v.leakage)}</span> : <span className="text-slate-700">—</span>}
                   </td>
                   <td className="px-3 py-2 text-right whitespace-nowrap">
                     <span className="inline-flex gap-1.5">
@@ -670,8 +668,8 @@ function AuditTab({ violations, allCount, totalLeakage, itemsNoCost, tiers, sear
                       )}
                       {v.minPrice != null && (
                         <button onClick={() => onRaise(v)}
-                          title={`Write a ${v.tier.name} override at ${fmtRp(v.minPrice)}`}
-                          className="px-2 py-1 rounded-lg bg-emerald-600/15 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-600/25 text-[11px] font-semibold transition-colors">↑ {fmtRp(v.minPrice)}</button>
+                          title={`Write a ${v.tier.name} override at ${fmtRupiah(v.minPrice)}`}
+                          className="px-2 py-1 rounded-lg bg-emerald-600/15 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-600/25 text-[11px] font-semibold transition-colors">↑ {fmtRupiah(v.minPrice)}</button>
                       )}
                     </span>
                   </td>
@@ -750,9 +748,9 @@ function OverridesTab({ rows, search, setSearch, onClear, costOf }: {
                     <td className="px-4 py-2"><p className="text-sm text-slate-100 truncate max-w-[300px]">{descOf(comp)}</p></td>
                     <td className="px-3 py-2 text-xs text-slate-400 whitespace-nowrap">{tier.name}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-sm text-emerald-300 font-semibold whitespace-nowrap">
-                      {o.override_price_idr != null ? fmtRp(o.override_price_idr) : o.override_discount_pct != null ? `−${o.override_discount_pct}%` : '—'}
+                      {o.override_price_idr != null ? fmtRupiah(o.override_price_idr) : o.override_discount_pct != null ? `−${o.override_discount_pct}%` : '—'}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-500 whitespace-nowrap">{defPrice != null ? fmtRp(defPrice) : '—'}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-500 whitespace-nowrap">{defPrice != null ? fmtRupiah(defPrice) : '—'}</td>
                     <td className={`px-3 py-2 text-right tabular-nums text-xs whitespace-nowrap ${delta == null ? 'text-slate-700' : delta < 0 ? 'text-amber-300/90' : 'text-emerald-400/80'}`}>
                       {delta == null ? '—' : `${delta > 0 ? '+' : ''}${delta.toFixed(1)}%`}
                     </td>
@@ -760,7 +758,7 @@ function OverridesTab({ rows, search, setSearch, onClear, costOf }: {
                       {gp == null ? '—' : `${gp.toFixed(1)}%${belowFloor ? ' ⚠' : ''}`}
                     </td>
                     <td className="px-3 py-2 text-[11px] text-slate-500 whitespace-nowrap">
-                      {fmtDate(o.updated_at)}{o.updated_by_email ? <span className="text-slate-700"> · {o.updated_by_email.split('@')[0]}</span> : ''}
+                      {fmtDay(o.updated_at)}{o.updated_by_email ? <span className="text-slate-700"> · {o.updated_by_email.split('@')[0]}</span> : ''}
                     </td>
                     <td className="px-3 py-2 text-right whitespace-nowrap">
                       <button onClick={() => onClear(o.price_id)} title="Remove the override — back to list − tier %"

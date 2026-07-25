@@ -195,7 +195,7 @@ export default function Home() {
         <div className="max-w-[1800px] 2xl:max-w-[2460px] mx-auto px-3 sm:px-4 md:px-6 xl:px-8 py-4 flex items-center justify-between gap-4">
           <BrandMenu
             wordmarkClass="text-xl md:text-2xl font-extrabold"
-            subtitle={new Date().toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
+            subtitle={new Date().toLocaleDateString('en-GB', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
           />
         </div>
       </div>
@@ -221,7 +221,7 @@ export default function Home() {
               color: stats.outstandingIdr > 0 ? 'text-amber-300' : 'text-emerald-300',
               ring: stats.outstandingIdr > 0 ? 'ring-amber-500/20' : 'ring-emerald-500/20' },
             { label: 'Paid This Month', value: loading ? '—' : fmtIdr(stats.paidThisMonthIdr),
-              sub: new Date().toLocaleDateString('en-US', { month: 'long' }), color: 'text-rose-300', ring: 'ring-rose-500/20' },
+              sub: new Date().toLocaleDateString('en-GB', { month: 'long' }), color: 'text-rose-300', ring: 'ring-rose-500/20' },
             { label: 'Stock Value', value: stockValue == null ? '—' : fmtIdr(stockValue), sub: 'on-hand × avg landed cost', color: 'text-violet-300', ring: 'ring-violet-500/20' },
             { label: 'Active POs', value: loading ? '—' : stats.activePOs.toString(), sub: 'not cancelled', color: 'text-sky-300', ring: 'ring-sky-500/20' },
             { label: 'Components', value: loading ? '—' : stats.componentCount.toLocaleString('en-US'), sub: 'in catalog', color: 'text-emerald-300', ring: 'ring-emerald-500/20' },

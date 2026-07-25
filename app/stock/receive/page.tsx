@@ -21,10 +21,8 @@ import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { TAX_CATS } from '@/constants/costCategories';
 import type { PurchaseOrder, PurchaseLineItem, POCost } from '@/types/database';
 import { fetchWarehouses, defaultWarehouse, type Warehouse } from '@/lib/warehouses';
+import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 
-const fmtInt = (n: number) => Math.round(n).toLocaleString('en-US');
-const fmtRp = (n: number) => 'Rp ' + fmtInt(n);
-const fmtDate = (d?: string | null) => d ? new Date(d.length <= 10 ? `${d}T00:00:00` : d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '';
 const numOf = (v: unknown): number => { if (v === '' || v == null) return 0; const n = Number(String(v).replace(/[, ]/g, '')); return isNaN(n) ? 0 : n; };
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -295,7 +293,7 @@ function ReceivePage() {
                         <div className="hidden md:grid grid-cols-[150px_1fr_110px_130px_110px_110px] gap-3 px-4 py-2.5 items-center">
                           <span className="text-sky-300 font-semibold truncate">{po.po_number || k}</span>
                           <span className="text-slate-300 truncate">{supplierOfPo(po) || '—'}</span>
-                          <span className="text-[11px] text-slate-500">{fmtDate(po.po_date)}</span>
+                          <span className="text-[11px] text-slate-500">{fmtDay(po.po_date)}</span>
                           <span className="text-[11px] text-slate-400">{po.status ?? '—'}</span>
                           <span className="text-right tabular-nums text-slate-300">{fmtInt(ordered)}</span>
                           <span className={`text-right tabular-nums font-semibold ${out > 0 ? 'text-amber-300' : 'text-slate-600'}`}>{fmtInt(out)}</span>
@@ -305,7 +303,7 @@ function ReceivePage() {
                             <span className="text-sky-300 font-semibold truncate">{po.po_number || k}</span>
                             <span className={`tabular-nums text-[11px] font-semibold ${out > 0 ? 'text-amber-300' : 'text-slate-600'}`}>{fmtInt(out)} left</span>
                           </div>
-                          <p className="text-[11px] text-slate-500 truncate mt-0.5">{supplierOfPo(po) || '—'} · {fmtDate(po.po_date)} · {po.status ?? ''}</p>
+                          <p className="text-[11px] text-slate-500 truncate mt-0.5">{supplierOfPo(po) || '—'} · {fmtDay(po.po_date)} · {po.status ?? ''}</p>
                         </div>
                       </button>
                     );
@@ -392,7 +390,7 @@ function ReceivePage() {
                             <input value={l.cost} inputMode="decimal" onChange={(e) => setLine(i, { cost: e.target.value })}
                               className={`${inp} text-right`} placeholder="IDR/unit" title="Landed unit cost (IDR) — feeds the moving average" />
                           </span>
-                          <span className="block text-right tabular-nums text-slate-200 font-medium">{numOf(l.qty) > 0 ? fmtRp(numOf(l.qty) * numOf(l.cost)) : '—'}</span>
+                          <span className="block text-right tabular-nums text-slate-200 font-medium">{numOf(l.qty) > 0 ? fmtRupiah(numOf(l.qty) * numOf(l.cost)) : '—'}</span>
                         </div>
                         {over && <p className="text-[10px] text-amber-400 mt-1 md:text-right">Receiving more than outstanding ({fmtInt(left)}) — over-receipt will be recorded as-is.</p>}
                       </div>
@@ -406,7 +404,7 @@ function ReceivePage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <p className="text-[12px] text-slate-500">
                 Receiving <span className="text-slate-200 font-semibold tabular-nums">{fmtInt(receiveNowTotal)}</span> units ·
-                stock value in <span className="text-sky-300 font-semibold tabular-nums"> {fmtRp(receiveValue)}</span>
+                stock value in <span className="text-sky-300 font-semibold tabular-nums"> {fmtRupiah(receiveValue)}</span>
               </p>
               <div className="flex items-center gap-2">
                 {posted && (

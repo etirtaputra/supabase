@@ -21,6 +21,7 @@ import type { EconAssumptions } from '@/lib/energyEconomics';
 import { PROJECT_TYPES, composeDescription, specFileTag, isSolarType, type ProjectType, type SystemSpecs, type Phase } from '@/lib/projectSpec';
 import { SECTION_GROUPS, STANDARD_SECTIONS, QUOTE_UNITS, type SectionGroup, type ProjectQuote, type QuoteSection, type QuoteItem } from '@/types/quotes';
 import type { Component } from '@/types/database';
+import { fmtDayTime } from '@/lib/formatters';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -131,8 +132,7 @@ function fmtIdr(v: number | null | undefined) {
 }
 
 function fmtDateTime(s: string | undefined) {
-  if (!s) return '';
-  return new Date(s).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return fmtDayTime(s);   // internal screen — house en-GB style
 }
 
 const ACTIVITY_BADGE: Record<string, string> = {

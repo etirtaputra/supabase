@@ -16,6 +16,7 @@ import SalesMilestones from '@/components/ui/SalesMilestones';
 import FulfillmentPanel, { type SoLine, type Invoice, type InvItem, type DeliveryOrder, type DoItem } from '@/components/ui/FulfillmentPanel';
 import { SALES_STATUS as STATUS, COMMITTED_STATUSES as COMMITTED } from '@/lib/salesStatus';
 import { tierPriceFor } from '@/lib/tierPricing';
+import { fmtDay, fmtInt } from '@/lib/formatters';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
@@ -58,7 +59,6 @@ const RECEIPT_CATS: { value: string; label: string }[] = [
   { value: 'balance_payment', label: 'Balance Payment' },
 ];
 
-const fmtInt = (n: number) => Math.round(n).toLocaleString('en-US');
 const num = (v: unknown): number => {
   if (v === '' || v === null || v === undefined) return 0;
   const n = Number(String(v).replace(/[, ]/g, ''));
@@ -733,8 +733,7 @@ function PaymentsPanel({ receipts, billTotal, received, canRecord, quoteId, invo
   const [showModal, setShowModal] = useState(false);
   const outstanding = Math.max(0, billTotal - received);
   const pct = billTotal > 0 ? Math.min(100, (received / billTotal) * 100) : 0;
-  const fmtD = (d?: string | null) => d ? new Date(d.length <= 10 ? `${d}T00:00:00` : d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '';
-
+  
   async function removeReceipt(r: Receipt) {
     const { error } = await supabase.from('26.0_customer_receipts').delete().eq('receipt_id', r.receipt_id);
     if (error) { flash(`Failed: ${error.message}`); return; }
@@ -768,7 +767,7 @@ function PaymentsPanel({ receipts, billTotal, received, canRecord, quoteId, invo
               <span className="text-slate-400">{RECEIPT_CATS.find((c) => c.value === r.category)?.label ?? r.category}</span>
               <span className="text-slate-500">{METHOD_LABELS[r.payment_method] ?? r.payment_method}{r.bank_ref ? ` · ${r.bank_ref}` : ''}</span>
               <span className="ml-auto tabular-nums text-emerald-200 font-semibold">{fmtInt(Number(r.amount))}</span>
-              <span className="text-slate-600 tabular-nums">{fmtD(r.payment_date)}</span>
+              <span className="text-slate-600 tabular-nums">{fmtDay(r.payment_date)}</span>
               {canRecord && (
                 <button onClick={() => removeReceipt(r)} className="text-slate-600 hover:text-red-400 transition-colors" title="Remove payment">×</button>
               )}

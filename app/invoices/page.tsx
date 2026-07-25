@@ -11,6 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
+import { fmtDay, fmtInt } from '@/lib/formatters';
 
 // One row per REAL invoice (25.0) — an order split across several invoices
 // shows several rows, each with its own payment state.
@@ -21,12 +22,10 @@ interface Quote {
 }
 interface Customer { customer_id: string; display_name: string; legal_name: string; }
 
-const fmtInt = (n: number) => Math.round(n).toLocaleString('en-US');
 const fmtIdr = (n: number) =>
   n >= 1_000_000_000 ? `IDR ${(n / 1_000_000_000).toFixed(2)}B`
   : n >= 1_000_000   ? `IDR ${(n / 1_000_000).toFixed(1)}M`
   : `IDR ${fmtInt(n)}`;
-const fmtDate = (d?: string | null) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '';
 
 export default function InvoicesPage() {
   const supabase = createSupabaseClient();
@@ -170,7 +169,7 @@ export default function InvoicesPage() {
                       <span className="block text-[10px] text-slate-600 font-mono">{q.quote_number}{q.kind === 'progress' ? ` · ${Number(q.pct ?? 0)}%` : ''}</span>
                     </span>
                     <span className="text-sm text-slate-100 truncate">{c?.display_name || c?.legal_name || <span className="text-slate-600">No customer</span>}</span>
-                    <span className="md:text-right text-[11px] text-slate-500 tabular-nums">{fmtDate(q.invoiced_at)}</span>
+                    <span className="md:text-right text-[11px] text-slate-500 tabular-nums">{fmtDay(q.invoiced_at)}</span>
                     <span className="md:text-right tabular-nums text-slate-200">{fmtInt(total)}</span>
                     <span className="md:text-right">
                       <span className="block tabular-nums text-[13px] text-slate-300">{fmtInt(rcv)}</span>

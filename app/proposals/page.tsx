@@ -8,7 +8,7 @@ import { useQuotesGate } from '@/hooks/useQuotesGate';
 import { computeTUCMap, getComponentCost, type TUCResult, type CostEntry } from '@/lib/computeTUC';
 import { fetchUsedEntries } from '@/lib/usedPrices';
 import { lineWp } from '@/lib/quoteWp';
-import { fmtRp } from '@/lib/formatters';
+import { fmtDay, fmtDayTime, fmtRp } from '@/lib/formatters';
 import MigrationBanner from '@/components/ui/MigrationBanner';
 import BrandMenu from '@/components/ui/BrandMenu';
 import MobileNotice from '@/components/ui/MobileNotice';
@@ -33,17 +33,13 @@ const STATUS_SECTIONS: { key: string; label: string; accent: string; rule: strin
 ];
 
 function fmtDate(d: string) {
-  if (!d) return '—';
-  return new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+  return fmtDay(d) || '—';
 }
 
 // Date + time (local tz, WIB for the team) for "last edited" — the list needs
 // the time of day, not just the day, to tell same-day edits apart.
 function fmtDateTime(d?: string | null) {
-  if (!d) return '—';
-  const dt = new Date(d);
-  if (isNaN(dt.getTime())) return '—';
-  return dt.toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return fmtDayTime(d) || '—';
 }
 
 export default function QuotesListPage() {

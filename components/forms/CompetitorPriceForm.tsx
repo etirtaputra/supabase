@@ -18,6 +18,7 @@ import type {
   Supplier,
 } from '../../types/database';
 import { ENUMS } from '../../constants/enums';
+import { fmtDay } from '@/lib/formatters';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -33,7 +34,7 @@ function fmtCcy(val: number, currency: string) {
 
 function fmtDate(ts?: string) {
   if (!ts) return '—';
-  return new Date(ts).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  return fmtDay(ts);
 }
 
 // ─── Mini component search input ───────────────────────────────────────────

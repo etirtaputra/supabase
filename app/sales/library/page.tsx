@@ -11,10 +11,10 @@ import { useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import BrandMenu from '@/components/ui/BrandMenu';
+import { fmtInt } from '@/lib/formatters';
 
 interface Entry { entry_id: string; description: string; unit: string; default_price: number | null; notes: string; updated_at?: string; }
 
-const fmtInt = (n: number) => Math.round(n).toLocaleString('en-US');
 const num = (v: string): number | null => {
   const n = Number(v.replace(/[, ]/g, ''));
   return v.trim() === '' || isNaN(n) ? null : n;

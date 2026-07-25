@@ -14,9 +14,9 @@ import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 import BrandMenu from '@/components/ui/BrandMenu';
 import type { Supplier, PriceQuote, PurchaseOrder, POCost, PurchaseLineItem, Component } from '@/types/database';
+import { fmtDay } from '@/lib/formatters';
 
 const fmtIdr = (n: number) => 'Rp' + Math.round(n).toLocaleString('en-US');
-const fmtDate = (d?: string | null) => d ? new Date(d.length <= 10 ? `${d}T00:00:00` : d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '';
 const lookupHref = (n: string) => `/catalog?tab=lookup&q=${encodeURIComponent(n)}`;
 
 interface SupplierStats {
@@ -282,7 +282,7 @@ function SupplierProfile({ supplier, stats, poItems, components, poPaidIdr, poId
                     <span className="ml-auto tabular-nums text-slate-200 font-semibold flex-shrink-0">
                       {d.amountIdr != null ? fmtIdr(d.amountIdr) : d.sub}
                     </span>
-                    <span className="text-[10px] text-slate-600 tabular-nums flex-shrink-0">{fmtDate(d.date)}</span>
+                    <span className="text-[10px] text-slate-600 tabular-nums flex-shrink-0">{fmtDay(d.date)}</span>
                   </a>
                 ))}
               </div>

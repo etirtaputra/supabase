@@ -21,6 +21,7 @@ import { formatCategory as humanize } from '@/lib/formatCategory';
 import { fetchWarehouses, warehouseLabel, type Warehouse } from '@/lib/warehouses';
 import { COMMITTED_STATUSES as COMMITTED } from '@/lib/salesStatus';
 import { fetchDeliveredByQuoteComp } from '@/lib/reservedStock';
+import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 
 /** An order line still waiting on stock — what the shortage is FOR. */
 interface DemandRef { quote_id: string; number: string; customer: string; qty: number; date: string }
@@ -30,9 +31,6 @@ interface Comp { component_id: string; supplier_model: string; internal_descript
 interface Balance { component_id: string; location: string; qty_on_hand: number; avg_cost_idr: number; updated_at: string | null; }
 interface LastMove { direction: string; source_type: string; moved_at: string; }
 
-const fmtInt = (n: number) => Math.round(n).toLocaleString('en-US');
-const fmtRp = (n: number) => 'Rp ' + fmtInt(n);
-const fmtDate = (d?: string | null) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '';
 
 type SortKey = 'value' | 'qty' | 'item' | 'moved';
 
@@ -277,7 +275,7 @@ export default function StockPage() {
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
           {[
             { label: 'SKUs in stock', v: fmtInt(totals.skus), cls: 'text-slate-100' },
-            { label: 'Stock value (avg landed)', v: fmtRp(totals.value), cls: 'text-sky-300' },
+            { label: 'Stock value (avg landed)', v: fmtRupiah(totals.value), cls: 'text-sky-300' },
             { label: 'Negative on-hand', v: fmtInt(totals.negatives), cls: totals.negatives > 0 ? 'text-red-400' : 'text-slate-500' },
           ].map(({ label, v, cls }) => (
             <div key={label} className="bg-slate-900/40 border border-slate-800/80 rounded-2xl px-4 py-3">
@@ -357,12 +355,12 @@ export default function StockPage() {
                       {fmtInt(r.qty)}{r.c.unit && <span className="text-[10px] text-slate-600 font-normal"> {r.c.unit}</span>}
                     </span>
                     <span className="text-right tabular-nums text-slate-400">{r.avg > 0 ? fmtInt(r.avg) : '—'}</span>
-                    <span className="text-right tabular-nums text-slate-200 font-medium">{r.value !== 0 ? fmtRp(r.value) : '—'}</span>
+                    <span className="text-right tabular-nums text-slate-200 font-medium">{r.value !== 0 ? fmtRupiah(r.value) : '—'}</span>
                     <span className="text-right text-[11px] text-slate-500">
                       {r.last ? (
                         <>
                           <span className={`font-semibold uppercase mr-1 ${r.last.direction === 'in' ? 'text-emerald-400' : r.last.direction === 'out' ? 'text-red-400' : 'text-amber-400'}`}>{r.last.direction}</span>
-                          {fmtDate(r.last.moved_at)}
+                          {fmtDay(r.last.moved_at)}
                         </>
                       ) : '—'}
                     </span>
@@ -379,8 +377,8 @@ export default function StockPage() {
                       </span>
                     </div>
                     <div className="flex items-center justify-between mt-1 text-[11px] text-slate-500">
-                      <span>{r.avg > 0 ? `@ ${fmtInt(r.avg)} · ${fmtRp(r.value)}` : '—'}</span>
-                      <span>{r.last ? `${r.last.direction} · ${fmtDate(r.last.moved_at)}` : ''}</span>
+                      <span>{r.avg > 0 ? `@ ${fmtInt(r.avg)} · ${fmtRupiah(r.value)}` : '—'}</span>
+                      <span>{r.last ? `${r.last.direction} · ${fmtDay(r.last.moved_at)}` : ''}</span>
                     </div>
                   </div>
                 </button>

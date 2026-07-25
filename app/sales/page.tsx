@@ -11,6 +11,7 @@ import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 import SalesMigrationBanner from '@/components/ui/SalesMigrationBanner';
 import { SALES_STATUS as STATUS, milestoneIndex } from '@/lib/salesStatus';
+import { fmtDay, fmtInt } from '@/lib/formatters';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
@@ -19,8 +20,6 @@ interface Quote {
 interface Customer { customer_id: string; display_name: string; legal_name: string; }
 interface PreviewLine { quote_id: string; description: string; quantity: number; unit_price: number; is_section: boolean; sort_order: number; }
 
-const fmtInt = (n: number) => Math.round(n).toLocaleString('en-US');
-const fmtDate = (d?: string | null) => d ? new Date(d.length <= 10 ? `${d}T00:00:00` : d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '';
 
 export default function SalesListPage() {
   const supabase = createSupabaseClient();
@@ -154,7 +153,7 @@ export default function SalesListPage() {
                         )}
                       </span>
                       <span className="text-right text-[11px] text-slate-500 tabular-nums flex items-center justify-end gap-2">
-                        {fmtDate(q.updated_at)}
+                        {fmtDay(q.updated_at)}
                         <svg className={`w-3.5 h-3.5 text-slate-600 transition-transform duration-150 ${open ? 'rotate-180 text-slate-400' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
                       </span>
                     </button>

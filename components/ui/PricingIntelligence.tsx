@@ -25,7 +25,7 @@ import type {
 } from '@/types/database';
 
 import { PRINCIPAL_CATS, BANK_FEE_CATS, TAX_CATS, BALANCE_CATS } from '@/constants/costCategories';
-import { fmtIdr, fmtNum } from '@/lib/formatters';
+import { fmtDay, fmtIdr, fmtNum } from '@/lib/formatters';
 
 const CONFIDENCE_WEIGHT: Record<string, number> = { high: 1.0, medium: 0.6, low: 0.3 };
 
@@ -37,7 +37,7 @@ const RECENCY_OPTIONS: { label: string; days: number | null }[] = [
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-const fmtDate = (ts?: string) => ts ? new Date(ts).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+const fmtDate = (ts?: string) => fmtDay(ts) || '—';
 const pct     = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`;
 
 function marginColor(m: number) {

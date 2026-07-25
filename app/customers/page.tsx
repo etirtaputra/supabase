@@ -13,6 +13,7 @@ import BrandMenu from '@/components/ui/BrandMenu';
 import CrmMigrationBanner from '@/components/ui/CrmMigrationBanner';
 import { SALES_STATUS } from '@/lib/salesStatus';
 import { downloadCsv, parseCsv, readFileText } from '@/lib/csv';
+import { fmtDay } from '@/lib/formatters';
 
 // ── Types ─────────────────────────────────────────────────────────────────
 interface Customer {
@@ -637,7 +638,6 @@ function CustomersInner() {
 // ── Profile panel (row click): expands inline under the row — activity,
 //    document links, and stats. Editing opens the slide-over drawer. ─────────
 const fmtIdr = (n: number) => Math.round(n).toLocaleString('en-US');
-const fmtD = (d?: string | null) => d ? new Date(d.length <= 10 ? `${d}T00:00:00` : d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '';
 
 function ProfilePanel({ customer, data, contacts, amName, tierName, onClose, onEdit, onOpenDoc, showEpc }: {
   customer: Customer;
@@ -732,7 +732,7 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, onClose, onE
                               : <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-500/10 text-red-400/90">UNPAID</span>
                           )}
                           <span className="ml-auto tabular-nums text-xs text-slate-200 font-semibold">Rp{fmtIdr(Number(d.grand_total) || 0)}</span>
-                          <span className="text-[10px] text-slate-600 tabular-nums">{fmtD(d.updated_at || d.quote_date)}</span>
+                          <span className="text-[10px] text-slate-600 tabular-nums">{fmtDay(d.updated_at || d.quote_date)}</span>
                         </div>
                         {(d.order_number || d.invoice_number || d.do_number) && (
                           <p className="mt-1 text-[10px] text-slate-500 font-mono flex flex-wrap gap-x-3">
@@ -760,7 +760,7 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, onClose, onE
                       <button key={d.quote_id} onClick={() => onOpenDoc(d.quote_id)}
                         className="w-full text-left flex items-center gap-2 px-3 py-2 hover:bg-slate-800/30 transition-colors text-xs">
                         <span className="font-mono text-[11px] text-slate-300">{d.invoice_number || d.quote_number}</span>
-                        <span className="text-slate-500">{fmtD(d.updated_at || d.quote_date)}</span>
+                        <span className="text-slate-500">{fmtDay(d.updated_at || d.quote_date)}</span>
                         <span className="ml-auto tabular-nums text-amber-300 font-semibold">Rp{fmtIdr(out)} outstanding</span>
                       </button>
                     );
@@ -803,7 +803,7 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, onClose, onE
                           : q.status === 'rejected' ? 'bg-red-500/10 text-red-400/90'
                           : 'bg-slate-700/50 text-slate-300'
                         }`}>{q.status}</span>
-                        <span className="ml-auto text-[10px] text-slate-600 tabular-nums">{fmtD(q.updated_at || q.quote_date)}</span>
+                        <span className="ml-auto text-[10px] text-slate-600 tabular-nums">{fmtDay(q.updated_at || q.quote_date)}</span>
                       </div>
                       {q.project_description && (
                         <p className="mt-1 text-[10px] text-slate-500 truncate">{q.project_description}</p>

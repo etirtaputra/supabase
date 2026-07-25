@@ -23,6 +23,7 @@ import Link from 'next/link';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { formatCategory as humanize } from '@/lib/formatCategory';
+import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 
 interface Comp {
   component_id: string; supplier_model: string; internal_description: string | null;
@@ -37,16 +38,13 @@ interface Customer { customer_id: string; display_name: string; legal_name: stri
 interface Invoice { invoice_id: string; quote_id: string; grand_total: number; issued_at: string | null; }
 interface Receipt { invoice_id: string | null; amount: number; payment_date: string | null; }
 
-const fmtInt = (n: number) => Math.round(n).toLocaleString('en-US');
-const fmtRp = (n: number) => `Rp ${fmtInt(n)}`;
 // Compact rupiah for KPI tiles: 12.4M / 1.2B instead of 11 digits
 const fmtRpShort = (n: number) => {
   const a = Math.abs(n);
   if (a >= 1e9) return `Rp ${(n / 1e9).toFixed(1)}B`;
   if (a >= 1e6) return `Rp ${(n / 1e6).toFixed(1)}M`;
-  return fmtRp(n);
+  return fmtRupiah(n);
 };
-const fmtDate = (d?: string | null) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '';
 const descOf = (c: Comp) => (c.internal_description && c.internal_description.trim()) || c.supplier_model || '(no description)';
 const daysBetween = (a: string, b: string) => (new Date(a).getTime() - new Date(b).getTime()) / 86400000;
 
@@ -462,18 +460,18 @@ export default function EconomicsPage() {
                           <p className="text-[10px] text-slate-600">{r.c.category ? humanize(r.c.category) : '—'}</p>
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-300">{r.soldQty ? `${fmtInt(r.soldQty)}${r.c.unit ? ` ${r.c.unit}` : ''}` : <span className="text-slate-700">—</span>}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-300 whitespace-nowrap">{r.revenue ? fmtRp(r.revenue) : <span className="text-slate-700">—</span>}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-300 whitespace-nowrap">{r.revenue ? fmtRupiah(r.revenue) : <span className="text-slate-700">—</span>}</td>
                         <td className={`px-3 py-2 text-right tabular-nums text-sm font-semibold whitespace-nowrap ${r.revenue === 0 ? 'text-slate-700' : r.gp < 0 ? 'text-red-400' : 'text-emerald-300'}`}>
-                          {r.revenue ? `${fmtRp(r.gp)}${r.cogsEstimated ? ' ~' : ''}` : '—'}
+                          {r.revenue ? `${fmtRupiah(r.gp)}${r.cogsEstimated ? ' ~' : ''}` : '—'}
                         </td>
                         <td className={`px-3 py-2 text-right tabular-nums text-xs ${r.margin == null ? 'text-slate-700' : r.margin < 0 ? 'text-red-400' : 'text-slate-300'}`}>{r.margin != null ? `${r.margin.toFixed(1)}%` : '—'}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-300">{r.onHand ? `${fmtInt(r.onHand)}${r.c.unit ? ` ${r.c.unit}` : ''}` : <span className="text-slate-700">0</span>}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-300 whitespace-nowrap">{r.stockValue ? fmtRp(r.stockValue) : <span className="text-slate-700">—</span>}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-300 whitespace-nowrap">{r.stockValue ? fmtRupiah(r.stockValue) : <span className="text-slate-700">—</span>}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400">{r.dio != null ? `${Math.round(r.dio)}d` : <span className="text-slate-700">—</span>}</td>
-                        <td className="px-3 py-2 text-right text-[11px] text-slate-500 tabular-nums whitespace-nowrap">{r.lastSold ? fmtDate(r.lastSold) : <span className="text-slate-700">never</span>}</td>
+                        <td className="px-3 py-2 text-right text-[11px] text-slate-500 tabular-nums whitespace-nowrap">{r.lastSold ? fmtDay(r.lastSold) : <span className="text-slate-700">never</span>}</td>
                         <td className="px-3 py-2 whitespace-nowrap">
                           <span className="inline-flex gap-1">
-                            {r.inProfit && <Badge tone="emerald" title={`All-time GP ${fmtRp(r.gpAllTime)} ≥ stock value — the remaining stock is already paid for`}>✓ in profit</Badge>}
+                            {r.inProfit && <Badge tone="emerald" title={`All-time GP ${fmtRupiah(r.gpAllTime)} ≥ stock value — the remaining stock is already paid for`}>✓ in profit</Badge>}
                             {r.slow && <Badge tone="amber" title={`No delivery in ${SLOW_DAYS}+ days with stock on hand`}>slow</Badge>}
                             {r.cogsEstimated && <Badge tone="slate" title="Some deliveries predate the ledger — COGS estimated at current avg cost">~ est. COGS</Badge>}
                           </span>
