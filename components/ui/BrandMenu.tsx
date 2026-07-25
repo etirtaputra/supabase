@@ -15,7 +15,7 @@ import { ROLE_PERMISSIONS, type RolePermissions } from '@/constants/roles';
  *    keeps the full menu (all groups + admin + sign-out) for narrow widths.
  *  • Mobile (<md): a fixed bottom tab bar (thumb reach) with Home, the
  *    role's three primary modules, and "More" — a bottom sheet listing every
- *    module, Manage users (owner), and sign-out. Pages with their own bottom
+ *    module, Settings (owner), and sign-out. Pages with their own bottom
  *    action bar (e.g. the sales editor) pass mobileNav={false}.
  * Everything is role-filtered via ROLE_PERMISSIONS sections.
  */
@@ -144,9 +144,10 @@ export default function BrandMenu({
           })}
         </div>
       ))}
-      {/* Owner-only: user management */}
+      {/* Owner-only: Settings (roles + the allowlist live inside it) */}
       {perms?.canManageUsers && (
         <div className="mt-1 pt-1 border-t border-slate-800/70">
+          {/* One entry: user management is a Settings tab, not its own module */}
           <p className="px-2.5 pt-1 pb-1 text-[9px] uppercase tracking-widest text-slate-600">Admin</p>
           <Link href="/settings" onClick={() => { setOpen(false); setMoreOpen(false); }}
             className={`flex items-center justify-between px-2.5 py-2 rounded-lg text-sm transition-colors ${
@@ -154,10 +155,6 @@ export default function BrandMenu({
             }`}>
             Settings
             {isActive('/settings') && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
-          </Link>
-          <Link href="/settings?tab=users" onClick={() => { setOpen(false); setMoreOpen(false); }}
-            className="flex items-center justify-between px-2.5 py-2 rounded-lg text-sm text-slate-300 hover:bg-white/10 hover:text-white transition-colors">
-            Manage users
           </Link>
         </div>
       )}

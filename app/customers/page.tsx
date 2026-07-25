@@ -14,6 +14,7 @@ import CrmMigrationBanner from '@/components/ui/CrmMigrationBanner';
 import { SALES_STATUS } from '@/lib/salesStatus';
 import { downloadCsv, parseCsv, readFileText } from '@/lib/csv';
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
+import { useSettings } from '@/hooks/useSettings';
 
 // ── Types ─────────────────────────────────────────────────────────────────
 interface Customer {
@@ -77,12 +78,12 @@ interface ProfileData {
 
 const CURRENCIES = ['IDR', 'USD', 'EUR', 'CNY', 'SGD'];
 
-const blankCustomer = (): Customer => ({
+const blankCustomer = (tier = ''): Customer => ({
   customer_id: '',
   customer_code: '',
   legal_name: '',
   display_name: '',
-  tier: '',
+  tier,
   account_manager_id: null,
   payment_terms: '',
   default_currency: 'IDR',
@@ -126,6 +127,8 @@ function CustomersInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, profile, loading: authLoading } = useAuth();
+  // A new customer starts on the house tier (Settings › Pricing; blank = none)
+  const { defaultCustomerTier } = useSettings();
 
   const canManage = !!profile && ROLE_PERMISSIONS[profile.role].canManageCustomers;
   const canSeeEpc = !!profile && ROLE_PERMISSIONS[profile.role].projects; // EPC module hidden from roles without access
@@ -260,7 +263,7 @@ function CustomersInner() {
 
   // ── Drawer ──────────────────────────────────────────────────────────────────
   function openDrawer(c: Customer | null) {
-    const target = c ?? blankCustomer();
+    const target = c ?? blankCustomer(defaultCustomerTier);
     setEditing(target);
     setDraftContacts(target.customer_id ? (contactsByCustomer[target.customer_id] ?? []).map((x) => ({ ...x })) : []);
   }

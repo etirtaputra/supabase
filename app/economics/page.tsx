@@ -71,7 +71,8 @@ export default function EconomicsPage() {
   const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
   // "Nothing sold in N days with stock on hand" — N is Settings › Defaults
-  const SLOW_DAYS = useSettings().slowMoverDays;
+  const { slowMoverDays: SLOW_DAYS, economicsPeriod } = useSettings();
+  const isOwner = !!profile && ROLE_PERMISSIONS[profile.role].canManageUsers;   // owner — Settings
   const canView = !!profile && ROLE_PERMISSIONS[profile.role].canManagePricing;
 
   const [comps, setComps] = useState<Comp[]>([]);
@@ -89,7 +90,7 @@ export default function EconomicsPage() {
   const [poPayments, setPoPayments] = useState<{ po_id: string; amount_idr: number; payment_date: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [period, setPeriod] = useState<Period>('365');
+  const [period, setPeriod] = useState<Period>(economicsPeriod);
   const [chip, setChip] = useState<Chip>('all');
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'gp', dir: -1 });
@@ -379,6 +380,13 @@ export default function EconomicsPage() {
                 {p === 'all' ? 'All time' : `${p}d`}
               </button>
             ))}
+            {isOwner && (
+              <Link href="/settings?tab=defaults"
+                className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap ml-1"
+                title={`The slow-mover threshold (${SLOW_DAYS} days) and the period this page opens on are set in Settings`}>
+                Settings →
+              </Link>
+            )}
           </div>
         </div>
       </div>

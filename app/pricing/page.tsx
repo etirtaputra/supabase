@@ -25,7 +25,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
-import { computeTierChain } from '@/lib/tierPricing';
+import { computeTierChain, roundUpToStep } from '@/lib/tierPricing';
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
 
@@ -52,10 +52,10 @@ const num = (v: unknown): number | null => {
   return isNaN(n) ? null : n;
 };
 // Compliant minimum sell price for a floor: cost / (1 − floor%). Rounded UP to
-// the next Rp 1,000 so the suggestion is a clean quotable number.
+// the configured price step so the suggestion is a clean quotable number.
 const minPriceFor = (cost: number, floorPct: number): number | null => {
   if (floorPct >= 95) return null; // nonsense floor — don't divide by ~0
-  return Math.ceil(cost / (1 - floorPct / 100) / 1000) * 1000;
+  return roundUpToStep(cost / (1 - floorPct / 100));
 };
 
 type Tab = 'tiers' | 'audit' | 'overrides';
@@ -72,6 +72,7 @@ export default function PricingPage() {
   const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
   const canManage = !!profile && ROLE_PERMISSIONS[profile.role].canManagePricing;
+  const canManageUsers = !!profile && ROLE_PERMISSIONS[profile.role].canManageUsers;   // owner — Settings
 
   const [tiers, setTiers] = useState<Tier[]>([]);
   const [overrides, setOverrides] = useState<Override[]>([]);
@@ -365,6 +366,12 @@ export default function PricingPage() {
               title="Per-item price entry lives in the Catalog — toolbar → Pricing Mode">
               Per-item entry: Catalog →
             </Link>
+            {canManageUsers && (
+              <Link href="/settings?tab=pricing" className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap"
+                title="Price rounding, the default markup step, margin floor and customer tier live in Settings">
+                Pricing defaults: Settings →
+              </Link>
+            )}
           </div>
         </div>
       </div>
@@ -422,11 +429,14 @@ function TiersTab({ tiers, custTierCounts, overridesByTier, violationsByTier, sa
   onDelete: (t: Tier) => void;
   onGoAudit: (tierId: string) => void;
 }) {
-  const defaultFloor = useSettings().defaultMarginFloorPct;
+  const { defaultMarginFloorPct: defaultFloor, defaultTierStepPct } = useSettings();
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState({ name: '', disc: '', floor: '' });
-  // A new tier starts at the house margin floor (Settings › Defaults)
-  const openAdd = () => { setDraft({ name: '', disc: '', floor: String(defaultFloor) }); setAdding(true); };
+  // A new tier starts at the house markup step + margin floor (Settings › Pricing)
+  const openAdd = () => {
+    setDraft({ name: '', disc: defaultTierStepPct > 0 ? String(defaultTierStepPct) : '', floor: String(defaultFloor) });
+    setAdding(true);
+  };
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   // A worked example makes the chain self-explanatory: what a Rp 100,000 net

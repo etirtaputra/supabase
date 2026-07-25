@@ -30,9 +30,13 @@ import {
 } from '@/lib/settings';
 import { applyCurrency, formatDate, formatNumber } from '@/lib/formatters';
 import { fetchWarehouses, type Warehouse } from '@/lib/warehouses';
+import Link from 'next/link';
 
-type Tab = 'format' | 'defaults' | 'company' | 'users';
-const TABS: [Tab, string][] = [['format', 'Formatting'], ['defaults', 'Defaults'], ['company', 'Company'], ['users', 'Users']];
+type Tab = 'format' | 'pricing' | 'defaults' | 'company' | 'users';
+const TABS: [Tab, string][] = [
+  ['format', 'Formatting'], ['pricing', 'Pricing'], ['defaults', 'Defaults'],
+  ['company', 'Company'], ['users', 'Users'],
+];
 
 const SEPARATORS: { value: string; label: string }[] = [
   { value: ',', label: 'Comma  ,' },
@@ -175,6 +179,7 @@ export default function SettingsPage() {
         )}
 
         {tab === 'format'   && <FormatTab draft={draft} set={set} />}
+        {tab === 'pricing'  && <PricingTab draft={draft} set={set} />}
         {tab === 'defaults' && <DefaultsTab draft={draft} set={set} flash={flash} />}
         {tab === 'company'  && <CompanyTab draft={draft} set={set} />}
         {tab === 'users'    && <UsersTab myId={profile?.id ?? ''} flash={flash} />}
@@ -353,6 +358,88 @@ function FormatTab({ draft, set }: { draft: AppSettings; set: <K extends keyof A
   );
 }
 
+// ── Pricing ─────────────────────────────────────────────────────────────────
+
+interface TierRow { tier_id: string; tier_code: string; name: string; sort_order: number; is_active: boolean }
+
+function PricingTab({ draft, set }: {
+  draft: AppSettings;
+  set: <K extends keyof AppSettings>(k: K, v: AppSettings[K]) => void;
+}) {
+  const supabase = createSupabaseClient();
+  const [tiers, setTiers] = useState<TierRow[]>([]);
+
+  useEffect(() => {
+    supabase.from('21.0_price_tiers').select('tier_id, tier_code, name, sort_order, is_active').order('sort_order')
+      .then(({ data }) => setTiers(((data as TierRow[]) ?? []).filter((t) => t.is_active !== false)));
+  }, []);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  // What the rounding step does to a real number, live
+  const step = Math.max(1, draft.priceRoundingStep);
+  const roundedSample = Math.ceil(1234001 / step) * step;
+
+  return (
+    <div className="space-y-5">
+      <div className="bg-emerald-500/[0.07] border border-emerald-500/25 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <p className="text-xs text-emerald-100/90 leading-relaxed">
+          <span className="font-bold">The tiers themselves live on Pricing.</span> This tab holds the house rules a
+          new tier or a new customer starts from, and the rounding every tier price obeys.
+        </p>
+        <Link href="/pricing" className="text-xs font-semibold text-emerald-300 hover:text-emerald-200 whitespace-nowrap px-3 py-1.5 rounded-lg border border-emerald-500/30 hover:bg-emerald-500/10 transition-colors">
+          Open Pricing →
+        </Link>
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-4">
+        <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 space-y-3.5">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">Markup chain</p>
+            <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+              The price entered on an item IS the first (net) tier; each tier above is
+              previous ÷ (1 − step%), rounded UP to the step below.
+            </p>
+          </div>
+          <Field label="Round prices up to" hint={`Every computed tier price and every "raise to floor" suggestion lands on a multiple of this.`}>
+            <input type="number" min={1} step={100} className={inputCls} value={draft.priceRoundingStep}
+              onChange={(e) => set('priceRoundingStep', Math.max(1, Math.round(Number(e.target.value) || 1)))} />
+          </Field>
+          <p className="text-[11px] text-slate-500 tabular-nums">
+            Preview: {formatNumber(1234001, draft.numberInternal, 0)} → <span className="text-slate-200 font-semibold">{formatNumber(roundedSample, draft.numberInternal, 0)}</span>
+          </p>
+          <Field label="Default markup step %" hint="Prefilled when a new tier is created. 0 leaves the field blank.">
+            <input type="number" step="0.5" min={0} className={inputCls} value={draft.defaultTierStepPct}
+              onChange={(e) => set('defaultTierStepPct', Math.max(0, Number(e.target.value) || 0))} />
+          </Field>
+          <Field label="Default margin floor %" hint="Prefilled when a new tier is created — the minimum GP vs landed cost the Floor Audit polices.">
+            <input type="number" step="1" className={inputCls} value={draft.defaultMarginFloorPct}
+              onChange={(e) => set('defaultMarginFloorPct', Number(e.target.value) || 0)} />
+          </Field>
+        </div>
+
+        <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 space-y-3.5">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">Customers</p>
+            <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+              Which tier a customer sits on decides the price the sales editor fills in.
+            </p>
+          </div>
+          <Field label="Default customer tier"
+            hint="A new customer starts here, and a customer carrying no tier is priced at it. Blank keeps today's behaviour: the item's net price.">
+            <select className={inputCls} value={draft.defaultCustomerTier}
+              onChange={(e) => set('defaultCustomerTier', e.target.value)}>
+              <option value="">No tier — use the item's net price</option>
+              {tiers.map((t) => <option key={t.tier_id} value={t.tier_code}>{t.name} ({t.tier_code})</option>)}
+            </select>
+          </Field>
+          {!tiers.length && (
+            <p className="text-[11px] text-amber-300/80">No active tiers yet — create them on Pricing first.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Defaults ────────────────────────────────────────────────────────────────
 
 function DefaultsTab({ draft, set, flash }: {
@@ -362,9 +449,14 @@ function DefaultsTab({ draft, set, flash }: {
 }) {
   const supabase = createSupabaseClient();
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [companies, setCompanies] = useState<{ company_id: string; legal_name: string }[]>([]);
   const [whBusy, setWhBusy] = useState(false);
 
-  useEffect(() => { fetchWarehouses(supabase).then(setWarehouses); }, []);
+  useEffect(() => {
+    fetchWarehouses(supabase).then(setWarehouses);
+    supabase.from('1.0_companies').select('company_id, legal_name').order('legal_name')
+      .then(({ data }) => setCompanies((data as { company_id: string; legal_name: string }[]) ?? []));
+  }, []);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // The default warehouse stays where it already lives — the `is_default` flag
   // on 30.3_warehouses (a partial unique index enforces exactly one), so this
@@ -390,13 +482,27 @@ function DefaultsTab({ draft, set, flash }: {
           <input type="number" step="0.5" className={inputCls} value={draft.defaultPpnPct}
             onChange={(e) => set('defaultPpnPct', Number(e.target.value) || 0)} />
         </Field>
-        <Field label="Default margin floor %" hint="Prefilled when a new price tier is created on /pricing.">
-          <input type="number" step="1" className={inputCls} value={draft.defaultMarginFloorPct}
-            onChange={(e) => set('defaultMarginFloorPct', Number(e.target.value) || 0)} />
+        <Field label="Issuing company" hint="Prefilled as the company a new quotation is issued from.">
+          <select className={inputCls} value={draft.defaultCompanyId} onChange={(e) => set('defaultCompanyId', e.target.value)}>
+            <option value="">First company on the list</option>
+            {companies.map((c) => <option key={c.company_id} value={c.company_id}>{c.legal_name}</option>)}
+          </select>
         </Field>
-        <Field label="Slow-mover threshold (days)" hint="/economics flags stock with no movement for this long.">
+        <Field label="Standard terms on a new quotation"
+          hint="Prefilled into the notes of a new quotation and printed as Syarat & Ketentuan. A line ending in ':' prints as a heading.">
+          <textarea rows={4} className={`${inputCls} resize-y leading-relaxed`} value={draft.defaultSalesTerms}
+            onChange={(e) => set('defaultSalesTerms', e.target.value)} />
+        </Field>
+        <Field label="Slow-mover threshold (days)" hint="Economics flags stock with no movement for this long.">
           <input type="number" min={1} className={inputCls} value={draft.slowMoverDays}
             onChange={(e) => set('slowMoverDays', Math.max(1, Math.round(Number(e.target.value) || 1)))} />
+        </Field>
+        <Field label="Economics opens on" hint="The period the Economics dashboard measures when you land on it.">
+          <select className={inputCls} value={draft.economicsPeriod} onChange={(e) => set('economicsPeriod', e.target.value as AppSettings['economicsPeriod'])}>
+            <option value="90">Last 90 days</option>
+            <option value="365">Last 365 days</option>
+            <option value="all">All time</option>
+          </select>
         </Field>
       </div>
 
@@ -414,13 +520,21 @@ function DefaultsTab({ draft, set, flash }: {
           <input type="number" step="1" min={0} className={inputCls} value={draft.costDriftPct}
             onChange={(e) => set('costDriftPct', Math.max(0, Number(e.target.value) || 0))} />
         </Field>
-        <Field label="Default warehouse" hint="Preselected when receiving, adjusting or shipping stock. Saved immediately.">
+        <Field label="FX settled tolerance %"
+          hint="A PO's realised exchange rate is only trusted once its IDR principal lands this close to the expected amount — a shared or part payment would otherwise masquerade as a rate.">
+          <input type="number" step="0.5" min={0.1} className={inputCls} value={draft.fxSettledTolerancePct}
+            onChange={(e) => set('fxSettledTolerancePct', Math.max(0.1, Number(e.target.value) || 0.1))} />
+        </Field>
+        <Field label="Default warehouse" hint="Preselected when receiving, adjusting or shipping stock. Saved immediately — warehouses themselves are managed on Stock.">
           <select className={inputCls} value={defaultCode} disabled={whBusy || !warehouses.length}
             onChange={(e) => setDefaultWarehouse(e.target.value)}>
             {!warehouses.length && <option value="">Loading…</option>}
             {warehouses.map((w) => <option key={w.code} value={w.code}>{w.code} — {w.name}</option>)}
           </select>
         </Field>
+        <Link href="/stock" className="inline-block text-[11px] font-semibold text-sky-300 hover:text-sky-200 transition-colors">
+          Open Stock →
+        </Link>
       </div>
     </div>
   );

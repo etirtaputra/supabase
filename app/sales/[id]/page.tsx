@@ -70,10 +70,10 @@ const num = (v: unknown): number => {
 // price is the Tier-1 NET; higher tiers mark up from the previous tier.
 
 const blankLine = (): EditLine => ({ key: `new-${Date.now()}-${Math.random()}`, component_id: null, is_section: false, description: '', brand: '', note: '', lead_time: '', unit: '', quantity: '', unit_price: '', showNote: false });
-const blankQuote = (companyId: string | null, ppnPct: number): Quote => ({
+const blankQuote = (companyId: string | null, ppnPct: number, notes = ''): Quote => ({
   quote_id: '', quote_number: '', customer_id: null, company_id: companyId,
   quote_date: new Date().toISOString().slice(0, 10), status: 'draft', ppn_pct: ppnPct,
-  subtotal: 0, ppn_amount: 0, grand_total: 0, notes: '',
+  subtotal: 0, ppn_amount: 0, grand_total: 0, notes,
 });
 const mapLine = (it: DbLine): EditLine => ({
   key: `db-${it.item_id}`, component_id: it.component_id, is_section: !!it.is_section,
@@ -88,8 +88,8 @@ export default function SalesQuotePage() {
   const isNew = id === 'new';
   const { user, profile, loading: authLoading } = useAuth();
   const canEdit = !!profile && ROLE_PERMISSIONS[profile.role].canEditSalesDocs;
-  // VAT prefilled on a brand-new quotation (Settings › Defaults)
-  const defaultPpnPct = useSettings().defaultPpnPct;
+  // What a brand-new quotation starts with (Settings)
+  const { defaultPpnPct, defaultCompanyId, defaultSalesTerms, defaultCustomerTier } = useSettings();
 
   const [editing, setEditing] = useState<Quote | null>(null);
   const [lines, setLines] = useState<EditLine[]>([]);
@@ -205,7 +205,9 @@ export default function SalesQuotePage() {
     setExtras([...past.values()].sort((a, b) => (b.at || '').localeCompare(a.at || '')).map(({ at: _at, ...x }) => x));
 
     if (isNew) {
-      setEditing((prev) => prev ?? blankQuote(coList[0]?.company_id ?? null, defaultPpnPct));
+      // Issuing company: the configured one when it still exists, else the first
+      const issuer = coList.find((c) => c.company_id === defaultCompanyId)?.company_id ?? coList[0]?.company_id ?? null;
+      setEditing((prev) => prev ?? blankQuote(issuer, defaultPpnPct, defaultSalesTerms));
       setLines((prev) => (prev.length ? prev : [blankLine()]));
     } else {
       const [qRes, iRes, rRes, invRes, invIRes, doRes, doIRes] = await Promise.all([
@@ -235,7 +237,7 @@ export default function SalesQuotePage() {
       setDoItems(doIRes.error ? [] : (((doIRes.data as DoItem[]) ?? []).filter((x) => doIds.has(x.do_id))));
     }
     setLoading(false);
-  }, [id, isNew, defaultPpnPct]);
+  }, [id, isNew, defaultPpnPct, defaultCompanyId, defaultSalesTerms]);
 
   useEffect(() => { if (canEdit) load(); }, [canEdit, load]);
 
@@ -257,7 +259,9 @@ export default function SalesQuotePage() {
   function priceFor(componentId: string): number | null {
     const comp = compById.get(componentId);
     const cust = editing?.customer_id ? custById.get(editing.customer_id) : undefined;
-    const tier = cust?.tier ? tierByCode.get(cust.tier) : undefined;
+    // The customer's tier, or the house default for a customer carrying none
+    const tierCode = cust?.tier || defaultCustomerTier;
+    const tier = tierCode ? tierByCode.get(tierCode) : undefined;
     if (!tier) return comp?.selling_price_idr ?? null; // no tier → the net price
     return tierPriceFor(comp?.selling_price_idr ?? null, activeTiers, tier.tier_id,
       (tid) => ovByKey.get(`${componentId}:${tid}`)?.override_price_idr);

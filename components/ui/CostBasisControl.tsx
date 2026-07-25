@@ -147,7 +147,7 @@ export default function CostBasisControl({ componentId, mode, bufferPct, tuc, on
               <button onClick={() => { setEditingGlobal(false); setGlobalDraft(String(globalPct)); }} className="text-slate-600 hover:text-slate-400">cancel</button>
             </span>
           ) : (
-            <button onClick={() => { setGlobalDraft(String(globalPct)); setEditingGlobal(true); }} className="text-slate-600 hover:text-slate-400 underline decoration-dotted" title="Edit the global buffer (applies to every item without an override)">
+            <button onClick={() => { setGlobalDraft(String(globalPct)); setEditingGlobal(true); }} className="text-slate-600 hover:text-slate-400 underline decoration-dotted" title="Edit the global buffer — the same value as Settings › Defaults › EPC cost buffer (applies to every item without an override)">
               global {globalPct}%
             </button>
           )}

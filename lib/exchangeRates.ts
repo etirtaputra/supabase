@@ -7,6 +7,7 @@ import type {
   ExchangeRateHistory, PurchaseOrder, PurchaseLineItem, POCost, PriceQuote,
 } from '../types/database';
 import { PRINCIPAL_CATS, BALANCE_CATS } from '../constants/costCategories';
+import { getSettings } from './settings';
 
 /**
  * Derive exchange rates from PO records.
@@ -76,11 +77,13 @@ export function deriveExchangeRates(
     if (foreignValue > 0 && idrPrincipal > 0) {
       const realised = idrPrincipal / foreignValue;
       const estimate = Number(po.exchange_rate) || 0;
-      // Trust it when the PO looks settled (within 5% of the expected IDR at
-      // the estimate) — a shared or part payment booked here would otherwise
-      // masquerade as a rate.
+      // Trust it when the PO looks settled (within the configured tolerance of
+      // the expected IDR at the estimate — Settings › Defaults, 5% out of the
+      // box) — a shared or part payment booked here would otherwise masquerade
+      // as a rate.
+      const tolerance = getSettings().fxSettledTolerancePct / 100;
       const settled = estimate > 0
-        ? Math.abs(idrPrincipal - foreignValue * estimate) / (foreignValue * estimate) <= 0.05
+        ? Math.abs(idrPrincipal - foreignValue * estimate) / (foreignValue * estimate) <= tolerance
         : false;
       if (settled) {
         result.push({

@@ -78,13 +78,36 @@ export interface AppSettings {
    */
   useSymbolEverywhere: boolean;
 
+  // ── Pricing ──────────────────────────────────────────────────────────────
+  /**
+   * Tier prices are rounded UP to a multiple of this (Rp 1,000 by default) so
+   * every quotable number is clean — the markup chain and the floor-audit
+   * suggestion both use it.
+   */
+  priceRoundingStep: number;
+  defaultTierStepPct: number;     // markup step prefilled when creating a tier (0 = leave blank)
+  defaultMarginFloorPct: number;  // margin floor prefilled when creating a tier
+  /**
+   * Tier code a new customer starts on, and the tier used to price a customer
+   * who carries none. Blank = no tier (the item's net price), as before.
+   */
+  defaultCustomerTier: string;
+
   // ── Operational defaults ─────────────────────────────────────────────────
   defaultPpnPct: number;          // VAT % prefilled on new sales documents
   defaultPoPaymentTerms: string;  // prefilled on a new PI/PO
-  defaultMarginFloorPct: number;  // prefilled when creating a price tier
+  defaultCompanyId: string;       // issuing company prefilled on a new sales doc ('' = first)
+  defaultSalesTerms: string;      // terms prefilled into a new quotation's notes
   epcCostBufferPct: number;       // EPC Cost Basis buffer (was app_settings)
   slowMoverDays: number;          // /economics: "no movement in N days"
+  economicsPeriod: '90' | '365' | 'all';  // /economics period the page opens on
   costDriftPct: number;           // proposals list: flag costs N% off today's
+  /**
+   * How close a PO's IDR principal must sit to its expected value before the
+   * realised FX rate is trusted (a shared or part payment would otherwise
+   * masquerade as a rate). Percent.
+   */
+  fxSettledTolerancePct: number;
 
   // ── Company / letterhead ─────────────────────────────────────────────────
   companyName: string;
@@ -115,12 +138,20 @@ export const DEFAULT_SETTINGS: AppSettings = {
   currencyCode:        'IDR',
   useSymbolEverywhere: false,
 
+  priceRoundingStep:     1000,
+  defaultTierStepPct:    0,
+  defaultMarginFloorPct: 15,
+  defaultCustomerTier:   '',
+
   defaultPpnPct:         11,
   defaultPoPaymentTerms: '100% in advance',
-  defaultMarginFloorPct: 15,
+  defaultCompanyId:      '',
+  defaultSalesTerms:     '',
   epcCostBufferPct:      5,
   slowMoverDays:         60,
+  economicsPeriod:       '365',
   costDriftPct:          10,
+  fxSettledTolerancePct: 5,
 
   companyName:        '',
   companyAddress:     '',
@@ -212,8 +243,16 @@ export function coerceSettings(raw: Record<string, unknown>): AppSettings {
     currencyCode:        pick('currencyCode',        (v) => str(v, d.currencyCode) || d.currencyCode, d.currencyCode),
     useSymbolEverywhere: pick('useSymbolEverywhere', (v) => bool(v, d.useSymbolEverywhere), d.useSymbolEverywhere),
 
+    priceRoundingStep:     pick('priceRoundingStep',     (v) => Math.max(1, Math.round(numOr(v, d.priceRoundingStep))), d.priceRoundingStep),
+    defaultTierStepPct:    pick('defaultTierStepPct',    (v) => Math.max(0, numOr(v, d.defaultTierStepPct)), d.defaultTierStepPct),
+    defaultCustomerTier:   pick('defaultCustomerTier',   (v) => str(v, d.defaultCustomerTier), d.defaultCustomerTier),
+
     defaultPpnPct:         pick('defaultPpnPct',         (v) => numOr(v, d.defaultPpnPct), d.defaultPpnPct),
     defaultPoPaymentTerms: pick('defaultPoPaymentTerms', (v) => str(v, d.defaultPoPaymentTerms), d.defaultPoPaymentTerms),
+    defaultCompanyId:      pick('defaultCompanyId',      (v) => str(v, d.defaultCompanyId), d.defaultCompanyId),
+    defaultSalesTerms:     pick('defaultSalesTerms',     (v) => str(v, d.defaultSalesTerms), d.defaultSalesTerms),
+    economicsPeriod:       pick('economicsPeriod',       (v) => (v === '90' || v === 'all' ? v : '365'), d.economicsPeriod),
+    fxSettledTolerancePct: pick('fxSettledTolerancePct', (v) => Math.max(0.1, numOr(v, d.fxSettledTolerancePct)), d.fxSettledTolerancePct),
     defaultMarginFloorPct: pick('defaultMarginFloorPct', (v) => numOr(v, d.defaultMarginFloorPct), d.defaultMarginFloorPct),
     epcCostBufferPct:      pick('epcCostBufferPct',      (v) => numOr(v, d.epcCostBufferPct), d.epcCostBufferPct),
     slowMoverDays:         pick('slowMoverDays',         (v) => Math.max(1, Math.round(numOr(v, d.slowMoverDays))), d.slowMoverDays),

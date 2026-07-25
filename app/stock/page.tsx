@@ -42,6 +42,7 @@ export default function StockPage() {
   const { user, profile, loading: authLoading } = useAuth();
   const canView = !!profile && ROLE_PERMISSIONS[profile.role].buySide;
   const canManage = !!profile && ROLE_PERMISSIONS[profile.role].canManageStock;
+  const isOwner = !!profile && ROLE_PERMISSIONS[profile.role].canManageUsers;   // owner — Settings
 
   const [comps, setComps] = useState<Map<string, Comp>>(new Map());
   const [balances, setBalances] = useState<Balance[]>([]);
@@ -214,6 +215,13 @@ export default function StockPage() {
             <Link href="/stock/receive"
               className="px-3.5 py-2 rounded-xl bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30 hover:bg-sky-500/25 text-xs font-semibold whitespace-nowrap transition-colors">
               Receive against PO
+            </Link>
+          )}
+          {isOwner && (
+            <Link href="/settings?tab=defaults"
+              className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap"
+              title="The default warehouse — the one preselected when receiving, adjusting or shipping — is set in Settings">
+              Default warehouse: Settings →
             </Link>
           )}
         </div>

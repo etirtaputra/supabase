@@ -6,7 +6,8 @@
  *
  *   tier[i] = tier[i-1] ÷ (1 − step%)        e.g. 100 → 100/(1−0.05) = 105.27
  *
- * …rounded UP to the nearest Rp 1,000, and the margin shown is the ACTUAL
+ * …rounded UP to the configured price step (Settings › Pricing, Rp 1,000 out
+ * of the box), and the margin shown is the ACTUAL
  * margin achieved after rounding (1 − prev/price). A per-item override
  * (21.1_item_tier_prices.override_price_idr) replaces that tier's computed
  * price AND becomes the base the next tier chains from.
@@ -16,6 +17,7 @@
  * schema/deploy race). Tier order = sort_order; the FIRST active tier is the
  * net tier and its step is ignored.
  */
+import { getSettings } from './settings';
 
 export interface ChainTier {
   tier_id: string;
@@ -30,7 +32,12 @@ export interface ChainPrice {
   actualMarginPct: number | null; // achieved margin vs previous tier after rounding/overrides (first tier: null)
 }
 
-export const roundUp1000 = (v: number) => Math.ceil(v / 1000) * 1000;
+/** Round a price UP to the next multiple of the configured step. */
+export const roundUpToStep = (v: number, step = getSettings().priceRoundingStep) =>
+  step > 0 ? Math.ceil(v / step) * step : Math.ceil(v);
+
+/** @deprecated use roundUpToStep — kept so older imports keep compiling. */
+export const roundUp1000 = (v: number) => roundUpToStep(v);
 
 /**
  * Compute every tier's price for one item.
@@ -57,7 +64,7 @@ export function computeTierChain(
     } else if (i === 0) {
       price = base; // net tier — exactly what the owner entered
     } else if (base != null && step < 95) {
-      price = roundUp1000(base / (1 - step / 100));
+      price = roundUpToStep(base / (1 - step / 100));
     } else {
       price = null;
     }
