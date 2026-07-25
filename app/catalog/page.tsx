@@ -28,7 +28,7 @@ import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/hooks/useAuth';
 // Constants & Types
 import { ENUMS } from '@/constants/enums';
-import { getLatestExchangeRate } from '@/lib/exchangeRates';
+import { getLatestExchangeRate, deriveExchangeRates } from '@/lib/exchangeRates';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { fmtIdr } from '@/lib/formatters';
@@ -712,7 +712,10 @@ function MasterInsertPage() {
                         // back to the last PO's rate when nothing has been paid yet.
                         const rateFor = (supplierId: unknown, currency: unknown) => {
                           if (!supplierId || !currency || currency === 'IDR') return undefined;
-                          const actual = getLatestExchangeRate(data.exchangeRates || [], String(supplierId), String(currency));
+                          // Derived LIVE from payments — 9.0_exchange_rate_history
+                          // is a one-off snapshot that stops at its import date.
+                          const liveRates = deriveExchangeRates(data.pos, data.poItems, data.poCosts, data.quotes);
+                          const actual = getLatestExchangeRate(liveRates, String(supplierId), String(currency));
                           // The derived history contains occasional bad rows (a
                           // part-payment logged against a full PO value implies an
                           // absurd rate), so only trust the latest reading when it
@@ -721,7 +724,15 @@ function MasterInsertPage() {
                             const sane = actual.count > 1 && actual.avg > 0
                               ? (Math.abs(actual.rate - actual.avg) / actual.avg <= 0.3 ? actual.rate : actual.avg)
                               : actual.rate;
-                            if (sane > 0) return Math.round(sane);
+                            const lastRate = data.pos
+                              .filter((p) => p.currency === currency && p.exchange_rate)
+                              .sort((a, b) => (b.po_date || '').localeCompare(a.po_date || ''))[0]?.exchange_rate;
+                            // Some POs carry payments belonging to other POs, which
+                            // implies an impossible rate — fall back to the most
+                            // recent typed rate when the two disagree wildly.
+                            const trusted = lastRate && Math.abs(sane - Number(lastRate)) / Number(lastRate) > 0.3
+                              ? Number(lastRate) : sane;
+                            if (trusted > 0) return Math.round(trusted);
                           }
                           const lastPo = data.pos
                             .filter((p) => {
