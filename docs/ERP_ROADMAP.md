@@ -236,6 +236,23 @@ per-invoice issued→paid dates; tsc + build green.
 
 ## Locked architectural decisions
 
+- **Stock is per (item, WAREHOUSE) — multi-warehouse since 2026-07-25.**
+  `30.3_warehouses` is the master (seeded **G63 “Gudang No.: 63”** = default,
+  **G25 “Gudang No.: 25”**, plus **MAIN “Unassigned (legacy)”** holding the
+  pre-existing balances until they are transferred). `30.1_stock_balances` is
+  keyed (component_id, location) and the moving-average landed cost is
+  maintained **per warehouse** — so every cross-warehouse roll-up must SUM
+  quantity and take a QUANTITY-WEIGHTED average cost (`lib/warehouses.ts`);
+  never read “the last row”. Ledger integrity is enforced in the DB: location
+  is an FK to a real warehouse, `direction` is CHECKed to 'in'/'out' (anything
+  else was silently treated as an increase), quantity must be > 0, and an
+  adjustment is posted as in/out with a positive quantity (there is no
+  'adjust' direction). Warehouse moves go through the atomic
+  `transfer_stock()` RPC (two legs at the source average in one transaction,
+  so total inventory value is unchanged). `verify_stock_balances(p_fix)`
+  replays the whole ledger to prove — or repair — balances; last run: 0
+  discrepancies.
+
 - **Tier pricing = markup chain (decided 2026-07-24, replaces "list − discount").**
   The price entered on an item (`3.0_components.selling_price_idr`) IS the
   **net price = Tier-1** (first active tier by `sort_order`). Each next tier =

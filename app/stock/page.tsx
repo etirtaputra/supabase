@@ -18,6 +18,13 @@ import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 import StockModal from '@/components/ui/StockModal';
 import { formatCategory as humanize } from '@/lib/formatCategory';
+import { fetchWarehouses, warehouseLabel, type Warehouse } from '@/lib/warehouses';
+import { COMMITTED_STATUSES as COMMITTED } from '@/lib/salesStatus';
+import { fetchDeliveredByQuoteComp } from '@/lib/reservedStock';
+
+/** An order line still waiting on stock — what the shortage is FOR. */
+interface DemandRef { quote_id: string; number: string; customer: string; qty: number; date: string }
+interface Shortage { c: Comp; physical: number; reserved: number; short: number; orders: DemandRef[] }
 
 interface Comp { component_id: string; supplier_model: string; internal_description: string | null; brand: string | null; category: string | null; unit: string | null; }
 interface Balance { component_id: string; location: string; qty_on_hand: number; avg_cost_idr: number; updated_at: string | null; }
@@ -41,6 +48,11 @@ export default function StockPage() {
   const [comps, setComps] = useState<Map<string, Comp>>(new Map());
   const [balances, setBalances] = useState<Balance[]>([]);
   const [lastByComp, setLastByComp] = useState<Map<string, LastMove>>(new Map());
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [filterWh, setFilterWh] = useState('');          // '' = all warehouses
+  const [shortages, setShortages] = useState<Shortage[]>([]);
+  const [transfer, setTransfer] = useState<{ c: Comp; from: string; available: number } | null>(null);
+  const [toast, setToast] = useState('');
   const [loading, setLoading] = useState(true);
   const [schemaMissing, setSchemaMissing] = useState(false);
 
@@ -74,11 +86,17 @@ export default function StockPage() {
       }
       return all;
     };
-    const [allComps, balRes, movRes] = await Promise.all([
+    const [allComps, balRes, movRes, whs, sqRes, sqiRes, custRes, deliveredMap] = await Promise.all([
       fetchAllComponents(),
       supabase.from('30.1_stock_balances').select('component_id, location, qty_on_hand, avg_cost_idr, updated_at'),
       supabase.from('30.0_stock_movements').select('component_id, direction, source_type, moved_at').order('moved_at', { ascending: false }).limit(2000),
+      fetchWarehouses(supabase),
+      supabase.from('22.0_sales_quotes').select('quote_id, status, order_number, quote_number, ordered_at, updated_at, customer_id'),
+      supabase.from('22.1_sales_quote_items').select('quote_id, component_id, quantity, is_section'),
+      supabase.from('20.0_customers').select('customer_id, display_name, legal_name'),
+      fetchDeliveredByQuoteComp(supabase),
     ]);
+    setWarehouses(whs);
     if (balRes.error || movRes.error) { setSchemaMissing(true); setLoading(false); return; }
     setComps(new Map(allComps.map((c) => [c.component_id, c])));
     setBalances((balRes.data ?? []) as Balance[]);
@@ -87,6 +105,50 @@ export default function StockPage() {
       if (!last.has(m.component_id)) last.set(m.component_id, m);
     }
     setLastByComp(last);
+
+    // ── Shortages: committed demand that stock cannot cover ────────────────
+    // reserved = ordered qty on committed orders MINUS what has already been
+    // delivered; physical = on-hand summed across every warehouse. A negative
+    // live figure is a genuine shortage — and we keep the specific orders so
+    // the buyer knows what to restock and who is waiting.
+    const custName = new Map(((custRes.data ?? []) as { customer_id: string; display_name: string; legal_name: string }[])
+      .map((c) => [c.customer_id, c.display_name || c.legal_name || '']));
+    const docs = ((sqRes.data ?? []) as { quote_id: string; status: string; order_number: string | null; quote_number: string; ordered_at: string | null; updated_at: string | null; customer_id: string | null }[]);
+    const committed = new Map(docs.filter((d) => COMMITTED.has(d.status)).map((d) => [d.quote_id, d]));
+    const physByComp = new Map<string, number>();
+    for (const b of (balRes.data ?? []) as Balance[]) {
+      physByComp.set(b.component_id, (physByComp.get(b.component_id) ?? 0) + (Number(b.qty_on_hand) || 0));
+    }
+    const demand = new Map<string, { qty: number; orders: DemandRef[] }>();
+    for (const it of ((sqiRes.data ?? []) as { quote_id: string; component_id: string | null; quantity: number; is_section: boolean }[])) {
+      if (!it.component_id || it.is_section) continue;
+      const doc = committed.get(it.quote_id);
+      if (!doc) continue;
+      const outstanding = (Number(it.quantity) || 0) - (deliveredMap.get(`${it.quote_id}·${it.component_id}`) ?? 0);
+      if (outstanding <= 0) continue;
+      const e = demand.get(it.component_id) ?? { qty: 0, orders: [] };
+      e.qty += outstanding;
+      e.orders.push({
+        quote_id: doc.quote_id,
+        number: doc.order_number || doc.quote_number,
+        customer: custName.get(doc.customer_id ?? '') ?? '',
+        qty: outstanding,
+        date: doc.ordered_at ?? doc.updated_at ?? '',
+      });
+      demand.set(it.component_id, e);
+    }
+    const shortList: Shortage[] = [];
+    for (const [cid, d] of demand) {
+      const c = allComps.find((x) => x.component_id === cid);
+      if (!c) continue;
+      const physical = physByComp.get(cid) ?? 0;
+      const short = d.qty - physical;
+      if (short > 0.0001) {
+        shortList.push({ c, physical, reserved: d.qty, short,
+          orders: d.orders.sort((a, b) => (a.date || '').localeCompare(b.date || '')) });
+      }
+    }
+    setShortages(shortList.sort((a, b) => b.short - a.short));
     setLoading(false);
   }, [supabase]);
 
@@ -109,6 +171,7 @@ export default function StockPage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     let list = rows;
+    if (filterWh) list = list.filter((r) => r.loc === filterWh);
     if (stockOnly) list = list.filter((r) => r.qty !== 0);
     if (filterCategory) list = list.filter((r) => r.c.category === filterCategory);
     if (q) list = list.filter((r) => [r.c.supplier_model, r.c.internal_description, r.c.brand, r.c.category].filter(Boolean).join(' ').toLowerCase().includes(q));
@@ -121,7 +184,7 @@ export default function StockPage() {
         default: return dir * (a.value - b.value);
       }
     });
-  }, [rows, search, filterCategory, stockOnly, sort]);
+  }, [rows, search, filterCategory, filterWh, stockOnly, sort]);
 
   const totals = useMemo(() => {
     const inStock = rows.filter((r) => r.qty > 0);
@@ -169,6 +232,47 @@ export default function StockPage() {
           </div>
         )}
 
+        {/* Shortages — committed demand stock cannot cover, and who is waiting */}
+        {shortages.length > 0 && (
+          <div className="bg-red-500/[0.06] border border-red-500/30 rounded-2xl p-4 space-y-2.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-[11px] font-bold uppercase tracking-widest text-red-300">
+                ⚠ Shortages — {shortages.length} item{shortages.length !== 1 ? 's' : ''} short of committed orders
+              </h2>
+              <span className="text-[10px] text-slate-500">on-hand across all warehouses vs undelivered committed order qty</span>
+            </div>
+            <div className="space-y-2">
+              {shortages.map((sh) => (
+                <div key={sh.c.component_id} className="rounded-xl bg-slate-950/40 border border-slate-800 px-3 py-2">
+                  <div className="flex items-baseline gap-2 flex-wrap">
+                    <span className="text-sm text-slate-100 font-medium truncate max-w-[420px]">
+                      {sh.c.internal_description || sh.c.supplier_model}
+                    </span>
+                    <span className="text-[11px] tabular-nums text-red-300 font-bold">
+                      short {fmtInt(sh.short)}{sh.c.unit ? ` ${sh.c.unit}` : ''}
+                    </span>
+                    <span className="text-[10px] tabular-nums text-slate-500">
+                      have {fmtInt(sh.physical)} · committed {fmtInt(sh.reserved)}
+                    </span>
+                  </div>
+                  {/* Which sales orders the shortage is for */}
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    {sh.orders.map((o) => (
+                      <Link key={`${o.quote_id}-${o.number}`} href={`/sales/${o.quote_id}`}
+                        title={`${o.customer || 'No customer'} — needs ${fmtInt(o.qty)}${sh.c.unit ? ` ${sh.c.unit}` : ''}`}
+                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-slate-800/70 hover:bg-slate-700 transition-colors">
+                        <span className="font-mono text-[10px] text-violet-300">{o.number}</span>
+                        <span className="text-[10px] text-slate-400 truncate max-w-[140px]">{o.customer || '—'}</span>
+                        <span className="text-[10px] tabular-nums text-slate-300 font-semibold">{fmtInt(o.qty)}</span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Summary strip */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
           {[
@@ -191,6 +295,12 @@ export default function StockPage() {
               className="w-full pl-10 pr-4 h-11 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-sky-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors" />
           </div>
           <div className="flex gap-2">
+            <select value={filterWh} onChange={(e) => setFilterWh(e.target.value)}
+              title="Show one warehouse or all of them"
+              className="h-11 px-3 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-sky-500/60 outline-none text-slate-300 text-xs">
+              <option value="">All warehouses</option>
+              {warehouses.map((w) => <option key={w.code} value={w.code}>{w.name}</option>)}
+            </select>
             <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}
               className="h-11 px-3 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-sky-500/60 outline-none text-slate-300 text-xs">
               <option value="">All categories</option>
@@ -232,7 +342,14 @@ export default function StockPage() {
                     <span className="min-w-0">
                       <span className="block text-slate-100 font-medium truncate">{r.c.supplier_model}</span>
                       {r.c.internal_description && <span className="block text-[11px] text-slate-500 truncate">{r.c.internal_description}</span>}
-                      {r.loc !== 'MAIN' && <span className="inline-block mt-0.5 text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">{r.loc}</span>}
+                      <span className="inline-flex items-center gap-1.5 mt-0.5">
+                        <span className="inline-block text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">{warehouseLabel(warehouses, r.loc)}</span>
+                        {canManage && r.qty > 0 && warehouses.length > 1 && (
+                          <button onClick={(e) => { e.stopPropagation(); setTransfer({ c: r.c, from: r.loc, available: r.qty }); }}
+                            title="Move this stock to another warehouse"
+                            className="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-300 hover:bg-sky-500/20 transition-colors">⇄ move</button>
+                        )}
+                      </span>
                     </span>
                     <span className="text-[11px] text-slate-400 truncate">{r.c.brand ?? '—'}</span>
                     <span className="text-[11px] text-slate-500 truncate">{r.c.category ? humanize(r.c.category) : '—'}</span>
@@ -285,6 +402,88 @@ export default function StockPage() {
           onClose={() => { setDrill(null); load(); }}
         />
       )}
+      {toast && <div className="fixed bottom-6 right-6 z-[130] px-4 py-2.5 bg-slate-800 border border-slate-700 text-white text-sm font-semibold rounded-xl shadow-lg">{toast}</div>}
+
+      {/* Warehouse transfer — one atomic RPC (two ledger legs at the source's
+          moving-average cost), so total stock value never changes. */}
+      {transfer && (
+        <TransferModal
+          item={transfer}
+          warehouses={warehouses}
+          onClose={() => setTransfer(null)}
+          onDone={(msg) => { setTransfer(null); setToast(msg); setTimeout(() => setToast(''), 2600); load(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function TransferModal({ item, warehouses, onClose, onDone }: {
+  item: { c: Comp; from: string; available: number };
+  warehouses: Warehouse[];
+  onClose: () => void;
+  onDone: (msg: string) => void;
+}) {
+  const supabase = createSupabaseClient();
+  const options = warehouses.filter((w) => w.code !== item.from);
+  const [to, setTo] = useState(options[0]?.code ?? '');
+  const [qty, setQty] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  async function submit() {
+    const n = Number(String(qty).replace(/[, ]/g, ''));
+    if (!n || n <= 0) { setErr('Enter a quantity greater than zero'); return; }
+    if (n > item.available) { setErr(`Only ${fmtInt(item.available)} available in ${warehouseLabel(warehouses, item.from)}`); return; }
+    setBusy(true); setErr('');
+    const { error } = await supabase.rpc('transfer_stock', {
+      p_component_id: item.c.component_id, p_from: item.from, p_to: to, p_quantity: n, p_notes: '',
+    });
+    setBusy(false);
+    if (error) { setErr(error.message); return; }
+    onDone(`Moved ${fmtInt(n)} to ${warehouseLabel(warehouses, to)}`);
+  }
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center px-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60" />
+      <div className="relative w-full max-w-sm bg-[#141518] border border-slate-800 rounded-2xl shadow-2xl p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
+        <div>
+          <h3 className="text-sm font-bold text-white">Move stock</h3>
+          <p className="text-[11px] text-slate-500 truncate">{item.c.internal_description || item.c.supplier_model}</p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div>
+            <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">From</label>
+            <p className="px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 truncate">
+              {warehouseLabel(warehouses, item.from)}
+            </p>
+            <p className="text-[10px] text-slate-600 mt-0.5 tabular-nums">{fmtInt(item.available)} available</p>
+          </div>
+          <div>
+            <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">To</label>
+            <select value={to} onChange={(e) => setTo(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 focus:border-sky-500/60 outline-none text-white cursor-pointer">
+              {options.map((w) => <option key={w.code} value={w.code} className="bg-slate-900">{w.name}</option>)}
+            </select>
+          </div>
+        </div>
+        <div>
+          <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Quantity</label>
+          <input value={qty} inputMode="decimal" autoFocus onChange={(e) => setQty(e.target.value)}
+            placeholder={`Max ${fmtInt(item.available)}`}
+            className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 focus:border-sky-500/60 outline-none text-white text-sm text-right tabular-nums" />
+        </div>
+        {err && <p className="text-[11px] text-red-400">{err}</p>}
+        <p className="text-[10px] text-slate-600">Moves at the source warehouse&apos;s average cost — total inventory value is unchanged.</p>
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} className="px-3 py-2 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/10 transition-colors">Cancel</button>
+          <button onClick={submit} disabled={busy || !to}
+            className="px-4 py-2 rounded-lg bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30 hover:bg-sky-500/25 text-xs font-bold transition-colors disabled:opacity-50">
+            {busy ? 'Moving…' : 'Move stock'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
