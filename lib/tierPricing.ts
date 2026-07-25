@@ -47,7 +47,9 @@ export function computeTierChain(
   let prev: number | null = net != null && net > 0 ? net : null;
   tiers.forEach((t, i) => {
     const step = Number(t.default_discount_pct) || 0;
-    const ov = overrideOf?.(t.tier_id);
+    // The NET tier is by definition the price entered on the item, so a stored
+    // override on it is meaningless and is ignored (kept in the table, inert).
+    const ov = i === 0 ? null : overrideOf?.(t.tier_id);
     const base = prev;
     let price: number | null;
     if (ov != null && ov > 0) {

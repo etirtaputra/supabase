@@ -3209,7 +3209,69 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                       </td>
                     )}
 
-                    {/* Usage */}
+                    {/* Tier prices (pricing mode). NOTE: these must stay ahead
+                        of the Usage/Deals cell — the header renders
+                        Sell Price → tiers → Deals, and any other body order
+                        shifts every tier value one column sideways. */}
+                    {tierCols.map((t, ti) => {
+                      const tkey = `${c.component_id}:${t.tier_id}`;
+                      const listP = (getVal(c, 'selling_price_idr' as any) ?? c.selling_price_idr) as number | null;
+                      // Chain default: net (T1) marked up tier by tier; other
+                      // tiers' overrides (saved or pending) re-anchor the chain.
+                      const defP = computeTierChain(listP, tierCols, (tid) => {
+                        if (tid === t.tier_id) return null;
+                        const k = `${c.component_id}:${tid}`;
+                        return k in pendingTier ? pendingTier[k] : (tierOverrides.get(k) ?? null);
+                      }).get(t.tier_id)?.price ?? null;
+                      const cur = tkey in pendingTier ? pendingTier[tkey] : (tierOverrides.get(tkey) ?? null);
+                      const tDirty = tkey in pendingTier;
+                      // The net tier IS the Sell Price — mirror it read-only so
+                      // there's one place to set the net and no conflicting
+                      // per-item "tier-1 override".
+                      if (ti === 0) {
+                        return (
+                          <td key={t.tier_id} className="px-3 py-1.5 align-middle min-w-[110px]">
+                            <div
+                              title="Tier-1 is the NET price — it always equals the Sell Price. Edit the Sell Price column to change it."
+                              className="w-full px-2 py-1 rounded-lg text-xs tabular-nums bg-slate-900/40 border border-dashed border-slate-700 text-slate-400 text-right"
+                            >
+                              {listP != null && listP > 0 ? Number(listP).toLocaleString('en-US') : '—'}
+                            </div>
+                          </td>
+                        );
+                      }
+                      return (
+                        <td key={t.tier_id} className="px-3 py-1.5 align-middle min-w-[110px]">
+                          <input
+                            type="number"
+                            step="1"
+                            min="0"
+                            data-rid={c.component_id}
+                            data-fld={`tier_${t.tier_id}`}
+                            // Pre-populated from the tier rules; typing overrides,
+                            // clearing falls back to the computed chain price.
+                            value={cur ?? (defP != null ? String(defP) : '')}
+                            placeholder={defP != null ? String(defP) : '—'}
+                            title={defP != null
+                              ? `Auto: +${Number(t.default_discount_pct) || 0}% over the previous tier = ${defP.toLocaleString('en-US')}${cur != null ? ' — currently overridden; clear to restore' : ' — type to override'}`
+                              : 'Set the Sell Price (net) first'}
+                            onChange={(e) => setPendingTier((prev) => ({ ...prev, [tkey]: e.target.value === '' ? null : parseFloat(e.target.value) }))}
+                            onKeyDown={(e) => handlePriceKeyDown(e, c.component_id, `tier_${t.tier_id}`)}
+                            className={`w-full px-2 py-1 rounded-lg text-xs focus:outline-none focus:ring-2 transition-all tabular-nums text-right ${
+                              tDirty
+                                ? 'bg-amber-500/10 border border-amber-500/50 text-white focus:ring-amber-500/30'
+                                : cur != null
+                                ? 'bg-slate-950 border border-emerald-500/30 text-emerald-200 focus:ring-emerald-500/20 focus:border-emerald-500'
+                                : 'bg-slate-950/40 border border-slate-800 text-slate-400 focus:ring-emerald-500/20 focus:border-emerald-500'
+                            }`}
+                          />
+                        </td>
+                      );
+                    })}
+
+                    {/* Usage / Deals — how actively the item trades: distinct
+                        supplier quotes (Q) and POs (P). Must follow the tier
+                        cells to match the header order. */}
                     {visibleCols.usage && <td
                       className="hidden md:table-cell px-3 py-1.5 align-middle min-w-[120px]"
                     >
@@ -3227,45 +3289,6 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                         );
                       })()}
                     </td>}
-
-                    {/* Tier prices (pricing mode) — value = override; empty
-                        shows the tier default (list − discount) as placeholder */}
-                    {tierCols.map((t, ti) => {
-                      const tkey = `${c.component_id}:${t.tier_id}`;
-                      const listP = (getVal(c, 'selling_price_idr' as any) ?? c.selling_price_idr) as number | null;
-                      // Chain default: net (T1) marked up tier by tier; other
-                      // tiers' overrides (saved or pending) re-anchor the chain.
-                      const defP = computeTierChain(listP, tierCols, (tid) => {
-                        if (tid === t.tier_id) return null;
-                        const k = `${c.component_id}:${tid}`;
-                        return k in pendingTier ? pendingTier[k] : (tierOverrides.get(k) ?? null);
-                      }).get(t.tier_id)?.price ?? null;
-                      const cur = tkey in pendingTier ? pendingTier[tkey] : (tierOverrides.get(tkey) ?? null);
-                      const tDirty = tkey in pendingTier;
-                      return (
-                        <td key={t.tier_id} className="px-3 py-1.5 align-middle min-w-[110px]">
-                          <input
-                            type="number"
-                            step="1"
-                            min="0"
-                            data-rid={c.component_id}
-                            data-fld={`tier_${t.tier_id}`}
-                            value={cur ?? ''}
-                            placeholder={defP != null ? String(defP) : '—'}
-                            title={defP != null ? `Chain default (${ti === 0 ? 'net' : `+${Number(t.default_discount_pct) || 0}% over prev tier`}): ${defP.toLocaleString('en-US')} — type to override, clear to reset` : 'Set the net (Tier-1) price first'}
-                            onChange={(e) => setPendingTier((prev) => ({ ...prev, [tkey]: e.target.value === '' ? null : parseFloat(e.target.value) }))}
-                            onKeyDown={(e) => handlePriceKeyDown(e, c.component_id, `tier_${t.tier_id}`)}
-                            className={`w-full px-2 py-1 rounded-lg text-xs text-white focus:outline-none focus:ring-2 transition-all tabular-nums ${
-                              tDirty
-                                ? 'bg-amber-500/10 border border-amber-500/50 focus:ring-amber-500/30'
-                                : cur != null
-                                ? 'bg-slate-950 border border-emerald-500/30 focus:ring-emerald-500/20 focus:border-emerald-500'
-                                : 'bg-slate-950 border border-slate-700 focus:ring-emerald-500/20 focus:border-emerald-500 placeholder:text-slate-600'
-                            }`}
-                          />
-                        </td>
-                      );
-                    })}
 
                     {/* Updated At */}
                     {visibleCols.updated && (

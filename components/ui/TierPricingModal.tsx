@@ -239,7 +239,12 @@ export default function TierPricingModal({ componentId, componentName, listPrice
                           {isNetTier ? 'net price' : `+${t.default_discount_pct}% markup on prev tier${actualMarginPct != null ? ` · actual ${actualMarginPct.toFixed(1)}%` : ''}`} · floor {t.margin_floor_pct}%
                         </p>
                       </div>
-                      {canManage ? (
+                      {isNetTier ? (
+                        <span className="w-28 text-right text-xs tabular-nums text-slate-300"
+                          title="Tier-1 is the NET price — it always equals the net price above.">
+                          {price != null ? fmtInt(price) : '—'}
+                        </span>
+                      ) : canManage ? (
                         <input
                           key={`${t.tier_id}-${price}-${overridden}`}
                           defaultValue={price != null ? fmtInt(price) : ''}
