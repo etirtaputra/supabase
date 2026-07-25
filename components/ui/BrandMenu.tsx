@@ -21,7 +21,9 @@ import { ROLE_PERMISSIONS, type RolePermissions } from '@/constants/roles';
  */
 type Section = 'buySide' | 'sellSide' | 'projects' | null;
 // `cap` narrows an app beyond its section: only roles with that capability
-// boolean see the link (e.g. Pricing shows margin data → canManagePricing).
+// boolean see the link (e.g. Economics shows margin data → canManagePricing).
+// Configuration screens (Settings, Pricing) are NOT modules — they live in the
+// Admin group at the bottom of the menu, out of the day-to-day list.
 const APP_GROUPS: { title: string | null; section: Section; apps: { href: string; label: string; cap?: keyof RolePermissions }[] }[] = [
   { title: null, section: null, apps: [{ href: '/', label: 'Dashboard' }] },
   { title: 'Buy side', section: 'buySide', apps: [
@@ -34,7 +36,6 @@ const APP_GROUPS: { title: string | null; section: Section; apps: { href: string
   { title: 'Sell side', section: 'sellSide', apps: [
     { href: '/customers', label: 'Customers' },
     { href: '/products',  label: 'Products' },
-    { href: '/pricing',   label: 'Pricing', cap: 'canManagePricing' },
     { href: '/sales',     label: 'Sales' },
     { href: '/invoices',  label: 'Invoices' },
     { href: '/delivery',  label: 'Delivery' },
@@ -44,7 +45,7 @@ const APP_GROUPS: { title: string | null; section: Section; apps: { href: string
 ];
 
 // Preferred order for the mobile bottom bar's primary slots
-const MOBILE_PRIORITY = ['/sales', '/products', '/catalog', '/proposals', '/customers', '/stock', '/suppliers', '/invoices', '/delivery', '/pricing', '/insights', '/banks'];
+const MOBILE_PRIORITY = ['/sales', '/products', '/catalog', '/proposals', '/customers', '/stock', '/suppliers', '/invoices', '/delivery', '/insights', '/banks'];
 
 // Domain color language, used everywhere a module appears: buy-side is SKY
 // (the supplier/PI-PO color), sell-side is EMERALD (the house sell color),
@@ -146,18 +147,30 @@ export default function BrandMenu({
           })}
         </div>
       ))}
-      {/* Owner-only: Settings (roles + the allowlist live inside it) */}
-      {perms?.canManageUsers && (
+      {/* Configuration, not modules: Settings (which absorbs user management)
+          and Pricing, which sets the tiers every quote is priced from. Hidden
+          from everyone who doesn't run them. */}
+      {(perms?.canManageUsers || perms?.canManagePricing) && (
         <div className="mt-1 pt-1 border-t border-slate-800/70">
-          {/* One entry: user management is a Settings tab, not its own module */}
           <p className="px-2.5 pt-1 pb-1 text-[9px] uppercase tracking-widest text-slate-600">Admin</p>
-          <Link href="/settings" onClick={() => { setOpen(false); setMoreOpen(false); }}
-            className={`flex items-center justify-between px-2.5 py-2 rounded-lg text-sm transition-colors ${
-              isActive('/settings') ? 'bg-emerald-500/15 text-emerald-300' : 'text-slate-300 hover:bg-white/10 hover:text-white'
-            }`}>
-            Settings
-            {isActive('/settings') && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
-          </Link>
+          {perms?.canManageUsers && (
+            <Link href="/settings" onClick={() => { setOpen(false); setMoreOpen(false); }}
+              className={`flex items-center justify-between px-2.5 py-2 rounded-lg text-sm transition-colors ${
+                isActive('/settings') ? 'bg-emerald-500/15 text-emerald-300' : 'text-slate-300 hover:bg-white/10 hover:text-white'
+              }`}>
+              Settings
+              {isActive('/settings') && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+            </Link>
+          )}
+          {perms?.canManagePricing && (
+            <Link href="/pricing" onClick={() => { setOpen(false); setMoreOpen(false); }}
+              className={`flex items-center justify-between px-2.5 py-2 rounded-lg text-sm transition-colors ${
+                isActive('/pricing') ? 'bg-emerald-500/15 text-emerald-300' : 'text-slate-300 hover:bg-white/10 hover:text-white'
+              }`}>
+              Pricing
+              {isActive('/pricing') && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+            </Link>
+          )}
         </div>
       )}
       {/* Signed-in user + sign out — lives here so headers stay clean */}
