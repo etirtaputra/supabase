@@ -11,7 +11,12 @@ import { PRINCIPAL_CATS, BALANCE_CATS } from '../constants/costCategories';
 /**
  * Derive exchange rates from PO records.
  * Strategy (in priority order):
- *   1. po.exchange_rate — explicitly set by the user at PO creation; most reliable.
+ *   0. The rate ACTUALLY PAID — IDR principal settled ÷ the PO's foreign value,
+ *      used once the PO is essentially fully settled. Only PRINCIPAL_CATS count:
+ *      bank fees, VAT, income tax, DHL and local delivery are NEVER part of the
+ *      FX calculation, since they are rupiah costs of their own, not currency
+ *      conversion of the supplier invoice.
+ *   1. po.exchange_rate — the estimate typed at PO creation (used while unpaid).
  *   2. Weighted average of individual payment records that carry their own exchange_rate
  *      (cost.currency ≠ IDR and cost.exchange_rate is set).
  * Avoids dividing total-IDR-paid ÷ sum-of-items, which breaks when line items are in
@@ -56,6 +61,41 @@ export function deriveExchangeRates(
     const allDates = balanceDates.length ? balanceDates : principalDates;
     if (!allDates.length) continue;
     const paymentDate = allDates.reduce((a, b) => (b > a ? b : a));
+
+    // ── Option 0: the rate ACTUALLY PAID ─────────────────────────────────────
+    // IDR principal settled ÷ the PO's foreign value. This is the real realised
+    // FX and beats any typed estimate — but ONLY once the PO is essentially
+    // fully settled, otherwise a part-payment divided by the full value implies
+    // an absurdly low rate. Bank fees, VAT, income tax, DHL and local delivery
+    // are excluded by construction: `principal` is filtered to PRINCIPAL_CATS,
+    // so freight/tax/fee rows never touch the FX maths.
+    const foreignValue = Number(po.total_value) || 0;
+    const idrPrincipal = principal
+      .filter((c) => c.currency === 'IDR')
+      .reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+    if (foreignValue > 0 && idrPrincipal > 0) {
+      const realised = idrPrincipal / foreignValue;
+      const estimate = Number(po.exchange_rate) || 0;
+      // Trust it when the PO looks settled (within 5% of the expected IDR at
+      // the estimate) — a shared or part payment booked here would otherwise
+      // masquerade as a rate.
+      const settled = estimate > 0
+        ? Math.abs(idrPrincipal - foreignValue * estimate) / (foreignValue * estimate) <= 0.05
+        : false;
+      if (settled) {
+        result.push({
+          rate_id: `derived-${po.po_id}`,
+          po_id: String(po.po_id),
+          supplier_id: supplierId,
+          currency: po.currency,
+          quoted_amount_foreign: foreignValue,
+          paid_amount_idr: idrPrincipal,
+          implied_rate: realised,
+          payment_date: paymentDate,
+        });
+        continue;
+      }
+    }
 
     // ── Option 1: explicit po.exchange_rate ──────────────────────────────────
     const poRate = Number(po.exchange_rate);
