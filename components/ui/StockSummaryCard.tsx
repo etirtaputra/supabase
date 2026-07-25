@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 import { COMMITTED_STATUSES as COMMITTED } from '@/lib/salesStatus';
+import { rollUpOne } from '@/lib/warehouses';
 import { fetchDeliveredByQuoteComp } from '@/lib/reservedStock';
 
 /**
@@ -27,11 +28,9 @@ export default function StockSummaryCard({ componentId, unit }: { componentId: s
       ]);
       if (cancelled) return;
       if (balRes.error) { setError(true); return; }
-      let physical = 0, avgCost = 0;
-      for (const b of (balRes.data ?? []) as { qty_on_hand: number; avg_cost_idr: number }[]) {
-        physical += Number(b.qty_on_hand) || 0;
-        avgCost = Number(b.avg_cost_idr) || avgCost;
-      }
+      // Quantity-weighted across warehouses (each has its own moving average)
+      const rolled = rollUpOne((balRes.data ?? []) as { qty_on_hand: number; avg_cost_idr: number | null }[]);
+      const physical = rolled.qty, avgCost = rolled.avg;
       const committed = new Set((((sqRes.data ?? []) as { quote_id: string; status: string }[])).filter((q) => COMMITTED.has(q.status)).map((q) => q.quote_id));
       let reserved = 0;
       for (const it of ((sqiRes.data ?? []) as { quote_id: string; quantity: number; is_section: boolean }[])) {

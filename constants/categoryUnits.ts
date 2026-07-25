@@ -1,6 +1,17 @@
 /**
  * Normalized unit definitions per product category.
  * Used for capacity-normalized pricing comparisons (positioning map).
+ *
+ * UNIT CONVENTION — keep these consistent across categories, and store the
+ * BASE unit (never a kilo- multiple), so the Capacity column and every
+ * price-per-unit comparison line up:
+ *   • Real power .......... W   (inverters, EV chargers, pumps)
+ *   • Peak power .......... Wp  (PV modules)
+ *   • Energy .............. Wh  (batteries, portable power)
+ *   • Apparent power ...... VA  (UPS, stabilizers)
+ *   • Current ............. A   (charge controllers)
+ * Display code adds the k/M prefix for readability; the stored norm_value is
+ * always in the base unit.
  */
 
 export interface CategoryUnit {
@@ -50,11 +61,13 @@ export const CATEGORY_UNITS: Record<string, CategoryUnit> = {
     priceLabel: 'Price / Wh',
     axis: 'Capacity (Wh)',
   },
+  // Watts, like every other power category — capacity units are universal so
+  // "160,000 W" and "150,000 W" sit on the same scale and Price/W compares.
   ev_charger: {
-    unit: 'kW',
-    label: 'Kilowatt',
-    priceLabel: 'Price / kW',
-    axis: 'Power (kW)',
+    unit: 'W',
+    label: 'Watt',
+    priceLabel: 'Price / W',
+    axis: 'Power (W)',
   },
   pv_cable: {
     unit: 'mm²',

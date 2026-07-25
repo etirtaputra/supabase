@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
+import { fetchWarehouses, defaultWarehouse, rollUpOne, type Warehouse } from '@/lib/warehouses';
 import { COMMITTED_STATUSES as COMMITTED } from '@/lib/salesStatus';
 import { fetchDeliveredByQuoteComp } from '@/lib/reservedStock';
 
@@ -36,6 +37,9 @@ export default function StockModal({ componentId, componentName, unit, anchor, o
 
   const [physical, setPhysical] = useState(0);
   const [avgCost, setAvgCost] = useState(0);
+  const [byLocation, setByLocation] = useState<{ location: string; qty: number; avg: number }[]>([]);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [loc, setLoc] = useState('');
   const [reserved, setReserved] = useState(0);
   const [movements, setMovements] = useState<Movement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,16 +56,25 @@ export default function StockModal({ componentId, componentName, unit, anchor, o
   const load = useCallback(async () => {
     setLoading(true);
     const [balRes, sqRes, sqiRes, movRes] = await Promise.all([
-      supabase.from('30.1_stock_balances').select('qty_on_hand, avg_cost_idr').eq('component_id', componentId),
+      supabase.from('30.1_stock_balances').select('location, qty_on_hand, avg_cost_idr').eq('component_id', componentId),
       supabase.from('22.0_sales_quotes').select('quote_id, status'),
       supabase.from('22.1_sales_quote_items').select('quote_id, quantity, is_section').eq('component_id', componentId),
       supabase.from('30.0_stock_movements').select('*').eq('component_id', componentId).order('moved_at', { ascending: false }).limit(20),
     ]);
     if (balRes.error || movRes.error) { setSchemaMissing(true); setLoading(false); return; }
-    let phys = 0, avg = 0;
-    for (const b of (balRes.data ?? []) as { qty_on_hand: number; avg_cost_idr: number }[]) { phys += Number(b.qty_on_hand) || 0; avg = Number(b.avg_cost_idr) || avg; }
-    setPhysical(phys);
-    setAvgCost(avg);
+    if (!warehouses.length) {
+      const ws = await fetchWarehouses(supabase);
+      setWarehouses(ws);
+      setLoc((cur) => cur || defaultWarehouse(ws));
+    }
+    // Quantity-weighted across warehouses (each carries its own moving average)
+    const rolled = rollUpOne((balRes.data ?? []) as { qty_on_hand: number; avg_cost_idr: number | null }[]);
+    setPhysical(rolled.qty);
+    setAvgCost(rolled.avg);
+    setByLocation(((balRes.data ?? []) as { location: string; qty_on_hand: number; avg_cost_idr: number | null }[])
+      .map((b) => ({ location: b.location, qty: Number(b.qty_on_hand) || 0, avg: Number(b.avg_cost_idr) || 0 }))
+      .filter((b) => b.qty !== 0)
+      .sort((a, b) => b.qty - a.qty));
     const committed = new Set((((sqRes.data ?? []) as { quote_id: string; status: string }[])).filter((q) => COMMITTED.has(q.status)).map((q) => q.quote_id));
     let rsv = 0;
     for (const it of ((sqiRes.data ?? []) as { quote_id: string; quantity: number; is_section: boolean }[])) {
@@ -115,9 +128,13 @@ export default function StockModal({ componentId, componentName, unit, anchor, o
     const q = numOf(qty);
     if (q === 0) { flash('Enter a quantity'); return; }
     setBusy(true);
+    // The ledger only knows 'in' and 'out' with a POSITIVE quantity; an
+    // adjustment is just a signed correction, so map its sign to a direction.
     const row = {
-      component_id: componentId, location: 'MAIN', direction: mode,
-      quantity: mode === 'in' ? Math.abs(q) : q, // adjust may be negative
+      component_id: componentId,
+      location: loc || defaultWarehouse(warehouses),
+      direction: mode === 'in' ? 'in' : (q >= 0 ? 'in' : 'out'),
+      quantity: Math.abs(q),
       unit_cost_idr: mode === 'in' ? numOf(cost) : 0,
       source_type: mode === 'in' ? 'receipt' : 'adjustment', source_id: '', notes: note.trim(),
       allow_negative: allowNegative,
@@ -185,6 +202,20 @@ export default function StockModal({ componentId, componentName, unit, anchor, o
                   </div>
                 ))}
               </div>
+
+              {/* Where it physically sits — per warehouse, each with its own
+                  moving-average cost. Shown once stock exists in >1 location. */}
+              {byLocation.length > 1 && (
+                <div className="rounded-xl border border-slate-800 divide-y divide-slate-800/60">
+                  {byLocation.map((b) => (
+                    <div key={b.location} className="flex items-center gap-2 px-3 py-1.5 text-[11px]">
+                      <span className="text-slate-400 flex-1 truncate">{warehouses.find((w) => w.code === b.location)?.name ?? b.location}</span>
+                      <span className="tabular-nums text-slate-200 font-semibold">{fmtInt(b.qty)}{unit ? ` ${unit}` : ''}</span>
+                      <span className="tabular-nums text-slate-600 w-24 text-right">@ {fmtInt(b.avg)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               <p className="text-[10px] text-slate-600 -mt-2">
                 Live = Physical − reserved on confirmed orders.
                 {avgCost > 0 && <> Avg landed cost <span className="text-slate-400 tabular-nums">{fmtInt(avgCost)}</span> · value <span className="text-slate-400 tabular-nums">{fmtInt(physical * avgCost)}</span> (internal).</>}
@@ -204,6 +235,11 @@ export default function StockModal({ componentId, componentName, unit, anchor, o
                       <button onClick={() => setMode(null)} className="text-[11px] text-slate-600 hover:text-slate-300 transition-colors">Cancel</button>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
+                      {/* Which warehouse this movement hits — stock is tracked per location */}
+                      <select value={loc} onChange={(e) => setLoc(e.target.value)} title="Warehouse this movement applies to"
+                        className={`${sInp} col-span-2 cursor-pointer`}>
+                        {warehouses.map((w) => <option key={w.code} value={w.code} className="bg-slate-900">{w.name}</option>)}
+                      </select>
                       <input value={qty} inputMode="decimal" onChange={(e) => setQty(e.target.value)} placeholder={mode === 'in' ? 'Qty received' : 'e.g. -3'} className={sInp} autoFocus />
                       {mode === 'in' && (
                         <input value={cost} inputMode="decimal" onChange={(e) => setCost(e.target.value)} placeholder="Landed cost/unit (IDR)" title="Updates the moving-average cost" className={sInp} />

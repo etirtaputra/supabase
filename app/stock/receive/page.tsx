@@ -20,6 +20,7 @@ import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { TAX_CATS } from '@/constants/costCategories';
 import type { PurchaseOrder, PurchaseLineItem, POCost } from '@/types/database';
+import { fetchWarehouses, defaultWarehouse, type Warehouse } from '@/lib/warehouses';
 
 const fmtInt = (n: number) => Math.round(n).toLocaleString('en-US');
 const fmtRp = (n: number) => 'Rp ' + fmtInt(n);
@@ -57,7 +58,12 @@ function ReceivePage() {
   const [poId, setPoId] = useState<string>(params.get('po') ?? '');
   const [lines, setLines] = useState<RecLine[]>([]);
   const [recvDate, setRecvDate] = useState(today());
-  const [location, setLocation] = useState('MAIN');
+  const [location, setLocation] = useState('');
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  useEffect(() => {
+    fetchWarehouses(supabase).then((ws) => { setWarehouses(ws); setLocation((c) => c || defaultWarehouse(ws)); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -344,7 +350,10 @@ function ReceivePage() {
               </label>
               <label className="block">
                 <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 block mb-1">Location</span>
-                <input value={location} onChange={(e) => setLocation(e.target.value.toUpperCase() || 'MAIN')} className={inp} />
+                <select value={location} onChange={(e) => setLocation(e.target.value)} className={`${inp} cursor-pointer`}
+                  title="Warehouse these goods are received into">
+                  {warehouses.map((w) => <option key={w.code} value={w.code} className="bg-slate-900">{w.name}</option>)}
+                </select>
               </label>
               <label className="block col-span-2">
                 <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 block mb-1">Notes</span>

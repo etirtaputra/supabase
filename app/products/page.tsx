@@ -21,6 +21,7 @@ import BrandMenu from '@/components/ui/BrandMenu';
 import { COMMITTED_STATUSES as COMMITTED } from '@/lib/salesStatus';
 import { downloadCsv, parseCsv, readFileText, csvNum } from '@/lib/csv';
 import { fetchDeliveredByQuoteComp } from '@/lib/reservedStock';
+import { rollUpByComponent, type BalanceRow } from '@/lib/warehouses';
 import { computeTierChain } from '@/lib/tierPricing';
 
 interface Comp {
@@ -125,7 +126,7 @@ function ProductsInner() {
       fetchAllComponents(),
       supabase.from('21.0_price_tiers').select('tier_id, tier_code, name, default_discount_pct, sort_order, is_active').order('sort_order'),
       supabase.from('21.1_item_tier_prices').select('component_id, tier_id, override_price_idr, override_discount_pct'),
-      supabase.from('30.1_stock_balances').select('component_id, qty_on_hand'),
+      supabase.from('30.1_stock_balances').select('component_id, location, qty_on_hand, avg_cost_idr'),
       supabase.from('22.0_sales_quotes').select('quote_id, status, order_number, do_number, ordered_at, delivered_at, updated_at, customer_id'),
       supabase.from('22.1_sales_quote_items').select('quote_id, component_id, quantity, is_section'),
       supabase.from('5.0_purchases').select('po_id, status'),
@@ -137,8 +138,10 @@ function ProductsInner() {
     setTiers((tierRes.data as Tier[]) ?? []);
     setOverrides((ovRes.data as Override[]) ?? []);
 
+    // SUM across warehouses — an item can sit in several, and assigning
+    // instead of adding would silently show only one warehouse's stock.
     const phys: Record<string, number> = {};
-    for (const b of (balRes.data as { component_id: string; qty_on_hand: number }[]) ?? []) phys[b.component_id] = Number(b.qty_on_hand) || 0;
+    for (const [cid, e] of rollUpByComponent((balRes.data as BalanceRow[]) ?? [])) phys[cid] = e.qty;
     setPhysical(phys);
 
     const custName = new Map(((custRes.data as { customer_id: string; display_name: string; legal_name: string }[]) ?? [])

@@ -2866,14 +2866,26 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                     {visibleCols.description && <td className="px-3 py-1.5 align-middle">
                       {isEditing ? (
                         <div>
-                          <input
-                            type="text"
+                          {/* Textarea, not a single-line input: descriptions run
+                              long and must be readable in full while editing.
+                              Auto-grows to fit its content; Enter still commits
+                              / moves on (Shift+Enter inserts a line break). */}
+                          <textarea
+                            rows={1}
                             data-rid={c.component_id}
                             data-fld="internal_description"
                             value={(getVal(c, 'internal_description') as string) ?? ''}
-                            onChange={(e) => setField(c, 'internal_description', e.target.value)}
-                            onKeyDown={(e) => handleCellKeyDown(e, c.component_id, 'internal_description')}
-                            className={`w-full px-2 py-1 rounded-lg text-xs text-white focus:outline-none focus:ring-2 transition-all ${
+                            ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; } }}
+                            onChange={(e) => {
+                              e.currentTarget.style.height = 'auto';
+                              e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
+                              setField(c, 'internal_description', e.target.value);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && e.shiftKey) return; // allow a manual line break
+                              handleCellKeyDown(e as unknown as React.KeyboardEvent<HTMLInputElement>, c.component_id, 'internal_description');
+                            }}
+                            className={`w-full px-2 py-1 rounded-lg text-xs text-white focus:outline-none focus:ring-2 transition-all resize-y overflow-hidden leading-snug break-words min-w-[16rem] ${
                               isDirtyField(c, 'internal_description')
                                 ? 'bg-amber-500/10 border border-amber-500/50 focus:ring-amber-500/30'
                                 : 'bg-slate-950 border border-slate-700 focus:ring-emerald-500/20 focus:border-emerald-500'

@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 
 /**
@@ -29,6 +29,7 @@ const fmtInt = (n: number) => Math.round(n).toLocaleString('en-US');
 const fmtD = (d?: string | null) => d ? new Date(d.length <= 10 ? `${d}T00:00:00` : d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '';
 const num = (v: unknown): number => { if (v === '' || v == null) return 0; const n = Number(String(v).replace(/[, ]/g, '')); return isNaN(n) ? 0 : n; };
 const today = () => new Date().toISOString().slice(0, 10);
+import { fetchWarehouses, defaultWarehouse, type Warehouse } from '@/lib/warehouses';
 
 const TIME_OF_DAY = ['Pagi (08–11)', 'Siang (11–14)', 'Sore (14–17)'];
 const VIA_SUGGESTIONS = ['Armada sendiri', 'Kurir instan (GoSend/Grab)', 'Ekspedisi / cargo', 'JNE/J&T', 'Truk sewa'];
@@ -53,6 +54,13 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
   const [busy, setBusy] = useState(false);
   const [showInv, setShowInv] = useState(false);
   const [showDo, setShowDo] = useState(false);
+  // Which warehouse deliveries draw stock from (stock is per-warehouse).
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [shipFrom, setShipFrom] = useState('');
+  useEffect(() => {
+    fetchWarehouses(supabase).then((ws) => { setWarehouses(ws); setShipFrom((c) => c || defaultWarehouse(ws)); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const items = useMemo(() => soLines.filter((l) => !l.is_section && (l.quantity > 0)), [soLines]);
   const orderTotal = Number(quote.grand_total) || 0;
@@ -186,13 +194,16 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
   }
 
   // Net stock already written for a DO (outs − reversal ins), per component
-  async function netOutsForDo(doId: string): Promise<Record<string, { qty: number; cost: number }>> {
+  // Net stock already written for a DO, keyed `${component}|${location}` so a
+  // reversal puts goods back in the warehouse they actually left.
+  async function netOutsForDo(doId: string): Promise<Record<string, { component_id: string; location: string; qty: number; cost: number }>> {
     const { data } = await supabase.from('30.0_stock_movements')
-      .select('component_id, direction, quantity, unit_cost_idr')
+      .select('component_id, location, direction, quantity, unit_cost_idr')
       .eq('source_type', 'delivery').eq('source_id', doId);
-    const net: Record<string, { qty: number; cost: number }> = {};
-    for (const m of (data ?? []) as { component_id: string; direction: string; quantity: number; unit_cost_idr: number }[]) {
-      const e = (net[m.component_id] ??= { qty: 0, cost: 0 });
+    const net: Record<string, { component_id: string; location: string; qty: number; cost: number }> = {};
+    for (const m of (data ?? []) as { component_id: string; location: string; direction: string; quantity: number; unit_cost_idr: number }[]) {
+      const k = `${m.component_id}|${m.location}`;
+      const e = (net[k] ??= { component_id: m.component_id, location: m.location, qty: 0, cost: 0 });
       e.qty += (m.direction === 'out' ? 1 : -1) * (Number(m.quantity) || 0);
       if (m.direction === 'out') e.cost = Number(m.unit_cost_idr) || e.cost;
     }
@@ -203,11 +214,14 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
     setBusy(true);
     const lines = doItems.filter((it) => it.do_id === d.do_id && it.component_id && it.qty > 0);
     const already = await netOutsForDo(d.do_id);
+    const shippedQty = (cid: string) => Object.values(already)
+      .filter((e) => e.component_id === cid).reduce((s, e) => s + e.qty, 0);
+    const from = shipFrom || defaultWarehouse(warehouses);
     const moves = lines
-      .map((l) => ({ component_id: l.component_id!, qty: (Number(l.qty) || 0) - (already[l.component_id!]?.qty ?? 0) }))
+      .map((l) => ({ component_id: l.component_id!, qty: (Number(l.qty) || 0) - shippedQty(l.component_id!) }))
       .filter((m) => m.qty > 0)
       .map((m) => ({
-        component_id: m.component_id, location: 'MAIN', direction: 'out', quantity: m.qty,
+        component_id: m.component_id, location: from, direction: 'out', quantity: m.qty,
         unit_cost_idr: 0, source_type: 'delivery', source_id: d.do_id,
         notes: `${d.do_number} · ${quote.order_number || quote.quote_number}`, allow_negative: true,
       }));
@@ -233,10 +247,10 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
     if (!window.confirm(`Reopen ${d.do_number}? Its stock-out will be reversed (goods back on hand).`)) return;
     setBusy(true);
     const net = await netOutsForDo(d.do_id);
-    const backIn = Object.entries(net)
-      .filter(([, e]) => e.qty > 0)
-      .map(([cid, e]) => ({
-        component_id: cid, location: 'MAIN', direction: 'in', quantity: e.qty,
+    const backIn = Object.values(net)
+      .filter((e) => e.qty > 0)
+      .map((e) => ({
+        component_id: e.component_id, location: e.location, direction: 'in', quantity: e.qty,
         unit_cost_idr: Math.round(e.cost), source_type: 'delivery', source_id: d.do_id,
         notes: `Reversal — ${d.do_number} reopened`,
       }));
@@ -390,6 +404,17 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
             className="px-4 py-2 rounded-xl bg-orange-500/15 text-orange-300 ring-1 ring-orange-500/30 hover:bg-orange-500/25 text-xs font-semibold transition-colors disabled:opacity-40">
             + New Delivery Order
           </button>
+          {/* Deliveries draw stock from this warehouse when a DO is marked delivered */}
+          {warehouses.length > 1 && (
+            <label className="flex items-center gap-1.5 text-[11px] text-slate-500">
+              Ship from
+              <select value={shipFrom} onChange={(e) => setShipFrom(e.target.value)}
+                title="Warehouse the stock-out is posted against when a DO is marked delivered"
+                className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 text-[11px] outline-none focus:border-emerald-500/60 cursor-pointer">
+                {warehouses.map((w) => <option key={w.code} value={w.code} className="bg-slate-900">{w.name}</option>)}
+              </select>
+            </label>
+          )}
         </div>
       )}
 
