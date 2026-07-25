@@ -28,6 +28,7 @@ import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/hooks/useAuth';
 // Constants & Types
 import { ENUMS } from '@/constants/enums';
+import { getLatestExchangeRate } from '@/lib/exchangeRates';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { fmtIdr } from '@/lib/formatters';
@@ -689,8 +690,63 @@ function MasterInsertPage() {
                     <SimpleForm
                       key={`po-form-${pendingQuoteForPO}`}
                       title="1. Purchase Order (with PI fields)"
-                      onFieldChange={(name, value) => {
+                      onFieldChange={(name, value, current) => {
                         const overrides: Record<string, any> = {};
+                        // A supplier's most recent PO tells us which currency they
+                        // invoice in — prefill it rather than making the user pick.
+                        const lastPoFor = (supplierId: unknown) => {
+                          if (!supplierId) return null;
+                          const sid = String(supplierId);
+                          return data.pos
+                            .filter((p) => {
+                              const direct = p.supplier_id ? String(p.supplier_id) : null;
+                              const viaQuote = p.quote_id
+                                ? data.quotes.find((q) => String(q.quote_id) === String(p.quote_id))?.supplier_id
+                                : null;
+                              return (direct ?? (viaQuote ? String(viaQuote) : null)) === sid;
+                            })
+                            .sort((a, b) => (b.po_date || '').localeCompare(a.po_date || ''))[0] ?? null;
+                        };
+                        // Exchange rate: the rate actually IMPLIED BY PAYMENTS on
+                        // this supplier's past POs beats any typed estimate. Falls
+                        // back to the last PO's rate when nothing has been paid yet.
+                        const rateFor = (supplierId: unknown, currency: unknown) => {
+                          if (!supplierId || !currency || currency === 'IDR') return undefined;
+                          const actual = getLatestExchangeRate(data.exchangeRates || [], String(supplierId), String(currency));
+                          // The derived history contains occasional bad rows (a
+                          // part-payment logged against a full PO value implies an
+                          // absurd rate), so only trust the latest reading when it
+                          // sits near this supplier's average — else use the average.
+                          if (actual?.rate) {
+                            const sane = actual.count > 1 && actual.avg > 0
+                              ? (Math.abs(actual.rate - actual.avg) / actual.avg <= 0.3 ? actual.rate : actual.avg)
+                              : actual.rate;
+                            if (sane > 0) return Math.round(sane);
+                          }
+                          const lastPo = data.pos
+                            .filter((p) => {
+                              const viaQuote = p.quote_id
+                                ? data.quotes.find((q) => String(q.quote_id) === String(p.quote_id))?.supplier_id
+                                : null;
+                              const sid = p.supplier_id ? String(p.supplier_id) : (viaQuote ? String(viaQuote) : null);
+                              return sid === String(supplierId) && p.currency === currency && p.exchange_rate;
+                            })
+                            .sort((a, b) => (b.po_date || '').localeCompare(a.po_date || ''))[0];
+                          return lastPo?.exchange_rate ? Number(lastPo.exchange_rate) : undefined;
+                        };
+
+                        if (name === 'supplier_id' && value) {
+                          const lastPo = lastPoFor(value);
+                          const ccy = current?.currency || lastPo?.currency;
+                          if (!current?.currency && lastPo?.currency) overrides.currency = lastPo.currency;
+                          const r = rateFor(value, ccy);
+                          if (r !== undefined) overrides.exchange_rate = r;
+                        }
+                        if (name === 'currency' && value) {
+                          const r = rateFor(current?.supplier_id, value);
+                          if (r !== undefined) overrides.exchange_rate = r;
+                          if (value === 'IDR') overrides.exchange_rate = undefined;
+                        }
                         if (name === 'quote_id') {
                           if (value) {
                             const q = data.quotes.find((q) => String(q.quote_id) === String(value));
@@ -701,23 +757,10 @@ function MasterInsertPage() {
                               overrides.currency = q.currency || undefined;
                               overrides.supplier_id = q.supplier_id;
                               overrides.company_id = q.company_id;
-                              // Auto-fill payment terms from supplier default
-                              const supplier = data.suppliers.find((s) => String(s.supplier_id) === String(q.supplier_id));
-                              if (supplier?.payment_terms_default) {
-                                overrides.payment_terms = supplier.payment_terms_default;
-                              }
-                              // Exchange rate memory: find most recent PO for same supplier with same currency
-                              if (q.currency && q.currency !== 'IDR') {
-                                const sameCurrencyPOs = data.pos
-                                  .filter((p) => {
-                                    const pq = p.quote_id ? data.quotes.find((pqq) => String(pqq.quote_id) === String(p.quote_id)) : null;
-                                    return pq?.supplier_id === q.supplier_id && p.currency === q.currency && p.exchange_rate;
-                                  })
-                                  .sort((a, b) => b.po_date.localeCompare(a.po_date));
-                                if (sameCurrencyPOs[0]?.exchange_rate) {
-                                  overrides.exchange_rate = sameCurrencyPOs[0].exchange_rate;
-                                }
-                              }
+                              // Payment terms stay at the house default
+                              // ("100% in advance") — set per-PO when it differs.
+                              const r = rateFor(q.supplier_id, q.currency);
+                              if (r !== undefined) overrides.exchange_rate = r;
                             }
                             // Duplicate detection: quote already linked to a PO?
                             const existingPO = data.pos.find((p) => p.quote_id && String(p.quote_id) === String(value));
@@ -750,9 +793,9 @@ function MasterInsertPage() {
                         { name: 'incoterms', label: 'Incoterms', type: 'text', suggestions: ['FOB', 'EXW', 'CIF', 'DDP', ...suggestions.incoterms] },
                         { name: 'method_of_shipment', label: 'Ship Via', type: 'select', options: ENUMS.method_of_shipment },
                         { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true, default: pq?.currency || pdfData?.currency },
-                        { name: 'exchange_rate', label: 'Exch Rate', type: 'number' },
+                        { name: 'exchange_rate', label: 'Exch Rate (est.)', type: 'number' },
                         { name: 'total_value', label: 'Total Value', type: 'number', default: pdfData?.total_value },
-                        { name: 'payment_terms', label: 'Terms', type: 'text', suggestions: suggestions.paymentTerms, default: pdfData?.payment_terms },
+                        { name: 'payment_terms', label: 'Terms', type: 'text', suggestions: suggestions.paymentTerms, default: pdfData?.payment_terms || '100% in advance' },
                         { name: 'freight_charges_intl', label: 'Freight', type: 'number' },
                         { name: 'status', label: 'Status', type: 'select', options: ENUMS.purchases_status, default: 'Draft' },
                         { name: 'replaces_po_id', label: 'Replaces PO', type: 'select', options: options.pos },
