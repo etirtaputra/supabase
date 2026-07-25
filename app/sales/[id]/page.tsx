@@ -18,7 +18,7 @@ import { SALES_STATUS as STATUS, COMMITTED_STATUSES as COMMITTED } from '@/lib/s
 import { tierPriceFor } from '@/lib/tierPricing';
 import { fmtDay, fmtInt } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
-import { fetchBankAccounts, accountLabel, type BankAccount } from '@/lib/banks';
+import { fetchBankAccounts, accountLabel, defaultAccountFor, type BankAccount } from '@/lib/banks';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
@@ -586,7 +586,8 @@ export default function SalesQuotePage() {
         {showPayments && (
           <PaymentsPanel
             receipts={receipts} billTotal={billTotal} received={received} canRecord={canRecord}
-            quoteId={editing.quote_id} invoiceNumber={editing.invoice_number || editing.order_number || editing.quote_number}
+            quoteId={editing.quote_id} companyId={editing.company_id}
+            invoiceNumber={editing.invoice_number || editing.order_number || editing.quote_number}
             onChanged={() => load(true)} flash={flash}
           />
         )}
@@ -733,9 +734,9 @@ function LabeledField({ label, labelCls, children }: { label: string; labelCls?:
 }
 
 // ── Payments (AR) — mirrors the buy-side PO payment pattern ─────────────────
-function PaymentsPanel({ receipts, billTotal, received, canRecord, quoteId, invoiceNumber, onChanged, flash }: {
+function PaymentsPanel({ receipts, billTotal, received, canRecord, quoteId, companyId, invoiceNumber, onChanged, flash }: {
   receipts: Receipt[]; billTotal: number; received: number; canRecord: boolean;
-  quoteId: string; invoiceNumber: string; onChanged: () => void; flash: (m: string) => void;
+  quoteId: string; companyId: string | null; invoiceNumber: string; onChanged: () => void; flash: (m: string) => void;
 }) {
   const supabase = createSupabaseClient();
   const [showModal, setShowModal] = useState(false);
@@ -794,7 +795,7 @@ function PaymentsPanel({ receipts, billTotal, received, canRecord, quoteId, invo
       )}
 
       {showModal && (
-        <RecordPaymentModal quoteId={quoteId} outstanding={outstanding} received={received}
+        <RecordPaymentModal quoteId={quoteId} companyId={companyId} outstanding={outstanding} received={received}
           onClose={() => setShowModal(false)} onDone={() => { setShowModal(false); onChanged(); }} flash={flash} />
       )}
     </div>
@@ -810,8 +811,8 @@ function MiniStat({ label, value, cls }: { label: string; value: string; cls: st
   );
 }
 
-function RecordPaymentModal({ quoteId, outstanding, received, onClose, onDone, flash }: {
-  quoteId: string; outstanding: number; received: number;
+function RecordPaymentModal({ quoteId, companyId, outstanding, received, onClose, onDone, flash }: {
+  quoteId: string; companyId: string | null; outstanding: number; received: number;
   onClose: () => void; onDone: () => void; flash: (m: string) => void;
 }) {
   const supabase = createSupabaseClient();
@@ -827,7 +828,13 @@ function RecordPaymentModal({ quoteId, outstanding, received, onClose, onDone, f
   // account's statement on /banks complete.
   const [banks, setBanks] = useState<BankAccount[]>([]);
   const [bankId, setBankId] = useState('');
-  useEffect(() => { fetchBankAccounts(supabase).then(setBanks); }, []);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    fetchBankAccounts(supabase).then((list) => {
+      setBanks(list);
+      // The issuing company's default receipt account (Settings › Banks)
+      setBankId((prev) => prev || (defaultAccountFor(list, 'receipt', companyId)?.bank_account_id ?? ''));
+    });
+  }, [companyId]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   async function submit() {
     const amt = num(amount);

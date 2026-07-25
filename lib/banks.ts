@@ -23,6 +23,10 @@ export interface BankAccount {
   opening_balance: number;
   opening_date: string | null;
   is_active: boolean;
+  /** Preselected when a supplier payment is made by this account's company. */
+  is_default_payment?: boolean;
+  /** Preselected when a customer receipt is recorded for this company. */
+  is_default_receipt?: boolean;
   sort_order: number;
   notes?: string | null;
   updated_at?: string | null;
@@ -53,6 +57,36 @@ export async function fetchBankAccounts(supabase: SupabaseClient, includeInactiv
   if (error || !data) return [];
   const list = data as BankAccount[];
   return includeInactive ? list : list.filter((a) => a.is_active !== false);
+}
+
+/** The bank-name library (41.2), lowest sort_order first. */
+export async function fetchBankNames(supabase: SupabaseClient): Promise<string[]> {
+  const { data, error } = await supabase.from('41.2_bank_names')
+    .select('bank_name, is_active, sort_order').order('sort_order').order('bank_name');
+  if (error || !data) return [];
+  return (data as { bank_name: string; is_active: boolean }[])
+    .filter((b) => b.is_active !== false)
+    .map((b) => b.bank_name);
+}
+
+/**
+ * Which account a payment or a receipt should preselect.
+ * Each company banks separately, so the company on the document decides first;
+ * failing that (or when the document carries no company) the first account
+ * flagged for that use wins, then simply the first account.
+ */
+export function defaultAccountFor(
+  accounts: BankAccount[],
+  kind: 'payment' | 'receipt',
+  companyId?: string | null,
+): BankAccount | null {
+  const flagged = (a: BankAccount) => (kind === 'payment' ? a.is_default_payment : a.is_default_receipt);
+  const active = accounts.filter((a) => a.is_active !== false);
+  if (companyId) {
+    const own = active.filter((a) => a.company_id === companyId);
+    return own.find(flagged) ?? own[0] ?? active.find(flagged) ?? null;
+  }
+  return active.find(flagged) ?? null;
 }
 
 /**

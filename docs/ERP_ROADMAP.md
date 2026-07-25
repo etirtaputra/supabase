@@ -200,6 +200,21 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   never a rewrite). An "untagged movements" panel assigns historical payments
   and receipts to an account. New capabilities: `canViewBanks` (owner,
   buy_admin, sell_admin, legacy finance) and `canEditBanks` (owner).
+- **Banks, second pass (2026-07-25)**:
+  `migrations/bank_accounts_defaults_and_library.sql` — accounts carry
+  `is_default_payment` / `is_default_receipt`, unique PER COMPANY via a partial
+  index (each PT banks separately, so a single global default would be wrong the
+  moment two companies are involved). `defaultAccountFor()` in `lib/banks.ts`
+  resolves what a form preselects: the document's company first, then any
+  flagged account. Wired into the customer-receipt modal (the quote's issuing
+  company) and the supplier payment batch (when the selected POs agree on one
+  paying company). Settings › Banks is now grouped into a section per company,
+  alphabetical, with ▲▼ ranking inside each section, the two default toggles,
+  and a "move to company" control. `41.2_bank_names` is the bank library the
+  Bank field autocompletes from (seeded with the Indonesian banks in use plus
+  every name already typed); a new name joins it as it is typed, and the
+  library panel prunes what is unused.
+
 - **Date filtering across the money lists (2026-07-25)**: `lib/dateRange.ts` +
   `components/ui/DateRangeFilter.tsx` — one vocabulary (this week / month /
   quarter / year, the rolling 7/30/90, last month / last year, a month picker,
@@ -366,7 +381,7 @@ per-invoice issued→paid dates; tsc + build green.
   - `22.x` = sales/product quotes · `23.x` = sales orders · `24.x` = delivery orders · `25.x` = sales invoices · `26.x` = customer receipts
   - `30.x` = inventory (stock ledger, balances, locations, warehouses)
   - `40.x` = platform settings (`40.0_settings` key/value, owner-write)
-  - `41.x` = treasury (`41.0_bank_accounts`, `41.1_bank_transactions`)
+  - `41.x` = treasury (`41.0_bank_accounts`, `41.1_bank_transactions`, `41.2_bank_names`)
 - **Document numbering:** human refs like `CUST-…`, `SQ-YYYYMMDD-…`, `SO-…`, `DO-…`, `INV-…`, `RCPT-…`, `GRN-…` (mirror existing `Q-YYYYMMDD-XXXX`).
 - **RLS on every new table** (authenticated-only; writes gated by role). Add a **`sales`** role to the matrix in `constants/roles.ts`; sales can manage customers/quotes/orders but not procurement or payments.
 - **Audit:** reuse the `log_quote_activity`-style trigger pattern for created/updated stamps + activity log.

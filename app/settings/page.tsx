@@ -31,6 +31,7 @@ import {
 import { applyCurrency, formatDate, formatNumber } from '@/lib/formatters';
 import { fetchWarehouses, type Warehouse } from '@/lib/warehouses';
 import { accountLabel, type BankAccount } from '@/lib/banks';
+import Autocomplete from '@/components/ui/Autocomplete';
 import { fmtRupiah } from '@/lib/formatters';
 import Link from 'next/link';
 
@@ -594,8 +595,12 @@ function CompanyTab({ draft, set }: { draft: AppSettings; set: <K extends keyof 
 }
 
 // ── Banks ───────────────────────────────────────────────────────────────────
-// The account master. Statements, balances and corrections live on /banks —
-// this tab is where an account comes into existence and gets its details.
+// The account master, grouped by the company that owns each account — each PT
+// banks separately, so the company is the organising fact, not a field buried
+// in a card. Within a company the order is the owner's (▲▼), and one account
+// can be flagged as the default for PAYING suppliers and one for RECEIVING
+// customer money; those flags are what the payment and receipt forms preselect.
+// Statements, balances and corrections live on /banks.
 
 const BANK_CURRENCIES = ['IDR', 'USD', 'EUR', 'CNY', 'SGD'];
 
@@ -603,19 +608,28 @@ function BanksTab({ flash, email }: { flash: (m: string) => void; email: string 
   const supabase = createSupabaseClient();
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [companies, setCompanies] = useState<{ company_id: string; legal_name: string }[]>([]);
+  const [bankNames, setBankNames] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [missing, setMissing] = useState(false);
+  const [libOpen, setLibOpen] = useState(false);
+  const [newBank, setNewBank] = useState('');
+  // What is being typed into each Bank field; the account row keeps the SAVED
+  // value, so a commit can tell whether anything actually changed.
+  const [bankDraft, setBankDraft] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [accRes, coRes] = await Promise.all([
+    const [accRes, coRes, nameRes] = await Promise.all([
       supabase.from('41.0_bank_accounts').select('*').order('sort_order'),
       supabase.from('1.0_companies').select('company_id, legal_name').order('legal_name'),
+      supabase.from('41.2_bank_names').select('bank_name, is_active, sort_order').order('sort_order').order('bank_name'),
     ]);
     if (accRes.error) { setMissing(true); setLoading(false); return; }
     setAccounts((accRes.data as BankAccount[]) ?? []);
     setCompanies((coRes.data as { company_id: string; legal_name: string }[]) ?? []);
+    setBankNames(((nameRes.data as { bank_name: string; is_active: boolean }[]) ?? [])
+      .filter((b) => b.is_active !== false).map((b) => b.bank_name));
     setLoading(false);
   }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, [load]);
@@ -630,9 +644,66 @@ function BanksTab({ flash, email }: { flash: (m: string) => void; email: string 
     setAccounts((prev) => prev.map((x) => (x.bank_account_id === a.bank_account_id ? { ...x, ...p } : x)));
   };
 
-  const addAccount = async () => {
+  // A new bank name joins the library as it is typed, so the next account
+  // autocompletes it instead of inviting a second spelling.
+  const rememberBank = async (name: string) => {
+    const n = name.trim();
+    if (!n || bankNames.some((b) => b.toLowerCase() === n.toLowerCase())) return;
+    const { error } = await supabase.from('41.2_bank_names').insert({ bank_name: n, sort_order: 90, created_by_email: email });
+    if (!error) setBankNames((prev) => [...prev, n]);
+  };
+
+  const setBankName = async (a: BankAccount, name: string) => {
+    if (name === a.bank_name) return;
+    await patch(a, { bank_name: name });
+    rememberBank(name);
+  };
+
+  // Exactly one default of each kind per company (a partial unique index says
+  // so), which means the old flag has to go before the new one lands.
+  const setDefault = async (a: BankAccount, kind: 'payment' | 'receipt', on: boolean) => {
+    const col = kind === 'payment' ? 'is_default_payment' : 'is_default_receipt';
+    setSaving(a.bank_account_id);
+    if (on) {
+      const siblings = accounts.filter((x) => x.company_id === a.company_id && x.bank_account_id !== a.bank_account_id);
+      if (siblings.length) {
+        await supabase.from('41.0_bank_accounts').update({ [col]: false })
+          .in('bank_account_id', siblings.map((x) => x.bank_account_id));
+      }
+    }
+    const { error } = await supabase.from('41.0_bank_accounts')
+      .update({ [col]: on, updated_at: new Date().toISOString(), updated_by_email: email })
+      .eq('bank_account_id', a.bank_account_id);
+    setSaving(null);
+    if (error) { flash(`Could not save — ${error.message}`); return; }
+    setAccounts((prev) => prev.map((x) => {
+      if (x.bank_account_id === a.bank_account_id) return { ...x, [col]: on };
+      if (on && x.company_id === a.company_id) return { ...x, [col]: false };
+      return x;
+    }));
+    flash(on ? `Default ${kind} account for this company` : `No longer the default ${kind} account`);
+  };
+
+  // Reorder within the company — swap sort_order with the neighbour above/below
+  const move = async (a: BankAccount, group: BankAccount[], dir: -1 | 1) => {
+    const i = group.findIndex((x) => x.bank_account_id === a.bank_account_id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= group.length) return;
+    const b = group[j];
+    setSaving(a.bank_account_id);
+    await Promise.all([
+      supabase.from('41.0_bank_accounts').update({ sort_order: b.sort_order }).eq('bank_account_id', a.bank_account_id),
+      supabase.from('41.0_bank_accounts').update({ sort_order: a.sort_order }).eq('bank_account_id', b.bank_account_id),
+    ]);
+    setSaving(null);
+    setAccounts((prev) => prev.map((x) =>
+      x.bank_account_id === a.bank_account_id ? { ...x, sort_order: b.sort_order }
+        : x.bank_account_id === b.bank_account_id ? { ...x, sort_order: a.sort_order } : x));
+  };
+
+  const addAccount = async (companyId: string | null) => {
     const { error } = await supabase.from('41.0_bank_accounts').insert({
-      company_id: companies[0]?.company_id ?? null,
+      company_id: companyId,
       bank_name: '', account_name: '', account_number: '', currency: 'IDR',
       opening_balance: 0, is_active: true,
       sort_order: accounts.reduce((m, a) => Math.max(m, a.sort_order), 0) + 1,
@@ -650,6 +721,48 @@ function BanksTab({ flash, email }: { flash: (m: string) => void; email: string 
     flash('Account removed');
   };
 
+  const addBankName = async () => {
+    const n = newBank.trim();
+    if (!n) return;
+    if (bankNames.some((b) => b.toLowerCase() === n.toLowerCase())) { flash('Already in the library'); return; }
+    const { error } = await supabase.from('41.2_bank_names').insert({ bank_name: n, sort_order: 90, created_by_email: email });
+    if (error) { flash(`Could not add — ${error.message}`); return; }
+    setBankNames((prev) => [...prev, n]);
+    setNewBank('');
+  };
+
+  const removeBankName = async (n: string) => {
+    const inUse = accounts.filter((a) => (a.bank_name ?? '').toLowerCase() === n.toLowerCase()).length;
+    if (inUse) { flash(`${n} is on ${inUse} account${inUse !== 1 ? 's' : ''} — rename those first`); return; }
+    const { error } = await supabase.from('41.2_bank_names').delete().eq('bank_name', n);
+    if (error) { flash(`Could not remove — ${error.message}`); return; }
+    setBankNames((prev) => prev.filter((b) => b !== n));
+  };
+
+  // ── Grouped by company, companies alphabetical, accounts in the owner's order
+  const groups = useMemo(() => {
+    const byId = new Map(companies.map((c) => [c.company_id, c.legal_name]));
+    const map = new Map<string, BankAccount[]>();
+    for (const a of accounts) {
+      const key = a.company_id ?? '';
+      (map.get(key) ?? map.set(key, []).get(key)!).push(a);
+    }
+    const out = [...map.entries()].map(([id, list]) => ({
+      companyId: id || null,
+      name: byId.get(id) ?? 'No company',
+      list: [...list].sort((x, y) => (x.sort_order - y.sort_order) || x.bank_name.localeCompare(y.bank_name)),
+    }));
+    // Companies with no account yet still get a section, so adding one is obvious
+    for (const c of companies) {
+      if (!map.has(c.company_id)) out.push({ companyId: c.company_id, name: c.legal_name, list: [] });
+    }
+    return out.sort((a, b) => {
+      if (!a.companyId) return 1;      // "No company" last
+      if (!b.companyId) return -1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [accounts, companies]);
+
   if (missing) {
     return (
       <div className="bg-amber-500/10 border border-amber-500/40 rounded-xl p-4 text-xs text-amber-200">
@@ -660,93 +773,175 @@ function BanksTab({ flash, email }: { flash: (m: string) => void; email: string 
   if (loading) return <div className="space-y-2">{[...Array(3)].map((_, i) => <div key={i} className="h-24 bg-slate-800/40 rounded-2xl animate-pulse" />)}</div>;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="bg-sky-500/[0.07] border border-sky-500/25 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <p className="text-xs text-sky-100/90 leading-relaxed">
-          <span className="font-bold">Accounts here, money on Banks.</span> An account is owned by one group company;
-          supplier payments and customer receipts are tagged with the account they moved through, and the statement is
-          assembled from those documents.
+          <span className="font-bold">Accounts here, money on Banks.</span> Accounts are grouped by the company that owns
+          them. Flag one account per company as the default for <span className="font-semibold">paying</span> suppliers and
+          one for <span className="font-semibold">receiving</span> customer money — the payment and receipt forms preselect them.
         </p>
         <Link href="/banks" className="text-xs font-semibold text-sky-300 hover:text-sky-200 whitespace-nowrap px-3 py-1.5 rounded-lg border border-sky-500/30 hover:bg-sky-500/10 transition-colors">
           Open Banks →
         </Link>
       </div>
 
-      <div className="flex justify-end">
-        <button onClick={addAccount}
-          className="text-xs font-bold px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-colors">
-          + Add account
+      {groups.map((g) => (
+        <section key={g.companyId ?? 'none'} className="space-y-3">
+          <div className="flex items-center justify-between gap-3 border-b border-slate-800/80 pb-2">
+            <div className="min-w-0">
+              <h3 className="text-sm font-bold text-white truncate">{g.name}</h3>
+              <p className="text-[11px] text-slate-600">
+                {g.list.length === 0 ? 'No accounts yet' : `${g.list.length} account${g.list.length !== 1 ? 's' : ''}`}
+                {g.list.some((a) => a.is_default_payment) ? '' : g.list.length ? ' · no default for payments' : ''}
+                {g.list.some((a) => a.is_default_receipt) ? '' : g.list.length ? ' · no default for receipts' : ''}
+              </p>
+            </div>
+            <button onClick={() => addAccount(g.companyId)}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 transition-colors whitespace-nowrap">
+              + Add account
+            </button>
+          </div>
+
+          {g.list.length === 0 ? (
+            <p className="text-[11px] text-slate-600 px-1">Nothing banked under this company yet.</p>
+          ) : (
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+              {g.list.map((a, i) => (
+                <div key={a.bank_account_id}
+                  className={`bg-slate-900/50 border rounded-2xl p-4 space-y-3 transition-colors ${a.is_active ? 'border-slate-800' : 'border-slate-800/40 opacity-60'}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {/* Ranking within the company */}
+                      <div className="flex flex-col -my-1 flex-shrink-0">
+                        <button onClick={() => move(a, g.list, -1)} disabled={i === 0}
+                          className="text-slate-600 hover:text-white disabled:opacity-20 leading-none text-[10px] px-1 py-0.5 transition-colors" title="Move up">▲</button>
+                        <button onClick={() => move(a, g.list, 1)} disabled={i === g.list.length - 1}
+                          className="text-slate-600 hover:text-white disabled:opacity-20 leading-none text-[10px] px-1 py-0.5 transition-colors" title="Move down">▼</button>
+                      </div>
+                      <p className="text-sm font-bold text-white truncate">{accountLabel(a)}</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {saving === a.bank_account_id && <div className="w-3.5 h-3.5 border border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />}
+                      <label className="flex items-center gap-1.5 text-[10px] text-slate-500 cursor-pointer select-none">
+                        <input type="checkbox" checked={a.is_active} onChange={(e) => patch(a, { is_active: e.target.checked })} className="accent-emerald-500 w-3.5 h-3.5" />
+                        Active
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Defaults — what the payment and receipt forms preselect */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button onClick={() => setDefault(a, 'payment', !a.is_default_payment)}
+                      title="Preselected when this company pays a supplier"
+                      className={`text-[11px] px-2.5 py-1 rounded-lg border font-semibold transition-colors ${
+                        a.is_default_payment ? 'bg-sky-500/15 border-sky-500/40 text-sky-300' : 'border-slate-700 text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+                      }`}>
+                      {a.is_default_payment ? '✓ ' : ''}Default for payments
+                    </button>
+                    <button onClick={() => setDefault(a, 'receipt', !a.is_default_receipt)}
+                      title="Preselected when a customer payment is recorded for this company"
+                      className={`text-[11px] px-2.5 py-1 rounded-lg border font-semibold transition-colors ${
+                        a.is_default_receipt ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'border-slate-700 text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+                      }`}>
+                      {a.is_default_receipt ? '✓ ' : ''}Default for receipts
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <Field label="Bank" hint="Autocompletes from the library below.">
+                      <Autocomplete value={bankDraft[a.bank_account_id] ?? a.bank_name} suggestions={bankNames} placeholder="BCA"
+                        inputClassName={inputCls}
+                        onChange={(v) => setBankDraft((d) => ({ ...d, [a.bank_account_id]: v }))}
+                        onCommit={(v) => setBankName(a, v)} />
+                    </Field>
+                    <Field label="Account number">
+                      <input className={`${inputCls} font-mono`} defaultValue={a.account_number} placeholder="0123456789"
+                        onBlur={(e) => { if (e.target.value !== a.account_number) patch(a, { account_number: e.target.value }); }} />
+                    </Field>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <Field label="Account name" hint="As it appears on a transfer.">
+                      <input className={inputCls} defaultValue={a.account_name}
+                        onBlur={(e) => { if (e.target.value !== a.account_name) patch(a, { account_name: e.target.value }); }} />
+                    </Field>
+                    <Field label="Currency">
+                      <select className={inputCls} value={a.currency} onChange={(e) => patch(a, { currency: e.target.value })}>
+                        {BANK_CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </Field>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <Field label="Opening balance" hint="Where the statement starts. Later corrections are recorded on Banks.">
+                      <input className={`${inputCls} text-right tabular-nums`} defaultValue={String(a.opening_balance ?? 0)} inputMode="decimal"
+                        onBlur={(e) => {
+                          const v = Number(String(e.target.value).replace(/[, ]/g, ''));
+                          if (!isNaN(v) && v !== Number(a.opening_balance)) patch(a, { opening_balance: v });
+                        }} />
+                    </Field>
+                    <Field label="Opening date">
+                      <input type="date" className={inputCls} defaultValue={a.opening_date ?? ''}
+                        onBlur={(e) => { if (e.target.value !== (a.opening_date ?? '')) patch(a, { opening_date: e.target.value || null }); }} />
+                    </Field>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 gap-3">
+                    <select className="text-[11px] bg-transparent text-slate-600 hover:text-slate-400 focus:outline-none cursor-pointer max-w-[60%] truncate"
+                      value={a.company_id ?? ''} onChange={(e) => patch(a, { company_id: e.target.value || null })}
+                      title="Move this account to another company">
+                      <option value="">Move to: no company</option>
+                      {companies.map((c) => <option key={c.company_id} value={c.company_id}>Move to: {c.legal_name}</option>)}
+                    </select>
+                    <button onClick={() => remove(a)} className="text-[11px] text-slate-600 hover:text-rose-400 transition-colors flex-shrink-0"
+                      title="Only possible while nothing references the account — otherwise untick Active">
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      ))}
+
+      {/* ── Bank library ─────────────────────────────────────────────────── */}
+      <div className="bg-slate-900/50 border border-slate-800 rounded-2xl overflow-hidden">
+        <button onClick={() => setLibOpen((o) => !o)} className="w-full px-4 py-3 flex items-center justify-between gap-3 text-left hover:bg-white/[0.02] transition-colors">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Bank library</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              {bankNames.length} bank{bankNames.length !== 1 ? 's' : ''} — what the Bank field suggests, so one bank never
+              becomes three spellings. A name typed on an account joins the list automatically.
+            </p>
+          </div>
+          <span className="text-slate-500 text-xs flex-shrink-0">{libOpen ? 'Hide' : 'Show'}</span>
         </button>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-        {accounts.map((a) => (
-          <div key={a.bank_account_id}
-            className={`bg-slate-900/50 border rounded-2xl p-4 space-y-3 transition-colors ${a.is_active ? 'border-slate-800' : 'border-slate-800/40 opacity-60'}`}>
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-sm font-bold text-white truncate">{accountLabel(a)}</p>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                {saving === a.bank_account_id && <div className="w-3.5 h-3.5 border border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />}
-                <label className="flex items-center gap-1.5 text-[10px] text-slate-500 cursor-pointer select-none">
-                  <input type="checkbox" checked={a.is_active} onChange={(e) => patch(a, { is_active: e.target.checked })} className="accent-emerald-500 w-3.5 h-3.5" />
-                  Active
-                </label>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field label="Company">
-                <select className={inputCls} value={a.company_id ?? ''} onChange={(e) => patch(a, { company_id: e.target.value || null })}>
-                  <option value="">— none —</option>
-                  {companies.map((c) => <option key={c.company_id} value={c.company_id}>{c.legal_name}</option>)}
-                </select>
-              </Field>
-              <Field label="Currency">
-                <select className={inputCls} value={a.currency} onChange={(e) => patch(a, { currency: e.target.value })}>
-                  {BANK_CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </Field>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field label="Bank">
-                <input className={inputCls} defaultValue={a.bank_name} placeholder="BCA"
-                  onBlur={(e) => { if (e.target.value !== a.bank_name) patch(a, { bank_name: e.target.value }); }} />
-              </Field>
-              <Field label="Account number">
-                <input className={`${inputCls} font-mono`} defaultValue={a.account_number} placeholder="0123456789"
-                  onBlur={(e) => { if (e.target.value !== a.account_number) patch(a, { account_number: e.target.value }); }} />
-              </Field>
-            </div>
-
-            <Field label="Account name" hint="The name the account is held in, as it appears on a transfer.">
-              <input className={inputCls} defaultValue={a.account_name}
-                onBlur={(e) => { if (e.target.value !== a.account_name) patch(a, { account_name: e.target.value }); }} />
-            </Field>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field label="Opening balance" hint="Where the statement starts. Later corrections are recorded on Banks.">
-                <input className={`${inputCls} text-right tabular-nums`} defaultValue={String(a.opening_balance ?? 0)} inputMode="decimal"
-                  onBlur={(e) => {
-                    const v = Number(String(e.target.value).replace(/[, ]/g, ''));
-                    if (!isNaN(v) && v !== Number(a.opening_balance)) patch(a, { opening_balance: v });
-                  }} />
-              </Field>
-              <Field label="Opening date">
-                <input type="date" className={inputCls} defaultValue={a.opening_date ?? ''}
-                  onBlur={(e) => { if (e.target.value !== (a.opening_date ?? '')) patch(a, { opening_date: e.target.value || null }); }} />
-              </Field>
-            </div>
-
-            <div className="flex items-center justify-between pt-1">
-              <span className="text-[11px] text-slate-600 tabular-nums">Opens at {fmtRupiah(Number(a.opening_balance) || 0)}</span>
-              <button onClick={() => remove(a)} className="text-[11px] text-slate-600 hover:text-rose-400 transition-colors"
-                title="Only possible while nothing references the account — otherwise untick Active">
-                Delete
+        {libOpen && (
+          <div className="border-t border-slate-800/60 p-4 space-y-3">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input value={newBank} onChange={(e) => setNewBank(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') addBankName(); }}
+                placeholder="Add a bank — e.g. BNI" className={`${inputCls} sm:flex-1`} />
+              <button onClick={addBankName} disabled={!newBank.trim()}
+                className="text-xs font-bold px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-600 text-white transition-colors whitespace-nowrap">
+                Add
               </button>
             </div>
+            <div className="flex flex-wrap gap-1.5">
+              {bankNames.map((b) => {
+                const uses = accounts.filter((a) => (a.bank_name ?? '').toLowerCase() === b.toLowerCase()).length;
+                return (
+                  <span key={b} className="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg border border-slate-700 text-slate-300">
+                    {b}
+                    {uses > 0 && <span className="text-slate-600">×{uses}</span>}
+                    <button onClick={() => removeBankName(b)} className="text-slate-600 hover:text-rose-400 transition-colors" title={uses ? 'In use — rename those accounts first' : 'Remove from the library'}>×</button>
+                  </span>
+                );
+              })}
+            </div>
           </div>
-        ))}
+        )}
       </div>
     </div>
   );

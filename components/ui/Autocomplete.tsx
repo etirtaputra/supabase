@@ -15,7 +15,14 @@ interface AutocompleteProps {
   disabled?: boolean;
   required?: boolean;
   id?: string;
+  /** Override the input chrome so the field can match its surroundings. */
+  inputClassName?: string;
+  /** Fired when the value is settled — a suggestion picked, or the field left. */
+  onCommit?: (value: string) => void;
 }
+
+const DEFAULT_INPUT_CLASS =
+  'w-full p-2.5 md:p-3 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none placeholder-slate-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed';
 
 export default function Autocomplete({
   value,
@@ -25,6 +32,8 @@ export default function Autocomplete({
   disabled = false,
   required = false,
   id,
+  inputClassName,
+  onCommit,
 }: AutocompleteProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([]);
@@ -62,8 +71,13 @@ export default function Autocomplete({
     }
   }, [activeIndex]);
 
+  const blurCommit = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (blurCommit.current) clearTimeout(blurCommit.current); }, []);
+
   const handleSelect = (suggestion: string) => {
+    if (blurCommit.current) { clearTimeout(blurCommit.current); blurCommit.current = null; }
     onChange(suggestion);
+    onCommit?.(suggestion);
     setIsOpen(false);
     setActiveIndex(-1);
   };
@@ -98,10 +112,15 @@ export default function Autocomplete({
       <input
         id={id}
         type="text"
-        className="w-full p-2.5 md:p-3 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none placeholder-slate-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        className={inputClassName ?? DEFAULT_INPUT_CLASS}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onFocus={() => setIsOpen(true)}
+        onBlur={(e) => {
+          const v = e.target.value;
+          if (blurCommit.current) clearTimeout(blurCommit.current);
+          blurCommit.current = setTimeout(() => { blurCommit.current = null; onCommit?.(v); }, 150);
+        }}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         disabled={disabled}

@@ -14,7 +14,7 @@ import type { PurchaseOrder, Supplier, PriceQuote, POCost } from '@/types/databa
 import { ENUMS } from '@/constants/enums';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 import { fmtIdr } from '@/lib/formatters';
-import { fetchBankAccounts, accountLabel, type BankAccount } from '@/lib/banks';
+import { fetchBankAccounts, accountLabel, defaultAccountFor, type BankAccount } from '@/lib/banks';
 
 const ALL_COST_CATS = ENUMS.po_cost_category as readonly string[];
 
@@ -45,6 +45,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
   // row it creates, so /banks can assemble the statement from the documents.
   const [banks,       setBanks]       = useState<BankAccount[]>([]);
   const [bankId,      setBankId]      = useState('');
+  const [bankTouched, setBankTouched] = useState(false);
   useEffect(() => { fetchBankAccounts(createSupabaseClient()).then(setBanks); }, []);
   const [costItems,   setCostItems]   = useState<CostItem[]>([
     { uid: 'item_0', category: 'balance_payment', amountStr: '', dateStr: '' },
@@ -145,6 +146,19 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
     () => pos.filter((p) => selectedIds.includes(String(p.po_id))),
     [pos, selectedIds]
   );
+
+  // The paying company, when the selected POs agree on one — its default
+  // payment account (Settings › Banks) is what the picker preselects.
+  const payingCompanyId = useMemo(() => {
+    const ids = [...new Set(selectedPos.map((p) => p.company_id).filter(Boolean))];
+    return ids.length === 1 ? (ids[0] as string) : null;
+  }, [selectedPos]);
+
+  useEffect(() => {
+    if (bankTouched || !banks.length) return;
+    const pick = defaultAccountFor(banks, 'payment', payingCompanyId);
+    if (pick) setBankId(pick.bank_account_id);
+  }, [banks, payingCompanyId, bankTouched]);
 
   // ── IDR value per selected PO ─────────────────────────────────────────
   const poIdrValues = useMemo(() => {
@@ -414,7 +428,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
             <div>
               <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-1.5">Paid From</label>
               <select
-                value={bankId} onChange={(e) => setBankId(e.target.value)}
+                value={bankId} onChange={(e) => { setBankTouched(true); setBankId(e.target.value); }}
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-sky-500/20"
               >
                 <option value="">— not recorded —</option>
