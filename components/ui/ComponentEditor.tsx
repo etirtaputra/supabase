@@ -15,6 +15,7 @@ import CostBasisControl, { type QuoteCostMode } from './CostBasisControl';
 import { createSupabaseClient } from '@/lib/supabase';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { useAuth } from '@/hooks/useAuth';
+import { useSettings } from '@/hooks/useSettings';
 import type { Component, PriceQuoteLineItem, PriceQuote, PurchaseOrder, PurchaseLineItem, CompetitorPrice, POCost, ComponentLink } from '../../types/database';
 import { computeTUC, computeTUCMap } from '../../lib/computeTUC';
 import { computeTierChain } from '../../lib/tierPricing';
@@ -695,11 +696,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const isOwner = profile?.role === 'owner';
   const [bulkCostBusy, setBulkCostBusy] = useState<QuoteCostMode | null>(null);
   const [bulkBuffer, setBulkBuffer] = useState('');
-  const [globalBufferPct, setGlobalBufferPct] = useState(5);
-  useEffect(() => {
-    supabase.from('app_settings').select('value').eq('key', 'quote_cost_buffer_pct').maybeSingle()
-      .then(({ data }) => { const v = Number(data?.value); if (!isNaN(v)) setGlobalBufferPct(v); });
-  }, [supabase]);
+  const globalBufferPct = useSettings().epcCostBufferPct;
   const selectAllRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [specsOpenIds, setSpecsOpenIds] = useState<Set<string>>(new Set());

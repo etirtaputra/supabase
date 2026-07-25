@@ -32,6 +32,7 @@ import { getLatestExchangeRate, deriveExchangeRates } from '@/lib/exchangeRates'
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { fmtIdr } from '@/lib/formatters';
+import { useSettings } from '@/hooks/useSettings';
 import type { Tab, MenuItem } from '@/types/forms';
 
 const MENU_ITEMS: MenuItem[] = [
@@ -88,6 +89,7 @@ function MasterInsertPage() {
   const [pendingQuoteForPO, setPendingQuoteForPO] = useState('');
 
   const { user, profile, loading: authLoading, signOut } = useAuth();
+  const settings = useSettings();
   const { data, loading: dataLoading, refetch } = useSupabaseData();
   const suggestions = useSuggestions(data);
   const { showToast } = useToast();
@@ -769,7 +771,7 @@ function MasterInsertPage() {
                               overrides.supplier_id = q.supplier_id;
                               overrides.company_id = q.company_id;
                               // Payment terms stay at the house default
-                              // ("100% in advance") — set per-PO when it differs.
+                              // (Settings › Defaults) — set per-PO when it differs.
                               const r = rateFor(q.supplier_id, q.currency);
                               if (r !== undefined) overrides.exchange_rate = r;
                             }
@@ -806,7 +808,7 @@ function MasterInsertPage() {
                         { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true, default: pq?.currency || pdfData?.currency },
                         { name: 'exchange_rate', label: 'Exch Rate (est.)', type: 'number' },
                         { name: 'total_value', label: 'Total Value', type: 'number', default: pdfData?.total_value },
-                        { name: 'payment_terms', label: 'Terms', type: 'text', suggestions: suggestions.paymentTerms, default: pdfData?.payment_terms || '100% in advance' },
+                        { name: 'payment_terms', label: 'Terms', type: 'text', suggestions: suggestions.paymentTerms, default: pdfData?.payment_terms || settings.defaultPoPaymentTerms },
                         { name: 'freight_charges_intl', label: 'Freight', type: 'number' },
                         { name: 'status', label: 'Status', type: 'select', options: ENUMS.purchases_status, default: 'Draft' },
                         { name: 'replaces_po_id', label: 'Replaces PO', type: 'select', options: options.pos },

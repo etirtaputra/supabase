@@ -9,20 +9,19 @@ import CommandPalette from '@/components/ui/CommandPalette';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
+import { fmtCompact, fmtIdrShort, parseDate } from '@/lib/formatters';
+import { getSettings } from '@/lib/settings';
 
 // ── Formatting ──────────────────────────────────────────────────────────────
-const fmtCompact = (n: number) =>
-  n >= 1_000_000_000 ? `${(n / 1_000_000_000).toFixed(2)}B`
-  : n >= 1_000_000   ? `${(n / 1_000_000).toFixed(1)}M`
-  : Math.round(n).toLocaleString('en-US');
-const fmtIdr = (n: number) => `IDR ${fmtCompact(n)}`;
+// Shapes live in lib/formatters (settings-driven); only the day+month stamp is
+// local, because no other screen prints a date without its year.
+const fmtIdr = (n: number) => fmtIdrShort(n);
 const fmtMoney = (n: number, ccy: string) => `${ccy} ${fmtCompact(n)}`;
 
 function fmtDate(d?: string | null) {
-  if (!d) return '';
-  const dt = new Date(d.length <= 10 ? `${d}T00:00:00` : d);
-  if (isNaN(dt.getTime())) return '';
-  return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+  const dt = parseDate(d);
+  if (!dt) return '';
+  return dt.toLocaleDateString(getSettings().dateLocaleInternal, { day: '2-digit', month: 'short' });
 }
 import { formatCategory as humanize } from '@/lib/formatCategory';
 function today() { return new Date().toISOString().slice(0, 10); }

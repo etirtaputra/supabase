@@ -17,6 +17,7 @@ import FulfillmentPanel, { type SoLine, type Invoice, type InvItem, type Deliver
 import { SALES_STATUS as STATUS, COMMITTED_STATUSES as COMMITTED } from '@/lib/salesStatus';
 import { tierPriceFor } from '@/lib/tierPricing';
 import { fmtDay, fmtInt } from '@/lib/formatters';
+import { useSettings } from '@/hooks/useSettings';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
@@ -69,9 +70,9 @@ const num = (v: unknown): number => {
 // price is the Tier-1 NET; higher tiers mark up from the previous tier.
 
 const blankLine = (): EditLine => ({ key: `new-${Date.now()}-${Math.random()}`, component_id: null, is_section: false, description: '', brand: '', note: '', lead_time: '', unit: '', quantity: '', unit_price: '', showNote: false });
-const blankQuote = (companyId: string | null): Quote => ({
+const blankQuote = (companyId: string | null, ppnPct: number): Quote => ({
   quote_id: '', quote_number: '', customer_id: null, company_id: companyId,
-  quote_date: new Date().toISOString().slice(0, 10), status: 'draft', ppn_pct: 11,
+  quote_date: new Date().toISOString().slice(0, 10), status: 'draft', ppn_pct: ppnPct,
   subtotal: 0, ppn_amount: 0, grand_total: 0, notes: '',
 });
 const mapLine = (it: DbLine): EditLine => ({
@@ -87,6 +88,8 @@ export default function SalesQuotePage() {
   const isNew = id === 'new';
   const { user, profile, loading: authLoading } = useAuth();
   const canEdit = !!profile && ROLE_PERMISSIONS[profile.role].canEditSalesDocs;
+  // VAT prefilled on a brand-new quotation (Settings › Defaults)
+  const defaultPpnPct = useSettings().defaultPpnPct;
 
   const [editing, setEditing] = useState<Quote | null>(null);
   const [lines, setLines] = useState<EditLine[]>([]);
@@ -202,7 +205,7 @@ export default function SalesQuotePage() {
     setExtras([...past.values()].sort((a, b) => (b.at || '').localeCompare(a.at || '')).map(({ at: _at, ...x }) => x));
 
     if (isNew) {
-      setEditing((prev) => prev ?? blankQuote(coList[0]?.company_id ?? null));
+      setEditing((prev) => prev ?? blankQuote(coList[0]?.company_id ?? null, defaultPpnPct));
       setLines((prev) => (prev.length ? prev : [blankLine()]));
     } else {
       const [qRes, iRes, rRes, invRes, invIRes, doRes, doIRes] = await Promise.all([
@@ -232,7 +235,7 @@ export default function SalesQuotePage() {
       setDoItems(doIRes.error ? [] : (((doIRes.data as DoItem[]) ?? []).filter((x) => doIds.has(x.do_id))));
     }
     setLoading(false);
-  }, [id, isNew]);
+  }, [id, isNew, defaultPpnPct]);
 
   useEffect(() => { if (canEdit) load(); }, [canEdit, load]);
 
@@ -316,9 +319,9 @@ export default function SalesQuotePage() {
 
   const totals = useMemo(() => {
     const subtotal = lines.reduce((s, l) => s + (l.is_section ? 0 : num(l.quantity) * num(l.unit_price)), 0);
-    const ppn = subtotal * (num(editing?.ppn_pct ?? 11) / 100);
+    const ppn = subtotal * (num(editing?.ppn_pct ?? defaultPpnPct) / 100);
     return { subtotal, ppn, grand: subtotal + ppn };
-  }, [lines, editing?.ppn_pct]);
+  }, [lines, editing?.ppn_pct, defaultPpnPct]);
 
   async function persist(status?: string, extra?: Record<string, unknown>): Promise<string | null> {
     if (!editing) return null;

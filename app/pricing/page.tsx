@@ -27,6 +27,7 @@ import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { computeTierChain } from '@/lib/tierPricing';
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
+import { useSettings } from '@/hooks/useSettings';
 
 interface Tier {
   tier_id: string; tier_code: string; name: string;
@@ -421,8 +422,11 @@ function TiersTab({ tiers, custTierCounts, overridesByTier, violationsByTier, sa
   onDelete: (t: Tier) => void;
   onGoAudit: (tierId: string) => void;
 }) {
+  const defaultFloor = useSettings().defaultMarginFloorPct;
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState({ name: '', disc: '', floor: '' });
+  // A new tier starts at the house margin floor (Settings › Defaults)
+  const openAdd = () => { setDraft({ name: '', disc: '', floor: String(defaultFloor) }); setAdding(true); };
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   // A worked example makes the chain self-explanatory: what a Rp 100,000 net
@@ -538,7 +542,7 @@ function TiersTab({ tiers, custTierCounts, overridesByTier, violationsByTier, sa
                 <input value={draft.floor} onChange={(e) => setDraft((d) => ({ ...d, floor: e.target.value }))} inputMode="decimal" placeholder="Floor GP %" className={`${tInp} text-right`} />
               </div>
               <div className="flex gap-2">
-                <button onClick={() => { onAdd({ name: draft.name, default_discount_pct: num(draft.disc) ?? 0, margin_floor_pct: num(draft.floor) ?? 0 }); setDraft({ name: '', disc: '', floor: '' }); setAdding(false); }}
+                <button onClick={() => { onAdd({ name: draft.name, default_discount_pct: num(draft.disc) ?? 0, margin_floor_pct: num(draft.floor) ?? defaultFloor }); setDraft({ name: '', disc: '', floor: '' }); setAdding(false); }}
                   className="flex-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors">Add tier</button>
                 <button onClick={() => setAdding(false)} className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white border border-slate-700 transition-colors">Cancel</button>
               </div>

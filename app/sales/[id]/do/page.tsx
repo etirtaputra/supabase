@@ -11,6 +11,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
+import { fmtDayDoc as fmtDate, fmtIntDoc } from '@/lib/formatters';
+import { useSettings } from '@/hooks/useSettings';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
@@ -22,11 +24,6 @@ interface Quote {
 }
 interface Line { item_id: string; is_section: boolean; description: string; note: string; unit: string; quantity: number; sort_order: number; }
 
-function fmtDate(d?: string | null) {
-  if (!d) return '';
-  return new Date(d.length <= 10 ? `${d}T00:00:00` : d).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
-}
-
 export default function DeliveryOrderPrintPage() {
   const { id } = useParams<{ id: string }>();
   const supabase = createSupabaseClient();
@@ -36,6 +33,7 @@ export default function DeliveryOrderPrintPage() {
   const [quote, setQuote] = useState<Quote | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
   const [companyName, setCompanyName] = useState('');
+  const settings = useSettings();   // letterhead + document formats
   const [customerName, setCustomerName] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -113,6 +111,7 @@ export default function DeliveryOrderPrintPage() {
         .page { max-width: 210mm; margin: 0 auto; padding: 8mm 0; }
         .header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 6mm; padding-bottom: 3mm; border-bottom: 2.5pt solid #1f5aa8; }
         .company-name { font-size: 16pt; font-weight: 800; color: #1f5aa8; letter-spacing: -0.3px; }
+        .company-meta { font-size: 8pt; color: #64748b; line-height: 1.45; margin-top: 1mm; max-width: 78mm; }
         .doc-title { text-align: right; }
         .doc-label { font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 2.5px; color: #94a3b8; margin-bottom: 1mm; }
         .do-num { font-size: 12.5pt; font-weight: 700; color: #1f5aa8; }
@@ -145,7 +144,13 @@ export default function DeliveryOrderPrintPage() {
 
       <div className="page">
         <div className="header">
-          <div><div className="company-name">{companyName || 'ICAPROC'}</div></div>
+          <div>
+            <div className="company-name">{companyName || settings.companyName || 'ICAPROC'}</div>
+            {settings.companyAddress && <div className="company-meta" style={{ whiteSpace: 'pre-line' }}>{settings.companyAddress}</div>}
+            {[settings.companyPhone, settings.companyEmail].filter(Boolean).length > 0 && (
+              <div className="company-meta">{[settings.companyPhone, settings.companyEmail].filter(Boolean).join(' · ')}</div>
+            )}
+          </div>
           <div className="doc-title">
             <div className="doc-label">Surat Jalan · Delivery Order</div>
             <div className="do-num">{quote.do_number || '(belum terbit)'}</div>
@@ -198,7 +203,7 @@ export default function DeliveryOrderPrintPage() {
                   <tr className="item-row">
                     <td className="num" style={{ color: '#94a3b8' }}>{itemNo.get(l.item_id)}</td>
                     <td>{l.description || '—'}</td>
-                    <td className="num" style={{ fontWeight: 700 }}>{Number(l.quantity).toLocaleString('en-US')}</td>
+                    <td className="num" style={{ fontWeight: 700 }}>{fmtIntDoc(Number(l.quantity))}</td>
                     <td style={{ color: '#64748b' }}>{l.unit}</td>
                     <td className="check"><span className="checkbox" /></td>
                   </tr>

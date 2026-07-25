@@ -74,7 +74,7 @@ a separate product line and are *not* part of this distribution flow.)
 
 CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
 
-## Status (updated 2026-07-24)
+## Status (updated 2026-07-25)
 
 **Shipped and live on main:**
 - **Module 1 — CRM**: `20.0_customers` + `20.1_customer_contacts`, `/customers`
@@ -147,13 +147,52 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   per-invoice AR; /delivery lists per-DO rows; reservations subtract
   delivered DO qty (lib/reservedStock.ts); Spotlight finds any child number.
 
+- **Module 6 — Item Economics (SHIPPED 2026-07-25)**: `/economics` — GP per
+  item / customer / rep, stock aging, DIO/DSO/DPO → CCC, already-in-profit
+  stock, slow movers. Prereq fix: `migrations/stamp_out_movement_cogs.sql`
+  (stock-outs were not carrying COGS; the trigger now prices un-costed outs at
+  the moving average, backfilled).
+- **Module 3b — Multi-warehouse (SHIPPED 2026-07-25)**:
+  `migrations/create_warehouses.sql` — `30.3_warehouses` (G63 default, G25,
+  MAIN legacy), ledger hardening (location FK, direction CHECK, qty > 0),
+  atomic `transfer_stock()`, `verify_stock_balances(p_fix)`,
+  `lib/warehouses.ts` weighted roll-ups, warehouse pickers + Shortages panel
+  on `/stock`.
+- **Module 40 — Settings (SHIPPED 2026-07-25)**: `40.0_settings` key/value
+  store (owner-write, authenticated-read RLS;
+  `migrations/create_settings.sql`) and **`/settings`** — owner-only, four
+  tabs. **Formatting**: number punctuation, currency symbol/position/spacing
+  and date style, configured SEPARATELY for internal screens and for
+  customer-facing documents (live preview per panel, English/Indonesian
+  presets, a guard against thousands == decimal), plus the currency code and
+  a "use the symbol everywhere" switch that resolves the old buy-side `IDR
+  1,234` vs sell-side `Rp 1,234` split. **Defaults**: PPN %, PO payment terms,
+  margin floor, EPC cost buffer, slow-mover days, cost-drift %, default
+  warehouse (edits `30.3_warehouses.is_default` — no shadow copy).
+  **Company**: letterhead + bank details + footer note, printed on the
+  quotation / invoice / Surat Jalan / EPC proposal. **Users**: the old
+  `/admin` page absorbed (roles) PLUS the `allowed_emails` sign-up allowlist,
+  so granting access is a screen instead of an SQL fix.
+  Architecture: `lib/settings.ts` holds a module-level store (works outside
+  React — print pages and libs read it synchronously) seeded from
+  localStorage then the database by `components/ui/SettingsLoader.tsx` in the
+  root layout; `hooks/useSettings.ts` re-renders subscribers;
+  `lib/formatters.ts` became settings-driven with `*Doc` helpers for
+  customer-facing output. DEFAULTS reproduce the previous output exactly.
+  Security fixes shipped with it: `allowed_emails` had RLS enabled with NO
+  policies (unreachable), and `user_profiles` UPDATE was `USING (true)` — any
+  signed-in user could PATCH themselves to `owner`. Updates are now self-or-
+  owner and a trigger rejects any role change not made by an owner.
+
 **Next up (in order):**
-1. **Module 6 — Item Economics dashboard** (GP/item/customer/rep, stock aging
-   & turnover, already-in-profit stock, slow movers, CCC per item) — all
-   inputs exist: ledger outs carry COGS, invoices carry issued→paid dates.
-2. Small follow-ups when touched: Record Payment modal should offer an
-   invoice picker once an order carries 2+ unpaid invoices; optional live
-   cursors in the EPC editor (Presence broadcast).
+1. Sell-side polish: Record Payment modal should offer an invoice picker once
+   an order carries 2+ unpaid invoices; optional live cursors in the EPC
+   editor (Presence broadcast).
+2. Stock hygiene: transfer the legacy MAIN balances into G63/G25 via
+   /stock "⇄ move", then deactivate MAIN.
+3. Settings follow-ons when touched: per-document-type overrides (a customer
+   who wants English invoices), and quote validity days once the sell-side
+   document carries one.
 
 ---
 
@@ -236,6 +275,17 @@ per-invoice issued→paid dates; tsc + build green.
 
 ## Locked architectural decisions
 
+- **Formatting is configured, not hard-coded (decided 2026-07-25).** Every
+  number / currency / date in the app comes from `lib/formatters.ts`, which
+  reads `lib/settings.ts` (backed by `40.0_settings`). Two profiles, never
+  collapsed: **internal** (dense team-facing tables) and **document**
+  (customer-facing prints + the WhatsApp price copy) — helpers ending in `Doc`
+  are the customer-facing ones. Defaults in `DEFAULT_SETTINGS` reproduce the
+  pre-Settings output, so an unconfigured install is unchanged. Never
+  re-introduce a local `toLocaleString` in a page: add the shape to
+  `lib/formatters.ts` instead (the drift cost us 24 duplicate helpers once
+  already).
+
 - **Stock is per (item, WAREHOUSE) — multi-warehouse since 2026-07-25.**
   `30.3_warehouses` is the master (seeded **G63 “Gudang No.: 63”** = default,
   **G25 “Gudang No.: 25”**, plus **MAIN “Unassigned (legacy)”** holding the
@@ -285,7 +335,8 @@ per-invoice issued→paid dates; tsc + build green.
   - `20.x` = CRM (customers, contacts)
   - `21.x` = pricing (price lists, tiers)
   - `22.x` = sales/product quotes · `23.x` = sales orders · `24.x` = delivery orders · `25.x` = sales invoices · `26.x` = customer receipts
-  - `30.x` = inventory (stock ledger, balances, locations)
+  - `30.x` = inventory (stock ledger, balances, locations, warehouses)
+  - `40.x` = platform settings (`40.0_settings` key/value, owner-write)
 - **Document numbering:** human refs like `CUST-…`, `SQ-YYYYMMDD-…`, `SO-…`, `DO-…`, `INV-…`, `RCPT-…`, `GRN-…` (mirror existing `Q-YYYYMMDD-XXXX`).
 - **RLS on every new table** (authenticated-only; writes gated by role). Add a **`sales`** role to the matrix in `constants/roles.ts`; sales can manage customers/quotes/orders but not procurement or payments.
 - **Audit:** reuse the `log_quote_activity`-style trigger pattern for created/updated stamps + activity log.

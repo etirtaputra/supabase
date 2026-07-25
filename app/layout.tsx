@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import GlobalSpotlight from "@/components/ui/GlobalSpotlight";
+import SettingsLoader from "@/components/ui/SettingsLoader";
 
 export const dynamic = 'force-dynamic';
 
@@ -97,6 +98,7 @@ export default function RootLayout({
       </head>
       <body>
         {children}
+        <SettingsLoader />
         <GlobalSpotlight />
       </body>
     </html>

@@ -11,7 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
-import { fmtDay, fmtInt } from '@/lib/formatters';
+import { fmtDay, fmtInt, fmtIdrShort as fmtIdr } from '@/lib/formatters';
 
 // One row per REAL invoice (25.0) — an order split across several invoices
 // shows several rows, each with its own payment state.
@@ -22,10 +22,7 @@ interface Quote {
 }
 interface Customer { customer_id: string; display_name: string; legal_name: string; }
 
-const fmtIdr = (n: number) =>
-  n >= 1_000_000_000 ? `IDR ${(n / 1_000_000_000).toFixed(2)}B`
-  : n >= 1_000_000   ? `IDR ${(n / 1_000_000).toFixed(1)}M`
-  : `IDR ${fmtInt(n)}`;
+
 
 export default function InvoicesPage() {
   const supabase = createSupabaseClient();

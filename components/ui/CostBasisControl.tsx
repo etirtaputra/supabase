@@ -2,6 +2,9 @@
 import { useState, useEffect } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { useSettings } from '@/hooks/useSettings';
+import { saveSettings } from '@/lib/settings';
+import { fmtInt } from '@/lib/formatters';
 
 /**
  * Owner-only control on the Inspect panel's "Actual TUC" card: what does the
@@ -14,8 +17,8 @@ import { useAuth } from '@/hooks/useAuth';
  *              lines like UPS or Stabilizer never surface there), and on any
  *              existing quote its cost is hidden (falls back to supplier-quote /
  *              last-used).
- * The global buffer lives in app_settings.quote_cost_buffer_pct and is
- * editable inline here. Catalog/Insights always show raw TUC regardless.
+ * The global buffer is the `epcCostBufferPct` app setting (Settings ›
+ * Defaults), editable inline here too. Catalog/Insights always show raw TUC regardless.
  * Non-owners see a quiet note only when the item is not on raw TUC.
  */
 
@@ -40,18 +43,13 @@ export default function CostBasisControl({ componentId, mode, bufferPct, tuc, on
 
   const [m, setM] = useState<QuoteCostMode>(mode);
   const [override, setOverride] = useState(bufferPct != null ? String(bufferPct) : '');
-  const [globalPct, setGlobalPct] = useState<number>(5);
+  const globalPct = useSettings().epcCostBufferPct;
   const [editingGlobal, setEditingGlobal] = useState(false);
-  const [globalDraft, setGlobalDraft] = useState('5');
+  const [globalDraft, setGlobalDraft] = useState(String(globalPct));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => { setM(mode); setOverride(bufferPct != null ? String(bufferPct) : ''); setErr(null); }, [componentId, mode, bufferPct]);
-
-  useEffect(() => {
-    supabase.from('app_settings').select('value').eq('key', 'quote_cost_buffer_pct').maybeSingle()
-      .then(({ data }) => { const v = Number(data?.value); if (!isNaN(v)) { setGlobalPct(v); setGlobalDraft(String(v)); } });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const effPct = override.trim() !== '' && !isNaN(Number(override)) ? Number(override) : globalPct;
   const basisPreview = tuc != null ? tuc * (1 + Math.max(0, effPct) / 100) : null;
@@ -93,11 +91,9 @@ export default function CostBasisControl({ componentId, mode, bufferPct, tuc, on
     const v = Number(globalDraft);
     if (isNaN(v) || v < 0) { setErr('Global buffer must be a non-negative number'); return; }
     setBusy(true); setErr(null);
-    const { error } = await supabase.from('app_settings')
-      .upsert({ key: 'quote_cost_buffer_pct', value: String(v), updated_at: new Date().toISOString(), updated_by_email: profile?.email ?? '' });
+    const { error } = await saveSettings(supabase, { epcCostBufferPct: v }, profile?.email ?? '');
     setBusy(false);
-    if (error) { setErr(error.message); return; }
-    setGlobalPct(v);
+    if (error) { setErr(error); return; }
     setEditingGlobal(false);
   }
 
@@ -151,13 +147,13 @@ export default function CostBasisControl({ componentId, mode, bufferPct, tuc, on
               <button onClick={() => { setEditingGlobal(false); setGlobalDraft(String(globalPct)); }} className="text-slate-600 hover:text-slate-400">cancel</button>
             </span>
           ) : (
-            <button onClick={() => setEditingGlobal(true)} className="text-slate-600 hover:text-slate-400 underline decoration-dotted" title="Edit the global buffer (applies to every item without an override)">
+            <button onClick={() => { setGlobalDraft(String(globalPct)); setEditingGlobal(true); }} className="text-slate-600 hover:text-slate-400 underline decoration-dotted" title="Edit the global buffer (applies to every item without an override)">
               global {globalPct}%
             </button>
           )}
           {basisPreview != null && (
             <span className="text-slate-400 tabular-nums ml-auto">
-              → Std Cost <span className="text-slate-200 font-semibold">{Math.round(basisPreview).toLocaleString('en-US')}</span>
+              → Std Cost <span className="text-slate-200 font-semibold">{fmtInt(basisPreview)}</span>
             </span>
           )}
         </div>

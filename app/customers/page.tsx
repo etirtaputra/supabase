@@ -13,7 +13,7 @@ import BrandMenu from '@/components/ui/BrandMenu';
 import CrmMigrationBanner from '@/components/ui/CrmMigrationBanner';
 import { SALES_STATUS } from '@/lib/salesStatus';
 import { downloadCsv, parseCsv, readFileText } from '@/lib/csv';
-import { fmtDay } from '@/lib/formatters';
+import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 
 // ── Types ─────────────────────────────────────────────────────────────────
 interface Customer {
@@ -637,7 +637,7 @@ function CustomersInner() {
 
 // ── Profile panel (row click): expands inline under the row — activity,
 //    document links, and stats. Editing opens the slide-over drawer. ─────────
-const fmtIdr = (n: number) => Math.round(n).toLocaleString('en-US');
+
 
 function ProfilePanel({ customer, data, contacts, amName, tierName, onClose, onEdit, onOpenDoc, showEpc }: {
   customer: Customer;
@@ -702,9 +702,9 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, onClose, onE
         <div className="px-4 py-4 space-y-5">
             {/* KPI row */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              <Kpi label="Total sales (orders)" value={`Rp${fmtIdr(totalSales)}`} sub={`${committed.length} order${committed.length !== 1 ? 's' : ''}`} cls="text-emerald-300" />
-              <Kpi label="Received" value={`Rp${fmtIdr(totalReceived)}`} sub="all payments" cls="text-slate-200" />
-              <Kpi label="Outstanding AR" value={`Rp${fmtIdr(outstandingAR)}`} sub="on issued invoices" cls={outstandingAR > 0 ? 'text-amber-300' : 'text-emerald-400'} />
+              <Kpi label="Total sales (orders)" value={fmtRupiah(totalSales)} sub={`${committed.length} order${committed.length !== 1 ? 's' : ''}`} cls="text-emerald-300" />
+              <Kpi label="Received" value={fmtRupiah(totalReceived)} sub="all payments" cls="text-slate-200" />
+              <Kpi label="Outstanding AR" value={fmtRupiah(outstandingAR)} sub="on issued invoices" cls={outstandingAR > 0 ? 'text-amber-300' : 'text-emerald-400'} />
               <Kpi label="Quotes → orders" value={winRate != null ? `${winRate.toFixed(0)}%` : '—'} sub={`${committed.length} of ${quoteCount} quotes`} cls="text-slate-200" />
             </div>
 
@@ -731,7 +731,7 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, onClose, onE
                               ? <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/15 text-amber-300">PARTIAL</span>
                               : <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-500/10 text-red-400/90">UNPAID</span>
                           )}
-                          <span className="ml-auto tabular-nums text-xs text-slate-200 font-semibold">Rp{fmtIdr(Number(d.grand_total) || 0)}</span>
+                          <span className="ml-auto tabular-nums text-xs text-slate-200 font-semibold">{fmtRupiah(Number(d.grand_total) || 0)}</span>
                           <span className="text-[10px] text-slate-600 tabular-nums">{fmtDay(d.updated_at || d.quote_date)}</span>
                         </div>
                         {(d.order_number || d.invoice_number || d.do_number) && (
@@ -761,7 +761,7 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, onClose, onE
                         className="w-full text-left flex items-center gap-2 px-3 py-2 hover:bg-slate-800/30 transition-colors text-xs">
                         <span className="font-mono text-[11px] text-slate-300">{d.invoice_number || d.quote_number}</span>
                         <span className="text-slate-500">{fmtDay(d.updated_at || d.quote_date)}</span>
-                        <span className="ml-auto tabular-nums text-amber-300 font-semibold">Rp{fmtIdr(out)} outstanding</span>
+                        <span className="ml-auto tabular-nums text-amber-300 font-semibold">{fmtRupiah(out)} outstanding</span>
                       </button>
                     );
                   })}
@@ -779,8 +779,8 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, onClose, onE
                   {data.topItems.map((it) => (
                     <div key={it.desc} className="flex items-center gap-3 px-3 py-2 text-xs">
                       <span className="text-slate-300 truncate flex-1">{it.desc}</span>
-                      <span className="text-slate-500 tabular-nums flex-shrink-0">{it.qty.toLocaleString('en-US')} {it.unit}</span>
-                      <span className="text-slate-200 tabular-nums font-semibold flex-shrink-0 w-28 text-right">Rp{fmtIdr(it.value)}</span>
+                      <span className="text-slate-500 tabular-nums flex-shrink-0">{fmtInt(it.qty)} {it.unit}</span>
+                      <span className="text-slate-200 tabular-nums font-semibold flex-shrink-0 w-28 text-right">{fmtRupiah(it.value)}</span>
                     </div>
                   ))}
                 </div>

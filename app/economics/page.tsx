@@ -24,6 +24,7 @@ import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { formatCategory as humanize } from '@/lib/formatCategory';
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
+import { useSettings } from '@/hooks/useSettings';
 
 interface Comp {
   component_id: string; supplier_model: string; internal_description: string | null;
@@ -49,7 +50,6 @@ const descOf = (c: Comp) => (c.internal_description && c.internal_description.tr
 const daysBetween = (a: string, b: string) => (new Date(a).getTime() - new Date(b).getTime()) / 86400000;
 
 type Period = '90' | '365' | 'all';
-const SLOW_DAYS = 60;
 
 interface ItemRow {
   c: Comp;
@@ -70,6 +70,8 @@ export default function EconomicsPage() {
   const supabase = createSupabaseClient();
   const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
+  // "Nothing sold in N days with stock on hand" — N is Settings › Defaults
+  const SLOW_DAYS = useSettings().slowMoverDays;
   const canView = !!profile && ROLE_PERMISSIONS[profile.role].canManagePricing;
 
   const [comps, setComps] = useState<Comp[]>([]);
@@ -272,7 +274,7 @@ export default function EconomicsPage() {
       });
     }
     return rows;
-  }, [comps, bals, periodFacts, facts, periodDays, nowIso]);
+  }, [comps, bals, periodFacts, facts, periodDays, nowIso, SLOW_DAYS]);
 
   // ── Customer / rep rollup ──────────────────────────────────────────────────
   const custRows: PartyRow[] = useMemo(() => rollupParty(periodFacts, (f) => f.customer_id, (id) => {

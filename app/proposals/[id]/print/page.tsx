@@ -8,14 +8,10 @@ import { specFileTag, type SystemSpecs } from '@/lib/projectSpec';
 import { useQuotesGate } from '@/hooks/useQuotesGate';
 import { DEFAULT_EXPORT_COLS, EXPORT_COL_KEYS, EXPORT_COL_LABELS, loadExportCols, saveExportCols, type ExportCols } from '@/lib/exportCols';
 import { computeEnergyEconomics, fmtPayback, ECON_DEFAULTS } from '@/lib/energyEconomics';
+import { fmtRupiahDoc as fmtIdr, fmtRupiahDoc2 as fmtIdr2, fmtIntDoc, fmtNumDoc, fmtDayDoc } from '@/lib/formatters';
+import { useSettings } from '@/hooks/useSettings';
 
-function fmtIdr(v: number) {
-  return `Rp${Math.round(v).toLocaleString('en-US')}`;
-}
-function fmtDate(d: string) {
-  if (!d) return '';
-  return new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
-}
+const fmtDate = (d: string) => fmtDayDoc(d);
 
 interface Section extends QuoteSection { items: QuoteItem[] }
 
@@ -28,6 +24,7 @@ export default function PrintPage() {
   const [quote, setQuote] = useState<ProjectQuote | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
   const [companyName, setCompanyName] = useState('');
+  const settings = useSettings();   // letterhead + document number/date formats
   // component_id → Wp per module, for pv_module components used on this quote
   const [wpMap, setWpMap] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -227,7 +224,7 @@ export default function PrintPage() {
         {/* Header */}
         <div className="header">
           <div>
-            <div className="company-name">{companyName || 'ICAPROC'}</div>
+            <div className="company-name">{companyName || settings.companyName || 'ICAPROC'}</div>
           </div>
           <div className="doc-title">
             <div className="doc-label">Penawaran Harga</div>
@@ -302,7 +299,7 @@ export default function PrintPage() {
                               <tr className="item-row">
                                 <td>{item.description}</td>
                                 {cols.brand && <td style={{ color: '#64748b' }}>{item.brand}</td>}
-                                {cols.qty && <td className="num">{item.quantity != null ? Number(item.quantity).toLocaleString('en-US') : ''}</td>}
+                                {cols.qty && <td className="num">{item.quantity != null ? fmtIntDoc(Number(item.quantity)) : ''}</td>}
                                 {cols.unit && <td style={{ color: '#64748b', whiteSpace: 'nowrap' }}>{item.unit}</td>}
                                 {cols.amount && <td />}
                               </tr>
@@ -314,7 +311,7 @@ export default function PrintPage() {
                               {subItems.map((sub) => (
                                 <tr key={sub.item_id} className="sub-row">
                                   <td colSpan={1 + (cols.brand ? 1 : 0)}>↳ {sub.description}{sub.brand ? ` — ${sub.brand}` : ''}</td>
-                                  {cols.qty && <td className="num">{sub.quantity != null ? Number(sub.quantity).toLocaleString('en-US') : ''}</td>}
+                                  {cols.qty && <td className="num">{sub.quantity != null ? fmtIntDoc(Number(sub.quantity)) : ''}</td>}
                                   {cols.unit && <td style={{ whiteSpace: 'nowrap' }}>{sub.unit}</td>}
                                   {cols.amount && <td />}
                                 </tr>
@@ -322,7 +319,7 @@ export default function PrintPage() {
                               {sec.group_key === 'solar_panels' && itemWp(item) > 0 && (item.unit ?? '').trim().toLowerCase() !== 'wp' && (
                                 <tr className="sub-row">
                                   <td colSpan={1 + (cols.brand ? 1 : 0)} style={{ color: '#1f5aa8' }}>Total system size</td>
-                                  {cols.qty && <td className="num" style={{ color: '#1f5aa8', fontWeight: 700 }}>{itemWp(item).toLocaleString('en-US')}</td>}
+                                  {cols.qty && <td className="num" style={{ color: '#1f5aa8', fontWeight: 700 }}>{fmtIntDoc(itemWp(item))}</td>}
                                   {cols.unit && <td style={{ color: '#1f5aa8' }}>Wp</td>}
                                   {cols.amount && <td />}
                                 </tr>
@@ -388,7 +385,7 @@ export default function PrintPage() {
           <div>
             <div className="sig-label">Hormat kami,</div>
             <div className="sig-line" />
-            <div className="sig-name">{companyName || '(perusahaan)'}</div>
+            <div className="sig-name">{companyName || settings.companyName || '(perusahaan)'}</div>
           </div>
           <div>
             <div className="sig-label">Disetujui oleh,</div>
@@ -404,7 +401,7 @@ export default function PrintPage() {
           <div className="econ">
             <div className="header">
               <div>
-                <div className="company-name">{companyName || 'ICAPROC'}</div>
+                <div className="company-name">{companyName || settings.companyName || 'ICAPROC'}</div>
               </div>
               <div className="doc-title">
                 <div className="doc-label">Energy Simulation</div>
@@ -433,9 +430,9 @@ export default function PrintPage() {
               </div>
             )}
             <div className="econ-sub">
-              {econDcKwp.toLocaleString('en-US', { maximumFractionDigits: 2 })} kWp DC
-              {specs.kw_ac ? ` / ${specs.kw_ac.toLocaleString('en-US', { maximumFractionDigits: 2 })} kW AC` : ''}
-              {econHybrid && specs.kwh_bess ? ` / ${specs.kwh_bess.toLocaleString('en-US', { maximumFractionDigits: 2 })} kWh BESS` : ''}
+              {fmtNumDoc(econDcKwp, 2)} kWp DC
+              {specs.kw_ac ? ` / ${fmtNumDoc(specs.kw_ac, 2)} kW AC` : ''}
+              {econHybrid && specs.kwh_bess ? ` / ${fmtNumDoc(specs.kwh_bess, 2)} kWh BESS` : ''}
               {' · '}investment {fmtIdr(subtotal)} (excl. PPN{ppnPct}%) · {econLife}-year projection
             </div>
 
@@ -443,8 +440,8 @@ export default function PrintPage() {
             <div className="econ-kpis">
               <div className="econ-kpi">
                 <div className="k">LCOE · over {econLife} years</div>
-                <div className="v">{'Rp' + econ.lcoe.toLocaleString('en-US', { maximumFractionDigits: 2 })}<span style={{ fontSize: '7pt', fontWeight: 500 }}>/kWh</span></div>
-                <div className="s">{econ.economical ? `✓ cheaper than PLN (Rp${econTariff0.toLocaleString('en-US', { maximumFractionDigits: 2 })}/kWh)` : `above today's PLN tariff`}</div>
+                <div className="v">{fmtIdr2(econ.lcoe)}<span style={{ fontSize: '7pt', fontWeight: 500 }}>/kWh</span></div>
+                <div className="s">{econ.economical ? `✓ cheaper than PLN (${fmtIdr2(econTariff0)}/kWh)` : `above today's PLN tariff`}</div>
               </div>
               <div className="econ-kpi">
                 <div className="k">NPV @ {(econAssump?.hurdle_rate_pct ?? ECON_DEFAULTS.hurdle_rate_pct)}% · {econLife} yrs</div>
@@ -459,20 +456,20 @@ export default function PrintPage() {
               <div className="econ-kpi">
                 <div className="k">Savings · over {econLife} years</div>
                 <div className="v">{fmtIdr(econ.costAvoided)}</div>
-                <div className="s">{Math.round(econ.lifetimeKwh).toLocaleString('en-US')} kWh generated over {econLife} years</div>
+                <div className="s">{fmtIntDoc(econ.lifetimeKwh)} kWh generated over {econLife} years</div>
               </div>
             </div>
 
             {/* Assumptions */}
             <div className="econ-assump">
-              <div><span className="al">Specific production</span><span className="av">{(econAssump?.specific_production ?? ECON_DEFAULTS.specific_production).toLocaleString('en-US')} kWh/kWp·yr</span></div>
+              <div><span className="al">Specific production</span><span className="av">{fmtIntDoc(econAssump?.specific_production ?? ECON_DEFAULTS.specific_production)} kWh/kWp·yr</span></div>
               <div><span className="al">First-year degradation</span><span className="av">{econAssump?.first_year_deg_pct ?? ECON_DEFAULTS.first_year_deg_pct}%</span></div>
               <div><span className="al">Yearly degradation</span><span className="av">{econAssump?.yearly_deg_pct ?? ECON_DEFAULTS.yearly_deg_pct}%/yr</span></div>
               <div><span className="al">System lifetime</span><span className="av">{econLife} years</span></div>
-              <div><span className="al">Electricity tariff{econAssump?.pln_tariff_label ? ` — PLN ${econAssump.pln_tariff_label}` : ''}</span><span className="av">Rp{econTariff0.toLocaleString('en-US', { maximumFractionDigits: 2 })}/kWh</span></div>
+              <div><span className="al">Electricity tariff{econAssump?.pln_tariff_label ? ` — PLN ${econAssump.pln_tariff_label}` : ''}</span><span className="av">{fmtIdr2(econTariff0)}/kWh</span></div>
               <div><span className="al">Tariff inflation</span><span className="av">{econAssump?.tariff_inflation_pct ?? ECON_DEFAULTS.tariff_inflation_pct}%/yr</span></div>
               <div><span className="al">Discount rate</span><span className="av">{econAssump?.hurdle_rate_pct ?? ECON_DEFAULTS.hurdle_rate_pct}%</span></div>
-              <div><span className="al">Price per Wp</span><span className="av">Rp{econ.pricePerWp.toLocaleString('en-US', { maximumFractionDigits: 2 })}</span></div>
+              <div><span className="al">Price per Wp</span><span className="av">{fmtIdr2(econ.pricePerWp)}</span></div>
               {econHybrid && (econAssump?.battery_kwh_day ?? 0) > 0 && (
                 <>
                   <div><span className="al">Battery output</span><span className="av">{econAssump!.battery_kwh_day} kWh/day</span></div>
@@ -501,12 +498,12 @@ export default function PrintPage() {
                   <tr key={r.year}>
                     <td>{r.year}</td>
                     <td className="num">{r.year === 0 ? '—' : `${r.pvPerfPct.toFixed(2)}%`}</td>
-                    <td className="num">{Math.round(r.pvGenKwh).toLocaleString('en-US')}</td>
-                    {econHybrid && <td className="num">{Math.round(r.battOutKwh).toLocaleString('en-US')}</td>}
-                    <td className="num">{r.tariff.toLocaleString('en-US', { maximumFractionDigits: 0 })}</td>
-                    <td className="num">{Math.round(r.savings).toLocaleString('en-US')}</td>
-                    <td className="num">{Math.round(r.net).toLocaleString('en-US')}</td>
-                    <td className={`num ${r.cumulative >= 0 ? 'pos' : 'neg'}`}>{Math.round(r.cumulative).toLocaleString('en-US')}</td>
+                    <td className="num">{fmtIntDoc(r.pvGenKwh)}</td>
+                    {econHybrid && <td className="num">{fmtIntDoc(r.battOutKwh)}</td>}
+                    <td className="num">{fmtIntDoc(r.tariff)}</td>
+                    <td className="num">{fmtIntDoc(r.savings)}</td>
+                    <td className="num">{fmtIntDoc(r.net)}</td>
+                    <td className={`num ${r.cumulative >= 0 ? 'pos' : 'neg'}`}>{fmtIntDoc(r.cumulative)}</td>
                   </tr>
                 ))}
               </tbody>

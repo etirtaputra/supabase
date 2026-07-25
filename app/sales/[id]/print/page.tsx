@@ -12,12 +12,8 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { DEFAULT_SALES_COLS, SALES_COL_KEYS, SALES_COL_LABELS, loadSalesCols, saveSalesCols, type SalesExportCols } from '@/lib/salesExportCols';
-
-function fmtIdr(v: number) { return `Rp${Math.round(v).toLocaleString('en-US')}`; }
-function fmtDate(d?: string | null) {
-  if (!d) return '';
-  return new Date(d.length <= 10 ? `${d}T00:00:00` : d).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
-}
+import { fmtRupiahDoc as fmtIdr, fmtIntDoc, fmtDayDoc as fmtDate } from '@/lib/formatters';
+import { useSettings } from '@/hooks/useSettings';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
@@ -40,6 +36,9 @@ export default function SalesPrintPage() {
   const [received, setReceived] = useState(0);
   const [loading, setLoading] = useState(true);
   const [cols, setCols] = useState<SalesExportCols>(DEFAULT_SALES_COLS);
+  // Letterhead + document punctuation come from Settings; the issuing company
+  // on the document still wins for the name when one is set there.
+  const settings = useSettings();
 
   useEffect(() => { setCols(loadSalesCols()); }, []);
   const setCol = (k: keyof SalesExportCols, v: boolean) => setCols((prev) => { const next = { ...prev, [k]: v }; saveSalesCols(next); return next; });
@@ -131,6 +130,7 @@ export default function SalesPrintPage() {
         .page { max-width: 210mm; margin: 0 auto; padding: 8mm 0; }
         .header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 6mm; padding-bottom: 3mm; border-bottom: 2.5pt solid #1f5aa8; }
         .company-name { font-size: 16pt; font-weight: 800; color: #1f5aa8; letter-spacing: -0.3px; }
+        .company-meta { font-size: 8pt; color: #64748b; line-height: 1.45; margin-top: 1mm; max-width: 78mm; }
         .doc-title { text-align: right; }
         .doc-label { font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 2.5px; color: #94a3b8; margin-bottom: 1mm; }
         .quote-num { font-size: 12.5pt; font-weight: 700; color: #1f5aa8; }
@@ -170,7 +170,18 @@ export default function SalesPrintPage() {
 
       <div className="page">
         <div className="header">
-          <div className="company-name">{companyName || 'ICAPROC'}</div>
+          <div>
+            <div className="company-name">{companyName || settings.companyName || 'ICAPROC'}</div>
+            {(settings.companyAddress || settings.companyPhone || settings.companyEmail || settings.companyTaxId) && (
+              <div className="company-meta">
+                {settings.companyAddress && <div style={{ whiteSpace: 'pre-line' }}>{settings.companyAddress}</div>}
+                {[settings.companyPhone, settings.companyEmail].filter(Boolean).join(' · ') && (
+                  <div>{[settings.companyPhone, settings.companyEmail].filter(Boolean).join(' · ')}</div>
+                )}
+                {settings.companyTaxId && <div>NPWP {settings.companyTaxId}</div>}
+              </div>
+            )}
+          </div>
           <div className="doc-title">
             <div className="doc-label">{isInvoice ? 'Invoice' : isOrder ? 'Konfirmasi Pesanan' : 'Penawaran Harga'}</div>
             <div className="quote-num">{isInvoice ? quote.invoice_number : isOrder ? quote.order_number : quote.quote_number}</div>
@@ -219,7 +230,7 @@ export default function SalesPrintPage() {
                   <tr className="item-row">
                     <td style={{ color: '#94a3b8' }} className="num">{itemNo.get(l.item_id)}</td>
                     <td>{l.description || '—'}</td>
-                    {cols.qty && <td className="num">{Number(l.quantity).toLocaleString('en-US')}</td>}
+                    {cols.qty && <td className="num">{fmtIntDoc(Number(l.quantity))}</td>}
                     {cols.unit && <td style={{ color: '#64748b', whiteSpace: 'nowrap' }}>{l.unit}</td>}
                     {cols.price && <td className="num">{fmtIdr(Number(l.unit_price))}</td>}
                     {cols.amount && <td className="num">{fmtIdr(amt)}</td>}
@@ -262,11 +273,23 @@ export default function SalesPrintPage() {
           </div>
         )}
 
+        {(settings.companyBankDetails || settings.documentFooterNote) && (
+          <div className="terms">
+            {settings.companyBankDetails && (
+              <>
+                <div className="terms-title">Pembayaran</div>
+                <div className="terms-line">{settings.companyBankDetails}</div>
+              </>
+            )}
+            {settings.documentFooterNote && <div className="terms-line" style={{ marginTop: '2mm' }}>{settings.documentFooterNote}</div>}
+          </div>
+        )}
+
         <div className="footer">
           <div>
             <div className="sig-label">Hormat kami,</div>
             <div className="sig-line" />
-            <div className="sig-name">{companyName || '(perusahaan)'}</div>
+            <div className="sig-name">{companyName || settings.companyName || '(perusahaan)'}</div>
           </div>
           <div>
             <div className="sig-label">Disetujui oleh,</div>

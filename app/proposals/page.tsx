@@ -9,6 +9,7 @@ import { computeTUCMap, getComponentCost, type TUCResult, type CostEntry } from 
 import { fetchUsedEntries } from '@/lib/usedPrices';
 import { lineWp } from '@/lib/quoteWp';
 import { fmtDay, fmtDayTime, fmtRp } from '@/lib/formatters';
+import { useSettings } from '@/hooks/useSettings';
 import MigrationBanner from '@/components/ui/MigrationBanner';
 import BrandMenu from '@/components/ui/BrandMenu';
 import MobileNotice from '@/components/ui/MobileNotice';
@@ -147,10 +148,15 @@ export default function QuotesListPage() {
     return map;
   }, [allItems, sectionGroups, catalog.components]);
 
+  // Per-item Cost Basis settings for Project Quotes (mode + buffer). The global
+  // buffer and the drift threshold both live in Settings › Defaults.
+  const { epcCostBufferPct: globalBufferPct, costDriftPct } = useSettings();
+
   // ── Cost-drift detection on open (draft/sent) quotes ────────────────────────
   // Compares each catalog-linked item's stored cost against today's
-  // recommendation from the shared cost engine; >10% difference flags the quote.
-  const DRIFT_THRESHOLD = 0.10;
+  // recommendation from the shared cost engine; a difference beyond the
+  // configured threshold (Settings › Defaults, 10% out of the box) flags it.
+  const DRIFT_THRESHOLD = costDriftPct / 100;
   const openItems = useMemo(() => {
     if (!allItems) return null;
     const openIds = new Set(quotes.filter((q) => q.status === 'draft' || q.status === 'sent').map((q) => q.quote_id));
@@ -162,12 +168,6 @@ export default function QuotesListPage() {
     [catalog.pos, catalog.poItems, catalog.poCosts],
   );
 
-  // Per-item Cost Basis settings for Project Quotes (mode + buffer; global default 5%)
-  const [globalBufferPct, setGlobalBufferPct] = useState(5);
-  useEffect(() => {
-    supabase.from('app_settings').select('value').eq('key', 'quote_cost_buffer_pct').maybeSingle()
-      .then(({ data }) => { const v = Number(data?.value); if (!isNaN(v)) setGlobalBufferPct(v); });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const costOptsFor = useMemo(() => {
     const byId = new Map(catalog.components.map((c) => [c.component_id, c]));
@@ -193,7 +193,7 @@ export default function QuotesListPage() {
       }
     }
     return map;
-  }, [openItems, usedEntries, catalogLoading, listTucMap, catalog.quotes, catalog.quoteItems, costOptsFor]);
+  }, [openItems, usedEntries, catalogLoading, listTucMap, catalog.quotes, catalog.quoteItems, costOptsFor, DRIFT_THRESHOLD]);
 
   const searchLc = search.trim().toLowerCase();
 
@@ -512,7 +512,7 @@ export default function QuotesListPage() {
                     {driftByQuote.has(q.quote_id) && (
                       <span
                         className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap flex-shrink-0 bg-amber-500/15 text-amber-300"
-                        title={`${driftByQuote.get(q.quote_id)} item${driftByQuote.get(q.quote_id)! > 1 ? 's' : ''} priced >10% away from today's cost — open and press Costs to refresh`}
+                        title={`${driftByQuote.get(q.quote_id)} item${driftByQuote.get(q.quote_id)! > 1 ? 's' : ''} priced >${costDriftPct}% away from today's cost — open and press Costs to refresh`}
                       >
                         ⚠ {driftByQuote.get(q.quote_id)} outdated cost{driftByQuote.get(q.quote_id)! > 1 ? 's' : ''}
                       </span>

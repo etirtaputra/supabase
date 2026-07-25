@@ -38,7 +38,7 @@ interface DocRef { number: string; customer: string; qty: number; date: string; 
 const INCOMING_PO_STATUSES = new Set(['Sent', 'Confirmed', 'Partially Received']);
 
 import { formatCategory as humanize } from '@/lib/formatCategory';
-import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
+import { fmtDay, fmtInt, fmtRupiah, fmtIntDoc, fmtDayDoc } from '@/lib/formatters';
 // The product's customer-facing name: our internal description, never the supplier's model/SKU.
 const descOf = (c: { internal_description: string | null; supplier_model: string }) =>
   (c.internal_description && c.internal_description.trim()) || c.supplier_model || '(no description)';
@@ -222,11 +222,12 @@ function ProductsInner() {
   // Sort keys available to this role — brand sort only when brands are visible.
   const sortKeys = useMemo(() => (Object.keys(SORT_LABELS) as SortKey[]).filter((k) => canViewBrand || k !== 'brand'), [canViewBrand]);
 
-  // Click a price → copy a WhatsApp-ready quote in Bahasa Indonesia.
-  // Indonesian number format uses "." as the thousands separator (Rp 1.395.000).
+  // Click a price → copy a WhatsApp-ready quote in Bahasa Indonesia. This is
+  // customer-facing, so it follows the DOCUMENT number/date profile from
+  // Settings (Indonesian punctuation is one click away there).
   const copyPrice = useCallback(async (c: Comp, price: number) => {
-    const rp = Math.round(price).toLocaleString('id-ID');
-    const tgl = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+    const rp = fmtIntDoc(price);
+    const tgl = fmtDayDoc(new Date().toISOString().slice(0, 10));
     const text = `${descOf(c)}\nHarga: Rp ${rp} (belum termasuk PPN)\nTanggal penawaran: ${tgl}`;
     try {
       await navigator.clipboard.writeText(text);

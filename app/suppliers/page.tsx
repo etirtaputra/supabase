@@ -14,9 +14,9 @@ import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 import BrandMenu from '@/components/ui/BrandMenu';
 import type { Supplier, PriceQuote, PurchaseOrder, POCost, PurchaseLineItem, Component } from '@/types/database';
-import { fmtDay } from '@/lib/formatters';
+import { fmtDay, fmtInt, fmtRupiah as fmtIdr } from '@/lib/formatters';
 
-const fmtIdr = (n: number) => 'Rp' + Math.round(n).toLocaleString('en-US');
+
 const lookupHref = (n: string) => `/catalog?tab=lookup&q=${encodeURIComponent(n)}`;
 
 interface SupplierStats {
@@ -219,7 +219,7 @@ function SupplierProfile({ supplier, stats, poItems, components, poPaidIdr, poId
     for (const q of stats.quotes) {
       rows.push({
         kind: 'quote', number: q.pi_number || `Quote #${q.quote_id}`, date: q.quote_date ?? '',
-        sub: q.currency !== 'IDR' ? `${q.currency} ${Number(q.total_value).toLocaleString('en-US')}` : '',
+        sub: q.currency !== 'IDR' ? `${q.currency} ${fmtInt(Number(q.total_value))}` : '',
         amountIdr: q.currency === 'IDR' ? Number(q.total_value) : null, paidPct: null, status: q.status ?? '',
       });
     }
@@ -300,7 +300,7 @@ function SupplierProfile({ supplier, stats, poItems, components, poPaidIdr, poId
                 {topItems.map((it) => (
                   <div key={it.desc} className="flex items-center gap-3 px-3 py-2 text-xs">
                     <span className="text-slate-300 truncate flex-1">{it.desc}</span>
-                    <span className="text-slate-500 tabular-nums flex-shrink-0">{it.qty.toLocaleString('en-US')}</span>
+                    <span className="text-slate-500 tabular-nums flex-shrink-0">{fmtInt(it.qty)}</span>
                     <span className="text-slate-200 tabular-nums font-semibold flex-shrink-0 w-28 text-right">{fmtIdr(it.value)}</span>
                   </div>
                 ))}

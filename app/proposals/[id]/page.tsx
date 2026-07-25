@@ -21,7 +21,8 @@ import type { EconAssumptions } from '@/lib/energyEconomics';
 import { PROJECT_TYPES, composeDescription, specFileTag, isSolarType, type ProjectType, type SystemSpecs, type Phase } from '@/lib/projectSpec';
 import { SECTION_GROUPS, STANDARD_SECTIONS, QUOTE_UNITS, type SectionGroup, type ProjectQuote, type QuoteSection, type QuoteItem } from '@/types/quotes';
 import type { Component } from '@/types/database';
-import { fmtDayTime } from '@/lib/formatters';
+import { fmtDayTime, fmtRupiah, fmtRupiahDoc, fmtIntDoc } from '@/lib/formatters';
+import { useSettings } from '@/hooks/useSettings';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -126,10 +127,13 @@ function resolveRowValues(sections: DraftSection[]): Map<string, number> {
   return memo;
 }
 
+// Editor UI (internal). The client-facing Excel export below uses the
+// document profile instead — same split as lib/formatters.ts.
 function fmtIdr(v: number | null | undefined) {
   if (v == null) return '—';
-  return `Rp${Math.round(v).toLocaleString('en-US')}`;
+  return fmtRupiah(v);
 }
+const fmtIdrDoc = (v: number | null | undefined) => (v == null ? '—' : fmtRupiahDoc(v));
 
 function fmtDateTime(s: string | undefined) {
   return fmtDayTime(s);   // internal screen — house en-GB style
@@ -704,12 +708,8 @@ export default function QuoteEditorPage() {
     [catalog.pos, catalog.poItems, catalog.poCosts],
   );
 
-  // Global Cost Basis buffer % (app_settings), per-item override on the component
-  const [globalBufferPct, setGlobalBufferPct] = useState(5);
-  useEffect(() => {
-    supabase.from('app_settings').select('value').eq('key', 'quote_cost_buffer_pct').maybeSingle()
-      .then(({ data }) => { const v = Number(data?.value); if (!isNaN(v)) setGlobalBufferPct(v); });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Global Cost Basis buffer % (Settings › Defaults), per-item override on the component
+  const { epcCostBufferPct: globalBufferPct, defaultPpnPct } = useSettings();
 
   const costFor = useCallback((componentId: string) => {
     const c = compById.get(componentId);
@@ -1067,7 +1067,7 @@ export default function QuoteEditorPage() {
         if (qty > 0 && cost > 0 && sell > 0) { costSum += qty * cost; sellSum += qty * sell; }
       }
     }
-    const ppnPct = num(quote?.ppn_pct?.toString() ?? '') ?? 11;
+    const ppnPct = num(quote?.ppn_pct?.toString() ?? '') ?? defaultPpnPct;
     const tax = sub * ppnPct / 100;
     return {
       subtotal: sub, ppn: tax, grandTotal: sub + tax, totalWp: wp,
@@ -1629,7 +1629,7 @@ export default function QuoteEditorPage() {
   function exportExcel() {
     if (!quote) return;
     const liveSecs = sections.filter((s) => !s._deleted);
-    const ppnPct = num(String(quote.ppn_pct)) ?? 11;
+    const ppnPct = num(String(quote.ppn_pct)) ?? defaultPpnPct;
     const wpTotal = liveSecs
       .filter((s) => s.group_key === 'solar_panels')
       .flatMap((s) => s.items.filter((i) => !i._deleted && !i.parent_item_id))
@@ -1654,7 +1654,7 @@ export default function QuoteEditorPage() {
           .reduce((s, i) => s + (num(i.quantity) ?? 0) * (num(i.sell_price) ?? 0), 0);
         rows += `<tr style="background:#e8eef7;font-weight:bold;color:#12463b">
           <td colspan="${colCount - (ec.amount ? 1 : 0)}">${sec.title}${ec.lead && sec.lead_time ? ` — lead time ${sec.lead_time}` : ''}</td>
-          ${ec.amount ? `<td style="text-align:right">${secTotal > 0 ? fmtIdr(secTotal) : ''}</td>` : ''}
+          ${ec.amount ? `<td style="text-align:right">${secTotal > 0 ? fmtIdrDoc(secTotal) : ''}</td>` : ''}
         </tr>`;
         for (const item of sec.items.filter((i) => !i._deleted)) {
           const isChild = !!item.parent_item_id;
@@ -1674,7 +1674,7 @@ export default function QuoteEditorPage() {
             rows += `<tr style="font-style:italic;color:#1a7f4f">
               <td style="padding-left:24px">Total system size</td>
               ${ec.brand ? '<td></td>' : ''}
-              ${ec.qty ? `<td style="text-align:right;font-weight:bold">${itemWp(item).toLocaleString('en-US')}</td>` : ''}
+              ${ec.qty ? `<td style="text-align:right;font-weight:bold">${fmtIntDoc(itemWp(item))}</td>` : ''}
               ${ec.unit ? '<td>Wp</td>' : ''}
               ${ec.amount ? '<td></td>' : ''}
             </tr>`;
@@ -1694,16 +1694,16 @@ export default function QuoteEditorPage() {
       <tr><th>ITEMS</th>${ec.brand ? '<th>BRAND</th>' : ''}${ec.qty ? '<th>QTY</th>' : ''}${ec.unit ? '<th>UNIT</th>' : ''}${ec.amount ? '<th>AMOUNT</th>' : ''}</tr>
       ${rows}
       <tr><td colspan="${labelSpan}" style="text-align:right;font-weight:bold">Total (excl. PPN${ppnPct}%)</td>
-          <td style="text-align:right">${fmtIdr(subtotal)}</td></tr>
+          <td style="text-align:right">${fmtIdrDoc(subtotal)}</td></tr>
       <tr><td colspan="${labelSpan}" style="text-align:right">PPN${ppnPct}%</td>
-          <td style="text-align:right">${fmtIdr(ppn)}</td></tr>
+          <td style="text-align:right">${fmtIdrDoc(ppn)}</td></tr>
       <tr><td colspan="${labelSpan}" style="text-align:right;font-weight:bold">GRAND TOTAL</td>
-          <td style="text-align:right;font-weight:bold">${fmtIdr(grandTotal)}</td></tr>
+          <td style="text-align:right;font-weight:bold">${fmtIdrDoc(grandTotal)}</td></tr>
       ${wpTotal > 0 ? `
       <tr><td colspan="${labelSpan}" style="text-align:right;font-weight:bold">Harga per Wp (Exc. PPN${ppnPct}%)</td>
-          <td style="text-align:right;font-weight:bold">${fmtIdr(subtotal / wpTotal)}</td></tr>
+          <td style="text-align:right;font-weight:bold">${fmtIdrDoc(subtotal / wpTotal)}</td></tr>
       <tr><td colspan="${labelSpan}" style="text-align:right;font-weight:bold">Harga per Wp (Inc. PPN${ppnPct}%)</td>
-          <td style="text-align:right;font-weight:bold">${fmtIdr(grandTotal / wpTotal)}</td></tr>` : ''}
+          <td style="text-align:right;font-weight:bold">${fmtIdrDoc(grandTotal / wpTotal)}</td></tr>` : ''}
     </table>
     ${quote.notes ? `
     <p style="font-weight:bold;margin-top:16px;text-transform:uppercase">Terms and Conditions</p>
