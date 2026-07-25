@@ -36,8 +36,8 @@ import type { Tab, MenuItem } from '@/types/forms';
 
 const MENU_ITEMS: MenuItem[] = [
   { id: 'catalog', label: 'Items', icon: '🗂️',
-    color: 'text-slate-400 hover:text-emerald-300 hover:bg-slate-800/50',
-    activeColor: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30' },
+    color: 'text-slate-400 hover:text-sky-300 hover:bg-slate-800/50',
+    activeColor: 'bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30' },
   { id: 'quoting', label: 'Supplier Quotes', icon: '📝',
     color: 'text-slate-400 hover:text-blue-300 hover:bg-slate-800/50',
     activeColor: 'bg-blue-500/15 text-blue-300 ring-1 ring-blue-500/30' },
@@ -478,7 +478,7 @@ function MasterInsertPage() {
   if (authLoading || !user) {
     return (
       <div className="min-h-screen bg-[#141518] flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+        <div className="w-6 h-6 border-2 border-sky-500/30 border-t-sky-500 rounded-full animate-spin" />
       </div>
     );
   }

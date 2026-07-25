@@ -467,7 +467,9 @@ function ProductsInner() {
           <table className="w-full min-w-[1000px]">
             <thead>
               <tr className="border-b border-slate-800 text-[10px] uppercase tracking-widest text-slate-500">
-                <th className="text-left font-semibold px-4 py-2.5">Description</th>
+                {/* Sticky: the item name stays anchored while the numeric
+                    columns scroll horizontally, so a row never loses its label */}
+                <th className="text-left font-semibold px-4 py-2.5 sticky left-0 z-20 bg-[#0f1012]">Description</th>
                 <Th label="Sell Price" right active={sort.key === 'price'} dir={sort.dir} onClick={() => toggleSort('price')} />
                 <Th label="Stock" right active={sort.key === 'stock'} dir={sort.dir} onClick={() => toggleSort('stock')} hint="Live/Physical" />
                 <th className="text-right font-semibold px-3 py-2.5">Incoming</th>
@@ -487,8 +489,8 @@ function ProductsInner() {
               ) : rows.map((r) => (
                 <Fragment key={r.c.component_id}>
                   <tr onClick={() => setExpanded((e) => (e === r.c.component_id ? null : r.c.component_id))}
-                    className={`cursor-pointer transition-colors ${expanded === r.c.component_id ? 'bg-slate-800/40' : 'hover:bg-slate-800/20'}`}>
-                    <td className="px-4 py-2">
+                    className={`cursor-pointer transition-colors ${expanded === r.c.component_id ? 'bg-[#171a1f]' : 'bg-[#0f1012] hover:bg-[#15171b]'}`}>
+                    <td className="px-4 py-2 sticky left-0 z-10 bg-inherit">
                       <span className="flex items-center gap-1.5">
                         <span className="text-sm text-slate-100 font-medium truncate max-w-[320px]">{descOf(r.c)}</span>
                         {r.activity > 0 && <span className="px-1 py-0.5 rounded bg-slate-800 text-[9px] text-slate-500 tabular-nums flex-shrink-0" title={`${r.activity} POs / quotes / orders`}>{r.activity}</span>}

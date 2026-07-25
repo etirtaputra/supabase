@@ -21,7 +21,7 @@ import { formatCategory as humanize } from '@/lib/formatCategory';
 import { fetchWarehouses, warehouseLabel, type Warehouse } from '@/lib/warehouses';
 import { COMMITTED_STATUSES as COMMITTED } from '@/lib/salesStatus';
 import { fetchDeliveredByQuoteComp } from '@/lib/reservedStock';
-import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
+import { fmtDay, fmtInt, fmtRupiah, fmtRupiahShort } from '@/lib/formatters';
 
 /** An order line still waiting on stock — what the shortage is FOR. */
 interface DemandRef { quote_id: string; number: string; customer: string; qty: number; date: string }
@@ -274,13 +274,14 @@ export default function StockPage() {
         {/* Summary strip */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
           {[
-            { label: 'SKUs in stock', v: fmtInt(totals.skus), cls: 'text-slate-100' },
-            { label: 'Stock value (avg landed)', v: fmtRupiah(totals.value), cls: 'text-sky-300' },
-            { label: 'Negative on-hand', v: fmtInt(totals.negatives), cls: totals.negatives > 0 ? 'text-red-400' : 'text-slate-500' },
-          ].map(({ label, v, cls }) => (
+            { label: 'SKUs in stock', v: fmtInt(totals.skus), title: '', cls: 'text-slate-100' },
+            // Compact so the tile never wraps; exact rupiah on hover.
+            { label: 'Stock value (avg landed)', v: fmtRupiahShort(totals.value), title: fmtRupiah(totals.value), cls: 'text-sky-300' },
+            { label: 'Negative on-hand', v: fmtInt(totals.negatives), title: '', cls: totals.negatives > 0 ? 'text-red-400' : 'text-slate-500' },
+          ].map(({ label, v, title, cls }) => (
             <div key={label} className="bg-slate-900/40 border border-slate-800/80 rounded-2xl px-4 py-3">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 mb-1">{label}</p>
-              <p className={`text-lg font-bold tabular-nums ${cls}`}>{v}</p>
+              <p className={`text-lg font-bold tabular-nums ${cls}`} title={title || undefined}>{v}</p>
             </div>
           ))}
         </div>
@@ -355,7 +356,7 @@ export default function StockPage() {
                       {fmtInt(r.qty)}{r.c.unit && <span className="text-[10px] text-slate-600 font-normal"> {r.c.unit}</span>}
                     </span>
                     <span className="text-right tabular-nums text-slate-400">{r.avg > 0 ? fmtInt(r.avg) : '—'}</span>
-                    <span className="text-right tabular-nums text-slate-200 font-medium">{r.value !== 0 ? fmtRupiah(r.value) : '—'}</span>
+                    <span className="text-right tabular-nums text-slate-200 font-medium" title={r.value !== 0 ? fmtRupiah(r.value) : undefined}>{r.value !== 0 ? fmtRupiahShort(r.value) : '—'}</span>
                     <span className="text-right text-[11px] text-slate-500">
                       {r.last ? (
                         <>

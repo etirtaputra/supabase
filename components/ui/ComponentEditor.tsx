@@ -223,7 +223,7 @@ function BrandInput({ value, onChange, suggestions, isDirty, onNavKeyDown, ...re
         className={`w-full px-2.5 py-1.5 rounded-lg text-sm text-white focus:outline-none focus:ring-2 transition-all ${
           isDirty
             ? 'bg-amber-500/10 border border-amber-500/50 focus:ring-amber-500/30'
-            : 'bg-slate-950 border border-slate-700 focus:ring-emerald-500/20 focus:border-emerald-500'
+            : 'bg-slate-950 border border-slate-700 focus:ring-sky-500/20 focus:border-sky-500'
         }`}
       />
       {typeof document !== 'undefined' &&
@@ -275,7 +275,7 @@ function FilterCombobox({ options, value, onChange, placeholder, minWidth = 140,
         onChange={(e) => { setQuery(e.target.value); if (!open) openDrop(); }}
         onBlur={handleBlur}
         placeholder={placeholder}
-        className="w-full py-2.5 px-3 pr-7 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:outline-none placeholder-slate-500"
+        className="w-full py-2.5 px-3 pr-7 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-sky-500 focus:outline-none placeholder-slate-500"
       />
       {value ? (
         <button onMouseDown={(e) => { e.preventDefault(); onChange(''); setQuery(''); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
@@ -2170,7 +2170,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                       <select
                         value={row.category}
                         onChange={(e) => updateRow({ category: e.target.value })}
-                        className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500"
+                        className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-sky-500"
                       >
                         <option value="">— none —</option>
                         {ENUMS.product_category.map((cat) => (
@@ -2187,7 +2187,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                         value={row.unit}
                         onChange={(e) => updateRow({ unit: e.target.value })}
                         placeholder="pcs, set, meter…"
-                        className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500 placeholder-slate-600"
+                        className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-sky-500 placeholder-slate-600"
                       />
                     </div>
                     {hasCategoryUnit(row.category) && (
@@ -2203,7 +2203,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                             value={row.norm_value}
                             onChange={(e) => updateRow({ norm_value: e.target.value })}
                             placeholder="e.g. 550"
-                            className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500 placeholder-slate-600"
+                            className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-sky-500 placeholder-slate-600"
                           />
                           <span className="text-xs text-slate-500 flex-shrink-0">{CATEGORY_UNITS[row.category]?.unit}</span>
                         </div>
@@ -2231,7 +2231,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           onChange={(e) => updateRow({ specifications: e.target.value })}
                           placeholder={'{"watts": 400, "voltage": 48}'}
                           rows={2}
-                          className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white font-mono focus:outline-none focus:border-emerald-500 placeholder-slate-600 resize-none"
+                          className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white font-mono focus:outline-none focus:border-sky-500 placeholder-slate-600 resize-none"
                         />
                       </div>
                       <div>
@@ -2241,7 +2241,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           value={row.datasheet_url}
                           onChange={(e) => updateRow({ datasheet_url: e.target.value })}
                           placeholder="https://drive.google.com/..."
-                          className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500 placeholder-slate-600"
+                          className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-sky-500 placeholder-slate-600"
                         />
                       </div>
                     </div>
@@ -2302,7 +2302,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                 placeholder="Search model, description, brand… (press / to focus)"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                className="w-full pl-9 pr-8 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none placeholder-slate-600"
+                className="w-full pl-9 pr-8 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none placeholder-slate-600"
               />
               {searchInput && (
                 <button
@@ -2620,7 +2620,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                     onChange={(e) => setBulkBuffer(e.target.value)}
                     placeholder={String(globalBufferPct)}
                     title={`Buffer % applied when you press Std Cost — blank uses the global ${globalBufferPct}%`}
-                    className="w-11 px-1.5 py-1 rounded-md bg-slate-950 border border-slate-700 focus:border-emerald-500/50 outline-none text-white text-[11px] text-right tabular-nums transition-colors"
+                    className="w-11 px-1.5 py-1 rounded-md bg-slate-950 border border-slate-700 focus:border-sky-500/50 outline-none text-white text-[11px] text-right tabular-nums transition-colors"
                   />
                   <span className="text-[10px] text-slate-600">%</span>
                 </span>
@@ -2844,7 +2844,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                             className={`w-full px-2 py-1 rounded-lg text-xs text-white focus:outline-none focus:ring-2 transition-all ${
                               isDirtyField(c, 'supplier_model')
                                 ? 'bg-amber-500/10 border border-amber-500/50 focus:ring-amber-500/30'
-                                : 'bg-slate-950 border border-slate-700 focus:ring-emerald-500/20 focus:border-emerald-500'
+                                : 'bg-slate-950 border border-slate-700 focus:ring-sky-500/20 focus:border-sky-500'
                             }`}
                           />
                           {isDirtyField(c, 'supplier_model') && <DirtyBadge original={c.supplier_model} />}
@@ -2888,7 +2888,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                             className={`w-full px-2 py-1 rounded-lg text-xs text-white focus:outline-none focus:ring-2 transition-all resize-y overflow-hidden leading-snug break-words min-w-[16rem] ${
                               isDirtyField(c, 'internal_description')
                                 ? 'bg-amber-500/10 border border-amber-500/50 focus:ring-amber-500/30'
-                                : 'bg-slate-950 border border-slate-700 focus:ring-emerald-500/20 focus:border-emerald-500'
+                                : 'bg-slate-950 border border-slate-700 focus:ring-sky-500/20 focus:border-sky-500'
                             }`}
                           />
                           {isDirtyField(c, 'internal_description') && (
@@ -2951,7 +2951,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                               className={`w-full px-2 py-1 rounded-lg text-xs text-white focus:outline-none focus:ring-2 transition-all ${
                                 isDirtyField(c, 'category')
                                   ? 'bg-amber-500/10 border border-amber-500/50 focus:ring-amber-500/30'
-                                  : 'bg-slate-950 border border-slate-700 focus:ring-emerald-500/20 focus:border-emerald-500'
+                                  : 'bg-slate-950 border border-slate-700 focus:ring-sky-500/20 focus:border-sky-500'
                               }`}
                             >
                               <option value="">— none —</option>
@@ -2990,7 +2990,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                               className={`w-full px-2 py-1 rounded-lg text-xs text-white focus:outline-none focus:ring-2 transition-all ${
                                 isDirtyField(c, 'unit' as keyof Component)
                                   ? 'bg-amber-500/10 border border-amber-500/50 focus:ring-amber-500/30'
-                                  : 'bg-slate-950 border border-slate-700 focus:ring-emerald-500/20 focus:border-emerald-500'
+                                  : 'bg-slate-950 border border-slate-700 focus:ring-sky-500/20 focus:border-sky-500'
                               }`}
                             />
                             {isDirtyField(c, 'unit' as keyof Component) && <DirtyBadge original={c.unit} />}
@@ -3029,7 +3029,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                                 className={`w-full px-2 py-1 rounded-lg text-xs text-white focus:outline-none focus:ring-2 transition-all tabular-nums ${
                                   isDirtyField(c, 'norm_value' as any)
                                     ? 'bg-amber-500/10 border border-amber-500/50 focus:ring-amber-500/30'
-                                    : 'bg-slate-950 border border-slate-700 focus:ring-emerald-500/20 focus:border-emerald-500'
+                                    : 'bg-slate-950 border border-slate-700 focus:ring-sky-500/20 focus:border-sky-500'
                                 }`}
                               />
                               <span className="text-[10px] text-slate-500 flex-shrink-0">{unitInfo.unit}</span>
@@ -3166,7 +3166,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                                 className={`w-full px-2 py-1 rounded-lg text-xs text-white focus:outline-none focus:ring-2 transition-all tabular-nums ${
                                   isDirtyField(c, 'selling_price_idr' as any)
                                     ? 'bg-amber-500/10 border border-amber-500/50 focus:ring-amber-500/30'
-                                    : 'bg-slate-950 border border-slate-700 focus:ring-emerald-500/20 focus:border-emerald-500'
+                                    : 'bg-slate-950 border border-slate-700 focus:ring-sky-500/20 focus:border-sky-500'
                                 }`}
                               />
                               <span className="text-[11px] text-slate-500 flex-shrink-0">IDR</span>
@@ -3273,8 +3273,8 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                               tDirty
                                 ? 'bg-amber-500/10 border border-amber-500/50 text-white focus:ring-amber-500/30'
                                 : cur != null
-                                ? 'bg-slate-950 border border-emerald-500/30 text-emerald-200 focus:ring-emerald-500/20 focus:border-emerald-500'
-                                : 'bg-slate-950/40 border border-slate-800 text-slate-400 focus:ring-emerald-500/20 focus:border-emerald-500'
+                                ? 'bg-slate-950 border border-emerald-500/30 text-emerald-200 focus:ring-sky-500/20 focus:border-sky-500'
+                                : 'bg-slate-950/40 border border-slate-800 text-slate-400 focus:ring-sky-500/20 focus:border-sky-500'
                             }`}
                           />
                         </td>
@@ -5009,7 +5009,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                   value={frFind}
                   onChange={(e) => { setFrFind(e.target.value); setFrPreviewing(true); }}
                   placeholder="Enter text or regex pattern…"
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 placeholder-slate-600"
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-sky-500 focus:ring-1 focus:ring-sky-500/20 placeholder-slate-600"
                   autoFocus
                 />
               </div>
@@ -5022,7 +5022,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                   value={frReplace}
                   onChange={(e) => setFrReplace(e.target.value)}
                   placeholder="Replacement text…"
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 placeholder-slate-600"
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-sky-500 focus:ring-1 focus:ring-sky-500/20 placeholder-slate-600"
                 />
               </div>
 

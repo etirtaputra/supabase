@@ -1140,7 +1140,7 @@ export default function DealLookupTab({
                               type="date"
                               value={pendingReceived.date}
                               onChange={(e) => setPendingReceived((p) => p && { ...p, date: e.target.value })}
-                              className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500"
+                              className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-sky-500"
                             />
                             <div className="flex gap-2">
                               <button
