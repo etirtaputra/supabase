@@ -18,6 +18,7 @@ import { SALES_STATUS as STATUS, COMMITTED_STATUSES as COMMITTED } from '@/lib/s
 import { tierPriceFor } from '@/lib/tierPricing';
 import { fmtDay, fmtInt } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
+import { fetchBankAccounts, accountLabel, type BankAccount } from '@/lib/banks';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
@@ -822,6 +823,11 @@ function RecordPaymentModal({ quoteId, outstanding, received, onClose, onDone, f
   const [bankRef, setBankRef] = useState('');
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
+  // Which bank account the money landed in — tagging it here is what makes the
+  // account's statement on /banks complete.
+  const [banks, setBanks] = useState<BankAccount[]>([]);
+  const [bankId, setBankId] = useState('');
+  useEffect(() => { fetchBankAccounts(supabase).then(setBanks); }, []);   // eslint-disable-line react-hooks/exhaustive-deps
 
   async function submit() {
     const amt = num(amount);
@@ -830,6 +836,7 @@ function RecordPaymentModal({ quoteId, outstanding, received, onClose, onDone, f
     const { error } = await supabase.from('26.0_customer_receipts').insert({
       quote_id: quoteId, category, amount: amt, payment_method: method,
       payment_date: date, bank_ref: bankRef.trim(), notes: notes.trim(),
+      bank_account_id: bankId || null,
     });
     setBusy(false);
     if (error) { flash(`Failed: ${error.message}`); return; }
@@ -867,6 +874,12 @@ function RecordPaymentModal({ quoteId, outstanding, received, onClose, onDone, f
           </FieldBox>
           <FieldBox label="Payment date">
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inp} />
+          </FieldBox>
+          <FieldBox label="Received in" full>
+            <select value={bankId} onChange={(e) => setBankId(e.target.value)} className={inp}>
+              <option value="">— not recorded —</option>
+              {banks.map((b) => <option key={b.bank_account_id} value={b.bank_account_id}>{accountLabel(b)}</option>)}
+            </select>
           </FieldBox>
           <FieldBox label="Bank ref / cheque no." full>
             <input value={bankRef} onChange={(e) => setBankRef(e.target.value)} placeholder="Optional reference" className={inp} />

@@ -177,6 +177,7 @@ export interface POCost extends BaseEntity {
   payment_date?: string;
   notes?: string;
   batch_id?: string;      // FK → payment_batches (set when part of a multi-PO remittance)
+  bank_account_id?: string | null;  // FK → 41.0_bank_accounts (which account the money left)
 }
 
 // 7.0 Competitor Prices (Market Intelligence)

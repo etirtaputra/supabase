@@ -11,11 +11,14 @@ import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 import SalesMigrationBanner from '@/components/ui/SalesMigrationBanner';
 import { SALES_STATUS as STATUS, milestoneIndex } from '@/lib/salesStatus';
-import { fmtDay, fmtInt } from '@/lib/formatters';
+import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
+import DateRangeFilter from '@/components/ui/DateRangeFilter';
+import { ALL_TIME, inRange, type DateRange } from '@/lib/dateRange';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
   customer_id: string | null; status: string; grand_total: number; updated_at?: string; revision?: number;
+  quote_date?: string | null;
 }
 interface Customer { customer_id: string; display_name: string; legal_name: string; }
 interface PreviewLine { quote_id: string; description: string; quantity: number; unit_price: number; is_section: boolean; sort_order: number; }
@@ -31,6 +34,9 @@ export default function SalesListPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  // Date filter — the document date, so "this month's sales" means the quotes
+  // dated this month, not the ones last touched this month.
+  const [range, setRange] = useState<DateRange>(ALL_TIME);
 
   useEffect(() => { document.title = 'Sales — ICAPROC'; }, []);
   useEffect(() => {
@@ -46,7 +52,7 @@ export default function SalesListPage() {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     const [qRes, custRes, rRes, iRes] = await Promise.all([
-      supabase.from('22.0_sales_quotes').select('quote_id, quote_number, order_number, invoice_number, do_number, customer_id, status, grand_total, updated_at, revision').order('updated_at', { ascending: false }),
+      supabase.from('22.0_sales_quotes').select('quote_id, quote_number, order_number, invoice_number, do_number, customer_id, status, grand_total, updated_at, revision, quote_date').order('updated_at', { ascending: false }),
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name'),
       supabase.from('26.0_customer_receipts').select('quote_id, amount'),
       supabase.from('22.1_sales_quote_items').select('quote_id, description, quantity, unit_price, is_section, sort_order').order('sort_order'),
@@ -69,12 +75,18 @@ export default function SalesListPage() {
   if (!canEdit) return <CenterSpinner />;
 
   const filtered = quotes.filter((q) => {
+    if (!inRange(q.quote_date ?? q.updated_at ?? null, range)) return false;
     const s = search.trim().toLowerCase();
     if (!s) return true;
     const c = q.customer_id ? custById.get(q.customer_id) : undefined;
     return [q.quote_number, q.order_number, q.invoice_number, q.do_number, c?.display_name, c?.legal_name, STATUS[q.status]?.label]
       .filter(Boolean).join(' ').toLowerCase().includes(s);
   });
+
+  // What the filtered set is worth — the reason to filter by week/month/year
+  const committed = filtered.filter((q) => ['ordered', 'invoiced', 'preparing', 'delivered'].includes(q.status));
+  const periodValue = committed.reduce((sum, q) => sum + (Number(q.grand_total) || 0), 0);
+  const periodReceived = filtered.reduce((sum, q) => sum + (receivedByQuote[q.quote_id] ?? 0), 0);
 
   return (
     <div className="min-h-screen bg-[#0f1012] text-slate-200 font-sans text-sm">
@@ -101,6 +113,16 @@ export default function SalesListPage() {
           <svg className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by number, customer, status…"
             className="w-full pl-10 pr-4 h-11 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors" />
+        </div>
+
+        {/* Period filter + what the period is worth */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 justify-between">
+          <DateRangeFilter value={range} onChange={setRange} label="Quote date" align="left" />
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500">
+            <span><span className="text-slate-300 font-semibold tabular-nums">{filtered.length}</span> quote{filtered.length !== 1 ? 's' : ''}</span>
+            <span>Ordered+ <span className="text-emerald-300 font-semibold tabular-nums">{fmtRupiah(periodValue)}</span></span>
+            <span>Received <span className="text-slate-300 font-semibold tabular-nums">{fmtRupiah(periodReceived)}</span></span>
+          </div>
         </div>
 
         <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">

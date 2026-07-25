@@ -18,6 +18,8 @@ import type {
 import { buildDealGroups, type DealGroup } from '@/lib/dealGroups';
 import { PRINCIPAL_CATS, BANK_FEE_CATS, TAX_CATS } from '@/constants/costCategories';
 import { fmtIdr, fmtCcy, fmtDate } from '@/lib/formatters';
+import DateRangeFilter from './DateRangeFilter';
+import { ALL_TIME, inRange, isOpenRange, type DateRange } from '@/lib/dateRange';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -295,6 +297,9 @@ export default function DealLookupTab({
   const [search, setSearch]                   = useState(initialSearch ?? '');
   const [stageFilter, setStageFilter]         = useState<'all' | 'quote' | 'active' | 'received' | 'completed' | 'superseded'>('all');
   const [filterMismatch, setFilterMismatch]   = useState(false);
+  // Deals filter on latestDate = max(quote date, PO date) — the date the deal
+  // last moved, which is what "POs this month" means on the buy side.
+  const [range, setRange]                     = useState<DateRange>(ALL_TIME);
   const [tableView, setTableView]             = useState(false);
   const [expandedKey, setExpandedKey]         = useState<string | null>(null);
   const [selectedSuppId, setSelectedSuppId]   = useState<string | null>(null);
@@ -427,6 +432,7 @@ export default function DealLookupTab({
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
     let base = stageFilter === 'all' ? allGroups : allGroups.filter((g) => dealStage(g) === stageFilter);
+    if (!isOpenRange(range)) base = base.filter((g) => inRange(g.latestDate, range));
     if (filterMismatch) base = base.filter((g) => mismatchGroupIds.has(g.key) && !acknowledgedDealMismatches.has(g.key));
     if (!q) return base.slice(0, 80);
     return base.filter((g) => {
@@ -437,7 +443,7 @@ export default function DealLookupTab({
       return pi.includes(q) || code.includes(q) || name.includes(q) || company.includes(q)
         || g.pos.some((p) => (p.po_number ?? '').toLowerCase().includes(q));
     });
-  }, [allGroups, search, stageFilter, filterMismatch, mismatchGroupIds]);
+  }, [allGroups, search, stageFilter, filterMismatch, mismatchGroupIds, range]);
 
   // Deep-linked search (e.g. a PO number from the global palette): when it
   // resolves to exactly one deal, open its card automatically
@@ -2085,6 +2091,7 @@ export default function DealLookupTab({
                   {label}
                 </button>
               ))}
+              <DateRangeFilter value={range} onChange={setRange} label="Deal date" accent="sky" align="left" />
             </div>
             {mismatchGroupIds.size > 0 && (
               <button

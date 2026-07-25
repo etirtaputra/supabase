@@ -184,13 +184,42 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   signed-in user could PATCH themselves to `owner`. Updates are now self-or-
   owner and a trigger rejects any role change not made by an owner.
 
+- **Module 41 — Bank accounts (SHIPPED 2026-07-25)**:
+  `migrations/create_bank_accounts.sql` — `41.0_bank_accounts` (owned by one of
+  the `1.0_companies`: bank, account number, currency, opening balance) and
+  `41.1_bank_transactions` (everything that is not already a document:
+  transfers, charges, and the dated corrections an owner writes when setting a
+  balance). `6.0_po_costs`, `payment_batches` and `26.0_customer_receipts`
+  gained `bank_account_id`, so **/banks** ASSEMBLES each statement from the
+  documents themselves — receipts in, PO payments out — instead of keeping a
+  second ledger. The statement filters by any date range, is searchable, and
+  carries a running balance that starts from the balance brought INTO the range
+  so a filtered view still reconciles; foreign-currency payments convert at the
+  rate recorded on the payment. Accounts are created in **Settings › Banks**;
+  balances are corrected on /banks (owner-only, written as an adjustment row,
+  never a rewrite). An "untagged movements" panel assigns historical payments
+  and receipts to an account. New capabilities: `canViewBanks` (owner,
+  buy_admin, sell_admin, legacy finance) and `canEditBanks` (owner).
+- **Date filtering across the money lists (2026-07-25)**: `lib/dateRange.ts` +
+  `components/ui/DateRangeFilter.tsx` — one vocabulary (this week / month /
+  quarter / year, the rolling 7/30/90, last month / last year, a month picker,
+  a year picker, and a free from–to range). Wired into **Sales** (on the quote
+  date, with what the period is worth), **Invoices** (on the issue date — the
+  AR KPIs follow the filter so a total can never contradict its list),
+  **Delivery** (delivered rows on the delivery date, pending on the target
+  date), the buy-side **Deal Lookup**, and the bank statement.
+
 **Next up (in order):**
-1. Sell-side polish: Record Payment modal should offer an invoice picker once
+1. Bank follow-ons: tag the historical payments/receipts through the
+   "untagged movements" panel on /banks so every statement is complete; then
+   consider a cash-position tile on the dashboard and bank-account filtering
+   inside Insights.
+2. Sell-side polish: Record Payment modal should offer an invoice picker once
    an order carries 2+ unpaid invoices; optional live cursors in the EPC
    editor (Presence broadcast).
-2. Stock hygiene: transfer the legacy MAIN balances into G63/G25 via
+3. Stock hygiene: transfer the legacy MAIN balances into G63/G25 via
    /stock "⇄ move", then deactivate MAIN.
-3. Settings follow-ons when touched: per-document-type overrides (a customer
+4. Settings follow-ons when touched: per-document-type overrides (a customer
    who wants English invoices), and quote validity days once the sell-side
    document carries one.
 
@@ -337,6 +366,7 @@ per-invoice issued→paid dates; tsc + build green.
   - `22.x` = sales/product quotes · `23.x` = sales orders · `24.x` = delivery orders · `25.x` = sales invoices · `26.x` = customer receipts
   - `30.x` = inventory (stock ledger, balances, locations, warehouses)
   - `40.x` = platform settings (`40.0_settings` key/value, owner-write)
+  - `41.x` = treasury (`41.0_bank_accounts`, `41.1_bank_transactions`)
 - **Document numbering:** human refs like `CUST-…`, `SQ-YYYYMMDD-…`, `SO-…`, `DO-…`, `INV-…`, `RCPT-…`, `GRN-…` (mirror existing `Q-YYYYMMDD-XXXX`).
 - **RLS on every new table** (authenticated-only; writes gated by role). Add a **`sales`** role to the matrix in `constants/roles.ts`; sales can manage customers/quotes/orders but not procurement or payments.
 - **Audit:** reuse the `log_quote_activity`-style trigger pattern for created/updated stamps + activity log.

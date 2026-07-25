@@ -12,6 +12,8 @@ import { useRouter } from 'next/navigation';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { fmtDay, fmtInt, fmtIdrShort as fmtIdr } from '@/lib/formatters';
+import DateRangeFilter from '@/components/ui/DateRangeFilter';
+import { ALL_TIME, inRange, type DateRange } from '@/lib/dateRange';
 
 // One row per REAL invoice (25.0) — an order split across several invoices
 // shows several rows, each with its own payment state.
@@ -36,6 +38,8 @@ export default function InvoicesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [unpaidOnly, setUnpaidOnly] = useState(false);
+  // Filter on the issue date — "this month's AR" means invoices issued then.
+  const [range, setRange] = useState<DateRange>(ALL_TIME);
 
   useEffect(() => { document.title = 'Invoices — ICAPROC'; }, []);
   useEffect(() => {
@@ -93,18 +97,22 @@ export default function InvoicesPage() {
       })
       .filter(({ q, paid }) => {
         if (unpaidOnly && paid) return false;
+        if (!inRange(q.invoiced_at, range)) return false;
         if (!s) return true;
         const c = q.customer_id ? custById.get(q.customer_id) : undefined;
         return [q.invoice_number, q.quote_number, q.order_number, q.do_number, c?.display_name, c?.legal_name]
           .filter(Boolean).join(' ').toLowerCase().includes(s);
       });
-  }, [quotes, receivedByQuote, search, unpaidOnly, custById]);
+  }, [quotes, receivedByQuote, search, unpaidOnly, custById, range]);
 
+  // KPIs follow the date filter — a total that ignored it would contradict the
+  // list underneath. The search box does not move them (it narrows, not scopes).
   const kpi = useMemo(() => {
-    const invoiced = quotes.reduce((s, q) => s + (Number(q.grand_total) || 0), 0);
-    const received = quotes.reduce((s, q) => s + (receivedByQuote[q.invoice_key] ?? 0), 0);
+    const scoped = quotes.filter((q) => inRange(q.invoiced_at, range));
+    const invoiced = scoped.reduce((s, q) => s + (Number(q.grand_total) || 0), 0);
+    const received = scoped.reduce((s, q) => s + (receivedByQuote[q.invoice_key] ?? 0), 0);
     return { invoiced, received, outstanding: Math.max(0, invoiced - received) };
-  }, [quotes, receivedByQuote]);
+  }, [quotes, receivedByQuote, range]);
 
   if (authLoading || !profile) return <CenterSpinner />;
   if (!canView) return <CenterSpinner />;
@@ -138,6 +146,7 @@ export default function InvoicesPage() {
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search invoice number, customer…"
               className="w-full pl-10 pr-4 h-11 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors" />
           </div>
+          <DateRangeFilter value={range} onChange={setRange} label="Issued" />
           <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
             <input type="checkbox" checked={unpaidOnly} onChange={(e) => setUnpaidOnly(e.target.checked)} className="accent-emerald-500 w-4 h-4" />
             Unpaid only

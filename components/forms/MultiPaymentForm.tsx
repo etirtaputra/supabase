@@ -14,6 +14,7 @@ import type { PurchaseOrder, Supplier, PriceQuote, POCost } from '@/types/databa
 import { ENUMS } from '@/constants/enums';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 import { fmtIdr } from '@/lib/formatters';
+import { fetchBankAccounts, accountLabel, type BankAccount } from '@/lib/banks';
 
 const ALL_COST_CATS = ENUMS.po_cost_category as readonly string[];
 
@@ -40,6 +41,11 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
   const [bankRef,     setBankRef]     = useState('');
+  // Which account the remittance left — stamped on the batch AND on every cost
+  // row it creates, so /banks can assemble the statement from the documents.
+  const [banks,       setBanks]       = useState<BankAccount[]>([]);
+  const [bankId,      setBankId]      = useState('');
+  useEffect(() => { fetchBankAccounts(createSupabaseClient()).then(setBanks); }, []);
   const [costItems,   setCostItems]   = useState<CostItem[]>([
     { uid: 'item_0', category: 'balance_payment', amountStr: '', dateStr: '' },
   ]);
@@ -248,6 +254,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
         total_amount:   totalAmount,
         currency:       'IDR',
         bank_reference: bankRef || null,
+        bank_account_id: bankId || null,
         notes:          null,
       })
       .select('batch_id')
@@ -283,6 +290,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
           payment_date:  item.dateStr || paymentDate,
           notes:         bankRef || null,
           batch_id:      batchId,
+          bank_account_id: bankId || null,
         });
       }
     }
@@ -402,6 +410,16 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
                 placeholder="Wire / TT reference number"
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-sky-500/20"
               />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-1.5">Paid From</label>
+              <select
+                value={bankId} onChange={(e) => setBankId(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-sky-500/20"
+              >
+                <option value="">— not recorded —</option>
+                {banks.map((b) => <option key={b.bank_account_id} value={b.bank_account_id}>{accountLabel(b)}</option>)}
+              </select>
             </div>
           </div>
         </div>

@@ -29,6 +29,7 @@ const APP_GROUPS: { title: string | null; section: Section; apps: { href: string
     { href: '/suppliers', label: 'Suppliers' },
     { href: '/stock',     label: 'Stock' },
     { href: '/insights',  label: 'Insights' },
+    { href: '/banks',     label: 'Banks', cap: 'canViewBanks' },
   ] },
   { title: 'Sell side', section: 'sellSide', apps: [
     { href: '/customers', label: 'Customers' },
@@ -43,7 +44,7 @@ const APP_GROUPS: { title: string | null; section: Section; apps: { href: string
 ];
 
 // Preferred order for the mobile bottom bar's primary slots
-const MOBILE_PRIORITY = ['/sales', '/products', '/catalog', '/proposals', '/customers', '/stock', '/suppliers', '/invoices', '/delivery', '/pricing', '/insights'];
+const MOBILE_PRIORITY = ['/sales', '/products', '/catalog', '/proposals', '/customers', '/stock', '/suppliers', '/invoices', '/delivery', '/pricing', '/insights', '/banks'];
 
 // Domain color language, used everywhere a module appears: buy-side is SKY
 // (the supplier/PI-PO color), sell-side is EMERALD (the house sell color),
@@ -70,6 +71,7 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
   '/suppliers': <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />,
   '/stock':     <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />,
   '/economics': <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />,
+  '/banks':     <path strokeLinecap="round" strokeLinejoin="round" d="M3 10l9-6 9 6M5 10v9m14-9v9M9 19v-5h6v5M3 21h18" />,
   '/proposals':    <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />,
 };
 

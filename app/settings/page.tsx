@@ -30,12 +30,14 @@ import {
 } from '@/lib/settings';
 import { applyCurrency, formatDate, formatNumber } from '@/lib/formatters';
 import { fetchWarehouses, type Warehouse } from '@/lib/warehouses';
+import { accountLabel, type BankAccount } from '@/lib/banks';
+import { fmtRupiah } from '@/lib/formatters';
 import Link from 'next/link';
 
-type Tab = 'format' | 'pricing' | 'defaults' | 'company' | 'users';
+type Tab = 'format' | 'pricing' | 'defaults' | 'company' | 'banks' | 'users';
 const TABS: [Tab, string][] = [
   ['format', 'Formatting'], ['pricing', 'Pricing'], ['defaults', 'Defaults'],
-  ['company', 'Company'], ['users', 'Users'],
+  ['company', 'Company'], ['banks', 'Banks'], ['users', 'Users'],
 ];
 
 const SEPARATORS: { value: string; label: string }[] = [
@@ -182,6 +184,7 @@ export default function SettingsPage() {
         {tab === 'pricing'  && <PricingTab draft={draft} set={set} />}
         {tab === 'defaults' && <DefaultsTab draft={draft} set={set} flash={flash} />}
         {tab === 'company'  && <CompanyTab draft={draft} set={set} />}
+        {tab === 'banks'    && <BanksTab flash={flash} email={profile?.email ?? ''} />}
         {tab === 'users'    && <UsersTab myId={profile?.id ?? ''} flash={flash} />}
       </main>
 
@@ -580,6 +583,165 @@ function CompanyTab({ draft, set }: { draft: AppSettings; set: <K extends keyof 
           <textarea rows={4} className={`${inputCls} resize-y leading-relaxed`} value={draft.documentFooterNote}
             onChange={(e) => set('documentFooterNote', e.target.value)} />
         </Field>
+      </div>
+    </div>
+  );
+}
+
+// ── Banks ───────────────────────────────────────────────────────────────────
+// The account master. Statements, balances and corrections live on /banks —
+// this tab is where an account comes into existence and gets its details.
+
+const BANK_CURRENCIES = ['IDR', 'USD', 'EUR', 'CNY', 'SGD'];
+
+function BanksTab({ flash, email }: { flash: (m: string) => void; email: string }) {
+  const supabase = createSupabaseClient();
+  const [accounts, setAccounts] = useState<BankAccount[]>([]);
+  const [companies, setCompanies] = useState<{ company_id: string; legal_name: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [missing, setMissing] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [accRes, coRes] = await Promise.all([
+      supabase.from('41.0_bank_accounts').select('*').order('sort_order'),
+      supabase.from('1.0_companies').select('company_id, legal_name').order('legal_name'),
+    ]);
+    if (accRes.error) { setMissing(true); setLoading(false); return; }
+    setAccounts((accRes.data as BankAccount[]) ?? []);
+    setCompanies((coRes.data as { company_id: string; legal_name: string }[]) ?? []);
+    setLoading(false);
+  }, []);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [load]);
+
+  const patch = async (a: BankAccount, p: Partial<BankAccount>) => {
+    setSaving(a.bank_account_id);
+    const { error } = await supabase.from('41.0_bank_accounts')
+      .update({ ...p, updated_at: new Date().toISOString(), updated_by_email: email })
+      .eq('bank_account_id', a.bank_account_id);
+    setSaving(null);
+    if (error) { flash(`Could not save — ${error.message}`); return; }
+    setAccounts((prev) => prev.map((x) => (x.bank_account_id === a.bank_account_id ? { ...x, ...p } : x)));
+  };
+
+  const addAccount = async () => {
+    const { error } = await supabase.from('41.0_bank_accounts').insert({
+      company_id: companies[0]?.company_id ?? null,
+      bank_name: '', account_name: '', account_number: '', currency: 'IDR',
+      opening_balance: 0, is_active: true,
+      sort_order: accounts.reduce((m, a) => Math.max(m, a.sort_order), 0) + 1,
+      created_by_email: email, updated_by_email: email,
+    });
+    if (error) { flash(`Could not add — ${error.message}`); return; }
+    await load();
+    flash('Account added — fill in the bank and number');
+  };
+
+  const remove = async (a: BankAccount) => {
+    const { error } = await supabase.from('41.0_bank_accounts').delete().eq('bank_account_id', a.bank_account_id);
+    if (error) { flash(`Could not delete — ${error.message} (deactivate it instead)`); return; }
+    setAccounts((prev) => prev.filter((x) => x.bank_account_id !== a.bank_account_id));
+    flash('Account removed');
+  };
+
+  if (missing) {
+    return (
+      <div className="bg-amber-500/10 border border-amber-500/40 rounded-xl p-4 text-xs text-amber-200">
+        Bank tables are not set up yet — run <span className="font-mono">migrations/create_bank_accounts.sql</span> in Supabase → SQL Editor.
+      </div>
+    );
+  }
+  if (loading) return <div className="space-y-2">{[...Array(3)].map((_, i) => <div key={i} className="h-24 bg-slate-800/40 rounded-2xl animate-pulse" />)}</div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-sky-500/[0.07] border border-sky-500/25 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <p className="text-xs text-sky-100/90 leading-relaxed">
+          <span className="font-bold">Accounts here, money on Banks.</span> An account is owned by one group company;
+          supplier payments and customer receipts are tagged with the account they moved through, and the statement is
+          assembled from those documents.
+        </p>
+        <Link href="/banks" className="text-xs font-semibold text-sky-300 hover:text-sky-200 whitespace-nowrap px-3 py-1.5 rounded-lg border border-sky-500/30 hover:bg-sky-500/10 transition-colors">
+          Open Banks →
+        </Link>
+      </div>
+
+      <div className="flex justify-end">
+        <button onClick={addAccount}
+          className="text-xs font-bold px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-colors">
+          + Add account
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+        {accounts.map((a) => (
+          <div key={a.bank_account_id}
+            className={`bg-slate-900/50 border rounded-2xl p-4 space-y-3 transition-colors ${a.is_active ? 'border-slate-800' : 'border-slate-800/40 opacity-60'}`}>
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm font-bold text-white truncate">{accountLabel(a)}</p>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {saving === a.bank_account_id && <div className="w-3.5 h-3.5 border border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />}
+                <label className="flex items-center gap-1.5 text-[10px] text-slate-500 cursor-pointer select-none">
+                  <input type="checkbox" checked={a.is_active} onChange={(e) => patch(a, { is_active: e.target.checked })} className="accent-emerald-500 w-3.5 h-3.5" />
+                  Active
+                </label>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Company">
+                <select className={inputCls} value={a.company_id ?? ''} onChange={(e) => patch(a, { company_id: e.target.value || null })}>
+                  <option value="">— none —</option>
+                  {companies.map((c) => <option key={c.company_id} value={c.company_id}>{c.legal_name}</option>)}
+                </select>
+              </Field>
+              <Field label="Currency">
+                <select className={inputCls} value={a.currency} onChange={(e) => patch(a, { currency: e.target.value })}>
+                  {BANK_CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Bank">
+                <input className={inputCls} defaultValue={a.bank_name} placeholder="BCA"
+                  onBlur={(e) => { if (e.target.value !== a.bank_name) patch(a, { bank_name: e.target.value }); }} />
+              </Field>
+              <Field label="Account number">
+                <input className={`${inputCls} font-mono`} defaultValue={a.account_number} placeholder="0123456789"
+                  onBlur={(e) => { if (e.target.value !== a.account_number) patch(a, { account_number: e.target.value }); }} />
+              </Field>
+            </div>
+
+            <Field label="Account name" hint="The name the account is held in, as it appears on a transfer.">
+              <input className={inputCls} defaultValue={a.account_name}
+                onBlur={(e) => { if (e.target.value !== a.account_name) patch(a, { account_name: e.target.value }); }} />
+            </Field>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Opening balance" hint="Where the statement starts. Later corrections are recorded on Banks.">
+                <input className={`${inputCls} text-right tabular-nums`} defaultValue={String(a.opening_balance ?? 0)} inputMode="decimal"
+                  onBlur={(e) => {
+                    const v = Number(String(e.target.value).replace(/[, ]/g, ''));
+                    if (!isNaN(v) && v !== Number(a.opening_balance)) patch(a, { opening_balance: v });
+                  }} />
+              </Field>
+              <Field label="Opening date">
+                <input type="date" className={inputCls} defaultValue={a.opening_date ?? ''}
+                  onBlur={(e) => { if (e.target.value !== (a.opening_date ?? '')) patch(a, { opening_date: e.target.value || null }); }} />
+              </Field>
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-[11px] text-slate-600 tabular-nums">Opens at {fmtRupiah(Number(a.opening_balance) || 0)}</span>
+              <button onClick={() => remove(a)} className="text-[11px] text-slate-600 hover:text-rose-400 transition-colors"
+                title="Only possible while nothing references the account — otherwise untick Active">
+                Delete
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

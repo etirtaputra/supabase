@@ -43,6 +43,8 @@ export interface RolePermissions {
   canManagePricing: boolean;   // price tiers + item tier prices; sees margin vs landed cost (internal)
   canManageStock: boolean;     // inventory: receive / adjust stock movements
   canRecordReceipts: boolean;  // AR: record customer payments against sales invoices
+  canViewBanks: boolean;       // bank accounts + their statements (cash position)
+  canEditBanks: boolean;       // owner-only: create accounts, correct balances
 }
 
 export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
@@ -53,6 +55,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canViewSellingPrice: true, canViewBankFees: true, canViewCompetitorPrices: true, canViewBrand: true,
     canManageUsers: true, canEditQuotes: true,
     canManageCustomers: true, canEditSalesDocs: true, canManagePricing: true, canManageStock: true, canRecordReceipts: true,
+    canViewBanks: true, canEditBanks: true,
   },
   // Buy-side admin — procurement + catalog, can edit; sees buy-side cost signals.
   buy_admin: {
@@ -62,6 +65,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canViewSellingPrice: true, canViewBankFees: true, canViewCompetitorPrices: true, canViewBrand: true,
     canManageUsers: false, canEditQuotes: false,
     canManageCustomers: false, canEditSalesDocs: false, canManagePricing: false, canManageStock: true, canRecordReceipts: false,
+    canViewBanks: true, canEditBanks: false,
   },
   // Sell-side admin — runs the whole sell-side incl. pricing tiers + receipts.
   sell_admin: {
@@ -71,6 +75,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canViewSellingPrice: true, canViewBankFees: false, canViewCompetitorPrices: false, canViewBrand: false,
     canManageUsers: false, canEditQuotes: false,
     canManageCustomers: true, canEditSalesDocs: true, canManagePricing: true, canManageStock: false, canRecordReceipts: true,
+    canViewBanks: true, canEditBanks: false,
   },
   // Sell-side sales — customers + sales docs; no back-end (pricing/stock/AR).
   sales: {
@@ -80,6 +85,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canViewSellingPrice: true, canViewBankFees: false, canViewCompetitorPrices: false, canViewBrand: false,
     canManageUsers: false, canEditQuotes: false,
     canManageCustomers: true, canEditSalesDocs: true, canManagePricing: false, canManageStock: false, canRecordReceipts: false,
+    canViewBanks: false, canEditBanks: false,
   },
   // Project engineer — Project Quotes + sell-side sales access.
   engineer: {
@@ -89,6 +95,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canViewSellingPrice: true, canViewBankFees: false, canViewCompetitorPrices: false, canViewBrand: false,
     canManageUsers: false, canEditQuotes: true,
     canManageCustomers: true, canEditSalesDocs: true, canManagePricing: false, canManageStock: false, canRecordReceipts: false,
+    canViewBanks: false, canEditBanks: false,
   },
   viewer: {
     buySide: false, sellSide: false, projects: false,
@@ -97,6 +104,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canViewSellingPrice: false, canViewBankFees: false, canViewCompetitorPrices: false, canViewBrand: false,
     canManageUsers: false, canEditQuotes: false,
     canManageCustomers: false, canEditSalesDocs: false, canManagePricing: false, canManageStock: false, canRecordReceipts: false,
+    canViewBanks: false, canEditBanks: false,
   },
   // ── Legacy (superseded by buy_admin); kept for backward-compatibility ──
   data_entry: {
@@ -106,6 +114,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canViewSellingPrice: false, canViewBankFees: false, canViewCompetitorPrices: false, canViewBrand: true,
     canManageUsers: false, canEditQuotes: true,
     canManageCustomers: false, canEditSalesDocs: false, canManagePricing: false, canManageStock: true, canRecordReceipts: false,
+    canViewBanks: false, canEditBanks: false,
   },
   finance: {
     buySide: true, sellSide: false, projects: false,
@@ -114,6 +123,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canViewSellingPrice: false, canViewBankFees: true, canViewCompetitorPrices: false, canViewBrand: true,
     canManageUsers: false, canEditQuotes: true,
     canManageCustomers: false, canEditSalesDocs: false, canManagePricing: false, canManageStock: false, canRecordReceipts: true,
+    canViewBanks: true, canEditBanks: false,
   },
 };
 
