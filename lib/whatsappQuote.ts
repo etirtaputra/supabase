@@ -9,6 +9,14 @@
  *
  * WhatsApp markup: *bold* survives a paste; nothing else is worth the risk of
  * looking broken in a client that doesn't render it.
+ *
+ * LAYOUT, learned from a real message: WhatsApp turns "1. " at the start of a
+ * line into an ORDERED LIST. Its wrapped lines indent under the number, but a
+ * following line that is not part of that list item drops back to the left
+ * margin — so a name on one line and its price on the next came out visually
+ * detached. Each item is therefore ONE line ("1. Name — 3 unit × Rp… = Rp…"),
+ * which lets WhatsApp's own list rendering wrap it as a single block, and the
+ * items are not separated by blank lines (a blank line ends the list).
  */
 import { fmtDayDoc, fmtRupiahDoc } from './formatters';
 import { getSettings } from './settings';
@@ -58,14 +66,17 @@ export function buildQuoteMessage(lines: QuoteLine[], opts: QuoteMessageOptions 
   const body = kept.map((l, i) => {
     const qty = Math.max(1, Number(l.qty) || 1);
     const unit = (l.unit ?? '').trim();
-    const label = single ? l.name : `${i + 1}. ${l.name}`;
     const priceTxt = fmtRupiahDoc(l.price);
-    return qty > 1
-      ? `${label}\n${qty}${unit ? ` ${unit}` : ''} × ${priceTxt} = *${fmtRupiahDoc(l.price * qty)}*`
-      : `${label}\n${priceTxt}`;
+    const amount = qty > 1
+      ? `${qty}${unit ? ` ${unit}` : ''} × ${priceTxt} = *${fmtRupiahDoc(l.price * qty)}*`
+      : `*${priceTxt}*`;
+    // One item, no list: name above its price reads naturally.
+    // Several: one line each, so WhatsApp's list rendering keeps a long name
+    // and its price in the same block.
+    return single ? `${l.name}\n${amount}` : `${i + 1}. ${l.name} — ${amount}`;
   });
 
-  const out = [head.join('\n'), '', body.join('\n\n')];
+  const out = [head.join('\n'), '', body.join('\n')];
 
   if (opts.withTotal !== false) {
     const total = kept.reduce((sum, l) => sum + l.price * Math.max(1, Number(l.qty) || 1), 0);
