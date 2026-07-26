@@ -25,6 +25,8 @@
  * so adding a field here needs no migration.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { RangePreset } from './dateRange';
+import { DEFAULT_LIST_DEFAULTS } from '@/constants/listDefaults';
 
 export const SETTINGS_TABLE = '40.0_settings';
 
@@ -64,6 +66,9 @@ export type DateLocale = 'en-GB' | 'en-US' | 'id-ID';
  */
 export type ListLayout = 'compact' | 'card';
 
+/** How one list opens: its order, and the period it covers. */
+export interface ListDefault { sort: string; period: RangePreset }
+
 export interface AppSettings {
   // ── Internal screens ──────────────────────────────────────────────────────
   numberInternal: NumberFormat;
@@ -72,6 +77,12 @@ export interface AppSettings {
   dateLocaleInternal: DateLocale;
   time24h: boolean;
   listLayout: ListLayout;
+  /**
+   * Per-list opening order and period, keyed by the list's key in
+   * constants/listDefaults.ts. Unknown keys are ignored; a missing key falls
+   * back to that list's shipped default.
+   */
+  listDefaults: Record<string, ListDefault>;
 
   // ── Customer-facing documents (quote / invoice / Surat Jalan / EPC print,
   //    WhatsApp price copy) ────────────────────────────────────────────────
@@ -141,6 +152,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   dateLocaleInternal: 'en-GB',
   time24h:            true,
   listLayout:         'compact',
+  listDefaults:       DEFAULT_LIST_DEFAULTS,
 
   numberDocument:     { thousands: ',', decimal: '.', decimals: 0 },
   currencyDocument:   { symbol: 'Rp', position: 'before', space: false },
@@ -235,6 +247,24 @@ const DATE_LOCALES: DateLocale[] = ['en-GB', 'en-US', 'id-ID'];
 const dateLocale = (v: unknown, fb: DateLocale): DateLocale =>
   (typeof v === 'string' && (DATE_LOCALES as string[]).includes(v)) ? (v as DateLocale) : fb;
 
+/**
+ * Stored per-list defaults, merged over the shipped ones. A stored entry for a
+ * list that no longer exists is dropped rather than kept as dead weight.
+ */
+const listDefaults = (v: unknown): Record<string, ListDefault> => {
+  const out: Record<string, ListDefault> = { ...DEFAULT_LIST_DEFAULTS };
+  if (!v || typeof v !== 'object') return out;
+  for (const [k, raw] of Object.entries(v as Record<string, unknown>)) {
+    if (!(k in out) || !raw || typeof raw !== 'object') continue;
+    const o = raw as Partial<ListDefault>;
+    out[k] = {
+      sort: typeof o.sort === 'string' ? o.sort : out[k].sort,
+      period: (typeof o.period === 'string' ? o.period : out[k].period) as RangePreset,
+    };
+  }
+  return out;
+};
+
 /** Merge an arbitrary object of stored values over the defaults, field by field. */
 export function coerceSettings(raw: Record<string, unknown>): AppSettings {
   const d = DEFAULT_SETTINGS;
@@ -247,6 +277,7 @@ export function coerceSettings(raw: Record<string, unknown>): AppSettings {
     dateLocaleInternal: pick('dateLocaleInternal', (v) => dateLocale(v, d.dateLocaleInternal), d.dateLocaleInternal),
     time24h:            pick('time24h',            (v) => bool(v, d.time24h), d.time24h),
     listLayout:         pick('listLayout',         (v) => (v === 'card' ? 'card' : 'compact'), d.listLayout),
+    listDefaults:       pick('listDefaults',       (v) => listDefaults(v), d.listDefaults),
 
     numberDocument:     pick('numberDocument',     (v) => numFmt(v, d.numberDocument), d.numberDocument),
     currencyDocument:   pick('currencyDocument',   (v) => ccyFmt(v, d.currencyDocument), d.currencyDocument),

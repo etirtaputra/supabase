@@ -6,7 +6,7 @@
  * Visible to owner / sales / warehouse (canManageStock).
  */
 'use client';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
@@ -16,7 +16,8 @@ import { fmtDay, fmtInt } from '@/lib/formatters';
 import DateRangeFilter from '@/components/ui/DateRangeFilter';
 import LayoutToggle from '@/components/ui/LayoutToggle';
 import { useListLayout } from '@/hooks/useListLayout';
-import { ALL_TIME, inRange, type DateRange } from '@/lib/dateRange';
+import { useListDefaults } from '@/hooks/useListDefaults';
+import { inRange, type DateRange } from '@/lib/dateRange';
 
 // One row per Delivery Order (24.0) once DOs exist, plus "awaiting DO" rows
 // for confirmed/invoiced orders with nothing shipped yet.
@@ -43,7 +44,11 @@ export default function DeliveryPage() {
   const [search, setSearch] = useState('');
   // Delivered rows filter on the delivery date; anything still pending filters
   // on its target date, so "this week" answers both halves of the page.
-  const [range, setRange] = useState<DateRange>(ALL_TIME);
+  const listDefaults = useListDefaults('delivery');
+  const [range, setRange] = useState<DateRange>(listDefaults.range);
+  const rangeTouched = useRef(false);
+  useEffect(() => { if (!rangeTouched.current) setRange(listDefaults.range); },
+    [listDefaults.range.from, listDefaults.range.to]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [layout, setLayout] = useListLayout('delivery');
   const compact = layout === 'compact';
 
@@ -150,7 +155,7 @@ export default function DeliveryPage() {
 
         <div className="flex flex-wrap items-center gap-3 justify-between">
           <div className="flex items-center gap-2">
-            <DateRangeFilter value={range} onChange={setRange} label="Delivery date" align="left" />
+            <DateRangeFilter value={range} onChange={(r) => { rangeTouched.current = true; setRange(r); }} label="Delivery date" align="left" />
             <LayoutToggle value={layout} onChange={setLayout} />
           </div>
           <span className="text-[11px] text-slate-500 tabular-nums">

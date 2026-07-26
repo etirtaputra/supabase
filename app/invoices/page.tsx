@@ -5,7 +5,7 @@
  * payments are recorded. Visible to owner / sales / finance.
  */
 'use client';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
@@ -15,7 +15,9 @@ import { fmtDay, fmtInt, fmtIdrShort as fmtIdr } from '@/lib/formatters';
 import DateRangeFilter from '@/components/ui/DateRangeFilter';
 import LayoutToggle from '@/components/ui/LayoutToggle';
 import { useListLayout } from '@/hooks/useListLayout';
-import { ALL_TIME, inRange, type DateRange } from '@/lib/dateRange';
+import { useListDefaults } from '@/hooks/useListDefaults';
+import { listSpec } from '@/constants/listDefaults';
+import { inRange, type DateRange } from '@/lib/dateRange';
 
 // One row per REAL invoice (25.0) — an order split across several invoices
 // shows several rows, each with its own payment state.
@@ -40,8 +42,16 @@ export default function InvoicesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [unpaidOnly, setUnpaidOnly] = useState(false);
-  // Filter on the issue date — "this month's AR" means invoices issued then.
-  const [range, setRange] = useState<DateRange>(ALL_TIME);
+  // How the list opens comes from Settings › Lists; both stay changeable here.
+  const defaults = useListDefaults('invoices');
+  const [range, setRange] = useState<DateRange>(defaults.range);
+  const [sort, setSort] = useState(defaults.sort);
+  const touched = useRef(false);
+  useEffect(() => {
+    if (touched.current) return;
+    setRange(defaults.range);
+    setSort(defaults.sort);
+  }, [defaults.range.from, defaults.range.to, defaults.sort]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [layout, setLayout] = useListLayout('invoices');
   const compact = layout === 'compact';
 
@@ -106,8 +116,14 @@ export default function InvoicesPage() {
         const c = q.customer_id ? custById.get(q.customer_id) : undefined;
         return [q.invoice_number, q.quote_number, q.order_number, q.do_number, c?.display_name, c?.legal_name]
           .filter(Boolean).join(' ').toLowerCase().includes(s);
+      })
+      .sort((a, b) => {
+        if (sort === 'oldest')      return (a.q.invoiced_at || '').localeCompare(b.q.invoiced_at || '');
+        if (sort === 'outstanding') return b.out - a.out;
+        if (sort === 'value')       return b.total - a.total;
+        return (b.q.invoiced_at || '').localeCompare(a.q.invoiced_at || '');   // 'issued'
       });
-  }, [quotes, receivedByQuote, search, unpaidOnly, custById, range]);
+  }, [quotes, receivedByQuote, search, unpaidOnly, custById, range, sort]);
 
   // KPIs follow the date filter — a total that ignored it would contradict the
   // list underneath. The search box does not move them (it narrows, not scopes).
@@ -150,7 +166,12 @@ export default function InvoicesPage() {
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search invoice number, customer…"
               className="w-full pl-10 pr-4 h-11 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors" />
           </div>
-          <DateRangeFilter value={range} onChange={setRange} label="Issued" />
+          <DateRangeFilter value={range} onChange={(r) => { touched.current = true; setRange(r); }} label="Issued" />
+          <select value={sort} onChange={(e) => { touched.current = true; setSort(e.target.value); }}
+            title="Order — the default lives in Settings › Lists"
+            className="text-xs bg-slate-900/80 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60">
+            {listSpec('invoices').sorts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
           <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
             <input type="checkbox" checked={unpaidOnly} onChange={(e) => setUnpaidOnly(e.target.checked)} className="accent-emerald-500 w-4 h-4" />
             Unpaid only

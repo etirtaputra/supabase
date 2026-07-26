@@ -30,14 +30,16 @@ import {
 } from '@/lib/settings';
 import { applyCurrency, formatDate, formatNumber } from '@/lib/formatters';
 import { fetchWarehouses, type Warehouse } from '@/lib/warehouses';
+import { LIST_SPECS } from '@/constants/listDefaults';
+import { PRESET_LABELS, type RangePreset } from '@/lib/dateRange';
 import { accountLabel, type BankAccount } from '@/lib/banks';
 import Autocomplete from '@/components/ui/Autocomplete';
 import { fmtRupiah } from '@/lib/formatters';
 import Link from 'next/link';
 
-type Tab = 'format' | 'pricing' | 'defaults' | 'company' | 'banks' | 'users';
+type Tab = 'format' | 'lists' | 'pricing' | 'defaults' | 'company' | 'banks' | 'users';
 const TABS: [Tab, string][] = [
-  ['format', 'Formatting'], ['pricing', 'Pricing'], ['defaults', 'Defaults'],
+  ['format', 'Formatting'], ['lists', 'Lists'], ['pricing', 'Pricing'], ['defaults', 'Defaults'],
   ['company', 'Company'], ['banks', 'Banks'], ['users', 'Users'],
 ];
 
@@ -55,6 +57,10 @@ const DATE_LOCALES: { value: DateLocale; label: string }[] = [
   { value: 'en-US', label: 'English (US) — Jul / July' },
   { value: 'id-ID', label: 'Indonesian — Jul / Juli' },
 ];
+
+// The periods worth offering as a default — the rolling windows stay in the
+// picker, where someone is answering a specific question.
+const PERIOD_CHOICES: Exclude<RangePreset, 'custom'>[] = ['all', 'today', 'week', 'mtd', 'month', 'quarter', 'ytd', 'year', 'last30', 'last90'];
 
 const SAMPLE = 1234567.89;
 const SAMPLE_DATE = '2026-07-24';
@@ -186,6 +192,7 @@ export default function SettingsPage() {
         )}
 
         {tab === 'format'   && <FormatTab draft={draft} set={set} />}
+        {tab === 'lists'    && <ListsTab draft={draft} set={set} />}
         {tab === 'pricing'  && <PricingTab draft={draft} set={set} />}
         {tab === 'defaults' && <DefaultsTab draft={draft} set={set} flash={flash} />}
         {tab === 'company'  && <CompanyTab draft={draft} set={set} />}
@@ -295,42 +302,6 @@ function NumberPanel({
 function FormatTab({ draft, set }: { draft: AppSettings; set: <K extends keyof AppSettings>(k: K, v: AppSettings[K]) => void }) {
   return (
     <div className="space-y-5">
-      {/* ── Layout ─────────────────────────────────────────────────────── */}
-      <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 space-y-3">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Layout</p>
-          <p className="text-[11px] text-slate-500 mt-1 leading-snug">
-            How every list opens — Sales, Customers, Invoices, Delivery, Banks, Proposals, Deal Lookup.
-            Anyone can flip a single list without changing this; that choice is remembered on their device only.
-          </p>
-        </div>
-        <div className="grid sm:grid-cols-2 gap-3 max-w-2xl">
-          {([
-            { v: 'compact' as const, title: 'Compact', blurb: 'Dense rows, everything relevant on one line. Click a row to expand it. Best once a list is long.' },
-            { v: 'card' as const,    title: 'Card',    blurb: 'Roomier rows that carry their secondary detail inline — progress meters, milestone dots, sub-lines.' },
-          ]).map((opt) => (
-            <button key={opt.v} onClick={() => set('listLayout', opt.v)}
-              className={`text-left rounded-xl border p-3 transition-colors ${
-                draft.listLayout === opt.v
-                  ? 'border-emerald-500/50 bg-emerald-500/[0.07]'
-                  : 'border-slate-700 hover:border-slate-600 hover:bg-slate-800/40'
-              }`}>
-              <div className="flex items-center gap-2">
-                <span className={`text-sm font-bold ${draft.listLayout === opt.v ? 'text-emerald-300' : 'text-slate-200'}`}>{opt.title}</span>
-                {draft.listLayout === opt.v && <span className="text-[10px] font-semibold text-emerald-400">DEFAULT</span>}
-              </div>
-              <p className="text-[11px] text-slate-500 mt-1 leading-snug">{opt.blurb}</p>
-              {/* A miniature of what the choice looks like */}
-              <div className="mt-2.5 space-y-1">
-                {[0, 1, 2].map((i) => (
-                  <div key={i} className={`rounded bg-slate-800/70 ${opt.v === 'compact' ? 'h-2' : 'h-5'}`} />
-                ))}
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-
       <div className="bg-sky-500/[0.07] border border-sky-500/25 rounded-xl px-4 py-3">
         <p className="text-xs text-sky-100/90 leading-relaxed">
           <span className="font-bold">Two profiles, on purpose.</span> Internal screens are read by the team all day and
@@ -397,6 +368,97 @@ function FormatTab({ draft, set }: { draft: AppSettings; set: <K extends keyof A
               <option value="no">12-hour (2:32 PM)</option>
             </select>
           </Field>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Lists ───────────────────────────────────────────────────────────────────
+// How every list opens: its layout, its order, and the period it covers. The
+// rows come from constants/listDefaults.ts, which is also what the pages read —
+// a list can only be configured here if its page honours the setting.
+
+function ListsTab({ draft, set }: { draft: AppSettings; set: <K extends keyof AppSettings>(k: K, v: AppSettings[K]) => void }) {
+  const setList = (key: string, patch: Partial<{ sort: string; period: RangePreset }>) =>
+    set('listDefaults', { ...draft.listDefaults, [key]: { ...draft.listDefaults[key], ...patch } });
+
+  return (
+    <div className="space-y-5">
+      {/* ── Layout ─────────────────────────────────────────────────────── */}
+      <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 space-y-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Layout</p>
+          <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+            How every list opens — Sales, Customers, Invoices, Delivery, Banks, Proposals, Deal Lookup.
+            Anyone can flip a single list without changing this; that choice is remembered on their device only.
+          </p>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-3 max-w-2xl">
+          {([
+            { v: 'compact' as const, title: 'Compact', blurb: 'Dense rows, everything relevant on one line. Click a row to expand it. Best once a list is long.' },
+            { v: 'card' as const,    title: 'Card',    blurb: 'Roomier rows that carry their secondary detail inline — progress meters, milestone dots, sub-lines.' },
+          ]).map((opt) => (
+            <button key={opt.v} onClick={() => set('listLayout', opt.v)}
+              className={`text-left rounded-xl border p-3 transition-colors ${
+                draft.listLayout === opt.v
+                  ? 'border-emerald-500/50 bg-emerald-500/[0.07]'
+                  : 'border-slate-700 hover:border-slate-600 hover:bg-slate-800/40'
+              }`}>
+              <div className="flex items-center gap-2">
+                <span className={`text-sm font-bold ${draft.listLayout === opt.v ? 'text-emerald-300' : 'text-slate-200'}`}>{opt.title}</span>
+                {draft.listLayout === opt.v && <span className="text-[10px] font-semibold text-emerald-400">DEFAULT</span>}
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1 leading-snug">{opt.blurb}</p>
+              {/* A miniature of what the choice looks like */}
+              <div className="mt-2.5 space-y-1">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className={`rounded bg-slate-800/70 ${opt.v === 'compact' ? 'h-2' : 'h-5'}`} />
+                ))}
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+
+      <div className="bg-slate-900/50 border border-slate-800 rounded-2xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-800/80">
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Opening order &amp; period</p>
+          <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+            What each list shows before anyone touches a filter. The period is resolved when the page opens, so
+            “month to date” always means the month it is opened in — and anyone can still widen or re-sort a list
+            for themselves.
+          </p>
+        </div>
+        <div className="divide-y divide-slate-800/60">
+          {LIST_SPECS.map((spec) => {
+            const cur = draft.listDefaults[spec.key] ?? spec.defaults;
+            return (
+              <div key={spec.key} className="px-4 py-3 grid grid-cols-1 sm:grid-cols-[1fr_180px_170px] gap-3 sm:items-center">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-100">{spec.label}</p>
+                  <p className="text-[11px] text-slate-600 leading-snug">
+                    {spec.hint ? `${spec.hint} ` : ''}Period filters the {spec.dateLabel}.
+                  </p>
+                </div>
+                {spec.sorts.length > 0 ? (
+                  <Field label="Sort by">
+                    <select className={inputCls} value={cur.sort} onChange={(e) => setList(spec.key, { sort: e.target.value })}>
+                      {spec.sorts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                  </Field>
+                ) : (
+                  <p className="text-[11px] text-slate-600 sm:text-center">One natural order</p>
+                )}
+                <Field label="Period">
+                  <select className={inputCls} value={cur.period} onChange={(e) => setList(spec.key, { period: e.target.value as RangePreset })}>
+                    {PERIOD_CHOICES.map((p) => <option key={p} value={p}>{PRESET_LABELS[p]}</option>)}
+                  </select>
+                </Field>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

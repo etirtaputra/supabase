@@ -21,7 +21,8 @@ import { fmtIdr, fmtCcy, fmtDate } from '@/lib/formatters';
 import DateRangeFilter from './DateRangeFilter';
 import LayoutToggle from './LayoutToggle';
 import { useListLayout } from '@/hooks/useListLayout';
-import { ALL_TIME, inRange, isOpenRange, type DateRange } from '@/lib/dateRange';
+import { useListDefaults } from '@/hooks/useListDefaults';
+import { inRange, isOpenRange, type DateRange } from '@/lib/dateRange';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -330,7 +331,9 @@ export default function DealLookupTab({
   const [filterMismatch, setFilterMismatch]   = useState(false);
   // Deals filter on latestDate = max(quote date, PO date) — the date the deal
   // last moved, which is what "POs this month" means on the buy side.
-  const [range, setRange]                     = useState<DateRange>(ALL_TIME);
+  const listDefaults                          = useListDefaults('deals');
+  const [range, setRange]                     = useState<DateRange>(listDefaults.range);
+  const rangeTouched                          = useRef(false);
   // Table = the compact view; the house default comes from Settings › Layout
   // and flipping it here is remembered for this screen only.
   const [layout, setLayout]                   = useListLayout('deals');
@@ -2178,7 +2181,7 @@ export default function DealLookupTab({
                   {label}
                 </button>
               ))}
-              <DateRangeFilter value={range} onChange={setRange} label="Deal date" accent="sky" align="left" />
+              <DateRangeFilter value={range} onChange={(r) => { rangeTouched.current = true; setRange(r); }} label="Deal date" accent="sky" align="left" />
             </div>
             {mismatchGroupIds.size > 0 && (
               <button

@@ -259,6 +259,21 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   preview, Share/Copy); the list survives reloads. Totals state "belum termasuk
   PPN" on the total line itself, not only in a footnote.
 
+- **Per-list opening defaults (2026-07-25)**: Settings › **Lists** sets how each
+  list opens — its order and the period it covers — from one registry,
+  `constants/listDefaults.ts`, which is also what the pages read, so a list can
+  only be configured if its page honours the setting. Shipped defaults: Sales =
+  newest first, month to date; Products = **most sold in the period**, this
+  month; Customers = newest additions; Invoices = latest issued, all time;
+  Delivery and Deal Lookup = period only. `hooks/useListDefaults.ts` resolves
+  the period from its PRESET on every open, so a saved "month to date" always
+  means the month the page is opened in. Anyone can still re-sort or widen a
+  list; that choice simply isn't saved over the house default.
+  Sales, Invoices and Customers gained sort controls to make this real, and
+  Products gained a period filter plus a period-scoped "most sold" measure
+  (committed sale lines by order date). `lib/dateRange.ts` gained `mtd` and
+  `ytd` presets.
+
 **Next up (in order):**
 1. Bank follow-ons: tag the historical payments/receipts through the
    "untagged movements" panel on /banks so every statement is complete; then

@@ -18,7 +18,7 @@ import { fmtDay } from '@/lib/formatters';
  * descendants, so a popover rendered in place gets clipped by the header.
  */
 
-const QUICK: RangePreset[] = ['all', 'week', 'month', 'quarter', 'year', 'last7', 'last30', 'last90', 'lastMonth', 'lastYear'];
+const QUICK: RangePreset[] = ['all', 'week', 'mtd', 'month', 'quarter', 'ytd', 'year', 'last7', 'last30', 'last90', 'lastMonth', 'lastYear'];
 
 export default function DateRangeFilter({
   value, onChange, label = 'Dates', accent = 'emerald', align = 'right',

@@ -3,7 +3,7 @@
  * /sales/[id]. Owner + sales.
  */
 'use client';
-import { useState, useEffect, useMemo, useCallback, Fragment } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, Fragment } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
@@ -15,7 +15,9 @@ import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 import DateRangeFilter from '@/components/ui/DateRangeFilter';
 import LayoutToggle from '@/components/ui/LayoutToggle';
 import { useListLayout } from '@/hooks/useListLayout';
-import { ALL_TIME, inRange, type DateRange } from '@/lib/dateRange';
+import { useListDefaults } from '@/hooks/useListDefaults';
+import { listSpec } from '@/constants/listDefaults';
+import { inRange, type DateRange } from '@/lib/dateRange';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
@@ -36,9 +38,18 @@ export default function SalesListPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  // Date filter — the document date, so "this month's sales" means the quotes
-  // dated this month, not the ones last touched this month.
-  const [range, setRange] = useState<DateRange>(ALL_TIME);
+  // How the list opens comes from Settings › Lists; both stay changeable here.
+  const defaults = useListDefaults('sales');
+  const [range, setRange] = useState<DateRange>(defaults.range);
+  const [sort, setSort] = useState(defaults.sort);
+  // The saved default lands once the settings have loaded, unless the person
+  // has already touched the controls.
+  const touched = useRef(false);
+  useEffect(() => {
+    if (touched.current) return;
+    setRange(defaults.range);
+    setSort(defaults.sort);
+  }, [defaults.range.from, defaults.range.to, defaults.sort]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [layout, setLayout] = useListLayout('sales');
   const compact = layout === 'compact';
 
@@ -78,6 +89,10 @@ export default function SalesListPage() {
   if (authLoading || !profile) return <CenterSpinner />;
   if (!canEdit) return <CenterSpinner />;
 
+  const nameOf = (q: Quote) => {
+    const c = q.customer_id ? custById.get(q.customer_id) : undefined;
+    return (c?.display_name || c?.legal_name || '').toLowerCase();
+  };
   const filtered = quotes.filter((q) => {
     if (!inRange(q.quote_date ?? q.updated_at ?? null, range)) return false;
     const s = search.trim().toLowerCase();
@@ -85,6 +100,13 @@ export default function SalesListPage() {
     const c = q.customer_id ? custById.get(q.customer_id) : undefined;
     return [q.quote_number, q.order_number, q.invoice_number, q.do_number, c?.display_name, c?.legal_name, STATUS[q.status]?.label]
       .filter(Boolean).join(' ').toLowerCase().includes(s);
+  }).sort((a, b) => {
+    if (sort === 'value')    return (Number(b.grand_total) || 0) - (Number(a.grand_total) || 0);
+    if (sort === 'customer') return nameOf(a).localeCompare(nameOf(b));
+    if (sort === 'updated')  return (b.updated_at || '').localeCompare(a.updated_at || '');
+    // 'created' — the document's own date, then its update stamp to break ties
+    return (b.quote_date || '').localeCompare(a.quote_date || '')
+        || (b.updated_at || '').localeCompare(a.updated_at || '');
   });
 
   // What the filtered set is worth — the reason to filter by week/month/year
@@ -121,8 +143,13 @@ export default function SalesListPage() {
 
         {/* Period filter + what the period is worth */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 justify-between">
-          <div className="flex items-center gap-2">
-            <DateRangeFilter value={range} onChange={setRange} label="Quote date" align="left" />
+          <div className="flex items-center gap-2 flex-wrap">
+            <DateRangeFilter value={range} onChange={(r) => { touched.current = true; setRange(r); }} label="Quote date" align="left" />
+            <select value={sort} onChange={(e) => { touched.current = true; setSort(e.target.value); }}
+              title="Order — the default lives in Settings › Lists"
+              className="text-xs bg-slate-900/80 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60">
+              {listSpec('sales').sorts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
             <LayoutToggle value={layout} onChange={setLayout} />
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500">

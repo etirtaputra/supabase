@@ -4,7 +4,7 @@
  * Account Manager assignment. Gated to owners + sales (canManageCustomers).
  */
 'use client';
-import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
@@ -17,6 +17,8 @@ import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
 import LayoutToggle from '@/components/ui/LayoutToggle';
 import { useListLayout } from '@/hooks/useListLayout';
+import { useListDefaults } from '@/hooks/useListDefaults';
+import { listSpec } from '@/constants/listDefaults';
 
 // ── Types ─────────────────────────────────────────────────────────────────
 interface Customer {
@@ -133,6 +135,11 @@ function CustomersInner() {
   const { defaultCustomerTier } = useSettings();
   const [layout, setLayout] = useListLayout('customers');
   const compact = layout === 'compact';
+  // Opening order comes from Settings › Lists; still changeable here.
+  const listDefaults = useListDefaults('customers');
+  const [sort, setSort] = useState(listDefaults.sort);
+  const sortTouched = useRef(false);
+  useEffect(() => { if (!sortTouched.current) setSort(listDefaults.sort); }, [listDefaults.sort]);
 
   const canManage = !!profile && ROLE_PERMISSIONS[profile.role].canManageCustomers;
   const canSeeEpc = !!profile && ROLE_PERMISSIONS[profile.role].projects; // EPC module hidden from roles without access
@@ -264,6 +271,14 @@ function CustomersInner() {
       return hay.includes(q);
     });
   }, [customers, search, showInactive, amById]);
+
+  const ordered = useMemo(() => {
+    const list = [...filtered];
+    if (sort === 'name') list.sort((a, b) => (a.display_name || a.legal_name || '').localeCompare(b.display_name || b.legal_name || ''));
+    else if (sort === 'updated') list.sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''));
+    else list.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));   // 'created'
+    return list;
+  }, [filtered, sort]);
 
   // ── Drawer ──────────────────────────────────────────────────────────────────
   function openDrawer(c: Customer | null) {
@@ -503,6 +518,11 @@ function CustomersInner() {
             Show inactive
           </label>
           <span className="text-xs text-slate-600 tabular-nums">{filtered.length} of {customers.length}</span>
+          <select value={sort} onChange={(e) => { sortTouched.current = true; setSort(e.target.value); }}
+            title="Order — the default lives in Settings › Lists"
+            className="text-xs bg-slate-900/80 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60">
+            {listSpec('customers').sorts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
           <LayoutToggle value={layout} onChange={setLayout} />
         </div>
 
@@ -513,13 +533,13 @@ function CustomersInner() {
           </div>
           {loading ? (
             <div className="p-4 space-y-1.5">{[...Array(6)].map((_, i) => <div key={i} className="h-12 bg-slate-800/40 rounded-xl animate-pulse" />)}</div>
-          ) : filtered.length === 0 ? (
+          ) : ordered.length === 0 ? (
             <div className="px-4 py-12 text-center text-slate-600 text-sm">
               {customers.length === 0 ? 'No customers yet — create your first one.' : 'No customers match your search.'}
             </div>
           ) : (
             <div className="divide-y divide-slate-800/60">
-              {filtered.map((c) => {
+              {ordered.map((c) => {
                 const contacts = contactsByCustomer[c.customer_id] ?? [];
                 const primary = contacts.find((x) => x.is_primary) ?? contacts[0];
                 const open = profileFor?.customer_id === c.customer_id;

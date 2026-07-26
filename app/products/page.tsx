@@ -11,7 +11,7 @@
  * Gated to roles that can see selling prices (owner + sales).
  */
 'use client';
-import { useState, useEffect, useMemo, useCallback, Fragment, Suspense } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, Fragment, Suspense } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -43,21 +43,24 @@ import LayoutToggle from '@/components/ui/LayoutToggle';
 import QuoteBasket, { useQuoteBasket } from '@/components/ui/QuoteBasket';
 import { buildQuoteMessage, shareOrCopy } from '@/lib/whatsappQuote';
 import { useListLayout } from '@/hooks/useListLayout';
+import { useListDefaults } from '@/hooks/useListDefaults';
+import DateRangeFilter from '@/components/ui/DateRangeFilter';
+import { inRange, type DateRange } from '@/lib/dateRange';
 // The product's customer-facing name: our internal description, never the supplier's model/SKU.
 const descOf = (c: { internal_description: string | null; supplier_model: string }) =>
   (c.internal_description && c.internal_description.trim()) || c.supplier_model || '(no description)';
 
-type SortKey = 'activity' | 'updated' | 'price' | 'stock' | 'brand' | 'category' | 'capacity';
+type SortKey = 'traded' | 'activity' | 'updated' | 'price' | 'stock' | 'brand' | 'category' | 'capacity';
 const SORT_LABELS: Record<SortKey, string> = {
-  activity: 'Most traded', updated: 'Last updated', price: 'Sell price',
+  traded: 'Most sold (period)', activity: 'Most traded', updated: 'Last updated', price: 'Sell price',
   stock: 'Live stock', brand: 'Brand', category: 'Category', capacity: 'Capacity',
 };
 // Text columns default ascending; numeric/recency default descending.
 const DEFAULT_DIR: Record<SortKey, 1 | -1> = {
-  activity: -1, updated: -1, price: -1, stock: -1, brand: 1, category: 1, capacity: -1,
+  traded: -1, activity: -1, updated: -1, price: -1, stock: -1, brand: 1, category: 1, capacity: -1,
 };
 
-interface Row { c: Comp; phys: number; rsv: number; live: number; inc: number; activity: number; }
+interface Row { c: Comp; phys: number; rsv: number; live: number; inc: number; activity: number; sold: number; }
 
 // Suspense wrapper: useSearchParams (?q= deep links from Spotlight) requires it
 export default function ProductsPage() {
@@ -86,6 +89,9 @@ function ProductsInner() {
   const [reserved, setReserved] = useState<Record<string, number>>({});
   const [incoming, setIncoming] = useState<Record<string, number>>({});
   const [activityByComp, setActivityByComp] = useState<Record<string, number>>({});
+  // One row per committed sale line — quantity and the date it was ordered, so
+  // "most sold" can be asked of any period rather than only all time.
+  const [soldLines, setSoldLines] = useState<{ cid: string; qty: number; date: string }[]>([]);
   const [ordersByComp, setOrdersByComp] = useState<Record<string, DocRef[]>>({});
   const [deliveriesByComp, setDeliveriesByComp] = useState<Record<string, DocRef[]>>({});
   const [loading, setLoading] = useState(true);
@@ -94,7 +100,17 @@ function ProductsInner() {
   const [filterCategory, setFilterCategory] = useState('');
   const [filterBrand, setFilterBrand] = useState('');
   const [stockOnly, setStockOnly] = useState(false);
-  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'activity', dir: -1 });
+  const listDefaults = useListDefaults('products');
+  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'traded', dir: -1 });
+  const [range, setRange] = useState<DateRange>(listDefaults.range);
+  const listTouched = useRef(false);
+  // Settings › Lists decides how the catalogue opens, until someone re-sorts it
+  useEffect(() => {
+    if (listTouched.current) return;
+    const key = listDefaults.sort as SortKey;
+    if (SORT_LABELS[key]) setSort({ key, dir: DEFAULT_DIR[key] });
+    setRange(listDefaults.range);
+  }, [listDefaults.sort, listDefaults.range.from, listDefaults.range.to]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [expanded, setExpanded] = useState<string | null>(null);
   const [layout, setLayout] = useListLayout('products');
   const compact = layout === 'compact';
@@ -155,6 +171,7 @@ function ProductsInner() {
     const committed = new Set(docs.filter((q) => COMMITTED.has(q.status)).map((q) => q.quote_id));
 
     const rsv: Record<string, number> = {};
+    const sold: { cid: string; qty: number; date: string }[] = [];
     const orders: Record<string, DocRef[]> = {};
     const deliveries: Record<string, DocRef[]> = {};
     const sqSets: Record<string, Set<string>> = {};
@@ -162,7 +179,11 @@ function ProductsInner() {
       if (!it.component_id || it.is_section) continue;
       const cid = it.component_id;
       const qty = Number(it.quantity) || 0;
-      if (committed.has(it.quote_id)) rsv[cid] = (rsv[cid] ?? 0) + qty;
+      if (committed.has(it.quote_id)) {
+        rsv[cid] = (rsv[cid] ?? 0) + qty;
+        const d = docById.get(it.quote_id);
+        sold.push({ cid, qty, date: (d?.ordered_at ?? d?.delivered_at ?? d?.updated_at ?? '').slice(0, 10) });
+      }
       (sqSets[cid] ??= new Set()).add(it.quote_id);
       const doc = docById.get(it.quote_id);
       if (!doc) continue;
@@ -184,6 +205,7 @@ function ProductsInner() {
       if (committed.has(qid)) rsv[cid] = Math.max(0, (rsv[cid] ?? 0) - dq);
     }
     setReserved(rsv);
+    setSoldLines(sold);
     setOrdersByComp(top10(orders));
     setDeliveriesByComp(top10(deliveries));
 
@@ -262,13 +284,20 @@ function ProductsInner() {
   const pickedAt = useCallback((c: Comp, tierKey = '') =>
     basket.has(c.component_id) && (basket.tierOf(c.component_id) ?? '') === tierKey, [basket]);
 
+  // Quantity sold per product inside the period in force
+  const soldInRange = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const l of soldLines) if (inRange(l.date, range)) m[l.cid] = (m[l.cid] ?? 0) + l.qty;
+    return m;
+  }, [soldLines, range]);
+
   const rows: Row[] = useMemo(() => {
     const q = search.trim().toLowerCase();
     const list = comps
       .map((c) => {
         const phys = physical[c.component_id] ?? 0;
         const rsv = reserved[c.component_id] ?? 0;
-        return { c, phys, rsv, live: phys - rsv, inc: incoming[c.component_id] ?? 0, activity: activityByComp[c.component_id] ?? 0 };
+        return { c, phys, rsv, live: phys - rsv, inc: incoming[c.component_id] ?? 0, activity: activityByComp[c.component_id] ?? 0, sold: soldInRange[c.component_id] ?? 0 };
       })
       .filter(({ c, phys, inc }) => {
         if (filterCategory && c.category !== filterCategory) return false;
@@ -282,7 +311,8 @@ function ProductsInner() {
     const cmpText = (a: string | null, b: string | null) => (a || '').localeCompare(b || '') || 0;
     list.sort((a, b) => {
       let d = 0;
-      if (key === 'activity') d = a.activity - b.activity;
+      if (key === 'traded') d = a.sold - b.sold;
+      else if (key === 'activity') d = a.activity - b.activity;
       else if (key === 'updated') d = (a.c.updated_at || '').localeCompare(b.c.updated_at || '');
       else if (key === 'price') d = (a.c.selling_price_idr ?? -1) - (b.c.selling_price_idr ?? -1);
       else if (key === 'stock') d = a.live - b.live;
@@ -297,10 +327,12 @@ function ProductsInner() {
         || (a.c.supplier_model || '').localeCompare(b.c.supplier_model || '');
     });
     return list;
-  }, [comps, physical, reserved, incoming, activityByComp, search, filterCategory, filterBrand, stockOnly, sort]);
+  }, [comps, physical, reserved, incoming, activityByComp, soldInRange, search, filterCategory, filterBrand, stockOnly, sort]);
 
-  const toggleSort = (key: SortKey) =>
+  const toggleSort = (key: SortKey) => {
+    listTouched.current = true;
     setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: DEFAULT_DIR[key] }));
+  };
 
   const hasFilters = !!(search.trim() || filterCategory || filterBrand || stockOnly);
 
@@ -490,6 +522,7 @@ function ProductsInner() {
             }`}>
             {multi ? `Quote mode · ${basket.items.length}` : 'Quote mode'}
           </button>
+          <DateRangeFilter value={range} onChange={(r) => { listTouched.current = true; setRange(r); }} label="Order date" />
           <LayoutToggle value={layout} onChange={setLayout} />
         </div>
 

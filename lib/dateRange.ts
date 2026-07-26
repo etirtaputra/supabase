@@ -16,7 +16,7 @@ export interface DateRange { from: string | null; to: string | null }
 export const ALL_TIME: DateRange = { from: null, to: null };
 
 export type RangePreset =
-  | 'all' | 'today' | 'week' | 'month' | 'quarter' | 'year'
+  | 'all' | 'today' | 'week' | 'month' | 'mtd' | 'quarter' | 'year' | 'ytd'
   | 'last7' | 'last30' | 'last90' | 'lastMonth' | 'lastYear' | 'custom';
 
 export const PRESET_LABELS: Record<Exclude<RangePreset, 'custom'>, string> = {
@@ -24,8 +24,10 @@ export const PRESET_LABELS: Record<Exclude<RangePreset, 'custom'>, string> = {
   today:     'Today',
   week:      'This week',
   month:     'This month',
+  mtd:       'Month to date',
   quarter:   'This quarter',
   year:      'This year',
+  ytd:       'Year to date',
   last7:     'Last 7 days',
   last30:    'Last 30 days',
   last90:    'Last 90 days',
@@ -59,7 +61,9 @@ export function rangeForPreset(preset: RangePreset, now = new Date()): DateRange
       const q = Math.floor(m / 3) * 3;
       return { from: iso(new Date(y, q, 1)), to: iso(new Date(y, q + 3, 0)) };
     }
+    case 'mtd':       return { from: iso(new Date(y, m, 1)), to: iso(now) };
     case 'year':      return { from: `${y}-01-01`, to: `${y}-12-31` };
+    case 'ytd':       return { from: `${y}-01-01`, to: iso(now) };
     case 'last7':     return { from: iso(addDays(now, -6)), to: iso(now) };
     case 'last30':    return { from: iso(addDays(now, -29)), to: iso(now) };
     case 'last90':    return { from: iso(addDays(now, -89)), to: iso(now) };
