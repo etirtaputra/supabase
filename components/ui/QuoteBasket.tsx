@@ -19,7 +19,16 @@ import { fmtRupiah } from '@/lib/formatters';
  * in place would pin to the header instead of the viewport.
  */
 
-export interface BasketItem extends QuoteLine { id: string }
+/** One price this product can be quoted at — the base price or a tier. */
+export interface PriceOption { key: string; name: string; price: number }
+
+export interface BasketItem extends QuoteLine {
+  id: string;
+  /** Which price is in force (`''` = the plain sell price). */
+  tierKey?: string;
+  /** Every price this product has, so the sheet can re-price without a refetch. */
+  options?: PriceOption[];
+}
 
 export function useQuoteBasket(storeKey = 'icaproc.quotebasket') {
   const [items, setItems] = useState<BasketItem[]>([]);
@@ -47,18 +56,33 @@ export function useQuoteBasket(storeKey = 'icaproc.quotebasket') {
     },
     setQty: (id: string, qty: number) =>
       persist(items.map((i) => (i.id === id ? { ...i, qty: Math.max(1, Math.round(qty) || 1) } : i))),
+    /** Re-price one line at another tier. */
+    setTier: (id: string, key: string) =>
+      persist(items.map((i) => {
+        if (i.id !== id) return i;
+        const opt = i.options?.find((o) => o.key === key);
+        return opt ? { ...i, tierKey: key, price: opt.price, tier: opt.name || undefined } : i;
+      })),
+    /** Re-price everything that HAS that tier; anything without keeps its own. */
+    setTierAll: (key: string) =>
+      persist(items.map((i) => {
+        const opt = i.options?.find((o) => o.key === key);
+        return opt ? { ...i, tierKey: key, price: opt.price, tier: opt.name || undefined } : i;
+      })),
     remove: (id: string) => persist(items.filter((i) => i.id !== id)),
     clear: () => persist([]),
   };
 }
 
 export default function QuoteBasket({
-  items, onSetQty, onRemove, onClear, flash,
+  items, onSetQty, onRemove, onClear, onSetTier, onSetTierAll, flash,
 }: {
   items: BasketItem[];
   onSetQty: (id: string, qty: number) => void;
   onRemove: (id: string) => void;
   onClear: () => void;
+  onSetTier: (id: string, key: string) => void;
+  onSetTierAll: (key: string) => void;
   flash: (m: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -69,6 +93,21 @@ export default function QuoteBasket({
 
   const message = useMemo(() => buildQuoteMessage(items, { withTotal }), [items, withTotal]);
   const total = useMemo(() => items.reduce((s, i) => s + i.price * Math.max(1, i.qty), 0), [items]);
+
+  // The tiers EVERY item can be quoted at — the only ones safe to apply to all
+  const sharedTiers = useMemo<PriceOption[]>(() => {
+    if (items.length === 0) return [];
+    const [first, ...rest] = items;
+    return (first.options ?? []).filter((o) => rest.every((i) => i.options?.some((x) => x.key === o.key)));
+  }, [items]);
+  // What the whole basket is quoted at, when it agrees
+  const commonTier = useMemo(() => {
+    const keys = new Set(items.map((i) => i.tierKey ?? ''));
+    return keys.size === 1 ? [...keys][0] : null;
+  }, [items]);
+  const tierLabel = commonTier === null
+    ? 'Mixed prices'
+    : (items[0]?.options?.find((o) => o.key === commonTier)?.name ?? items[0]?.tier ?? 'Sell price');
 
   const send = async () => {
     setBusy(true);
@@ -89,7 +128,7 @@ export default function QuoteBasket({
           <span className="block text-white text-sm font-bold truncate">
             {items.length} item{items.length !== 1 ? 's' : ''} · {fmtRupiah(total)}
           </span>
-          <span className="block text-emerald-100/80 text-[11px]">Tap to review the WhatsApp quote</span>
+          <span className="block text-emerald-100/80 text-[11px] truncate">{tierLabel} · tap to review</span>
         </button>
         <button onClick={send} disabled={busy}
           className="flex-shrink-0 px-3 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition-colors disabled:opacity-50">
@@ -109,19 +148,42 @@ export default function QuoteBasket({
         <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between gap-3">
           <div>
             <h2 className="text-sm font-bold text-white">WhatsApp quote</h2>
-            <p className="text-[11px] text-slate-500">{items.length} item{items.length !== 1 ? 's' : ''} · {fmtRupiah(total)}</p>
+            <p className="text-[11px] text-slate-500">{items.length} item{items.length !== 1 ? 's' : ''} · {fmtRupiah(total)} · {tierLabel}</p>
           </div>
           <button onClick={() => setOpen(false)} className="text-slate-500 hover:text-white text-lg leading-none px-2">×</button>
         </div>
+
+        {sharedTiers.length > 1 && (
+          <div className="px-4 py-2 border-b border-slate-800/60 flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] text-slate-500">Quote everything at</span>
+            {sharedTiers.map((o) => (
+              <button key={o.key} onClick={() => onSetTierAll(o.key)}
+                className={`text-[11px] px-2 py-1 rounded-lg border transition-colors ${
+                  commonTier === o.key
+                    ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                    : 'border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800'
+                }`}>
+                {o.name}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="overflow-y-auto divide-y divide-slate-800/60">
           {items.map((i) => (
             <div key={i.id} className="px-4 py-2.5 flex items-center gap-3">
               <div className="min-w-0 flex-1">
                 <p className="text-sm text-slate-100 truncate">{i.name}</p>
-                <p className="text-[11px] text-slate-500 tabular-nums">
-                  {fmtRupiah(i.price)}{i.tier ? ` · ${i.tier}` : ''}
-                  {i.qty > 1 && <span className="text-slate-400"> → {fmtRupiah(i.price * i.qty)}</span>}
+                <p className="text-[11px] text-slate-500 tabular-nums flex items-center gap-1.5">
+                  <span>{fmtRupiah(i.price)}</span>
+                  {i.options && i.options.length > 1 ? (
+                    <select value={i.tierKey ?? ''} onChange={(e) => onSetTier(i.id, e.target.value)}
+                      title="Which price to quote this item at"
+                      className="bg-transparent text-slate-400 hover:text-white text-[11px] focus:outline-none cursor-pointer max-w-[110px]">
+                      {i.options.map((o) => <option key={o.key} value={o.key}>{o.name}</option>)}
+                    </select>
+                  ) : i.tier ? <span>· {i.tier}</span> : null}
+                  {i.qty > 1 && <span className="text-slate-400">→ {fmtRupiah(i.price * i.qty)}</span>}
                 </p>
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">

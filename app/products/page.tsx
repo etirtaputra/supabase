@@ -11,7 +11,7 @@
  * Gated to roles that can see selling prices (owner + sales).
  */
 'use client';
-import { useState, useEffect, useMemo, useCallback, Fragment, Suspense } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, Fragment, Suspense } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -40,9 +40,10 @@ const INCOMING_PO_STATUSES = new Set(['Sent', 'Confirmed', 'Partially Received']
 import { formatCategory as humanize } from '@/lib/formatCategory';
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 import LayoutToggle from '@/components/ui/LayoutToggle';
-import QuoteBasket, { useQuoteBasket } from '@/components/ui/QuoteBasket';
+import QuoteBasket, { useQuoteBasket, type PriceOption } from '@/components/ui/QuoteBasket';
 import { buildQuoteMessage, shareOrCopy } from '@/lib/whatsappQuote';
 import { useListLayout } from '@/hooks/useListLayout';
+import { useSettings } from '@/hooks/useSettings';
 // The product's customer-facing name: our internal description, never the supplier's model/SKU.
 const descOf = (c: { internal_description: string | null; supplier_model: string }) =>
   (c.internal_description && c.internal_description.trim()) || c.supplier_model || '(no description)';
@@ -239,12 +240,48 @@ function ProductsInner() {
   }, []);
 
   // ── WhatsApp quote basket: pick while scrolling, send one message ─────────
+  // A quote is always AT a price level, so the basket carries which one — the
+  // page picks the level, each item keeps every price it could be quoted at.
   const basket = useQuoteBasket();
-  const pick = useCallback((c: Comp, price: number, tier?: string) => {
+  const { defaultCustomerTier } = useSettings();
+  const [quoteTier, setQuoteTier] = useState<string>('');   // '' = the sell price
+  const tierTouched = useRef(false);
+  // Start at the house default customer tier (Settings › Pricing) until the
+  // person changes it — then leave their choice alone.
+  useEffect(() => {
+    if (tierTouched.current || !defaultCustomerTier || !activeTiers.length) return;
+    const t = activeTiers.find((x) => x.tier_code === defaultCustomerTier);
+    if (t) setQuoteTier(t.tier_id);
+  }, [activeTiers, defaultCustomerTier]);
+
+  const priceOptions = useCallback((c: Comp): PriceOption[] => {
+    const opts: PriceOption[] = [];
+    if (c.selling_price_idr) opts.push({ key: '', name: 'Sell price', price: c.selling_price_idr });
+    for (const t of activeTiers) {
+      const p = tierPrice(c, t);
+      if (p != null) opts.push({ key: t.tier_id, name: t.name, price: p });
+    }
+    return opts;
+  }, [activeTiers, tierPrice]);
+
+  // The price for the level in force, falling back to the sell price when this
+  // product has no price at that tier.
+  const priceAt = useCallback((c: Comp, tierKey: string): PriceOption | null => {
+    const opts = priceOptions(c);
+    return opts.find((o) => o.key === tierKey) ?? opts[0] ?? null;
+  }, [priceOptions]);
+
+  const pick = useCallback((c: Comp, tierKey = quoteTier) => {
     const wasIn = basket.has(c.component_id);
-    basket.toggle({ id: c.component_id, name: descOf(c), price, qty: 1, unit: c.unit ?? undefined, tier });
-    flash(wasIn ? 'Dihapus dari penawaran' : 'Ditambahkan ke penawaran');
-  }, [basket]);
+    const opt = priceAt(c, tierKey);
+    if (!opt) { flash('Belum ada harga untuk produk ini'); return; }
+    basket.toggle({
+      id: c.component_id, name: descOf(c), price: opt.price, qty: 1,
+      unit: c.unit ?? undefined, tier: opt.name === 'Sell price' ? undefined : opt.name,
+      tierKey: opt.key, options: priceOptions(c),
+    });
+    flash(wasIn ? 'Dihapus dari penawaran' : `Ditambahkan · ${opt.name}`);
+  }, [basket, priceAt, priceOptions, quoteTier]);
 
   const rows: Row[] = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -465,6 +502,16 @@ function ProductsInner() {
               className="text-[11px] text-slate-500 hover:text-white px-2 py-1 transition-colors">Clear ×</button>
           )}
           <span className="text-xs text-slate-600 tabular-nums ml-auto">{rows.length} of {comps.length}</span>
+          {activeTiers.length > 0 && (
+            <label className="flex items-center gap-1.5 text-[11px] text-slate-500" title="Which price “+ Quote” adds to the WhatsApp quote">
+              Quote at
+              <select value={quoteTier} onChange={(e) => { tierTouched.current = true; setQuoteTier(e.target.value); }}
+                className="bg-slate-900/80 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-200 focus:outline-none focus:border-emerald-500/60">
+                <option value="">Sell price</option>
+                {activeTiers.map((t) => <option key={t.tier_id} value={t.tier_id}>{t.name}</option>)}
+              </select>
+            </label>
+          )}
           <LayoutToggle value={layout} onChange={setLayout} />
         </div>
 
@@ -510,7 +557,7 @@ function ProductsInner() {
                     <td className="px-3 py-2 text-right whitespace-nowrap">
                       {r.c.selling_price_idr ? (
                         <span className="flex items-center justify-end gap-1.5">
-                          <button onClick={(e) => { e.stopPropagation(); pick(r.c, r.c.selling_price_idr!); }}
+                          <button onClick={(e) => { e.stopPropagation(); pick(r.c); }}
                             title={basket.has(r.c.component_id) ? 'In the WhatsApp quote — click to remove' : 'Add to the WhatsApp quote'}
                             className={`w-5 h-5 rounded text-xs font-bold leading-none transition-colors ${
                               basket.has(r.c.component_id)
@@ -616,8 +663,8 @@ function ProductsInner() {
                     })}
                     {r.c.selling_price_idr ? (
                       <span role="button" tabIndex={0}
-                        onClick={(e) => { e.stopPropagation(); pick(r.c, r.c.selling_price_idr!); }}
-                        title="Add this product to the WhatsApp quote"
+                        onClick={(e) => { e.stopPropagation(); pick(r.c); }}
+                        title="Add this product to the WhatsApp quote at the selected price level"
                         className={`px-2 py-1 rounded-lg text-[11px] font-semibold transition-colors ${
                           basket.has(r.c.component_id)
                             ? 'bg-emerald-500/20 text-emerald-300'
@@ -693,7 +740,8 @@ function ProductsInner() {
           </div>
         </div>
       )}
-      <QuoteBasket items={basket.items} onSetQty={basket.setQty} onRemove={basket.remove} onClear={basket.clear} flash={flash} />
+      <QuoteBasket items={basket.items} onSetQty={basket.setQty} onRemove={basket.remove} onClear={basket.clear}
+        onSetTier={basket.setTier} onSetTierAll={basket.setTierAll} flash={flash} />
       {toast && <div className="fixed bottom-6 right-6 z-[110] px-4 py-2.5 bg-slate-800 border border-slate-700 text-white text-sm font-semibold rounded-xl shadow-lg">{toast}</div>}
     </div>
   );
