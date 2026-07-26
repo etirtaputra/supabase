@@ -246,6 +246,15 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   proposal directory. Entries are filtered by the same gates as the nav, so
   search never offers a door that leads to /unauthorized.
 
+- **WhatsApp quote basket (2026-07-25)**: `lib/whatsappQuote.ts` composes the
+  customer-facing price message (document number/date profile, never a brand or
+  supplier model) for ONE product or twenty, and `shareOrCopy()` prefers the
+  phone's native share sheet — the direct path into WhatsApp — falling back to
+  the clipboard. `components/ui/QuoteBasket.tsx` lets a sales rep tick products
+  while scrolling `/products`, then review quantities and the exact text before
+  sending one message. The basket survives reloads (localStorage). Tapping a
+  price still copies that one price, now through the same composer.
+
 **Next up (in order):**
 1. Bank follow-ons: tag the historical payments/receipts through the
    "untagged movements" panel on /banks so every statement is complete; then

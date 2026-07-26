@@ -444,19 +444,19 @@ export default function SalesQuotePage() {
   const fullyPaid = billTotal > 0 && received >= billTotal - 0.5;
   const showPayments = !newDoc && ['ordered', 'invoiced', 'preparing', 'delivered'].includes(st);
   const actions: { label: string; to: string; primary?: boolean; danger?: boolean }[] = [];
-  if (st === 'draft') { actions.push({ label: 'Mark Validated', to: 'validated', primary: true }); actions.push({ label: 'Mark Sent', to: 'sent' }); }
-  if (st === 'validated') actions.push({ label: 'Mark Sent', to: 'sent', primary: true });
-  if (st === 'sent') actions.push({ label: 'Mark Accepted', to: 'accepted' });
-  if (['validated', 'sent', 'accepted'].includes(st)) actions.push({ label: 'Confirm Customer Order', to: 'ordered', primary: st !== 'validated' });
+  if (st === 'draft') { actions.push({ label: 'Validate', to: 'validated', primary: true }); actions.push({ label: 'Sent', to: 'sent' }); }
+  if (st === 'validated') actions.push({ label: 'Sent', to: 'sent', primary: true });
+  if (st === 'sent') actions.push({ label: 'Accepted', to: 'accepted' });
+  if (['validated', 'sent', 'accepted'].includes(st)) actions.push({ label: 'Confirm Order', to: 'ordered', primary: st !== 'validated' });
   // Invoices and DOs are created from the Fulfillment panel below; every stage
   // stays revertible — including a delivered order.
-  if (st === 'ordered') actions.push({ label: 'Revert to Quote', to: 'accepted' });
-  if (st === 'invoiced') actions.push({ label: 'Revert to Order', to: 'ordered' });
-  if (st === 'preparing') actions.push({ label: 'Revert to Invoice', to: 'invoiced' });
-  if (st === 'delivered') actions.push({ label: 'Reopen Order', to: 'preparing' });
+  if (st === 'ordered') actions.push({ label: 'Revert', to: 'accepted' });
+  if (st === 'invoiced') actions.push({ label: 'Revert', to: 'ordered' });
+  if (st === 'preparing') actions.push({ label: 'Revert', to: 'invoiced' });
+  if (st === 'delivered') actions.push({ label: 'Reopen', to: 'preparing' });
   if (['cancelled', 'rejected'].includes(st)) actions.push({ label: 'Reopen', to: 'draft' });
   if (['draft', 'validated', 'sent'].includes(st)) actions.push({ label: 'Reject', to: 'rejected', danger: true });
-  if (['accepted', 'ordered', 'invoiced', 'preparing'].includes(st)) actions.push({ label: 'Cancel Order', to: 'cancelled', danger: true });
+  if (['accepted', 'ordered', 'invoiced', 'preparing'].includes(st)) actions.push({ label: 'Cancel', to: 'cancelled', danger: true });
   // Revising re-opens the quote for edits with a bumped revision counter
   const canRevise = !!editing.quote_id && ['validated', 'sent', 'accepted'].includes(st);
 
@@ -592,29 +592,33 @@ export default function SalesQuotePage() {
           />
         )}
 
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3 sticky bottom-0 bg-[#0f1012]/95 backdrop-blur border-t border-slate-800 py-2.5 sm:py-3">
-          <button onClick={save} disabled={busy} className="px-4 sm:px-5 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-xs sm:text-sm font-semibold transition-colors disabled:opacity-50">Save</button>
-          <button onClick={printPdf} disabled={busy} className="px-3 sm:px-4 py-2 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs sm:text-sm font-semibold transition-colors disabled:opacity-50 inline-flex items-center gap-2">
+        {/* One row, scrolled sideways on a phone — wrapping ate three rows of
+            screen. The hint moves under the bar rather than into it. */}
+        <div className="sticky bottom-0 bg-[#0f1012]/95 backdrop-blur border-t border-slate-800 pt-2.5 pb-1.5 sm:py-3 -mx-3 px-3 sm:mx-0 sm:px-0">
+        <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto scrollbar-none">
+          <button onClick={save} disabled={busy} className="flex-shrink-0 px-4 sm:px-5 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-xs sm:text-sm font-semibold transition-colors disabled:opacity-50">Save</button>
+          <button onClick={printPdf} disabled={busy} className="flex-shrink-0 px-3 sm:px-4 py-2 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs sm:text-sm font-semibold transition-colors disabled:opacity-50 inline-flex items-center gap-2 whitespace-nowrap">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z" /></svg>
             Print / PDF
           </button>
           {actions.map((a) => (
             <button key={a.to} onClick={() => transition(a.to)} disabled={busy}
-              className={`px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors disabled:opacity-50 ${a.danger ? 'bg-red-500/15 text-red-300 ring-1 ring-red-500/30 hover:bg-red-500/25' : a.primary ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+              className={`flex-shrink-0 whitespace-nowrap px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors disabled:opacity-50 ${a.danger ? 'bg-red-500/15 text-red-300 ring-1 ring-red-500/30 hover:bg-red-500/25' : a.primary ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
               {a.label}
             </button>
           ))}
           {canRevise && (
             <button onClick={revise} disabled={busy}
               title="Re-open for edits as a new revision (Rev n) — the quote goes back to Draft and re-runs validation"
-              className="px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-sky-500/10 text-sky-300 ring-1 ring-sky-500/25 hover:bg-sky-500/20 transition-colors disabled:opacity-50">
-              Revise Quote
+              className="flex-shrink-0 whitespace-nowrap px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-sky-500/10 text-sky-300 ring-1 ring-sky-500/25 hover:bg-sky-500/20 transition-colors disabled:opacity-50">
+              Revise
             </button>
           )}
-          {busy && <span className="w-4 h-4 border-2 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin" />}
-          {['draft', 'sent', 'accepted'].includes(st) && (
-            <span className="text-[11px] text-slate-600 w-full sm:w-auto sm:ml-1">Confirming reserves these quantities from Live Stock.</span>
-          )}
+          {busy && <span className="w-4 h-4 border-2 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin flex-shrink-0" />}
+        </div>
+        {['draft', 'sent', 'accepted'].includes(st) && (
+          <p className="text-[11px] text-slate-600 mt-1.5">Confirming reserves these quantities from Live Stock.</p>
+        )}
         </div>
       </main>
       {toast && <Toast msg={toast} />}

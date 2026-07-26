@@ -38,8 +38,10 @@ interface DocRef { number: string; customer: string; qty: number; date: string; 
 const INCOMING_PO_STATUSES = new Set(['Sent', 'Confirmed', 'Partially Received']);
 
 import { formatCategory as humanize } from '@/lib/formatCategory';
-import { fmtDay, fmtInt, fmtRupiah, fmtIntDoc, fmtDayDoc } from '@/lib/formatters';
+import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 import LayoutToggle from '@/components/ui/LayoutToggle';
+import QuoteBasket, { useQuoteBasket } from '@/components/ui/QuoteBasket';
+import { buildQuoteMessage, shareOrCopy } from '@/lib/whatsappQuote';
 import { useListLayout } from '@/hooks/useListLayout';
 // The product's customer-facing name: our internal description, never the supplier's model/SKU.
 const descOf = (c: { internal_description: string | null; supplier_model: string }) =>
@@ -229,17 +231,20 @@ function ProductsInner() {
   // Click a price → copy a WhatsApp-ready quote in Bahasa Indonesia. This is
   // customer-facing, so it follows the DOCUMENT number/date profile from
   // Settings (Indonesian punctuation is one click away there).
-  const copyPrice = useCallback(async (c: Comp, price: number) => {
-    const rp = fmtIntDoc(price);
-    const tgl = fmtDayDoc(new Date().toISOString().slice(0, 10));
-    const text = `${descOf(c)}\nHarga: Rp ${rp} (belum termasuk PPN)\nTanggal penawaran: ${tgl}`;
-    try {
-      await navigator.clipboard.writeText(text);
-      flash('Harga disalin — siap ditempel');
-    } catch {
-      flash('Gagal menyalin — tekan lama untuk memilih');
-    }
+  const copyPrice = useCallback(async (c: Comp, price: number, tier?: string) => {
+    const text = buildQuoteMessage([{ name: descOf(c), price, qty: 1, unit: c.unit ?? undefined, tier }]);
+    const how = await shareOrCopy(text);
+    flash(how === 'failed' ? 'Gagal menyalin — tekan lama untuk memilih'
+      : how === 'shared' ? 'Dibagikan' : 'Harga disalin — siap ditempel');
   }, []);
+
+  // ── WhatsApp quote basket: pick while scrolling, send one message ─────────
+  const basket = useQuoteBasket();
+  const pick = useCallback((c: Comp, price: number, tier?: string) => {
+    const wasIn = basket.has(c.component_id);
+    basket.toggle({ id: c.component_id, name: descOf(c), price, qty: 1, unit: c.unit ?? undefined, tier });
+    flash(wasIn ? 'Dihapus dari penawaran' : 'Ditambahkan ke penawaran');
+  }, [basket]);
 
   const rows: Row[] = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -504,11 +509,22 @@ function ProductsInner() {
                     </td>
                     <td className="px-3 py-2 text-right whitespace-nowrap">
                       {r.c.selling_price_idr ? (
-                        <button onClick={(e) => { e.stopPropagation(); copyPrice(r.c, r.c.selling_price_idr!); }}
-                          title="Click to copy this price (excl. PPN) for WhatsApp"
-                          className="block ml-auto tabular-nums text-sm text-slate-200 hover:text-emerald-300 transition-colors">
-                          {fmtRupiah(r.c.selling_price_idr)}
-                        </button>
+                        <span className="flex items-center justify-end gap-1.5">
+                          <button onClick={(e) => { e.stopPropagation(); pick(r.c, r.c.selling_price_idr!); }}
+                            title={basket.has(r.c.component_id) ? 'In the WhatsApp quote — click to remove' : 'Add to the WhatsApp quote'}
+                            className={`w-5 h-5 rounded text-xs font-bold leading-none transition-colors ${
+                              basket.has(r.c.component_id)
+                                ? 'bg-emerald-500/20 text-emerald-300'
+                                : 'text-slate-600 hover:text-emerald-300 hover:bg-emerald-500/10'
+                            }`}>
+                            {basket.has(r.c.component_id) ? '✓' : '+'}
+                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); copyPrice(r.c, r.c.selling_price_idr!); }}
+                            title="Click to copy this price (excl. PPN) for WhatsApp"
+                            className="tabular-nums text-sm text-slate-200 hover:text-emerald-300 transition-colors">
+                            {fmtRupiah(r.c.selling_price_idr)}
+                          </button>
+                        </span>
                       ) : <span className="block tabular-nums text-sm text-slate-700">—</span>}
                       {activeTiers.length > 0 && r.c.selling_price_idr ? (
                         <span className="block text-[10px] text-slate-500 tabular-nums">{activeTiers.length} tier{activeTiers.length > 1 ? 's' : ''} ▾</span>
@@ -590,13 +606,26 @@ function ProductsInner() {
                     {activeTiers.map((t) => {
                       const p = tierPrice(r.c, t);
                       return p != null ? (
-                        <span key={t.tier_id} role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); copyPrice(r.c, p); }}
+                        <span key={t.tier_id} role="button" tabIndex={0}
+                          onClick={(e) => { e.stopPropagation(); copyPrice(r.c, p, t.name); }}
                           title={`Tap to copy ${t.name} price for WhatsApp`}
                           className="px-2 py-1 rounded-lg bg-slate-800/60 text-[11px] tabular-nums text-slate-400 active:text-emerald-300">
                           {t.name} <span className="text-slate-200 font-semibold">{fmtRupiah(p)}</span>
                         </span>
                       ) : null;
                     })}
+                    {r.c.selling_price_idr ? (
+                      <span role="button" tabIndex={0}
+                        onClick={(e) => { e.stopPropagation(); pick(r.c, r.c.selling_price_idr!); }}
+                        title="Add this product to the WhatsApp quote"
+                        className={`px-2 py-1 rounded-lg text-[11px] font-semibold transition-colors ${
+                          basket.has(r.c.component_id)
+                            ? 'bg-emerald-500/20 text-emerald-300'
+                            : 'bg-slate-800/60 text-slate-400 active:text-emerald-300'
+                        }`}>
+                        {basket.has(r.c.component_id) ? '✓ In quote' : '+ Quote'}
+                      </span>
+                    ) : null}
                     {r.c.warranty && <span className="px-2 py-1 rounded-lg bg-slate-800/60 text-[11px] text-slate-400">Warranty {r.c.warranty}</span>}
                   </div>
                 </button>
@@ -664,6 +693,7 @@ function ProductsInner() {
           </div>
         </div>
       )}
+      <QuoteBasket items={basket.items} onSetQty={basket.setQty} onRemove={basket.remove} onClear={basket.clear} flash={flash} />
       {toast && <div className="fixed bottom-6 right-6 z-[110] px-4 py-2.5 bg-slate-800 border border-slate-700 text-white text-sm font-semibold rounded-xl shadow-lg">{toast}</div>}
     </div>
   );
