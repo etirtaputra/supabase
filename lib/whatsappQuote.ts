@@ -3,8 +3,9 @@
  *
  * This is customer-facing text, so it uses the DOCUMENT number/date profile
  * (Settings › Formatting) exactly like the printed quotation, and it never
- * mentions a brand or a supplier model — the customer-facing name is the
- * item's internal description, the same rule the sell-side screens follow.
+ * mentions a brand, a supplier model or the TIER a price came from — the
+ * customer-facing name is the item's internal description, the same rule the
+ * sell-side screens follow.
  *
  * WhatsApp markup: *bold* survives a paste; nothing else is worth the risk of
  * looking broken in a client that doesn't render it.
@@ -18,7 +19,12 @@ export interface QuoteLine {
   price: number;
   qty: number;
   unit?: string;
-  /** Which tier this price came from, when it wasn't the plain sell price. */
+  /**
+   * Which tier the price came from. INTERNAL ONLY — it tells the rep what they
+   * picked and is never printed: a tier name exposes how the house prices its
+   * customers, the same reason a brand or a supplier model never reaches a
+   * customer-facing surface. The customer sees a price, not its provenance.
+   */
   tier?: string;
 }
 
@@ -54,10 +60,9 @@ export function buildQuoteMessage(lines: QuoteLine[], opts: QuoteMessageOptions 
     const unit = (l.unit ?? '').trim();
     const label = single ? l.name : `${i + 1}. ${l.name}`;
     const priceTxt = fmtRupiahDoc(l.price);
-    const tier = l.tier ? ` (${l.tier})` : '';
     return qty > 1
-      ? `${label}\n${qty}${unit ? ` ${unit}` : ''} × ${priceTxt}${tier} = *${fmtRupiahDoc(l.price * qty)}*`
-      : `${label}\n${priceTxt}${tier}`;
+      ? `${label}\n${qty}${unit ? ` ${unit}` : ''} × ${priceTxt} = *${fmtRupiahDoc(l.price * qty)}*`
+      : `${label}\n${priceTxt}`;
   });
 
   const out = [head.join('\n'), '', body.join('\n\n')];
