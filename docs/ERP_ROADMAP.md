@@ -246,14 +246,18 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   proposal directory. Entries are filtered by the same gates as the nav, so
   search never offers a door that leads to /unauthorized.
 
-- **WhatsApp quote basket (2026-07-25)**: `lib/whatsappQuote.ts` composes the
-  customer-facing price message (document number/date profile, never a brand or
-  supplier model) for ONE product or twenty, and `shareOrCopy()` prefers the
-  phone's native share sheet — the direct path into WhatsApp — falling back to
-  the clipboard. `components/ui/QuoteBasket.tsx` lets a sales rep tick products
-  while scrolling `/products`, then review quantities and the exact text before
-  sending one message. The basket survives reloads (localStorage). Tapping a
-  price still copies that one price, now through the same composer.
+- **WhatsApp quote, single or multi (2026-07-25)**: `lib/whatsappQuote.ts`
+  composes the customer-facing message (document number/date profile, never a
+  brand or supplier model) for ONE product or twenty, and `shareOrCopy()`
+  prefers the phone's native share sheet — the direct path into WhatsApp —
+  falling back to the clipboard. `/products` has a **Quote mode** switch: off,
+  tapping a price copies that price (unchanged); on, tapping a price collects
+  the item AT THE PRICE TAPPED, so a quote mixes tiers freely — this item at
+  Tier 1, that one at Tier 2 — with no global "quote at" setting to keep in
+  step. Tap the same price again to remove it, another tier to move it.
+  `components/ui/QuoteBasket.tsx` is the bar + review sheet (quantities, live
+  preview, Share/Copy); the list survives reloads. Totals state "belum termasuk
+  PPN" on the total line itself, not only in a footnote.
 
 **Next up (in order):**
 1. Bank follow-ons: tag the historical payments/receipts through the

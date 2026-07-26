@@ -64,8 +64,10 @@ export function buildQuoteMessage(lines: QuoteLine[], opts: QuoteMessageOptions 
 
   if (opts.withTotal !== false) {
     const total = kept.reduce((sum, l) => sum + l.price * Math.max(1, Number(l.qty) || 1), 0);
-    if (kept.length > 1) out.push('', `*Total: ${fmtRupiahDoc(total)}*`);
-    out.push('', `Harga belum termasuk PPN ${s.defaultPpnPct}%.`);
+    // The exclusion belongs ON the total, not only in a footnote — a number
+    // read out of context is how a PPN argument starts.
+    if (kept.length > 1) out.push('', `*Total (belum termasuk PPN): ${fmtRupiahDoc(total)}*`);
+    out.push('', `Semua harga belum termasuk PPN ${s.defaultPpnPct}%.`);
   }
   if (s.documentFooterNote.trim()) out.push('', s.documentFooterNote.trim());
 

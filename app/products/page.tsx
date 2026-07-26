@@ -11,7 +11,7 @@
  * Gated to roles that can see selling prices (owner + sales).
  */
 'use client';
-import { useState, useEffect, useMemo, useCallback, useRef, Fragment, Suspense } from 'react';
+import { useState, useEffect, useMemo, useCallback, Fragment, Suspense } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -40,10 +40,9 @@ const INCOMING_PO_STATUSES = new Set(['Sent', 'Confirmed', 'Partially Received']
 import { formatCategory as humanize } from '@/lib/formatCategory';
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 import LayoutToggle from '@/components/ui/LayoutToggle';
-import QuoteBasket, { useQuoteBasket, type PriceOption } from '@/components/ui/QuoteBasket';
+import QuoteBasket, { useQuoteBasket } from '@/components/ui/QuoteBasket';
 import { buildQuoteMessage, shareOrCopy } from '@/lib/whatsappQuote';
 import { useListLayout } from '@/hooks/useListLayout';
-import { useSettings } from '@/hooks/useSettings';
 // The product's customer-facing name: our internal description, never the supplier's model/SKU.
 const descOf = (c: { internal_description: string | null; supplier_model: string }) =>
   (c.internal_description && c.internal_description.trim()) || c.supplier_model || '(no description)';
@@ -239,49 +238,29 @@ function ProductsInner() {
       : how === 'shared' ? 'Dibagikan' : 'Harga disalin — siap ditempel');
   }, []);
 
-  // ── WhatsApp quote basket: pick while scrolling, send one message ─────────
-  // A quote is always AT a price level, so the basket carries which one — the
-  // page picks the level, each item keeps every price it could be quoted at.
+  // ── WhatsApp quote ────────────────────────────────────────────────────────
+  // Off (the normal state): tapping a price copies that one price, as it always
+  // did. On: tapping a price collects the item AT THE PRICE TAPPED, so one
+  // quote can mix tiers — this item at Tier 1, that one at Tier 2 — without
+  // any global "quote at" setting to keep in step.
   const basket = useQuoteBasket();
-  const { defaultCustomerTier } = useSettings();
-  const [quoteTier, setQuoteTier] = useState<string>('');   // '' = the sell price
-  const tierTouched = useRef(false);
-  // Start at the house default customer tier (Settings › Pricing) until the
-  // person changes it — then leave their choice alone.
-  useEffect(() => {
-    if (tierTouched.current || !defaultCustomerTier || !activeTiers.length) return;
-    const t = activeTiers.find((x) => x.tier_code === defaultCustomerTier);
-    if (t) setQuoteTier(t.tier_id);
-  }, [activeTiers, defaultCustomerTier]);
+  const [multi, setMulti] = useState(false);
 
-  const priceOptions = useCallback((c: Comp): PriceOption[] => {
-    const opts: PriceOption[] = [];
-    if (c.selling_price_idr) opts.push({ key: '', name: 'Sell price', price: c.selling_price_idr });
-    for (const t of activeTiers) {
-      const p = tierPrice(c, t);
-      if (p != null) opts.push({ key: t.tier_id, name: t.name, price: p });
-    }
-    return opts;
-  }, [activeTiers, tierPrice]);
-
-  // The price for the level in force, falling back to the sell price when this
-  // product has no price at that tier.
-  const priceAt = useCallback((c: Comp, tierKey: string): PriceOption | null => {
-    const opts = priceOptions(c);
-    return opts.find((o) => o.key === tierKey) ?? opts[0] ?? null;
-  }, [priceOptions]);
-
-  const pick = useCallback((c: Comp, tierKey = quoteTier) => {
-    const wasIn = basket.has(c.component_id);
-    const opt = priceAt(c, tierKey);
-    if (!opt) { flash('Belum ada harga untuk produk ini'); return; }
-    basket.toggle({
-      id: c.component_id, name: descOf(c), price: opt.price, qty: 1,
-      unit: c.unit ?? undefined, tier: opt.name === 'Sell price' ? undefined : opt.name,
-      tierKey: opt.key, options: priceOptions(c),
+  const onPrice = useCallback((c: Comp, price: number, tierName?: string, tierKey = '') => {
+    if (!multi) { copyPrice(c, price, tierName); return; }
+    const what = basket.tap({
+      id: c.component_id, name: descOf(c), price, qty: 1,
+      unit: c.unit ?? undefined, tier: tierName, tierKey,
     });
-    flash(wasIn ? 'Dihapus dari penawaran' : `Ditambahkan · ${opt.name}`);
-  }, [basket, priceAt, priceOptions, quoteTier]);
+    const at = tierName ?? 'Sell price';
+    flash(what === 'removed' ? 'Dihapus dari penawaran'
+      : what === 'repriced' ? `Diubah ke ${at}`
+      : `Ditambahkan · ${at}`);
+  }, [multi, basket, copyPrice]);
+
+  // Is this product in the list at exactly this price?
+  const pickedAt = useCallback((c: Comp, tierKey = '') =>
+    basket.has(c.component_id) && (basket.tierOf(c.component_id) ?? '') === tierKey, [basket]);
 
   const rows: Row[] = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -502,16 +481,15 @@ function ProductsInner() {
               className="text-[11px] text-slate-500 hover:text-white px-2 py-1 transition-colors">Clear ×</button>
           )}
           <span className="text-xs text-slate-600 tabular-nums ml-auto">{rows.length} of {comps.length}</span>
-          {activeTiers.length > 0 && (
-            <label className="flex items-center gap-1.5 text-[11px] text-slate-500" title="Which price “+ Quote” adds to the WhatsApp quote">
-              Quote at
-              <select value={quoteTier} onChange={(e) => { tierTouched.current = true; setQuoteTier(e.target.value); }}
-                className="bg-slate-900/80 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-200 focus:outline-none focus:border-emerald-500/60">
-                <option value="">Sell price</option>
-                {activeTiers.map((t) => <option key={t.tier_id} value={t.tier_id}>{t.name}</option>)}
-              </select>
-            </label>
-          )}
+          <button onClick={() => setMulti((m) => !m)}
+            title={multi
+              ? 'Tapping a price adds the item to the WhatsApp quote at that price. Tap again to remove, tap another tier to move it.'
+              : 'Collect several products into one WhatsApp message'}
+            className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-colors whitespace-nowrap ${
+              multi ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800'
+            }`}>
+            {multi ? `Quote mode · ${basket.items.length}` : 'Quote mode'}
+          </button>
           <LayoutToggle value={layout} onChange={setLayout} />
         </div>
 
@@ -556,22 +534,13 @@ function ProductsInner() {
                     </td>
                     <td className="px-3 py-2 text-right whitespace-nowrap">
                       {r.c.selling_price_idr ? (
-                        <span className="flex items-center justify-end gap-1.5">
-                          <button onClick={(e) => { e.stopPropagation(); pick(r.c); }}
-                            title={basket.has(r.c.component_id) ? 'In the WhatsApp quote — click to remove' : 'Add to the WhatsApp quote'}
-                            className={`w-5 h-5 rounded text-xs font-bold leading-none transition-colors ${
-                              basket.has(r.c.component_id)
-                                ? 'bg-emerald-500/20 text-emerald-300'
-                                : 'text-slate-600 hover:text-emerald-300 hover:bg-emerald-500/10'
-                            }`}>
-                            {basket.has(r.c.component_id) ? '✓' : '+'}
-                          </button>
-                          <button onClick={(e) => { e.stopPropagation(); copyPrice(r.c, r.c.selling_price_idr!); }}
-                            title="Click to copy this price (excl. PPN) for WhatsApp"
-                            className="tabular-nums text-sm text-slate-200 hover:text-emerald-300 transition-colors">
-                            {fmtRupiah(r.c.selling_price_idr)}
-                          </button>
-                        </span>
+                        <button onClick={(e) => { e.stopPropagation(); onPrice(r.c, r.c.selling_price_idr!); }}
+                          title={multi ? 'Click to add at this price' : 'Click to copy this price (excl. PPN) for WhatsApp'}
+                          className={`block ml-auto tabular-nums text-sm transition-colors ${
+                            pickedAt(r.c) ? 'text-emerald-300 font-semibold' : 'text-slate-200 hover:text-emerald-300'
+                          }`}>
+                          {pickedAt(r.c) && '✓ '}{fmtRupiah(r.c.selling_price_idr)}
+                        </button>
                       ) : <span className="block tabular-nums text-sm text-slate-700">—</span>}
                       {activeTiers.length > 0 && r.c.selling_price_idr ? (
                         <span className="block text-[10px] text-slate-500 tabular-nums">{activeTiers.length} tier{activeTiers.length > 1 ? 's' : ''} ▾</span>
@@ -600,7 +569,8 @@ function ProductsInner() {
                       <td colSpan={10} className="px-4 pb-4 pt-1 bg-slate-950/40">
                         <ProductDetail row={r} activeTiers={activeTiers} tierPrice={tierPrice}
                           orders={ordersByComp[r.c.component_id] ?? []} deliveries={deliveriesByComp[r.c.component_id] ?? []}
-                          canEditMeta={canEditMeta} onSaveMeta={(patch) => saveMeta(r.c.component_id, patch)} onCopyPrice={copyPrice} />
+                          canEditMeta={canEditMeta} onSaveMeta={(patch) => saveMeta(r.c.component_id, patch)}
+                          onPrice={onPrice} multi={multi} pickedAt={pickedAt} />
                       </td>
                     </tr>
                   )}
@@ -644,35 +614,29 @@ function ProductsInner() {
                     </span>
                     {r.inc > 0 && <span className="px-2 py-1 rounded-lg bg-sky-500/10 text-sky-300 text-[11px] tabular-nums">+{fmtInt(r.inc)} incoming</span>}
                     {r.c.selling_price_idr ? (
-                      <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); copyPrice(r.c, r.c.selling_price_idr!); }}
-                        title="Tap to copy this price for WhatsApp"
-                        className="px-2 py-1 rounded-lg bg-slate-800 text-slate-200 text-[11px] font-semibold tabular-nums active:text-emerald-300">
-                        {fmtRupiah(r.c.selling_price_idr)}
+                      <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); onPrice(r.c, r.c.selling_price_idr!); }}
+                        title={multi ? 'Tap to add at this price' : 'Tap to copy this price for WhatsApp'}
+                        className={`px-2 py-1 rounded-lg text-[11px] font-semibold tabular-nums transition-colors ${
+                          pickedAt(r.c) ? 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40' : 'bg-slate-800 text-slate-200 active:text-emerald-300'
+                        }`}>
+                        {pickedAt(r.c) && '✓ '}{fmtRupiah(r.c.selling_price_idr)}
                       </span>
                     ) : null}
                     {activeTiers.map((t) => {
                       const p = tierPrice(r.c, t);
                       return p != null ? (
                         <span key={t.tier_id} role="button" tabIndex={0}
-                          onClick={(e) => { e.stopPropagation(); copyPrice(r.c, p, t.name); }}
-                          title={`Tap to copy ${t.name} price for WhatsApp`}
-                          className="px-2 py-1 rounded-lg bg-slate-800/60 text-[11px] tabular-nums text-slate-400 active:text-emerald-300">
-                          {t.name} <span className="text-slate-200 font-semibold">{fmtRupiah(p)}</span>
+                          onClick={(e) => { e.stopPropagation(); onPrice(r.c, p, t.name, t.tier_id); }}
+                          title={multi ? `Tap to add at ${t.name}` : `Tap to copy ${t.name} price for WhatsApp`}
+                          className={`px-2 py-1 rounded-lg text-[11px] tabular-nums transition-colors ${
+                            pickedAt(r.c, t.tier_id)
+                              ? 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40'
+                              : 'bg-slate-800/60 text-slate-400 active:text-emerald-300'
+                          }`}>
+                          {pickedAt(r.c, t.tier_id) && '✓ '}{t.name} <span className="text-slate-200 font-semibold">{fmtRupiah(p)}</span>
                         </span>
                       ) : null;
                     })}
-                    {r.c.selling_price_idr ? (
-                      <span role="button" tabIndex={0}
-                        onClick={(e) => { e.stopPropagation(); pick(r.c); }}
-                        title="Add this product to the WhatsApp quote at the selected price level"
-                        className={`px-2 py-1 rounded-lg text-[11px] font-semibold transition-colors ${
-                          basket.has(r.c.component_id)
-                            ? 'bg-emerald-500/20 text-emerald-300'
-                            : 'bg-slate-800/60 text-slate-400 active:text-emerald-300'
-                        }`}>
-                        {basket.has(r.c.component_id) ? '✓ In quote' : '+ Quote'}
-                      </span>
-                    ) : null}
                     {r.c.warranty && <span className="px-2 py-1 rounded-lg bg-slate-800/60 text-[11px] text-slate-400">Warranty {r.c.warranty}</span>}
                   </div>
                 </button>
@@ -680,7 +644,8 @@ function ProductsInner() {
                   <div className="px-3.5 pb-3.5">
                     <ProductDetail row={r} activeTiers={activeTiers} tierPrice={tierPrice}
                       orders={ordersByComp[r.c.component_id] ?? []} deliveries={deliveriesByComp[r.c.component_id] ?? []}
-                      canEditMeta={canEditMeta} onSaveMeta={(patch) => saveMeta(r.c.component_id, patch)} onCopyPrice={copyPrice} />
+                      canEditMeta={canEditMeta} onSaveMeta={(patch) => saveMeta(r.c.component_id, patch)}
+                          onPrice={onPrice} multi={multi} pickedAt={pickedAt} />
                   </div>
                 )}
               </div>
@@ -740,8 +705,7 @@ function ProductsInner() {
           </div>
         </div>
       )}
-      <QuoteBasket items={basket.items} onSetQty={basket.setQty} onRemove={basket.remove} onClear={basket.clear}
-        onSetTier={basket.setTier} onSetTierAll={basket.setTierAll} flash={flash} />
+      <QuoteBasket items={basket.items} onSetQty={basket.setQty} onRemove={basket.remove} onClear={basket.clear} flash={flash} />
       {toast && <div className="fixed bottom-6 right-6 z-[110] px-4 py-2.5 bg-slate-800 border border-slate-700 text-white text-sm font-semibold rounded-xl shadow-lg">{toast}</div>}
     </div>
   );
@@ -777,7 +741,7 @@ function StockCell({ live, phys, unit }: { live: number; phys: number; unit: str
   );
 }
 
-function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEditMeta, onSaveMeta, onCopyPrice }: {
+function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEditMeta, onSaveMeta, onPrice, multi, pickedAt }: {
   row: Row;
   activeTiers: Tier[];
   tierPrice: (c: Comp, t: Tier) => number | null;
@@ -785,7 +749,9 @@ function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEdi
   deliveries: DocRef[];
   canEditMeta: boolean;
   onSaveMeta: (patch: { warranty?: string; datasheet_url?: string }) => void;
-  onCopyPrice: (c: Comp, price: number) => void;
+  onPrice: (c: Comp, price: number, tierName?: string, tierKey?: string) => void;
+  multi: boolean;
+  pickedAt: (c: Comp, tierKey?: string) => boolean;
 }) {
   const { c, rsv } = row;
   const [warranty, setWarranty] = useState(c.warranty ?? '');
@@ -795,11 +761,16 @@ function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEdi
     <div className="space-y-3 pt-1">
       {/* Tier price list — click any price to copy it (excl. PPN) for WhatsApp */}
       <div className="flex flex-wrap gap-1.5 items-center">
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 mr-1 w-full sm:w-auto">Price list · tap to copy</span>
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 mr-1 w-full sm:w-auto">
+          Price list · tap to {multi ? 'add at that price' : 'copy'}
+        </span>
         {c.selling_price_idr ? (
-          <button onClick={() => onCopyPrice(c, c.selling_price_idr!)} title="Net price = Tier-1 · copy (excl. PPN) for WhatsApp"
-            className="px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700 hover:border-emerald-500/40 text-[11px] transition-colors">
-            <span className="text-slate-500">Net</span> <span className="tabular-nums text-slate-200 font-semibold">{fmtRupiah(c.selling_price_idr)}</span>
+          <button onClick={() => onPrice(c, c.selling_price_idr!)}
+            title={multi ? 'Add at the net price' : 'Net price = Tier-1 · copy (excl. PPN) for WhatsApp'}
+            className={`px-2.5 py-1 rounded-lg border text-[11px] transition-colors ${
+              pickedAt(c) ? 'bg-emerald-500/15 border-emerald-500/40' : 'bg-slate-800/80 border-slate-700 hover:border-emerald-500/40'
+            }`}>
+            <span className="text-slate-500">{pickedAt(c) ? '✓ Net' : 'Net'}</span> <span className="tabular-nums text-slate-200 font-semibold">{fmtRupiah(c.selling_price_idr)}</span>
           </button>
         ) : (
           <span className="text-[11px] text-slate-600 italic">No net price — <Link href="/catalog" className="text-emerald-400 hover:text-emerald-300">set it in Catalog</Link></span>
@@ -812,9 +783,12 @@ function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEdi
             </span>
           );
           return (
-            <button key={t.tier_id} onClick={() => onCopyPrice(c, p)} title={`Copy ${t.name} price (excl. PPN) for WhatsApp`}
-              className="px-2.5 py-1 rounded-lg bg-slate-800/60 border border-slate-700 hover:border-emerald-500/40 text-[11px] transition-colors">
-              <span className="text-slate-500">{t.name}</span>{' '}
+            <button key={t.tier_id} onClick={() => onPrice(c, p, t.name, t.tier_id)}
+              title={multi ? `Add at ${t.name}` : `Copy ${t.name} price (excl. PPN) for WhatsApp`}
+              className={`px-2.5 py-1 rounded-lg border text-[11px] transition-colors ${
+                pickedAt(c, t.tier_id) ? 'bg-emerald-500/15 border-emerald-500/40' : 'bg-slate-800/60 border-slate-700 hover:border-emerald-500/40'
+              }`}>
+              <span className="text-slate-500">{pickedAt(c, t.tier_id) ? `✓ ${t.name}` : t.name}</span>{' '}
               <span className="tabular-nums text-slate-200 font-semibold">{fmtRupiah(p)}</span>
             </button>
           );
