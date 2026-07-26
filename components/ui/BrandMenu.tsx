@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS, type RolePermissions } from '@/constants/roles';
+import { DESTINATIONS, NAV_GROUP_ORDER } from '@/constants/navigation';
 
 /**
  * ICAPROC navigation, ERP-style:
@@ -22,31 +23,25 @@ import { ROLE_PERMISSIONS, type RolePermissions } from '@/constants/roles';
  * Everything is role-filtered via ROLE_PERMISSIONS sections.
  */
 type Section = 'buySide' | 'sellSide' | 'projects' | null;
-// `cap` narrows an app beyond its section: only roles with that capability
-// boolean see the link (e.g. Economics shows margin data → canManagePricing).
-// Configuration screens (Settings, Pricing) are NOT modules — they live in the
-// Admin group at the bottom of the menu, out of the day-to-day list.
-const APP_GROUPS: { title: string | null; section: Section; apps: { href: string; label: string; cap?: keyof RolePermissions }[] }[] = [
-  { title: null, section: null, apps: [{ href: '/', label: 'Dashboard' }] },
-  { title: 'Buy side', section: 'buySide', apps: [
-    { href: '/catalog',   label: 'Catalog' },
-    { href: '/suppliers', label: 'Suppliers' },
-    { href: '/stock',     label: 'Stock' },
-    { href: '/insights',  label: 'Insights' },
-  ] },
-  { title: 'Sell side', section: 'sellSide', apps: [
-    { href: '/customers', label: 'Customers' },
-    { href: '/products',  label: 'Products' },
-    { href: '/sales',     label: 'Sales' },
-    { href: '/invoices',  label: 'Invoices' },
-    { href: '/delivery',  label: 'Delivery' },
-    { href: '/economics', label: 'Economics', cap: 'canManagePricing' },
-  ] },
-  // Cash sits between the two flows: supplier payments leave a bank account and
-  // customer receipts arrive in one, so Banks is neither buy-side nor sell-side.
-  { title: null, section: null, apps: [{ href: '/banks', label: 'Banks', cap: 'canViewBanks' }] },
-  { title: 'Projects', section: 'projects', apps: [{ href: '/proposals', label: 'Proposals' }] },
-];
+
+// The menu is DERIVED from constants/navigation.ts — the same list Spotlight
+// indexes as "Pages", so a module can never exist in one and not the other.
+// `cap` narrows an app beyond its section (e.g. Economics shows margin data →
+// canManagePricing). Configuration screens (Settings, Pricing) are NOT modules:
+// they sit in the Admin group at the bottom of the menu, out of the daily list.
+const GROUP_TITLE: Record<string, string | null> = {
+  Home: null, 'Buy side': 'Buy side', 'Sell side': 'Sell side', Cash: null, Projects: 'Projects',
+};
+
+const APP_GROUPS: { title: string | null; section: Section; apps: { href: string; label: string; cap?: keyof RolePermissions }[] }[] =
+  NAV_GROUP_ORDER
+    .map((g) => ({
+      title: GROUP_TITLE[g] ?? null,
+      section: (DESTINATIONS.find((d) => d.group === g)?.section ?? null) as Section,
+      apps: DESTINATIONS.filter((d) => d.group === g && d.inNav)
+        .map((d) => ({ href: d.href, label: d.label, cap: d.cap })),
+    }))
+    .filter((g) => g.apps.length > 0);
 
 // Preferred order for the mobile bottom bar's primary slots
 const MOBILE_PRIORITY = ['/sales', '/products', '/catalog', '/proposals', '/customers', '/stock', '/suppliers', '/invoices', '/delivery', '/insights', '/banks'];
@@ -104,6 +99,8 @@ export default function BrandMenu({
     .map((g) => ({ ...g, apps: g.apps.filter((a) => !a.cap || !perms || !!perms[a.cap]) }))
     .filter((g) => g.apps.length && (!g.section || !perms || perms[g.section]));
   const allLinks = groups.flatMap((g) => g.apps.map((a) => ({ ...a, section: g.section })));
+  // Configuration entries, same source, shown under Admin
+  const adminLinks = DESTINATIONS.filter((d) => d.group === 'Admin' && d.inNav && (!perms || !d.cap || !!perms[d.cap]));
 
   // Mobile bottom bar: Home + the role's three primary modules + More
   const primary = MOBILE_PRIORITY
@@ -154,27 +151,18 @@ export default function BrandMenu({
       {/* Configuration, not modules: Settings (which absorbs user management)
           and Pricing, which sets the tiers every quote is priced from. Hidden
           from everyone who doesn't run them. */}
-      {(perms?.canManageUsers || perms?.canManagePricing) && (
+      {adminLinks.length > 0 && (
         <div className="mt-1 pt-1 border-t border-slate-800/70">
           <p className="px-2.5 pt-1 pb-1 text-[9px] uppercase tracking-widest text-slate-600">Admin</p>
-          {perms?.canManageUsers && (
-            <Link href="/settings" onClick={() => { setOpen(false); setMoreOpen(false); }}
+          {adminLinks.map((d) => (
+            <Link key={d.href} href={d.href} onClick={() => { setOpen(false); setMoreOpen(false); }}
               className={`flex items-center justify-between px-2.5 py-2 rounded-lg text-sm transition-colors ${
-                isActive('/settings') ? 'bg-emerald-500/15 text-emerald-300' : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                isActive(d.href) ? 'bg-emerald-500/15 text-emerald-300' : 'text-slate-300 hover:bg-white/10 hover:text-white'
               }`}>
-              Settings
-              {isActive('/settings') && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+              {d.label}
+              {isActive(d.href) && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
             </Link>
-          )}
-          {perms?.canManagePricing && (
-            <Link href="/pricing" onClick={() => { setOpen(false); setMoreOpen(false); }}
-              className={`flex items-center justify-between px-2.5 py-2 rounded-lg text-sm transition-colors ${
-                isActive('/pricing') ? 'bg-emerald-500/15 text-emerald-300' : 'text-slate-300 hover:bg-white/10 hover:text-white'
-              }`}>
-              Pricing
-              {isActive('/pricing') && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
-            </Link>
-          )}
+          ))}
         </div>
       )}
       {/* Signed-in user + sign out — lives here so headers stay clean */}

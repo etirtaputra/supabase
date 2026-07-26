@@ -546,6 +546,17 @@ export default function DealLookupTab({
                   <div key={qKey} className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-2.5">
                     {/* Quote meta */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                      {/* The PI number IS the quote's reference — copyable here
+                          so it can be pasted into an email without retyping. */}
+                      {qt.pi_number && (
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">PI #</p>
+                          <p className="text-slate-300 mt-0.5 inline-flex items-center gap-1">
+                            <span className="font-mono">{qt.pi_number}</span>
+                            <CopyBtn text={qt.pi_number} />
+                          </p>
+                        </div>
+                      )}
                       {[
                         { label: 'Date',      value: qt.quote_date },
                         { label: 'Supplier',  value: sup?.supplier_name },
@@ -1880,6 +1891,7 @@ export default function DealLookupTab({
           {groups.map((g) => {
             const stage   = dealStage(g);
             const expanded = expandedKey === g.key;
+            const dealRef = g.piNumber ?? (g.quotes[0] ? `Q#${g.quotes[0].quote_id}` : `PO#${g.pos[0]?.po_number ?? g.key}`);
             const paidPct = g.totalIdr > 0 ? Math.min(100, (g.paidIdr / g.totalIdr) * 100) : 0;
             const stageLabel: Record<string, string> = {
               quote: 'Quote', active: 'Active PO', received: 'Received', completed: 'Completed', superseded: 'Void',
@@ -1901,12 +1913,23 @@ export default function DealLookupTab({
                 }`}
               >
                 <td className="py-2 px-3 font-semibold text-white whitespace-nowrap">
-                  {/* The chevron is what says "this row opens" */}
-                  <svg className={`w-3 h-3 text-slate-600 inline-block mr-1.5 transition-transform duration-150 ${expanded ? 'rotate-90 text-slate-300' : ''}`}
-                    fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                  </svg>
-                  {g.piNumber ?? (g.quotes[0] ? `Q#${g.quotes[0].quote_id}` : `PO#${g.pos[0]?.po_number ?? g.key}`)}
+                  <span className="inline-flex items-center gap-1.5">
+                    {/* The chevron is what says "this row opens" */}
+                    <svg className={`w-3 h-3 text-slate-600 flex-shrink-0 transition-transform duration-150 ${expanded ? 'rotate-90 text-slate-300' : ''}`}
+                      fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                    {dealRef}
+                    {/* Copy the reference without opening the row */}
+                    <CopyBtn text={dealRef} />
+                    {/* One PO on the deal: copy its number from the list too */}
+                    {g.pos.length === 1 && g.pos[0].po_number && g.pos[0].po_number !== dealRef && (
+                      <span className="inline-flex items-center gap-0.5 text-[10px] font-normal text-slate-600">
+                        <span className="font-mono">{g.pos[0].po_number}</span>
+                        <CopyBtn text={g.pos[0].po_number} />
+                      </span>
+                    )}
+                  </span>
                 </td>
                 <td className="py-2 px-3 whitespace-nowrap">
                   {g.supplier?.supplier_code && (

@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS, type RolePermissions } from '@/constants/roles';
+import { destinationsFor } from '@/constants/navigation';
 import { SALES_STATUS } from '@/lib/salesStatus';
 
 /**
@@ -43,7 +44,7 @@ interface DealRef {
 }
 
 interface Item {
-  kind: 'supplier' | 'company' | 'customer' | 'quote' | 'sales' | 'pi' | 'po' | 'grn' | 'receipt' | 'component';
+  kind: 'page' | 'supplier' | 'company' | 'customer' | 'quote' | 'sales' | 'pi' | 'po' | 'grn' | 'receipt' | 'component';
   id: string;
   title: string;
   sub: string;
@@ -56,6 +57,7 @@ interface Item {
 }
 
 const KIND_BADGE: Record<Item['kind'], { label: string; cls: string }> = {
+  page:      { label: 'Go',       cls: 'bg-white/10 text-slate-300' },
   supplier:  { label: 'Supplier', cls: 'bg-sky-500/15 text-sky-300' },
   company:   { label: 'Company',  cls: 'bg-rose-500/15 text-rose-300' },
   customer:  { label: 'Customer', cls: 'bg-teal-500/15 text-teal-300' },
@@ -68,9 +70,10 @@ const KIND_BADGE: Record<Item['kind'], { label: string; cls: string }> = {
   component: { label: 'Item',     cls: 'bg-emerald-500/15 text-emerald-300' },
 };
 
-const KIND_ORDER: Item['kind'][] = ['supplier', 'company', 'customer', 'quote', 'sales', 'pi', 'po', 'grn', 'receipt', 'component'];
+const KIND_ORDER: Item['kind'][] = ['page', 'supplier', 'company', 'customer', 'quote', 'sales', 'pi', 'po', 'grn', 'receipt', 'component'];
 
 const KIND_GROUP: Record<Item['kind'], string> = {
+  page: 'Pages',
   supplier: 'Suppliers', company: 'Buying companies', customer: 'Customers',
   quote: 'EPC proposals', sales: 'Sales documents', pi: 'Supplier quotes (PI)',
   po: 'Purchase orders', grn: 'Goods receipts', receipt: 'Payments received', component: 'Items',
@@ -79,6 +82,7 @@ const KIND_GROUP: Record<Item['kind'], string> = {
 // A leading token narrows the search to one kind: "inv 0007", "po jinko",
 // "cust dea", "item mc4". The alias alone lists that kind's latest entries.
 const KIND_ALIASES: Record<string, Item['kind']> = {
+  go: 'page', page: 'page', open: 'page', nav: 'page', menu: 'page',
   supplier: 'supplier', sup: 'supplier', vendor: 'supplier',
   company: 'company',
   customer: 'customer', cust: 'customer',
@@ -93,7 +97,7 @@ const KIND_ALIASES: Record<string, Item['kind']> = {
 // Which kinds each role's index may contain (and fetch) — buy-side info
 // (vendors, PI/PO, brands, landed costs) never reaches a sell-side client.
 const allowedKinds = (p: RolePermissions): Set<Item['kind']> => {
-  const s = new Set<Item['kind']>();
+  const s = new Set<Item['kind']>(['page']);   // gated per destination below
   if (p.buySide) { s.add('supplier'); s.add('company'); s.add('pi'); s.add('po'); s.add('grn'); s.add('component'); }
   if (p.sellSide) { s.add('customer'); s.add('sales'); s.add('receipt'); s.add('component'); }
   if (p.projects) s.add('quote');
@@ -485,6 +489,17 @@ export default function CommandPalette({ variant = 'modal', raisedPill = false, 
     });
 
     const list: Item[] = [
+      // Pages come from constants/navigation.ts — the same list the menu is
+      // built from, filtered to what this role can actually open, so search
+      // never offers a door that leads to /unauthorized. No fetch needed.
+      ...destinationsFor(perms).map((d) => ({
+        kind: 'page' as const,
+        id: d.href,
+        title: d.label,
+        sub: d.hint ?? d.group,
+        href: d.href,
+        keywords: [d.group, d.keywords, d.href.replace(/[/?=]/g, ' ')].filter(Boolean).join(' '),
+      })),
       ...(suppliers.data ?? []).map((s) => ({
         kind: 'supplier' as const,
         id: s.supplier_id as string,
@@ -562,7 +577,9 @@ export default function CommandPalette({ variant = 'modal', raisedPill = false, 
     // Tier priority: (0) suppliers/companies/customers — matched by code or
     // name — then (1) documents (EPC/sales/PI/PO/GRN/RCPT), then (2) items.
     const tier = (k: Item['kind']) =>
-      k === 'supplier' || k === 'company' || k === 'customer' ? 0 : k === 'component' ? 2 : 1;
+      k === 'page' ? 0
+      : k === 'supplier' || k === 'company' || k === 'customer' ? 1
+      : k === 'component' ? 3 : 2;
     // Prefix match on the name OR the sub line (supplier_code lives in sub)
     const startsWith = (i: Item) =>
       i.title.toLowerCase().startsWith(first) || i.sub.toLowerCase().startsWith(first);
@@ -581,7 +598,7 @@ export default function CommandPalette({ variant = 'modal', raisedPill = false, 
       return (b.date ?? '').localeCompare(a.date ?? '') || a.title.localeCompare(b.title);
     });
     // Per-kind caps so one noisy kind (usually items) can't drown the rest
-    const capOf = (k: Item['kind']) => (k === 'component' ? 6 : 5);
+    const capOf = (k: Item['kind']) => (k === 'component' ? 6 : k === 'page' ? 4 : 5);
     const counts = new Map<Item['kind'], number>();
     const capped: Item[] = [];
     for (const m of matched) {

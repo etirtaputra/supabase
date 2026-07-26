@@ -236,6 +236,16 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   Proposals, Banks (accounts + statement) and Deal Lookup — whose older ad-hoc
   card/table toggle now IS this setting.
 
+- **One navigation index (2026-07-25)**: `constants/navigation.ts` lists every
+  destination once — href, label, group, section/capability gate, hint and
+  search synonyms — and BOTH the menu (`BrandMenu`) and Spotlight are derived
+  from it, so a module can never exist in one and not the other. Spotlight
+  gained a **`page` kind** ("Go" badge, first tier, `go`/`page`/`open`/`nav`
+  aliases) covering modules AND deep destinations that are not menu entries:
+  Settings tabs, Catalog tabs, Deal Lookup, /stock/receive, the libraries, the
+  proposal directory. Entries are filtered by the same gates as the nav, so
+  search never offers a door that leads to /unauthorized.
+
 **Next up (in order):**
 1. Bank follow-ons: tag the historical payments/receipts through the
    "untagged movements" panel on /banks so every statement is complete; then
