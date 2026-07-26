@@ -105,6 +105,35 @@ function CopyBtn({ text, className = '' }: { text: string; className?: string })
   );
 }
 
+/**
+ * Text that copies itself when clicked. Item names are the thing people paste
+ * into a chat or a supplier email, so the name IS the button — no icon to aim
+ * at. Stops propagation so copying never opens or closes the deal row.
+ */
+function CopyText({ text, className = '', children }: { text: string; className?: string; children?: React.ReactNode }) {
+  const [copied, setCopied] = useState(false);
+  if (!text) return <>{children}</>;
+  return (
+    <span
+      role="button"
+      tabIndex={0}
+      title={copied ? 'Copied' : `Click to copy — ${text}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(text).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1200);
+        });
+      }}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); (e.target as HTMLElement).click(); } }}
+      className={`cursor-copy transition-colors ${copied ? 'text-emerald-400' : 'hover:text-emerald-300'} ${className}`}
+    >
+      {children ?? text}
+      {copied && <span className="ml-1.5 text-[9px] font-normal text-emerald-400 align-middle">copied</span>}
+    </span>
+  );
+}
+
 // ── Inline component re-assignment combobox ───────────────────────────────────
 
 function ComponentCombobox({ components, onSelect, onCancel }: {
@@ -643,8 +672,14 @@ export default function DealLookupTab({
                                       <ComponentCombobox components={components} onSelect={(cid) => setEditingLine((prev) => prev && { ...prev, componentId: cid, showCompSearch: false })} onCancel={() => setEditingLine((prev) => prev && { ...prev, showCompSearch: false })} />
                                     ) : (
                                       <div className="min-w-0">
-                                        <p className="font-semibold text-white leading-tight">{comp?.supplier_model ?? <span className="text-slate-600 italic">unlinked</span>}</p>
-                                        {comp?.internal_description && <p className="text-[11px] text-slate-500 mt-0.5 truncate max-w-xs">{comp.internal_description}</p>}
+                                        <p className="font-semibold text-white leading-tight">
+                                          <CopyText text={comp?.supplier_model ?? ''}>{comp?.supplier_model ?? <span className="text-slate-600 italic">unlinked</span>}</CopyText>
+                                        </p>
+                                        {comp?.internal_description && (
+                                          <p className="text-[11px] text-slate-500 mt-0.5 truncate max-w-xs">
+                                            <CopyText text={comp.internal_description}>{comp.internal_description}</CopyText>
+                                          </p>
+                                        )}
                                         {isEditingLine && <button onMouseDown={(e) => { e.preventDefault(); setEditingLine((prev) => prev && { ...prev, showCompSearch: true }); }} className="text-[10px] text-sky-400 hover:text-sky-300 transition-colors">change product</button>}
                                       </div>
                                     )}
@@ -1246,8 +1281,14 @@ export default function DealLookupTab({
                                       <ComponentCombobox components={components} onSelect={(cid) => setEditingLine((prev) => prev && { ...prev, componentId: cid, showCompSearch: false })} onCancel={() => setEditingLine((prev) => prev && { ...prev, showCompSearch: false })} />
                                     ) : (
                                       <div className="min-w-0">
-                                        <p className="font-semibold text-white leading-tight">{comp?.supplier_model ?? <span className="text-slate-600 italic">unlinked</span>}</p>
-                                        {comp?.internal_description && <p className="text-[11px] text-slate-500 mt-0.5 truncate max-w-xs">{comp.internal_description}</p>}
+                                        <p className="font-semibold text-white leading-tight">
+                                          <CopyText text={comp?.supplier_model ?? ''}>{comp?.supplier_model ?? <span className="text-slate-600 italic">unlinked</span>}</CopyText>
+                                        </p>
+                                        {comp?.internal_description && (
+                                          <p className="text-[11px] text-slate-500 mt-0.5 truncate max-w-xs">
+                                            <CopyText text={comp.internal_description}>{comp.internal_description}</CopyText>
+                                          </p>
+                                        )}
                                         {!isEditingLine && (ltPo != null || ltPayment != null) && (
                                           <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
                                             {ltPo != null && <span className="text-[10px] text-slate-600"><span className="font-semibold text-emerald-500/70 tabular-nums">{ltPo}d</span> PO→rcvd</span>}
@@ -1507,10 +1548,14 @@ export default function DealLookupTab({
                               ) : (
                                 <div className="min-w-0">
                                   <p className="font-semibold text-white leading-tight truncate">
-                                    {displayComp?.supplier_model ?? (row.q?.supplier_description ?? row.p?.supplier_description ?? <span className="italic text-slate-600">unlinked</span>)}
+                                    <CopyText text={displayComp?.supplier_model ?? row.q?.supplier_description ?? row.p?.supplier_description ?? ''}>
+                                      {displayComp?.supplier_model ?? (row.q?.supplier_description ?? row.p?.supplier_description ?? <span className="italic text-slate-600">unlinked</span>)}
+                                    </CopyText>
                                   </p>
                                   {displayComp?.internal_description && (
-                                    <p className="text-[11px] text-slate-500 mt-0.5 truncate">{displayComp.internal_description}</p>
+                                    <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+                                      <CopyText text={displayComp.internal_description}>{displayComp.internal_description}</CopyText>
+                                    </p>
                                   )}
                                   {(onlyQ || onlyP) && !activeEdit && (
                                     <span className={`text-[10px] font-semibold ${onlyQ ? 'text-sky-400' : 'text-emerald-400'}`}>
