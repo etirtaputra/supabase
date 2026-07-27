@@ -104,6 +104,40 @@ export default function BanksPage() {
 
   const companyName = useMemo(() => new Map(companies.map((c) => [c.company_id, c.legal_name])), [companies]);
 
+  /**
+   * Accounts belong to a COMPANY first — that is the question anyone opening
+   * this page is actually asking ("what does Mandala hold?"), and it is the
+   * only thing that made the flat list repetitive. So the company becomes the
+   * section, and each row is then just the bank and the account number.
+   * Same grouping as Settings › Banks, so there is one mental model, not two.
+   */
+  const groups = useMemo(() => {
+    const by = new Map<string, BankAccount[]>();
+    for (const a of accounts) {
+      const k = a.company_id ?? '';
+      by.set(k, [...(by.get(k) ?? []), a]);
+    }
+    return [...by.entries()]
+      .map(([company_id, list]) => ({
+        company_id,
+        name: companyName.get(company_id) || 'No company assigned',
+        list,
+      }))
+      // Ranked companies first (by their best-ranked account), then A→Z
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [accounts, companyName]);
+
+  /** A company's total across its accounts — null while any balance is still loading. */
+  const companyTotal = (list: BankAccount[]): number | null => {
+    let sum = 0;
+    for (const a of list) {
+      const b = balances.get(a.bank_account_id);
+      if (b == null) return null;
+      sum += b;
+    }
+    return sum;
+  };
+
   // ── The filtered statement, with a running balance that carries in ─────────
   const view = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -209,77 +243,102 @@ export default function BanksPage() {
               <p className="text-[10px] uppercase tracking-widest text-slate-600">Accounts</p>
               <LayoutToggle value={layout} onChange={setLayout} />
             </div>
-            {compact ? (
-              <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
-                <div className="hidden md:grid grid-cols-[1fr_200px_120px_60px_140px] gap-3 px-3 py-1.5 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
-                  <span>Bank</span><span>Company</span><span>Account no.</span><span>Ccy</span><span className="text-right">Balance</span>
-                </div>
-                <div className="divide-y divide-slate-800/60">
-                  {accounts.map((a) => {
-                    const on = a.bank_account_id === selected;
-                    const bal = balances.get(a.bank_account_id);
-                    return (
-                      <button key={a.bank_account_id} onClick={() => setSelected(a.bank_account_id)}
-                        className={`w-full text-left grid grid-cols-2 md:grid-cols-[1fr_200px_120px_60px_140px] gap-1 md:gap-3 px-3 py-1.5 items-center transition-colors ${
-                          on ? 'bg-emerald-500/[0.08]' : 'hover:bg-slate-800/40'
-                        }`}>
-                        <span className={`text-sm truncate ${on ? 'text-emerald-200 font-semibold' : 'text-slate-100'}`}>
-                          {a.bank_name || 'Bank not set'}
-                          {a.is_default_payment && <span className="ml-1.5 text-[9px] font-bold text-sky-400" title="Default account for supplier payments">PAY</span>}
-                          {a.is_default_receipt && <span className="ml-1.5 text-[9px] font-bold text-emerald-400" title="Default account for customer receipts">RCV</span>}
+            <div className={compact ? 'space-y-3' : 'space-y-5'}>
+              {groups.map((g) => {
+                const total = companyTotal(g.list);
+                return (
+                  <div key={g.company_id || 'none'}>
+                    {/* The company IS the heading — read it once, not on every row */}
+                    <div className="flex items-baseline justify-between gap-3 px-1 pb-1.5">
+                      <h3 className="text-sm font-bold text-white truncate">{g.name}</h3>
+                      <div className="flex items-baseline gap-2.5 flex-shrink-0">
+                        <span className="text-[10px] text-slate-600">{g.list.length} account{g.list.length !== 1 ? 's' : ''}</span>
+                        <span className={`text-sm font-bold tabular-nums ${total == null ? 'text-slate-700' : total < 0 ? 'text-rose-300' : 'text-emerald-300'}`}
+                          title={total == null ? '' : fmtRupiah(total)}>
+                          {total == null ? '—' : fmtRupiahShort(total)}
                         </span>
-                        <span className="text-[11px] text-slate-500 truncate">{companyName.get(a.company_id ?? '') || '—'}</span>
-                        <span className="text-[11px] text-slate-500 font-mono truncate">{a.account_number || '—'}</span>
-                        <span className="text-[10px] text-slate-600">{a.currency}</span>
-                        <span className={`md:text-right tabular-nums font-semibold ${bal == null ? 'text-slate-600' : bal < 0 ? 'text-rose-300' : 'text-emerald-300'}`}
-                          title={bal == null ? '' : fmtRupiah(bal)}>
-                          {bal == null ? '—' : fmtInt(bal)}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                {accounts.map((a) => {
-                  const on = a.bank_account_id === selected;
-                  const bal = balances.get(a.bank_account_id);
-                  return (
-                    <button key={a.bank_account_id} onClick={() => setSelected(a.bank_account_id)}
-                      className={`text-left bg-slate-900/40 border rounded-2xl p-4 transition-colors ${
-                        on ? 'border-emerald-500/50 bg-emerald-500/[0.06]' : 'border-slate-800/80 hover:border-slate-700'
-                      }`}>
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-sm font-bold text-white truncate">{a.bank_name || 'Bank not set'}</p>
-                          <p className="text-[11px] text-slate-500 truncate">{companyName.get(a.company_id ?? '') || a.account_name || '—'}</p>
-                        </div>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 flex-shrink-0">{a.currency}</span>
                       </div>
-                      <p className="text-[11px] text-slate-600 font-mono mt-1.5 truncate">{a.account_number || 'no account number'}</p>
-                      <p className={`text-xl font-bold tabular-nums mt-2 ${bal == null ? 'text-slate-600' : bal < 0 ? 'text-rose-300' : 'text-emerald-300'}`}
-                        title={bal == null ? '' : fmtRupiah(bal)}>
-                        {bal == null ? '—' : fmtRupiahShort(bal)}
-                      </p>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+                    </div>
+
+                    {compact ? (
+                      <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
+                        <div className="hidden md:grid grid-cols-[minmax(0,1fr)_220px_60px_140px] gap-3 px-3 py-1.5 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+                          <span>Bank</span><span>Account no.</span><span>Ccy</span><span className="text-right">Balance</span>
+                        </div>
+                        <div className="divide-y divide-slate-800/60">
+                          {g.list.map((a) => {
+                            const on = a.bank_account_id === selected;
+                            const bal = balances.get(a.bank_account_id);
+                            return (
+                              <button key={a.bank_account_id} onClick={() => setSelected(a.bank_account_id)}
+                                className={`w-full text-left grid grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_220px_60px_140px] gap-x-3 px-3 py-2 md:py-1.5 items-center transition-colors ${
+                                  on ? 'bg-emerald-500/[0.08]' : 'hover:bg-slate-800/40'
+                                }`}>
+                                <span className={`text-sm truncate ${on ? 'text-emerald-200 font-semibold' : 'text-slate-100 font-medium'}`}>
+                                  {a.bank_name || 'Bank not set'}
+                                  {a.is_default_payment && <span className="ml-1.5 text-[9px] font-bold text-sky-400" title="Default account for supplier payments">PAY</span>}
+                                  {a.is_default_receipt && <span className="ml-1.5 text-[9px] font-bold text-emerald-400" title="Default account for customer receipts">RCV</span>}
+                                </span>
+                                <span className={`md:hidden text-right tabular-nums text-sm font-semibold ${bal == null ? 'text-slate-600' : bal < 0 ? 'text-rose-300' : 'text-emerald-300'}`}>
+                                  {bal == null ? '—' : fmtInt(bal)}
+                                </span>
+                                <span className="text-xs text-slate-300 font-mono tracking-tight truncate">{a.account_number || '—'}</span>
+                                <span className="hidden md:block text-[10px] text-slate-600">{a.currency}</span>
+                                <span className={`hidden md:block text-right tabular-nums font-semibold ${bal == null ? 'text-slate-600' : bal < 0 ? 'text-rose-300' : 'text-emerald-300'}`}
+                                  title={bal == null ? '' : fmtRupiah(bal)}>
+                                  {bal == null ? '—' : fmtInt(bal)}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                        {g.list.map((a) => {
+                          const on = a.bank_account_id === selected;
+                          const bal = balances.get(a.bank_account_id);
+                          return (
+                            <button key={a.bank_account_id} onClick={() => setSelected(a.bank_account_id)}
+                              className={`text-left bg-slate-900/40 border rounded-2xl p-4 transition-colors ${
+                                on ? 'border-emerald-500/50 bg-emerald-500/[0.06]' : 'border-slate-800/80 hover:border-slate-700'
+                              }`}>
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <p className="text-sm font-bold text-white truncate">
+                                    {a.bank_name || 'Bank not set'}
+                                    {a.is_default_payment && <span className="ml-1.5 text-[9px] font-bold text-sky-400" title="Default account for supplier payments">PAY</span>}
+                                    {a.is_default_receipt && <span className="ml-1.5 text-[9px] font-bold text-emerald-400" title="Default account for customer receipts">RCV</span>}
+                                  </p>
+                                  <p className="text-xs text-slate-300 font-mono tracking-tight mt-0.5 truncate">{a.account_number || 'no account number'}</p>
+                                </div>
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 flex-shrink-0">{a.currency}</span>
+                              </div>
+                              <p className={`text-xl font-bold tabular-nums mt-2.5 ${bal == null ? 'text-slate-600' : bal < 0 ? 'text-rose-300' : 'text-emerald-300'}`}
+                                title={bal == null ? '' : fmtRupiah(bal)}>
+                                {bal == null ? '—' : fmtRupiahShort(bal)}
+                              </p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
 
             {/* Statement */}
             {account && (
               <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
                 <div className="px-4 py-3 border-b border-slate-800/80 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
+                  {/* Whose account this is comes first — the same order the list reads in */}
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-white truncate">
-                      {account.bank_name || 'Bank not set'}
-                      <span className="text-slate-500 font-normal"> · {account.account_number || 'no account number'}</span>
-                    </p>
-                    <p className="text-[11px] text-slate-500">
-                      {companyName.get(account.company_id ?? '') || '—'}
-                      {account.opening_date ? ` · opened ${fmtDay(account.opening_date)}` : ''}
+                    <p className="text-sm font-bold text-white truncate">{companyName.get(account.company_id ?? '') || 'No company assigned'}</p>
+                    <p className="text-xs text-slate-300 truncate mt-0.5">
+                      <span className="font-semibold">{account.bank_name || 'Bank not set'}</span>
+                      <span className="font-mono tracking-tight"> · {account.account_number || 'no account number'}</span>
+                      {account.opening_date && <span className="text-slate-600"> · opened {fmtDay(account.opening_date)}</span>}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
