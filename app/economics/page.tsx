@@ -25,6 +25,16 @@ import BrandMenu from '@/components/ui/BrandMenu';
 import { formatCategory as humanize } from '@/lib/formatCategory';
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
+import PositionPanel from '@/components/economics/PositionPanel';
+
+/**
+ * Two questions, two tabs. "Profitability" measures the FLOW — what shipped in
+ * a period and what it earned. "Position" measures the STOCK — what is still
+ * held and what it must still fetch to be whole. The first is period-based by
+ * nature; the second is all-time by nature, which is why they cannot share a
+ * period filter and therefore should not share a screen.
+ */
+type Tab = 'flow' | 'position';
 
 interface Comp {
   component_id: string; supplier_model: string; internal_description: string | null;
@@ -90,6 +100,7 @@ export default function EconomicsPage() {
   const [poPayments, setPoPayments] = useState<{ po_id: string; amount_idr: number; payment_date: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [tab, setTab] = useState<Tab>('flow');
   const [period, setPeriod] = useState<Period>(economicsPeriod);
   const [chip, setChip] = useState<Chip>('all');
   const [search, setSearch] = useState('');
@@ -374,7 +385,8 @@ export default function EconomicsPage() {
         <div className="max-w-[1600px] 2xl:max-w-[2120px] mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4">
           <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Economics · Item profitability & cash cycle" />
           <div className="flex items-center gap-1.5">
-            {(['90', '365', 'all'] as Period[]).map((p) => (
+            {/* Period only means something for the flow tab — a position is all-time */}
+            {tab === 'flow' && (['90', '365', 'all'] as Period[]).map((p) => (
               <button key={p} onClick={() => setPeriod(p)}
                 className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${period === p ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 font-bold' : 'border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800'}`}>
                 {p === 'all' ? 'All time' : `${p}d`}
@@ -392,7 +404,19 @@ export default function EconomicsPage() {
       </div>
 
       <main className="max-w-[1600px] 2xl:max-w-[2120px] mx-auto px-3 sm:px-4 md:px-6 py-6 space-y-5">
-        {loading ? (
+        <div className="flex items-center gap-1 border-b border-slate-800/80 -mt-1">
+          {([['flow', 'Profitability'], ['position', 'Position']] as [Tab, string][]).map(([k, label]) => (
+            <button key={k} onClick={() => setTab(k)}
+              className={`text-xs font-semibold px-3.5 py-2.5 border-b-2 -mb-px transition-colors ${tab === k ? 'border-emerald-400 text-emerald-300' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>
+              {label}
+            </button>
+          ))}
+          <span className="ml-auto text-[10px] text-slate-600 hidden sm:block pb-2">
+            {tab === 'flow' ? 'what shipped, and what it earned' : 'what is still held, and what it must still fetch'}
+          </span>
+        </div>
+
+        {tab === 'position' ? <PositionPanel /> : loading ? (
           <div className="space-y-2">{[...Array(4)].map((_, i) => <div key={i} className="h-28 bg-slate-800/40 rounded-2xl animate-pulse" />)}</div>
         ) : (
           <>

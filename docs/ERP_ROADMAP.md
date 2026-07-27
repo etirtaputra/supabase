@@ -294,6 +294,28 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   Two new settings under Defaults › Sell side drive the thresholds:
   **`arOverdueDays`** (30) and **`quoteFollowUpDays`** (7).
 
+- **Trade History Analysis / Position (2026-07-27)**: `/economics` gained a
+  **Position** tab — the trader's view of a stock item, inspired by how an
+  exchange shows an open position after partial sells.
+  `Position Cost = Σ purchases − Σ invoiced` (all time), `Avg Position Cost =
+  Position Cost ÷ Position Qty`. Equivalently `WAP − (realized GP ÷ remaining
+  qty)`: every rupiah already banked lowers the break-even on what is left.
+  This is a **recovery threshold, never a cost** — `30.1.avg_cost_idr` remains
+  the only inventory valuation, and the screen says so on its face.
+  Locked bases, each of which silently biases the number otherwise:
+  **received** basis (so Position Qty reconciles to the warehouse; goods on the
+  water are reported separately as in-transit); purchase value from the
+  movement ledger's `unit_cost_idr`, which is already LANDED with creditable
+  PPN Masukan / PPh 22 excluded; sales value from `25.1.line_total`, NET of
+  PPN; **all time, always** — a date range would count sales of units bought
+  before the window. Negative Position Cost is not blanked, it is badged
+  **Recovered / free carry** with the surplus already banked, because that is
+  the best news on the page. Added beyond the original spec: a mark-to-market
+  block — `Position Value − Position Cost`, which is identically the whole
+  realized + unrealized P&L of the item, since realized profit already sits
+  inside Position Cost. `lib/tradePosition.ts` +
+  `components/economics/PositionPanel.tsx`.
+
 **Next up (in order):**
 0. Dashboard slice 2: a position strip above the queue — Cash / Owed to us /
    We owe / CCC — then month-in-motion comparisons and an AI next-best-step card.
