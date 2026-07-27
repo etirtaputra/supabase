@@ -76,6 +76,36 @@ export function readFileText(file: File): Promise<string> {
   });
 }
 
+/**
+ * Forgiving date parse → 'YYYY-MM-DD' | null.
+ * Accepts ISO, Dolibarr timestamps, and the dd/mm/yyyy that Excel writes for a
+ * machine set to Indonesian locale. Day-first is assumed when ambiguous,
+ * because every system this imports from is day-first.
+ */
+export function csvDate(v: string | undefined): string | null {
+  const s = (v ?? '').trim();
+  if (!s) return null;
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const dmy = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})/);
+  if (dmy) {
+    let [, d, m, y] = dmy;
+    if (y.length === 2) y = `20${y}`;
+    // A first field over 12 can only be a day; otherwise day-first by convention
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+  const t = Date.parse(s);
+  return isNaN(t) ? null : new Date(t).toISOString().slice(0, 10);
+}
+
+/** "yes" / "1" / "true" / "y" / "aktif" → true; blank → fallback. */
+export function csvBool(v: string | undefined, fallback = false): boolean {
+  const s = (v ?? '').trim().toLowerCase();
+  if (!s) return fallback;
+  if (/^(no|false|0|n|tidak|inactive|nonaktif)$/.test(s)) return false;
+  return /^(yes|true|1|y|ya|active|aktif)$/.test(s) ? true : fallback;
+}
+
 /** Forgiving number parse: "1.234.567", "1,234,567", "Rp 500", "" → number|null. */
 export function csvNum(v: string | undefined): number | null {
   if (!v) return null;

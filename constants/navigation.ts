@@ -132,6 +132,9 @@ export const DESTINATIONS: Destination[] = [
   { href: '/settings?tab=users', label: 'Settings · Users', group: 'Admin', section: null, cap: 'canManageUsers', inNav: false,
     hint: 'Roles and the sign-up allowlist',
     keywords: 'users roles permissions access allowlist invite' },
+  { href: '/data', label: 'Import & Export', group: 'Admin', section: null, cap: 'canExportCsv', inNav: true,
+    hint: 'Bulk CSV in and out — customers, orders, invoices, receipts',
+    keywords: 'import export csv migration dolibarr bulk upload download backup transfer migrate' },
 ];
 
 /** The destinations this role can actually open. */

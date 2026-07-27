@@ -316,6 +316,34 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   inside Position Cost. `lib/tradePosition.ts` +
   `components/economics/PositionPanel.tsx`.
 
+- **Import & Export / Dolibarr cutover (2026-07-27)**: `/data` — bulk CSV in and
+  out for the six entities that carry the commercial record, in dependency
+  order: **customers → contacts → orders → order_lines → invoices → receipts**.
+  The design rule is that an EXPORT of an entity is a valid IMPORT of the same
+  entity: one field list (`lib/dataPorting.ts`) generates the templates, the
+  header auto-mapping and the export columns, so they cannot drift, and you can
+  export → fix in Excel → re-import.
+  **Idempotent**: every row carries `external_ref` + `external_source`, and a
+  partial unique index on the pair turns a re-import into an UPDATE. Rows
+  created inside ICAPROC leave both NULL and are never touched.
+  **Rehearsable**: import is choose → check → commit. The dry run reports, per
+  row, what will be created / updated / skipped and why, separating fatal rows
+  from warnings; nothing is written until it passes. Rows commit individually,
+  so 2 bad rows cannot cost you the other 998. `40.1_import_batches` keeps the
+  audit trail (who, what file, how it landed).
+  Header matching is forgiving and knows the Dolibarr column names
+  (`nom`, `fk_soc`, `total_ht`, `datec`, `rang`…); statuses accept ICAPROC
+  words, synonyms, or Dolibarr numeric codes — an unrecognised status falls to
+  `draft` and says so, never to a committed status that would reserve stock
+  that was never sold. `copy_lines` on an invoice copies the order's lines at
+  their order prices, which is what makes invoiced QUANTITY visible to the
+  Position tab.
+  **Deliberately not done**: importing an order does not write stock movements.
+  The `30.x` ledger already holds the real receipt history and replaying
+  historical deliveries would double-count against it — migrated orders are
+  documents, restoring who bought what, when, at what price.
+  Import is owner-only (`canManageUsers`); export follows `canExportCsv`.
+
 **Next up (in order):**
 0. Dashboard slice 2: a position strip above the queue — Cash / Owed to us /
    We owe / CCC — then month-in-motion comparisons and an AI next-best-step card.
