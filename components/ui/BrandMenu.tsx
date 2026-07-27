@@ -201,7 +201,7 @@ export default function BrandMenu({
   );
 
   return (
-    <div className="relative min-w-0 flex items-center gap-1 lg:gap-3">
+    <div className="relative min-w-0 flex-1 flex items-center gap-1 lg:gap-3">
       <div
         className="relative min-w-0 flex-shrink-0"
         onMouseEnter={() => setOpen(true)}
@@ -314,15 +314,19 @@ export default function BrandMenu({
       </nav>
 
       {/* ── Spotlight, lg and up: a real field, not an icon — visible enough to
-             be found without a hero's worth of vertical space. It sits
-             directly after the nav groups rather than floating to the right,
-             so its position is fixed by the ROLE (whose nav never changes)
-             instead of by whatever buttons a given page happens to have.
-             Shrinks before it ever pushes into those buttons. ── */}
+             be found without a hero's worth of vertical space.
+
+             It sits directly after the nav groups rather than floating right,
+             so its LEFT edge is fixed by the ROLE (whose nav never changes)
+             rather than by whichever buttons a page happens to carry — the
+             anchor stays put while the field itself grows into whatever room
+             the monitor has. Capped, because a 1500px-wide search box on an
+             ultrawide reads as a mistake, and shrinks (label truncating)
+             before it ever pushes into the page's own actions. ── */}
       <button
         onClick={openSpotlight}
         title={`Spotlight — ${modKey} + I`}
-        className="hidden lg:flex items-center gap-2.5 h-9 min-w-0 w-[200px] xl:w-[280px] px-3.5 rounded-full bg-slate-900/70 border border-slate-700/80 hover:border-emerald-500/40 text-slate-500 hover:text-slate-300 transition-colors flex-shrink print:hidden"
+        className="hidden lg:flex items-center gap-2.5 h-9 flex-1 min-w-0 max-w-[420px] xl:max-w-[560px] 2xl:max-w-[680px] px-3.5 rounded-full bg-slate-900/70 border border-slate-700/80 hover:border-emerald-500/40 text-slate-500 hover:text-slate-300 transition-colors print:hidden"
       >
         <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
         <span className="text-[13px] truncate flex-1 text-left">Search anything…</span>
