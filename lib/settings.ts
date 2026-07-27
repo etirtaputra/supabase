@@ -124,6 +124,10 @@ export interface AppSettings {
   slowMoverDays: number;          // /economics: "no movement in N days"
   economicsPeriod: '90' | '365' | 'all';  // /economics period the page opens on
   costDriftPct: number;           // proposals list: flag costs N% off today's
+  /** Dashboard: an issued invoice older than this with money outstanding is chased. */
+  arOverdueDays: number;
+  /** Dashboard: a quotation sent this long ago with no answer needs a nudge. */
+  quoteFollowUpDays: number;
   /**
    * How close a PO's IDR principal must sit to its expected value before the
    * realised FX rate is trusted (a shared or part payment would otherwise
@@ -175,6 +179,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   slowMoverDays:         60,
   economicsPeriod:       '365',
   costDriftPct:          10,
+  arOverdueDays:         30,
+  quoteFollowUpDays:     7,
   fxSettledTolerancePct: 5,
 
   companyName:        '',
@@ -301,6 +307,8 @@ export function coerceSettings(raw: Record<string, unknown>): AppSettings {
     epcCostBufferPct:      pick('epcCostBufferPct',      (v) => numOr(v, d.epcCostBufferPct), d.epcCostBufferPct),
     slowMoverDays:         pick('slowMoverDays',         (v) => Math.max(1, Math.round(numOr(v, d.slowMoverDays))), d.slowMoverDays),
     costDriftPct:          pick('costDriftPct',          (v) => Math.max(0, numOr(v, d.costDriftPct)), d.costDriftPct),
+    arOverdueDays:         pick('arOverdueDays',         (v) => Math.max(1, Math.round(numOr(v, d.arOverdueDays))), d.arOverdueDays),
+    quoteFollowUpDays:     pick('quoteFollowUpDays',     (v) => Math.max(1, Math.round(numOr(v, d.quoteFollowUpDays))), d.quoteFollowUpDays),
 
     companyName:        pick('companyName',        (v) => str(v, d.companyName), d.companyName),
     companyAddress:     pick('companyAddress',     (v) => str(v, d.companyAddress), d.companyAddress),

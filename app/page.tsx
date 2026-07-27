@@ -5,54 +5,39 @@ import { useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useAuth } from '@/hooks/useAuth';
+import { useSettings } from '@/hooks/useSettings';
 import CommandPalette from '@/components/ui/CommandPalette';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
-import { fmtCompact, fmtIdrShort, parseDate } from '@/lib/formatters';
+import { fmtIdrShort, parseDate } from '@/lib/formatters';
 import { getSettings } from '@/lib/settings';
+import { fetchActionQueue, fetchActivity, type ActionItem, type ActivityRow } from '@/lib/dashboard';
 
 // ── Formatting ──────────────────────────────────────────────────────────────
 // Shapes live in lib/formatters (settings-driven); only the day+month stamp is
 // local, because no other screen prints a date without its year.
 const fmtIdr = (n: number) => fmtIdrShort(n);
-const fmtMoney = (n: number, ccy: string) => `${ccy} ${fmtCompact(n)}`;
 
 function fmtDate(d?: string | null) {
   const dt = parseDate(d);
   if (!dt) return '';
   return dt.toLocaleDateString(getSettings().dateLocaleInternal, { day: '2-digit', month: 'short' });
 }
-import { formatCategory as humanize } from '@/lib/formatCategory';
-function today() { return new Date().toISOString().slice(0, 10); }
 function thisMonth() { return new Date().toISOString().slice(0, 7); }
-
-const dealLookupHref = (n: string) => `/catalog?tab=lookup&q=${encodeURIComponent(n)}`;
-
-interface ProjectQuoteLite {
-  quote_id: string; quote_number: string; quote_date: string;
-  customer_name: string; status: string; created_at?: string; updated_at?: string;
-}
-
-// Most-recent-activity key: prefer updated_at, fall back to created/business date
-const recencyKey = (updated?: string | null, created?: string | null, biz?: string | null) =>
-  (updated || created || biz || '') as string;
-
-const PQ_STATUS: Record<string, string> = {
-  draft: 'text-slate-400', sent: 'text-blue-300',
-  accepted: 'text-emerald-300', rejected: 'text-red-400',
-};
 
 export default function Home() {
   const router = useRouter();
   const supabase = createSupabaseClient();
   const { user, profile, loading: authLoading } = useAuth();
   const { data, loading } = useSupabaseData();
+  const { arOverdueDays, quoteFollowUpDays } = useSettings();
   // Module visibility mirrors the nav: a role only sees panels for flows it
   // can access (nothing sensitive renders until the profile has resolved).
   const perms = profile ? ROLE_PERMISSIONS[profile.role] : null;
-  const [projectQuotes, setProjectQuotes] = useState<ProjectQuoteLite[]>([]);
   const [stockValue, setStockValue] = useState<number | null>(null);
+  const [queue, setQueue] = useState<ActionItem[] | null>(null);
+  const [activity, setActivity] = useState<ActivityRow[] | null>(null);
 
   const isMac = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform || '');
   const modKey = isMac ? '⌘' : 'Ctrl';
@@ -64,15 +49,21 @@ export default function Home() {
     if (!authLoading && !user) router.replace('/login?next=/');
   }, [authLoading, user, router]);
 
-  // Project quotes live in the Quotes app tables (not in useSupabaseData).
-  // Only fetched for roles that can open the EPC module (RLS enforces too).
+  // ── What needs a human, and what has moved ────────────────────────────────
+  // Both derive from the owning modules' own tables, so fixing a row on Sales
+  // or Banks clears it here on the next load — no second source of truth.
   useEffect(() => {
-    if (!user || !perms?.projects) return;
-    supabase.from('10.0_project_quotes')
-      .select('quote_id, quote_number, quote_date, customer_name, status, created_at, updated_at')
-      .order('updated_at', { ascending: false })
-      .then(({ data }) => setProjectQuotes((data as ProjectQuoteLite[]) ?? []));
-  }, [user, perms?.projects]);
+    if (!user || !perms) return;
+    let live = true;
+    fetchActionQueue(supabase, perms, { arOverdueDays, quoteFollowUpDays })
+      .then((r) => { if (live) setQueue(r); })
+      .catch(() => { if (live) setQueue([]); });
+    fetchActivity(supabase, perms)
+      .then((r) => { if (live) setActivity(r); })
+      .catch(() => { if (live) setActivity([]); });
+    return () => { live = false; };
+  }, [user, profile?.role, arOverdueDays, quoteFollowUpDays]);
+
   useEffect(() => {
     if (!user || !perms?.buySide) return;
     // Warehouse value = Σ on-hand × moving-avg landed cost (30.1 balances)
@@ -84,22 +75,9 @@ export default function Home() {
       });
   }, [user, perms?.buySide]);
 
-  // ── Lookups ─────────────────────────────────────────────────────────────
-  const supById = useMemo(
-    () => new Map(data.suppliers.map((s) => [s.supplier_id as string, s])),
-    [data.suppliers]);
-  const quoteById = useMemo(
-    () => new Map(data.quotes.map((q) => [String(q.quote_id), q])),
-    [data.quotes]);
   const poById = useMemo(
     () => new Map(data.pos.map((p) => [String(p.po_id), p])),
     [data.pos]);
-
-  const supplierForPo = (po: (typeof data.pos)[number]) => {
-    if (po.supplier_id && supById.has(po.supplier_id)) return supById.get(po.supplier_id);
-    const q = po.quote_id != null ? quoteById.get(String(po.quote_id)) : null;
-    return q?.supplier_id ? supById.get(q.supplier_id) : undefined;
-  };
 
   // ── Per-PO payment status ─────────────────────────────────────────────────
   const poStatus = useMemo(() => {
@@ -115,15 +93,6 @@ export default function Home() {
     }
     return r;
   }, [data.pos, data.poCosts]);
-
-  const poCode = useMemo(() => {
-    const r: Record<string, string> = {};
-    for (const po of data.pos) {
-      const s = supplierForPo(po);
-      if (s?.supplier_code) r[String(po.po_id)] = s.supplier_code as string;
-    }
-    return r;
-  }, [data.pos, supById, quoteById]);
 
   // ── KPI stats ─────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -147,37 +116,7 @@ export default function Home() {
     };
   }, [data, poStatus, poById]);
 
-  // ── Recent feeds ──────────────────────────────────────────────────────────
-  // All feeds order by most-recent activity (updated_at first), newest on top.
-  // localeCompare keeps ties (e.g. missing timestamps) in their incoming order.
-  const byRecency = <T,>(get: (o: T) => string) => (a: T, b: T) => get(b).localeCompare(get(a));
-
-  const recentComponents = useMemo(
-    () => [...data.components]
-      .sort(byRecency((c) => recencyKey(c.updated_at, c.created_at)))
-      .slice(0, 10),
-    [data.components]);
-
-  const recentSupplierQuotes = useMemo(
-    () => [...data.quotes]
-      .sort(byRecency((q) => recencyKey(q.updated_at, q.created_at, q.quote_date)))
-      .slice(0, 10),
-    [data.quotes]);
-
-  const recentPos = useMemo(
-    () => [...data.pos]
-      .sort(byRecency((p) => recencyKey(p.updated_at, p.created_at, p.po_date)))
-      .slice(0, 10),
-    [data.pos]);
-
-  const recentPayments = useMemo(
-    () => data.poCosts
-      .filter((c) => c.payment_date || c.updated_at)
-      .sort(byRecency((c) => recencyKey(c.updated_at, c.created_at, c.payment_date)))
-      .slice(0, 10),
-    [data.poCosts]);
-
-  const recentProjectQuotes = useMemo(() => projectQuotes.slice(0, 10), [projectQuotes]);
+  const atStake = useMemo(() => (queue ?? []).reduce((s, i) => s + i.amount, 0), [queue]);
 
   if (authLoading || !user) {
     return (
@@ -212,6 +151,9 @@ export default function Home() {
           </p>
         </div>
 
+        {/* ── Needs you today ── */}
+        <ActionQueue items={queue} atStake={atStake} />
+
         {/* ── KPI row (buy-side economics — hidden from sell-side-only roles) ── */}
         {perms?.buySide && (
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 xl:gap-5">
@@ -234,101 +176,29 @@ export default function Home() {
         </div>
         )}
 
-        {/* ── Recent feeds ── */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-
-          {/* Recent Components */}
-          {perms?.buySide && (
-          <FeedPanel title="Recent Components" accent="emerald" href="/catalog" loading={loading} empty={recentComponents.length === 0} icon={ICONS.cube}>
-            {recentComponents.map((c) => (
-              <FeedRow key={c.component_id} href={`/insights?tab=lookup&q=${encodeURIComponent(c.supplier_model ?? '')}`} accent="emerald"
-                title={c.supplier_model || '(no model)'}
-                sub={[c.brand, c.category].filter(Boolean).join(' · ') || '—'}
-                right={fmtDate(c.updated_at || c.created_at)} />
-            ))}
-          </FeedPanel>
-          )}
-
-          {/* Recent EPC Proposals — only for roles with EPC access */}
-          {perms?.projects && (
-          <FeedPanel title="Recent EPC Proposals" accent="violet" href="/proposals" loading={loading} empty={recentProjectQuotes.length === 0} icon={ICONS.doc}>
-            {recentProjectQuotes.map((q) => (
-              <FeedRow key={q.quote_id} href={`/proposals/${q.quote_id}`} accent="violet"
-                title={q.quote_number || '(no number)'}
-                sub={<span>{q.customer_name || 'No customer'} · <span className={PQ_STATUS[q.status] ?? 'text-slate-400'}>{(q.status || 'draft').toUpperCase()}</span></span>}
-                right={fmtDate(q.updated_at || q.created_at || q.quote_date)} />
-            ))}
-          </FeedPanel>
-          )}
-
-          {/* Recent Supplier Quotes (PI) */}
-          {perms?.buySide && (
-          <FeedPanel title="Recent Supplier Quotes" accent="blue" href="/catalog?tab=lookup" loading={loading} empty={recentSupplierQuotes.length === 0} icon={ICONS.tag}>
-            {recentSupplierQuotes.map((q) => {
-              const sup = q.supplier_id ? supById.get(q.supplier_id) : undefined;
-              return (
-                <FeedRow key={String(q.quote_id)} href={dealLookupHref((q.pi_number as string) || String(q.quote_id))} accent="blue"
-                  title={(q.pi_number as string) || `Quote #${q.quote_id}`}
-                  sub={[sup?.supplier_name, q.status].filter(Boolean).join(' · ') || '—'}
-                  right={q.total_value ? fmtMoney(Number(q.total_value), q.currency) : fmtDate(q.quote_date)} />
-              );
-            })}
-          </FeedPanel>
-          )}
-
-          {/* Recent POs */}
-          {perms?.buySide && (
-          <FeedPanel title="Recent Purchase Orders" accent="amber" href="/catalog?tab=lookup" loading={loading} empty={recentPos.length === 0} icon={ICONS.clipboard}>
-            {recentPos.map((po) => {
-              const key = String(po.po_id);
-              const { pct, totalIdr } = poStatus[key] ?? { pct: 0, totalIdr: 0 };
-              const code = poCode[key];
-              return (
-                <FeedRow key={key} href={dealLookupHref(po.po_number || po.pi_number || key)} accent="amber"
-                  badge={code}
-                  title={po.pi_number || po.po_number || `PO ${po.po_id}`}
-                  sub={supplierForPo(po)?.supplier_name || po.po_date || '—'}
-                  right={totalIdr > 0
-                    ? <PctBar pct={pct} />
-                    : <span className="text-[10px] text-slate-600">no value</span>} />
-              );
-            })}
-          </FeedPanel>
-          )}
-
-          {/* Recent Payments */}
-          {perms?.buySide && (
-          <FeedPanel title="Recent Payments" accent="rose" href="/catalog?tab=financials" loading={loading} empty={recentPayments.length === 0} icon={ICONS.cash}>
-            {recentPayments.map((c) => {
-              const po = poById.get(String(c.po_id));
-              const isFee = !PRINCIPAL_CATS.has(c.cost_category);
-              return (
-                <FeedRow key={c.cost_id} href={dealLookupHref(po?.po_number || po?.pi_number || String(c.po_id))} accent="rose"
-                  title={fmtMoney(Number(c.amount), c.currency)}
-                  titleClass={isFee ? 'text-slate-300' : 'text-rose-200'}
-                  sub={<span>{humanize(c.cost_category)}{po ? <span className="text-slate-600"> · {po.pi_number || po.po_number}</span> : null}</span>}
-                  right={fmtDate(c.payment_date)} />
-              );
-            })}
-          </FeedPanel>
-          )}
+        {/* ── Activity + quick actions ── */}
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+          <div className="xl:col-span-2"><ActivityStream rows={activity} /></div>
 
           {/* Quick actions (text only, no emoji) */}
           <div className="bg-slate-900/40 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl p-5">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-3">Quick Actions</p>
             <div className="space-y-2">
               {[
+                ...(perms?.sellSide ? [
+                  { href: '/sales/new',  label: 'New Sales Quotation', accent: 'emerald' },
+                  { href: '/customers',  label: 'Customers',           accent: 'emerald' },
+                ] : []),
                 ...(perms?.buySide ? [
                   { href: '/catalog?tab=quoting',    label: 'Enter Supplier Quote / PI', accent: 'blue' },
                   { href: '/catalog?tab=ordering',   label: 'Create Purchase Order',      accent: 'amber' },
                   { href: '/catalog?tab=financials', label: 'Log Payment',                accent: 'rose' },
                 ] : []),
-                ...(perms?.sellSide ? [
-                  { href: '/sales/new',  label: 'New Sales Quotation', accent: 'emerald' },
-                  { href: '/customers',  label: 'Customers',           accent: 'emerald' },
-                ] : []),
                 ...(perms?.projects ? [
                   { href: '/proposals',              label: 'New EPC Proposal',          accent: 'violet' },
+                ] : []),
+                ...(perms?.canViewBanks ? [
+                  { href: '/banks',                  label: 'Bank Accounts',             accent: 'amber' },
                 ] : []),
               ].map(({ href, label, accent }) => (
                 <Link key={href} href={href}
@@ -351,89 +221,100 @@ const DOT: Record<string, string> = {
   emerald: 'bg-emerald-400', violet: 'bg-violet-400', blue: 'bg-blue-400',
   amber: 'bg-amber-400', rose: 'bg-rose-400',
 };
-const ACCENT_TEXT: Record<string, string> = {
-  emerald: 'text-emerald-300', violet: 'text-violet-300', blue: 'text-blue-300',
-  amber: 'text-amber-300', rose: 'text-rose-300',
+
+// Domain colours follow the app: buy = sky, sell = emerald, EPC = violet.
+// Cash is amber — it is neither side, it is the thing both sides move.
+const DOMAIN_DOT: Record<string, string> = {
+  sell: 'bg-emerald-400', buy: 'bg-sky-400', cash: 'bg-amber-400', epc: 'bg-violet-400',
 };
-const ACCENT_TILE: Record<string, string> = {
-  emerald: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20',
-  violet: 'bg-violet-500/10 text-violet-300 border-violet-500/20',
-  blue: 'bg-blue-500/10 text-blue-300 border-blue-500/20',
-  amber: 'bg-amber-500/10 text-amber-300 border-amber-500/20',
-  rose: 'bg-rose-500/10 text-rose-300 border-rose-500/20',
+const DOMAIN_TEXT: Record<string, string> = {
+  sell: 'text-emerald-300', buy: 'text-sky-300', cash: 'text-amber-300', epc: 'text-violet-300',
 };
 
-// ── Inline icons (no emoji) ─────────────────────────────────────────────────
-const ICONS = {
-  cube: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4',
-  doc: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
-  tag: 'M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.99 1.99 0 013 12V7a4 4 0 014-4z',
-  clipboard: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2',
-  cash: 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z',
-};
-
-// ── Feed panel ────────────────────────────────────────────────────────────────
-function FeedPanel({
-  title, accent, href, icon, loading, empty, children,
-}: {
-  title: string; accent: string; href: string; icon: string;
-  loading: boolean; empty: boolean; children: React.ReactNode;
-}) {
+/**
+ * The queue is the point of the dashboard: what is stuck, what it is worth,
+ * and one tap to the screen that unsticks it. Ranked by money, not recency.
+ */
+function ActionQueue({ items, atStake }: { items: ActionItem[] | null; atStake: number }) {
   return (
-    <div className="bg-slate-900/40 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl p-5 flex flex-col">
-      <div className="flex items-center gap-2.5 mb-3">
-        <span className={`w-7 h-7 rounded-lg border flex items-center justify-center flex-shrink-0 ${ACCENT_TILE[accent]}`}>
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d={icon} /></svg>
-        </span>
-        <h2 className="text-sm font-bold text-white flex-1">{title}</h2>
-        <Link href={href} className={`text-[11px] ${ACCENT_TEXT[accent]} opacity-50 hover:opacity-100 transition-opacity`}>
-          View all →
-        </Link>
+    <div className="bg-slate-900/60 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl overflow-hidden">
+      <div className="flex items-center gap-3 px-4 sm:px-5 py-3.5 border-b border-slate-800/70">
+        <h2 className="text-sm font-bold text-white">Needs you today</h2>
+        {items && items.length > 0 && (
+          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+            {items.length} item{items.length !== 1 ? 's' : ''}
+          </span>
+        )}
+        {atStake > 0 && (
+          <span className="ml-auto text-right">
+            <span className="block text-[10px] uppercase tracking-widest text-slate-500 leading-none">At stake</span>
+            <span className="block text-sm font-extrabold tabular-nums text-amber-300 mt-1 leading-none">{fmtIdr(atStake)}</span>
+          </span>
+        )}
       </div>
-      {loading ? (
-        <div className="space-y-1.5">{[...Array(6)].map((_, i) => <div key={i} className="h-11 bg-slate-800/40 rounded-xl animate-pulse" />)}</div>
-      ) : empty ? (
-        <p className="text-slate-600 text-xs italic py-6 text-center">Nothing recent.</p>
+
+      {items === null ? (
+        <div className="p-4 sm:p-5 space-y-2">
+          {[...Array(3)].map((_, i) => <div key={i} className="h-14 bg-slate-800/40 rounded-xl animate-pulse" />)}
+        </div>
+      ) : items.length === 0 ? (
+        <p className="px-5 py-8 text-center text-xs text-slate-500">
+          Nothing is blocked — every confirmed order can ship, and no invoice or quotation is waiting on a chase.
+        </p>
       ) : (
-        <div className="space-y-1 max-h-[22rem] overflow-y-auto -mr-1 pr-1">{children}</div>
+        <div className="divide-y divide-slate-800/50">
+          {items.map((it) => (
+            <Link key={it.key} href={it.href}
+              className="flex items-center gap-3 px-4 sm:px-5 py-3 hover:bg-slate-800/40 transition-colors group">
+              <span className={`rounded-full flex-shrink-0 ${DOMAIN_DOT[it.domain]} ${it.tone === 'urgent' ? 'w-2 h-2' : 'w-1.5 h-1.5 opacity-60'}`} />
+              <div className="min-w-0 flex-1">
+                <p className={`text-[13px] font-semibold truncate ${it.tone === 'urgent' ? 'text-white' : 'text-slate-200'}`}>{it.title}</p>
+                <p className="text-[11px] text-slate-500 truncate mt-0.5">{it.detail}</p>
+              </div>
+              {it.amount > 0 && (
+                <span className={`flex-shrink-0 text-sm font-extrabold tabular-nums ${it.tone === 'urgent' ? 'text-amber-300' : DOMAIN_TEXT[it.domain]}`}>
+                  {fmtIdr(it.amount)}
+                </span>
+              )}
+              <span className="flex-shrink-0 text-slate-700 group-hover:text-slate-400 transition-colors">→</span>
+            </Link>
+          ))}
+        </div>
       )}
     </div>
   );
 }
 
-// ── Feed row ──────────────────────────────────────────────────────────────────
-function FeedRow({
-  href, accent, title, titleClass, sub, right, badge,
-}: {
-  href: string; accent: string; title: string; titleClass?: string;
-  sub: React.ReactNode; right: React.ReactNode; badge?: string;
-}) {
+/**
+ * One stream instead of five parallel feeds — a sales document no longer hides
+ * behind a wall of purchase orders, and the space that bought pays for the
+ * queue above.
+ */
+function ActivityStream({ rows }: { rows: ActivityRow[] | null }) {
   return (
-    <Link href={href} target="_blank" rel="noopener noreferrer"
-      className="flex items-center gap-3 px-3 py-2 rounded-xl bg-slate-800/20 hover:bg-slate-800/50 transition-colors group">
-      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${DOT[accent]}`} />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          {badge && (
-            <span className={`inline-block px-1.5 py-0.5 border text-[10px] font-bold rounded leading-none flex-shrink-0 ${ACCENT_TILE[accent]}`}>{badge}</span>
-          )}
-          <span className={`text-xs font-semibold truncate ${titleClass || 'text-slate-100'} group-hover:text-white transition-colors`}>{title}</span>
+    <div className="bg-slate-900/40 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl p-5 h-full">
+      <div className="flex items-center gap-2.5 mb-3">
+        <h2 className="text-sm font-bold text-white flex-1">Latest activity</h2>
+        <span className="text-[10px] uppercase tracking-widest text-slate-600">across every module</span>
+      </div>
+      {rows === null ? (
+        <div className="space-y-1.5">{[...Array(8)].map((_, i) => <div key={i} className="h-10 bg-slate-800/40 rounded-xl animate-pulse" />)}</div>
+      ) : rows.length === 0 ? (
+        <p className="text-slate-600 text-xs italic py-8 text-center">Nothing recent.</p>
+      ) : (
+        <div className="space-y-1">
+          {rows.map((r) => (
+            <Link key={r.key} href={r.href}
+              className="flex items-center gap-3 px-3 py-2 rounded-xl bg-slate-800/20 hover:bg-slate-800/50 transition-colors group">
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${DOMAIN_DOT[r.domain]}`} />
+              <span className={`flex-shrink-0 w-[4.5rem] text-[10px] font-bold uppercase tracking-wider ${DOMAIN_TEXT[r.domain]}`}>{r.kind}</span>
+              <span className="text-xs font-semibold text-slate-100 group-hover:text-white transition-colors truncate">{r.title}</span>
+              <span className="text-[11px] text-slate-500 truncate hidden sm:block">{r.sub}</span>
+              <span className="ml-auto flex-shrink-0 text-[10px] text-slate-500 tabular-nums">{fmtDate(r.at)}</span>
+            </Link>
+          ))}
         </div>
-        <p className="text-[11px] text-slate-500 truncate mt-0.5">{sub}</p>
-      </div>
-      <div className="flex-shrink-0 text-[10px] text-slate-500 tabular-nums text-right">{right}</div>
-    </Link>
-  );
-}
-
-// ── Payment progress bar ──────────────────────────────────────────────────────
-function PctBar({ pct }: { pct: number }) {
-  return (
-    <div className="flex items-center gap-1.5">
-      <div className="w-14 h-1.5 bg-slate-700 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full ${pct >= 100 ? 'bg-emerald-500' : pct > 0 ? 'bg-amber-400' : 'bg-slate-600'}`} style={{ width: `${pct}%` }} />
-      </div>
-      <span className={`text-[10px] font-semibold w-8 text-right ${pct >= 100 ? 'text-emerald-400' : pct > 0 ? 'text-amber-300' : 'text-slate-600'}`}>{pct.toFixed(0)}%</span>
+      )}
     </div>
   );
 }

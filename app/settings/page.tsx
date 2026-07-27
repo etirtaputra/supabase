@@ -600,6 +600,14 @@ function DefaultsTab({ draft, set, flash }: {
           <textarea rows={4} className={`${inputCls} resize-y leading-relaxed`} value={draft.defaultSalesTerms}
             onChange={(e) => set('defaultSalesTerms', e.target.value)} />
         </Field>
+        <Field label="Invoice overdue after (days)" hint="The dashboard chases an issued invoice this old that still has money outstanding.">
+          <input type="number" min={1} className={inputCls} value={draft.arOverdueDays}
+            onChange={(e) => set('arOverdueDays', Math.max(1, Math.round(Number(e.target.value) || 1)))} />
+        </Field>
+        <Field label="Follow up a quotation after (days)" hint="A quotation sent this long ago with no answer shows up on the dashboard.">
+          <input type="number" min={1} className={inputCls} value={draft.quoteFollowUpDays}
+            onChange={(e) => set('quoteFollowUpDays', Math.max(1, Math.round(Number(e.target.value) || 1)))} />
+        </Field>
         <Field label="Slow-mover threshold (days)" hint="Economics flags stock with no movement for this long.">
           <input type="number" min={1} className={inputCls} value={draft.slowMoverDays}
             onChange={(e) => set('slowMoverDays', Math.max(1, Math.round(Number(e.target.value) || 1)))} />

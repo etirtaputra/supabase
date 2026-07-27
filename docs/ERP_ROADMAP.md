@@ -274,7 +274,29 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   (committed sale lines by order date). `lib/dateRange.ts` gained `mtd` and
   `ytd` presets.
 
+- **Dashboard: action queue + one activity stream (2026-07-27)**: the dashboard
+  used to answer "what happened?" five times over — five parallel *Recent X*
+  feeds, all buy-side, none of which said what to do. It now opens with
+  **Needs you today**, ranked by MONEY AT STAKE rather than recency, because a
+  five-day-old Rp 300M blockage matters more than this morning's Rp 2M one.
+  `lib/dashboard.ts` derives five signals, each from the owning module's own
+  tables so a fix made there clears the row on the next load: confirmed orders
+  that cannot ship (committed demand less delivered DO quantities against
+  `30.1_stock_balances` — the same rule as /stock Shortages), invoices past the
+  overdue threshold with an outstanding balance, quotations sent with no answer,
+  received-but-unpaid POs (`PRINCIPAL_CATS`, rounding dust ignored), and bank
+  movements nobody tagged to an account. Each block is independent — one failing
+  costs its own row, not the queue. Signals only appear for what the role can
+  act on (`sellSide` / `buySide` / `canViewBanks`).
+  The five feeds collapsed into **one recency-sorted activity stream** across
+  sell, buy and EPC, so a sales document no longer hides behind a wall of
+  purchase orders — and the space that freed is what pays for the queue.
+  Two new settings under Defaults › Sell side drive the thresholds:
+  **`arOverdueDays`** (30) and **`quoteFollowUpDays`** (7).
+
 **Next up (in order):**
+0. Dashboard slice 2: a position strip above the queue — Cash / Owed to us /
+   We owe / CCC — then month-in-motion comparisons and an AI next-best-step card.
 1. Bank follow-ons: tag the historical payments/receipts through the
    "untagged movements" panel on /banks so every statement is complete; then
    consider a cash-position tile on the dashboard and bank-account filtering
