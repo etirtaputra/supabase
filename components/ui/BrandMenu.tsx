@@ -6,6 +6,8 @@ import { createPortal } from 'react-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS, type RolePermissions } from '@/constants/roles';
 import { DESTINATIONS, NAV_GROUP_ORDER } from '@/constants/navigation';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
+import CommandPalette from './CommandPalette';
 
 /**
  * ICAPROC navigation, ERP-style:
@@ -97,12 +99,15 @@ export default function BrandMenu({
    * without it — the old bottom-right pill had to be remembered per page and
    * was hidden on phones entirely.
    *
-   * The trigger only fires an event; the palette itself is mounted once by
-   * GlobalSpotlight in the root layout. No second ⌘I handler, no second index,
-   * no coupling between the nav and the search.
+   * On a wide screen the bar IS the search — results drop straight out of it,
+   * so the field you clicked is the field you type into. On a phone the
+   * magnifier fires `icaproc:spotlight` and the full overlay (mounted by
+   * GlobalSpotlight) takes over, which is the better interaction there.
+   * `useIsDesktop` decides which of the two owns ⌘I, so the shortcut can never
+   * focus a hidden field and open an overlay at the same time.
    */
+  const isDesktop = useIsDesktop();
   const openSpotlight = () => window.dispatchEvent(new Event('icaproc:spotlight'));
-  const modKey = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform || '') ? '⌘' : 'Ctrl';
 
   // Show only the flows this role can access (Dashboard always). While the
   // profile loads, show everything to avoid a nav flash.
@@ -233,7 +238,7 @@ export default function BrandMenu({
           <button
             onClick={openSpotlight}
             aria-label="Search"
-            title={`Spotlight — ${modKey} + I`}
+            title="Search"
             className="lg:hidden ml-0.5 p-1.5 -m-0.5 text-slate-500 hover:text-emerald-300 transition-colors flex-shrink-0 print:hidden"
           >
             <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
@@ -313,25 +318,17 @@ export default function BrandMenu({
         })}
       </nav>
 
-      {/* ── Spotlight, lg and up: a real field, not an icon — visible enough to
-             be found without a hero's worth of vertical space.
+      {/* ── Spotlight, lg and up: the real field, not a button that opens one.
 
              It sits directly after the nav groups rather than floating right,
              so its LEFT edge is fixed by the ROLE (whose nav never changes)
              rather than by whichever buttons a page happens to carry — the
-             anchor stays put while the field itself grows into whatever room
-             the monitor has. Capped, because a 1500px-wide search box on an
-             ultrawide reads as a mistake, and shrinks (label truncating)
-             before it ever pushes into the page's own actions. ── */}
-      <button
-        onClick={openSpotlight}
-        title={`Spotlight — ${modKey} + I`}
-        className="hidden lg:flex items-center gap-2.5 h-9 flex-1 min-w-0 max-w-[420px] xl:max-w-[560px] 2xl:max-w-[680px] px-3.5 rounded-full bg-slate-900/70 border border-slate-700/80 hover:border-emerald-500/40 text-slate-500 hover:text-slate-300 transition-colors print:hidden"
-      >
-        <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
-        <span className="text-[13px] truncate flex-1 text-left">Search anything…</span>
-        <kbd className="text-[10px] font-mono border border-slate-700 rounded px-1.5 py-0.5 leading-none flex-shrink-0">{modKey} I</kbd>
-      </button>
+             anchor stays put while the field grows into whatever room the
+             monitor has. Capped, because a 1500px search box on an ultrawide
+             reads as a mistake. ── */}
+      <div className="hidden lg:block flex-1 min-w-0 max-w-[420px] xl:max-w-[560px] 2xl:max-w-[680px] print:hidden">
+        <CommandPalette variant="inline" hotkey={isDesktop} />
+      </div>
 
       {/* ── Mobile: fixed bottom tab bar (thumb reach) + More sheet.
              Portaled to <body>: page headers use backdrop-blur, which WebKit

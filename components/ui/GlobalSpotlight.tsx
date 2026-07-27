@@ -1,25 +1,29 @@
 'use client';
 import { usePathname } from 'next/navigation';
 import CommandPalette from './CommandPalette';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 
 /**
- * App-wide Spotlight mount (root layout): ⌘/Ctrl+I and the nav-bar search
- * trigger work on every module page. CommandPalette itself scopes the index to
- * the signed-in role and renders nothing while logged out — and nothing at all
- * when closed, since the affordance now lives in BrandMenu.
+ * The PHONE presentation of Spotlight (root layout): a full overlay, opened by
+ * the magnifier in the nav bar. On wide screens the nav bar renders the inline
+ * field instead and owns ⌘I, so this instance stands down — `hotkey` is what
+ * hands the shortcut to exactly one of them.
  *
- * Mounted on every signed-in page, the dashboard included — the dashboard's
- * inline hero is gone, so there is exactly one palette and one ⌘I handler.
+ * It still mounts on desktop (harmless: it renders nothing while closed and
+ * never opens) so that resizing a window across the breakpoint doesn't need to
+ * remount anything.
+ *
  * Skipped on: login/unauthorized, and the customer-facing print surfaces
  * (quote/invoice/Surat Jalan).
  */
 export default function GlobalSpotlight() {
   const pathname = usePathname();
+  const isDesktop = useIsDesktop();
   if (
     pathname === '/login' ||
     pathname === '/unauthorized' ||
     pathname.endsWith('/print') ||
     pathname.endsWith('/do')
   ) return null;
-  return <CommandPalette />;
+  return <CommandPalette hotkey={!isDesktop} />;
 }

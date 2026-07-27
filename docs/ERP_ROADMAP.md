@@ -349,7 +349,16 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   desktop elsewhere, and **nothing at all on phones** (the pill was
   `hidden md:flex`). It now lives in `BrandMenu`, which every page already
   renders, so a new screen cannot ship without it: an icon beside the caret
-  below `lg`, a real `Search anything…` field with the `⌘I` badge above it.
+  below `lg`, and above it the REAL search field — the inline variant, whose
+  results drop straight out of the bar. Clicking a search box and being handed
+  a different search box in the middle of the screen is a small betrayal, and
+  it happens on every single search, so the field you click is the field you
+  type into. The centred overlay survives only as the PHONE presentation,
+  where a header field would be far too cramped; `hooks/useIsDesktop.ts` hands
+  ⌘I to exactly one of the two so the shortcut can never focus a hidden field
+  and open an overlay at the same time.
+  The field grows with the viewport (capped 420 / 560 / 680px at lg / xl /
+  2xl) while its LEFT edge stays anchored, so the target never moves.
   Placed directly after the nav groups rather than floated right, so its
   position is fixed by the ROLE (whose nav never changes) instead of by
   whichever buttons a page happens to carry. The trigger only fires

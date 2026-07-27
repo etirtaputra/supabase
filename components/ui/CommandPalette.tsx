@@ -10,17 +10,18 @@ import { SALES_STATUS } from '@/lib/salesStatus';
 /**
  * Global Spotlight search — two presentations of one search index:
  *
- *  • variant="modal"  (default): a Ctrl/Cmd+I overlay, mounted app-wide via
- *    GlobalSpotlight. It renders NOTHING when closed — the affordance that
- *    opens it lives in the nav bar (BrandMenu), so it is in the same place on
- *    every page and cannot be forgotten by a new screen.
- *  • variant="inline": an always-visible search bar that drops its results
- *    directly below it. Not mounted anywhere today — the dashboard hero it was
- *    built for was retired in favour of the one nav-bar trigger — but kept
- *    because it is the right shape for any screen whose whole job IS search.
+ *  • variant="modal"  (default): a full overlay, mounted app-wide via
+ *    GlobalSpotlight and used on PHONES, where a header field would be far
+ *    too cramped and a full-screen sheet is the better interaction. Renders
+ *    nothing when closed; the nav-bar magnifier opens it.
+ *  • variant="inline": the bar itself IS the search — results drop directly
+ *    beneath it. This is what the nav bar renders on wide screens, so the
+ *    field you click is the field you type into. Clicking a search box and
+ *    being handed a different search box in the middle of the screen is a
+ *    small betrayal, and it happens on every single search.
  *
- * Both listen for the `icaproc:spotlight` event, so one trigger works whether
- * the page carries the modal or the inline bar.
+ * Both listen for the `icaproc:spotlight` event, but only the one whose
+ * `hotkey` is true — see the prop.
  *
  * The index is ROLE-SCOPED — each side of the ERP only ever fetches what its
  * roles may see:
@@ -136,9 +137,18 @@ interface Props {
   variant?: 'modal' | 'inline';
   /** false renders nothing */
   enabled?: boolean;
+  /**
+   * Whether THIS instance answers ⌘I and the `icaproc:spotlight` event.
+   *
+   * Two instances are mounted at once — the inline bar in the nav (visible on
+   * wide screens) and the overlay (used on phones) — so exactly one of them
+   * must own the shortcut, or ⌘I would focus a hidden field and open an
+   * overlay at the same time. The breakpoint decides which.
+   */
+  hotkey?: boolean;
 }
 
-export default function CommandPalette({ variant = 'modal', enabled = true }: Props) {
+export default function CommandPalette({ variant = 'modal', enabled = true, hotkey = true }: Props) {
   const supabase = createSupabaseClient();
   const inline = variant === 'inline';
   const { profile } = useAuth();
@@ -163,7 +173,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true }: Pr
 
   // Ctrl/Cmd+I anywhere; a custom event lets any affordance open/focus it
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !hotkey) return;
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'i') {
         e.preventDefault();
@@ -182,7 +192,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true }: Pr
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('icaproc:spotlight', onOpen);
     };
-  }, [enabled, inline]);
+  }, [enabled, hotkey, inline]);
 
   // Reset + focus each time the modal opens
   useEffect(() => {
@@ -785,15 +795,17 @@ export default function CommandPalette({ variant = 'modal', enabled = true }: Pr
   // ── Inline variant: the search bar IS the UI (dashboard hero) ──────────────
   if (inline) {
     return (
-      <div className="relative w-full max-w-2xl mx-auto">
-        <div className="relative flex items-center gap-3 px-5 h-14 rounded-full bg-slate-900/80 border border-slate-700/80 focus-within:border-emerald-500/60 hover:border-emerald-500/40 shadow-xl ring-1 ring-white/5 transition-colors">
+      // Width comes from the slot this is dropped into (the nav bar), so the
+      // field grows with the monitor without knowing anything about the header.
+      <div className="relative w-full">
+        <div className="relative flex items-center gap-2.5 px-3.5 h-9 rounded-full bg-slate-900/70 border border-slate-700/80 focus-within:border-emerald-500/60 hover:border-emerald-500/40 transition-colors">
           {drill ? (
             <button onClick={() => { setDrill(null); inputRef.current?.focus(); }} onMouseDown={(e) => e.preventDefault()} className="flex items-center gap-1.5 min-w-0 text-slate-400 hover:text-white text-xs flex-shrink transition-colors">
               <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
               <span className="truncate font-medium text-slate-300">{drill.title}</span>
             </button>
           ) : (
-            <svg className="w-5 h-5 text-slate-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
+            <svg className="w-4 h-4 text-slate-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
           )}
           <input
             ref={inputRef}
@@ -803,21 +815,18 @@ export default function CommandPalette({ variant = 'modal', enabled = true }: Pr
             onBlur={() => setFocused(false)}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onInputKeyDown}
-            placeholder={drill ? 'Enter opens Deal Lookup' : 'Search names, items, any document number…'}
+            placeholder={drill ? 'Enter opens Deal Lookup' : 'Search anything…'}
             // text-base (16px) on phones stops iOS from auto-zooming on focus.
             // min-w-0 lets the field shrink so the placeholder clips instead of
             // overflowing the pill on narrow screens.
-            className="flex-1 min-w-0 bg-transparent outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500"
+            className="flex-1 min-w-0 bg-transparent outline-none text-white text-[13px] placeholder:text-[13px] placeholder:text-slate-500"
           />
-          <span className="hidden sm:flex items-center gap-1 flex-shrink-0">
-            <kbd className="text-[11px] font-mono text-slate-400 border border-slate-700 rounded px-1.5 py-0.5 leading-none">{modKey}</kbd>
-            <kbd className="text-[11px] font-mono text-slate-400 border border-slate-700 rounded px-1.5 py-0.5 leading-none">I</kbd>
-          </span>
+          <kbd className="text-[10px] font-mono text-slate-500 border border-slate-700 rounded px-1.5 py-0.5 leading-none flex-shrink-0">{modKey} I</kbd>
         </div>
         {active && (searching || rootRows.length > 0 || items === null || drill) && (
           <div
             onMouseDown={(e) => e.preventDefault()}
-            className="absolute left-0 right-0 mt-2 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden z-50"
+            className="absolute left-0 right-0 mt-2 min-w-[420px] bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden z-[60]"
           >
             {body}
             <div className="px-4 py-2 border-t border-slate-800 text-[10px] text-slate-600 flex gap-4">
@@ -858,7 +867,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true }: Pr
             readOnly={!!drill}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onInputKeyDown}
-            placeholder={drill ? 'Enter opens Deal Lookup' : 'Search names, items, any document number…'}
+            placeholder={drill ? 'Enter opens Deal Lookup' : 'Search anything…'}
             className="flex-1 min-w-0 bg-transparent outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-600"
           />
           <kbd className="text-[10px] text-slate-600 border border-slate-700 rounded px-1.5 py-0.5">Esc</kbd>
