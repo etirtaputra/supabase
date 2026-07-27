@@ -92,6 +92,18 @@ export default function BrandMenu({
   const isActive = (href: string) =>
     href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(href + '/');
 
+  /**
+   * Spotlight lives in the nav bar, so it is impossible for a page to ship
+   * without it — the old bottom-right pill had to be remembered per page and
+   * was hidden on phones entirely.
+   *
+   * The trigger only fires an event; the palette itself is mounted once by
+   * GlobalSpotlight in the root layout. No second ⌘I handler, no second index,
+   * no coupling between the nav and the search.
+   */
+  const openSpotlight = () => window.dispatchEvent(new Event('icaproc:spotlight'));
+  const modKey = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform || '') ? '⌘' : 'Ctrl';
+
   // Show only the flows this role can access (Dashboard always). While the
   // profile loads, show everything to avoid a nav flash.
   const perms = profile ? ROLE_PERMISSIONS[profile.role] : null;
@@ -214,6 +226,18 @@ export default function BrandMenu({
           >
             <svg className={`w-4 h-4 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
           </button>
+          {/* Spotlight, below lg: an icon immediately right of the caret, so it
+              is in the SAME place on every page and at every width without
+              costing the header a row. Tapping it opens the full-screen
+              palette — a better phone interaction than a cramped inline field. */}
+          <button
+            onClick={openSpotlight}
+            aria-label="Search"
+            title={`Spotlight — ${modKey} + I`}
+            className="lg:hidden ml-0.5 p-1.5 -m-0.5 text-slate-500 hover:text-emerald-300 transition-colors flex-shrink-0 print:hidden"
+          >
+            <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
+          </button>
         </div>
         {subtitle && <p className="text-slate-500 text-[11px] mt-0.5 truncate lg:hidden">{subtitle}</p>}
         {open && (
@@ -288,6 +312,22 @@ export default function BrandMenu({
           );
         })}
       </nav>
+
+      {/* ── Spotlight, lg and up: a real field, not an icon — visible enough to
+             be found without a hero's worth of vertical space. It sits
+             directly after the nav groups rather than floating to the right,
+             so its position is fixed by the ROLE (whose nav never changes)
+             instead of by whatever buttons a given page happens to have.
+             Shrinks before it ever pushes into those buttons. ── */}
+      <button
+        onClick={openSpotlight}
+        title={`Spotlight — ${modKey} + I`}
+        className="hidden lg:flex items-center gap-2.5 h-9 min-w-0 w-[200px] xl:w-[280px] px-3.5 rounded-full bg-slate-900/70 border border-slate-700/80 hover:border-emerald-500/40 text-slate-500 hover:text-slate-300 transition-colors flex-shrink print:hidden"
+      >
+        <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
+        <span className="text-[13px] truncate flex-1 text-left">Search anything…</span>
+        <kbd className="text-[10px] font-mono border border-slate-700 rounded px-1.5 py-0.5 leading-none flex-shrink-0">{modKey} I</kbd>
+      </button>
 
       {/* ── Mobile: fixed bottom tab bar (thumb reach) + More sheet.
              Portaled to <body>: page headers use backdrop-blur, which WebKit

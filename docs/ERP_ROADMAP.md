@@ -344,6 +344,27 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   documents, restoring who bought what, when, at what price.
   Import is owner-only (`canManageUsers`); export follows `canExportCsv`.
 
+- **Spotlight in the nav bar (2026-07-27)**: Spotlight had three behaviours for
+  one feature — a hero on the dashboard, a floating bottom-right pill on
+  desktop elsewhere, and **nothing at all on phones** (the pill was
+  `hidden md:flex`). It now lives in `BrandMenu`, which every page already
+  renders, so a new screen cannot ship without it: an icon beside the caret
+  below `lg`, a real `Search anything…` field with the `⌘I` badge above it.
+  Placed directly after the nav groups rather than floated right, so its
+  position is fixed by the ROLE (whose nav never changes) instead of by
+  whichever buttons a page happens to carry. The trigger only fires
+  `icaproc:spotlight`; the palette stays mounted once by `GlobalSpotlight`, so
+  there is still exactly one ⌘I handler and one index.
+  Retired with it: the floating pill, the `raisedPill` hack that existed
+  because the EPC editor's bottom bar covered it, and the dashboard hero — the
+  action queue now leads that page. Deliberately NOT merged with the per-list
+  search bars: Spotlight navigates across entities, a list bar filters what is
+  in front of you, and merging them would mean typing a customer name on
+  Products either silently filters or throws away your filter state.
+  Header rows on Stock, Delivery, Suppliers, Invoices, Sales editor, Sales
+  library and the dashboard now wrap on phones — Stock's two `whitespace-nowrap`
+  buttons had been overflowing the row and printing on top of the wordmark.
+
 **Next up (in order):**
 0. Dashboard slice 2: a position strip above the queue — Cash / Owed to us /
    We owe / CCC — then month-in-motion comparisons and an AI next-best-step card.

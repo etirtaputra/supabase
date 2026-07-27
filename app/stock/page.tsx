@@ -209,8 +209,11 @@ export default function StockPage() {
   return (
     <div className="min-h-screen bg-[#0f1012] text-slate-200 font-sans text-sm">
       <div className="border-b border-slate-800/60 bg-[#0f1012]/80 backdrop-blur-md sticky top-0 z-30">
-        <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-4 flex items-center justify-between gap-4">
+        {/* Phones: wordmark row then actions row. Side-by-side, two nowrap
+            buttons overflowed the row and printed on top of the wordmark. */}
+        <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4">
           <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Stock · Warehouse" />
+          <div className="flex items-center gap-2 flex-wrap">
           {canManage && (
             <Link href="/stock/receive"
               className="px-3.5 py-2 rounded-xl bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30 hover:bg-sky-500/25 text-xs font-semibold whitespace-nowrap transition-colors">
@@ -224,6 +227,7 @@ export default function StockPage() {
               Default warehouse: Settings →
             </Link>
           )}
+          </div>
         </div>
       </div>
 

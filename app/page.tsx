@@ -6,7 +6,6 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
-import CommandPalette from '@/components/ui/CommandPalette';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
@@ -38,9 +37,6 @@ export default function Home() {
   const [stockValue, setStockValue] = useState<number | null>(null);
   const [queue, setQueue] = useState<ActionItem[] | null>(null);
   const [activity, setActivity] = useState<ActivityRow[] | null>(null);
-
-  const isMac = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform || '');
-  const modKey = isMac ? '⌘' : 'Ctrl';
 
   useEffect(() => { document.title = 'Dashboard — ICAPROC'; }, []);
 
@@ -130,7 +126,7 @@ export default function Home() {
     <div className="min-h-screen bg-[#0f1012] text-slate-200 font-sans text-sm">
       {/* ── Header ── */}
       <div className="border-b border-slate-800/60 bg-[#0f1012]/80 backdrop-blur-md sticky top-0 z-30">
-        <div className="max-w-[1800px] 2xl:max-w-[2460px] mx-auto px-3 sm:px-4 md:px-6 xl:px-8 py-4 flex items-center justify-between gap-4">
+        <div className="max-w-[1800px] 2xl:max-w-[2460px] mx-auto px-3 sm:px-4 md:px-6 xl:px-8 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4">
           <BrandMenu
             wordmarkClass="text-xl md:text-2xl font-extrabold"
             subtitle={new Date().toLocaleDateString('en-GB', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
@@ -138,18 +134,11 @@ export default function Home() {
         </div>
       </div>
 
-      <main className="max-w-[1800px] 2xl:max-w-[2460px] mx-auto px-3 sm:px-4 md:px-6 xl:px-8 py-8 xl:py-10 space-y-8">
+      <main className="max-w-[1800px] 2xl:max-w-[2460px] mx-auto px-3 sm:px-4 md:px-6 xl:px-8 py-6 xl:py-8 space-y-8">
 
-        {/* ── Spotlight hero (inline, searches in place — no popup) ── */}
-        <div className="relative flex flex-col items-center pt-4 pb-2">
-          <div className="pointer-events-none absolute -top-6 left-1/2 -translate-x-1/2 w-[520px] max-w-full h-40 bg-emerald-500/10 blur-3xl rounded-full" />
-          <CommandPalette variant="inline" />
-          <p className="mt-3 text-[11px] text-slate-600 text-center px-4">
-            <span className="hidden sm:inline">Press <span className="text-slate-400 font-medium">{modKey} + I</span> anywhere for Spotlight — </span>
-            <span className="sm:hidden">Tap to search — </span>
-            jump to any vendor, deal, or item
-          </p>
-        </div>
+        {/* Spotlight used to open this page as a hero. It now lives in the nav
+            bar on every page including this one, so the dashboard leads with
+            the thing only the dashboard can tell you: what needs a human. */}
 
         {/* ── Needs you today ── */}
         <ActionQueue items={queue} atStake={atStake} />
