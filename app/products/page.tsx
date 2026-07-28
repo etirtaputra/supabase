@@ -146,7 +146,7 @@ function ProductsInner() {
       fetchAllComponents(),
       supabase.from('21.0_price_tiers').select('tier_id, tier_code, name, default_discount_pct, sort_order, is_active').order('sort_order'),
       supabase.from('21.1_item_tier_prices').select('component_id, tier_id, override_price_idr, override_discount_pct'),
-      supabase.from('30.1_stock_balances').select('component_id, location, qty_on_hand, avg_cost_idr'),
+      supabase.from('30.1_stock_balances').select('component_id, location, qty_on_hand'),
       supabase.from('22.0_sales_quotes').select('quote_id, status, order_number, do_number, ordered_at, delivered_at, updated_at, customer_id'),
       supabase.from('22.1_sales_quote_items').select('quote_id, component_id, quantity, is_section'),
       supabase.from('5.0_purchases').select('po_id, status'),
