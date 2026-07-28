@@ -407,6 +407,30 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   `-REV3` instead of the old `Q-…-REV-REV`. The number stays free text in the
   editor either way.
 
+- **Module 27 — After Sales (2026-07-28)**: `/aftersales` turns the service
+  history that lived in WhatsApp threads into CASES — attached to the customer
+  (`20.0`), the sales order (`22.0`) and the catalog items involved (`3.0`),
+  so failure counts can roll up per product and support cost per customer
+  stops being a guess. `27.0_aftersales_cases` (AS-YYYYMMDD-NNNN by trigger;
+  category warranty / repair / replacement / maintenance / complaint /
+  inspection / other; lifecycle open → in progress → waiting parts → resolved
+  → closed, with `resolved_at` stamped and cleared by the status trigger) +
+  `27.1_aftersales_parts` (per-item action: replaced / repaired / inspected /
+  returned / missing, linked to the catalog but keeping its text so history
+  survives a catalog edit) + `27.2_aftersales_updates` (the dated log).
+  Page: status-sectioned list (open work first), category filter chips,
+  search across case / customer / order / item, compact-vs-card via the house
+  Layout setting, portaled editor with customer → order narrowing (picking an
+  order back-fills the customer), catalog datalist for parts, and the update
+  timeline. Sell-side rules hold: internal descriptions only, never brand or
+  supplier model; writes gate on `canEditSalesDocs`, RLS mirrors the sales
+  documents (owner / sales / sell_admin / engineer write).
+  Deliberately NOT done: a replaced part does not write a stock movement —
+  silently mutating the ledger from a log entry is how ledgers stop being
+  trusted. Warranty issue-from-stock is a follow-on with its own explicit
+  step. Migration `migrations/create_aftersales.sql`, verified live with a
+  rolled-back TEST_OK.
+
 **Next up (in order):**
 0. Dashboard slice 2: a position strip above the queue — Cash / Owed to us /
    We owe / CCC — then month-in-motion comparisons and an AI next-best-step card.
