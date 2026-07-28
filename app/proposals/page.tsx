@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useQuotesGate } from '@/hooks/useQuotesGate';
-import { computeTUCMap, getComponentCost, type TUCResult, type CostEntry } from '@/lib/computeTUC';
+import { computeTUCMap, getComponentCost, fxFromRates, type TUCResult, type CostEntry } from '@/lib/computeTUC';
+import { deriveExchangeRates } from '@/lib/exchangeRates';
 import { fetchUsedEntries } from '@/lib/usedPrices';
 import { lineWp } from '@/lib/quoteWp';
 import { fmtDay, fmtDayTime, fmtRp } from '@/lib/formatters';
@@ -172,6 +173,13 @@ export default function QuotesListPage() {
     [catalog.pos, catalog.poItems, catalog.poCosts],
   );
 
+  // Realized FX per currency — the drift check must compare against the same
+  // cost the editor would compute, or it flags (or misses) the wrong quotes.
+  const fx = useMemo(
+    () => fxFromRates(deriveExchangeRates(catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes)),
+    [catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes],
+  );
+
 
   const costOptsFor = useMemo(() => {
     const byId = new Map(catalog.components.map((c) => [c.component_id, c]));
@@ -189,7 +197,7 @@ export default function QuotesListPage() {
       if (!it.component_id || it.parent_item_id) continue;
       const stored = Number(it.cost_price);
       if (!(stored > 0)) continue;
-      const cc = getComponentCost(it.component_id, listTucMap, catalog.quotes, catalog.quoteItems, usedEntries.get(it.component_id) ?? [], costOptsFor(it.component_id));
+      const cc = getComponentCost(it.component_id, listTucMap, catalog.quotes, catalog.quoteItems, usedEntries.get(it.component_id) ?? [], costOptsFor(it.component_id), fx);
       if (!cc || !(cc.cost > 0)) continue;
       // Flag only cost increases — margin risk; price drops are fine
       if ((cc.cost - stored) / stored > DRIFT_THRESHOLD) {
@@ -337,7 +345,7 @@ export default function QuotesListPage() {
       const newItems = srcItems.map((it) => {
         let cost = it.cost_price, sell = it.sell_price;
         if (dupRefresh && it.component_id) {
-          const cc = getComponentCost(it.component_id, dupTucMap, catalog.quotes, catalog.quoteItems, usedMap?.get(it.component_id) ?? [], costOptsFor(it.component_id));
+          const cc = getComponentCost(it.component_id, dupTucMap, catalog.quotes, catalog.quoteItems, usedMap?.get(it.component_id) ?? [], costOptsFor(it.component_id), fx);
           if (cc) {
             const newCost = Math.round(cc.cost);
             const oldCost = Number(it.cost_price), oldSell = Number(it.sell_price);

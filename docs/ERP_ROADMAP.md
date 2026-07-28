@@ -374,6 +374,21 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   library and the dashboard now wrap on phones — Stock's two `whitespace-nowrap`
   buttons had been overflowing the row and printing on top of the wordmark.
 
+- **FX on quote-only costs (FIX 2026-07-27)**: `computeTUC` converted supplier
+  price-quote lines at a **hard-coded** `{ USD: 16000, RMB: 2200 }`. A quote
+  line carries no exchange rate of its own, so any item with a PI but no
+  settled PO — every new import — was costed at that constant. Against the
+  realized rates the business actually pays (newest settled: **USD 16,900**,
+  **RMB 2,327**) that understated cost by **5.3% / 5.5%**, which almost exactly
+  cancelled the 5% EPC Cost Basis buffer: the safety margin was buying nothing.
+  Now `fxFromRates(deriveExchangeRates(...))` builds the map from the same
+  settled-PO history Insights charts, newest rate per currency (a quote priced
+  today gets paid near today's rate, not the two-year mean); the constants
+  survive only as a last resort for a currency never settled. Both the EPC
+  editor and the proposals list's cost-drift check pass it, so they agree.
+  The price-history hover now prints the conversion (`USD 5,800 @ 16,900`) —
+  a converted cost nobody can audit is how a stale rate hides for months.
+
 **Next up (in order):**
 0. Dashboard slice 2: a position strip above the queue — Cash / Owed to us /
    We owe / CCC — then month-in-motion comparisons and an AI next-best-step card.

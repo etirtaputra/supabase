@@ -17,8 +17,36 @@ import { TAX_CATS, BALANCE_CATS } from '../constants/costCategories';
  *   conservative floor so one cheap recent PO can't understate your cost.
  */
 
-// Fallback rates for price-quote lines, which carry no exchange rate of their own
-const FX: Record<string, number> = { USD: 16000, RMB: 2200, IDR: 1 };
+/**
+ * LAST-RESORT rates for price-quote lines, which carry no exchange rate of
+ * their own. Only used when the business has never settled a PO in that
+ * currency — i.e. when there is genuinely nothing to learn from. Every caller
+ * that has PO history should pass a real map built by `fxFromRates`, because a
+ * constant here silently understates the cost of every quote-only import, and
+ * a cost that is quietly 5% low is worse than no cost at all.
+ */
+const FX_LAST_RESORT: Record<string, number> = { USD: 16000, RMB: 2200, IDR: 1 };
+
+/**
+ * The rate this business actually achieved, per currency — newest settled PO
+ * first, from the same `deriveExchangeRates` history Insights charts.
+ *
+ * Newest rather than average: a quote priced today will be paid at something
+ * near today's rate, not at the mean of the last two years. The constants
+ * above fill any currency with no settlement history at all.
+ */
+export function fxFromRates(rates: { currency: string; implied_rate: number; payment_date: string }[]): Record<string, number> {
+  const out: Record<string, number> = { ...FX_LAST_RESORT };
+  const newest = new Map<string, { rate: number; date: string }>();
+  for (const r of rates) {
+    const rate = Number(r.implied_rate);
+    if (!rate || rate <= 0 || r.currency === 'IDR') continue;
+    const prev = newest.get(r.currency);
+    if (!prev || (r.payment_date ?? '') > prev.date) newest.set(r.currency, { rate, date: r.payment_date ?? '' });
+  }
+  for (const [ccy, v] of newest) out[ccy] = v.rate;
+  return out;
+}
 
 export type CostKind = 'tuc' | 'quote' | 'used';
 
@@ -29,6 +57,8 @@ export interface CostEntry {
   unitCost: number;      // IDR
   buffered?: boolean;    // unitCost carries the Std Cost safety buffer (badge shows STD)
   rawUnitCost?: number;  // pre-buffer value — shown to owners only, for context
+  /** For a foreign-currency quote line: what it was converted at, e.g. "USD 5,800 @ 16,900". */
+  fxNote?: string;
 }
 
 export interface TUCResult {
@@ -161,12 +191,15 @@ export function computeTUC(
 
 /**
  * Price-quote history for a component (IDR), newest first.
- * Quote lines carry no exchange rate, so foreign currencies use FX fallbacks.
+ * Quote lines carry no exchange rate of their own, so foreign currencies are
+ * converted at `fx` — pass the realized-rate map from `fxFromRates`; the
+ * constants are only the floor for a currency never settled.
  */
 export function quotePriceHistory(
   componentId: string,
   quotes: PriceQuote[],
   quoteItems: PriceQuoteLineItem[],
+  fx: Record<string, number> = FX_LAST_RESORT,
 ): CostEntry[] {
   const entries: CostEntry[] = [];
   for (const li of quoteItems) {
@@ -174,13 +207,18 @@ export function quotePriceHistory(
     const q = quotes.find((x) => x.quote_id === li.quote_id);
     if (!q) continue;
     const cur = li.currency || q.currency;
-    const idr = cur === 'IDR' ? Number(li.unit_price) : Number(li.unit_price) * (FX[cur] || 1);
+    const idr = cur === 'IDR' ? Number(li.unit_price) : Number(li.unit_price) * (fx[cur] || FX_LAST_RESORT[cur] || 1);
     if (idr <= 0) continue;
+    const rate = cur === 'IDR' ? 1 : (fx[cur] || FX_LAST_RESORT[cur] || 1);
     entries.push({
       kind: 'quote',
       label: q.pi_number || `Quote ${q.quote_id}`,
       date: q.quote_date ?? '',
       unitCost: idr,
+      // Printed in the price-history hover: a converted cost nobody can audit
+      // is how a stale rate hides for months.
+      fxNote: cur === 'IDR' ? undefined
+        : `${cur} ${Number(li.unit_price).toLocaleString('en-US')} @ ${rate.toLocaleString('en-US')}`,
     });
   }
   entries.sort((a, b) => b.date.localeCompare(a.date));
@@ -219,6 +257,7 @@ export function getComponentCost(
   quoteItems: PriceQuoteLineItem[],
   usedEntries: CostEntry[] = [],
   opts?: QuoteCostOpts,
+  fx: Record<string, number> = FX_LAST_RESORT,
 ): ComponentCost | null {
   const mode: QuoteCostMode = opts?.mode ?? 'tuc';
   const mul = mode === 'buffered' ? 1 + (Math.max(0, opts?.bufferPct ?? 0) / 100) : 1;
@@ -228,7 +267,7 @@ export function getComponentCost(
   // project-quote costs that already carried the buffer — never re-buffer them.
   const applyMul = (e: CostEntry) => (mul === 1 ? e : { ...e, unitCost: e.unitCost * mul, buffered: true, rawUnitCost: e.unitCost });
   const tucEntries = (raw?.entries ?? []).map(applyMul);
-  const quoteEntries = quotePriceHistory(componentId, quotes, quoteItems).map(applyMul);
+  const quoteEntries = quotePriceHistory(componentId, quotes, quoteItems, fx).map(applyMul);
 
   const history = [...tucEntries, ...quoteEntries, ...usedEntries]
     .sort((a, b) => b.date.localeCompare(a.date));

@@ -5,7 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useQuotesGate } from '@/hooks/useQuotesGate';
-import { computeTUCMap, getComponentCost, priceAgeDays, AGED_PRICE_DAYS, type CostEntry } from '@/lib/computeTUC';
+import { computeTUCMap, getComponentCost, fxFromRates, priceAgeDays, AGED_PRICE_DAYS, type CostEntry } from '@/lib/computeTUC';
+import { deriveExchangeRates } from '@/lib/exchangeRates';
 import { fetchUsedEntries } from '@/lib/usedPrices';
 import { DEFAULT_EXPORT_COLS, EXPORT_COL_KEYS, EXPORT_COL_LABELS, loadExportCols, saveExportCols, type ExportCols } from '@/lib/exportCols';
 import { quoteFileName } from '@/lib/quoteFilename';
@@ -708,6 +709,18 @@ export default function QuoteEditorPage() {
     [catalog.pos, catalog.poItems, catalog.poCosts],
   );
 
+  /**
+   * The rate this business actually pays, per currency, from settled POs.
+   * A supplier quote carries no exchange rate, so without this a USD item is
+   * costed at a constant baked into the code — quietly understating every
+   * quote-only import and eating the Cost Basis buffer that is supposed to
+   * protect the margin.
+   */
+  const fx = useMemo(
+    () => fxFromRates(deriveExchangeRates(catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes)),
+    [catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes],
+  );
+
   // Global Cost Basis buffer % (Settings › Defaults), per-item override on the component
   const { epcCostBufferPct: globalBufferPct, defaultPpnPct } = useSettings();
 
@@ -718,8 +731,8 @@ export default function QuoteEditorPage() {
     // each entry's raw value in the price-history hover (extra context only).
     const mode = (c?.quote_cost_mode ?? (c?.show_tuc_in_quotes === false ? 'hidden' : 'buffered'));
     return getComponentCost(componentId, tucMap, catalog.quotes, catalog.quoteItems, prevUsed.get(componentId) ?? [],
-      { mode, bufferPct: c?.quote_cost_buffer_pct ?? globalBufferPct });
-  }, [tucMap, catalog.quotes, catalog.quoteItems, prevUsed, compById, globalBufferPct]);
+      { mode, bufferPct: c?.quote_cost_buffer_pct ?? globalBufferPct }, fx);
+  }, [tucMap, catalog.quotes, catalog.quoteItems, prevUsed, compById, globalBufferPct, fx]);
 
   // ── System size (Wp) ───────────────────────────────────────────────────────
   // Shared rules in lib/quoteWp.ts (also used by the quotes list): catalog
@@ -2601,7 +2614,14 @@ export default function QuoteEditorPage() {
                                           >
                                             {h.buffered ? 'STD' : h.kind === 'tuc' ? 'TUC' : h.kind === 'quote' ? 'QUOTE' : 'USED'}
                                           </span>
-                                          <span className="text-slate-400 truncate flex-1">{h.label}</span>
+                                          <span className="text-slate-400 truncate flex-1" title={h.label}>{h.label}</span>
+                                          {/* The conversion, spelled out — a foreign cost nobody can
+                                              audit is how a stale rate hides for months. */}
+                                          {h.fxNote && (
+                                            <span className="text-[10px] text-sky-300/70 tabular-nums flex-shrink-0" title="Supplier quote converted at the newest rate actually settled in this currency">
+                                              {h.fxNote}
+                                            </span>
+                                          )}
                                           <span className="text-slate-500 flex-shrink-0">{h.date}</span>
                                           {/* Owner-only context: the raw pre-buffer number behind an STD value.
                                               Click either figure to use it as this row's cost. */}
