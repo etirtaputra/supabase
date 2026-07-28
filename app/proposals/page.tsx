@@ -46,6 +46,24 @@ function fmtDateTime(d?: string | null) {
   return fmtDayTime(d) || '—';
 }
 
+/** House format: Q-YYYYMMDD-XXXX. One generator, so "New" and "Duplicate as new" agree. */
+const newQuoteNumber = (isoDate: string) =>
+  `Q-${isoDate.replace(/-/g, '')}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+
+/**
+ * The next revision of a quote number: `-REV`, then `-REV2`, `-REV3`…
+ *
+ * Duplicating a duplicate used to give `Q-…-REV-REV`, which reads as a mistake
+ * and sorts badly. A revision belongs to the SAME commercial conversation as
+ * its parent, which is exactly when the number should stay recognisable.
+ */
+function nextRevisionNumber(base: string): string {
+  const src = (base || 'Q').trim();
+  const m = src.match(/^(.*)-REV(\d*)$/i);
+  if (!m) return `${src}-REV`;
+  return `${m[1]}-REV${(m[2] ? parseInt(m[2], 10) : 1) + 1}`;
+}
+
 export default function QuotesListPage() {
   const supabase = createSupabaseClient();
   const router = useRouter();
@@ -85,8 +103,12 @@ export default function QuotesListPage() {
   }
 
   // Duplicate modal state
-  const [dup, setDup] = useState<{ id: string; number: string } | null>(null);
+  const [dup, setDup] = useState<{ id: string; number: string; date: string } | null>(null);
   const [dupToday, setDupToday] = useState(true);
+  // A copy is not always a revision: re-quoting the same scope for a different
+  // customer, or reviving a quote a year later, is a NEW commercial document
+  // and deserves its own number rather than inheriting someone else's lineage.
+  const [dupNumbering, setDupNumbering] = useState<'revision' | 'new'>('revision');
   const [dupRefresh, setDupRefresh] = useState(false);
   const [dupInternal, setDupInternal] = useState(true);
   const [dupBusy, setDupBusy] = useState(false);
@@ -249,7 +271,7 @@ export default function QuotesListPage() {
     setCreating(true);
     setCreateError('');
     const today = new Date().toISOString().slice(0, 10);
-    const num = `Q-${today.replace(/-/g, '')}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+    const num = newQuoteNumber(today);
     const { data, error } = await supabase
       .from('10.0_project_quotes')
       .insert({ quote_number: num, quote_date: today })
@@ -302,7 +324,9 @@ export default function QuotesListPage() {
       //    keeps working on databases that haven't run the latest migration.
       const newQuote: Record<string, unknown> = {
         quote_id: newQuoteId,
-        quote_number: `${src.quote_number || 'Q'}-REV`,
+        quote_number: dupNumbering === 'new'
+          ? newQuoteNumber((dupToday ? today : String(src.quote_date ?? today)).slice(0, 10))
+          : nextRevisionNumber(String(src.quote_number ?? '')),
         quote_date: dupToday ? today : src.quote_date,
         customer_name: src.customer_name,
         customer_address: src.customer_address,
@@ -604,7 +628,7 @@ export default function QuotesListPage() {
                 {livePeers.length > 0 && <LivePresence peers={livePeers} />}
                 <div className="hidden sm:flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
-                    onClick={() => { setDup({ id: q.quote_id, number: q.quote_number }); setDupToday(true); setDupRefresh(false); setDupInternal(true); setDupError(''); }}
+                    onClick={() => { setDup({ id: q.quote_id, number: q.quote_number, date: q.quote_date ?? '' }); setDupToday(true); setDupRefresh(false); setDupInternal(true); setDupNumbering('revision'); setDupError(''); }}
                     className="p-2 rounded-lg hover:bg-white/10 text-slate-500 hover:text-white transition-colors"
                     title="Duplicate"
                   >
@@ -672,7 +696,40 @@ export default function QuotesListPage() {
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-md w-full">
             <h3 className="font-semibold text-white mb-1">Duplicate quote</h3>
-            <p className="text-slate-500 text-xs mb-5 truncate">{dup.number || 'Untitled quote'}</p>
+            <p className="text-slate-500 text-xs mb-4 truncate">{dup.number || 'Untitled quote'}</p>
+
+            {/* Revision or new document? A revision keeps the customer's
+                conversation together; a re-quote for a different customer, or a
+                job revived a year later, is its own document and should not
+                inherit someone else's lineage. */}
+            <div className="mb-5">
+              <p className="text-[10px] uppercase tracking-widest text-slate-500 mb-2">Quote number</p>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  ['revision', 'Revision', 'Same job, next version'],
+                  ['new', 'New number', 'A separate quote'],
+                ] as ['revision' | 'new', string, string][]).map(([k, label, hint]) => (
+                  <button key={k} onClick={() => setDupNumbering(k)}
+                    className={`text-left px-3 py-2 rounded-xl border transition-colors ${
+                      dupNumbering === k
+                        ? 'border-violet-500/60 bg-violet-500/10 text-white'
+                        : 'border-slate-700 text-slate-400 hover:border-slate-600 hover:text-slate-200'
+                    }`}>
+                    <span className="block text-sm font-medium">{label}</span>
+                    <span className="block text-[10px] text-slate-500">{hint}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-[11px] text-slate-500">
+                Becomes{' '}
+                <span className="font-mono text-slate-300">
+                  {dupNumbering === 'new'
+                    ? `Q-${(dupToday ? new Date().toISOString().slice(0, 10) : dup.date || new Date().toISOString().slice(0, 10)).slice(0, 10).replace(/-/g, '')}-••••`
+                    : nextRevisionNumber(dup.number || '')}
+                </span>
+                {' '}— editable in the quote afterwards.
+              </p>
+            </div>
 
             <label className="flex items-start gap-3 mb-4 cursor-pointer">
               <input type="checkbox" checked={dupToday} onChange={(e) => setDupToday(e.target.checked)}

@@ -396,6 +396,17 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   `FX_STALE_DAYS` (90) — a converted cost nobody can audit is how a stale rate
   hides for months, which is exactly how this one survived two rounds.
 
+- **Duplicate a proposal as a revision OR a new quote (2026-07-28)**: the
+  duplicate modal hard-coded `-REV`, but a copy is not always a revision —
+  re-quoting the same scope for a different customer, or reviving a job a year
+  later, is its own commercial document and should not inherit someone else's
+  lineage. The modal now asks: **Revision** (same job, next version) or
+  **New number** (a separate quote, `Q-YYYYMMDD-XXXX` from the same generator
+  `New quote` uses), with a live preview of the resulting number.
+  `nextRevisionNumber` also fixes repeat duplication: `-REV` → `-REV2` →
+  `-REV3` instead of the old `Q-…-REV-REV`. The number stays free text in the
+  editor either way.
+
 **Next up (in order):**
 0. Dashboard slice 2: a position strip above the queue — Cash / Owed to us /
    We owe / CCC — then month-in-motion comparisons and an AI next-best-step card.
