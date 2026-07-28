@@ -2580,8 +2580,10 @@ export default function QuoteEditorPage() {
                                 )}
                                 {costHover?.itemId === item.item_id && (
                                   <div
-                                    className="fixed z-50 w-[30rem] max-w-[calc(100vw-2rem)] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-3"
-                                    style={{ left: Math.max(16, costHover.x - 480), top: costHover.y + 4 }}
+                                    // 34rem: a PI label carries a supplier, a channel and a
+                                    // timestamp, and truncating it to "I…" tells you nothing.
+                                    className="fixed z-50 w-[34rem] max-w-[calc(100vw-2rem)] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-3"
+                                    style={{ left: Math.max(16, costHover.x - 544), top: costHover.y + 4 }}
                                     onMouseEnter={cancelHoverClose}
                                     onMouseLeave={scheduleHoverClose}
                                   >
@@ -2605,7 +2607,8 @@ export default function QuoteEditorPage() {
                                     </p>
                                     <div className="space-y-1">
                                       {costHover.history.map((h, i) => (
-                                        <div key={i} className="flex items-center justify-between gap-2 text-[11px]">
+                                        <div key={i} className="text-[11px]">
+                                        <div className="flex items-center justify-between gap-2">
                                           {/* Badge follows the calculation, not the source: any value carrying
                                               the safety buffer reads STD (the label still names the PO / PI) */}
                                           <span
@@ -2614,17 +2617,7 @@ export default function QuoteEditorPage() {
                                           >
                                             {h.buffered ? 'STD' : h.kind === 'tuc' ? 'TUC' : h.kind === 'quote' ? 'QUOTE' : 'USED'}
                                           </span>
-                                          <span className="text-slate-400 truncate flex-1" title={h.label}>{h.label}</span>
-                                          {/* The conversion, spelled out — a foreign cost nobody can
-                                              audit is how a stale rate hides for months. */}
-                                          {h.fxNote && (
-                                            <span
-                                              className={`text-[10px] tabular-nums flex-shrink-0 ${h.fxStale ? 'text-amber-400/90' : 'text-sky-300/70'}`}
-                                              title={`Converted at the newest rate this business has committed to or paid — ${h.fxSource}${h.fxStale ? '. Older than 90 days: check it against today\u2019s rate before quoting.' : ''}`}
-                                            >
-                                              {h.fxNote}{h.fxStale ? ' ⚠' : ''}
-                                            </span>
-                                          )}
+                                          <span className="text-slate-400 truncate flex-1 min-w-0" title={h.label}>{h.label}</span>
                                           <span className="text-slate-500 flex-shrink-0">{h.date}</span>
                                           {/* Owner-only context: the raw pre-buffer number behind an STD value.
                                               Click either figure to use it as this row's cost. */}
@@ -2654,6 +2647,20 @@ export default function QuoteEditorPage() {
                                           >
                                             {fmtIdr(h.unitCost)}
                                           </button>
+                                        </div>
+                                        {/* The conversion on its own line — a foreign cost nobody can
+                                            audit is how a stale rate hides for months, but it must not
+                                            crowd out the document it came from. */}
+                                        {h.fxNote && (
+                                          <p
+                                            className={`text-[10px] tabular-nums mt-0.5 pl-[3.1rem] ${h.fxStale ? 'text-amber-400/90' : 'text-sky-300/60'}`}
+                                            title={`Converted at the newest rate this business has committed to or paid — ${h.fxSource}${h.fxStale ? '. Older than 90 days: check it against today\u2019s rate before quoting.' : ''}`}
+                                          >
+                                            {h.fxNote}
+                                            <span className="text-slate-600"> · {h.fxSource}</span>
+                                            {h.fxStale && <span className="ml-1">⚠</span>}
+                                          </p>
+                                        )}
                                         </div>
                                       ))}
                                     </div>

@@ -269,8 +269,10 @@ export function quotePriceHistory(
       unitCost: idr,
       // Printed in the price-history hover: a converted cost nobody can audit
       // is how a stale rate hides for months.
+      // Rounded: a settled rate is paid-IDR ÷ foreign-value, so it carries
+      // meaningless decimals. Sub-rupiah precision on an exchange rate is noise.
       fxNote: cur === 'IDR' ? undefined
-        : `${cur} ${Number(li.unit_price).toLocaleString('en-US')} @ ${rate.toLocaleString('en-US')}`,
+        : `${cur} ${Number(li.unit_price).toLocaleString('en-US')} @ ${Math.round(rate).toLocaleString('en-US')}`,
       fxSource: obs ? `${obs.source === 'settled' ? 'settled' : obs.label} · ${obs.date}` : 'no purchase history — fallback rate',
       fxStale: obs ? fxAgeDays(fx, cur) > FX_STALE_DAYS : true,
     });
