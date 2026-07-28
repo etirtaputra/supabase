@@ -549,10 +549,19 @@ export default function QuotesListPage() {
                       {q.project_description && (
                         <span className="text-[11px] text-slate-500 truncate hidden md:inline">{q.project_description}</span>
                       )}
+                      {/* Money and date are FIXED-WIDTH and last, so every row's
+                          amount shares a right edge and the column can be read as
+                          a column. The quote number sits before them and may vary
+                          — truncating it instead would make two revisions of the
+                          same job ("…from ICA/MBS" vs "…from AYANA") identical. */}
                       <span className="ml-auto flex items-center gap-3 flex-shrink-0 tabular-nums">
-                        {t && t.subtotal > 0 && <span className="text-[13px] font-bold text-slate-100">{fmtRp(t.subtotal)}</span>}
-                        <span className="font-mono text-[10px] text-slate-600 hidden sm:inline">{q.quote_number || '—'}</span>
-                        <span className="text-[10px] text-slate-500">{fmtDate(q.quote_date)}</span>
+                        <span className="font-mono text-[10px] text-slate-600 hidden sm:block max-w-[14rem] truncate" title={q.quote_number || undefined}>
+                          {q.quote_number || '—'}
+                        </span>
+                        <span className="w-[9rem] text-right whitespace-nowrap text-[13px] font-bold text-slate-100">
+                          {t && t.subtotal > 0 ? fmtRp(t.subtotal) : ''}
+                        </span>
+                        <span className="w-[4.5rem] text-right text-[10px] text-slate-500">{fmtDate(q.quote_date)}</span>
                       </span>
                     </div>
                   ) : (<>
