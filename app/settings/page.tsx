@@ -1081,12 +1081,23 @@ function UsersTab({ myId, flash }: { myId: string; flash: (m: string) => void })
 
   const signedUp = useMemo(() => new Set(users.map((u) => u.email.toLowerCase())), [users]);
 
+  // The account role and the allowlist role are two rows for one person —
+  // change either and the other must follow, or the two panels drift apart
+  // (the allowlist would keep showing the invite-time role forever).
   const updateRole = async (userId: string, role: UserRole) => {
     setSavingUser(userId);
     const { error } = await supabase.from('user_profiles').update({ role }).eq('id', userId);
     setSavingUser(null);
     if (error) { flash(`Could not update — ${error.message}`); return; }
     setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, role } : u)));
+    const email = users.find((u) => u.id === userId)?.email.toLowerCase();
+    if (email) {
+      const allowRow = allow.find((a) => a.email.toLowerCase() === email);
+      await supabase.from('allowed_emails').upsert({ email: allowRow?.email ?? email, role }, { onConflict: 'email' });
+      setAllow((prev) => prev.some((a) => a.email.toLowerCase() === email)
+        ? prev.map((a) => (a.email.toLowerCase() === email ? { ...a, role } : a))
+        : [...prev, { email, role }].sort((a, b) => a.email.localeCompare(b.email)));
+    }
     flash('Role updated');
   };
 
@@ -1114,11 +1125,21 @@ function UsersTab({ myId, flash }: { myId: string; flash: (m: string) => void })
     flash(`${email} can now sign in as ${ROLE_LABELS[newRole]}`);
   };
 
+  // Mirrors updateRole: the header promises that changing an allowlisted role
+  // also updates an existing account, so make that true. Your own account is
+  // the one exception — demoting yourself from the allowlist row would lock
+  // you out of this very screen.
   const setAllowRole = async (email: string, role: UserRole) => {
     const { error } = await supabase.from('allowed_emails').update({ role }).eq('email', email);
     if (error) { flash(`Could not update — ${error.message}`); return; }
     setAllow((prev) => prev.map((a) => (a.email === email ? { ...a, role } : a)));
-    flash('Allowlist updated — applies at next sign-up');
+    const existing = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+    if (!existing) { flash('Allowlist updated — applies when they sign up'); return; }
+    if (existing.id === myId) { flash('Allowlist updated — your own account role stays as it is'); return; }
+    const { error: accErr } = await supabase.from('user_profiles').update({ role }).eq('id', existing.id);
+    if (accErr) { flash(`Allowlist updated, but their account could not follow — ${accErr.message}`); return; }
+    setUsers((prev) => prev.map((u) => (u.id === existing.id ? { ...u, role } : u)));
+    flash('Role updated — allowlist and account');
   };
 
   const removeAllow = async (email: string) => {

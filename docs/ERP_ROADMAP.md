@@ -444,6 +444,21 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   cannot drift into flattery. Known limit, noted in-thread: page gates are UI
   enforcement; RLS on cost tables still allows broad authenticated reads.
 
+- **Sell-side cost leak closed + role panels synced (2026-07-28)**: `/products`
+  fetched `30.1.avg_cost_idr` it never rendered — the landed cost of every item
+  reached the browser's network tab for sell-side logins. The column is out of
+  the select (the roll-up there only feeds Physical qty). The bigger fix — RLS
+  that stops non-pricing roles reading cost columns at all — remains open.
+  Settings › Users: the account role (`user_profiles`) and the allowlist role
+  (`allowed_emails`) are one person in two rows, but only "Grant access" kept
+  them in step — promoting someone in the Users panel left the allowlist
+  showing the invite-time role forever (Abel/Budi showed Project Engineer on
+  top, "Data Entry (legacy)" below). Both dropdowns now write both rows —
+  changing an allowlisted role updates the existing account too, exactly as
+  the header always promised (your own row excepted, so an owner cannot
+  demote themselves from the allowlist panel) — and
+  `migrations/sync_allowlist_roles.sql` healed the two drifted rows live.
+
 **Next up (in order):**
 0. Dashboard slice 2: a position strip above the queue — Cash / Owed to us /
    We owe / CCC — then month-in-motion comparisons and an AI next-best-step card.
