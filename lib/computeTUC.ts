@@ -19,33 +19,80 @@ import { TAX_CATS, BALANCE_CATS } from '../constants/costCategories';
 
 /**
  * LAST-RESORT rates for price-quote lines, which carry no exchange rate of
- * their own. Only used when the business has never settled a PO in that
- * currency — i.e. when there is genuinely nothing to learn from. Every caller
- * that has PO history should pass a real map built by `fxFromRates`, because a
- * constant here silently understates the cost of every quote-only import, and
- * a cost that is quietly 5% low is worse than no cost at all.
+ * their own. Only used when the business has never bought in that currency at
+ * all — i.e. when there is genuinely nothing to learn from. A constant here
+ * silently understates the cost of every quote-only import, and a cost that is
+ * quietly 6% low is worse than no cost at all.
  */
 const FX_LAST_RESORT: Record<string, number> = { USD: 16000, RMB: 2200, IDR: 1 };
 
+/** POs whose rate is real evidence. A Draft is a scratchpad; a Replaced PO is history. */
+const FX_PO_STATUSES = new Set(['Confirmed', 'Partially Received', 'Fully Received']);
+
+/** How old the newest observation may get before the UI should say so. */
+export const FX_STALE_DAYS = 90;
+
+export interface FxRate {
+  rate: number;
+  date: string;
+  /** 'settled' = a rate actually paid; 'po' = the rate committed to on a purchase order. */
+  source: 'settled' | 'po';
+  label: string;
+}
+
 /**
- * The rate this business actually achieved, per currency — newest settled PO
- * first, from the same `deriveExchangeRates` history Insights charts.
+ * What this business is currently paying, per currency.
  *
- * Newest rather than average: a quote priced today will be paid at something
- * near today's rate, not at the mean of the last two years. The constants
- * above fill any currency with no settlement history at all.
+ * The subtlety that matters: a SETTLED rate is better evidence than a
+ * committed one, but only at the same age. Settlement lags ordering by months
+ * — an import ordered in July may not be paid until October — so ranking by
+ * "settled first" means pricing today's quotes off last quarter's rupiah. When
+ * the currency has moved, and in 2026 it has, that is the whole error.
+ *
+ * So: rank by DATE, and let source break ties. The newest evidence wins,
+ * whether it is a rate we paid or a rate we committed to on a purchase order.
+ * Averaging is deliberately avoided — a quote priced today will be paid near
+ * today's rate, not at the mean of the last two years.
  */
-export function fxFromRates(rates: { currency: string; implied_rate: number; payment_date: string }[]): Record<string, number> {
-  const out: Record<string, number> = { ...FX_LAST_RESORT };
-  const newest = new Map<string, { rate: number; date: string }>();
-  for (const r of rates) {
-    const rate = Number(r.implied_rate);
-    if (!rate || rate <= 0 || r.currency === 'IDR') continue;
-    const prev = newest.get(r.currency);
-    if (!prev || (r.payment_date ?? '') > prev.date) newest.set(r.currency, { rate, date: r.payment_date ?? '' });
+export function fxFromHistory(
+  pos: { currency?: string | null; exchange_rate?: number | string | null; po_date?: string | null; po_number?: string | null; status?: string | null }[],
+  settled: { currency: string; implied_rate: number; payment_date: string }[] = [],
+): Record<string, FxRate> {
+  const best = new Map<string, FxRate>();
+  const offer = (c: FxRate & { currency: string }) => {
+    if (!c.rate || c.rate <= 0 || c.currency === 'IDR' || !c.date) return;
+    const prev = best.get(c.currency);
+    // Newer date wins; at the same date a settled rate beats a committed one
+    if (!prev || c.date > prev.date || (c.date === prev.date && c.source === 'settled' && prev.source === 'po')) {
+      best.set(c.currency, { rate: c.rate, date: c.date, source: c.source, label: c.label });
+    }
+  };
+
+  for (const po of pos) {
+    if (!FX_PO_STATUSES.has(po.status ?? '')) continue;
+    offer({
+      currency: po.currency ?? '', rate: Number(po.exchange_rate), date: (po.po_date ?? '').slice(0, 10),
+      source: 'po', label: po.po_number || 'purchase order',
+    });
   }
-  for (const [ccy, v] of newest) out[ccy] = v.rate;
-  return out;
+  for (const r of settled) {
+    offer({
+      currency: r.currency, rate: Number(r.implied_rate), date: (r.payment_date ?? '').slice(0, 10),
+      source: 'settled', label: 'settled payment',
+    });
+  }
+  return Object.fromEntries(best);
+}
+
+/** Just the numbers, for callers that only need to convert. */
+export const fxRateOf = (fx: Record<string, FxRate>, ccy: string): number =>
+  fx[ccy]?.rate || FX_LAST_RESORT[ccy] || 1;
+
+/** Days since an FX observation was made; Infinity when there is none. */
+export function fxAgeDays(fx: Record<string, FxRate>, ccy: string): number {
+  const d = fx[ccy]?.date;
+  if (!d) return Infinity;
+  return Math.max(0, Math.round((Date.now() - new Date(`${d}T00:00:00`).getTime()) / 86400000));
 }
 
 export type CostKind = 'tuc' | 'quote' | 'used';
@@ -57,8 +104,12 @@ export interface CostEntry {
   unitCost: number;      // IDR
   buffered?: boolean;    // unitCost carries the Std Cost safety buffer (badge shows STD)
   rawUnitCost?: number;  // pre-buffer value — shown to owners only, for context
-  /** For a foreign-currency quote line: what it was converted at, e.g. "USD 5,800 @ 16,900". */
+  /** For a foreign-currency quote line: what it was converted at, e.g. "USD 5,800 @ 18,025". */
   fxNote?: string;
+  /** Where that rate came from, e.g. "PIO-013-ISL-07-2026 · 2026-07-07". */
+  fxSource?: string;
+  /** The rate behind this conversion is older than FX_STALE_DAYS. */
+  fxStale?: boolean;
 }
 
 export interface TUCResult {
@@ -199,7 +250,7 @@ export function quotePriceHistory(
   componentId: string,
   quotes: PriceQuote[],
   quoteItems: PriceQuoteLineItem[],
-  fx: Record<string, number> = FX_LAST_RESORT,
+  fx: Record<string, FxRate> = {},
 ): CostEntry[] {
   const entries: CostEntry[] = [];
   for (const li of quoteItems) {
@@ -207,9 +258,10 @@ export function quotePriceHistory(
     const q = quotes.find((x) => x.quote_id === li.quote_id);
     if (!q) continue;
     const cur = li.currency || q.currency;
-    const idr = cur === 'IDR' ? Number(li.unit_price) : Number(li.unit_price) * (fx[cur] || FX_LAST_RESORT[cur] || 1);
+    const idr = cur === 'IDR' ? Number(li.unit_price) : Number(li.unit_price) * fxRateOf(fx, cur);
     if (idr <= 0) continue;
-    const rate = cur === 'IDR' ? 1 : (fx[cur] || FX_LAST_RESORT[cur] || 1);
+    const rate = cur === 'IDR' ? 1 : fxRateOf(fx, cur);
+    const obs = fx[cur];
     entries.push({
       kind: 'quote',
       label: q.pi_number || `Quote ${q.quote_id}`,
@@ -219,6 +271,8 @@ export function quotePriceHistory(
       // is how a stale rate hides for months.
       fxNote: cur === 'IDR' ? undefined
         : `${cur} ${Number(li.unit_price).toLocaleString('en-US')} @ ${rate.toLocaleString('en-US')}`,
+      fxSource: obs ? `${obs.source === 'settled' ? 'settled' : obs.label} · ${obs.date}` : 'no purchase history — fallback rate',
+      fxStale: obs ? fxAgeDays(fx, cur) > FX_STALE_DAYS : true,
     });
   }
   entries.sort((a, b) => b.date.localeCompare(a.date));
@@ -257,7 +311,7 @@ export function getComponentCost(
   quoteItems: PriceQuoteLineItem[],
   usedEntries: CostEntry[] = [],
   opts?: QuoteCostOpts,
-  fx: Record<string, number> = FX_LAST_RESORT,
+  fx: Record<string, FxRate> = {},
 ): ComponentCost | null {
   const mode: QuoteCostMode = opts?.mode ?? 'tuc';
   const mul = mode === 'buffered' ? 1 + (Math.max(0, opts?.bufferPct ?? 0) / 100) : 1;

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useQuotesGate } from '@/hooks/useQuotesGate';
-import { computeTUCMap, getComponentCost, fxFromRates, type TUCResult, type CostEntry } from '@/lib/computeTUC';
+import { computeTUCMap, getComponentCost, fxFromHistory, type TUCResult, type CostEntry } from '@/lib/computeTUC';
 import { deriveExchangeRates } from '@/lib/exchangeRates';
 import { fetchUsedEntries } from '@/lib/usedPrices';
 import { lineWp } from '@/lib/quoteWp';
@@ -176,7 +176,7 @@ export default function QuotesListPage() {
   // Realized FX per currency — the drift check must compare against the same
   // cost the editor would compute, or it flags (or misses) the wrong quotes.
   const fx = useMemo(
-    () => fxFromRates(deriveExchangeRates(catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes)),
+    () => fxFromHistory(catalog.pos, deriveExchangeRates(catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes)),
     [catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes],
   );
 

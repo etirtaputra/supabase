@@ -381,13 +381,20 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   realized rates the business actually pays (newest settled: **USD 16,900**,
   **RMB 2,327**) that understated cost by **5.3% / 5.5%**, which almost exactly
   cancelled the 5% EPC Cost Basis buffer: the safety margin was buying nothing.
-  Now `fxFromRates(deriveExchangeRates(...))` builds the map from the same
-  settled-PO history Insights charts, newest rate per currency (a quote priced
-  today gets paid near today's rate, not the two-year mean); the constants
-  survive only as a last resort for a currency never settled. Both the EPC
-  editor and the proposals list's cost-drift check pass it, so they agree.
-  The price-history hover now prints the conversion (`USD 5,800 @ 16,900`) —
-  a converted cost nobody can audit is how a stale rate hides for months.
+  `fxFromHistory(pos, settledRates)` now builds the map, ranked by **DATE**
+  with source only as a tie-break. The first attempt ranked settled rates
+  first and was itself 3 months stale: settlement lags ordering by months
+  (`deriveExchangeRates` only counts POs with a principal payment), so
+  "newest settled" was April's **16,900** while the business was already
+  ordering at **18,025** (PIO-013, 7 Jul) and RMB **2,658** (PIO-014, 9 Jul).
+  Pricing today's quotes off last quarter's rupiah is the whole error, so a
+  rate COMMITTED to on a live PO now outranks an older rate actually paid.
+  Draft and Replaced POs are excluded — a Draft is a scratchpad. Both the EPC
+  editor and the proposals list's cost-drift check pass the map, so they agree.
+  The price-history hover prints the conversion, its provenance and its age
+  (`USD 5,800 @ 18,025`, hover: which PO and when), and turns amber past
+  `FX_STALE_DAYS` (90) — a converted cost nobody can audit is how a stale rate
+  hides for months, which is exactly how this one survived two rounds.
 
 **Next up (in order):**
 0. Dashboard slice 2: a position strip above the queue — Cash / Owed to us /

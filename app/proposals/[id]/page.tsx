@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useQuotesGate } from '@/hooks/useQuotesGate';
-import { computeTUCMap, getComponentCost, fxFromRates, priceAgeDays, AGED_PRICE_DAYS, type CostEntry } from '@/lib/computeTUC';
+import { computeTUCMap, getComponentCost, fxFromHistory, priceAgeDays, AGED_PRICE_DAYS, type CostEntry } from '@/lib/computeTUC';
 import { deriveExchangeRates } from '@/lib/exchangeRates';
 import { fetchUsedEntries } from '@/lib/usedPrices';
 import { DEFAULT_EXPORT_COLS, EXPORT_COL_KEYS, EXPORT_COL_LABELS, loadExportCols, saveExportCols, type ExportCols } from '@/lib/exportCols';
@@ -717,7 +717,7 @@ export default function QuoteEditorPage() {
    * protect the margin.
    */
   const fx = useMemo(
-    () => fxFromRates(deriveExchangeRates(catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes)),
+    () => fxFromHistory(catalog.pos, deriveExchangeRates(catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes)),
     [catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes],
   );
 
@@ -2618,8 +2618,11 @@ export default function QuoteEditorPage() {
                                           {/* The conversion, spelled out — a foreign cost nobody can
                                               audit is how a stale rate hides for months. */}
                                           {h.fxNote && (
-                                            <span className="text-[10px] text-sky-300/70 tabular-nums flex-shrink-0" title="Supplier quote converted at the newest rate actually settled in this currency">
-                                              {h.fxNote}
+                                            <span
+                                              className={`text-[10px] tabular-nums flex-shrink-0 ${h.fxStale ? 'text-amber-400/90' : 'text-sky-300/70'}`}
+                                              title={`Converted at the newest rate this business has committed to or paid — ${h.fxSource}${h.fxStale ? '. Older than 90 days: check it against today\u2019s rate before quoting.' : ''}`}
+                                            >
+                                              {h.fxNote}{h.fxStale ? ' ⚠' : ''}
                                             </span>
                                           )}
                                           <span className="text-slate-500 flex-shrink-0">{h.date}</span>
