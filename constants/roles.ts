@@ -41,6 +41,7 @@ export interface RolePermissions {
   canManageCustomers: boolean; // CRM: create/edit customers + contacts, assign AM
   canEditSalesDocs: boolean;   // sell-side docs (sales quotes → orders → DOs)
   canManagePricing: boolean;   // price tiers + item tier prices; sees margin vs landed cost (internal)
+  canViewEconomics: boolean;   // /economics — item GP, landed costs, CCC. Owner only: the whole P&L in one screen.
   canManageStock: boolean;     // inventory: receive / adjust stock movements
   canRecordReceipts: boolean;  // AR: record customer payments against sales invoices
   canViewBanks: boolean;       // bank accounts + their statements (cash position)
@@ -55,6 +56,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canViewSellingPrice: true, canViewBankFees: true, canViewCompetitorPrices: true, canViewBrand: true,
     canManageUsers: true, canEditQuotes: true,
     canManageCustomers: true, canEditSalesDocs: true, canManagePricing: true, canManageStock: true, canRecordReceipts: true,
+    canViewEconomics: true,
     canViewBanks: true, canEditBanks: true,
   },
   // Buy-side admin — procurement + catalog, can edit; sees buy-side cost signals.
@@ -65,6 +67,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canViewSellingPrice: true, canViewBankFees: true, canViewCompetitorPrices: true, canViewBrand: true,
     canManageUsers: false, canEditQuotes: false,
     canManageCustomers: false, canEditSalesDocs: false, canManagePricing: false, canManageStock: true, canRecordReceipts: false,
+    canViewEconomics: false,
     canViewBanks: true, canEditBanks: false,
   },
   // Sell-side admin — runs the whole sell-side incl. pricing tiers + receipts.
@@ -75,6 +78,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canViewSellingPrice: true, canViewBankFees: false, canViewCompetitorPrices: false, canViewBrand: false,
     canManageUsers: false, canEditQuotes: false,
     canManageCustomers: true, canEditSalesDocs: true, canManagePricing: true, canManageStock: false, canRecordReceipts: true,
+    canViewEconomics: false,
     canViewBanks: true, canEditBanks: false,
   },
   // Sell-side sales — customers + sales docs; no back-end (pricing/stock/AR).
@@ -85,6 +89,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canViewSellingPrice: true, canViewBankFees: false, canViewCompetitorPrices: false, canViewBrand: false,
     canManageUsers: false, canEditQuotes: false,
     canManageCustomers: true, canEditSalesDocs: true, canManagePricing: false, canManageStock: false, canRecordReceipts: false,
+    canViewEconomics: false,
     canViewBanks: false, canEditBanks: false,
   },
   // Project engineer — Project Quotes + sell-side sales access.
@@ -95,6 +100,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canViewSellingPrice: true, canViewBankFees: false, canViewCompetitorPrices: false, canViewBrand: false,
     canManageUsers: false, canEditQuotes: true,
     canManageCustomers: true, canEditSalesDocs: true, canManagePricing: false, canManageStock: false, canRecordReceipts: false,
+    canViewEconomics: false,
     canViewBanks: false, canEditBanks: false,
   },
   viewer: {
@@ -104,6 +110,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canViewSellingPrice: false, canViewBankFees: false, canViewCompetitorPrices: false, canViewBrand: false,
     canManageUsers: false, canEditQuotes: false,
     canManageCustomers: false, canEditSalesDocs: false, canManagePricing: false, canManageStock: false, canRecordReceipts: false,
+    canViewEconomics: false,
     canViewBanks: false, canEditBanks: false,
   },
   // ── Legacy (superseded by buy_admin); kept for backward-compatibility ──
@@ -114,6 +121,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canViewSellingPrice: false, canViewBankFees: false, canViewCompetitorPrices: false, canViewBrand: true,
     canManageUsers: false, canEditQuotes: true,
     canManageCustomers: false, canEditSalesDocs: false, canManagePricing: false, canManageStock: true, canRecordReceipts: false,
+    canViewEconomics: false,
     canViewBanks: false, canEditBanks: false,
   },
   finance: {
@@ -123,11 +131,51 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canViewSellingPrice: false, canViewBankFees: true, canViewCompetitorPrices: false, canViewBrand: true,
     canManageUsers: false, canEditQuotes: true,
     canManageCustomers: false, canEditSalesDocs: false, canManagePricing: false, canManageStock: false, canRecordReceipts: true,
+    canViewEconomics: false,
     canViewBanks: true, canEditBanks: false,
   },
 };
 
 // Roles offered in the admin user-management picker (legacy roles excluded).
+/**
+ * Human-readable map of every capability, grouped for display.
+ *
+ * Settings › Users renders ROLE_PERMISSIONS through this list, so the matrix
+ * people read is DERIVED from the flags the code enforces — it cannot drift
+ * into flattery. A capability missing here simply doesn't render; add its row
+ * when you add the flag.
+ */
+export type PermissionKey = Exclude<keyof RolePermissions, 'tabs'>;
+export const PERMISSION_MATRIX: { group: string; rows: { key: PermissionKey; label: string }[] }[] = [
+  { group: 'Modules', rows: [
+    { key: 'buySide',          label: 'Buy side — Catalog, Suppliers, Stock, Insights' },
+    { key: 'sellSide',         label: 'Sell side — Customers, Products, Sales, Invoices, Delivery, After Sales' },
+    { key: 'projects',         label: 'EPC Proposals' },
+    { key: 'canViewBanks',     label: 'Banks — accounts & statements' },
+    { key: 'canViewEconomics', label: 'Economics — item GP, landed cost, cash cycle' },
+  ]},
+  { group: 'Can edit', rows: [
+    { key: 'canEdit',            label: 'Save changes at all (off = read-only)' },
+    { key: 'canManageCustomers', label: 'Customers & contacts' },
+    { key: 'canEditSalesDocs',   label: 'Sales documents — quote → order → delivery → invoice' },
+    { key: 'canRecordReceipts',  label: 'Record customer payments (AR)' },
+    { key: 'canManageStock',     label: 'Receive & adjust stock' },
+    { key: 'canEditQuotes',      label: 'EPC proposal editor (sees costs & margins)' },
+    { key: 'canEditBanks',       label: 'Bank accounts & balance corrections' },
+  ]},
+  { group: 'Sensitive data', rows: [
+    { key: 'canViewSellingPrice',    label: 'Selling prices' },
+    { key: 'canViewBrand',           label: 'Brands & supplier identity' },
+    { key: 'canViewBankFees',        label: 'Bank fees & payment details' },
+    { key: 'canViewCompetitorPrices', label: 'Competitor prices' },
+  ]},
+  { group: 'Administration', rows: [
+    { key: 'canManagePricing', label: 'Price tiers, floors & overrides' },
+    { key: 'canExportCsv',     label: 'Export CSV' },
+    { key: 'canManageUsers',   label: 'Users, roles & settings' },
+  ]},
+];
+
 export const ASSIGNABLE_ROLES: UserRole[] = ['owner', 'buy_admin', 'sell_admin', 'sales', 'engineer', 'viewer'];
 
 export const ROLE_LABELS: Record<UserRole, string> = {

@@ -17,12 +17,12 @@
  * source of truth per fact, no shadow copies.
  */
 'use client';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { Fragment, useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth, type UserProfile } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
-import { ROLE_PERMISSIONS, ROLE_LABELS, ROLE_DESCRIPTIONS, ASSIGNABLE_ROLES, type UserRole } from '@/constants/roles';
+import { ROLE_PERMISSIONS, ROLE_LABELS, ROLE_DESCRIPTIONS, ASSIGNABLE_ROLES, PERMISSION_MATRIX, type UserRole } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 import {
   DEFAULT_SETTINGS, NUMBER_PRESET_EN, NUMBER_PRESET_ID, saveSettings,
@@ -1141,6 +1141,55 @@ function UsersTab({ myId, flash }: { myId: string; flash: (m: string) => void })
           </div>
         ))}
       </div>
+
+      {/* ── Permission matrix — read straight off ROLE_PERMISSIONS, so what
+             this table says IS what the code enforces; it cannot drift. ── */}
+      <details className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden group">
+        <summary className="px-4 py-3 cursor-pointer flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-slate-400 hover:text-slate-200 transition-colors list-none">
+          <svg className="w-3.5 h-3.5 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+          What each role can see and do
+        </summary>
+        <div className="overflow-x-auto border-t border-slate-800">
+          <table className="w-full min-w-[760px] text-[11px]">
+            <thead>
+              <tr className="border-b border-slate-800 text-[10px] uppercase tracking-widest text-slate-500">
+                <th className="text-left px-4 py-2 font-semibold min-w-[16rem]">Capability</th>
+                {ASSIGNABLE_ROLES.map((r) => (
+                  <th key={r} className="px-2 py-2 font-semibold text-center whitespace-nowrap" title={ROLE_DESCRIPTIONS[r]}>{ROLE_LABELS[r]}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {PERMISSION_MATRIX.map(({ group, rows }) => (
+                <Fragment key={group}>
+                  <tr className="bg-slate-950/50">
+                    <td colSpan={1 + ASSIGNABLE_ROLES.length} className="px-4 py-1.5 text-[9px] font-bold uppercase tracking-widest text-slate-600">{group}</td>
+                  </tr>
+                  {rows.map(({ key, label }) => (
+                    <tr key={key} className="border-b border-slate-800/40 hover:bg-slate-800/20 transition-colors">
+                      <td className="px-4 py-1.5 text-slate-400">{label}</td>
+                      {ASSIGNABLE_ROLES.map((r) => {
+                        const on = ROLE_PERMISSIONS[r][key] as boolean;
+                        return (
+                          <td key={r} className="px-2 py-1.5 text-center">
+                            {on
+                              ? <span className="text-emerald-400 font-bold">✓</span>
+                              : <span className="text-slate-700">—</span>}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="px-4 py-2.5 text-[10px] text-slate-600 border-t border-slate-800/60">
+          This table is generated from the same permission flags the pages enforce — changing a role's access is a code
+          change, and this view updates with it automatically.
+        </p>
+      </details>
 
       {/* Signed-in users */}
       <div className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden">

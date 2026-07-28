@@ -90,7 +90,7 @@ export const DESTINATIONS: Destination[] = [
   { href: '/aftersales', label: 'After Sales', group: 'Sell side', section: 'sellSide', inNav: true,
     hint: 'Service & warranty cases — repairs, replacements, complaints',
     keywords: 'service warranty klaim garansi rma repair replacement complaint case claim' },
-  { href: '/economics', label: 'Economics', group: 'Sell side', section: 'sellSide', cap: 'canManagePricing', inNav: true,
+  { href: '/economics', label: 'Economics', group: 'Sell side', section: 'sellSide', cap: 'canViewEconomics', inNav: true,
     hint: 'GP per item / customer / rep, stock aging, cash cycle',
     keywords: 'margin profit ccc dio dso dpo turnover' },
 

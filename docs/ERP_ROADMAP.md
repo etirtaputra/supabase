@@ -431,6 +431,19 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   step. Migration `migrations/create_aftersales.sql`, verified live with a
   rolled-back TEST_OK.
 
+- **Economics is owner-only + visible permission matrix (2026-07-28)**:
+  `/economics` (both tabs — Profitability AND Position) moved from
+  `canManagePricing` (owner + sell_admin) to a new **`canViewEconomics`**
+  capability held by **owner alone** — the screen is the whole P&L in one
+  place, and pricing admins manage tiers on `/pricing` without seeing it.
+  The nav/Spotlight entry follows the same cap, so the door disappears rather
+  than locking. Settings › Users gained **"What each role can see and do"** —
+  a role × capability matrix rendered straight off `ROLE_PERMISSIONS` through
+  `PERMISSION_MATRIX` (labels grouped Modules / Can edit / Sensitive data /
+  Administration), so the table people read IS what the code enforces and
+  cannot drift into flattery. Known limit, noted in-thread: page gates are UI
+  enforcement; RLS on cost tables still allows broad authenticated reads.
+
 **Next up (in order):**
 0. Dashboard slice 2: a position strip above the queue — Cash / Owed to us /
    We owe / CCC — then month-in-motion comparisons and an AI next-best-step card.

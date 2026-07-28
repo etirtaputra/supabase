@@ -1,8 +1,9 @@
 /**
  * ICAPROC — Item Economics (Module 6)
- * The "is cash turning into more cash, per item?" dashboard, for
- * canManagePricing roles (owner + sell_admin). Everything here is INTERNAL —
- * margins and costs never reach customers.
+ * The "is cash turning into more cash, per item?" dashboard — OWNER ONLY
+ * (canViewEconomics). This screen is the whole P&L in one place: GP per item,
+ * landed costs, per-rep performance, the cash cycle. Pricing admins manage
+ * tiers on /pricing without seeing any of it.
  *
  * Basis (locked decisions):
  *  - Revenue = delivered DO lines × their Sales Order unit price (excl. PPN).
@@ -83,7 +84,7 @@ export default function EconomicsPage() {
   // "Nothing sold in N days with stock on hand" — N is Settings › Defaults
   const { slowMoverDays: SLOW_DAYS, economicsPeriod } = useSettings();
   const isOwner = !!profile && ROLE_PERMISSIONS[profile.role].canManageUsers;   // owner — Settings
-  const canView = !!profile && ROLE_PERMISSIONS[profile.role].canManagePricing;
+  const canView = !!profile && ROLE_PERMISSIONS[profile.role].canViewEconomics;
 
   const [comps, setComps] = useState<Comp[]>([]);
   const [bals, setBals] = useState<Map<string, { qty: number; avg: number }>>(new Map());
@@ -110,7 +111,7 @@ export default function EconomicsPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/economics')}`); return; }
-    if (profile && !ROLE_PERMISSIONS[profile.role].canManagePricing) router.replace('/unauthorized');
+    if (profile && !ROLE_PERMISSIONS[profile.role].canViewEconomics) router.replace('/unauthorized');
   }, [authLoading, user, profile, router]);
 
   const fetchAll = useCallback(async () => {
