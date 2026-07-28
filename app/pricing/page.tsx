@@ -471,10 +471,13 @@ function TiersTab({ tiers, custTierCounts, overridesByTier, violationsByTier, sa
                     <button onClick={() => onMove(t, -1)} disabled={i === 0} className="text-slate-600 hover:text-white disabled:opacity-20 leading-none text-[10px] px-1 py-0.5 transition-colors" title="Move up">▲</button>
                     <button onClick={() => onMove(t, 1)} disabled={i === tiers.length - 1} className="text-slate-600 hover:text-white disabled:opacity-20 leading-none text-[10px] px-1 py-0.5 transition-colors" title="Move down">▼</button>
                   </div>
+                  {/* No NET badge here: the Price basis field below already
+                      says "Net — as entered per item", and a badge floating
+                      after a fixed-width name input reads as detached from the
+                      title it is meant to qualify. */}
                   <input defaultValue={t.name} key={`name-${t.tier_id}-${t.name}`}
                     onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== t.name) onSave(t, { name: v }); }}
                     className="bg-transparent text-white font-bold text-base outline-none border-b border-transparent focus:border-emerald-500/50 min-w-0 w-36 transition-colors" />
-                  {isNetTier && <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 text-[9px] font-bold tracking-wider flex-shrink-0" title="The chain's base: this tier's price is the net price entered on each item">NET</span>}
                 </div>
                 <label className="flex items-center gap-1.5 text-[10px] text-slate-500 cursor-pointer select-none flex-shrink-0">
                   <input type="checkbox" checked={t.is_active} onChange={(e) => onSave(t, { is_active: e.target.checked })} className="accent-emerald-500 w-3.5 h-3.5" />
