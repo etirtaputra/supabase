@@ -459,6 +459,34 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   demote themselves from the allowlist panel) — and
   `migrations/sync_allowlist_roles.sql` healed the two drifted rows live.
 
+- **Module 28 groundwork — spec schema + catalog spec seed (2026-07-29)**:
+  the foundation for the System Designer (see kickoff spec below).
+  `lib/specSchema.ts` is the CONTRACT for `3.0_components.specifications`:
+  canonical key vocabulary, category-aware alias normalisation (Jinko
+  `peak_power_wp` → `power_stc_w`, EPEVER `rated_power_kw` → W ×1000, per-
+  category meanings of `battery_voltage_v`…), numeric coercion, battery
+  `energy_wh` derived from V × Ah, and `model`/`brand`/prices STRIPPED — those
+  are columns, and a spec blob free of them stays safe for customer-facing
+  annexes. `specReadiness()` judges per category whether an item carries
+  every key its sizing engine needs; the Catalog spec sheet shows a
+  calculator-ready / missing-keys banner and the specs icon tints
+  emerald/amber to match. `BOM_ROLES` + `BOM_ROLE_PARAMS` define the generic
+  mounting/BoS vocabulary (rail + length, clamps + thickness, roof_hook +
+  roof type, cable + cross-section…).
+  Seeds (both idempotent, existing keys always win over the seed, re-running
+  after adding catalog rows fills them): `migrations/seed_component_specs.sql`
+  — 282 datasheet entries matched by model-code TOKEN inside supplier_model
+  (separator-insensitive) → 69 rows landed specs (46 charge controllers, 8
+  on-grid inverters, 6 inverter-chargers, 5 batteries, 4 PV modules);
+  `migrations/seed_bom_roles.sql` — name-pattern role tagging → 67 parts (17
+  rails 800–5800mm, 6+6 mid/end clamps, 6 joints, 6 roof attachments, 18 PV
+  cables, MC4s, grounding). Calculator-ready now: 4/10 PV modules, 8/23
+  on-grid, 46/72 controllers, 3/25 batteries, 47/66 mounting, 18/18 cable —
+  and 0/41 inverter-chargers: the fully-specced SNV hybrids are mostly not
+  catalog items, and the stocked Voltronic/EPEVER hybrids need datasheet
+  extraction. That extraction is the #1 data task before the off-grid
+  calculator can run.
+
 **Next up (in order):**
 0. Dashboard slice 2: a position strip above the queue — Cash / Owed to us /
    We owe / CCC — then month-in-motion comparisons and an AI next-best-step card.
@@ -474,6 +502,48 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
 4. Settings follow-ons when touched: per-document-type overrides (a customer
    who wants English invoices), and quote validity days once the sell-side
    document carries one.
+
+---
+
+## Module 28 — System Designer: calculator-driven System Quotes (kickoff spec)
+
+**Goal:** the two standalone HTML calculators (mounting v11, Smart Solar BoM
+v7) become part of the sales quote flow: a sales person answers the CONTEXT
+questions (kWh/day, PLN capacity, loads, roof, layout) and gets a complete,
+catalog-resolved, tier-priced Bill of Materials as an ordinary 22.0/22.1
+quote. Three layers, built one thread each:
+
+1. **Specs as data — SHIPPED 2026-07-29** (`lib/specSchema.ts` + seeds; see
+   Status). An item is a design candidate only when `specReadiness` passes —
+   the calculator never sizes from missing numbers.
+2. **Mounting engine + Materials Quote (next):** port v11 `calculate()` into
+   pure `lib/systemDesign/mounting.ts` (rails/joints/clamps/supports/
+   grounding from panel dims × layout, edge-spacing + rail-utilisation
+   warnings), with GOLDEN TESTS asserting outputs match the HTML app.
+   Resolve generic lines to catalog items via `bom_role` (+ role param);
+   an unresolved role lands as free text flagged "not in catalog", never
+   blocks. Wizard step on /sales generating a mounting-materials quote.
+3. **Full System Quote:** port v7 sizing — on-grid (PLN capacity → phase/VA
+   filter → DC/AC ratio), off-grid/hybrid (load table w/ inductive 2× surge
+   → inverter incl. parallel strategy → battery bank series×parallel by DoD
+   → PV by PSH), `sizePvStrings` Voc/MPPT validation. Full wizard: Context →
+   Array & mounting → Review (tier prices, per-line 30.1 availability,
+   engineering warnings) → Insert. Design inputs persist as `system_design`
+   JSONB on 22.0; generated lines tagged (`design_role` on 22.1) so
+   REGENERATE replaces only its own lines and hand-added lines survive.
+4. **Polish:** shortage integration, alternative suggestions, printed system
+   summary annex, WhatsApp share.
+
+**Locked while building it:**
+- Prices come from `lib/tierPricing.ts` at the customer's tier — never from
+  spec blobs or hard-coded constants.
+- Engine defaults (system efficiency 0.8, continuous safety ×1.25, DoD
+  0.5/0.8, support spacing 1700mm, default PSH, DC/AC ratio) live in
+  Settings › Defaults, not code constants.
+- Specs never carry brand/model/prices (columns do); customer-facing spec
+  output prints whitelisted keys only.
+- Engines are pure TS with golden tests pinned to the HTML calculators'
+  outputs; rule changes change a test, never silently.
 
 ---
 
