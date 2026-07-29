@@ -2614,6 +2614,9 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                     <div className="flex gap-1.5 text-[10px] font-semibold">
                       <button onClick={() => setExportCols(EXPORT_FIELDS.map((f) => f.key))} className="text-slate-500 hover:text-emerald-300 transition-colors">All</button>
                       <span className="text-slate-700">·</span>
+                      {/* Clearing first is the fast path to "just these three" */}
+                      <button onClick={() => setExportCols([])} className="text-slate-500 hover:text-emerald-300 transition-colors">Clear</button>
+                      <span className="text-slate-700">·</span>
                       <button onClick={() => setExportCols(DEFAULT_EXPORT_COLS)} className="text-slate-500 hover:text-emerald-300 transition-colors">Reset</button>
                     </div>
                   </div>
@@ -2637,8 +2640,10 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                       ))}
                     </div>
                   ))}
-                  <p className="px-2 pt-2 text-[10px] text-slate-600 border-t border-slate-800 mt-1.5">
-                    Columns export in this order, for the {filtered.length} row{filtered.length === 1 ? '' : 's'} the filters leave on screen.
+                  <p className={`px-2 pt-2 text-[10px] border-t border-slate-800 mt-1.5 ${exportCols.length === 0 ? 'text-amber-400/80' : 'text-slate-600'}`}>
+                    {exportCols.length === 0
+                      ? 'Pick at least one column to export.'
+                      : `Columns export in this order, for the ${filtered.length} row${filtered.length === 1 ? '' : 's'} the filters leave on screen.`}
                   </p>
                 </div>
               )}
