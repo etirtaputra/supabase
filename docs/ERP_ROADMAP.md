@@ -492,6 +492,23 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   in the sheet saves through the same normaliser as the seed — pasted
   datasheet JSON lands canonical, and brand/model/prices are stripped.
 
+- **Catalog CSV export: pick your columns (2026-07-29)**: the export was 11
+  hard-coded columns, so anyone who wanted three of them edited the file
+  afterwards. `EXPORT_FIELDS` in `ComponentEditor` is now a registry of the
+  19 columns the export CAN produce (Identity / Usage / Cost & price /
+  Technical), each with the getter that reads the maps the table has already
+  computed — nothing is recalculated for export. The CSV button became a
+  split button: click it to download, the caret picks columns (All / Reset,
+  remembered per browser in localStorage, unknown keys dropped on read so an
+  old selection can't resurrect a removed column). Output always follows
+  REGISTRY order, not tick order, so the same selection always produces the
+  same file. **The default selection reproduces the previous 11 columns
+  byte-identically** (verified mechanically, per the no-silent-output-change
+  rule). New opt-in columns: Unit, Capacity, Last Activity, Last Quote Date,
+  Landed Cost IDR, Warranty, Datasheet URL, and **Calculator-ready**
+  (yes / n/a / "missing: …" straight from `specReadiness`) — that last one
+  makes the Module 28 spec backlog a spreadsheet you can work through.
+
 **Next up (in order):**
 0. Dashboard slice 2: a position strip above the queue — Cash / Owed to us /
    We owe / CCC — then month-in-motion comparisons and an AI next-best-step card.

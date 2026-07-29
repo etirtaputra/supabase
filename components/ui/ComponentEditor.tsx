@@ -532,6 +532,59 @@ type ColKey = 'model' | 'description' | 'brand' | 'category' | 'unit' | 'normVal
 const COL_LABELS: Record<ColKey, string> = { model: 'Model/SKU', description: 'Description', brand: 'Brand', category: 'Category', unit: 'Unit', normValue: 'Capacity', lastPrice: 'Last Price', usage: 'Usage', updated: 'Updated', sellPrice: 'Sell Price' };
 const DEFAULT_COLS: Record<ColKey, boolean> = { model: true, description: true, brand: true, category: true, unit: true, normValue: false, lastPrice: true, usage: true, updated: true, sellPrice: false };
 
+// ── CSV export fields ─────────────────────────────────────────────────────
+// One entry per column the export CAN produce. The CSV always emits in THIS
+// order whatever order the boxes were ticked in, so two exports of the same
+// selection are identical. `get` reads the maps the table has already
+// computed — the export never recalculates anything the screen worked out.
+type ExportKey =
+  | 'model' | 'description' | 'brand' | 'category' | 'unit' | 'normValue'
+  | 'quotes' | 'lineItems' | 'lastPrice' | 'currency' | 'lastQuoteDate'
+  | 'landedCost' | 'sellPrice' | 'margin' | 'marketAvg'
+  | 'warranty' | 'datasheet' | 'specsReady' | 'updated';
+
+interface ExportRowCtx {
+  usage?: ComponentUsage;
+  lastQuote?: { price: number; currency: string; date: string };
+  landedCost?: number;
+  margin?: number;
+  marketAvg?: number;
+  updatedAt?: string;
+  specsReady?: string;
+}
+
+interface ExportField { key: ExportKey; label: string; group: string; get: (c: Component, x: ExportRowCtx) => string | number }
+
+const EXPORT_FIELDS: ExportField[] = [
+  { key: 'model',        label: 'Model/SKU',       group: 'Identity', get: (c) => c.supplier_model ?? '' },
+  { key: 'description',  label: 'Description',     group: 'Identity', get: (c) => c.internal_description ?? '' },
+  { key: 'brand',        label: 'Brand',           group: 'Identity', get: (c) => c.brand ?? '' },
+  { key: 'category',     label: 'Category',        group: 'Identity', get: (c) => c.category ?? '' },
+  { key: 'unit',         label: 'Unit',            group: 'Identity', get: (c) => c.unit ?? '' },
+  { key: 'normValue',    label: 'Capacity',        group: 'Identity', get: (c) => c.norm_value != null ? c.norm_value : '' },
+  { key: 'quotes',       label: 'Quotes',          group: 'Usage',    get: (_c, x) => x.usage?.quoteCount ?? 0 },
+  { key: 'lineItems',    label: 'Line Items',      group: 'Usage',    get: (_c, x) => x.usage?.lineItemCount ?? 0 },
+  { key: 'updated',      label: 'Last Activity',   group: 'Usage',    get: (_c, x) => x.updatedAt ? x.updatedAt.slice(0, 10) : '' },
+  { key: 'lastPrice',    label: 'Last Price',      group: 'Cost & price', get: (_c, x) => x.lastQuote ? x.lastQuote.price.toFixed(2) : '' },
+  { key: 'currency',     label: 'Currency',        group: 'Cost & price', get: (_c, x) => x.lastQuote?.currency ?? '' },
+  { key: 'lastQuoteDate',label: 'Last Quote Date', group: 'Cost & price', get: (_c, x) => x.lastQuote?.date ? x.lastQuote.date.slice(0, 10) : '' },
+  { key: 'landedCost',   label: 'Landed Cost IDR', group: 'Cost & price', get: (_c, x) => x.landedCost != null ? Math.round(x.landedCost).toString() : '' },
+  { key: 'sellPrice',    label: 'Sell Price IDR',  group: 'Cost & price', get: (c) => c.selling_price_idr != null ? Math.round(c.selling_price_idr).toString() : '' },
+  { key: 'margin',       label: 'Gross Margin %',  group: 'Cost & price', get: (_c, x) => x.margin != null ? x.margin.toFixed(1) : '' },
+  { key: 'marketAvg',    label: 'Market Avg IDR',  group: 'Cost & price', get: (_c, x) => x.marketAvg != null ? x.marketAvg.toFixed(2) : '' },
+  { key: 'warranty',     label: 'Warranty',        group: 'Technical', get: (c) => c.warranty ?? '' },
+  { key: 'datasheet',    label: 'Datasheet URL',   group: 'Technical', get: (c) => c.datasheet_url ?? '' },
+  { key: 'specsReady',   label: 'Calculator-ready', group: 'Technical', get: (_c, x) => x.specsReady ?? '' },
+];
+
+// The 11 columns this export produced before it was configurable — an
+// unconfigured install downloads exactly what it always has.
+const DEFAULT_EXPORT_COLS: ExportKey[] = [
+  'model', 'description', 'brand', 'category',
+  'quotes', 'lineItems', 'lastPrice', 'currency',
+  'sellPrice', 'margin', 'marketAvg',
+];
+
 // Default selling units offered for components — the same list the quote
 // editor uses, so a component's unit flows straight into quotes.
 const COMPONENT_UNITS = ['pcs', 'set', 'meter', 'Wp', 'kWh', 'ls', 'modules', 'unit', 'roll', 'kg', 'Month'];
@@ -620,6 +673,20 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     } catch { return DEFAULT_COLS; }
   });
   const [showColPicker, setShowColPicker] = useState(false);
+  // Which columns the CSV carries. Remembered per browser, like the table's
+  // own column choice — an unknown key from an older/newer build is dropped
+  // on read so the selection can never resurrect a column that no longer exists.
+  const [exportCols, setExportCols] = useState<ExportKey[]>(() => {
+    try {
+      const saved = localStorage.getItem('componentEditor_exportCols');
+      if (!saved) return DEFAULT_EXPORT_COLS;
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return DEFAULT_EXPORT_COLS;
+      const known = parsed.filter((k): k is ExportKey => EXPORT_FIELDS.some((f) => f.key === k));
+      return known.length ? known : DEFAULT_EXPORT_COLS;
+    } catch { return DEFAULT_EXPORT_COLS; }
+  });
+  const [showExportPicker, setShowExportPicker] = useState(false);
   const [showFindReplace, setShowFindReplace] = useState(false);
   const [frField, setFrField] = useState<'supplier_model' | 'internal_description' | 'both'>('supplier_model');
   const [frFind, setFrFind] = useState('');
@@ -666,6 +733,10 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   useEffect(() => {
     try { localStorage.setItem('componentEditor_cols', JSON.stringify(visibleCols)); } catch {}
   }, [visibleCols]);
+
+  useEffect(() => {
+    try { localStorage.setItem('componentEditor_exportCols', JSON.stringify(exportCols)); } catch {}
+  }, [exportCols]);
 
   // Debounce search so heavy filtering doesn't block every keystroke
   useEffect(() => {
@@ -1904,28 +1975,25 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   }, [inspectId, components, quoteItems, quotes, poItems, pos, poCosts, competitorPrices, componentHistory, componentLinks]);
 
   // ── CSV Export ────────────────────────────────────────────────────────────
+  // Emits the chosen columns in registry order for the rows currently filtered
+  // on screen — what you see is what you get, for both rows and columns.
   const downloadCSV = useCallback(() => {
-    const headers = ['Model/SKU', 'Description', 'Brand', 'Category', 'Quotes', 'Line Items', 'Last Price', 'Currency', 'Sell Price IDR', 'Gross Margin %', 'Market Avg IDR'];
+    const fields = EXPORT_FIELDS.filter((f) => exportCols.includes(f.key));
+    if (fields.length === 0) return;
     const rows = filtered.map((c) => {
-      const u = usageMap.get(c.component_id);
-      const lq = lastQuoteByComponent.get(c.component_id);
-      const gm = marginByComponent.get(c.component_id);
-      const mkt = marketAvgIdrByComponent.get(c.component_id);
-      return [
-        c.supplier_model ?? '',
-        c.internal_description ?? '',
-        c.brand ?? '',
-        c.category ?? '',
-        u?.quoteCount ?? 0,
-        u?.lineItemCount ?? 0,
-        lq ? lq.price.toFixed(2) : '',
-        lq?.currency ?? '',
-        c.selling_price_idr != null ? Math.round(c.selling_price_idr).toString() : '',
-        gm != null ? gm.toFixed(1) : '',
-        mkt != null ? mkt.toFixed(2) : '',
-      ].map((v) => `"${String(v).replace(/"/g, '""')}"`);
+      const readiness = specReadiness(c.category, (c.specifications ?? {}) as Record<string, unknown>);
+      const ctx: ExportRowCtx = {
+        usage: usageMap.get(c.component_id),
+        lastQuote: lastQuoteByComponent.get(c.component_id),
+        landedCost: tucByComponent.get(c.component_id)?.actualTucIdr,
+        margin: marginByComponent.get(c.component_id),
+        marketAvg: marketAvgIdrByComponent.get(c.component_id),
+        updatedAt: effectiveUpdatedAt.get(c.component_id),
+        specsReady: !readiness.relevant ? 'n/a' : readiness.ready ? 'yes' : `missing: ${readiness.missing.join(' ')}`,
+      };
+      return fields.map((f) => `"${String(f.get(c, ctx)).replace(/"/g, '""')}"`);
     });
-    const csv = [headers.map((h) => `"${h}"`), ...rows].map((r) => r.join(',')).join('\n');
+    const csv = [fields.map((f) => `"${f.label}"`), ...rows].map((r) => r.join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1933,7 +2001,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     a.download = `components_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [filtered, usageMap, lastQuoteByComponent]);
+  }, [filtered, exportCols, usageMap, lastQuoteByComponent, tucByComponent, marginByComponent, marketAvgIdrByComponent, effectiveUpdatedAt]);
 
   // Total visible column count for colSpan on expanded spec rows
   const sellPriceOn = visibleCols.sellPrice || pricingMode; // pricing mode forces the column on
@@ -2509,17 +2577,72 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
             )}
           </p>
           <div className="flex gap-2 items-center flex-wrap">
-            {/* CSV export */}
-            <button
-              onClick={downloadCSV}
-              title="Export visible components to CSV"
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-400 bg-slate-800/60 border border-slate-700 rounded-lg hover:text-emerald-300 hover:border-emerald-500/30 transition-all"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              CSV
-            </button>
+            {/* CSV export — click to download, caret to choose columns */}
+            <div className="relative flex">
+              <button
+                onClick={downloadCSV}
+                disabled={exportCols.length === 0}
+                title={`Export ${filtered.length} row${filtered.length === 1 ? '' : 's'} × ${exportCols.length} column${exportCols.length === 1 ? '' : 's'} to CSV — use the arrow to choose columns`}
+                className="flex items-center gap-1.5 pl-3 pr-2.5 py-1.5 text-xs font-semibold text-slate-400 bg-slate-800/60 border border-slate-700 rounded-l-lg hover:text-emerald-300 hover:border-emerald-500/30 disabled:opacity-40 disabled:hover:text-slate-400 transition-all"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                CSV
+                <span className="text-slate-600 font-normal">{exportCols.length}</span>
+              </button>
+              <button
+                onClick={() => setShowExportPicker((v) => !v)}
+                title="Choose which columns to export"
+                className={`px-1.5 py-1.5 text-xs border border-l-0 rounded-r-lg transition-all ${
+                  showExportPicker
+                    ? 'bg-slate-700 border-slate-600 text-white'
+                    : 'text-slate-500 bg-slate-800/60 border-slate-700 hover:text-emerald-300 hover:border-emerald-500/30'
+                }`}
+              >
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {showExportPicker && (
+                <div
+                  className="absolute left-0 top-full mt-1.5 z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl shadow-black/50 p-2 w-[230px] max-h-[70vh] overflow-y-auto"
+                  onMouseLeave={() => setShowExportPicker(false)}
+                >
+                  <div className="flex items-center justify-between px-2 py-1">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Export columns</p>
+                    <div className="flex gap-1.5 text-[10px] font-semibold">
+                      <button onClick={() => setExportCols(EXPORT_FIELDS.map((f) => f.key))} className="text-slate-500 hover:text-emerald-300 transition-colors">All</button>
+                      <span className="text-slate-700">·</span>
+                      <button onClick={() => setExportCols(DEFAULT_EXPORT_COLS)} className="text-slate-500 hover:text-emerald-300 transition-colors">Reset</button>
+                    </div>
+                  </div>
+                  {Array.from(new Set(EXPORT_FIELDS.map((f) => f.group))).map((group) => (
+                    <div key={group}>
+                      <p className="text-[9px] font-bold uppercase tracking-widest text-slate-700 px-2 pt-2 pb-0.5">{group}</p>
+                      {EXPORT_FIELDS.filter((f) => f.group === group).map((f) => (
+                        <label key={f.key} className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-white/5 text-sm text-slate-300 select-none">
+                          <input
+                            type="checkbox"
+                            checked={exportCols.includes(f.key)}
+                            onChange={(e) => setExportCols((prev) => (
+                              e.target.checked
+                                ? [...prev, f.key]
+                                : prev.filter((k) => k !== f.key)
+                            ))}
+                            className="w-3.5 h-3.5 rounded accent-emerald-500"
+                          />
+                          {f.label}
+                        </label>
+                      ))}
+                    </div>
+                  ))}
+                  <p className="px-2 pt-2 text-[10px] text-slate-600 border-t border-slate-800 mt-1.5">
+                    Columns export in this order, for the {filtered.length} row{filtered.length === 1 ? '' : 's'} the filters leave on screen.
+                  </p>
+                </div>
+              )}
+            </div>
             {/* Bulk delete controls */}
             {onDelete && selectedIds.size > 0 && (
               confirmBulkDelete ? (
