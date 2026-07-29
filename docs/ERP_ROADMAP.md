@@ -486,6 +486,11 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   catalog items, and the stocked Voltronic/EPEVER hybrids need datasheet
   extraction. That extraction is the #1 data task before the off-grid
   calculator can run.
+  Specs are VIEWED and EDITED in the Catalog: the document icon on a row
+  opens the spec sheet (icon appears for every calculator-relevant category
+  even when empty, emerald/amber by readiness), and "Edit/Add specs (JSON)"
+  in the sheet saves through the same normaliser as the seed — pasted
+  datasheet JSON lands canonical, and brand/model/prices are stripped.
 
 **Next up (in order):**
 0. Dashboard slice 2: a position strip above the queue — Cash / Owed to us /

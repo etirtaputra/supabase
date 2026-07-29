@@ -12,7 +12,7 @@ import TierPricingModal from './TierPricingModal';
 import StockModal from './StockModal';
 import StockSummaryCard from './StockSummaryCard';
 import CostBasisControl, { type QuoteCostMode } from './CostBasisControl';
-import { specReadiness } from '@/lib/specSchema';
+import { specReadiness, normalizeSpecs } from '@/lib/specSchema';
 import { createSupabaseClient } from '@/lib/supabase';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { useAuth } from '@/hooks/useAuth';
@@ -701,6 +701,8 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const selectAllRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [specsOpenIds, setSpecsOpenIds] = useState<Set<string>>(new Set());
+  // In-sheet JSON editing of specifications: one draft at a time.
+  const [specDraft, setSpecDraft] = useState<{ id: string; text: string; error: string | null; saving: boolean } | null>(null);
   const [lineItemModalId, setLineItemModalId] = useState<string | null>(null);
   const [lineItemEditId, setLineItemEditId] = useState<number | string | null>(null); // which association row is in edit mode
   const [lineItemDraft, setLineItemDraft] = useState<Record<number | string, Partial<PriceQuoteLineItem>>>({});
@@ -1550,6 +1552,31 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       n.has(id) ? n.delete(id) : n.add(id);
       return n;
     });
+  };
+
+  const saveSpecDraft = async (c: Component) => {
+    if (!specDraft || specDraft.saving) return;
+    let parsed: unknown;
+    try {
+      parsed = specDraft.text.trim() === '' ? {} : JSON.parse(specDraft.text);
+    } catch (e) {
+      setSpecDraft({ ...specDraft, error: `Not valid JSON — ${(e as Error).message}` });
+      return;
+    }
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      setSpecDraft({ ...specDraft, error: 'Specs must be a JSON object: {"key": value, …}' });
+      return;
+    }
+    // Normalise on the way in (aliases → canonical keys, numeric coercion,
+    // model/brand/prices stripped) so pasted datasheet JSON lands canonical.
+    const normalized = normalizeSpecs(c.category, parsed as Record<string, unknown>);
+    setSpecDraft({ ...specDraft, saving: true, error: null });
+    try {
+      await onSave([{ component_id: c.component_id, changes: { specifications: normalized } }]);
+      setSpecDraft(null);
+    } catch {
+      setSpecDraft((prev) => (prev ? { ...prev, saving: false } : prev));
+    }
   };
 
   // ── Row keyboard navigation (Tab / Enter / Escape while editing) ─────────
@@ -2802,7 +2829,9 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                 const isDirty = k in pending;
                 const isSpecsOpen = specsOpenIds.has(c.component_id);
                 const hasSpecs = c.specifications && typeof c.specifications === 'object' && Object.keys(c.specifications as object).length > 0;
-                const rowReadiness = hasSpecs ? specReadiness(c.category, c.specifications as Record<string, unknown>) : null;
+                const rowReadiness = specReadiness(c.category, (hasSpecs ? c.specifications : {}) as Record<string, unknown>);
+                // Calculator categories always get the specs button (to add specs); others only once specs exist.
+                const showSpecsButton = hasSpecs || rowReadiness.relevant;
 
                 return (
                   <React.Fragment key={c.component_id}>
@@ -3389,20 +3418,20 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           }
                         </button>
                         {/* Change log button removed — accessible via inspect panel (magnifying glass) */}
-                        {hasSpecs && (
+                        {showSpecsButton && (
                           <button
                             onClick={() => toggleSpecs(c.component_id)}
                             className={`px-2 py-1 text-xs font-semibold rounded-lg border transition-all ${
                               isSpecsOpen
                                 ? 'text-sky-300 bg-sky-500/10 border-sky-500/30 hover:bg-sky-500/20'
-                                : rowReadiness?.relevant
+                                : rowReadiness.relevant
                                   ? rowReadiness.ready
                                     ? 'text-emerald-400 bg-transparent border-transparent hover:bg-emerald-500/10 hover:border-emerald-500/30'
                                     : 'text-amber-400 bg-transparent border-transparent hover:bg-amber-500/10 hover:border-amber-500/30'
                                   : 'text-slate-600 bg-transparent border-transparent hover:bg-slate-800/60 hover:border-slate-700/60 hover:text-sky-300'
                             }`}
                             title={isSpecsOpen ? 'Hide specifications'
-                              : rowReadiness?.relevant
+                              : rowReadiness.relevant
                                 ? rowReadiness.ready ? 'View specifications — calculator-ready' : `View specifications — missing for calculator: ${rowReadiness.missing.join(', ')}`
                                 : 'View specifications'}
                           >
@@ -3476,34 +3505,80 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                     </td>
                   </tr>
                   {/* Inline spec sheet */}
-                  {isSpecsOpen && hasSpecs && (() => {
-                    const readiness = specReadiness(c.category, c.specifications as Record<string, unknown>);
+                  {isSpecsOpen && showSpecsButton && (() => {
+                    const isDraft = specDraft?.id === c.component_id;
                     return (
                     <tr className="bg-slate-900/40 border-t border-amber-500/10">
                       <td colSpan={visibleColCount} className="px-6 py-5">
-                        {readiness.relevant && (
-                          <div className={`mb-4 px-3 py-2 rounded-lg border text-xs font-semibold inline-flex items-center gap-2 ${
-                            readiness.ready
-                              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                              : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
-                          }`}>
-                            {readiness.ready ? (
-                              <>
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                                Calculator-ready — carries every spec the {c.category?.replace(/_/g, ' ')} sizing engine needs
-                              </>
-                            ) : (
-                              <>
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
-                                Not calculator-ready — missing: {readiness.missing.join(', ')}
-                              </>
-                            )}
+                        <div className="mb-4 flex flex-wrap items-center gap-2">
+                          {rowReadiness.relevant && (
+                            <div className={`px-3 py-2 rounded-lg border text-xs font-semibold inline-flex items-center gap-2 ${
+                              rowReadiness.ready
+                                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                                : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                            }`}>
+                              {rowReadiness.ready ? (
+                                <>
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                                  Calculator-ready — carries every spec the {c.category?.replace(/_/g, ' ')} sizing engine needs
+                                </>
+                              ) : (
+                                <>
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+                                  Not calculator-ready — missing: {rowReadiness.missing.join(', ')}
+                                </>
+                              )}
+                            </div>
+                          )}
+                          {!isDraft && (
+                            <button
+                              onClick={() => setSpecDraft({
+                                id: c.component_id,
+                                text: JSON.stringify((hasSpecs ? c.specifications : {}) as object, null, 2),
+                                error: null, saving: false,
+                              })}
+                              className="px-3 py-2 rounded-lg border text-xs font-semibold text-sky-300 bg-sky-500/10 border-sky-500/30 hover:bg-sky-500/20 transition-all"
+                            >
+                              {hasSpecs ? 'Edit specs (JSON)' : 'Add specs (JSON)'}
+                            </button>
+                          )}
+                        </div>
+                        {isDraft ? (
+                          <div className="space-y-2">
+                            <textarea
+                              value={specDraft.text}
+                              onChange={(e) => setSpecDraft({ ...specDraft, text: e.target.value, error: null })}
+                              rows={Math.min(24, Math.max(8, specDraft.text.split('\n').length + 1))}
+                              spellCheck={false}
+                              className="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white font-mono leading-relaxed focus:outline-none focus:border-sky-500 resize-y"
+                            />
+                            {specDraft.error && <p className="text-xs text-rose-400">{specDraft.error}</p>}
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => saveSpecDraft(c)}
+                                disabled={specDraft.saving}
+                                className="px-4 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-600 text-white transition-colors"
+                              >
+                                {specDraft.saving ? 'Saving…' : 'Save specs'}
+                              </button>
+                              <button
+                                onClick={() => setSpecDraft(null)}
+                                disabled={specDraft.saving}
+                                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-200 border border-slate-700 hover:border-slate-600 transition-colors"
+                              >
+                                Cancel
+                              </button>
+                              <p className="text-[10px] text-slate-600">
+                                Keys are normalised on save (datasheet aliases → canonical; brand/model/prices are stripped — those live on the row itself).
+                              </p>
+                            </div>
                           </div>
+                        ) : (
+                          <SpecRenderer
+                            specs={c.specifications as Record<string, unknown>}
+                            modelName={c.supplier_model}
+                          />
                         )}
-                        <SpecRenderer
-                          specs={c.specifications as Record<string, unknown>}
-                          modelName={c.supplier_model}
-                        />
                       </td>
                     </tr>
                     );
