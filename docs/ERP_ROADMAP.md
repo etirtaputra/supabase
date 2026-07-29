@@ -526,9 +526,12 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   light while text goes dark, in one move, hue intact. `white` flips with them
   (it is the emphasis ink `text-white` ×602 and the `bg-white/10` overlay,
   never a literal page colour). Three deliberate corrections to the mirror:
-  slate 950/900/800 are pinned so cards read as WHITE lifted off a soft grey
-  page (mirroring alone made them read recessed), and `shadow-black/*` is
-  softened, since a shadow tuned for a dark canvas is a grey smudge on white.
+  slate 950/900/800 are pinned so cards read as lifted off the page rather
+  than recessed into it (mirroring alone inverted that), and `shadow-black/*`
+  is softened, since a shadow tuned for a dark canvas is a grey smudge on a
+  light one. **Nothing in the light theme is pure white** — surfaces sit at
+  #f8f9fa over a #eaecef page, because a full-screen #fff at monitor
+  brightness is what makes a light UI tiring to read all day.
   Also fixed on the way: ~125 sites used literal hex (`bg-[#0f1012]`), which
   cannot follow a theme; they are now named surface tokens (`bg-chrome`,
   `bg-canvas`, `bg-sunken`, `bg-raised`, `bg-rail`, `bg-deep`, `bg-navy`,

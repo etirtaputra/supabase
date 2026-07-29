@@ -51,13 +51,13 @@ light.white = { DEFAULT: '14 15 17' };
 // DARK value of each is the exact hex it replaces, so the dark skin is
 // pixel-identical; only the light column is new.
 const SURFACES = {
-  chrome: ['#0f1012', '#ffffff'],  // headers, nav, sticky bars, table row base
-  canvas: ['#141518', '#fafafb'],  // the page behind everything
-  sunken: ['#101214', '#f2f2f4'],  // inset strips (expanded detail panels)
-  raised: ['#171a1f', '#f4f5f7'],  // hovered / expanded row
-  rail:   ['#15171b', '#f7f7f8'],  // alternating row rail
-  deep:   ['#020617', '#ffffff'],  // native <option> background
-  navy:   ['#0d1829', '#eff3fa'],  // pricing-intelligence cards
+  chrome: ['#0f1012', '#f8f9fa'],  // headers, nav, sticky bars, table row base
+  canvas: ['#141518', '#eff1f3'],  // the page behind everything
+  sunken: ['#101214', '#e9ebef'],  // inset strips (expanded detail panels)
+  raised: ['#171a1f', '#edeff2'],  // hovered / expanded row
+  rail:   ['#15171b', '#f3f4f6'],  // alternating row rail
+  deep:   ['#020617', '#f8f9fa'],  // native <option> background
+  navy:   ['#0d1829', '#e9eef6'],  // pricing-intelligence cards
   moss:   ['#12463b', '#d7faf0'],  // emerald section header
   moss2:  ['#1a5c4c', '#aff5e2'],  // emerald section header, stronger
 };
@@ -67,15 +67,19 @@ for (const [name, [d, l]] of Object.entries(SURFACES)) {
 }
 // App canvas — one step darker than the darkest card in dark mode; one step
 // lighter than the lightest card in light mode.
-const APP_BG = { dark: '20 21 24', light: '242 243 245' };
+const APP_BG = { dark: '20 21 24', light: '234 236 239' };
 
 // Light-mode corrections to the mirrored ramp. Mirroring alone makes the
 // SURFACE steps (950/900) a touch darker than the page, so cards read as
 // recessed; light UIs read better the other way round — a soft grey page with
 // white cards lifted off it. Only the three surface steps are pinned; every
 // other step stays mirrored.
+// Nothing in the light theme is pure white: a full-screen #fff at office
+// monitor brightness is what makes a light UI tiring to read all day. The
+// surfaces sit at a soft off-white and the page behind them a step deeper,
+// so the depth order still reads without any of it glaring.
 const LIGHT_FIX = {
-  slate: { 950: '#ffffff', 900: '#fbfbfc', 800: '#e8e9ec' },
+  slate: { 950: '#f8f9fa', 900: '#f4f5f7', 800: '#e2e4e8' },
 };
 for (const [scale, steps] of Object.entries(LIGHT_FIX)) {
   for (const [step, hex] of Object.entries(steps)) light[scale][step] = hexToRgb(hex);
