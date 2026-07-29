@@ -65,7 +65,7 @@ interface Row { c: Comp; phys: number; rsv: number; live: number; inc: number; a
 // Suspense wrapper: useSearchParams (?q= deep links from Spotlight) requires it
 export default function ProductsPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#0f1012]" />}>
+    <Suspense fallback={<div className="min-h-screen bg-chrome" />}>
       <ProductsInner />
     </Suspense>
   );
@@ -441,8 +441,8 @@ function ProductsInner() {
   if (!canView) return <CenterSpinner />;
 
   return (
-    <div className="min-h-screen bg-[#0f1012] text-slate-200 font-sans text-sm">
-      <div className="border-b border-slate-800/60 bg-[#0f1012]/80 backdrop-blur-md sticky top-0 z-30">
+    <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
+      <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         {/* Phones: wordmark row then actions row — side-by-side squeezes the
             buttons into the wordmark. sm+ keeps the single row. */}
         <div className="max-w-[1600px] 2xl:max-w-[2120px] mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4">
@@ -538,7 +538,7 @@ function ProductsInner() {
               <tr className="border-b border-slate-800 text-[10px] uppercase tracking-widest text-slate-500">
                 {/* Sticky: the item name stays anchored while the numeric
                     columns scroll horizontally, so a row never loses its label */}
-                <th className="text-left font-semibold px-4 py-2.5 sticky left-0 z-20 bg-[#0f1012]">Description</th>
+                <th className="text-left font-semibold px-4 py-2.5 sticky left-0 z-20 bg-chrome">Description</th>
                 <Th label="Sell Price" right active={sort.key === 'price'} dir={sort.dir} onClick={() => toggleSort('price')} />
                 <Th label="Stock" right active={sort.key === 'stock'} dir={sort.dir} onClick={() => toggleSort('stock')} hint="Live/Physical" />
                 <th className="text-right font-semibold px-3 py-2.5">Incoming</th>
@@ -558,7 +558,7 @@ function ProductsInner() {
               ) : rows.map((r) => (
                 <Fragment key={r.c.component_id}>
                   <tr onClick={() => setExpanded((e) => (e === r.c.component_id ? null : r.c.component_id))}
-                    className={`cursor-pointer transition-colors ${expanded === r.c.component_id ? 'bg-[#171a1f]' : 'bg-[#0f1012] hover:bg-[#15171b]'}`}>
+                    className={`cursor-pointer transition-colors ${expanded === r.c.component_id ? 'bg-raised' : 'bg-chrome hover:bg-rail'}`}>
                     <td className="px-4 py-2 sticky left-0 z-10 bg-inherit">
                       <span className="flex items-center gap-1.5">
                         <span className="text-sm text-slate-100 font-medium truncate max-w-[320px]">{descOf(r.c)}</span>
@@ -748,7 +748,7 @@ function ProductsInner() {
 const selCls = 'h-11 px-3 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-slate-300 text-xs transition-colors cursor-pointer';
 
 function CenterSpinner() {
-  return <div className="min-h-screen bg-[#0f1012] flex items-center justify-center"><div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" /></div>;
+  return <div className="min-h-screen bg-chrome flex items-center justify-center"><div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" /></div>;
 }
 
 function Th({ label, hint, right, active, dir, onClick }: { label: string; hint?: string; right?: boolean; active: boolean; dir: 1 | -1; onClick: () => void }) {

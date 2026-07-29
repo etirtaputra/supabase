@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS, type RolePermissions } from '@/constants/roles';
 import { DESTINATIONS, NAV_GROUP_ORDER } from '@/constants/navigation';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
+import { useTheme } from '@/hooks/useTheme';
 import CommandPalette from './CommandPalette';
 
 /**
@@ -85,6 +86,7 @@ export default function BrandMenu({
   const pathname = usePathname();
   const router = useRouter();
   const { profile, signOut } = useAuth();
+  const { theme, setTheme } = useTheme();
   const [open, setOpen] = useState(false);         // caret dropdown (narrow widths)
   const [moreOpen, setMoreOpen] = useState(false); // mobile "More" sheet
   const [deskOpen, setDeskOpen] = useState<number | null>(null); // desktop group dropdown
@@ -182,6 +184,32 @@ export default function BrandMenu({
           ))}
         </div>
       )}
+      {/* Appearance — a personal preference, so it sits with the account
+          rather than in Settings (which holds company-wide defaults). */}
+      <div className="mt-1 pt-1.5 border-t border-slate-800/70">
+        <div className="flex items-center gap-2 px-2.5 py-1.5">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 flex-1">Appearance</span>
+          <div className="flex bg-slate-950/60 border border-slate-800 rounded-lg p-0.5 gap-0.5">
+            {(['dark', 'light'] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTheme(t)}
+                aria-pressed={theme === t}
+                title={t === 'dark' ? 'Dark theme' : 'Light theme'}
+                className={`px-1.5 py-1 rounded-md transition-colors ${
+                  theme === t ? 'bg-slate-800 text-emerald-300' : 'text-slate-600 hover:text-slate-300'
+                }`}
+              >
+                {t === 'dark' ? (
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+                ) : (
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
       {/* Signed-in user + sign out — lives here so headers stay clean */}
       {profile && (
         <div className="mt-1 pt-1.5 border-t border-slate-800/70">
@@ -336,7 +364,7 @@ export default function BrandMenu({
              in place, the "bottom" bar pins to the header instead of the
              viewport (same hijack as the import modal). ── */}
       {mobileNav && mounted && createPortal(
-        <div className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-[#0f1012]/95 backdrop-blur-xl border-t border-slate-800/80" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        <div className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-chrome/95 backdrop-blur-xl border-t border-slate-800/80" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
           <div className="flex items-stretch">
             {[{ href: '/', label: 'Home', section: null as Section }, ...primary].map((a) => {
               const active = isActive(a.href);

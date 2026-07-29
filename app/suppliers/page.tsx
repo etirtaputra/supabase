@@ -104,8 +104,8 @@ export default function SuppliersPage() {
   if (!canView) return <CenterSpinner />;
 
   return (
-    <div className="min-h-screen bg-[#0f1012] text-slate-200 font-sans text-sm">
-      <div className="border-b border-slate-800/60 bg-[#0f1012]/80 backdrop-blur-md sticky top-0 z-30">
+    <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
+      <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4">
           <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Suppliers · Vendors" />
           <span className="text-[11px] text-slate-500 whitespace-nowrap">Vendors are created in Catalog → Supplier Quotes</span>
@@ -180,7 +180,7 @@ export default function SuppliersPage() {
 }
 
 function CenterSpinner() {
-  return <div className="min-h-screen bg-[#0f1012] flex items-center justify-center"><div className="w-6 h-6 border-2 border-sky-500/30 border-t-sky-500 rounded-full animate-spin" /></div>;
+  return <div className="min-h-screen bg-chrome flex items-center justify-center"><div className="w-6 h-6 border-2 border-sky-500/30 border-t-sky-500 rounded-full animate-spin" /></div>;
 }
 
 // ── Supplier profile drawer ─────────────────────────────────────────────────
@@ -243,7 +243,7 @@ function SupplierProfile({ supplier, stats, poItems, components, poPaidIdr, poId
   }, [stats, poIdr, poPaidIdr]);
 
   return (
-    <div className="border-t border-slate-800/60 bg-[#101214]">
+    <div className="border-t border-slate-800/60 bg-sunken">
       {/* Context strip: code · location · terms · contact. The row above
           already shows the name, so no repeated heading. */}
       <div className="px-4 py-2.5 flex items-center gap-3 border-b border-slate-800/60">

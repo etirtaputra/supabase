@@ -649,7 +649,7 @@ export default function PricingIntelligence({
 
           {/* ── Price band + tiers ── */}
           {tucIdr && xrUsd && tiers ? (
-            <div className="bg-[#0d1829] border border-slate-800/80 rounded-2xl p-5 md:p-6">
+            <div className="bg-navy border border-slate-800/80 rounded-2xl p-5 md:p-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
                 <div>
                   <h3 className="text-sm font-bold text-white">Pricing Tiers</h3>
@@ -734,7 +734,7 @@ export default function PricingIntelligence({
 
           {/* ── Sell price simulator + target margin calculator ── */}
           {tucIdr && xrUsd && (
-            <div className="bg-[#0d1829] border border-slate-800/80 rounded-2xl p-5 md:p-6 space-y-5">
+            <div className="bg-navy border border-slate-800/80 rounded-2xl p-5 md:p-6 space-y-5">
               <div>
                 <h3 className="text-sm font-bold text-white mb-0.5">Sell Price Tools</h3>
                 <p className="text-xs text-slate-500">Simulate any sell price in IDR, or reverse-calculate from a target margin.</p>
@@ -849,7 +849,7 @@ export default function PricingIntelligence({
           )}
 
           {/* ── Competitor prices table ── */}
-          <div className="bg-[#0d1829] border border-slate-800/80 rounded-2xl overflow-hidden">
+          <div className="bg-navy border border-slate-800/80 rounded-2xl overflow-hidden">
             {/* Header with recency filters + log link */}
             <div className="px-5 py-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
               <div>
@@ -973,7 +973,7 @@ export default function PricingIntelligence({
 
           {/* ── Supplier quote history ── */}
           {quoteHistory.length > 0 && (
-            <div className="bg-[#0d1829] border border-slate-800/80 rounded-2xl overflow-hidden">
+            <div className="bg-navy border border-slate-800/80 rounded-2xl overflow-hidden">
               <div className="px-5 py-4 border-b border-slate-800">
                 <h3 className="text-sm font-bold text-white">Supplier Quote History ({quoteHistory.length})</h3>
                 <p className="text-xs text-slate-500 mt-0.5">

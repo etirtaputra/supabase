@@ -460,14 +460,14 @@ export default function DescriptionLibraryPage() {
   // ── Gate ────────────────────────────────────────────────────────────────────
   if (!gate.ready) {
     return (
-      <div className="min-h-screen bg-[#141518] flex items-center justify-center">
+      <div className="min-h-screen bg-canvas flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
       </div>
     );
   }
   if (!isOwner) {
     return (
-      <div className="min-h-screen bg-[#141518] flex flex-col items-center justify-center gap-4 text-slate-400 text-sm">
+      <div className="min-h-screen bg-canvas flex flex-col items-center justify-center gap-4 text-slate-400 text-sm">
         <p>The Description Library is only available to Owners.</p>
         <Link href="/proposals" className="text-violet-400 hover:text-violet-300 underline">Back to quotes</Link>
       </div>
@@ -617,9 +617,9 @@ export default function DescriptionLibraryPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#141518] text-slate-200 font-sans text-sm">
+    <div className="min-h-screen bg-canvas text-slate-200 font-sans text-sm">
       {/* Header */}
-      <div className="sticky top-0 z-40 bg-[#141518]/90 backdrop-blur-xl border-b border-white/[0.07]">
+      <div className="sticky top-0 z-40 bg-canvas/90 backdrop-blur-xl border-b border-white/[0.07]">
         <div className="max-w-6xl 2xl:max-w-[1760px] mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Link href="/proposals" className="text-slate-500 hover:text-slate-300 transition-colors">

@@ -180,12 +180,12 @@ export default function TierPricingModal({ componentId, componentName, listPrice
       <div
         style={popStyle}
         className={asPopover
-          ? 'overflow-y-auto bg-[#141518] border border-slate-700 rounded-2xl shadow-2xl'
-          : 'relative w-full sm:max-w-lg max-h-[88vh] overflow-y-auto bg-[#141518] border border-slate-800 sm:rounded-2xl rounded-t-2xl shadow-2xl'}
+          ? 'overflow-y-auto bg-canvas border border-slate-700 rounded-2xl shadow-2xl'
+          : 'relative w-full sm:max-w-lg max-h-[88vh] overflow-y-auto bg-canvas border border-slate-800 sm:rounded-2xl rounded-t-2xl shadow-2xl'}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-[#141518]/95 backdrop-blur border-b border-slate-800 px-5 py-3.5 flex items-center justify-between gap-3 z-10">
+        <div className="sticky top-0 bg-canvas/95 backdrop-blur border-b border-slate-800 px-5 py-3.5 flex items-center justify-between gap-3 z-10">
           <div className="min-w-0">
             <h3 className="text-sm font-bold text-white truncate">Tier Pricing</h3>
             <p className="text-[11px] text-slate-500 truncate">{componentName}</p>

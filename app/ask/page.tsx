@@ -88,17 +88,17 @@ export default function AskPage() {
 
   if (authLoading || !user) {
     return (
-      <div className="min-h-screen bg-[#141518] flex items-center justify-center">
+      <div className="min-h-screen bg-canvas flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-screen bg-[#141518] text-slate-200 font-sans text-sm overflow-hidden">
+    <div className="flex flex-col h-screen bg-canvas text-slate-200 font-sans text-sm overflow-hidden">
 
       {/* ── Header (house style) ── */}
-      <div className="flex-none sticky top-0 z-40 bg-[#141518]/90 backdrop-blur-xl border-b border-white/[0.07]">
+      <div className="flex-none sticky top-0 z-40 bg-canvas/90 backdrop-blur-xl border-b border-white/[0.07]">
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
           <BrandMenu wordmarkClass="text-xl font-bold" subtitle="Ask · AI assistant" />
           <div className="flex items-center gap-4">

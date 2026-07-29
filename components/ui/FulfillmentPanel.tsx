@@ -461,7 +461,7 @@ function InvoiceModal({ items, invoicedQtyByLine, orderTotal, invoicedTotal, ppn
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center px-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60" />
-      <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-[#141518] border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+      <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-canvas border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
         <div>
           <h3 className="text-base font-bold text-white">New Invoice</h3>
           <p className="text-[11px] text-slate-500 mt-0.5">Prefilled with everything still uninvoiced — post as-is for the full bill, or trim quantities / switch to a % of the order to split.</p>
@@ -559,7 +559,7 @@ function DoModal({ items, shippedQtyByLine, contacts, shippingAddress, busy, onC
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center px-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60" />
-      <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-[#141518] border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+      <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-canvas border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
         <div>
           <h3 className="text-base font-bold text-white">New Delivery Order</h3>
           <p className="text-[11px] text-slate-500 mt-0.5">Prefilled with everything not yet on a DO — trim quantities to split the shipment. Stock moves when this DO is marked delivered.</p>

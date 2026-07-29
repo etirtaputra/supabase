@@ -428,7 +428,7 @@ export default function SalesQuotePage() {
   if (authLoading || !profile || (loading && !editing)) return <CenterSpinner />;
   if (!canEdit) return <CenterSpinner />;
   if (notFound) return (
-    <div className="min-h-screen bg-[#0f1012] flex flex-col items-center justify-center gap-3 text-slate-400">
+    <div className="min-h-screen bg-chrome flex flex-col items-center justify-center gap-3 text-slate-400">
       <p>Sales quote not found.</p>
       <button onClick={() => router.push('/sales')} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 text-sm">← Back to Sales</button>
     </div>
@@ -461,8 +461,8 @@ export default function SalesQuotePage() {
   const canRevise = !!editing.quote_id && ['validated', 'sent', 'accepted'].includes(st);
 
   return (
-    <div className="min-h-screen bg-[#0f1012] text-slate-200 font-sans text-sm">
-      <div className="border-b border-slate-800/60 bg-[#0f1012]/80 backdrop-blur-md sticky top-0 z-30">
+    <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
+      <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4">
           <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Sales · Quotation" mobileNav={false} />
           <button onClick={() => router.push('/sales')} className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors">← Back to list</button>
@@ -594,7 +594,7 @@ export default function SalesQuotePage() {
 
         {/* One row, scrolled sideways on a phone — wrapping ate three rows of
             screen. The hint moves under the bar rather than into it. */}
-        <div className="sticky bottom-0 bg-[#0f1012]/95 backdrop-blur border-t border-slate-800 pt-2.5 pb-1.5 sm:py-3 -mx-3 px-3 sm:mx-0 sm:px-0">
+        <div className="sticky bottom-0 bg-chrome/95 backdrop-blur border-t border-slate-800 pt-2.5 pb-1.5 sm:py-3 -mx-3 px-3 sm:mx-0 sm:px-0">
         <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto scrollbar-none">
           <button onClick={save} disabled={busy} className="flex-shrink-0 px-4 sm:px-5 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-xs sm:text-sm font-semibold transition-colors disabled:opacity-50">Save</button>
           <button onClick={printPdf} disabled={busy} className="flex-shrink-0 px-3 sm:px-4 py-2 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs sm:text-sm font-semibold transition-colors disabled:opacity-50 inline-flex items-center gap-2 whitespace-nowrap">
@@ -631,7 +631,7 @@ const inp = 'w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 fo
 const inpSm = 'w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 focus:border-emerald-500/50 outline-none text-white text-xs placeholder:text-slate-600 transition-colors';
 
 function CenterSpinner() {
-  return <div className="min-h-screen bg-[#0f1012] flex items-center justify-center"><div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" /></div>;
+  return <div className="min-h-screen bg-chrome flex items-center justify-center"><div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" /></div>;
 }
 function FieldBox({ label, children, full }: { label: string; children: React.ReactNode; full?: boolean }) {
   return <div className={full ? 'col-span-2' : ''}><label className="block text-[11px] font-medium text-slate-500 mb-1">{label}</label>{children}</div>;
@@ -858,7 +858,7 @@ function RecordPaymentModal({ quoteId, companyId, outstanding, received, onClose
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center px-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60" />
-      <div className="relative w-full max-w-md bg-[#141518] border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-3" onClick={(e) => e.stopPropagation()}>
+      <div className="relative w-full max-w-md bg-canvas border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-3" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-base font-bold text-white">Record customer payment</h3>
 
         <div className="grid grid-cols-2 gap-3">
@@ -928,7 +928,7 @@ function DeliveryOrderModal({ initial, contacts, isEdit, busy, onClose, onSubmit
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center px-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60" />
-      <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto bg-[#141518] border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-3" onClick={(e) => e.stopPropagation()}>
+      <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto bg-canvas border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-3" onClick={(e) => e.stopPropagation()}>
         <div>
           <h3 className="text-base font-bold text-white">{isEdit ? 'Edit delivery details' : 'Create Delivery Order'}</h3>
           <p className="text-[11px] text-slate-500 mt-0.5">

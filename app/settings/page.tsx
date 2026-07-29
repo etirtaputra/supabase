@@ -147,15 +147,15 @@ export default function SettingsPage() {
 
   if (authLoading || !user || (profile && !isOwner)) {
     return (
-      <div className="min-h-screen bg-[#0f1012] flex items-center justify-center">
+      <div className="min-h-screen bg-chrome flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0f1012] text-slate-200 font-sans text-sm">
-      <div className="border-b border-slate-800/60 bg-[#0f1012]/80 backdrop-blur-md sticky top-0 z-30">
+    <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
+      <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4">
           <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle={`Settings · ${TABS.find(([k]) => k === tab)?.[1]}`} />
           <div className="flex items-center gap-2 flex-wrap">

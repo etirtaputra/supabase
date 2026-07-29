@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import GlobalSpotlight from "@/components/ui/GlobalSpotlight";
 import SettingsLoader from "@/components/ui/SettingsLoader";
+import { THEME_VARS_CSS, TAILWIND_COLORS_JS } from "@/constants/palette";
+import { THEME_BOOT_SCRIPT } from "@/lib/theme";
 
 export const dynamic = 'force-dynamic';
 
@@ -24,9 +26,12 @@ export const viewport: Viewport = {
 /**
  * Theme: kaspa.stream-inspired dark — neutral graphite surfaces, hairline
  * borders, Kaspa teal (#49EACB) as the primary accent, Rubik type with
- * Roboto Mono for identifiers. The palettes below REMAP Tailwind's stock
- * scales so every existing slate/emerald/violet class site re-skins at once.
- * (The client-facing print/PDF keeps its own corporate navy styling.)
+ * Roboto Mono for identifiers. Every colour scale the app uses is REMAPPED to
+ * CSS variables (see constants/palette.ts), so the whole skin — all ~4,200
+ * class sites — follows one `data-theme` attribute on <html>. Dark is the
+ * default and is exactly what it always was; light reads the same ramps from
+ * the other end. (The client-facing print/PDF keeps its own corporate navy
+ * styling in raw CSS and is untouched by either.)
  */
 const TAILWIND_THEME = `
 tailwind.config = {
@@ -36,20 +41,7 @@ tailwind.config = {
         sans: ['Rubik', 'Inter', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
         mono: ['Roboto Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
-      colors: {
-        slate: {
-          50:'#f7f7f8',100:'#f0f0f2',200:'#e1e2e5',300:'#c3c5ca',400:'#9a9da4',
-          500:'#6e7178',600:'#4a4c52',700:'#333539',800:'#26272b',900:'#1b1c1f',950:'#0e0f11',
-        },
-        emerald: {
-          50:'#effdf9',100:'#d7faf0',200:'#aff5e2',300:'#7defd3',400:'#49eacb',
-          500:'#2bd4b4',600:'#1cb497',700:'#17937c',800:'#187463',900:'#175d51',950:'#0b332c',
-        },
-        violet: {
-          50:'#f4f4fe',100:'#e9eafd',200:'#d6d8fa',300:'#b3b8f5',400:'#9297ec',
-          500:'#7a7fe0',600:'#6366d9',700:'#5052c4',800:'#4244a0',900:'#3a3c80',950:'#23234d',
-        },
-      },
+      colors: ${TAILWIND_COLORS_JS},
     },
   },
 };
@@ -66,10 +58,19 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800&family=Roboto+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+        {/* The palette must exist before Tailwind's utilities reference it, and
+            the stored choice must be applied before the first paint — a flash
+            of the wrong theme on every load is worse than no theme at all. */}
+        <style dangerouslySetInnerHTML={{ __html: THEME_VARS_CSS }} />
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
         <script src="https://cdn.tailwindcss.com"></script>
         <script dangerouslySetInnerHTML={{ __html: TAILWIND_THEME }} />
         <style dangerouslySetInnerHTML={{ __html: `
-          body { background: #141518; font-family: Rubik, Inter, system-ui, -apple-system, 'Segoe UI', sans-serif; }
+          body { background: rgb(var(--c-app-bg)); font-family: Rubik, Inter, system-ui, -apple-system, 'Segoe UI', sans-serif; }
+          /* Form controls and scrollbars are painted by the browser, not by a
+             utility class, so they need telling which skin is in play. */
+          :root { color-scheme: dark; }
+          :root[data-theme="light"] { color-scheme: light; }
           /* iOS zooms into any focused field whose text is under 16px. Force
              16px on phones so tapping a search bar / input never zooms. The
              !important is needed to beat Tailwind's text-xs/text-sm utilities. */

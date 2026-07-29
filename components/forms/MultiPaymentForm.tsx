@@ -470,7 +470,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
                   className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-sky-500/20"
                 >
                   {ALL_COST_CATS.map((c) => (
-                    <option key={c} value={c} className="bg-[#020617] text-white">{c.replace(/_/g, ' ')}</option>
+                    <option key={c} value={c} className="bg-deep text-white">{c.replace(/_/g, ' ')}</option>
                   ))}
                 </select>
                 <input

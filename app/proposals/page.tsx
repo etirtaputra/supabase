@@ -411,16 +411,16 @@ export default function QuotesListPage() {
 
   if (!gate.ready) {
     return (
-      <div className="min-h-screen bg-[#141518] flex items-center justify-center">
+      <div className="min-h-screen bg-canvas flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#141518] text-slate-200 font-sans text-sm">
+    <div className="min-h-screen bg-canvas text-slate-200 font-sans text-sm">
       {/* Header */}
-      <div className="sticky top-0 z-40 bg-[#141518]/90 backdrop-blur-xl border-b border-white/[0.07]">
+      <div className="sticky top-0 z-40 bg-canvas/90 backdrop-blur-xl border-b border-white/[0.07]">
         <div className="max-w-6xl 2xl:max-w-[1760px] mx-auto px-3 sm:px-6 py-4 flex items-center justify-between gap-3">
           <BrandMenu wordmarkClass="text-xl font-bold" subtitle="EPC Proposals" />
           <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
@@ -847,12 +847,12 @@ function OnlineIndicator({ online, count }: { online: LobbyPeer[]; count: number
       <div className="flex -space-x-2">
         {online.slice(0, 4).map((p) => (
           <span key={p.email}
-            className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-black/80 ring-2 ring-[#141518]"
+            className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-black/80 ring-2 ring-canvas"
             style={{ backgroundColor: p.color }}>
             {initials(p.name, p.email)}
           </span>
         ))}
-        {count > 4 && <span className="w-6 h-6 rounded-full bg-slate-700 text-slate-300 text-[9px] font-bold flex items-center justify-center ring-2 ring-[#141518]">+{count - 4}</span>}
+        {count > 4 && <span className="w-6 h-6 rounded-full bg-slate-700 text-slate-300 text-[9px] font-bold flex items-center justify-center ring-2 ring-canvas">+{count - 4}</span>}
       </div>
       <span className="flex items-center gap-1 text-[11px] text-slate-400 whitespace-nowrap">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> {count} online

@@ -235,15 +235,15 @@ function ReceivePage() {
 
   if (authLoading || !profile || !canManage) {
     return (
-      <div className="min-h-screen bg-[#0f1012] flex items-center justify-center">
+      <div className="min-h-screen bg-chrome flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-sky-500/30 border-t-sky-500 rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0f1012] text-slate-200 font-sans text-sm">
-      <div className="border-b border-slate-800/60 bg-[#0f1012]/80 backdrop-blur-md sticky top-0 z-30">
+    <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
+      <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <Link href="/stock" className="text-slate-500 hover:text-white transition-colors flex-shrink-0" title="Back to Stock">
@@ -436,7 +436,7 @@ const inp = 'w-full px-2.5 py-2 rounded-lg bg-slate-950 border border-slate-800 
 
 export default function ReceivePageWrapper() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#0f1012]" />}>
+    <Suspense fallback={<div className="min-h-screen bg-chrome" />}>
       <ReceivePage />
     </Suspense>
   );

@@ -1744,7 +1744,7 @@ export default function QuoteEditorPage() {
   // bounce or an endless spinner.
   if (loadError) {
     return (
-      <div className="min-h-screen bg-[#141518] flex items-center justify-center px-4">
+      <div className="min-h-screen bg-canvas flex items-center justify-center px-4">
         <div className="max-w-sm w-full bg-slate-900 border border-slate-700 rounded-2xl p-6 text-center">
           <div className="w-10 h-10 mx-auto mb-3 rounded-full bg-amber-500/15 flex items-center justify-center text-amber-300 text-lg">!</div>
           <h2 className="text-white font-semibold mb-1">Can&apos;t open this proposal</h2>
@@ -1760,7 +1760,7 @@ export default function QuoteEditorPage() {
 
   if (!gate.ready || loadingQuote || !quote) {
     return (
-      <div className="min-h-screen bg-[#141518] flex flex-col items-center justify-center gap-3 text-slate-500">
+      <div className="min-h-screen bg-canvas flex flex-col items-center justify-center gap-3 text-slate-500">
         <div className="w-6 h-6 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
         <span className="text-xs">Loading proposal…</span>
       </div>
@@ -1770,7 +1770,7 @@ export default function QuoteEditorPage() {
   const liveSections = sections.filter((s) => !s._deleted);
 
   return (
-    <div className="min-h-screen bg-[#141518] text-slate-200 font-sans text-sm">
+    <div className="min-h-screen bg-canvas text-slate-200 font-sans text-sm">
       {/* Shared brand suggestions for every line-item brand input (native autocomplete) */}
       <datalist id="epc-brands">
         {brandOptions.map((b) => <option key={b} value={b} />)}
@@ -1783,7 +1783,7 @@ export default function QuoteEditorPage() {
       `}</style>
 
       {/* ── Sticky header ── */}
-      <div className="sticky top-0 z-40 bg-[#141518]/95 backdrop-blur-xl border-b border-white/[0.07]">
+      <div className="sticky top-0 z-40 bg-canvas/95 backdrop-blur-xl border-b border-white/[0.07]">
         <div className="max-w-[1600px] 2xl:max-w-[2120px] mx-auto px-3 sm:px-6 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <Link
@@ -2130,7 +2130,7 @@ export default function QuoteEditorPage() {
               <div key={group.key}>
                 {/* Group header — also a drop zone: sections dropped here go to the end of this group */}
                 <div
-                  className={`flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mb-3 px-3 sm:px-4 py-2.5 rounded-xl transition-colors ${dropHint === `group:${group.key}` ? 'bg-violet-600/30 ring-1 ring-violet-500' : 'bg-[#12463b] hover:bg-[#1a5c4c]'}`}
+                  className={`flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mb-3 px-3 sm:px-4 py-2.5 rounded-xl transition-colors ${dropHint === `group:${group.key}` ? 'bg-violet-600/30 ring-1 ring-violet-500' : 'bg-moss hover:bg-moss2'}`}
                   onDragOver={(e) => { if (drag?.kind === 'section') { e.preventDefault(); setDropHint(`group:${group.key}`); } }}
                   onDragLeave={() => setDropHint((h) => h === `group:${group.key}` ? null : h)}
                   onDrop={(e) => { e.preventDefault(); dropSectionOnGroup(group.key); endDrag(); }}
@@ -2179,7 +2179,7 @@ export default function QuoteEditorPage() {
                 onDrop={(e) => { e.preventDefault(); dropSectionOn(sec.section_id); endDrag(); }}
               >
                 {/* Section header */}
-                <div className="flex items-center gap-3 px-4 py-3 bg-[#12463b]/25 hover:bg-[#12463b]/45 border-b border-[#12463b]/50 transition-colors">
+                <div className="flex items-center gap-3 px-4 py-3 bg-moss/25 hover:bg-moss/45 border-b border-moss/50 transition-colors">
                   <span
                     draggable
                     onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDrag({ kind: 'section', sectionId: sec.section_id }); }}
@@ -3087,7 +3087,7 @@ export default function QuoteEditorPage() {
 
       {/* ── Sticky totals bar ── */}
       {subtotal > 0 && (
-        <div className="fixed bottom-0 inset-x-0 z-40 bg-[#141518]/95 backdrop-blur-xl border-t border-white/[0.07]">
+        <div className="fixed bottom-0 inset-x-0 z-40 bg-canvas/95 backdrop-blur-xl border-t border-white/[0.07]">
           <div className="max-w-[1600px] 2xl:max-w-[2120px] mx-auto px-3 sm:px-6 py-2.5 flex items-center gap-4 sm:gap-5 text-xs overflow-x-auto whitespace-nowrap scrollbar-none">
             <span className="text-slate-500">Subtotal <span className="ml-1 text-slate-200 font-semibold tabular-nums">{fmtIdr(subtotal)}</span></span>
             <span className="text-slate-500">Grand Total <span className="ml-1 text-white font-bold tabular-nums">{fmtIdr(grandTotal)}</span></span>

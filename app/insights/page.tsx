@@ -138,7 +138,7 @@ export default function DatabaseViewPage() {
 
   if (authLoading || !user) {
     return (
-      <div className="min-h-screen bg-[#141518] flex items-center justify-center">
+      <div className="min-h-screen bg-canvas flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
       </div>
     );
@@ -146,10 +146,10 @@ export default function DatabaseViewPage() {
 
   return (
     <ToastProvider>
-      <div className="min-h-screen bg-[#141518] text-slate-200 font-sans text-sm selection:bg-white/20">
+      <div className="min-h-screen bg-canvas text-slate-200 font-sans text-sm selection:bg-white/20">
 
         {/* ── Sticky header + tab bar ── */}
-        <div className="sticky top-0 z-50 bg-[#141518]/90 backdrop-blur-xl border-b border-white/[0.07]">
+        <div className="sticky top-0 z-50 bg-canvas/90 backdrop-blur-xl border-b border-white/[0.07]">
           <header className="px-3 sm:px-4 md:px-6 xl:px-8 pt-4 xl:pt-5 pb-2 max-w-[1800px] 2xl:max-w-[2460px] mx-auto flex items-start justify-between gap-4">
             <BrandMenu wordmarkClass="text-lg md:text-xl xl:text-2xl font-bold" subtitle="Insights · TUC · Pricing · Cash Cycle" />
             {/* Refresh control */}

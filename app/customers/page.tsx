@@ -120,7 +120,7 @@ export default function CustomersPage() {
 
 function CenterSpinner() {
   return (
-    <div className="min-h-screen bg-[#0f1012] flex items-center justify-center">
+    <div className="min-h-screen bg-chrome flex items-center justify-center">
       <div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
     </div>
   );
@@ -467,9 +467,9 @@ function CustomersInner() {
   if (!canManage) return <CenterSpinner />; // redirect in-flight
 
   return (
-    <div className="min-h-screen bg-[#0f1012] text-slate-200 font-sans text-sm">
+    <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
       {/* Header */}
-      <div className="border-b border-slate-800/60 bg-[#0f1012]/80 backdrop-blur-md sticky top-0 z-30">
+      <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         {/* Phones: wordmark row then actions row — side-by-side squeezes the
             three buttons into the wordmark. sm+ keeps the single row. */}
         <div className="max-w-[1600px] 2xl:max-w-[2120px] mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4">
@@ -703,7 +703,7 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, onClose, onE
   const primary = contacts.find((x) => x.is_primary) ?? contacts[0];
 
   return (
-    <div className="border-t border-slate-800/60 bg-[#101214]">
+    <div className="border-t border-slate-800/60 bg-sunken">
       {/* Context strip: code · tier · AM · primary contact, plus actions.
           The row above already shows the name, so no repeated heading. */}
       <div className="px-4 py-2.5 flex items-center gap-3 border-b border-slate-800/60">
@@ -892,9 +892,9 @@ function Drawer({
   return (
     <div className="fixed inset-0 z-[100] flex justify-end">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative w-full max-w-xl h-full bg-[#141518] border-l border-slate-800 shadow-2xl overflow-y-auto">
+      <div className="relative w-full max-w-xl h-full bg-canvas border-l border-slate-800 shadow-2xl overflow-y-auto">
         {/* Header */}
-        <div className="sticky top-0 bg-[#141518]/95 backdrop-blur border-b border-slate-800 px-6 py-4 flex items-center justify-between gap-3 z-10">
+        <div className="sticky top-0 bg-canvas/95 backdrop-blur border-b border-slate-800 px-6 py-4 flex items-center justify-between gap-3 z-10">
           <div className="min-w-0">
             <h2 className="text-lg font-bold text-white truncate">{isNew ? 'New Customer' : (customer.display_name || customer.legal_name || 'Edit Customer')}</h2>
             <p className="text-[11px] text-slate-500 mt-0.5">
@@ -1014,7 +1014,7 @@ function Drawer({
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 bg-[#141518]/95 backdrop-blur border-t border-slate-800 px-6 py-4 flex items-center justify-end gap-3">
+        <div className="sticky bottom-0 bg-canvas/95 backdrop-blur border-t border-slate-800 px-6 py-4 flex items-center justify-end gap-3">
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-slate-400 hover:text-white text-sm transition-colors">Cancel</button>
           <button
             onClick={onSave}

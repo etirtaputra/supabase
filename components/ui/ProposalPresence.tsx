@@ -90,14 +90,14 @@ export default function ProposalPresence({ channelId, email, name, editing, onPe
         {peers.slice(0, 5).map((p) => (
           <span key={p.email}
             title={`${p.name} — ${p.editing ? 'editing now (unsaved changes)' : 'viewing'}`}
-            className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-black/80 ring-2 ring-[#141518] relative"
+            className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-black/80 ring-2 ring-canvas relative"
             style={{ backgroundColor: p.color }}>
             {initials(p.name, p.email)}
-            {p.editing && <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-[#141518]" />}
+            {p.editing && <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-canvas" />}
           </span>
         ))}
         {peers.length > 5 && (
-          <span className="w-6 h-6 rounded-full bg-slate-700 text-slate-300 text-[9px] font-bold flex items-center justify-center ring-2 ring-[#141518]">
+          <span className="w-6 h-6 rounded-full bg-slate-700 text-slate-300 text-[9px] font-bold flex items-center justify-center ring-2 ring-canvas">
             +{peers.length - 5}
           </span>
         )}

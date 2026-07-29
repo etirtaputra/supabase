@@ -200,15 +200,15 @@ export default function StockPage() {
 
   if (authLoading || !profile || !canView) {
     return (
-      <div className="min-h-screen bg-[#0f1012] flex items-center justify-center">
+      <div className="min-h-screen bg-chrome flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-sky-500/30 border-t-sky-500 rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0f1012] text-slate-200 font-sans text-sm">
-      <div className="border-b border-slate-800/60 bg-[#0f1012]/80 backdrop-blur-md sticky top-0 z-30">
+    <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
+      <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         {/* Phones: wordmark row then actions row. Side-by-side, two nowrap
             buttons overflowed the row and printed on top of the wordmark. */}
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4">
@@ -458,7 +458,7 @@ function TransferModal({ item, warehouses, onClose, onDone }: {
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center px-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60" />
-      <div className="relative w-full max-w-sm bg-[#141518] border border-slate-800 rounded-2xl shadow-2xl p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
+      <div className="relative w-full max-w-sm bg-canvas border border-slate-800 rounded-2xl shadow-2xl p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
         <div>
           <h3 className="text-sm font-bold text-white">Move stock</h3>
           <p className="text-[11px] text-slate-500 truncate">{item.c.internal_description || item.c.supplier_model}</p>
