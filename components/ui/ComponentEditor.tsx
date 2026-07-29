@@ -2606,12 +2606,14 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
               </button>
               {showExportPicker && (
                 <div
-                  className="absolute left-0 top-full mt-1.5 z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl shadow-black/50 p-2 w-[230px] max-h-[70vh] overflow-y-auto"
+                  className="absolute left-0 top-full mt-1.5 z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl shadow-black/50 p-2 w-[264px] max-h-[70vh] overflow-y-auto"
                   onMouseLeave={() => setShowExportPicker(false)}
                 >
-                  <div className="flex items-center justify-between px-2 py-1">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Export columns</p>
-                    <div className="flex gap-1.5 text-[10px] font-semibold">
+                  {/* gap-3 + nowrap: the title and the actions can never run
+                      into each other, whatever the label lengths */}
+                  <div className="flex items-center justify-between gap-3 px-2 py-1">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600 whitespace-nowrap">Export columns</p>
+                    <div className="flex gap-1.5 text-[10px] font-semibold whitespace-nowrap">
                       <button onClick={() => setExportCols(EXPORT_FIELDS.map((f) => f.key))} className="text-slate-500 hover:text-emerald-300 transition-colors">All</button>
                       <span className="text-slate-700">·</span>
                       {/* Clearing first is the fast path to "just these three" */}
