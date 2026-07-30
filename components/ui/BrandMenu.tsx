@@ -88,10 +88,17 @@ function HeaderClock() {
     return () => clearInterval(id);
   }, []);
   if (!now) return null;
+  // "30 Jul 26, 06:22" → date part / time part, for the tiered display below
+  const comma = now.lastIndexOf(', ');
+  const timeOnly = comma >= 0 ? now.slice(comma + 2) : now;
   return (
-    <Link href="/changelog" title="What's New — the update log"
+    <Link href="/changelog" title={`${now} — What's New, the update log`}
       className="ml-auto flex-shrink-0 text-[10px] sm:text-xs tabular-nums whitespace-nowrap text-slate-500 hover:text-emerald-300 transition-colors print:hidden">
-      {now}
+      {/* Phones (no nav groups) and wide desktops fit the full stamp; between
+          lg and xl the nav + search already fill the bar, so the clock drops
+          to time-only instead of painting over its neighbours. */}
+      <span className="lg:hidden xl:inline">{now}</span>
+      <span className="hidden lg:inline xl:hidden">{timeOnly}</span>
     </Link>
   );
 }
@@ -395,7 +402,10 @@ export default function BrandMenu({
              anchor stays put while the field grows into whatever room the
              monitor has. Capped, because a 1500px search box on an ultrawide
              reads as a mistake. ── */}
-      <div className="hidden lg:block flex-1 min-w-0 max-w-[420px] xl:max-w-[560px] 2xl:max-w-[680px] print:hidden">
+      {/* min-w: squeezed between the nav and the clock, the field must stay a
+          usable search box — without a floor it collapsed into a stray circle
+          that the clock then painted over. */}
+      <div className="hidden lg:block flex-1 min-w-[140px] max-w-[420px] xl:max-w-[560px] 2xl:max-w-[680px] print:hidden">
         <CommandPalette variant="inline" hotkey={isDesktop} />
       </div>
 

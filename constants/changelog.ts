@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-07-30T08:25:00Z',
+    title: 'Header clock no longer clashes with the menu on smaller desktops',
+    details: [
+      'Between laptop and wide-desktop widths the clock shows the time only; the full date returns when there is room.',
+      'The search field keeps a usable minimum width instead of collapsing.',
+    ],
+  },
+  {
     at: '2026-07-30T07:55:00Z',
     title: 'A clock in the header · this update log',
     details: [
