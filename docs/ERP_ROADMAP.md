@@ -543,7 +543,44 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   Customer-facing print pages use their own raw CSS and are untouched by any
   of this.
 
+- **Navigation: names that say what they are, groups that match the work
+  (2026-07-29)**: the menu had grown names that described the code rather than
+  the job. Renames — **Catalog → Purchasing** (the screen is procure-to-pay:
+  supplier quotes → POs → the component master; "catalog" was competing with
+  Products for the meaning "the item list"), **Insights → Spend & Cash** and
+  **Economics → Profitability** (two analytics screens, both vaguely named,
+  both computing cash-cycle numbers — the names now say which question each
+  answers: what did we SPEND, what did we EARN). Every old name survives as a
+  search KEYWORD, so typing "catalog" or "economics" still lands you there.
+  Regrouped from Home/Buy side/Sell side/Cash/Projects/Admin to
+  **Home · Buy · Sell · Money · Analytics · Projects · Admin**:
+  · **Money** was a group of one (Banks) while the cash work was scattered —
+    supplier payments were buried in a Purchasing TAB. Payables moved here;
+    the money side of a PO is a treasury job, not a procurement one.
+  · **Pricing** moved out of Admin into Sell. Tiers and the floor audit are a
+    daily commercial tool; filing them beside Settings framed them as setup.
+  · **Receive Goods** was `inNav: false` — search-only — although booking
+    goods in is a daily warehouse job and the moment landed cost enters the
+    system. Promoted to a real entry.
+  · **Analytics** and **Money** span both flows, so they take the neutral
+    accent instead of inheriting sky/emerald from whichever destination
+    happens to be listed first — colouring them would claim a side they
+    don't have.
+  Page titles and header subtitles were renamed with the menu, so a screen
+  never contradicts the door you came through.
+  **Indexing defect fixed with it**: `27.0_aftersales_cases` was queried ZERO
+  times by Spotlight — Module 27 shipped a case number nobody could search
+  for. Cases are now a first-class kind (`Case` badge, aliases
+  `case`/`as`/`service`/`warranty`/`garansi`/`klaim`/`rma`, searchable by
+  number, customer, category and subject). The "one navigation index" rule
+  covered PAGES; nothing enforced it for ENTITIES — **a new module must now
+  add its entity to `CommandPalette` as part of its definition of done.**
+
 **Next up (in order):**
+0. **Module 29 — the Item hub (#1, spec below).** The item is the stated
+   pivot of the whole system and it is the one thing with no home: it is
+   spread across Purchasing (buy lens), Products (sell lens), Stock
+   (warehouse lens) and Profitability (money lens). Give it one page.
 0. Dashboard slice 2: a position strip above the queue — Cash / Owed to us /
    We owe / CCC — then month-in-motion comparisons and an AI next-best-step card.
 1. Bank follow-ons: tag the historical payments/receipts through the
@@ -558,6 +595,66 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
 4. Settings follow-ons when touched: per-document-type overrides (a customer
    who wants English invoices), and quote validity days once the sell-side
    document carries one.
+
+---
+
+## Module 29 — The Item hub (kickoff spec) — **build this first**
+
+**Why this is #1.** The roadmap's own thesis is *"the pivot is the Stock item;
+the unit of profit is the item."* Today an item has no page. It has four
+partial views, each owned by a different screen:
+
+| lens | screen | what it knows |
+|---|---|---|
+| buy | `/catalog` (Purchasing) | supplier quotes, POs, landed cost, lead time |
+| sell | `/products` | tier prices, warranty, datasheet, live stock |
+| warehouse | `/stock` | on-hand per warehouse, moving-average cost, movements |
+| money | `/economics` (Profitability) | GP, turns, ageing, trade position |
+
+Nobody can answer *"tell me everything about ICA550-72HMI"* without visiting
+three screens and holding it in their head. Every number already exists — what
+is missing is the ASSEMBLY. That is why this outranks new features: it makes
+the data the business already owns legible in one place.
+
+**Route:** `/items/[componentId]`, with `/items` as the master list (the
+existing Products and Purchasing lists stay; they become filtered entry points
+that link INTO the hub rather than being replaced).
+
+**The page:** one header — internal description, category, unit, live
+on-hand, and the two prices that matter (current tier-1 sell, moving-average
+landed cost) — then tabs by lens:
+
+- **Overview** — the answer to "should I worry about this item": cover
+  (on-hand ÷ recent monthly sales), days since last movement, GP% at current
+  price, and any open signal (below margin floor, no stock but committed,
+  ageing past the slow-mover threshold).
+- **Buy** — supplier quotes (PI) and POs for this item with price history and
+  the FX provenance already built in `computeTUC`/`fxFromHistory`, measured
+  supplier lead times, incoming quantity.
+- **Sell** — tier price chain (`lib/tierPricing.ts`), overrides and floor
+  compliance, quotes/orders that included it, customers who buy it.
+- **Stock** — the `30.0` ledger for this item, per-warehouse balances,
+  GRNs, transfers.
+- **Specs** — `SpecRenderer` + the JSON editor + calculator-readiness
+  (already built in Module 28 groundwork).
+- **Economics** — GP per customer for this item, turns, ageing bucket, and
+  the trade Position (`lib/tradePosition.ts`) — owner-only, per
+  `canViewEconomics`.
+
+**Rules (non-negotiable, they are why this is safe to build):**
+- **Compose, don't fork.** Every tab renders the EXISTING engine —
+  `computeTUC`, `tierPricing`, `warehouses`, `tradePosition`, `specSchema`.
+  If a number differs from the screen it came from, the hub is wrong.
+- **The lens follows the role, not the URL.** Tabs are capability-gated
+  exactly as their source screens are (cost/GP never render for sell-side;
+  brand and supplier model never render for sell-side).
+- **One click from anywhere.** Spotlight's `component` kind, the Products
+  and Purchasing rows, stock rows, and quote lines all point here.
+
+**Definition of done:** an owner can open one item and see cost, price,
+stock, movement, specs and profit without leaving the page; a sales role sees
+the same page minus cost/GP/brand; every figure ties to its source screen;
+Spotlight's Item results land on the hub; tsc + build green.
 
 ---
 

@@ -107,7 +107,7 @@ export default function EconomicsPage() {
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'gp', dir: -1 });
 
-  useEffect(() => { document.title = 'Economics — ICAPROC'; }, []);
+  useEffect(() => { document.title = 'Profitability — ICAPROC'; }, []);
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/economics')}`); return; }
@@ -384,7 +384,7 @@ export default function EconomicsPage() {
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1600px] 2xl:max-w-[2120px] mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Economics · Item profitability & cash cycle" />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Profitability · Item margin, position & cash cycle" />
           <div className="flex items-center gap-1.5">
             {/* Period only means something for the flow tab — a position is all-time */}
             {tab === 'flow' && (['90', '365', 'all'] as Period[]).map((p) => (

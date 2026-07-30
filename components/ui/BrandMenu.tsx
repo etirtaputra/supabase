@@ -33,7 +33,7 @@ type Section = 'buySide' | 'sellSide' | 'projects' | null;
 // canManagePricing). Configuration screens (Settings, Pricing) are NOT modules:
 // they sit in the Admin group at the bottom of the menu, out of the daily list.
 const GROUP_TITLE: Record<string, string | null> = {
-  Home: null, 'Buy side': 'Buy side', 'Sell side': 'Sell side', Cash: null, Projects: 'Projects',
+  Home: null, Buy: 'Buy', Sell: 'Sell', Money: 'Money', Analytics: 'Analytics', Projects: 'Projects',
 };
 
 const APP_GROUPS: { title: string | null; section: Section; apps: { href: string; label: string; cap?: keyof RolePermissions }[] }[] =
@@ -58,8 +58,16 @@ const ACCENT: Record<string, { active: string; dot: string; label: string; tab: 
   sellSide: { active: 'bg-emerald-500/15 text-emerald-300', dot: 'bg-emerald-400', label: 'text-emerald-500/70', tab: 'text-emerald-300' },
   projects: { active: 'bg-violet-500/15 text-violet-300',   dot: 'bg-violet-400',  label: 'text-violet-500/70', tab: 'text-violet-300' },
 };
-const accentOf = (section: Section) => ACCENT[section ?? 'home'];
-const GROUP_SHORT: Record<string, string> = { 'Buy side': 'Buy', 'Sell side': 'Sell', 'Projects': 'EPC' };
+/**
+ * Money and Analytics deliberately span both flows (Analytics holds a buy
+ * screen and a sell screen), so they take the neutral accent instead of
+ * inheriting whichever domain happens to be listed first — colouring them
+ * sky or emerald would claim a side they don't have.
+ */
+const GROUP_NEUTRAL = new Set(['Money', 'Analytics']);
+const accentOf = (section: Section, groupTitle?: string | null) =>
+  ACCENT[groupTitle && GROUP_NEUTRAL.has(groupTitle) ? 'home' : (section ?? 'home')];
+const GROUP_SHORT: Record<string, string> = { Projects: 'EPC' };
 
 const NAV_ICONS: Record<string, React.ReactNode> = {
   '/':          <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l9-9 9 9M5 10v10a1 1 0 001 1h3m10-11v10a1 1 0 01-1 1h-3m-6 0h6m-6 0v-6h6v6" />,
@@ -76,6 +84,8 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
   '/economics': <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />,
   '/banks':     <path strokeLinecap="round" strokeLinejoin="round" d="M3 10l9-6 9 6M5 10v9m14-9v9M9 19v-5h6v5M3 21h18" />,
   '/proposals':    <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />,
+  '/stock/receive': <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 3v10m0 0l-4-4m4 4l4-4" />,
+  '/catalog?tab=financials': <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 10a2 2 0 012-2h14a2 2 0 012 2M3 10v8a2 2 0 002 2h14a2 2 0 002-2v-8M7 15h4" />,
 };
 
 export default function BrandMenu({
@@ -147,10 +157,10 @@ export default function BrandMenu({
     <>
       {groups.map((group, gi) => (
         <div key={gi} className={gi > 0 ? 'mt-1 pt-1 border-t border-slate-800/70' : ''}>
-          {group.title && <p className={`px-2.5 pt-1 pb-1 text-[9px] uppercase tracking-widest ${accentOf(group.section).label}`}>{group.title}</p>}
+          {group.title && <p className={`px-2.5 pt-1 pb-1 text-[9px] uppercase tracking-widest ${accentOf(group.section, group.title).label}`}>{group.title}</p>}
           {group.apps.map((a) => {
             const active = isActive(a.href);
-            const acc = accentOf(group.section);
+            const acc = accentOf(group.section, group.title);
             return (
               <Link
                 key={a.href}
@@ -290,7 +300,7 @@ export default function BrandMenu({
              the current module's name, so context never disappears. ── */}
       <nav className="hidden lg:flex items-center gap-1 min-w-0">
         {groups.map((group, gi) => {
-          const acc = accentOf(group.section);
+          const acc = accentOf(group.section, group.title);
           const activeApp = group.apps.find((a) => isActive(a.href));
           // Standalone modules don't need a one-item dropdown
           if (group.apps.length === 1) {

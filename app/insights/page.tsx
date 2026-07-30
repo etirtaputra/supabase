@@ -93,7 +93,7 @@ export default function DatabaseViewPage() {
   const [activeTab, setActiveTab] = useState<TabId>('spend');
   const [refreshing, setRefreshing] = useState(false);
   const now = useNow(30_000); // tick every 30s to update "X min ago"
-  useEffect(() => { document.title = 'Insights — ICAPROC'; }, []);
+  useEffect(() => { document.title = 'Spend & Cash — ICAPROC'; }, []);
 
   // Procurement-sensitive data — sign-in required
   useEffect(() => {
@@ -151,7 +151,7 @@ export default function DatabaseViewPage() {
         {/* ── Sticky header + tab bar ── */}
         <div className="sticky top-0 z-50 bg-canvas/90 backdrop-blur-xl border-b border-white/[0.07]">
           <header className="px-3 sm:px-4 md:px-6 xl:px-8 pt-4 xl:pt-5 pb-2 max-w-[1800px] 2xl:max-w-[2460px] mx-auto flex items-start justify-between gap-4">
-            <BrandMenu wordmarkClass="text-lg md:text-xl xl:text-2xl font-bold" subtitle="Insights · TUC · Pricing · Cash Cycle" />
+            <BrandMenu wordmarkClass="text-lg md:text-xl xl:text-2xl font-bold" subtitle="Spend & Cash · TUC · Pricing · Cash Cycle" />
             {/* Refresh control */}
             <div className="flex items-center gap-2 mt-1 flex-shrink-0">
               {profile && (

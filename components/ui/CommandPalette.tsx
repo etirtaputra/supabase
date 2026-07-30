@@ -51,7 +51,7 @@ interface DealRef {
 }
 
 interface Item {
-  kind: 'page' | 'supplier' | 'company' | 'customer' | 'quote' | 'sales' | 'pi' | 'po' | 'grn' | 'receipt' | 'component';
+  kind: 'page' | 'supplier' | 'company' | 'customer' | 'quote' | 'sales' | 'pi' | 'po' | 'grn' | 'receipt' | 'case' | 'component';
   id: string;
   title: string;
   sub: string;
@@ -74,16 +74,18 @@ const KIND_BADGE: Record<Item['kind'], { label: string; cls: string }> = {
   po:        { label: 'PO',       cls: 'bg-amber-500/15 text-amber-300' },
   grn:       { label: 'GRN',      cls: 'bg-cyan-500/15 text-cyan-300' },
   receipt:   { label: 'RCPT',     cls: 'bg-lime-500/15 text-lime-300' },
+  case:      { label: 'Case',     cls: 'bg-orange-500/15 text-orange-300' },
   component: { label: 'Item',     cls: 'bg-emerald-500/15 text-emerald-300' },
 };
 
-const KIND_ORDER: Item['kind'][] = ['page', 'supplier', 'company', 'customer', 'quote', 'sales', 'pi', 'po', 'grn', 'receipt', 'component'];
+const KIND_ORDER: Item['kind'][] = ['page', 'supplier', 'company', 'customer', 'quote', 'sales', 'pi', 'po', 'grn', 'receipt', 'case', 'component'];
 
 const KIND_GROUP: Record<Item['kind'], string> = {
   page: 'Pages',
   supplier: 'Suppliers', company: 'Buying companies', customer: 'Customers',
   quote: 'EPC proposals', sales: 'Sales documents', pi: 'Supplier quotes (PI)',
-  po: 'Purchase orders', grn: 'Goods receipts', receipt: 'Payments received', component: 'Items',
+  po: 'Purchase orders', grn: 'Goods receipts', receipt: 'Payments received',
+  case: 'After-sales cases', component: 'Items',
 };
 
 // A leading token narrows the search to one kind: "inv 0007", "po jinko",
@@ -98,6 +100,7 @@ const KIND_ALIASES: Record<string, Item['kind']> = {
   pi: 'pi', po: 'po',
   grn: 'grn',
   rcpt: 'receipt', receipt: 'receipt', payment: 'receipt',
+  case: 'case', as: 'case', service: 'case', warranty: 'case', garansi: 'case', klaim: 'case', rma: 'case',
   item: 'component', product: 'component',
 };
 
@@ -237,7 +240,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
     // Role-scoped fetches: skipped tables resolve to empty — the data never
     // reaches a client whose role can't see it.
     const none = Promise.resolve({ data: [] as any[] });
-    const [comps, projectQuotes, suppliers, companies, customers, pis, pos, piLines, poLines, quoteLineItems, salesDocs, salesLines, receipts, childInvoices, childDos, grns] = await Promise.all([
+    const [comps, projectQuotes, suppliers, companies, customers, pis, pos, piLines, poLines, quoteLineItems, salesDocs, salesLines, receipts, childInvoices, childDos, grns, cases] = await Promise.all([
       (canBuy || canSell) ? fetchAllComponents() : Promise.resolve([]),
       canProjects ? supabase.from('10.0_project_quotes').select('quote_id, quote_number, quote_date, customer_name, status').order('quote_date', { ascending: false }).limit(500) : none,
       canBuy ? supabase.from('2.0_suppliers').select('supplier_id, supplier_name, supplier_code') : none,
@@ -254,6 +257,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
       canSell ? supabase.from('25.0_sales_invoices').select('invoice_id, quote_id, invoice_number').limit(2000) : none,
       canSell ? supabase.from('24.0_delivery_orders').select('do_id, quote_id, do_number').limit(2000) : none,
       canBuy ? supabase.from('30.2_goods_receipts').select('grn_id, grn_number, po_id, received_at, location, notes').order('received_at', { ascending: false }).limit(500) : none,
+      canSell ? supabase.from('27.0_aftersales_cases').select('case_id, case_number, customer_id, quote_id, category, status, subject, reported_at').order('reported_at', { ascending: false }).limit(1000) : none,
     ]);
 
     const supplierName = new Map((suppliers.data ?? []).map((s) => [s.supplier_id as string, (s.supplier_name as string) || '']));
@@ -474,6 +478,23 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
       };
     });
 
+    // ── After-sales cases: AS number, the customer, and what it is about.
+    // Module 27 shipped without this, so a case could be created but never
+    // found again by number — the whole point of giving it one.
+    const caseItemsList: Item[] = (cases.data ?? []).map((c) => {
+      const cust = c.customer_id ? (custNameById.get(c.customer_id as string) ?? "") : "";
+      const status = String(c.status ?? '').replace(/_/g, ' ');
+      return {
+        kind: 'case' as const,
+        id: c.case_id as string,
+        title: (c.case_number as string) || 'Case',
+        sub: [cust, String(c.category ?? ''), status].filter(Boolean).join(' · '),
+        href: '/aftersales',
+        date: String(c.reported_at ?? '').slice(0, 10),
+        keywords: [c.subject as string, cust, c.category as string, status].filter(Boolean).join(' '),
+      };
+    });
+
     // ── Items: buy-side sees model + brand (→ cost lookup, deal drill);
     //    sell-side sees the customer-facing description (→ Products). ────────
     const componentItems: Item[] = comps.map((c) => {
@@ -540,6 +561,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
       ...piItemsList,
       ...poItemsList,
       ...grnItemsList,
+      ...caseItemsList,
       ...receiptItemsList,
       ...componentItems,
     ];

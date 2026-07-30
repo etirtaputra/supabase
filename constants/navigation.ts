@@ -36,68 +36,86 @@ export const DESTINATIONS: Destination[] = [
     hint: 'Today at a glance — outstanding, paid this month, stock value',
     keywords: 'home start overview kpi' },
 
-  // ── Buy side ──────────────────────────────────────────────────────────────
-  { href: '/catalog', label: 'Catalog', group: 'Buy side', section: 'buySide', inNav: true,
-    hint: 'Components, supplier quotes, purchase orders, payments',
-    keywords: 'components parts items procurement buying' },
-  { href: '/catalog?tab=lookup', label: 'Deal Lookup', group: 'Buy side', section: 'buySide', inNav: false,
+  // ── Buy ───────────────────────────────────────────────────────────────────
+  // `/catalog` is labelled PURCHASING: the screen is the procure-to-pay
+  // workspace (supplier quotes → POs → payments), not an item list. Products
+  // is the item list people mean when they say "catalog", so the old name is
+  // kept as a search keyword rather than as a label competing with it.
+  { href: '/catalog', label: 'Purchasing', group: 'Buy', section: 'buySide', inNav: true,
+    hint: 'Supplier quotes, purchase orders and the component master',
+    keywords: 'catalog components parts items procurement buying pi po' },
+  { href: '/catalog?tab=lookup', label: 'Deal Lookup', group: 'Buy', section: 'buySide', inNav: false,
     hint: 'Every PI → PO → payment as one deal',
-    keywords: 'deals pi po payments history search' },
-  { href: '/catalog?tab=quoting', label: 'Catalog · Supplier Quotes', group: 'Buy side', section: 'buySide', inNav: false,
+    keywords: 'deals pi po payments history search catalog' },
+  { href: '/catalog?tab=quoting', label: 'Supplier Quotes', group: 'Buy', section: 'buySide', inNav: false,
     hint: 'Record a supplier quote / proforma invoice',
-    keywords: 'pi proforma quote entry new' },
-  { href: '/catalog?tab=ordering', label: 'Catalog · Purchase Orders', group: 'Buy side', section: 'buySide', inNav: false,
+    keywords: 'pi proforma quote entry new catalog' },
+  { href: '/catalog?tab=ordering', label: 'Purchase Orders', group: 'Buy', section: 'buySide', inNav: false,
     hint: 'Raise a PO against a supplier quote',
-    keywords: 'po purchase order new raise' },
-  { href: '/catalog?tab=financials', label: 'Catalog · Payments', group: 'Buy side', section: 'buySide', cap: 'canViewBankFees', inNav: false,
-    hint: 'Record supplier payments, bank fees and landed costs',
-    keywords: 'payment batch remittance costs fees' },
-  { href: '/suppliers', label: 'Suppliers', group: 'Buy side', section: 'buySide', inNav: true,
+    keywords: 'po purchase order new raise catalog' },
+  { href: '/suppliers', label: 'Suppliers', group: 'Buy', section: 'buySide', inNav: true,
     hint: 'Vendor profiles, purchase volume, outstanding payables',
     keywords: 'vendors payables' },
-  { href: '/stock', label: 'Stock', group: 'Buy side', section: 'buySide', inNav: true,
+  { href: '/stock', label: 'Stock', group: 'Buy', section: 'buySide', inNav: true,
     hint: 'On-hand per warehouse, moving-average cost, shortages',
     keywords: 'inventory warehouse gudang on hand balance' },
-  { href: '/stock/receive', label: 'Stock · Receive against PO', group: 'Buy side', section: 'buySide', cap: 'canManageStock', inNav: false,
+  // Promoted out of hiding: booking goods in is a daily warehouse job and the
+  // moment landed cost enters the system — it should not be search-only.
+  { href: '/stock/receive', label: 'Receive Goods', group: 'Buy', section: 'buySide', cap: 'canManageStock', inNav: true,
     hint: 'Book goods in against a purchase order (GRN)',
-    keywords: 'grn goods receipt receiving inbound' },
-  { href: '/insights', label: 'Insights', group: 'Buy side', section: 'buySide', inNav: true,
-    hint: 'Spend analytics, cash cycle, exchange rates',
-    keywords: 'analytics reports spend forex fx' },
+    keywords: 'grn goods receipt receiving inbound terima barang' },
 
-  // ── Sell side ─────────────────────────────────────────────────────────────
-  { href: '/customers', label: 'Customers', group: 'Sell side', section: 'sellSide', inNav: true,
+  // ── Sell ──────────────────────────────────────────────────────────────────
+  { href: '/customers', label: 'Customers', group: 'Sell', section: 'sellSide', inNav: true,
     hint: 'CRM — customers, contacts, account managers',
     keywords: 'crm clients contacts buyers' },
-  { href: '/products', label: 'Products', group: 'Sell side', section: 'sellSide', inNav: true,
+  { href: '/products', label: 'Products', group: 'Sell', section: 'sellSide', inNav: true,
     hint: 'What we sell, with tier prices and live stock',
-    keywords: 'catalogue selling price tier' },
-  { href: '/sales', label: 'Sales', group: 'Sell side', section: 'sellSide', inNav: true,
+    keywords: 'catalogue catalog items selling price tier' },
+  // Pricing is a daily commercial tool (tiers, floor audit), not configuration
+  // — filing it under Admin framed it as setup nobody needs to open.
+  { href: '/pricing', label: 'Pricing', group: 'Sell', section: null, cap: 'canManagePricing', inNav: true,
+    hint: 'Price tiers, margin floor audit, per-item overrides',
+    keywords: 'tiers markup discount floor margin' },
+  { href: '/sales', label: 'Sales', group: 'Sell', section: 'sellSide', inNav: true,
     hint: 'Quotations → orders → invoices → delivery',
     keywords: 'quotation sq so order penawaran' },
-  { href: '/sales/new', label: 'Sales · New Quotation', group: 'Sell side', section: 'sellSide', cap: 'canEditSalesDocs', inNav: false,
+  { href: '/sales/new', label: 'New Quotation', group: 'Sell', section: 'sellSide', cap: 'canEditSalesDocs', inNav: false,
     hint: 'Start a new sales quotation',
-    keywords: 'new quote create sq penawaran baru' },
-  { href: '/sales/library', label: 'Sales · Description Library', group: 'Sell side', section: 'sellSide', cap: 'canEditSalesDocs', inNav: false,
+    keywords: 'new quote create sq penawaran baru sales' },
+  { href: '/sales/library', label: 'Sales · Description Library', group: 'Sell', section: 'sellSide', cap: 'canEditSalesDocs', inNav: false,
     hint: 'Curated line texts that feed the item picker',
     keywords: 'library descriptions text' },
-  { href: '/invoices', label: 'Invoices', group: 'Sell side', section: 'sellSide', inNav: true,
+  { href: '/invoices', label: 'Invoices', group: 'Sell', section: 'sellSide', inNav: true,
     hint: 'Accounts receivable — issued, received, outstanding',
     keywords: 'ar receivable billing tagihan' },
-  { href: '/delivery', label: 'Delivery', group: 'Sell side', section: 'sellSide', inNav: true,
+  { href: '/delivery', label: 'Delivery', group: 'Sell', section: 'sellSide', inNav: true,
     hint: 'Delivery orders and Surat Jalan',
     keywords: 'do surat jalan shipping dispatch' },
-  { href: '/aftersales', label: 'After Sales', group: 'Sell side', section: 'sellSide', inNav: true,
+  { href: '/aftersales', label: 'After Sales', group: 'Sell', section: 'sellSide', inNav: true,
     hint: 'Service & warranty cases — repairs, replacements, complaints',
     keywords: 'service warranty klaim garansi rma repair replacement complaint case claim' },
-  { href: '/economics', label: 'Economics', group: 'Sell side', section: 'sellSide', cap: 'canViewEconomics', inNav: true,
-    hint: 'GP per item / customer / rep, stock aging, cash cycle',
-    keywords: 'margin profit ccc dio dso dpo turnover' },
 
-  // ── Cash ──────────────────────────────────────────────────────────────────
-  { href: '/banks', label: 'Banks', group: 'Cash', section: null, cap: 'canViewBanks', inNav: true,
+  // ── Money ─────────────────────────────────────────────────────────────────
+  // Cash work used to be scattered: AR under Sell, AP buried in a Purchasing
+  // tab, banks in a group of one. Payables moves here — the money side of a
+  // PO is a treasury job, not a procurement one.
+  { href: '/banks', label: 'Banks', group: 'Money', section: null, cap: 'canViewBanks', inNav: true,
     hint: 'Bank accounts, statements and cash position',
     keywords: 'bank account cash balance statement rekening' },
+  { href: '/catalog?tab=financials', label: 'Supplier Payments', group: 'Money', section: 'buySide', cap: 'canViewBankFees', inNav: true,
+    hint: 'Record supplier payments, bank fees and landed costs',
+    keywords: 'payment batch remittance costs fees ap payable catalog financials' },
+
+  // ── Analytics ─────────────────────────────────────────────────────────────
+  // Two analytics screens both called something vague. The names now say which
+  // question each answers: what did we SPEND, and what did we EARN.
+  { href: '/insights', label: 'Spend & Cash', group: 'Analytics', section: 'buySide', inNav: true,
+    hint: 'Spend analytics, cash cycle, exchange rates',
+    keywords: 'insights analytics reports spend forex fx tuc cash cycle' },
+  { href: '/economics', label: 'Profitability', group: 'Analytics', section: 'sellSide', cap: 'canViewEconomics', inNav: true,
+    hint: 'GP per item / customer / rep, stock aging, position, cash cycle',
+    keywords: 'economics margin profit gp ccc dio dso dpo turnover position' },
 
   // ── Projects ──────────────────────────────────────────────────────────────
   { href: '/proposals', label: 'Proposals', group: 'Projects', section: 'projects', inNav: true,
@@ -111,9 +129,6 @@ export const DESTINATIONS: Destination[] = [
     keywords: 'merge duplicates cleanup directory' },
 
   // ── Admin / configuration ────────────────────────────────────────────────
-  { href: '/pricing', label: 'Pricing', group: 'Admin', section: null, cap: 'canManagePricing', inNav: true,
-    hint: 'Price tiers, margin floor audit, per-item overrides',
-    keywords: 'tiers markup discount floor margin' },
   { href: '/settings', label: 'Settings', group: 'Admin', section: null, cap: 'canManageUsers', inNav: true,
     hint: 'Formatting, defaults, company, banks and users',
     keywords: 'preferences configuration admin setup' },
@@ -149,5 +164,9 @@ export const destinationsFor = (perms: RolePermissions | null): Destination[] =>
     return true;
   });
 
-/** Menu order — groups in the order they first appear above. */
-export const NAV_GROUP_ORDER = ['Home', 'Buy side', 'Sell side', 'Cash', 'Projects'] as const;
+/**
+ * Menu order. The two trading flows lead (that is the business), then the
+ * money they move, then what it earned, then the separate EPC product line.
+ * Admin is appended by the menu itself, below the daily modules.
+ */
+export const NAV_GROUP_ORDER = ['Home', 'Buy', 'Sell', 'Money', 'Analytics', 'Projects'] as const;
