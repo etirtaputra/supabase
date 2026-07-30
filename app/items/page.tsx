@@ -4,10 +4,10 @@
  *
  * The entry hall of the Item hub: every component, one row, one click to the
  * item's own page (/items/[componentId]). Products and Purchasing remain the
- * task-focused lists; this one exists to REACH the hub from a neutral place,
- * so it shows only the identity + headline numbers each role may see:
- * cost columns for buy-side, sell price for price-viewing roles, brand only
- * for canViewBrand. Open to either trading flow (buySide OR sellSide).
+ * task-focused lists; this one exists to REACH the hub from a neutral place.
+ * Filed under Analytics and OWNER ONLY (canViewAnalytics, decided 2026-07-30)
+ * — the column/tab gating below stays capability-driven so widening access
+ * later is a one-line flag flip in constants/roles.ts.
  */
 import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
@@ -49,7 +49,7 @@ function ItemsInner() {
   const searchParams = useSearchParams();
   const { user, profile, loading: authLoading } = useAuth();
   const perms = profile ? ROLE_PERMISSIONS[profile.role] : null;
-  const canOpen = !!perms && (perms.buySide || perms.sellSide);
+  const canOpen = !!perms && perms.canViewAnalytics;
   const canBuy = !!perms && perms.buySide;
   const canSell = !!perms && perms.canViewSellingPrice;
   const canBrand = !!perms && perms.canViewBrand;

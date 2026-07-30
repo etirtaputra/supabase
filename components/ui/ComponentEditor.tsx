@@ -1382,6 +1382,8 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   };
 
   const canTier = !!profile && ROLE_PERMISSIONS[profile.role].canManagePricing;
+  // Item hub link only for roles that can open it (Analytics is owner-only)
+  const canHub = !!profile && ROLE_PERMISSIONS[profile.role].canViewAnalytics;
   const tierCols = pricingMode && canTier ? priceTiers : [];
   useEffect(() => {
     if (!pricingMode || !canTier || priceTiers.length) return;
@@ -3533,6 +3535,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                           </svg>
                         </button>
                         {/* Item hub — the one page assembling buy/sell/stock/specs */}
+                        {canHub && (
                         <a
                           href={`/items/${c.component_id}`}
                           title="Open the item hub — buy, sell, stock, specs on one page"
@@ -3540,6 +3543,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                         >
                           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                         </a>
+                        )}
                         {/* Copy row to clipboard */}
                         <button
                           onClick={() => copyRow(c)}

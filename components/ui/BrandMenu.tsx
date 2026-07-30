@@ -33,8 +33,7 @@ type Section = NavSection;
 // canManagePricing). Configuration screens (Settings, Pricing) are NOT modules:
 // they sit in the Admin group at the bottom of the menu, out of the daily list.
 const GROUP_TITLE: Record<string, string | null> = {
-  // Items is a single-entry group like Home: no header, the link IS the group.
-  Home: null, Buy: 'Buy', Sell: 'Sell', Items: null, Money: 'Money', Analytics: 'Analytics', Projects: 'Projects',
+  Home: null, Buy: 'Buy', Sell: 'Sell', Finance: 'Finance', Analytics: 'Analytics', Projects: 'Projects',
 };
 
 const APP_GROUPS: { title: string | null; section: Section; apps: { href: string; label: string; cap?: keyof RolePermissions }[] }[] =
@@ -62,12 +61,12 @@ const ACCENT: Record<string, { active: string; dot: string; label: string; tab: 
   trading:  { active: 'bg-white/10 text-white',              dot: 'bg-slate-300',   label: 'text-slate-600',    tab: 'text-white' },
 };
 /**
- * Money and Analytics deliberately span both flows (Analytics holds a buy
- * screen and a sell screen), so they take the neutral accent instead of
- * inheriting whichever domain happens to be listed first — colouring them
- * sky or emerald would claim a side they don't have.
+ * Finance and Analytics deliberately span both flows (Analytics holds a buy
+ * screen, the Item hub and a sell screen), so they take the neutral accent
+ * instead of inheriting whichever domain happens to be listed first —
+ * colouring them sky or emerald would claim a side they don't have.
  */
-const GROUP_NEUTRAL = new Set(['Money', 'Analytics']);
+const GROUP_NEUTRAL = new Set(['Finance', 'Analytics']);
 const accentOf = (section: Section, groupTitle?: string | null) =>
   ACCENT[groupTitle && GROUP_NEUTRAL.has(groupTitle) ? 'home' : (section ?? 'home')];
 const GROUP_SHORT: Record<string, string> = { Projects: 'EPC' };

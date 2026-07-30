@@ -43,6 +43,8 @@ export default function StockPage() {
   const canView = !!profile && ROLE_PERMISSIONS[profile.role].buySide;
   const canManage = !!profile && ROLE_PERMISSIONS[profile.role].canManageStock;
   const isOwner = !!profile && ROLE_PERMISSIONS[profile.role].canManageUsers;   // owner — Settings
+  // Item hub links only for roles that can open it (Analytics is owner-only)
+  const canHub = !!profile && ROLE_PERMISSIONS[profile.role].canViewAnalytics;
 
   const [comps, setComps] = useState<Map<string, Comp>>(new Map());
   const [balances, setBalances] = useState<Balance[]>([]);
@@ -360,9 +362,11 @@ export default function StockPage() {
                             title="Move this stock to another warehouse"
                             className="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-300 hover:bg-sky-500/20 transition-colors">⇄ move</button>
                         )}
-                        <Link href={`/items/${r.c.component_id}`} onClick={(e) => e.stopPropagation()}
-                          title="Open the item hub — buy, sell, stock, specs on one page"
-                          className="text-[9px] px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-500 hover:text-white hover:bg-slate-700 transition-colors">item ↗</Link>
+                        {canHub && (
+                          <Link href={`/items/${r.c.component_id}`} onClick={(e) => e.stopPropagation()}
+                            title="Open the item hub — buy, sell, stock, specs on one page"
+                            className="text-[9px] px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-500 hover:text-white hover:bg-slate-700 transition-colors">item ↗</Link>
+                        )}
                       </span>
                     </span>
                     <span className="text-[11px] text-slate-400 truncate">{r.c.brand ?? '—'}</span>

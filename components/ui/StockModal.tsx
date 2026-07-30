@@ -33,6 +33,8 @@ export default function StockModal({ componentId, componentName, unit, anchor, o
   const supabase = createSupabaseClient();
   const { profile } = useAuth();
   const canManage = !!profile && ROLE_PERMISSIONS[profile.role].canManageStock;
+  // Item hub link only for roles that can open it (Analytics is owner-only)
+  const canHub = !!profile && ROLE_PERMISSIONS[profile.role].canViewAnalytics;
 
   const [physical, setPhysical] = useState(0);
   const [avgCost, setAvgCost] = useState(0);
@@ -174,11 +176,13 @@ export default function StockModal({ componentId, componentName, unit, anchor, o
             <h3 className="text-sm font-bold text-white truncate">Stock</h3>
             <p className="text-[11px] text-slate-500 truncate">{componentName}</p>
           </div>
-          <a href={`/items/${componentId}`}
-            title="Open the item hub — buy, sell, stock, specs on one page"
-            className="text-[11px] text-slate-500 hover:text-emerald-300 whitespace-nowrap transition-colors flex-shrink-0">
-            Item hub →
-          </a>
+          {canHub && (
+            <a href={`/items/${componentId}`}
+              title="Open the item hub — buy, sell, stock, specs on one page"
+              className="text-[11px] text-slate-500 hover:text-emerald-300 whitespace-nowrap transition-colors flex-shrink-0">
+              Item hub →
+            </a>
+          )}
           <button onClick={onClose} className="p-2 -m-2 text-slate-500 hover:text-white transition-colors flex-shrink-0">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>

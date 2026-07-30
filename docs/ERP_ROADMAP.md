@@ -614,6 +614,26 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   Profitability item rows all link here. Nav: single "Items" entry between
   Sell and Money, neutral accent (it spans both flows).
 
+- **Nav rename + Analytics lockdown (2026-07-30, owner's direction)**:
+  **Money → Finance** (menu group; old name kept as a search keyword on its
+  entries). **Items moved into the Analytics group**, and **Analytics is now
+  OWNER-ONLY** via a new `canViewAnalytics` capability (owner alone) — the
+  group covers Spend & Cash (`/insights`), Items (`/items`) and Profitability
+  (`/economics`, still additionally behind `canViewEconomics`). Per the house
+  rule that hidden modules are also unreachable, the PAGES gate too:
+  `/insights` dropped its old buySide/lookup gate (buy_admin and the legacy
+  roles lose it; buy-side deal/cost lookup lives on in Purchasing →
+  `/catalog?tab=lookup`, which is unchanged, and the viewer role keeps its
+  read-only lookup there), and both `/items` routes now require
+  `canViewAnalytics`. Every Item-hub entry point renders only for roles that
+  can open it: Spotlight's component results fall back to Deal Lookup (buy)
+  or Products (sell) for non-owners, and the hub links on Products, Stock,
+  StockModal, Purchasing rows and the sales editor are gated the same way.
+  The hub's internal per-tab capability gating is deliberately KEPT, so
+  widening access later (e.g. sales seeing the hub minus cost/GP/brand) is a
+  one-line flag flip in `constants/roles.ts`, not a rebuild. The permission
+  matrix in Settings › Users gained the Analytics row automatically.
+
 **Next up (in order):**
 0. Dashboard slice 2: a position strip above the queue — Cash / Owed to us /
    We owe / CCC — then month-in-motion comparisons and an AI next-best-step card.

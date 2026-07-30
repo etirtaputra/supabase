@@ -99,12 +99,13 @@ export default function DatabaseViewPage() {
   useEffect(() => {
     if (!authLoading && !user) router.replace('/login?next=/insights');
   }, [authLoading, user, router]);
-  // Buy-side module (viewer keeps Deal Lookup): everyone else without buy-side
-  // access is redirected — costs/suppliers must stay hidden from sell-side.
+  // Analytics is OWNER ONLY (canViewAnalytics, decided 2026-07-30) — this
+  // screen aggregates spend, TUC and the cash cycle across the business.
+  // Deal/cost lookup for buy-side roles lives in Purchasing (/catalog?tab=lookup).
   useEffect(() => {
     if (!profile) return;
     const p = ROLE_PERMISSIONS[profile.role];
-    if (!p.buySide && !p.tabs.lookup) router.replace('/unauthorized');
+    if (!p.canViewAnalytics) router.replace('/unauthorized');
   }, [profile, router]);
 
   // Deep links from the global search palette: /insights?tab=lookup&q=<name>

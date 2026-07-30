@@ -89,6 +89,8 @@ export default function SalesQuotePage() {
   const isNew = id === 'new';
   const { user, profile, loading: authLoading } = useAuth();
   const canEdit = !!profile && ROLE_PERMISSIONS[profile.role].canEditSalesDocs;
+  // Item hub link only for roles that can open it (Analytics is owner-only)
+  const canHub = !!profile && ROLE_PERMISSIONS[profile.role].canViewAnalytics;
   // What a brand-new quotation starts with (Settings)
   const { defaultPpnPct, defaultCompanyId, defaultSalesTerms, defaultCustomerTier } = useSettings();
 
@@ -543,7 +545,7 @@ export default function SalesQuotePage() {
               onDrop={(e) => { e.preventDefault(); if (dragKey) moveLines(dragKey, l.key); endDrag(); }}
               className={`rounded-xl transition-shadow ${dropKey === l.key ? 'ring-1 ring-violet-500/70' : ''} ${dragKey === l.key ? 'opacity-50' : ''}`}
             >
-              <LineCard line={l} comps={comps} extras={extras} available={availableOf(l.component_id)}
+              <LineCard line={l} comps={comps} extras={extras} canHub={canHub} available={availableOf(l.component_id)}
                 linkedName={l.component_id ? compName(compById.get(l.component_id)) : ''}
                 onPick={(c) => pickComponent(l.key, c)} onPickExtra={(x) => pickExtra(l.key, x)}
                 onField={(patch) => setLine(l.key, patch)} onRemove={() => removeLine(l.key)}
@@ -650,8 +652,8 @@ const GRIP = (
   <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" /><circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" /><circle cx="9" cy="18" r="1.5" /><circle cx="15" cy="18" r="1.5" /></svg>
 );
 
-function LineCard({ line, comps, extras, available, linkedName, onPick, onPickExtra, onField, onRemove, onDragStart, onDragEnd }: {
-  line: EditLine; comps: Comp[]; extras: Extra[]; available: number | null; linkedName: string;
+function LineCard({ line, comps, extras, available, linkedName, canHub, onPick, onPickExtra, onField, onRemove, onDragStart, onDragEnd }: {
+  line: EditLine; comps: Comp[]; extras: Extra[]; available: number | null; linkedName: string; canHub: boolean;
   onPick: (c: Comp) => void; onPickExtra: (x: Extra) => void; onField: (patch: Partial<EditLine>) => void; onRemove: () => void;
   onDragStart: () => void; onDragEnd: () => void;
 }) {
@@ -717,8 +719,10 @@ function LineCard({ line, comps, extras, available, linkedName, onPick, onPickEx
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
               <span className="truncate max-w-[200px]">{linkedName || 'Catalog item'}</span>
               <span className={`tabular-nums ${short ? 'text-red-400' : 'text-slate-500'}`}>· live {available != null ? fmtInt(available) : '—'}{short ? ' — short' : ''}</span>
-              <a href={`/items/${line.component_id}`} target="_blank" rel="noopener noreferrer"
-                className="text-slate-600 hover:text-emerald-300 transition-colors" title="Open the item hub — stock, prices and history on one page">↗</a>
+              {canHub && (
+                <a href={`/items/${line.component_id}`} target="_blank" rel="noopener noreferrer"
+                  className="text-slate-600 hover:text-emerald-300 transition-colors" title="Open the item hub — stock, prices and history on one page">↗</a>
+              )}
               <button onClick={() => onField({ component_id: null })} className="text-slate-600 hover:text-red-400 transition-colors" title="Unlink from catalog (keep as custom entry)">×</button>
             </span>
           ) : (

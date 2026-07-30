@@ -8,14 +8,16 @@
  * warehouses, tradePosition, specSchema). If a figure here disagrees with its
  * source screen, the hub is wrong.
  *
- * The lens follows the role, not the URL — tabs gate exactly as their source
- * screens do:
- *   Overview  everyone who can open the hub (buySide OR sellSide)
+ * OWNER ONLY since 2026-07-30: the hub sits in the Analytics group and the
+ * page gates on canViewAnalytics. The per-tab capability gating below is
+ * KEPT even though today only the owner passes the door — it means widening
+ * access later (e.g. letting sales see the hub minus cost/GP/brand) is a
+ * one-line flag flip in constants/roles.ts, not a rebuild:
  *   Buy       buySide            (mirrors /catalog — TUC, PI/PO history, FX)
  *   Sell      canViewSellingPrice (mirrors /products — tier chain, customers)
  *   Stock     buySide            (mirrors /stock — ledger + per-warehouse cost)
  *   Specs     everyone           (spec blobs carry no brand/model/prices)
- *   Economics canViewEconomics   (mirrors /economics — GP, Position; owner)
+ *   Economics canViewEconomics   (mirrors /economics — GP, Position)
  * Brand / supplier model render only for canViewBrand, exactly like Products.
  */
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -87,7 +89,7 @@ export default function ItemHubPage() {
   const { slowMoverDays: SLOW_DAYS } = useSettings();
 
   const perms = profile ? ROLE_PERMISSIONS[profile.role] : null;
-  const canOpen = !!perms && (perms.buySide || perms.sellSide);
+  const canOpen = !!perms && perms.canViewAnalytics;
   const canBuy = !!perms && perms.buySide;
   const canSell = !!perms && perms.canViewSellingPrice;
   const canBrand = !!perms && perms.canViewBrand;

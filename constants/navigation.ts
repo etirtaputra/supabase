@@ -106,30 +106,30 @@ export const DESTINATIONS: Destination[] = [
     hint: 'Service & warranty cases — repairs, replacements, complaints',
     keywords: 'service warranty klaim garansi rma repair replacement complaint case claim' },
 
-  // ── Items — the pivot between the two flows ───────────────────────────────
-  // One page per stock item: cost, price, stock, movement, specs and profit
-  // assembled from the screens that own each number (Module 29).
-  { href: '/items', label: 'Items', group: 'Items', section: 'trading', inNav: true,
-    hint: 'Everything about one item — buy, sell, stock, specs, profit',
-    keywords: 'item hub component sku part product barang produk master 360' },
-
-  // ── Money ─────────────────────────────────────────────────────────────────
+  // ── Finance ───────────────────────────────────────────────────────────────
   // Cash work used to be scattered: AR under Sell, AP buried in a Purchasing
   // tab, banks in a group of one. Payables moves here — the money side of a
-  // PO is a treasury job, not a procurement one.
-  { href: '/banks', label: 'Banks', group: 'Money', section: null, cap: 'canViewBanks', inNav: true,
+  // PO is a treasury job, not a procurement one. (Renamed Money → Finance
+  // 2026-07-30, owner's wording.)
+  { href: '/banks', label: 'Banks', group: 'Finance', section: null, cap: 'canViewBanks', inNav: true,
     hint: 'Bank accounts, statements and cash position',
-    keywords: 'bank account cash balance statement rekening' },
-  { href: '/catalog?tab=financials', label: 'Supplier Payments', group: 'Money', section: 'buySide', cap: 'canViewBankFees', inNav: true,
+    keywords: 'bank account cash balance statement rekening money' },
+  { href: '/catalog?tab=financials', label: 'Supplier Payments', group: 'Finance', section: 'buySide', cap: 'canViewBankFees', inNav: true,
     hint: 'Record supplier payments, bank fees and landed costs',
-    keywords: 'payment batch remittance costs fees ap payable catalog financials' },
+    keywords: 'payment batch remittance costs fees ap payable catalog financials money' },
 
-  // ── Analytics ─────────────────────────────────────────────────────────────
-  // Two analytics screens both called something vague. The names now say which
-  // question each answers: what did we SPEND, and what did we EARN.
-  { href: '/insights', label: 'Spend & Cash', group: 'Analytics', section: 'buySide', inNav: true,
+  // ── Analytics — OWNER ONLY (canViewAnalytics, decided 2026-07-30) ─────────
+  // Two analytics screens plus the Item hub. The names say which question
+  // each answers: what did we SPEND, what does an ITEM look like end-to-end,
+  // and what did we EARN.
+  { href: '/insights', label: 'Spend & Cash', group: 'Analytics', section: 'buySide', cap: 'canViewAnalytics', inNav: true,
     hint: 'Spend analytics, cash cycle, exchange rates',
     keywords: 'insights analytics reports spend forex fx tuc cash cycle' },
+  // The Item hub (Module 29): one page per stock item, assembled from the
+  // screens that own each number. Filed under Analytics per the owner.
+  { href: '/items', label: 'Items', group: 'Analytics', section: 'trading', cap: 'canViewAnalytics', inNav: true,
+    hint: 'Everything about one item — buy, sell, stock, specs, profit',
+    keywords: 'item hub component sku part product barang produk master 360' },
   { href: '/economics', label: 'Profitability', group: 'Analytics', section: 'sellSide', cap: 'canViewEconomics', inNav: true,
     hint: 'GP per item / customer / rep, stock aging, position, cash cycle',
     keywords: 'economics margin profit gp ccc dio dso dpo turnover position' },
@@ -186,4 +186,4 @@ export const destinationsFor = (perms: RolePermissions | null): Destination[] =>
  * money they move, then what it earned, then the separate EPC product line.
  * Admin is appended by the menu itself, below the daily modules.
  */
-export const NAV_GROUP_ORDER = ['Home', 'Buy', 'Sell', 'Items', 'Money', 'Analytics', 'Projects'] as const;
+export const NAV_GROUP_ORDER = ['Home', 'Buy', 'Sell', 'Finance', 'Analytics', 'Projects'] as const;
