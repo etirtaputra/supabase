@@ -495,8 +495,9 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
       };
     });
 
-    // ── Items: buy-side sees model + brand (→ cost lookup, deal drill);
-    //    sell-side sees the customer-facing description (→ Products). ────────
+    // ── Items: buy-side sees model + brand, sell-side the customer-facing
+    //    description. BOTH land on the Item hub (/items/[id]) — Module 29's
+    //    "one click from anywhere" rule; the PI/PO drill rows stay for buy.
     const componentItems: Item[] = comps.map((c) => {
       if (canBuy) {
         const act = compActivity.get(c.component_id);
@@ -505,7 +506,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
           id: c.component_id,
           title: c.supplier_model || '(no model)',
           sub: [c.brand, c.category].filter(Boolean).join(' · '),
-          href: `/insights?tab=lookup&q=${encodeURIComponent(c.supplier_model ?? '')}`,
+          href: `/items/${c.component_id}`,
           weight: (act?.po.size ?? 0) * 2 + (act?.pi.size ?? 0),
           drill: byComponent.get(c.component_id) ?? [],
           keywords: c.internal_description ?? '',
@@ -517,7 +518,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
         id: c.component_id,
         title: desc,
         sub: c.category ?? '',
-        href: `/products?q=${encodeURIComponent(desc)}`,
+        href: `/items/${c.component_id}`,
       };
     });
 

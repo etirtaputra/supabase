@@ -3532,6 +3532,14 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                             <circle cx="11" cy="11" r="8" /><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35" />
                           </svg>
                         </button>
+                        {/* Item hub — the one page assembling buy/sell/stock/specs */}
+                        <a
+                          href={`/items/${c.component_id}`}
+                          title="Open the item hub — buy, sell, stock, specs on one page"
+                          className="px-2 py-1 text-xs rounded-lg border text-slate-600 bg-transparent border-transparent hover:bg-slate-800/60 hover:border-slate-700/60 hover:text-slate-300 transition-all"
+                        >
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                        </a>
                         {/* Copy row to clipboard */}
                         <button
                           onClick={() => copyRow(c)}

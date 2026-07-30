@@ -563,6 +563,11 @@ function ProductsInner() {
                       <span className="flex items-center gap-1.5">
                         <span className="text-sm text-slate-100 font-medium truncate max-w-[320px]">{descOf(r.c)}</span>
                         {r.activity > 0 && <span className="px-1 py-0.5 rounded bg-slate-800 text-[9px] text-slate-500 tabular-nums flex-shrink-0" title={`${r.activity} POs / quotes / orders`}>{r.activity}</span>}
+                        <Link href={`/items/${r.c.component_id}`} onClick={(e) => e.stopPropagation()}
+                          title="Open the item hub — buy, sell, stock, specs on one page"
+                          className="p-1 -m-0.5 text-slate-600 hover:text-emerald-300 transition-colors flex-shrink-0">
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                        </Link>
                       </span>
                     </td>
                     <td className="px-3 py-2 text-right whitespace-nowrap">
@@ -631,6 +636,10 @@ function ProductsInner() {
                         {[r.c.brand, r.c.category ? humanize(r.c.category) : '', r.c.norm_value ? Number(r.c.norm_value).toLocaleString('en-US') : ''].filter(Boolean).join(' · ') || '—'}
                       </p>
                     </div>
+                    <Link href={`/items/${r.c.component_id}`} onClick={(e) => e.stopPropagation()}
+                      className="p-1.5 -m-0.5 text-slate-600 active:text-emerald-300 flex-shrink-0" title="Open the item hub">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                    </Link>
                     {r.c.datasheet_url && (
                       <a href={r.c.datasheet_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
                         className="p-1.5 -m-0.5 text-sky-400 flex-shrink-0" title="Datasheet">
@@ -827,6 +836,11 @@ function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEdi
           );
         })}
         {rsv > 0 && <span className="text-[11px] text-amber-300/80 tabular-nums sm:ml-auto">Reserved on orders: {fmtInt(rsv)}</span>}
+        <Link href={`/items/${c.component_id}`}
+          className={`text-[11px] text-slate-500 hover:text-emerald-300 transition-colors whitespace-nowrap ${rsv > 0 ? '' : 'sm:ml-auto'}`}
+          title="Everything about this item — buy, sell, stock, specs — on one page">
+          Item hub →
+        </Link>
       </div>
 
       {/* Warranty + datasheet */}

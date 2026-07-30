@@ -15,7 +15,17 @@ import type { RolePermissions } from './roles';
  * so search never advertises a locked door.
  */
 
-export type NavSection = 'buySide' | 'sellSide' | 'projects' | null;
+/**
+ * `trading` = either trading flow (buySide OR sellSide) — used by the Item
+ * hub, which is the pivot BETWEEN the two flows and must be reachable from
+ * both sides. It is not a capability of its own: it derives from the two
+ * flow booleans, so the role matrix stays the single authority.
+ */
+export type NavSection = 'buySide' | 'sellSide' | 'projects' | 'trading' | null;
+
+/** Does this role pass a section gate? (null = open to everyone signed in) */
+export const sectionAllowed = (perms: RolePermissions | null, s: NavSection): boolean =>
+  !s || !perms || (s === 'trading' ? (perms.buySide || perms.sellSide) : perms[s]);
 
 export interface Destination {
   href: string;
@@ -96,6 +106,13 @@ export const DESTINATIONS: Destination[] = [
     hint: 'Service & warranty cases — repairs, replacements, complaints',
     keywords: 'service warranty klaim garansi rma repair replacement complaint case claim' },
 
+  // ── Items — the pivot between the two flows ───────────────────────────────
+  // One page per stock item: cost, price, stock, movement, specs and profit
+  // assembled from the screens that own each number (Module 29).
+  { href: '/items', label: 'Items', group: 'Items', section: 'trading', inNav: true,
+    hint: 'Everything about one item — buy, sell, stock, specs, profit',
+    keywords: 'item hub component sku part product barang produk master 360' },
+
   // ── Money ─────────────────────────────────────────────────────────────────
   // Cash work used to be scattered: AR under Sell, AP buried in a Purchasing
   // tab, banks in a group of one. Payables moves here — the money side of a
@@ -159,7 +176,7 @@ export const DESTINATIONS: Destination[] = [
 export const destinationsFor = (perms: RolePermissions | null): Destination[] =>
   DESTINATIONS.filter((d) => {
     if (!perms) return true;                       // profile still loading
-    if (d.section && !perms[d.section]) return false;
+    if (!sectionAllowed(perms, d.section)) return false;
     if (d.cap && !perms[d.cap]) return false;
     return true;
   });
@@ -169,4 +186,4 @@ export const destinationsFor = (perms: RolePermissions | null): Destination[] =>
  * money they move, then what it earned, then the separate EPC product line.
  * Admin is appended by the menu itself, below the daily modules.
  */
-export const NAV_GROUP_ORDER = ['Home', 'Buy', 'Sell', 'Money', 'Analytics', 'Projects'] as const;
+export const NAV_GROUP_ORDER = ['Home', 'Buy', 'Sell', 'Items', 'Money', 'Analytics', 'Projects'] as const;

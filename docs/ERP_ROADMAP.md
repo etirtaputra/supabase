@@ -576,11 +576,45 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   covered PAGES; nothing enforced it for ENTITIES — **a new module must now
   add its entity to `CommandPalette` as part of its definition of done.**
 
+- **Module 29 — The Item hub (SHIPPED 2026-07-30)**: the pivot of the system
+  finally has a home — **`/items/[componentId]`**, one page per stock item,
+  with **`/items`** as the neutral master list (Products and Purchasing stay
+  as the task lists and now link INTO the hub). Six tabs, each rendering the
+  EXISTING engine of the screen that owns the number — compose, don't fork:
+  **Overview** (cover = live ÷ 90-day monthly sold rate, days since movement,
+  GP% at current price, and an open-signals list derived from each owning
+  module's own rule: negative on-hand, committed-short, below-floor tiers,
+  slow mover vs the Settings threshold, no sell price, incoming); **Buy**
+  (`computeTUCMap` headline/latest/avg TUC, PO lines with **measured lead
+  time** per received PO (PO date → `actual_received_date`, avg + range),
+  PI history converted at `fxFromHistory` rates with provenance hover and the
+  90-day stale-FX amber); **Sell** (`computeTierChain` with overrides, the
+  /pricing floor rule per tier for `canManagePricing`, customers who buy it,
+  last orders/deliveries linking to /sales); **Stock** (per-warehouse 30.1
+  balances each at its own moving average, Physical/Reserved/Live with the
+  split-fulfillment reserve rule, the 30.0 ledger); **Specs** (SpecRenderer +
+  readiness banner + the same normalizeSpecs JSON editor as the Catalog);
+  **Economics** (owner-only: all-time realized GP on the delivered-DO basis,
+  GP by customer for this item, 365d turns, ageing bucket, and the trade
+  Position rendered by the SAME `PositionDetail` blocks as /economics —
+  exported from PositionPanel rather than copied).
+  **Gating**: the page needs buySide OR sellSide — a new `trading` section
+  value in `constants/navigation.ts` (`sectionAllowed()`) derived from the
+  two flow booleans, so the role matrix stays the single authority. Tabs
+  gate exactly as their source screens (Buy/Stock = buySide, Sell =
+  canViewSellingPrice, Economics = canViewEconomics); brand/supplier model
+  render only for canViewBrand. Cost columns (`avg_cost_idr`,
+  `unit_cost_idr`) are **not selected** for roles that may not see them —
+  the /products network-tab leak rule, applied from day one (sell_admin gets
+  the balance average only, which /pricing already shows that role).
+  **One click from anywhere**: Spotlight's `component` kind now lands on the
+  hub for both lenses (buy keeps its PI/PO drill rows), Products rows +
+  expanded detail, Stock rows + StockModal header, Purchasing rows
+  (ComponentEditor), sales-editor catalog-linked lines (↗), and
+  Profitability item rows all link here. Nav: single "Items" entry between
+  Sell and Money, neutral accent (it spans both flows).
+
 **Next up (in order):**
-0. **Module 29 — the Item hub (#1, spec below).** The item is the stated
-   pivot of the whole system and it is the one thing with no home: it is
-   spread across Purchasing (buy lens), Products (sell lens), Stock
-   (warehouse lens) and Profitability (money lens). Give it one page.
 0. Dashboard slice 2: a position strip above the queue — Cash / Owed to us /
    We owe / CCC — then month-in-motion comparisons and an AI next-best-step card.
 1. Bank follow-ons: tag the historical payments/receipts through the
@@ -598,7 +632,7 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
 
 ---
 
-## Module 29 — The Item hub (kickoff spec) — **build this first**
+## Module 29 — The Item hub (kickoff spec) — **SHIPPED 2026-07-30, see Status**
 
 **Why this is #1.** The roadmap's own thesis is *"the pivot is the Stock item;
 the unit of profit is the item."* Today an item has no page. It has four

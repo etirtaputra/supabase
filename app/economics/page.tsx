@@ -491,7 +491,8 @@ export default function EconomicsPage() {
                     ) : visibleRows.map((r) => (
                       <tr key={r.c.component_id} className="hover:bg-slate-800/20 transition-colors">
                         <td className="px-4 py-2">
-                          <p className="text-sm text-slate-100 truncate max-w-[300px]">{descOf(r.c)}</p>
+                          <Link href={`/items/${r.c.component_id}`} title="Open the item hub"
+                            className="text-sm text-slate-100 truncate max-w-[300px] block hover:text-emerald-300 transition-colors">{descOf(r.c)}</Link>
                           <p className="text-[10px] text-slate-600">{r.c.category ? humanize(r.c.category) : '—'}</p>
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-300">{r.soldQty ? `${fmtInt(r.soldQty)}${r.c.unit ? ` ${r.c.unit}` : ''}` : <span className="text-slate-700">—</span>}</td>

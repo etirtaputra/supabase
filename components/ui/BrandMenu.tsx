@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS, type RolePermissions } from '@/constants/roles';
-import { DESTINATIONS, NAV_GROUP_ORDER } from '@/constants/navigation';
+import { DESTINATIONS, NAV_GROUP_ORDER, sectionAllowed, type NavSection } from '@/constants/navigation';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useTheme } from '@/hooks/useTheme';
 import CommandPalette from './CommandPalette';
@@ -25,7 +25,7 @@ import CommandPalette from './CommandPalette';
  *    action bar (e.g. the sales editor) pass mobileNav={false}.
  * Everything is role-filtered via ROLE_PERMISSIONS sections.
  */
-type Section = 'buySide' | 'sellSide' | 'projects' | null;
+type Section = NavSection;
 
 // The menu is DERIVED from constants/navigation.ts — the same list Spotlight
 // indexes as "Pages", so a module can never exist in one and not the other.
@@ -33,7 +33,8 @@ type Section = 'buySide' | 'sellSide' | 'projects' | null;
 // canManagePricing). Configuration screens (Settings, Pricing) are NOT modules:
 // they sit in the Admin group at the bottom of the menu, out of the daily list.
 const GROUP_TITLE: Record<string, string | null> = {
-  Home: null, Buy: 'Buy', Sell: 'Sell', Money: 'Money', Analytics: 'Analytics', Projects: 'Projects',
+  // Items is a single-entry group like Home: no header, the link IS the group.
+  Home: null, Buy: 'Buy', Sell: 'Sell', Items: null, Money: 'Money', Analytics: 'Analytics', Projects: 'Projects',
 };
 
 const APP_GROUPS: { title: string | null; section: Section; apps: { href: string; label: string; cap?: keyof RolePermissions }[] }[] =
@@ -57,6 +58,8 @@ const ACCENT: Record<string, { active: string; dot: string; label: string; tab: 
   buySide:  { active: 'bg-sky-500/15 text-sky-300',         dot: 'bg-sky-400',     label: 'text-sky-500/70',   tab: 'text-sky-300' },
   sellSide: { active: 'bg-emerald-500/15 text-emerald-300', dot: 'bg-emerald-400', label: 'text-emerald-500/70', tab: 'text-emerald-300' },
   projects: { active: 'bg-violet-500/15 text-violet-300',   dot: 'bg-violet-400',  label: 'text-violet-500/70', tab: 'text-violet-300' },
+  // The Item hub spans both flows — neutral, like Money/Analytics.
+  trading:  { active: 'bg-white/10 text-white',              dot: 'bg-slate-300',   label: 'text-slate-600',    tab: 'text-white' },
 };
 /**
  * Money and Analytics deliberately span both flows (Analytics holds a buy
@@ -81,6 +84,7 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
   '/delivery':  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />,
   '/suppliers': <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />,
   '/stock':     <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />,
+  '/items':     <path strokeLinecap="round" strokeLinejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" />,
   '/economics': <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />,
   '/banks':     <path strokeLinecap="round" strokeLinejoin="round" d="M3 10l9-6 9 6M5 10v9m14-9v9M9 19v-5h6v5M3 21h18" />,
   '/proposals':    <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />,
@@ -126,7 +130,7 @@ export default function BrandMenu({
   const perms = profile ? ROLE_PERMISSIONS[profile.role] : null;
   const groups = APP_GROUPS
     .map((g) => ({ ...g, apps: g.apps.filter((a) => !a.cap || !perms || !!perms[a.cap]) }))
-    .filter((g) => g.apps.length && (!g.section || !perms || perms[g.section]));
+    .filter((g) => g.apps.length && sectionAllowed(perms, g.section));
   const allLinks = groups.flatMap((g) => g.apps.map((a) => ({ ...a, section: g.section })));
   // Configuration entries, same source, shown under Admin
   const adminLinks = DESTINATIONS.filter((d) => d.group === 'Admin' && d.inNav && (!perms || !d.cap || !!perms[d.cap]));

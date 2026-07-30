@@ -161,7 +161,7 @@ export default function PositionPanel() {
                       </tr>
                       {open && (
                         <tr>
-                          <td colSpan={10} className="px-3 pb-4 pt-1 bg-slate-950/40"><Detail r={r} /></td>
+                          <td colSpan={10} className="px-3 pb-4 pt-1 bg-slate-950/40"><PositionDetail r={r} /></td>
                         </tr>
                       )}
                     </Fragment>
@@ -193,7 +193,7 @@ export default function PositionPanel() {
                       {r.pnl != null && <span className={`px-2 py-1 rounded-lg bg-slate-800/60 tabular-nums font-bold ${toneOf(r.pnl)}`}>{fmtIdrShort(r.pnl)} {r.roiPct != null && `· ${pctOf(r.roiPct)}`}</span>}
                     </div>
                   </button>
-                  {open && <div className="px-3.5 pb-3.5"><Detail r={r} /></div>}
+                  {open && <div className="px-3.5 pb-3.5"><PositionDetail r={r} /></div>}
                 </div>
               );
             })}
@@ -204,8 +204,12 @@ export default function PositionPanel() {
   );
 }
 
-/** Opsi #2 — the vertical breakdown, plus the mark block and the reconciliation. */
-function Detail({ r }: { r: PositionRow }) {
+/**
+ * Opsi #2 — the vertical breakdown, plus the mark block and the reconciliation.
+ * Exported so the Item hub's Economics tab renders the SAME position blocks
+ * (compose, don't fork — if the hub disagreed with /economics it would be wrong).
+ */
+export function PositionDetail({ r }: { r: PositionRow }) {
   return (
     <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3 text-[11px]">
       <Block title="Purchases · received" accent="sky" rows={[
