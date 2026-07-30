@@ -190,7 +190,7 @@ export default function DatabaseViewPage() {
           </header>
           {/* Text-only underline tabs — same treatment as the Catalog bar:
               shared bottom rail groups them, sky underline marks the active one. */}
-          <nav className="px-3 sm:px-4 md:px-6 xl:px-8 max-w-[1800px] 2xl:max-w-[2460px] mx-auto flex overflow-x-auto gap-4 xl:gap-6 scrollbar-none snap-x snap-mandatory">
+          <nav className="px-3 sm:px-4 md:px-6 xl:px-8 scroll-px-3 sm:scroll-px-4 md:scroll-px-6 xl:scroll-px-8 max-w-[1800px] 2xl:max-w-[2460px] mx-auto flex overflow-x-auto gap-4 xl:gap-6 scrollbar-none snap-x snap-mandatory">
             {TABS.map((tab) => (
               <button
                 key={tab.id}

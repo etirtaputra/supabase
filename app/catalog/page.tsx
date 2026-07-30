@@ -42,10 +42,10 @@ const MENU_ITEMS: MenuItem[] = [
   { id: 'quoting', label: 'Supplier Quotes', icon: '📝',
     color: 'text-slate-400 hover:text-blue-300 hover:bg-slate-800/50',
     activeColor: 'bg-blue-500/15 text-blue-300 ring-1 ring-blue-500/30' },
-  { id: 'ordering', label: 'PI / PO', icon: '📦',
+  { id: 'ordering', label: 'Purchase Orders', icon: '📦',
     color: 'text-slate-400 hover:text-violet-300 hover:bg-slate-800/50',
     activeColor: 'bg-violet-500/15 text-violet-300 ring-1 ring-violet-500/30' },
-  { id: 'financials', label: 'Payment', icon: '💰',
+  { id: 'financials', label: 'Payments', icon: '💰',
     color: 'text-slate-400 hover:text-rose-300 hover:bg-slate-800/50',
     activeColor: 'bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30' },
   { id: 'lookup', label: 'Deal Lookup', icon: '🔍',
@@ -514,7 +514,7 @@ function MasterInsertPage() {
         {/* Tab bar — text-only underline tabs: the shared bottom rail groups
             them as one control; the sky underline (buy-side accent) marks the
             active workspace. */}
-        <nav className="px-3 sm:px-4 md:px-6 xl:px-8 max-w-[1800px] 2xl:max-w-[2460px] mx-auto flex overflow-x-auto gap-4 xl:gap-6 scrollbar-none snap-x snap-mandatory">
+        <nav className="px-3 sm:px-4 md:px-6 xl:px-8 scroll-px-3 sm:scroll-px-4 md:scroll-px-6 xl:scroll-px-8 max-w-[1800px] 2xl:max-w-[2460px] mx-auto flex overflow-x-auto gap-4 xl:gap-6 scrollbar-none snap-x snap-mandatory">
           {visibleMenuItems.map((item) => (
             <Link
               key={item.id}
