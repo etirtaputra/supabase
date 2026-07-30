@@ -496,10 +496,13 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
     });
 
     // ── Items: buy-side sees model + brand, sell-side the customer-facing
-    //    description. The OWNER lands on the Item hub (/items/[id] — Analytics
-    //    is owner-only); everyone else keeps their lens's own screen, so
-    //    search never hands out a door that leads to /unauthorized.
+    //    description. The OWNER lands on the Item hub LIST with the search
+    //    pre-filled and that row pre-expanded (?open=) — the forensics open
+    //    in place, and the full hub is one ↗ away. Everyone else keeps their
+    //    lens's own screen, so search never hands out a locked door.
     const canHub = perms.canViewAnalytics;
+    const hubHref = (c: { component_id: string }, q: string) =>
+      `/items?q=${encodeURIComponent(q)}&open=${encodeURIComponent(c.component_id)}`;
     const componentItems: Item[] = comps.map((c) => {
       if (canBuy) {
         const act = compActivity.get(c.component_id);
@@ -508,7 +511,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
           id: c.component_id,
           title: c.supplier_model || '(no model)',
           sub: [c.brand, c.category].filter(Boolean).join(' · '),
-          href: canHub ? `/items/${c.component_id}` : dealLookupHref(c.supplier_model ?? ''),
+          href: canHub ? hubHref(c, c.supplier_model ?? '') : dealLookupHref(c.supplier_model ?? ''),
           weight: (act?.po.size ?? 0) * 2 + (act?.pi.size ?? 0),
           drill: byComponent.get(c.component_id) ?? [],
           keywords: c.internal_description ?? '',
@@ -520,7 +523,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
         id: c.component_id,
         title: desc,
         sub: c.category ?? '',
-        href: canHub ? `/items/${c.component_id}` : `/products?q=${encodeURIComponent(desc)}`,
+        href: canHub ? hubHref(c, desc) : `/products?q=${encodeURIComponent(desc)}`,
       };
     });
 

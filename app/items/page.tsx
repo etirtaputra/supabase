@@ -73,7 +73,9 @@ function ItemsInner() {
   const [poCosts, setPoCosts] = useState<POCost[]>([]);
   const [suppliers, setSuppliers] = useState<{ supplier_id: string; supplier_name: string }[]>([]);
   const [componentLinks, setComponentLinks] = useState<ComponentLink[]>([]);
-  const [expanded, setExpanded] = useState<string | null>(null);
+  // ?open=<componentId> (Spotlight deep link): land with that row already
+  // expanded — the search (?q=) narrows the list so the row is on screen.
+  const [expanded, setExpanded] = useState<string | null>(searchParams.get('open'));
 
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
   const [filterCategory, setFilterCategory] = useState('');
