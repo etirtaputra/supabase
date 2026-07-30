@@ -28,7 +28,7 @@ import DateRangeFilter from '@/components/ui/DateRangeFilter';
 import LayoutToggle from '@/components/ui/LayoutToggle';
 import { useListLayout } from '@/hooks/useListLayout';
 import { ALL_TIME, inRange, isOpenRange, type DateRange } from '@/lib/dateRange';
-import { accountLabel, fetchStatement, signedAmount, type BankAccount, type StatementRow } from '@/lib/banks';
+import { accountLabel, accountLabelWithCompany, fetchStatement, signedAmount, type BankAccount, type StatementRow } from '@/lib/banks';
 import { fmtDay, fmtInt, fmtRupiah, fmtRupiahShort } from '@/lib/formatters';
 
 interface Company { company_id: string; legal_name: string }
@@ -439,7 +439,7 @@ export default function BanksPage() {
 
       {canEdit && !schemaMissing && accounts.length > 0 && (
         <div className="max-w-[1600px] 2xl:max-w-[2120px] mx-auto px-3 sm:px-4 md:px-6 pb-8">
-          <UntaggedPanel accounts={accounts}
+          <UntaggedPanel accounts={accounts} companyName={companyName}
             onAssigned={() => { if (account) loadStatement(account); loadAccounts(); flash('Movement assigned'); }} />
         </div>
       )}
@@ -470,7 +470,7 @@ interface Untagged {
   date: string; amount: number; currency: string; label: string;
 }
 
-function UntaggedPanel({ accounts, onAssigned }: { accounts: BankAccount[]; onAssigned: () => void }) {
+function UntaggedPanel({ accounts, companyName, onAssigned }: { accounts: BankAccount[]; companyName: Map<string, string>; onAssigned: () => void }) {
   const supabase = createSupabaseClient();
   const [rows, setRows] = useState<Untagged[]>([]);
   const [open, setOpen] = useState(false);
@@ -561,7 +561,7 @@ function UntaggedPanel({ accounts, onAssigned }: { accounts: BankAccount[]; onAs
                 onChange={(e) => assign(r, e.target.value)}
                 className="text-xs bg-slate-800 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 disabled:opacity-50 cursor-pointer flex-shrink-0 ml-auto">
                 <option value="">Assign to…</option>
-                {accounts.map((a) => <option key={a.bank_account_id} value={a.bank_account_id}>{accountLabel(a)}</option>)}
+                {accounts.map((a) => <option key={a.bank_account_id} value={a.bank_account_id}>{accountLabelWithCompany(a, companyName)}</option>)}
               </select>
             </div>
           ))}

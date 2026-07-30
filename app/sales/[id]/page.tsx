@@ -18,7 +18,7 @@ import { SALES_STATUS as STATUS, COMMITTED_STATUSES as COMMITTED } from '@/lib/s
 import { tierPriceFor } from '@/lib/tierPricing';
 import { fmtDay, fmtInt } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
-import { fetchBankAccounts, accountLabel, defaultAccountFor, type BankAccount } from '@/lib/banks';
+import { fetchBankAccounts, fetchAccountCompanies, accountLabelWithCompany, defaultAccountFor, type BankAccount } from '@/lib/banks';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
@@ -837,6 +837,7 @@ function RecordPaymentModal({ quoteId, companyId, outstanding, received, onClose
   // Which bank account the money landed in — tagging it here is what makes the
   // account's statement on /banks complete.
   const [banks, setBanks] = useState<BankAccount[]>([]);
+  const [bankCompanies, setBankCompanies] = useState<Map<string, string>>(new Map());
   const [bankId, setBankId] = useState('');
   useEffect(() => {
     fetchBankAccounts(supabase).then((list) => {
@@ -844,6 +845,8 @@ function RecordPaymentModal({ quoteId, companyId, outstanding, received, onClose
       // The issuing company's default receipt account (Settings › Banks)
       setBankId((prev) => prev || (defaultAccountFor(list, 'receipt', companyId)?.bank_account_id ?? ''));
     });
+    // Which PT each account belongs to — visible in the picker itself
+    fetchAccountCompanies(supabase).then(setBankCompanies);
   }, [companyId]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   async function submit() {
@@ -895,7 +898,7 @@ function RecordPaymentModal({ quoteId, companyId, outstanding, received, onClose
           <FieldBox label="Received in" full>
             <select value={bankId} onChange={(e) => setBankId(e.target.value)} className={inp}>
               <option value="">— not recorded —</option>
-              {banks.map((b) => <option key={b.bank_account_id} value={b.bank_account_id}>{accountLabel(b)}</option>)}
+              {banks.map((b) => <option key={b.bank_account_id} value={b.bank_account_id}>{accountLabelWithCompany(b, bankCompanies)}</option>)}
             </select>
           </FieldBox>
           <FieldBox label="Bank ref / cheque no." full>

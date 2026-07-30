@@ -52,6 +52,24 @@ export interface StatementRow {
 export const accountLabel = (a: BankAccount): string =>
   [a.bank_name, a.account_number].filter(Boolean).join(' · ') || a.account_name || 'Unnamed account';
 
+/**
+ * Picker label carrying the owning company: "MANDIRI · 115003… — PT ICA".
+ * Each PT banks separately, so a bare bank + number is ambiguous the moment
+ * two companies are involved — the payer/receiver must be visible where the
+ * account is CHOSEN, not only in Settings.
+ */
+export const accountLabelWithCompany = (a: BankAccount, companies?: Map<string, string> | null): string => {
+  const co = a.company_id ? companies?.get(a.company_id) : undefined;
+  return co ? `${accountLabel(a)} — ${co}` : accountLabel(a);
+};
+
+/** company_id → legal name (1.0_companies), for labelling account pickers. */
+export async function fetchAccountCompanies(supabase: SupabaseClient): Promise<Map<string, string>> {
+  const { data, error } = await supabase.from('1.0_companies').select('company_id, legal_name');
+  if (error || !data) return new Map();
+  return new Map((data as { company_id: string; legal_name: string }[]).map((c) => [c.company_id, c.legal_name]));
+}
+
 export async function fetchBankAccounts(supabase: SupabaseClient, includeInactive = false): Promise<BankAccount[]> {
   const { data, error } = await supabase.from('41.0_bank_accounts').select('*').order('sort_order');
   if (error || !data) return [];

@@ -14,7 +14,7 @@ import type { PurchaseOrder, Supplier, PriceQuote, POCost } from '@/types/databa
 import { ENUMS } from '@/constants/enums';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 import { fmtIdr } from '@/lib/formatters';
-import { fetchBankAccounts, accountLabel, defaultAccountFor, type BankAccount } from '@/lib/banks';
+import { fetchBankAccounts, fetchAccountCompanies, accountLabelWithCompany, defaultAccountFor, type BankAccount } from '@/lib/banks';
 
 const ALL_COST_CATS = ENUMS.po_cost_category as readonly string[];
 
@@ -46,7 +46,14 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
   const [banks,       setBanks]       = useState<BankAccount[]>([]);
   const [bankId,      setBankId]      = useState('');
   const [bankTouched, setBankTouched] = useState(false);
-  useEffect(() => { fetchBankAccounts(createSupabaseClient()).then(setBanks); }, []);
+  // The paying COMPANY is part of the account's identity — each PT banks
+  // separately, so the picker says which company a number belongs to.
+  const [bankCompanies, setBankCompanies] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    const sb = createSupabaseClient();
+    fetchBankAccounts(sb).then(setBanks);
+    fetchAccountCompanies(sb).then(setBankCompanies);
+  }, []);
   const [costItems,   setCostItems]   = useState<CostItem[]>([
     { uid: 'item_0', category: 'balance_payment', amountStr: '', dateStr: '' },
   ]);
@@ -432,7 +439,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-sky-500/20"
               >
                 <option value="">— not recorded —</option>
-                {banks.map((b) => <option key={b.bank_account_id} value={b.bank_account_id}>{accountLabel(b)}</option>)}
+                {banks.map((b) => <option key={b.bank_account_id} value={b.bank_account_id}>{accountLabelWithCompany(b, bankCompanies)}</option>)}
               </select>
             </div>
           </div>
