@@ -156,11 +156,14 @@ export default function BrandMenu({
   }, []);
   useEffect(() => { setDeskOpen(null); }, [pathname]);
 
+  // Compact rows (py-1 / 13px): the menu has grown enough groups that the
+  // roomier spacing forced desktop users to SCROLL a navigation menu —
+  // density is the feature here; the whole list should fit in one glance.
   const menuPanel = (
     <>
       {groups.map((group, gi) => (
-        <div key={gi} className={gi > 0 ? 'mt-1 pt-1 border-t border-slate-800/70' : ''}>
-          {group.title && <p className={`px-2.5 pt-1 pb-1 text-[9px] uppercase tracking-widest ${accentOf(group.section, group.title).label}`}>{group.title}</p>}
+        <div key={gi} className={gi > 0 ? 'mt-0.5 pt-0.5 border-t border-slate-800/70' : ''}>
+          {group.title && <p className={`px-2.5 pt-1 pb-0.5 text-[9px] uppercase tracking-widest ${accentOf(group.section, group.title).label}`}>{group.title}</p>}
           {group.apps.map((a) => {
             const active = isActive(a.href);
             const acc = accentOf(group.section, group.title);
@@ -169,7 +172,7 @@ export default function BrandMenu({
                 key={a.href}
                 href={a.href}
                 onClick={() => { setOpen(false); setMoreOpen(false); }}
-                className={`flex items-center justify-between px-2.5 py-2 rounded-lg text-sm transition-colors ${
+                className={`flex items-center justify-between px-2.5 py-1 rounded-lg text-[13px] leading-5 transition-colors ${
                   active ? acc.active : 'text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
               >
@@ -184,11 +187,11 @@ export default function BrandMenu({
           and Pricing, which sets the tiers every quote is priced from. Hidden
           from everyone who doesn't run them. */}
       {adminLinks.length > 0 && (
-        <div className="mt-1 pt-1 border-t border-slate-800/70">
-          <p className="px-2.5 pt-1 pb-1 text-[9px] uppercase tracking-widest text-slate-600">Admin</p>
+        <div className="mt-0.5 pt-0.5 border-t border-slate-800/70">
+          <p className="px-2.5 pt-1 pb-0.5 text-[9px] uppercase tracking-widest text-slate-600">Admin</p>
           {adminLinks.map((d) => (
             <Link key={d.href} href={d.href} onClick={() => { setOpen(false); setMoreOpen(false); }}
-              className={`flex items-center justify-between px-2.5 py-2 rounded-lg text-sm transition-colors ${
+              className={`flex items-center justify-between px-2.5 py-1 rounded-lg text-[13px] leading-5 transition-colors ${
                 isActive(d.href) ? 'bg-emerald-500/15 text-emerald-300' : 'text-slate-300 hover:bg-white/10 hover:text-white'
               }`}>
               {d.label}

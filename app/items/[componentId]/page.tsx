@@ -43,7 +43,8 @@ import {
 import { deriveExchangeRates } from '@/lib/exchangeRates';
 import { fetchTradePositions, type PositionRow } from '@/lib/tradePosition';
 import { specReadiness, normalizeSpecs } from '@/lib/specSchema';
-import type { PurchaseOrder, PurchaseLineItem, POCost, PriceQuote, PriceQuoteLineItem } from '@/types/database';
+import ItemCostForensics, { type CompLite } from '@/components/ui/ItemCostForensics';
+import type { PurchaseOrder, PurchaseLineItem, POCost, PriceQuote, PriceQuoteLineItem, ComponentLink } from '@/types/database';
 
 // PO statuses that mean "ordered, on the way, not yet fully arrived" — the
 // same set Products uses for its Incoming column.
@@ -127,6 +128,8 @@ export default function ItemHubPage() {
   const [quotes, setQuotes] = useState<PriceQuote[]>([]);
   const [quoteLines, setQuoteLines] = useState<PriceQuoteLineItem[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [componentLinks, setComponentLinks] = useState<ComponentLink[]>([]);
+  const [linkedComps, setLinkedComps] = useState<CompLite[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -170,13 +173,16 @@ export default function ItemHubPage() {
       // line of each PO to compute the line share, and the FX map ranks the
       // newest evidence across the whole business — exactly what /purchasing and
       // /proposals feed the same engines.
-      const [poRes, poiRes, costRes, pqRes, pqiRes, supRes] = await Promise.all([
+      const [poRes, poiRes, costRes, pqRes, pqiRes, supRes, linkRes] = await Promise.all([
         supabase.from('5.0_purchases').select('po_id, po_number, po_date, status, currency, exchange_rate, total_value, quote_id, supplier_id, pi_number, actual_received_date, estimated_delivery_date'),
         supabase.from('5.1_purchase_line_items').select('po_line_item_id, po_id, component_id, quantity, unit_cost, currency').limit(8000),
         supabase.from('6.0_po_costs').select('cost_id, po_id, cost_category, amount, currency, exchange_rate, payment_date'),
         supabase.from('4.0_price_quotes').select('quote_id, supplier_id, quote_date, pi_number, currency, status'),
-        supabase.from('4.1_price_quote_line_items').select('quote_line_id, quote_id, component_id, quantity, unit_price, currency, supplier_description').eq('component_id', componentId),
+        // ALL quote lines, not just this item's: the forensics' linked-item
+        // price tags need the comparables' latest quotes too.
+        supabase.from('4.1_price_quote_line_items').select('quote_line_id, quote_id, component_id, quantity, unit_price, currency').limit(8000),
         supabase.from('2.0_suppliers').select('supplier_id, supplier_name'),
+        supabase.from('8.0_component_links').select('*').or(`component_id_a.eq.${componentId},component_id_b.eq.${componentId}`),
       ]);
       setPos((poRes.data ?? []) as unknown as PurchaseOrder[]);
       setPoItems((poiRes.data ?? []) as unknown as PurchaseLineItem[]);
@@ -184,6 +190,17 @@ export default function ItemHubPage() {
       setQuotes((pqRes.data ?? []) as unknown as PriceQuote[]);
       setQuoteLines((pqiRes.data ?? []) as unknown as PriceQuoteLineItem[]);
       setSuppliers((supRes.data ?? []) as Supplier[]);
+      const links = (linkRes.data ?? []) as unknown as ComponentLink[];
+      setComponentLinks(links);
+      // Names for the linked/comparable chips — only the ids the links touch
+      const otherIds = [...new Set(links.flatMap((l) => [l.component_id_a, l.component_id_b]))].filter((x) => x !== componentId);
+      if (otherIds.length) {
+        const { data: lc } = await supabase.from('3.0_components')
+          .select('component_id, supplier_model, internal_description, category').in('component_id', otherIds);
+        setLinkedComps((lc ?? []) as CompLite[]);
+      } else {
+        setLinkedComps([]);
+      }
     }
     setLoading(false);
   }, [componentId, canBuy, canBrand, canFloor]);       // eslint-disable-line react-hooks/exhaustive-deps
@@ -214,9 +231,10 @@ export default function ItemHubPage() {
   const live = physical - reserved;
 
   // ── Buy-side engines: THE canonical TUC + FX maps (compose, don't fork) ────
-  const tucRes: TUCResult | null = useMemo(
-    () => (canBuy && pos.length ? computeTUCMap(pos, poItems, poCosts).get(componentId) ?? null : null),
-    [canBuy, pos, poItems, poCosts, componentId]);
+  const tucMap = useMemo(
+    () => (canBuy ? computeTUCMap(pos, poItems, poCosts) : new Map<string, TUCResult>()),
+    [canBuy, pos, poItems, poCosts]);
+  const tucRes: TUCResult | null = tucMap.get(componentId) ?? null;
   const fx: Record<string, FxRate> = useMemo(
     () => (canBuy ? fxFromHistory(pos, deriveExchangeRates(pos, poItems, poCosts, quotes)) : {}),
     [canBuy, pos, poItems, poCosts, quotes]);
@@ -374,8 +392,14 @@ export default function ItemHubPage() {
                 chain={chain} activeTiers={activeTiers} tucRes={tucRes} />
             )}
             {tab === 'buy' && canBuy && (
-              <BuyTab compUnit={comp.unit} tucRes={tucRes} fx={fx} myPoLines={myPoLines} quoteLines={quoteLines}
-                quotes={quotes} suppliers={suppliers} incoming={incoming} leadTimes={leadTimes} />
+              <BuyTab compUnit={comp.unit} tucRes={tucRes} fx={fx} myPoLines={myPoLines}
+                incoming={incoming} leadTimes={leadTimes}
+                forensics={{
+                  componentId,
+                  components: [comp as CompLite, ...linkedComps],
+                  quotes, quoteItems: quoteLines, pos, poItems, poCosts,
+                  suppliers, componentLinks, tucMap,
+                }} />
             )}
             {tab === 'sell' && canSell && (
               <SellTab comp={comp} activeTiers={activeTiers} chain={chain} avgCost={avgCost} canFloor={canFloor}
@@ -513,21 +537,20 @@ function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: 
 }
 
 // ── Buy tab ──────────────────────────────────────────────────────────────────
-function BuyTab({ compUnit, tucRes, fx, myPoLines, quoteLines, quotes, suppliers, incoming, leadTimes }: {
+interface ForensicsData {
+  componentId: string; components: CompLite[];
+  quotes: PriceQuote[]; quoteItems: PriceQuoteLineItem[];
+  pos: PurchaseOrder[]; poItems: PurchaseLineItem[]; poCosts: POCost[];
+  suppliers: Supplier[]; componentLinks: ComponentLink[];
+  tucMap: Map<string, TUCResult>;
+}
+
+function BuyTab({ compUnit, tucRes, fx, myPoLines, incoming, leadTimes, forensics }: {
   compUnit: string | null; tucRes: TUCResult | null; fx: Record<string, FxRate>;
   myPoLines: { item: PurchaseLineItem; po: PurchaseOrder }[];
-  quoteLines: PriceQuoteLineItem[]; quotes: PriceQuote[]; suppliers: Supplier[];
   incoming: number; leadTimes: { avg: number; min: number; max: number; n: number } | null;
+  forensics: ForensicsData;
 }) {
-  const supName = useCallback((id?: string | number | null) =>
-    suppliers.find((s) => String(s.supplier_id) === String(id))?.supplier_name ?? '—', [suppliers]);
-  const quoteById = useMemo(() => new Map(quotes.map((q) => [q.quote_id, q])), [quotes]);
-  const myQuoteLines = useMemo(() => [...quoteLines].sort((a, b) => {
-    const da = quoteById.get(a.quote_id)?.quote_date ?? '';
-    const db = quoteById.get(b.quote_id)?.quote_date ?? '';
-    return db.localeCompare(da);
-  }), [quoteLines, quoteById]);
-
   const boughtQty = myPoLines.reduce((s, { item }) => s + (Number(item.quantity) || 0), 0);
   const poCount = new Set(myPoLines.map(({ po }) => String(po.po_id))).size;
 
@@ -539,112 +562,19 @@ function BuyTab({ compUnit, tucRes, fx, myPoLines, quoteLines, quotes, suppliers
         <Kpi label="Latest · weighted avg" value={tucRes ? `${fmtRupiahShort(tucRes.latestTuc)} · ${fmtRupiahShort(tucRes.avgTuc)}` : '—'}
           sub={tucRes ? `latest settled PO ${fmtDay(tucRes.latestPoDate)}` : `from ${poCount} PO${poCount !== 1 ? 's' : ''}`} />
         <Kpi label="Bought all-time" value={boughtQty > 0 ? `${fmtInt(boughtQty)}${compUnit ? ` ${compUnit}` : ''}` : '—'}
-          sub={`${poCount} purchase order${poCount !== 1 ? 's' : ''}`} />
+          sub={incoming > 0 ? `${poCount} PO${poCount !== 1 ? 's' : ''} · ${fmtInt(incoming)} incoming` : `${poCount} purchase order${poCount !== 1 ? 's' : ''}`} />
         <Kpi label="Lead time (measured)" value={leadTimes ? `${Math.round(leadTimes.avg)}d` : '—'}
           sub={leadTimes ? `${leadTimes.min}–${leadTimes.max}d over ${leadTimes.n} received PO${leadTimes.n !== 1 ? 's' : ''}` : 'no received POs to measure'} />
       </div>
 
-      {/* PO history */}
-      <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-x-auto">
-        <div className="px-4 pt-3 pb-1 flex items-baseline gap-2">
-          <h3 className="text-[11px] font-bold uppercase tracking-widest text-sky-400/80">Purchase orders</h3>
-          {incoming > 0 && <span className="text-[10px] text-sky-300 tabular-nums">{fmtInt(incoming)} incoming</span>}
-        </div>
-        {myPoLines.length === 0 ? (
-          <p className="px-4 py-6 text-xs text-slate-600 italic">Never bought on a PO.</p>
-        ) : (
-          <table className="w-full min-w-[760px]">
-            <thead>
-              <tr className="border-b border-slate-800 text-[10px] uppercase tracking-widest text-slate-500">
-                <th className="text-left font-semibold px-4 py-2">PO</th>
-                <th className="text-left font-semibold px-3 py-2">Date</th>
-                <th className="text-left font-semibold px-3 py-2">Supplier</th>
-                <th className="text-right font-semibold px-3 py-2">Qty</th>
-                <th className="text-right font-semibold px-3 py-2">Unit cost</th>
-                <th className="text-right font-semibold px-3 py-2" title="PO date → actual goods receipt">Lead</th>
-                <th className="text-left font-semibold px-3 py-2">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60">
-              {myPoLines.map(({ item, po }) => {
-                const lead = po.actual_received_date && po.po_date
-                  ? Math.round((new Date(po.actual_received_date).getTime() - new Date(po.po_date).getTime()) / 86_400_000)
-                  : null;
-                const supplier = po.supplier_id ?? (po.quote_id != null ? quoteById.get(po.quote_id)?.supplier_id : undefined);
-                return (
-                  <tr key={item.po_line_item_id} className="hover:bg-slate-800/20 transition-colors">
-                    <td className="px-4 py-2">
-                      <Link href={`/purchasing?tab=lookup&q=${encodeURIComponent(po.po_number ?? '')}`} className="font-mono text-xs text-sky-400 hover:text-sky-300">{po.po_number || `PO ${po.po_id}`}</Link>
-                    </td>
-                    <td className="px-3 py-2 text-xs text-slate-400 whitespace-nowrap">{fmtDay(po.po_date)}</td>
-                    <td className="px-3 py-2 text-xs text-slate-300 truncate max-w-[180px]">{supName(supplier)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-200">{fmtInt(Number(item.quantity))}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-200 whitespace-nowrap">{fmtCcy(Number(item.unit_cost), item.currency || po.currency)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400">{lead != null ? `${lead}d` : <span className="text-slate-700">—</span>}</td>
-                    <td className="px-3 py-2 text-[10px]">
-                      <span className={`px-1.5 py-0.5 rounded-full border font-semibold whitespace-nowrap ${
-                        po.status === 'Fully Received' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                        : po.status === 'Partially Received' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                        : INCOMING_PO_STATUSES.has(po.status ?? '') ? 'bg-sky-500/10 text-sky-400 border-sky-500/20'
-                        : 'bg-slate-800 text-slate-500 border-slate-700'}`}>{po.status ?? '—'}</span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* Supplier quote (PI) history with FX provenance */}
-      <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-x-auto">
-        <div className="px-4 pt-3 pb-1">
-          <h3 className="text-[11px] font-bold uppercase tracking-widest text-emerald-400/70">Supplier quotes (PI)</h3>
-        </div>
-        {myQuoteLines.length === 0 ? (
-          <p className="px-4 py-6 text-xs text-slate-600 italic">No supplier quotes recorded.</p>
-        ) : (
-          <table className="w-full min-w-[760px]">
-            <thead>
-              <tr className="border-b border-slate-800 text-[10px] uppercase tracking-widest text-slate-500">
-                <th className="text-left font-semibold px-4 py-2">Quote / PI</th>
-                <th className="text-left font-semibold px-3 py-2">Date</th>
-                <th className="text-left font-semibold px-3 py-2">Supplier</th>
-                <th className="text-right font-semibold px-3 py-2">Qty</th>
-                <th className="text-right font-semibold px-3 py-2">Unit price</th>
-                <th className="text-right font-semibold px-3 py-2" title="Converted at the newest FX evidence — a rate committed on a live PO beats an older settled one">≈ IDR</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60">
-              {myQuoteLines.map((li) => {
-                const q = quoteById.get(li.quote_id);
-                const cur = li.currency || q?.currency || 'IDR';
-                const rate = cur === 'IDR' ? 1 : fxRateOf(fx, cur);
-                const idr = Number(li.unit_price) * rate;
-                const obs = fx[cur];
-                const stale = cur !== 'IDR' && (obs ? fxAgeDays(fx, cur) > FX_STALE_DAYS : true);
-                return (
-                  <tr key={li.quote_line_id} className="hover:bg-slate-800/20 transition-colors">
-                    <td className="px-4 py-2 font-mono text-xs text-emerald-400/90">{q?.pi_number ?? `#${li.quote_id}`}</td>
-                    <td className="px-3 py-2 text-xs text-slate-400 whitespace-nowrap">{fmtDay(q?.quote_date)}</td>
-                    <td className="px-3 py-2 text-xs text-slate-300 truncate max-w-[180px]">{supName(q?.supplier_id)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-200">{fmtInt(Number(li.quantity))}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-200 whitespace-nowrap">{fmtCcy(Number(li.unit_price), cur)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-xs whitespace-nowrap"
-                      title={cur === 'IDR' ? undefined
-                        : `@ ${fmtInt(rate)} — ${obs ? `${obs.source === 'settled' ? 'settled payment' : obs.label} · ${obs.date}` : 'no purchase history — fallback rate'}`}>
-                      <span className={stale ? 'text-amber-300' : 'text-slate-300'}>{fmtIdr(idr)}</span>
-                      {stale && <span className="block text-[9px] text-amber-500/80">stale FX</span>}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
+      {/* The forensic layer — the same component Cost Lookup's audit trail was
+          extracted into: quote lines with FX provenance, per-PO TUC
+          allocations, payment & cost records, linked/comparable items. */}
+      <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl px-4 py-4">
+        <ItemCostForensics {...forensics} fx={fx} showSummary={false} defaultOpen showLead />
       </div>
       <p className="text-[10px] text-slate-600">
-        TUC = the canonical True Unit Cost engine (settled POs only; taxes excluded) — identical to Purchasing&apos;s Last Price and Deal Lookup.
+        TUC = the canonical True Unit Cost engine (settled POs only; taxes excluded) — identical to Purchasing&apos;s Last Price and Cost Lookup.
         Foreign quotes convert at the newest FX evidence ({Object.entries(fx).map(([c, r]) => `${c} ${fmtInt(r.rate)}`).join(' · ') || 'none yet'}); amber = older than {FX_STALE_DAYS} days.
       </p>
     </div>

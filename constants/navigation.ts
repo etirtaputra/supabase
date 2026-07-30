@@ -82,11 +82,6 @@ export const DESTINATIONS: Destination[] = [
   { href: '/products', label: 'Products', group: 'Sell', section: 'sellSide', inNav: true,
     hint: 'What we sell, with tier prices and live stock',
     keywords: 'catalogue catalog items selling price tier' },
-  // Pricing is a daily commercial tool (tiers, floor audit), not configuration
-  // — filing it under Admin framed it as setup nobody needs to open.
-  { href: '/pricing', label: 'Pricing', group: 'Sell', section: null, cap: 'canManagePricing', inNav: true,
-    hint: 'Price tiers, margin floor audit, per-item overrides',
-    keywords: 'tiers markup discount floor margin' },
   { href: '/sales', label: 'Sales', group: 'Sell', section: 'sellSide', inNav: true,
     hint: 'Quotations → orders → invoices → delivery',
     keywords: 'quotation sq so order penawaran' },
@@ -146,6 +141,11 @@ export const DESTINATIONS: Destination[] = [
     keywords: 'merge duplicates cleanup directory' },
 
   // ── Admin / configuration ────────────────────────────────────────────────
+  // Pricing lives here per the owner (2026-07-30): tiers, floors and
+  // overrides are configuration in this house, not a daily sell-side tool.
+  { href: '/pricing', label: 'Pricing', group: 'Admin', section: null, cap: 'canManagePricing', inNav: true,
+    hint: 'Price tiers, margin floor audit, per-item overrides',
+    keywords: 'tiers markup discount floor margin' },
   { href: '/settings', label: 'Settings', group: 'Admin', section: null, cap: 'canManageUsers', inNav: true,
     hint: 'Formatting, defaults, company, banks and users',
     keywords: 'preferences configuration admin setup' },

@@ -660,6 +660,31 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   the house pattern: the default applies until someone re-sorts or widens the
   list themselves (never saved over the owner's default).
 
+- **Cost Lookup's forensics merged into the Item hub (2026-07-30, owner's
+  direction)**: the owner prefers Cost Lookup's traceable audit trail and
+  wants it living in the hub — so it was EXTRACTED, not copied:
+  `components/ui/ItemCostForensics.tsx` renders the Last Price / TUC /
+  Activity strip, the **Linked/Comparable** items (8.0 links, with each
+  comparable's own TUC/quote/PO price tag, chips navigate to that item's
+  hub), and behind the same "Show full cost breakdown" toggle: supplier
+  quote lines (now WITH the ≈IDR FX-provenance column and 90-day stale
+  amber), per-PO TUC allocations (line share %, principal/fees/landed split,
+  "balance unpaid" gating, plus the measured lead-time column), and the
+  payment & cost records per PO with the breakdown bar. Used in TWO places:
+  **/items rows now expand in place** (the Cost Lookup interaction, but the
+  list is never empty — items are already on screen; the ↗ still opens the
+  full hub) with the full buy dataset + one page-level computeTUCMap/fx so
+  every expansion is instant; and the **hub's Buy tab**, whose simpler
+  hand-rolled PI/PO tables were replaced by the same component (KPI cards
+  stay). **Spend & Cash › Cost Lookup is deliberately untouched** — it
+  retires only once the owner is comfortable the hub covers it.
+  Also this pass, per the owner: **Pricing moved back to the Admin group**
+  (it was moved to Sell in the 2026-07-29 navigation pass on the
+  "daily commercial tool" argument — overruled: tiers/floors are
+  configuration in this house), and the **ICAPROC dropdown menu was
+  compacted** (13px rows, tighter group spacing) so the grown menu fits a
+  desktop viewport without scrolling.
+
 **Next up (in order):**
 0. Dashboard slice 2: a position strip above the queue — Cash / Owed to us /
    We owe / CCC — then month-in-motion comparisons and an AI next-best-step card.

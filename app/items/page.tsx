@@ -20,6 +20,10 @@ import { formatCategory as humanize } from '@/lib/formatCategory';
 import { fmtDay, fmtInt, fmtRupiah, fmtRupiahShort } from '@/lib/formatters';
 import { rollUpByComponent, type BalanceRow } from '@/lib/warehouses';
 import { useListDefaults } from '@/hooks/useListDefaults';
+import ItemCostForensics from '@/components/ui/ItemCostForensics';
+import { computeTUCMap, fxFromHistory } from '@/lib/computeTUC';
+import { deriveExchangeRates } from '@/lib/exchangeRates';
+import type { PriceQuote, PriceQuoteLineItem, PurchaseOrder, PurchaseLineItem, POCost, ComponentLink } from '@/types/database';
 
 interface Comp {
   component_id: string; supplier_model: string; internal_description: string | null;
@@ -60,6 +64,16 @@ function ItemsInner() {
   const [activity, setActivity] = useState<Map<string, number>>(new Map());
   const [lastMove, setLastMove] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
+  // The forensic layer (Cost Lookup's audit trail) renders inline on expand —
+  // the full buy dataset backs it, exactly what Spend & Cash already loads.
+  const [quotes, setQuotes] = useState<PriceQuote[]>([]);
+  const [quoteItems, setQuoteItems] = useState<PriceQuoteLineItem[]>([]);
+  const [pos, setPos] = useState<PurchaseOrder[]>([]);
+  const [poItems, setPoItems] = useState<PurchaseLineItem[]>([]);
+  const [poCosts, setPoCosts] = useState<POCost[]>([]);
+  const [suppliers, setSuppliers] = useState<{ supplier_id: string; supplier_name: string }[]>([]);
+  const [componentLinks, setComponentLinks] = useState<ComponentLink[]>([]);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
   const [filterCategory, setFilterCategory] = useState('');
@@ -99,18 +113,30 @@ function ItemsInner() {
       }
       return all;
     };
-    const [allComps, balRes, movRes, piiRes, poiRes, sqiRes] = await Promise.all([
+    const [allComps, balRes, movRes, piiRes, poiRes, sqiRes, pqRes, poRes, costRes, supRes, linkRes] = await Promise.all([
       fetchAllComponents(),
       // avg cost only for buy-side roles — never let landed cost reach a
       // sell-side browser's network tab (the /products leak, not repeated)
       supabase.from('30.1_stock_balances').select(`component_id, location, qty_on_hand${canBuy ? ', avg_cost_idr' : ''}`),
       supabase.from('30.0_stock_movements').select('component_id, moved_at').order('moved_at', { ascending: false }).limit(2000),
-      supabase.from('4.1_price_quote_line_items').select('quote_id, component_id').limit(8000),
-      supabase.from('5.1_purchase_line_items').select('po_id, component_id').limit(8000),
+      supabase.from('4.1_price_quote_line_items').select('quote_line_id, quote_id, component_id, quantity, unit_price, currency').limit(8000),
+      supabase.from('5.1_purchase_line_items').select('po_line_item_id, po_id, component_id, quantity, unit_cost, currency').limit(8000),
       supabase.from('22.1_sales_quote_items').select('quote_id, component_id'),
+      supabase.from('4.0_price_quotes').select('quote_id, supplier_id, quote_date, pi_number, currency, status'),
+      supabase.from('5.0_purchases').select('po_id, po_number, po_date, status, currency, exchange_rate, total_value, quote_id, supplier_id, pi_number, actual_received_date'),
+      supabase.from('6.0_po_costs').select('cost_id, po_id, cost_category, amount, currency, exchange_rate, payment_date'),
+      supabase.from('2.0_suppliers').select('supplier_id, supplier_name'),
+      supabase.from('8.0_component_links').select('*'),
     ]);
     setComps(allComps);
     setStock(rollUpByComponent((balRes.data ?? []) as unknown as BalanceRow[]));
+    setQuotes((pqRes.data ?? []) as unknown as PriceQuote[]);
+    setQuoteItems((piiRes.data ?? []) as unknown as PriceQuoteLineItem[]);
+    setPos((poRes.data ?? []) as unknown as PurchaseOrder[]);
+    setPoItems((poiRes.data ?? []) as unknown as PurchaseLineItem[]);
+    setPoCosts((costRes.data ?? []) as unknown as POCost[]);
+    setSuppliers((supRes.data ?? []) as { supplier_id: string; supplier_name: string }[]);
+    setComponentLinks((linkRes.data ?? []) as unknown as ComponentLink[]);
 
     const last = new Map<string, string>();
     for (const m of ((movRes.data ?? []) as { component_id: string; moved_at: string }[])) {
@@ -135,6 +161,11 @@ function ItemsInner() {
   useEffect(() => { if (canOpen) load(); }, [canOpen, load]);
 
   const categories = useMemo(() => [...new Set(comps.map((c) => c.category).filter(Boolean))].sort() as string[], [comps]);
+
+  // THE canonical engines, computed once for the whole list — every expanded
+  // row's forensics reads these, so the numbers match Cost Lookup exactly.
+  const tucMap = useMemo(() => computeTUCMap(pos, poItems, poCosts), [pos, poItems, poCosts]);
+  const fx = useMemo(() => fxFromHistory(pos, deriveExchangeRates(pos, poItems, poCosts, quotes)), [pos, poItems, poCosts, quotes]);
 
   const rows: Row[] = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -237,28 +268,54 @@ function ItemsInner() {
             <div className="px-4 py-12 text-center text-slate-600 text-sm">No items match.</div>
           ) : (
             <div className="divide-y divide-slate-800/60">
-              {rows.slice(0, 400).map((r) => (
-                <Link key={r.c.component_id} href={`/items/${r.c.component_id}`}
-                  className="grid gap-3 px-4 py-2.5 items-center hover:bg-white/[0.03] transition-colors" style={{ gridTemplateColumns: cols }}>
-                  <span className="min-w-0">
-                    <span className="block text-slate-100 font-medium truncate">{descOf(r.c)}</span>
-                    {canBrand && (r.c.supplier_model || r.c.brand) && (
-                      <span className="block text-[11px] text-slate-500 truncate">
-                        <span className="font-mono">{r.c.supplier_model}</span>{r.c.brand ? ` · ${r.c.brand}` : ''}
+              {rows.slice(0, 400).map((r) => {
+                const isOpen = expanded === r.c.component_id;
+                return (
+                  <div key={r.c.component_id}>
+                    {/* Click a row to expand its cost forensics in place — the
+                        Cost Lookup experience without leaving the list. */}
+                    <button onClick={() => setExpanded(isOpen ? null : r.c.component_id)}
+                      className={`w-full text-left grid gap-3 px-4 py-2.5 items-center transition-colors ${isOpen ? 'bg-raised' : 'hover:bg-white/[0.03]'}`}
+                      style={{ gridTemplateColumns: cols }}>
+                      <span className="min-w-0">
+                        <span className="flex items-center gap-1.5">
+                          <span className="text-slate-100 font-medium truncate">{descOf(r.c)}</span>
+                          <Link href={`/items/${r.c.component_id}`} onClick={(e) => e.stopPropagation()}
+                            title="Open the item hub — buy, sell, stock, specs on one page"
+                            className="p-1 -m-0.5 text-slate-600 hover:text-emerald-300 transition-colors flex-shrink-0">
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                          </Link>
+                        </span>
+                        {canBrand && (r.c.supplier_model || r.c.brand) && (
+                          <span className="block text-[11px] text-slate-500 truncate">
+                            <span className="font-mono">{r.c.supplier_model}</span>{r.c.brand ? ` · ${r.c.brand}` : ''}
+                          </span>
+                        )}
                       </span>
+                      <span className="text-[11px] text-slate-500 truncate">{r.c.category ? humanize(r.c.category) : '—'}</span>
+                      <span className={`text-right tabular-nums font-semibold ${r.qty < 0 ? 'text-red-400' : r.qty === 0 ? 'text-slate-600' : 'text-slate-100'}`}>
+                        {fmtInt(r.qty)}{r.c.unit && <span className="text-[10px] text-slate-600 font-normal"> {r.c.unit}</span>}
+                      </span>
+                      {canSell && <span className="text-right tabular-nums text-xs text-emerald-300/90 whitespace-nowrap">{r.c.selling_price_idr ? fmtRupiah(r.c.selling_price_idr) : <span className="text-slate-700">—</span>}</span>}
+                      {canBuy && <span className="text-right tabular-nums text-xs text-slate-400">{r.avg > 0 ? fmtInt(r.avg) : <span className="text-slate-700">—</span>}</span>}
+                      {canBuy && <span className="text-right tabular-nums text-xs text-slate-200" title={r.value !== 0 ? fmtRupiah(r.value) : undefined}>{r.value !== 0 ? fmtRupiahShort(r.value) : <span className="text-slate-700">—</span>}</span>}
+                      <span className="text-right tabular-nums text-xs text-slate-500">{r.activity || <span className="text-slate-700">—</span>}</span>
+                      <span className="text-right text-[11px] text-slate-500 tabular-nums whitespace-nowrap">{r.lastMove ? fmtDay(r.lastMove) : '—'}</span>
+                    </button>
+                    {isOpen && (
+                      <div className="px-4 pb-4 pt-2 bg-slate-950/40 space-y-3">
+                        <ItemCostForensics componentId={r.c.component_id} components={comps}
+                          quotes={quotes} quoteItems={quoteItems} pos={pos} poItems={poItems} poCosts={poCosts}
+                          suppliers={suppliers} componentLinks={componentLinks} tucMap={tucMap} fx={fx} showLead />
+                        <Link href={`/items/${r.c.component_id}`}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 transition-colors">
+                          Open the full item hub — sell, stock, specs, economics →
+                        </Link>
+                      </div>
                     )}
-                  </span>
-                  <span className="text-[11px] text-slate-500 truncate">{r.c.category ? humanize(r.c.category) : '—'}</span>
-                  <span className={`text-right tabular-nums font-semibold ${r.qty < 0 ? 'text-red-400' : r.qty === 0 ? 'text-slate-600' : 'text-slate-100'}`}>
-                    {fmtInt(r.qty)}{r.c.unit && <span className="text-[10px] text-slate-600 font-normal"> {r.c.unit}</span>}
-                  </span>
-                  {canSell && <span className="text-right tabular-nums text-xs text-emerald-300/90 whitespace-nowrap">{r.c.selling_price_idr ? fmtRupiah(r.c.selling_price_idr) : <span className="text-slate-700">—</span>}</span>}
-                  {canBuy && <span className="text-right tabular-nums text-xs text-slate-400">{r.avg > 0 ? fmtInt(r.avg) : <span className="text-slate-700">—</span>}</span>}
-                  {canBuy && <span className="text-right tabular-nums text-xs text-slate-200" title={r.value !== 0 ? fmtRupiah(r.value) : undefined}>{r.value !== 0 ? fmtRupiahShort(r.value) : <span className="text-slate-700">—</span>}</span>}
-                  <span className="text-right tabular-nums text-xs text-slate-500">{r.activity || <span className="text-slate-700">—</span>}</span>
-                  <span className="text-right text-[11px] text-slate-500 tabular-nums whitespace-nowrap">{r.lastMove ? fmtDay(r.lastMove) : '—'}</span>
-                </Link>
-              ))}
+                  </div>
+                );
+              })}
             </div>
           )}
           {!loading && rows.length > 400 && (
@@ -272,28 +329,44 @@ function ItemsInner() {
             [...Array(8)].map((_, i) => <div key={i} className="h-20 bg-slate-800/40 rounded-xl animate-pulse" />)
           ) : rows.length === 0 ? (
             <p className="px-4 py-12 text-center text-slate-600 text-sm">No items match.</p>
-          ) : rows.slice(0, 120).map((r) => (
-            <Link key={r.c.component_id} href={`/items/${r.c.component_id}`}
-              className="block bg-slate-900/40 border border-slate-800/80 rounded-xl px-3.5 py-3">
-              <p className="text-sm text-slate-100 font-medium truncate">{descOf(r.c)}</p>
-              <p className="text-[11px] text-slate-500 truncate">
-                {[canBrand ? r.c.brand : null, r.c.category ? humanize(r.c.category) : null].filter(Boolean).join(' · ') || '—'}
-              </p>
-              <div className="flex flex-wrap gap-1.5 mt-1.5 text-[11px]">
-                <span className="px-2 py-0.5 rounded-lg bg-slate-800/80 tabular-nums font-semibold">
-                  <span className={r.qty < 0 ? 'text-red-300' : r.qty === 0 ? 'text-slate-500' : 'text-slate-100'}>{fmtInt(r.qty)}</span>
-                  {r.c.unit && <span className="text-slate-600 font-normal"> {r.c.unit}</span>}
-                </span>
-                {canSell && r.c.selling_price_idr ? <span className="px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-300 tabular-nums">{fmtRupiah(r.c.selling_price_idr)}</span> : null}
-                {canBuy && r.value !== 0 ? <span className="px-2 py-0.5 rounded-lg bg-slate-800/60 text-slate-400 tabular-nums">{fmtRupiahShort(r.value)}</span> : null}
-                {r.activity > 0 && <span className="px-2 py-0.5 rounded-lg bg-slate-800/60 text-slate-500 tabular-nums">{r.activity} docs</span>}
+          ) : rows.slice(0, 120).map((r) => {
+            const isOpen = expanded === r.c.component_id;
+            return (
+              <div key={r.c.component_id} className={`bg-slate-900/40 border rounded-xl transition-colors ${isOpen ? 'border-slate-600' : 'border-slate-800/80'}`}>
+                <button onClick={() => setExpanded(isOpen ? null : r.c.component_id)} className="w-full text-left px-3.5 py-3">
+                  <p className="text-sm text-slate-100 font-medium truncate">{descOf(r.c)}</p>
+                  <p className="text-[11px] text-slate-500 truncate">
+                    {[canBrand ? r.c.brand : null, r.c.category ? humanize(r.c.category) : null].filter(Boolean).join(' · ') || '—'}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 mt-1.5 text-[11px]">
+                    <span className="px-2 py-0.5 rounded-lg bg-slate-800/80 tabular-nums font-semibold">
+                      <span className={r.qty < 0 ? 'text-red-300' : r.qty === 0 ? 'text-slate-500' : 'text-slate-100'}>{fmtInt(r.qty)}</span>
+                      {r.c.unit && <span className="text-slate-600 font-normal"> {r.c.unit}</span>}
+                    </span>
+                    {canSell && r.c.selling_price_idr ? <span className="px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-300 tabular-nums">{fmtRupiah(r.c.selling_price_idr)}</span> : null}
+                    {canBuy && r.value !== 0 ? <span className="px-2 py-0.5 rounded-lg bg-slate-800/60 text-slate-400 tabular-nums">{fmtRupiahShort(r.value)}</span> : null}
+                    {r.activity > 0 && <span className="px-2 py-0.5 rounded-lg bg-slate-800/60 text-slate-500 tabular-nums">{r.activity} docs</span>}
+                  </div>
+                </button>
+                {isOpen && (
+                  <div className="px-3.5 pb-3.5 space-y-3">
+                    <ItemCostForensics componentId={r.c.component_id} components={comps}
+                      quotes={quotes} quoteItems={quoteItems} pos={pos} poItems={poItems} poCosts={poCosts}
+                      suppliers={suppliers} componentLinks={componentLinks} tucMap={tucMap} fx={fx} showLead />
+                    <Link href={`/items/${r.c.component_id}`}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 transition-colors">
+                      Open the full item hub →
+                    </Link>
+                  </div>
+                )}
               </div>
-            </Link>
-          ))}
+            );
+          })}
         </div>
 
         <p className="text-[11px] text-slate-600">
-          Click an item for its hub — buy history, tier prices, warehouse ledger, specs and economics on one page.
+          Click a row for its cost forensics — quotes, PO allocations, payments and linked items — or the ↗ for the full
+          item hub (sell, stock, specs, economics). Same numbers as Spend &amp; Cash › Cost Lookup, same engine.
         </p>
       </main>
     </div>
