@@ -45,6 +45,10 @@ export const DESTINATIONS: Destination[] = [
   { href: '/', label: 'Dashboard', group: 'Home', section: null, inNav: true,
     hint: 'Today at a glance — outstanding, paid this month, stock value',
     keywords: 'home start overview kpi' },
+  // Search-only: the header clock links here, so the menu stays lean.
+  { href: '/changelog', label: "What's New", group: 'Home', section: null, inNav: false,
+    hint: 'The update log — what changed, and when',
+    keywords: 'changelog updates news release log history version' },
 
   // ── Buy ───────────────────────────────────────────────────────────────────
   // `/purchasing` is labelled PURCHASING: the screen is the procure-to-pay

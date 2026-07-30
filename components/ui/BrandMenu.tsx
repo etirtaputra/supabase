@@ -8,6 +8,7 @@ import { ROLE_PERMISSIONS, type RolePermissions } from '@/constants/roles';
 import { DESTINATIONS, NAV_GROUP_ORDER, sectionAllowed, type NavSection } from '@/constants/navigation';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useTheme } from '@/hooks/useTheme';
+import { fmtDayTime } from '@/lib/formatters';
 import CommandPalette from './CommandPalette';
 
 /**
@@ -70,6 +71,30 @@ const GROUP_NEUTRAL = new Set(['Finance', 'Analytics']);
 const accentOf = (section: Section, groupTitle?: string | null) =>
   ACCENT[groupTitle && GROUP_NEUTRAL.has(groupTitle) ? 'home' : (section ?? 'home')];
 const GROUP_SHORT: Record<string, string> = { Projects: 'EPC' };
+
+/**
+ * Live date + time, fixed in the header on every page (owner's ask,
+ * 2026-07-30) — and it doubles as the door to /changelog, so "what time is
+ * it" and "what changed, when" live on the same glance. Renders only after
+ * mount (the server can't know the visitor's clock), ticks every second but
+ * only re-renders when the visible minute actually changes.
+ */
+function HeaderClock() {
+  const [now, setNow] = useState('');
+  useEffect(() => {
+    const tick = () => setNow(fmtDayTime(new Date().toISOString()));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
+  if (!now) return null;
+  return (
+    <Link href="/changelog" title="What's New — the update log"
+      className="ml-auto flex-shrink-0 text-[10px] sm:text-xs tabular-nums whitespace-nowrap text-slate-500 hover:text-emerald-300 transition-colors print:hidden">
+      {now}
+    </Link>
+  );
+}
 
 const NAV_ICONS: Record<string, React.ReactNode> = {
   '/':          <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l9-9 9 9M5 10v10a1 1 0 001 1h3m10-11v10a1 1 0 01-1 1h-3m-6 0h6m-6 0v-6h6v6" />,
@@ -373,6 +398,10 @@ export default function BrandMenu({
       <div className="hidden lg:block flex-1 min-w-0 max-w-[420px] xl:max-w-[560px] 2xl:max-w-[680px] print:hidden">
         <CommandPalette variant="inline" hotkey={isDesktop} />
       </div>
+
+      {/* Live date + time — fixed in the header at every width; on phones it
+          right-aligns beside the wordmark, on desktop after the search. */}
+      <HeaderClock />
 
       {/* ── Mobile: fixed bottom tab bar (thumb reach) + More sheet.
              Portaled to <body>: page headers use backdrop-blur, which WebKit

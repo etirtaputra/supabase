@@ -685,6 +685,19 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   compacted** (13px rows, tighter group spacing) so the grown menu fits a
   desktop viewport without scrolling.
 
+- **Header clock + What's New update log (2026-07-30, owner's ask)**: a live
+  date + time sits fixed in the BrandMenu header on every page (phones too —
+  it right-aligns beside the wordmark; desktop after the search field),
+  rendered through the settings-driven `fmtDayTime` in the viewer's own
+  timezone, mounted-only so SSR can't mismatch. The clock IS the door to
+  **`/changelog` — "What's New"**: `constants/changelog.ts` holds the
+  entries (ISO `at` timestamps, rendered local), the page is open to every
+  signed-in role, and Spotlight indexes it (search-only, keeps the menu
+  lean). **NEW RULE: every update shipped to main appends its entry to
+  `constants/changelog.ts` in the same commit** — what changed, when, in the
+  user's language. That is now part of definition-of-done alongside the
+  CommandPalette entity rule.
+
 **Next up (in order):**
 0. Dashboard slice 2: a position strip above the queue — Cash / Owed to us /
    We owe / CCC — then month-in-motion comparisons and an AI next-best-step card.

@@ -1,0 +1,93 @@
+/**
+ * The update log — what changed in ICAPROC, and when.
+ *
+ * HOUSE RULE (owner's call, 2026-07-30): every update shipped to main adds an
+ * entry HERE in the same commit, newest first. `at` is the moment the change
+ * was pushed (ISO, UTC) — the page renders it through the settings-driven
+ * formatters in the viewer's own timezone, so "when" always reads local.
+ *
+ * Keep entries in the user's language: what someone will SEE changed, not the
+ * code that changed it. One entry per shipped update; details are optional
+ * bullets for the parts worth knowing.
+ */
+
+export interface ChangelogEntry {
+  /** When the update went live — ISO timestamp, UTC. */
+  at: string;
+  title: string;
+  details?: string[];
+}
+
+export const CHANGELOG: ChangelogEntry[] = [
+  {
+    at: '2026-07-30T07:55:00Z',
+    title: 'A clock in the header · this update log',
+    details: [
+      'The date and time sit fixed at the top of every page, phones included, in your own timezone.',
+      'Tapping the clock opens What’s New — every update, what changed and when. Spotlight finds it as "What\'s New".',
+    ],
+  },
+  {
+    at: '2026-07-30T07:08:38Z',
+    title: 'Item cost forensics: the last Cost Lookup details arrive',
+    details: [
+      'Last Price shows the ▲/▼ movement vs the previous supplier quote.',
+      'Quote lines regained their Total column; payment records their notes.',
+      'Expanded /items rows carry the item’s datasheet link.',
+    ],
+  },
+  {
+    at: '2026-07-30T06:14:02Z',
+    title: 'Search results for items open the Items list, row already expanded',
+    details: [
+      'Picking an item in Spotlight lands on /items with the search pre-filled and that row’s cost forensics open.',
+      'The full item hub stays one ↗ away.',
+    ],
+  },
+  {
+    at: '2026-07-30T05:39:10Z',
+    title: 'Cost Lookup’s audit trail now lives in the Item hub · Pricing back under Admin',
+    details: [
+      'Items rows expand in place: quote lines, per-PO TUC allocations (principal / fees / landed split), payment records, linked & comparable items.',
+      'The hub’s Buy tab shows the same forensic layer; Spend & Cash › Cost Lookup stays until it’s retired.',
+      'Pricing moved back to the Admin menu group; the ICAPROC menu is more compact so it fits without scrolling.',
+    ],
+  },
+  {
+    at: '2026-07-30T02:57:18Z',
+    title: 'Settings › Lists covers Items and After Sales',
+    details: [
+      'Items: choose the opening sort (ships on Most traded).',
+      'After Sales gained a reported-date period filter, configurable like every other list.',
+    ],
+  },
+  {
+    at: '2026-07-30T02:51:43Z',
+    title: 'Bank account pickers show the owning company',
+    details: ['"Paid from" / "Received in" now read like BCA · 0827211111 — PT Indodaya Surya Lestari.'],
+  },
+  {
+    at: '2026-07-30T02:12:19Z',
+    title: 'Page addresses match the menu names',
+    details: [
+      '/catalog → /purchasing, /insights → /spend-cash, /economics → /profitability, /data → /import-export.',
+      'Old links and bookmarks redirect permanently, tabs and searches included.',
+    ],
+  },
+  {
+    at: '2026-07-30T01:59:58Z',
+    title: 'Money is now Finance · Analytics is owner-only',
+    details: [
+      'The Items hub sits in the Analytics group beside Spend & Cash and Profitability.',
+      'Analytics (all three screens) requires the new owner-only permission; other roles keep their own screens.',
+    ],
+  },
+  {
+    at: '2026-07-30T01:45:39Z',
+    title: 'The Item hub: one page per stock item',
+    details: [
+      '/items — every item, one click to its buy history, tier prices, warehouse ledger, specs and economics.',
+      'Every number is assembled from the screen that owns it, so the hub always agrees with its sources.',
+    ],
+  },
+];
