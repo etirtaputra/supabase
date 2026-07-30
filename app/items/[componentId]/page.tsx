@@ -176,7 +176,7 @@ export default function ItemHubPage() {
       const [poRes, poiRes, costRes, pqRes, pqiRes, supRes, linkRes] = await Promise.all([
         supabase.from('5.0_purchases').select('po_id, po_number, po_date, status, currency, exchange_rate, total_value, quote_id, supplier_id, pi_number, actual_received_date, estimated_delivery_date'),
         supabase.from('5.1_purchase_line_items').select('po_line_item_id, po_id, component_id, quantity, unit_cost, currency').limit(8000),
-        supabase.from('6.0_po_costs').select('cost_id, po_id, cost_category, amount, currency, exchange_rate, payment_date'),
+        supabase.from('6.0_po_costs').select('cost_id, po_id, cost_category, amount, currency, exchange_rate, payment_date, notes'),
         supabase.from('4.0_price_quotes').select('quote_id, supplier_id, quote_date, pi_number, currency, status'),
         // ALL quote lines, not just this item's: the forensics' linked-item
         // price tags need the comparables' latest quotes too.

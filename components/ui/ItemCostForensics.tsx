@@ -111,6 +111,23 @@ export default function ItemCostForensics({
   const lpo = lastPoByComp.get(componentId);
   const showLq = lq && (!lpo || lq.date >= lpo.date);
 
+  // Quote-over-quote movement: last vs second-to-last DISTINCT quote (one
+  // price per quote, first non-zero line seen — Cost Lookup's dedupe, so a
+  // multi-line quote can't fake a delta against itself).
+  const quoteDelta = useMemo(() => {
+    const seen = new Set<number>();
+    const entries: { price: number; date: string; quoteId: number }[] = [];
+    for (const li of quoteItems) {
+      if (li.component_id !== componentId || !(Number(li.unit_price) > 0) || seen.has(li.quote_id)) continue;
+      seen.add(li.quote_id);
+      const q = quoteById.get(li.quote_id);
+      if (q) entries.push({ price: Number(li.unit_price), date: q.quote_date ?? '', quoteId: li.quote_id });
+    }
+    entries.sort((a, b) => a.date.localeCompare(b.date) || a.quoteId - b.quoteId);
+    const last = entries[entries.length - 1], prev = entries[entries.length - 2];
+    return last && prev && prev.price > 0 ? ((last.price - prev.price) / prev.price) * 100 : null;
+  }, [quoteItems, quoteById, componentId]);
+
   // ── This item's rows ───────────────────────────────────────────────────────
   const myQItems = useMemo(
     () => quoteItems.filter((qi) => qi.component_id === componentId)
@@ -213,7 +230,15 @@ export default function ItemCostForensics({
             ) : showLq ? (
               <div>
                 <p className="text-sm font-semibold text-slate-200 tabular-nums">{fmtCcy(lq!.price, lq!.currency)}</p>
-                <p className="text-[10px] text-slate-600 mt-0.5">{fmtDay(lq!.date)} <span className="text-emerald-600/70 font-medium">Quote</span></p>
+                <p className="text-[10px] text-slate-600 mt-0.5">
+                  {fmtDay(lq!.date)} <span className="text-emerald-600/70 font-medium">Quote</span>
+                  {quoteDelta != null && (
+                    <span className={`ml-1.5 font-semibold tabular-nums ${quoteDelta > 0 ? 'text-rose-400' : 'text-emerald-400'}`}
+                      title="vs the previous supplier quote">
+                      {quoteDelta > 0 ? '▲' : '▼'} {Math.abs(quoteDelta).toFixed(1)}%
+                    </span>
+                  )}
+                </p>
               </div>
             ) : lpo ? (
               <div>
@@ -310,6 +335,7 @@ export default function ItemCostForensics({
                       <th className="px-3 py-2 text-left">Supplier</th>
                       <th className="px-3 py-2 text-right">Qty</th>
                       <th className="px-3 py-2 text-right">Unit Price</th>
+                      <th className="px-3 py-2 text-right">Total</th>
                       <th className="px-3 py-2 text-right" title="Converted at the newest FX evidence — a rate committed on a live PO beats an older settled one">≈ IDR</th>
                       <th className="px-3 py-2 text-left">Status</th>
                     </tr>
@@ -328,6 +354,7 @@ export default function ItemCostForensics({
                           <td className="px-3 py-2 text-slate-300 truncate max-w-[160px]">{supName(qt?.supplier_id)}</td>
                           <td className="px-3 py-2 text-right text-white font-semibold tabular-nums">{fmtInt(qi.quantity)}</td>
                           <td className="px-3 py-2 text-right text-slate-200 tabular-nums whitespace-nowrap">{fmtCcy(qi.unit_price, cur)}</td>
+                          <td className="px-3 py-2 text-right text-emerald-400 font-semibold tabular-nums whitespace-nowrap">{fmtCcy(qi.quantity * qi.unit_price, cur)}</td>
                           <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap"
                             title={cur === 'IDR' ? undefined
                               : `@ ${fmtInt(rate)} — ${obs ? `${obs.source === 'settled' ? 'settled payment' : obs.label} · ${obs.date}` : 'no purchase history — fallback rate'}`}>
@@ -472,6 +499,7 @@ export default function ItemCostForensics({
                                 <td className={`px-3 py-2 text-right font-semibold tabular-nums whitespace-nowrap ${isTax ? 'text-slate-600' : 'text-rose-400'}`}>
                                   {fmtCcy(Number(cost.amount), cost.currency)}
                                 </td>
+                                <td className="px-3 py-2 text-slate-600 truncate max-w-[160px]">{cost.notes || ''}</td>
                               </tr>
                             );
                           })}
@@ -484,6 +512,7 @@ export default function ItemCostForensics({
                               <td className="px-3 py-2 text-right text-rose-300 font-bold tabular-nums whitespace-nowrap">
                                 {Object.entries(g.sub).map(([cur, amt]) => fmtCcy(amt, cur)).join(' · ')}
                               </td>
+                              <td />
                             </tr>
                           </tfoot>
                         )}

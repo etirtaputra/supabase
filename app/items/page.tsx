@@ -28,7 +28,7 @@ import type { PriceQuote, PriceQuoteLineItem, PurchaseOrder, PurchaseLineItem, P
 interface Comp {
   component_id: string; supplier_model: string; internal_description: string | null;
   brand?: string | null; category: string | null; unit: string | null;
-  selling_price_idr: number | null; updated_at: string | null;
+  selling_price_idr: number | null; datasheet_url: string | null; updated_at: string | null;
 }
 interface Row { c: Comp; qty: number; avg: number; value: number; activity: number; lastMove: string | null }
 
@@ -105,7 +105,7 @@ function ItemsInner() {
       let from = 0;
       for (;;) {
         // Brand is buy-side sensitive — not selected for sell-side roles.
-        const cols = `component_id, supplier_model, internal_description, category, unit, selling_price_idr, updated_at${canBrand ? ', brand' : ''}`;
+        const cols = `component_id, supplier_model, internal_description, category, unit, selling_price_idr, datasheet_url, updated_at${canBrand ? ', brand' : ''}`;
         const { data: page } = await supabase.from('3.0_components')
           .select(cols).order('supplier_model').range(from, from + PAGE - 1);
         if (!page || page.length === 0) break;
@@ -126,7 +126,7 @@ function ItemsInner() {
       supabase.from('22.1_sales_quote_items').select('quote_id, component_id'),
       supabase.from('4.0_price_quotes').select('quote_id, supplier_id, quote_date, pi_number, currency, status'),
       supabase.from('5.0_purchases').select('po_id, po_number, po_date, status, currency, exchange_rate, total_value, quote_id, supplier_id, pi_number, actual_received_date'),
-      supabase.from('6.0_po_costs').select('cost_id, po_id, cost_category, amount, currency, exchange_rate, payment_date'),
+      supabase.from('6.0_po_costs').select('cost_id, po_id, cost_category, amount, currency, exchange_rate, payment_date, notes'),
       supabase.from('2.0_suppliers').select('supplier_id, supplier_name'),
       supabase.from('8.0_component_links').select('*'),
     ]);
@@ -309,10 +309,16 @@ function ItemsInner() {
                         <ItemCostForensics componentId={r.c.component_id} components={comps}
                           quotes={quotes} quoteItems={quoteItems} pos={pos} poItems={poItems} poCosts={poCosts}
                           suppliers={suppliers} componentLinks={componentLinks} tucMap={tucMap} fx={fx} showLead />
-                        <Link href={`/items/${r.c.component_id}`}
-                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 transition-colors">
-                          Open the full item hub — sell, stock, specs, economics →
-                        </Link>
+                        <div className="flex items-center gap-4">
+                          <Link href={`/items/${r.c.component_id}`}
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 transition-colors">
+                            Open the full item hub — sell, stock, specs, economics →
+                          </Link>
+                          {r.c.datasheet_url && (
+                            <a href={r.c.datasheet_url} target="_blank" rel="noopener noreferrer"
+                              className="text-[11px] text-sky-400 hover:text-sky-300 transition-colors">datasheet ↗</a>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -355,10 +361,16 @@ function ItemsInner() {
                     <ItemCostForensics componentId={r.c.component_id} components={comps}
                       quotes={quotes} quoteItems={quoteItems} pos={pos} poItems={poItems} poCosts={poCosts}
                       suppliers={suppliers} componentLinks={componentLinks} tucMap={tucMap} fx={fx} showLead />
-                    <Link href={`/items/${r.c.component_id}`}
-                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 transition-colors">
-                      Open the full item hub →
-                    </Link>
+                    <div className="flex items-center gap-4">
+                      <Link href={`/items/${r.c.component_id}`}
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 transition-colors">
+                        Open the full item hub →
+                      </Link>
+                      {r.c.datasheet_url && (
+                        <a href={r.c.datasheet_url} target="_blank" rel="noopener noreferrer"
+                          className="text-[11px] text-sky-400 hover:text-sky-300 transition-colors">datasheet ↗</a>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
