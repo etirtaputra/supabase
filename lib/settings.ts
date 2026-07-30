@@ -121,8 +121,8 @@ export interface AppSettings {
   defaultCompanyId: string;       // issuing company prefilled on a new sales doc ('' = first)
   defaultSalesTerms: string;      // terms prefilled into a new quotation's notes
   epcCostBufferPct: number;       // EPC Cost Basis buffer (was app_settings)
-  slowMoverDays: number;          // /economics: "no movement in N days"
-  economicsPeriod: '90' | '365' | 'all';  // /economics period the page opens on
+  slowMoverDays: number;          // /profitability: "no movement in N days"
+  economicsPeriod: '90' | '365' | 'all';  // /profitability period the page opens on
   costDriftPct: number;           // proposals list: flag costs N% off today's
   /** Dashboard: an issued invoice older than this with money outstanding is chased. */
   arOverdueDays: number;

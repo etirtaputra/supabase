@@ -122,7 +122,7 @@ function MasterInsertPage() {
     setActiveTab(tab);
     setLastSaved(null);
     setDupWarning(null);
-    router.replace(`/catalog?tab=${tab}`, { scroll: false });
+    router.replace(`/purchasing?tab=${tab}`, { scroll: false });
   };
 
   const handleMarkFullyPaid = async (poId: string, amount: number, currency: string) => {
@@ -518,7 +518,7 @@ function MasterInsertPage() {
           {visibleMenuItems.map((item) => (
             <Link
               key={item.id}
-              href={`/catalog?tab=${item.id}`}
+              href={`/purchasing?tab=${item.id}`}
               onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return; e.preventDefault(); handleTabChange(item.id); }}
               className={`snap-start pt-1 pb-2.5 xl:pb-3 text-xs xl:text-sm whitespace-nowrap transition-colors flex-shrink-0 border-b-2 ${
                 activeTab === item.id
@@ -1111,7 +1111,7 @@ function MasterInsertPage() {
                                   <span className="text-[10px] text-slate-600 tabular-nums">{fmtIdr(tIdr)}</span>
                                   {/* Jump to this deal's full picture — set received status there */}
                                   <a
-                                    href={`/catalog?tab=lookup&q=${encodeURIComponent(po.pi_number || po.po_number || '')}`}
+                                    href={`/purchasing?tab=lookup&q=${encodeURIComponent(po.pi_number || po.po_number || '')}`}
                                     onClick={(e) => e.stopPropagation()}
                                     className="flex-shrink-0 px-1.5 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-[10px] font-semibold text-sky-300 hover:text-white hover:border-slate-500 transition-colors"
                                     title="Open this deal in Deal Lookup — mark goods received there"

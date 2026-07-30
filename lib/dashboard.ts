@@ -192,7 +192,7 @@ export async function fetchActionQueue(
           key: 'po-unpaid', domain: 'buy', tone: 'watch',
           title: `${n} received PO${n !== 1 ? 's' : ''} still unpaid`,
           detail: 'goods are in the warehouse; the supplier is waiting',
-          amount: owed, count: n, href: '/catalog?tab=lookup',
+          amount: owed, count: n, href: '/purchasing?tab=lookup',
         });
       }
     }
@@ -264,7 +264,7 @@ export async function fetchActivity(supabase: SupabaseClient, perms: RolePermiss
         key: `po-${p.po_id}`, domain: 'buy', kind: 'PO',
         title: p.po_number || p.pi_number || `PO ${p.po_id}`, sub: p.status ?? '',
         at: p.updated_at ?? p.po_date ?? '',
-        href: `/catalog?tab=lookup&q=${encodeURIComponent(p.po_number || p.pi_number || '')}`,
+        href: `/purchasing?tab=lookup&q=${encodeURIComponent(p.po_number || p.pi_number || '')}`,
       });
     }
     for (const c of (costRes.data ?? []) as { cost_id: string; po_id: string; amount: number; currency: string; payment_date: string; cost_category: string }[]) {
@@ -272,7 +272,7 @@ export async function fetchActivity(supabase: SupabaseClient, perms: RolePermiss
         key: `cost-${c.cost_id}`, domain: 'buy', kind: 'Paid',
         title: `${c.currency} ${Math.round(Number(c.amount) || 0).toLocaleString('en-US')}`,
         sub: (c.cost_category ?? '').replace(/_/g, ' '),
-        at: c.payment_date ?? '', href: '/catalog?tab=financials',
+        at: c.payment_date ?? '', href: '/purchasing?tab=financials',
       });
     }
   }

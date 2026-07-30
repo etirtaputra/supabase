@@ -41,7 +41,7 @@ export interface RolePermissions {
   canManageCustomers: boolean; // CRM: create/edit customers + contacts, assign AM
   canEditSalesDocs: boolean;   // sell-side docs (sales quotes → orders → DOs)
   canManagePricing: boolean;   // price tiers + item tier prices; sees margin vs landed cost (internal)
-  canViewEconomics: boolean;   // /economics — item GP, landed costs, CCC. Owner only: the whole P&L in one screen.
+  canViewEconomics: boolean;   // /profitability — item GP, landed costs, CCC. Owner only: the whole P&L in one screen.
   canViewAnalytics: boolean;   // the Analytics group — Spend & Cash, Items, Profitability. Owner only (decided 2026-07-30).
   canManageStock: boolean;     // inventory: receive / adjust stock movements
   canRecordReceipts: boolean;  // AR: record customer payments against sales invoices

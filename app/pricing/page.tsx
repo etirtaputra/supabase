@@ -362,7 +362,7 @@ export default function PricingPage() {
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4">
           <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Pricing · Tiers & margin floor" />
           <div className="flex items-center gap-2 flex-wrap">
-            <Link href="/catalog" className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap"
+            <Link href="/purchasing" className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap"
               title="Per-item price entry lives in the Catalog — toolbar → Pricing Mode">
               Per-item entry: Catalog →
             </Link>

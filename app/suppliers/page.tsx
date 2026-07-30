@@ -19,7 +19,7 @@ import LayoutToggle from '@/components/ui/LayoutToggle';
 import { useListLayout } from '@/hooks/useListLayout';
 
 
-const lookupHref = (n: string) => `/catalog?tab=lookup&q=${encodeURIComponent(n)}`;
+const lookupHref = (n: string) => `/purchasing?tab=lookup&q=${encodeURIComponent(n)}`;
 
 interface SupplierStats {
   quotes: PriceQuote[];

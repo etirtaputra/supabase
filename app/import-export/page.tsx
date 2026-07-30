@@ -68,7 +68,7 @@ export default function DataPage() {
   useEffect(() => { document.title = 'Import & Export — ICAPROC'; }, []);
   useEffect(() => {
     if (authLoading) return;
-    if (!user) { router.replace(`/login?next=${encodeURIComponent('/data')}`); return; }
+    if (!user) { router.replace(`/login?next=${encodeURIComponent('/import-export')}`); return; }
     if (profile && !canExport) router.replace('/unauthorized');
   }, [authLoading, user, profile, canExport, router]);
 

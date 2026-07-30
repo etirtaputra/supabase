@@ -472,7 +472,7 @@ function ProductsInner() {
                 Tiers &amp; floors →
               </Link>
             )}
-            <Link href="/catalog" className="hidden sm:block text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap"
+            <Link href="/purchasing" className="hidden sm:block text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap"
               title="Prices are set in the Catalog's Component Editor — Sell Price column → Tiers">
               Set pricing in Catalog →
             </Link>
@@ -823,7 +823,7 @@ function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEdi
             <span className="text-slate-500">{pickedAt(c) ? '✓ Net' : 'Net'}</span> <span className="tabular-nums text-slate-200 font-semibold">{fmtRupiah(c.selling_price_idr)}</span>
           </button>
         ) : (
-          <span className="text-[11px] text-slate-600 italic">No net price — <Link href="/catalog" className="text-emerald-400 hover:text-emerald-300">set it in Catalog</Link></span>
+          <span className="text-[11px] text-slate-600 italic">No net price — <Link href="/purchasing" className="text-emerald-400 hover:text-emerald-300">set it in Catalog</Link></span>
         )}
         {activeTiers.map((t) => {
           const p = tierPrice(c, t);

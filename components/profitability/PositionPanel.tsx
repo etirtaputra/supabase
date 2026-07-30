@@ -207,7 +207,7 @@ export default function PositionPanel() {
 /**
  * Opsi #2 — the vertical breakdown, plus the mark block and the reconciliation.
  * Exported so the Item hub's Economics tab renders the SAME position blocks
- * (compose, don't fork — if the hub disagreed with /economics it would be wrong).
+ * (compose, don't fork — if the hub disagreed with /profitability it would be wrong).
  */
 export function PositionDetail({ r }: { r: PositionRow }) {
   return (

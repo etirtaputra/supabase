@@ -13,11 +13,11 @@
  * KEPT even though today only the owner passes the door — it means widening
  * access later (e.g. letting sales see the hub minus cost/GP/brand) is a
  * one-line flag flip in constants/roles.ts, not a rebuild:
- *   Buy       buySide            (mirrors /catalog — TUC, PI/PO history, FX)
+ *   Buy       buySide            (mirrors /purchasing — TUC, PI/PO history, FX)
  *   Sell      canViewSellingPrice (mirrors /products — tier chain, customers)
  *   Stock     buySide            (mirrors /stock — ledger + per-warehouse cost)
  *   Specs     everyone           (spec blobs carry no brand/model/prices)
- *   Economics canViewEconomics   (mirrors /economics — GP, Position)
+ *   Economics canViewEconomics   (mirrors /profitability — GP, Position)
  * Brand / supplier model render only for canViewBrand, exactly like Products.
  */
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -28,7 +28,7 @@ import Link from 'next/link';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 import SpecRenderer from '@/components/ui/SpecRenderer';
-import { PositionDetail } from '@/components/economics/PositionPanel';
+import { PositionDetail } from '@/components/profitability/PositionPanel';
 import { formatCategory as humanize } from '@/lib/formatCategory';
 import { fmtDay, fmtInt, fmtIdr, fmtCcy, fmtRupiah, fmtRupiahShort } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
@@ -168,7 +168,7 @@ export default function ItemHubPage() {
     if (canBuy) {
       // The FULL buy-side dataset, not just this item's rows: TUC needs every
       // line of each PO to compute the line share, and the FX map ranks the
-      // newest evidence across the whole business — exactly what /catalog and
+      // newest evidence across the whole business — exactly what /purchasing and
       // /proposals feed the same engines.
       const [poRes, poiRes, costRes, pqRes, pqiRes, supRes] = await Promise.all([
         supabase.from('5.0_purchases').select('po_id, po_number, po_date, status, currency, exchange_rate, total_value, quote_id, supplier_id, pi_number, actual_received_date, estimated_delivery_date'),
@@ -398,8 +398,8 @@ export default function ItemHubPage() {
             <div className="flex flex-wrap gap-2 pt-1 text-[11px]">
               {canSell && <Link href={`/products?q=${encodeURIComponent(descOf(comp))}`} className="px-2.5 py-1 rounded-lg border border-slate-800 text-slate-500 hover:text-emerald-300 hover:border-emerald-500/40 transition-colors">Open in Products →</Link>}
               {canBuy && <Link href="/stock" className="px-2.5 py-1 rounded-lg border border-slate-800 text-slate-500 hover:text-sky-300 hover:border-sky-500/40 transition-colors">Open in Stock →</Link>}
-              {canBuy && <Link href={`/catalog?tab=lookup&q=${encodeURIComponent(comp.supplier_model || descOf(comp))}`} className="px-2.5 py-1 rounded-lg border border-slate-800 text-slate-500 hover:text-sky-300 hover:border-sky-500/40 transition-colors">Deal Lookup →</Link>}
-              {canEcon && <Link href="/economics" className="px-2.5 py-1 rounded-lg border border-slate-800 text-slate-500 hover:text-amber-300 hover:border-amber-500/40 transition-colors">Profitability →</Link>}
+              {canBuy && <Link href={`/purchasing?tab=lookup&q=${encodeURIComponent(comp.supplier_model || descOf(comp))}`} className="px-2.5 py-1 rounded-lg border border-slate-800 text-slate-500 hover:text-sky-300 hover:border-sky-500/40 transition-colors">Deal Lookup →</Link>}
+              {canEcon && <Link href="/profitability" className="px-2.5 py-1 rounded-lg border border-slate-800 text-slate-500 hover:text-amber-300 hover:border-amber-500/40 transition-colors">Profitability →</Link>}
             </div>
           </>
         )}
@@ -574,7 +574,7 @@ function BuyTab({ compUnit, tucRes, fx, myPoLines, quoteLines, quotes, suppliers
                 return (
                   <tr key={item.po_line_item_id} className="hover:bg-slate-800/20 transition-colors">
                     <td className="px-4 py-2">
-                      <Link href={`/catalog?tab=lookup&q=${encodeURIComponent(po.po_number ?? '')}`} className="font-mono text-xs text-sky-400 hover:text-sky-300">{po.po_number || `PO ${po.po_id}`}</Link>
+                      <Link href={`/purchasing?tab=lookup&q=${encodeURIComponent(po.po_number ?? '')}`} className="font-mono text-xs text-sky-400 hover:text-sky-300">{po.po_number || `PO ${po.po_id}`}</Link>
                     </td>
                     <td className="px-3 py-2 text-xs text-slate-400 whitespace-nowrap">{fmtDay(po.po_date)}</td>
                     <td className="px-3 py-2 text-xs text-slate-300 truncate max-w-[180px]">{supName(supplier)}</td>
@@ -984,7 +984,7 @@ function EconomicsTab({ componentId, comp, movements, saleItems, salesDocs, cust
     let liveFlag = true;
     (async () => {
       const [posRes, doRes, doiRes] = await Promise.all([
-        // The SAME position engine as /economics › Position — filtered, not reimplemented
+        // The SAME position engine as /profitability › Position — filtered, not reimplemented
         fetchTradePositions(supabase),
         supabase.from('24.0_delivery_orders').select('do_id, quote_id, status, delivered_at'),
         supabase.from('24.1_delivery_order_items').select('do_id, so_item_id, qty').eq('component_id', componentId),
@@ -999,7 +999,7 @@ function EconomicsTab({ componentId, comp, movements, saleItems, salesDocs, cust
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [componentId]);
 
-  // Sales facts for THIS item — the same basis as /economics: revenue =
+  // Sales facts for THIS item — the same basis as /profitability: revenue =
   // delivered DO lines × SO unit price (excl. PPN); COGS = the ledger's `out`
   // cost stamped at delivery (net of reversal ins), estimated at current avg
   // for legacy deliveries with no ledger rows.
@@ -1108,7 +1108,7 @@ function EconomicsTab({ componentId, comp, movements, saleItems, salesDocs, cust
         )}
       </div>
 
-      {/* Trade Position — the same blocks as /economics › Position */}
+      {/* Trade Position — the same blocks as /profitability › Position */}
       <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl px-4 py-3.5">
         <div className="flex items-baseline gap-2 flex-wrap mb-2.5">
           <h3 className="text-[11px] font-bold uppercase tracking-widest text-amber-400/80">Trade position · all time</h3>

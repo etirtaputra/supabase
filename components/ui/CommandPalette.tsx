@@ -114,7 +114,7 @@ const allowedKinds = (p: RolePermissions): Set<Item['kind']> => {
   return s;
 };
 
-const dealLookupHref = (n: string) => `/catalog?tab=lookup&q=${encodeURIComponent(n)}`;
+const dealLookupHref = (n: string) => `/purchasing?tab=lookup&q=${encodeURIComponent(n)}`;
 
 // Personal "recently opened" list — survives reloads, per browser profile.
 const RECENTS_KEY = 'icaproc.spotlight.recents';

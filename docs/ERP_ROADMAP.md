@@ -634,6 +634,20 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   one-line flag flip in `constants/roles.ts`, not a rebuild. The permission
   matrix in Settings › Users gained the Analytics row automatically.
 
+- **URLs now match the menu titles (2026-07-30)**: the four routes whose path
+  still said the old code name were renamed with permanent redirects
+  (precedent: /quotes → /proposals): **/catalog → /purchasing**,
+  **/insights → /spend-cash**, **/economics → /profitability**,
+  **/data → /import-export** (and `components/economics/` →
+  `components/profitability/` with them). The older /insert and /database
+  redirects now point straight at the final destinations, so no double hop.
+  Query strings survive the redirect (Next preserves them), which keeps every
+  old deep link — /catalog?tab=lookup&q=…, Spotlight recents stored in
+  localStorage, sent login-link emails — landing on the right tab. All
+  internal hrefs, NAV_ICONS keys, MOBILE_PRIORITY, list-default registries
+  and login?next= targets were updated in the same pass; the old route names
+  stay as Spotlight search keywords on their entries.
+
 **Next up (in order):**
 0. Dashboard slice 2: a position strip above the queue — Cash / Owed to us /
    We owe / CCC — then month-in-motion comparisons and an AI next-best-step card.

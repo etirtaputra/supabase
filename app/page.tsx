@@ -179,9 +179,9 @@ export default function Home() {
                   { href: '/customers',  label: 'Customers',           accent: 'emerald' },
                 ] : []),
                 ...(perms?.buySide ? [
-                  { href: '/catalog?tab=quoting',    label: 'Enter Supplier Quote / PI', accent: 'blue' },
-                  { href: '/catalog?tab=ordering',   label: 'Create Purchase Order',      accent: 'amber' },
-                  { href: '/catalog?tab=financials', label: 'Log Payment',                accent: 'rose' },
+                  { href: '/purchasing?tab=quoting',    label: 'Enter Supplier Quote / PI', accent: 'blue' },
+                  { href: '/purchasing?tab=ordering',   label: 'Create Purchase Order',      accent: 'amber' },
+                  { href: '/purchasing?tab=financials', label: 'Log Payment',                accent: 'rose' },
                 ] : []),
                 ...(perms?.projects ? [
                   { href: '/proposals',              label: 'New EPC Proposal',          accent: 'violet' },

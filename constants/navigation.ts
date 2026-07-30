@@ -47,20 +47,20 @@ export const DESTINATIONS: Destination[] = [
     keywords: 'home start overview kpi' },
 
   // ── Buy ───────────────────────────────────────────────────────────────────
-  // `/catalog` is labelled PURCHASING: the screen is the procure-to-pay
+  // `/purchasing` is labelled PURCHASING: the screen is the procure-to-pay
   // workspace (supplier quotes → POs → payments), not an item list. Products
   // is the item list people mean when they say "catalog", so the old name is
   // kept as a search keyword rather than as a label competing with it.
-  { href: '/catalog', label: 'Purchasing', group: 'Buy', section: 'buySide', inNav: true,
+  { href: '/purchasing', label: 'Purchasing', group: 'Buy', section: 'buySide', inNav: true,
     hint: 'Supplier quotes, purchase orders and the component master',
     keywords: 'catalog components parts items procurement buying pi po' },
-  { href: '/catalog?tab=lookup', label: 'Deal Lookup', group: 'Buy', section: 'buySide', inNav: false,
+  { href: '/purchasing?tab=lookup', label: 'Deal Lookup', group: 'Buy', section: 'buySide', inNav: false,
     hint: 'Every PI → PO → payment as one deal',
     keywords: 'deals pi po payments history search catalog' },
-  { href: '/catalog?tab=quoting', label: 'Supplier Quotes', group: 'Buy', section: 'buySide', inNav: false,
+  { href: '/purchasing?tab=quoting', label: 'Supplier Quotes', group: 'Buy', section: 'buySide', inNav: false,
     hint: 'Record a supplier quote / proforma invoice',
     keywords: 'pi proforma quote entry new catalog' },
-  { href: '/catalog?tab=ordering', label: 'Purchase Orders', group: 'Buy', section: 'buySide', inNav: false,
+  { href: '/purchasing?tab=ordering', label: 'Purchase Orders', group: 'Buy', section: 'buySide', inNav: false,
     hint: 'Raise a PO against a supplier quote',
     keywords: 'po purchase order new raise catalog' },
   { href: '/suppliers', label: 'Suppliers', group: 'Buy', section: 'buySide', inNav: true,
@@ -114,7 +114,7 @@ export const DESTINATIONS: Destination[] = [
   { href: '/banks', label: 'Banks', group: 'Finance', section: null, cap: 'canViewBanks', inNav: true,
     hint: 'Bank accounts, statements and cash position',
     keywords: 'bank account cash balance statement rekening money' },
-  { href: '/catalog?tab=financials', label: 'Supplier Payments', group: 'Finance', section: 'buySide', cap: 'canViewBankFees', inNav: true,
+  { href: '/purchasing?tab=financials', label: 'Supplier Payments', group: 'Finance', section: 'buySide', cap: 'canViewBankFees', inNav: true,
     hint: 'Record supplier payments, bank fees and landed costs',
     keywords: 'payment batch remittance costs fees ap payable catalog financials money' },
 
@@ -122,7 +122,7 @@ export const DESTINATIONS: Destination[] = [
   // Two analytics screens plus the Item hub. The names say which question
   // each answers: what did we SPEND, what does an ITEM look like end-to-end,
   // and what did we EARN.
-  { href: '/insights', label: 'Spend & Cash', group: 'Analytics', section: 'buySide', cap: 'canViewAnalytics', inNav: true,
+  { href: '/spend-cash', label: 'Spend & Cash', group: 'Analytics', section: 'buySide', cap: 'canViewAnalytics', inNav: true,
     hint: 'Spend analytics, cash cycle, exchange rates',
     keywords: 'insights analytics reports spend forex fx tuc cash cycle' },
   // The Item hub (Module 29): one page per stock item, assembled from the
@@ -130,7 +130,7 @@ export const DESTINATIONS: Destination[] = [
   { href: '/items', label: 'Items', group: 'Analytics', section: 'trading', cap: 'canViewAnalytics', inNav: true,
     hint: 'Everything about one item — buy, sell, stock, specs, profit',
     keywords: 'item hub component sku part product barang produk master 360' },
-  { href: '/economics', label: 'Profitability', group: 'Analytics', section: 'sellSide', cap: 'canViewEconomics', inNav: true,
+  { href: '/profitability', label: 'Profitability', group: 'Analytics', section: 'sellSide', cap: 'canViewEconomics', inNav: true,
     hint: 'GP per item / customer / rep, stock aging, position, cash cycle',
     keywords: 'economics margin profit gp ccc dio dso dpo turnover position' },
 
@@ -167,9 +167,9 @@ export const DESTINATIONS: Destination[] = [
   { href: '/settings?tab=users', label: 'Settings · Users', group: 'Admin', section: null, cap: 'canManageUsers', inNav: false,
     hint: 'Roles and the sign-up allowlist',
     keywords: 'users roles permissions access allowlist invite' },
-  { href: '/data', label: 'Import & Export', group: 'Admin', section: null, cap: 'canExportCsv', inNav: true,
+  { href: '/import-export', label: 'Import & Export', group: 'Admin', section: null, cap: 'canExportCsv', inNav: true,
     hint: 'Bulk CSV in and out — customers, orders, invoices, receipts',
-    keywords: 'import export csv migration dolibarr bulk upload download backup transfer migrate' },
+    keywords: 'data import export csv migration dolibarr bulk upload download backup transfer migrate' },
 ];
 
 /** The destinations this role can actually open. */

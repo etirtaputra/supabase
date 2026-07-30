@@ -26,7 +26,7 @@ import BrandMenu from '@/components/ui/BrandMenu';
 import { formatCategory as humanize } from '@/lib/formatCategory';
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
-import PositionPanel from '@/components/economics/PositionPanel';
+import PositionPanel from '@/components/profitability/PositionPanel';
 
 /**
  * Two questions, two tabs. "Profitability" measures the FLOW — what shipped in
@@ -110,7 +110,7 @@ export default function EconomicsPage() {
   useEffect(() => { document.title = 'Profitability — ICAPROC'; }, []);
   useEffect(() => {
     if (authLoading) return;
-    if (!user) { router.replace(`/login?next=${encodeURIComponent('/economics')}`); return; }
+    if (!user) { router.replace(`/login?next=${encodeURIComponent('/profitability')}`); return; }
     if (profile && !ROLE_PERMISSIONS[profile.role].canViewEconomics) router.replace('/unauthorized');
   }, [authLoading, user, profile, router]);
 

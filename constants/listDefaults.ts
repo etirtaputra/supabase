@@ -79,7 +79,7 @@ export const LIST_SPECS: ListSpec[] = [
     defaults: { sort: '', period: 'all' },
   },
   {
-    key: 'deals', label: 'Deal Lookup', href: '/catalog?tab=lookup', dateLabel: 'deal date',
+    key: 'deals', label: 'Deal Lookup', href: '/purchasing?tab=lookup', dateLabel: 'deal date',
     sorts: [],
     defaults: { sort: '', period: 'all' },
   },

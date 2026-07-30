@@ -3,8 +3,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const APPS = [
-  { href: '/catalog',   label: 'Catalog' },
-  { href: '/insights',  label: 'Insights' },
+  { href: '/purchasing',   label: 'Catalog' },
+  { href: '/spend-cash',  label: 'Insights' },
   { href: '/customers', label: 'Customers' },
   { href: '/products',  label: 'Products' },
   { href: '/sales',     label: 'Sales' },

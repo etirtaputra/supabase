@@ -97,18 +97,18 @@ export default function DatabaseViewPage() {
 
   // Procurement-sensitive data — sign-in required
   useEffect(() => {
-    if (!authLoading && !user) router.replace('/login?next=/insights');
+    if (!authLoading && !user) router.replace('/login?next=/spend-cash');
   }, [authLoading, user, router]);
   // Analytics is OWNER ONLY (canViewAnalytics, decided 2026-07-30) — this
   // screen aggregates spend, TUC and the cash cycle across the business.
-  // Deal/cost lookup for buy-side roles lives in Purchasing (/catalog?tab=lookup).
+  // Deal/cost lookup for buy-side roles lives in Purchasing (/purchasing?tab=lookup).
   useEffect(() => {
     if (!profile) return;
     const p = ROLE_PERMISSIONS[profile.role];
     if (!p.canViewAnalytics) router.replace('/unauthorized');
   }, [profile, router]);
 
-  // Deep links from the global search palette: /insights?tab=lookup&q=<name>
+  // Deep links from the global search palette: /spend-cash?tab=lookup&q=<name>
   const [lookupQuery, setLookupQuery] = useState('');
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
