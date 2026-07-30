@@ -648,6 +648,18 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   and login?next= targets were updated in the same pass; the old route names
   stay as Spotlight search keywords on their entries.
 
+- **Opening defaults for the new lists (2026-07-30)**: `constants/listDefaults.ts`
+  gained **Items** (sort-only: Most traded / On hand / Stock value / Name /
+  Last movement — ships on Most traded) and **After Sales** (period on the
+  reported date, ships on All time; the page gained the house
+  `DateRangeFilter` beside its category chips to honour it — cases stay
+  grouped by status, the period narrows what was reported in it). The
+  registry's `dateLabel` can now be `null` for lists with no date filter, and
+  Settings › Lists renders "Not a dated list" instead of a period picker for
+  them — a setting that changes nothing is worse than none. Both pages follow
+  the house pattern: the default applies until someone re-sorts or widens the
+  list themselves (never saved over the owner's default).
+
 **Next up (in order):**
 0. Dashboard slice 2: a position strip above the queue — Cash / Owed to us /
    We owe / CCC — then month-in-motion comparisons and an AI next-best-step card.

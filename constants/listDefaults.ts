@@ -12,7 +12,7 @@ import type { RangePreset } from '@/lib/dateRange';
  * has one natural order and only the period is configurable.
  */
 
-export type ListKey = 'sales' | 'invoices' | 'customers' | 'products' | 'delivery' | 'deals';
+export type ListKey = 'sales' | 'invoices' | 'customers' | 'products' | 'items' | 'aftersales' | 'delivery' | 'deals';
 
 export interface ListSort { value: string; label: string }
 
@@ -20,8 +20,12 @@ export interface ListSpec {
   key: ListKey;
   label: string;
   href: string;
-  /** Which date the period filters on — printed so the setting is unambiguous. */
-  dateLabel: string;
+  /**
+   * Which date the period filters on — printed so the setting is unambiguous.
+   * `null` = the list has no date filter (order only); Settings then shows no
+   * period picker, because a setting that changes nothing is worse than none.
+   */
+  dateLabel: string | null;
   sorts: ListSort[];
   defaults: { sort: string; period: RangePreset };
   /** What the default is for, in one line. */
@@ -72,6 +76,24 @@ export const LIST_SPECS: ListSpec[] = [
     ],
     defaults: { sort: 'traded', period: 'month' },
     hint: 'What is moving right now floats to the top of the catalogue.',
+  },
+  {
+    key: 'items', label: 'Items', href: '/items', dateLabel: null,
+    sorts: [
+      { value: 'activity', label: 'Most traded' },
+      { value: 'stock',    label: 'On hand' },
+      { value: 'value',    label: 'Stock value' },
+      { value: 'name',     label: 'Name A→Z' },
+      { value: 'moved',    label: 'Last movement' },
+    ],
+    defaults: { sort: 'activity', period: 'all' },
+    hint: 'The items that actually trade lead the master list.',
+  },
+  {
+    key: 'aftersales', label: 'After Sales', href: '/aftersales', dateLabel: 'reported date',
+    sorts: [],
+    defaults: { sort: '', period: 'all' },
+    hint: 'Cases stay grouped by status; the period narrows to what was reported in it.',
   },
   {
     key: 'delivery', label: 'Delivery', href: '/delivery', dateLabel: 'delivery date',

@@ -439,7 +439,7 @@ function ListsTab({ draft, set }: { draft: AppSettings; set: <K extends keyof Ap
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-slate-100">{spec.label}</p>
                   <p className="text-[11px] text-slate-600 leading-snug">
-                    {spec.hint ? `${spec.hint} ` : ''}Period filters the {spec.dateLabel}.
+                    {spec.hint ? `${spec.hint} ` : ''}{spec.dateLabel ? `Period filters the ${spec.dateLabel}.` : ''}
                   </p>
                 </div>
                 {spec.sorts.length > 0 ? (
@@ -451,11 +451,15 @@ function ListsTab({ draft, set }: { draft: AppSettings; set: <K extends keyof Ap
                 ) : (
                   <p className="text-[11px] text-slate-600 sm:text-center">One natural order</p>
                 )}
-                <Field label="Period">
-                  <select className={inputCls} value={cur.period} onChange={(e) => setList(spec.key, { period: e.target.value as RangePreset })}>
-                    {PERIOD_CHOICES.map((p) => <option key={p} value={p}>{PRESET_LABELS[p]}</option>)}
-                  </select>
-                </Field>
+                {spec.dateLabel ? (
+                  <Field label="Period">
+                    <select className={inputCls} value={cur.period} onChange={(e) => setList(spec.key, { period: e.target.value as RangePreset })}>
+                      {PERIOD_CHOICES.map((p) => <option key={p} value={p}>{PRESET_LABELS[p]}</option>)}
+                    </select>
+                  </Field>
+                ) : (
+                  <p className="text-[11px] text-slate-600 sm:text-center">Not a dated list</p>
+                )}
               </div>
             );
           })}

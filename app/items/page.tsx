@@ -9,7 +9,7 @@
  * — the column/tab gating below stays capability-driven so widening access
  * later is a one-line flag flip in constants/roles.ts.
  */
-import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -19,6 +19,7 @@ import BrandMenu from '@/components/ui/BrandMenu';
 import { formatCategory as humanize } from '@/lib/formatCategory';
 import { fmtDay, fmtInt, fmtRupiah, fmtRupiahShort } from '@/lib/formatters';
 import { rollUpByComponent, type BalanceRow } from '@/lib/warehouses';
+import { useListDefaults } from '@/hooks/useListDefaults';
 
 interface Comp {
   component_id: string; supplier_model: string; internal_description: string | null;
@@ -64,6 +65,14 @@ function ItemsInner() {
   const [filterCategory, setFilterCategory] = useState('');
   const [stockOnly, setStockOnly] = useState(false);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'activity', dir: -1 });
+  // Settings › Lists decides how the master list opens, until someone re-sorts
+  const listDefaults = useListDefaults('items');
+  const listTouched = useRef(false);
+  useEffect(() => {
+    if (listTouched.current) return;
+    const key = listDefaults.sort as SortKey;
+    if (SORT_LABELS[key]) setSort({ key, dir: DEFAULT_DIR[key] });
+  }, [listDefaults.sort]);
 
   useEffect(() => { document.title = 'Items — ICAPROC'; }, []);
   useEffect(() => {
@@ -162,8 +171,10 @@ function ItemsInner() {
     return list;
   }, [comps, stock, activity, lastMove, search, filterCategory, stockOnly, sort]);
 
-  const toggleSort = (key: SortKey) =>
+  const toggleSort = (key: SortKey) => {
+    listTouched.current = true;
     setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: DEFAULT_DIR[key] }));
+  };
   const arrow = (key: SortKey) => (sort.key === key ? (sort.dir === 1 ? ' ↑' : ' ↓') : '');
 
   if (authLoading || !profile || !canOpen) {
@@ -195,7 +206,7 @@ function ItemsInner() {
             {categories.map((c) => <option key={c} value={c}>{humanize(c)}</option>)}
           </select>
           <select value={`${sort.key}:${sort.dir}`}
-            onChange={(e) => { const [k, d] = e.target.value.split(':'); setSort({ key: k as SortKey, dir: Number(d) as 1 | -1 }); }}
+            onChange={(e) => { listTouched.current = true; const [k, d] = e.target.value.split(':'); setSort({ key: k as SortKey, dir: Number(d) as 1 | -1 }); }}
             className="h-11 px-3 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-slate-500/60 outline-none text-slate-300 text-xs cursor-pointer">
             {(Object.keys(SORT_LABELS) as SortKey[]).map((k) => (
               <option key={k} value={`${k}:${DEFAULT_DIR[k]}`}>{SORT_LABELS[k]} {DEFAULT_DIR[k] === -1 ? '↓' : '↑'}</option>

@@ -15,7 +15,7 @@
  * Sell-side rules apply: items show internal descriptions only — never brand
  * or supplier model. Writes gate on `canEditSalesDocs`.
  */
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createPortal } from 'react-dom';
@@ -24,7 +24,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 import LayoutToggle from '@/components/ui/LayoutToggle';
+import DateRangeFilter from '@/components/ui/DateRangeFilter';
 import { useListLayout } from '@/hooks/useListLayout';
+import { useListDefaults } from '@/hooks/useListDefaults';
+import { inRange, type DateRange } from '@/lib/dateRange';
 import { fmtDay, fmtDayTime, fmtInt } from '@/lib/formatters';
 
 interface Case {
@@ -84,6 +87,14 @@ export default function AfterSalesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('');
+  // Settings › Lists decides the period this list opens on (reported date),
+  // until someone widens it themselves.
+  const listDefaults = useListDefaults('aftersales');
+  const [range, setRange] = useState<DateRange>(listDefaults.range);
+  const listTouched = useRef(false);
+  useEffect(() => {
+    if (!listTouched.current) setRange(listDefaults.range);
+  }, [listDefaults.range.from, listDefaults.range.to]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [layout, setLayout] = useListLayout('aftersales');
   const compact = layout === 'compact';
   const [toast, setToast] = useState<string | null>(null);
@@ -139,12 +150,13 @@ export default function AfterSalesPage() {
     const q = search.trim().toLowerCase();
     return cases.filter((c) => {
       if (catFilter && c.category !== catFilter) return false;
+      if (!inRange((c.reported_at ?? '').slice(0, 10), range)) return false;
       if (!q) return true;
       const parts = (partsByCase.get(c.case_id) ?? []).map((p) => p.description).join(' ');
       return `${c.case_number} ${c.subject} ${c.description} ${custName.get(c.customer_id ?? '') ?? ''} ${orderLabel(c.quote_id)} ${parts}`
         .toLowerCase().includes(q);
     });
-  }, [cases, search, catFilter, custName, partsByCase, orderById]);   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cases, search, catFilter, range, custName, partsByCase, orderById]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   const catCounts = useMemo(() => {
     const m = new Map<string, number>();
@@ -269,6 +281,7 @@ export default function AfterSalesPage() {
               {c.label}{catCounts.get(k) ? ` ${catCounts.get(k)}` : ''}
             </button>
           ))}
+          <DateRangeFilter value={range} onChange={(r) => { listTouched.current = true; setRange(r); }} label="Reported" />
           <LayoutToggle value={layout} onChange={setLayout} />
         </div>
 
