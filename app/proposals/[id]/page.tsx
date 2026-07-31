@@ -361,6 +361,18 @@ export default function QuoteEditorPage() {
   const isOwner = gate.profile?.role === 'owner';
   const [savedStatus, setSavedStatus] = useState<ProjectQuote['status'] | null>(null);
   const locked = savedStatus === 'sent' && !isOwner;
+  /**
+   * Did the person actually PICK a status in this tab?
+   *
+   * The stale-tab guard in save() protects against un-sending a quote a
+   * colleague sent while we sat open — it fires when the DB says 'sent' and
+   * our header doesn't. But "owner deliberately moves sent → draft" looks
+   * exactly the same, so without a record of intent the guard ate the
+   * owner's own un-send: cancel the prompt and nothing saved ("Not saved —
+   * quote is SENT"), accept it and the status was forced back to 'sent'.
+   * Un-sending was therefore impossible for anyone (field report 2026-07-31).
+   */
+  const statusTouchedRef = useRef(false);
   const [sections, setSections] = useState<DraftSection[]>([]);
   const [loadingQuote, setLoadingQuote] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -1422,7 +1434,17 @@ export default function QuoteEditorPage() {
       // non-owners server-side; this makes it clear instead of erroring).
       const { data: liveStatus } = await supabase
         .from('10.0_project_quotes').select('status').eq('quote_id', quoteRef.current.quote_id).single();
-      if (liveStatus?.status === 'sent' && quoteRef.current.status !== 'sent') {
+      // Only a STALE header may be corrected back to 'sent'. A status the
+      // person picked here is intent, and must reach the database.
+      const unSending = liveStatus?.status === 'sent' && quoteRef.current.status !== 'sent';
+      if (unSending && statusTouchedRef.current && !isOwner) {
+        setQuote((q) => q ? { ...q, status: 'sent' } : q);
+        setSavedStatus('sent');
+        setSaving(false);
+        setSaveMsg('Not saved — only an Owner can move a SENT quote back to draft.');
+        return;
+      }
+      if (unSending && !statusTouchedRef.current) {
         if (!isOwner) {
           setQuote((q) => q ? { ...q, status: 'sent' } : q); // lock this tab
           setSavedStatus('sent');
@@ -1449,8 +1471,12 @@ export default function QuoteEditorPage() {
       }
       const live = pre.merged;                 // post-merge working state
       let quoteNow = pre.header ?? quoteRef.current;
-      // A stale tab must never un-send a sent quote via its header write
-      if (liveStatus?.status === 'sent' && quoteNow.status !== 'sent') quoteNow = { ...quoteNow, status: 'sent' };
+      // A stale tab must never un-send a sent quote via its header write —
+      // unless the status was deliberately changed here, which is the whole
+      // point of an owner picking DRAFT on a sent quote.
+      if (liveStatus?.status === 'sent' && quoteNow.status !== 'sent' && !statusTouchedRef.current) {
+        quoteNow = { ...quoteNow, status: 'sent' };
+      }
       const base = baseRef.current;
       const basePos = itemPositions(base);
 
@@ -1548,8 +1574,10 @@ export default function QuoteEditorPage() {
       baseRef.current = newBase;
       baseHeaderRef.current = quoteNow;
       // The status just reached the DB — a non-owner who saved draft→sent
-      // locks NOW, not a keystroke earlier.
+      // locks NOW, not a keystroke earlier. Intent is spent once saved: any
+      // later stale-header correction must be free to fire again.
       setSavedStatus(quoteNow.status);
+      statusTouchedRef.current = false;
       setSections((prev) => prev.filter((sec) => !sec._deleted).map((sec) => ({ ...sec, items: sec.items.filter((i) => !i._deleted) })));
       const { data: fresh } = await supabase
         .from('10.0_project_quotes').select('updated_at').eq('quote_id', quoteNow.quote_id).single();
@@ -1830,8 +1858,11 @@ export default function QuoteEditorPage() {
               value={quote.status}
               disabled={locked}
               title={locked ? 'SENT — only an Owner can change the status' : undefined}
-              onChange={(e) => setQuoteField('status', e.target.value as ProjectQuote['status'])}
-              className={`px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider border-0 outline-none cursor-pointer disabled:cursor-not-allowed ${STATUS_COLORS[quote.status]}`}
+              onChange={(e) => { statusTouchedRef.current = true; setQuoteField('status', e.target.value as ProjectQuote['status']); }}
+              /* appearance-none: the native stepper made this pill wide enough
+                 to squeeze the quote number off a phone header. Clamped on
+                 small screens, intrinsic width from sm up. */
+              className={`appearance-none text-center px-2.5 py-1 max-w-[92px] sm:max-w-none rounded-full text-[11px] font-semibold uppercase tracking-wider border-0 outline-none cursor-pointer disabled:cursor-not-allowed ${STATUS_COLORS[quote.status]}`}
             >
               {STATUS_OPTS.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>

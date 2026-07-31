@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-07-31T08:05:00Z',
+    title: 'Fixed: an Owner can move a SENT proposal back to Draft',
+    details: [
+      'Picking DRAFT on a sent proposal was refused with “Not saved — quote is SENT”, or silently forced back to Sent: the guard that stops a stale tab un-sending someone else’s quote could not tell that apart from a deliberate un-send.',
+      'A status you pick yourself now always reaches the database; the stale-tab protection still applies when you did not touch it.',
+      'Non-owners get a clear message instead: only an Owner can move a sent proposal back.',
+      'The status pill no longer squeezes the quote number off the header on phones.',
+    ],
+  },
+  {
     at: '2026-07-30T09:05:00Z',
     title: 'Fixed: EPC proposals no longer fall back to Drafts after being sent',
     details: [
