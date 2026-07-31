@@ -15,6 +15,34 @@ const systemSummary = (type: unknown, specs: unknown): string => {
   return composeDescription(t, s, '').replace(/^EPC for /, '');
 };
 
+/** The proposal columns needed to describe the deal behind a price. */
+export interface QuoteContextRow {
+  customer_name?: string | null;
+  project_type?: string | null;
+  system_specs?: unknown;
+  project_description?: string | null;
+}
+/** Columns to SELECT when a query feeds `quoteContext`. */
+export const QUOTE_CONTEXT_COLS = 'customer_name, project_type, system_specs, project_description';
+
+/**
+ * Who a price was quoted for, and what system — THE one implementation, so
+ * every price-history source describes a deal the same way. Catalog-linked
+ * lines reach it through fetchUsedEntries; free-text lines through the
+ * editor's own description-keyed history (which is why some rows showed no
+ * context at all until both were routed here — field report 2026-07-31).
+ */
+export function quoteContext(q: QuoteContextRow | null | undefined): { customer: string; system: string } {
+  if (!q) return { customer: '', system: '' };
+  const composed = systemSummary(q.project_type, q.system_specs);
+  return {
+    customer: String(q.customer_name ?? '').trim(),
+    // Custom-type projects compose to '' by design — their typed description
+    // IS the project name, so it stands in.
+    system: composed || String(q.project_description ?? '').trim(),
+  };
+}
+
 /**
  * Prices previously used in project quotes, per component — the 'used' cost
  * source. Newest first per component.
@@ -36,7 +64,7 @@ export async function fetchUsedEntries(
   const [itemsRes, quotesRes] = await Promise.all([
     itemsQuery,
     supabase.from('10.0_project_quotes')
-      .select('quote_id, quote_number, quote_date, customer_name, project_type, system_specs, project_description'),
+      .select(`quote_id, quote_number, quote_date, ${QUOTE_CONTEXT_COLS}`),
   ]);
 
   const qMap = new Map((quotesRes.data ?? []).map((q) => [q.quote_id as string, q]));
@@ -46,15 +74,13 @@ export async function fetchUsedEntries(
     if (!it.component_id || !(cost > 0)) continue;
     const q = qMap.get(it.quote_id as string);
     const arr = map.get(it.component_id as string) ?? [];
-    const system = systemSummary(q?.project_type, q?.system_specs)
-      || String(q?.project_description ?? '').trim();
+    const ctx = quoteContext(q as QuoteContextRow | undefined);
     arr.push({
       kind: 'used',
       label: (q?.quote_number as string) || 'Project quote',
       date: (q?.quote_date as string) || String(it.created_at ?? '').slice(0, 10),
       unitCost: cost,
-      customer: (q?.customer_name as string) || '',
-      system,
+      ...ctx,
     });
     map.set(it.component_id as string, arr);
   }

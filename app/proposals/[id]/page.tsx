@@ -7,7 +7,7 @@ import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useQuotesGate } from '@/hooks/useQuotesGate';
 import { computeTUCMap, getComponentCost, fxFromHistory, priceAgeDays, AGED_PRICE_DAYS, type CostEntry } from '@/lib/computeTUC';
 import { deriveExchangeRates } from '@/lib/exchangeRates';
-import { fetchUsedEntries } from '@/lib/usedPrices';
+import { fetchUsedEntries, quoteContext, QUOTE_CONTEXT_COLS, type QuoteContextRow } from '@/lib/usedPrices';
 import { DEFAULT_EXPORT_COLS, EXPORT_COL_KEYS, EXPORT_COL_LABELS, loadExportCols, saveExportCols, type ExportCols } from '@/lib/exportCols';
 import { quoteFileName } from '@/lib/quoteFilename';
 import { lineWp, wpPerModule } from '@/lib/quoteWp';
@@ -601,7 +601,9 @@ export default function QuoteEditorPage() {
       supabase.from('10.2_quote_items')
         .select('description, brand, unit, component_id, cost_price, sell_price, quote_id, parent_item_id')
         .neq('quote_id', id),
-      supabase.from('10.0_project_quotes').select('quote_id, quote_number, quote_date'),
+      // …with the deal context, so a FREE-TEXT line's price history names the
+      // customer and system exactly as a catalog-linked line's does.
+      supabase.from('10.0_project_quotes').select(`quote_id, quote_number, quote_date, ${QUOTE_CONTEXT_COLS}`),
       // Curated entries from the owner-managed Description Library; the table
       // may not exist yet on older databases — errors are simply ignored
       supabase.from('10.4_description_library').select('description, brand, unit, default_cost'),
@@ -620,7 +622,7 @@ export default function QuoteEditorPage() {
       const cost = Number(it.cost_price);
       if (cost > 0) {
         const arr = hist.get(key) ?? [];
-        arr.push({ kind: 'used', label, date, unitCost: cost });
+        arr.push({ kind: 'used', label, date, unitCost: cost, ...quoteContext(q as QuoteContextRow | undefined) });
         hist.set(key, arr);
       }
 

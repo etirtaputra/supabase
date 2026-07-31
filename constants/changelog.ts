@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-07-31T10:45:00Z',
+    title: 'Price history: free-text lines now name their deal too',
+    details: [
+      'Lines not linked to a catalog item had a separate price history that showed only the quote number — that is why some entries had no customer or project.',
+      'Both histories now describe the deal the same way: customer, and the project’s system and size.',
+    ],
+  },
+  {
     at: '2026-07-31T10:10:00Z',
     title: 'Page headers survive a narrow desktop window on every screen',
     details: [
