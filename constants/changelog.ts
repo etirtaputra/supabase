@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-07-31T09:30:00Z',
+    title: 'Back from a proposal always works · header stops overlapping on narrow screens',
+    details: [
+      'Leaving a proposal now saves your changes and goes, instead of asking a question that some browsers silently answer “stay” — which is why Back sometimes did nothing.',
+      'The top bar no longer piles the menu, search and page buttons on top of each other between laptop and desktop widths; the full menu stays in the ICAPROC dropdown.',
+    ],
+  },
+  {
     at: '2026-07-31T08:40:00Z',
     title: 'Proposal price history says which deal each price came from',
     details: [

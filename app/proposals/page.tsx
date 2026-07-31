@@ -423,28 +423,31 @@ export default function QuotesListPage() {
       <div className="sticky top-0 z-40 bg-canvas/90 backdrop-blur-xl border-b border-white/[0.07]">
         <div className="max-w-6xl 2xl:max-w-[1760px] mx-auto px-3 sm:px-6 py-4 flex items-center justify-between gap-3">
           <BrandMenu wordmarkClass="text-xl font-bold" subtitle="EPC Proposals" />
-          <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+          {/* min-w-0 so this cluster yields instead of colliding with the nav */}
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {onlineCount > 1 && <OnlineIndicator online={online} count={onlineCount} />}
             {gate.profile?.role === 'owner' && (
               <>
                 <Link
                   href="/proposals/directory"
-                  className="hidden sm:inline-block px-3 py-1.5 rounded-xl border border-white/[0.08] text-slate-400 hover:text-white hover:bg-white/10 text-xs font-semibold transition-all"
+                  className="hidden xl:inline-block px-3 py-1.5 rounded-xl border border-white/[0.08] text-slate-400 hover:text-white hover:bg-white/10 text-xs font-semibold transition-all"
                   title="Proposal Directory — dedupe & merge customer names, sites and addresses (Owners only)"
                 >
                   Directory
                 </Link>
                 <Link
                   href="/proposals/library"
-                  className="hidden sm:inline-block px-3 py-1.5 rounded-xl border border-white/[0.08] text-slate-400 hover:text-white hover:bg-white/10 text-xs font-semibold transition-all"
+                  className="hidden xl:inline-block px-3 py-1.5 rounded-xl border border-white/[0.08] text-slate-400 hover:text-white hover:bg-white/10 text-xs font-semibold transition-all"
                   title="Description Library — review, dedupe and rename quote item texts (Owners only)"
                 >
                   Library
                 </Link>
               </>
             )}
+            {/* The account block duplicates what the wordmark menu already
+                shows; it only earns its width on a genuinely wide screen. */}
             {gate.profile && (
-              <div className="text-right hidden sm:block">
+              <div className="text-right hidden 2xl:block">
                 <p className="text-[11px] text-slate-400 leading-tight">{gate.profile.email}</p>
                 <div className="flex items-center gap-2 justify-end">
                   <button onClick={() => { setPwOpen(true); setPw1(''); setPw2(''); setPwMsg(''); }} className="text-[10px] text-slate-600 hover:text-slate-300 underline transition-colors">

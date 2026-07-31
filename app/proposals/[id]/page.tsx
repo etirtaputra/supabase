@@ -373,6 +373,8 @@ export default function QuoteEditorPage() {
    * Un-sending was therefore impossible for anyone (field report 2026-07-31).
    */
   const statusTouchedRef = useRef(false);
+  /** Set when a save-on-back failed: the next Back tap leaves regardless. */
+  const leaveAnywayRef = useRef(false);
   const [sections, setSections] = useState<DraftSection[]>([]);
   const [loadingQuote, setLoadingQuote] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -1424,10 +1426,12 @@ export default function QuoteEditorPage() {
     return () => { clearInterval(t); window.removeEventListener('focus', onFocus); };
   }, [syncNow]);
 
-  async function save() {
-    if (!quoteRef.current) return;
-    if (locked) { setSaveMsg('Locked: SENT quotes can only be edited by an Owner'); return; }
+  /** @returns true only when the save actually reached the database. */
+  async function save(): Promise<boolean> {
+    if (!quoteRef.current) return false;
+    if (locked) { setSaveMsg('Locked: SENT quotes can only be edited by an Owner'); return false; }
     setSaving(true);
+    let ok = false;
     try {
       // 0a. SENT check against the DATABASE, not this tab's memory: a quote
       // sent while this tab was open must lock here too (RLS already blocks
@@ -1442,7 +1446,7 @@ export default function QuoteEditorPage() {
         setSavedStatus('sent');
         setSaving(false);
         setSaveMsg('Not saved — only an Owner can move a SENT quote back to draft.');
-        return;
+        return false;
       }
       if (unSending && !statusTouchedRef.current) {
         if (!isOwner) {
@@ -1450,24 +1454,24 @@ export default function QuoteEditorPage() {
           setSavedStatus('sent');
           setSaving(false);
           setSaveMsg('Not saved — this quote was SENT while you had it open. It is now locked.');
-          return;
+          return false;
         }
-        const ok = window.confirm(
+        const proceed = window.confirm(
           'This quote was marked SENT while you had it open — it is locked in.\n\n' +
           'As Owner you may still change it. Save your changes to the SENT quote?'
         );
-        if (!ok) { setSaving(false); setSaveMsg('Not saved — quote is SENT'); return; }
+        if (!proceed) { setSaving(false); setSaveMsg('Not saved — quote is SENT'); return false; }
         setQuote((q) => q ? { ...q, status: 'sent' } : q); // keep it sent; don't un-send via stale header
         setSavedStatus('sent');
       }
       // 0b. Sync: fold in whatever colleagues saved since our last sync
       const pre = await mergeRemote();
       if (pre.remoteChanged && pre.conflicts > 0) {
-        const ok = window.confirm(
+        const proceed = window.confirm(
           `You and ${pre.actor} both edited ${pre.conflicts} of the same line${pre.conflicts > 1 ? 's' : ''}.\n\n` +
           `Saving keeps YOUR version of those lines; all their other changes are already merged in.\n\nContinue?`
         );
-        if (!ok) { setSaving(false); setSaveMsg('Not saved'); return; }
+        if (!proceed) { setSaving(false); setSaveMsg('Not saved'); return false; }
       }
       const live = pre.merged;                 // post-merge working state
       let quoteNow = pre.header ?? quoteRef.current;
@@ -1587,12 +1591,14 @@ export default function QuoteEditorPage() {
       setSaveMsg(pre.remoteChanged ? `Saved · merged ${pre.actor}'s changes` : 'Saved');
       setTimeout(() => setSaveMsg(''), 2500);
       loadReferenceData(); // refresh autocomplete/history sources after save
+      ok = true;
     } catch (e) {
       // Supabase errors are plain objects, not Error instances
       const msg = (e as { message?: string })?.message;
       setSaveMsg(msg ? `Error: ${msg}` : 'Error saving');
     }
     setSaving(false);
+    return ok;
   }
 
   // ── Ctrl/Cmd+S saves ───────────────────────────────────────────────────────
@@ -1831,7 +1837,28 @@ export default function QuoteEditorPage() {
           <div className="flex items-center gap-3 min-w-0">
             <Link
               href="/proposals"
-              onClick={(e) => { if (dirty && !window.confirm('You have unsaved changes — leave anyway?')) e.preventDefault(); }}
+              title="Back to the proposals list — unsaved changes are saved first"
+              /**
+               * Back SAVES, then leaves. It used to ask
+               * "You have unsaved changes — leave anyway?" and cancel the
+               * navigation on anything but OK — but a browser that suppresses
+               * repeated dialogs (this editor raises several) returns FALSE
+               * from confirm() without showing anything, which the guard read
+               * as "stay". Back then silently did nothing, over and over
+               * (field report 2026-07-31). Saving is also what the editor
+               * already does on its own every 30s, so nothing is lost either
+               * way. If the save fails the reason is shown and the second tap
+               * leaves regardless — no dialog can trap anyone here again.
+               */
+              onClick={(e) => {
+                if (!dirty || saving || locked || leaveAnywayRef.current) return;
+                e.preventDefault();
+                void save().then((okSave) => {
+                  if (okSave) { router.push('/proposals'); return; }
+                  leaveAnywayRef.current = true;
+                  setSaveMsg('Not saved — tap back again to leave anyway');
+                });
+              }}
               className="text-slate-500 hover:text-slate-300 transition-colors flex-shrink-0"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
