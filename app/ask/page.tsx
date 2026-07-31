@@ -99,9 +99,9 @@ export default function AskPage() {
 
       {/* ── Header (house style) ── */}
       <div className="flex-none sticky top-0 z-40 bg-canvas/90 backdrop-blur-xl border-b border-white/[0.07]">
-        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
+        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between flex-wrap gap-4">
           <BrandMenu wordmarkClass="text-xl font-bold" subtitle="Ask · AI assistant" />
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 flex-wrap justify-end">
             {profile && (
               <div className="text-right hidden sm:block">
                 <p className="text-[11px] text-slate-400 leading-tight">{profile.email}</p>

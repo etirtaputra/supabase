@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-07-31T10:10:00Z',
+    title: 'Page headers survive a narrow desktop window on every screen',
+    details: [
+      'Every page header now wraps its buttons onto a second line instead of letting them overlap the menu when the browser is made smaller.',
+      'Applied across all 21 screens, not just the ones where it was noticed.',
+    ],
+  },
+  {
     at: '2026-07-31T09:30:00Z',
     title: 'Back from a proposal always works · header stops overlapping on narrow screens',
     details: [

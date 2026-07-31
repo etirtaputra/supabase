@@ -111,7 +111,7 @@ export default function ProposalDirectoryPage() {
   return (
     <div className="min-h-screen bg-canvas text-slate-200 font-sans text-sm">
       <div className="sticky top-0 z-40 bg-canvas/90 backdrop-blur-xl border-b border-white/[0.07]">
-        <div className="max-w-5xl mx-auto px-3 sm:px-6 py-4 flex items-center justify-between gap-3">
+        <div className="max-w-5xl mx-auto px-3 sm:px-6 py-4 flex items-center justify-between flex-wrap gap-3">
           <BrandMenu wordmarkClass="text-xl font-bold" subtitle="EPC Proposals · Directory" />
           <Link href="/proposals" className="px-3 py-1.5 rounded-xl border border-white/[0.08] text-slate-400 hover:text-white hover:bg-white/10 text-xs font-semibold transition-all whitespace-nowrap">← Proposals</Link>
         </div>
