@@ -350,9 +350,17 @@ export default function QuoteEditorPage() {
 
   // ── Quote header state ─────────────────────────────────────────────────────
   const [quote, setQuote] = useState<ProjectQuote | null>(null);
-  // SENT quotes are read-only for everyone except Owners (also enforced by RLS)
+  // SENT quotes are read-only for everyone except Owners (also enforced by RLS).
+  // The lock keys on the last SAVED status, never this tab's unsaved edit: a
+  // non-owner choosing SENT in the dropdown must still be able to SAVE that
+  // transition. Locking on the local value froze the tab the moment SENT was
+  // picked, so save() refused and the send silently never reached the
+  // database — closing the editor then "reverted" the quote to Drafts
+  // (field report, 2026-07-30). RLS agrees: can_edit_quote() only blocks
+  // engineers once the ROW is already sent, so draft→sent is theirs to make.
   const isOwner = gate.profile?.role === 'owner';
-  const locked = quote?.status === 'sent' && !isOwner;
+  const [savedStatus, setSavedStatus] = useState<ProjectQuote['status'] | null>(null);
+  const locked = savedStatus === 'sent' && !isOwner;
   const [sections, setSections] = useState<DraftSection[]>([]);
   const [loadingQuote, setLoadingQuote] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -971,6 +979,7 @@ export default function QuoteEditorPage() {
         return;
       }
       setQuote(qRes.data as ProjectQuote);
+      setSavedStatus((qRes.data as ProjectQuote).status);
       loadedStampRef.current = (qRes.data as ProjectQuote).updated_at ?? null;
       baseHeaderRef.current = qRes.data as ProjectQuote;
 
@@ -1372,6 +1381,7 @@ export default function QuoteEditorPage() {
       if (!localHeaderChanged) setQuote(remoteHeader);
       baseRef.current = remote;
       baseHeaderRef.current = remoteHeader;
+      setSavedStatus(remoteHeader.status);   // the DB's status — the lock's only input
       loadedStampRef.current = remoteHeader.updated_at ?? loadedStampRef.current;
       return { remoteChanged: true, actor: remoteHeader.updated_by_email || 'a colleague', conflicts, merged, header: effHeader };
     } finally {
@@ -1415,6 +1425,7 @@ export default function QuoteEditorPage() {
       if (liveStatus?.status === 'sent' && quoteRef.current.status !== 'sent') {
         if (!isOwner) {
           setQuote((q) => q ? { ...q, status: 'sent' } : q); // lock this tab
+          setSavedStatus('sent');
           setSaving(false);
           setSaveMsg('Not saved — this quote was SENT while you had it open. It is now locked.');
           return;
@@ -1425,6 +1436,7 @@ export default function QuoteEditorPage() {
         );
         if (!ok) { setSaving(false); setSaveMsg('Not saved — quote is SENT'); return; }
         setQuote((q) => q ? { ...q, status: 'sent' } : q); // keep it sent; don't un-send via stale header
+        setSavedStatus('sent');
       }
       // 0b. Sync: fold in whatever colleagues saved since our last sync
       const pre = await mergeRemote();
@@ -1535,6 +1547,9 @@ export default function QuoteEditorPage() {
       const newBase = liveSections.map((sec) => ({ ...sec, _deleted: undefined, items: sec.items.filter((i) => !i._deleted).map((i) => ({ ...i, _deleted: undefined })) }));
       baseRef.current = newBase;
       baseHeaderRef.current = quoteNow;
+      // The status just reached the DB — a non-owner who saved draft→sent
+      // locks NOW, not a keystroke earlier.
+      setSavedStatus(quoteNow.status);
       setSections((prev) => prev.filter((sec) => !sec._deleted).map((sec) => ({ ...sec, items: sec.items.filter((i) => !i._deleted) })));
       const { data: fresh } = await supabase
         .from('10.0_project_quotes').select('updated_at').eq('quote_id', quoteNow.quote_id).single();

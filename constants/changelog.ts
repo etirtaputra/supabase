@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-07-30T09:05:00Z',
+    title: 'Fixed: EPC proposals no longer fall back to Drafts after being sent',
+    details: [
+      'Engineers and project admins picking SENT locked their own editor before the save could run, so the change never reached the database and the proposal reappeared under Drafts.',
+      'The editor now locks only once SENT is actually saved — choose Sent, save (or just close), and it stays sent.',
+    ],
+  },
+  {
     at: '2026-07-30T08:25:00Z',
     title: 'Header clock no longer clashes with the menu on smaller desktops',
     details: [
