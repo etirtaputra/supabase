@@ -110,6 +110,10 @@ export interface CostEntry {
   fxSource?: string;
   /** The rate behind this conversion is older than FX_STALE_DAYS. */
   fxStale?: boolean;
+  /** 'used' entries: who the proposal was for — a price needs its deal. */
+  customer?: string;
+  /** 'used' entries: the system quoted, e.g. "PV On-Grid 234 kWp DC / 200 kW AC". */
+  system?: string;
 }
 
 export interface TUCResult {

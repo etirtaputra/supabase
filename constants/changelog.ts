@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-07-31T08:40:00Z',
+    title: 'Proposal price history says which deal each price came from',
+    details: [
+      'A previously-used cost now shows the customer and the system it was quoted for — e.g. “Xurya Daya Indonesia · PV On-Grid 234 kWp DC / 200 kW AC” — under the quote number.',
+      'A price is only reusable if you can see whether the job was comparable.',
+    ],
+  },
+  {
     at: '2026-07-31T08:05:00Z',
     title: 'Fixed: an Owner can move a SENT proposal back to Draft',
     details: [

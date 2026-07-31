@@ -2694,6 +2694,17 @@ export default function QuoteEditorPage() {
                                             {fmtIdr(h.unitCost)}
                                           </button>
                                         </div>
+                                        {/* Which DEAL a previously-used price came from. A quote
+                                            number alone can't tell you whether the cost is
+                                            comparable; the customer and the system size can. */}
+                                        {(h.customer || h.system) && (
+                                          <p className="text-[10px] mt-0.5 pl-[3.1rem] truncate"
+                                            title={[h.customer, h.system].filter(Boolean).join(' — ')}>
+                                            {h.customer && <span className="text-slate-400">{h.customer}</span>}
+                                            {h.customer && h.system && <span className="text-slate-600"> · </span>}
+                                            {h.system && <span className="text-slate-500">{h.system}</span>}
+                                          </p>
+                                        )}
                                         {/* The conversion on its own line — a foreign cost nobody can
                                             audit is how a stale rate hides for months, but it must not
                                             crowd out the document it came from. */}
