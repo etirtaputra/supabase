@@ -340,9 +340,12 @@ export default function BrandMenu({
           summer, and at 1024–1280 they used to overlap whatever the PAGE put
           in the same row (field report 2026-07-31). Below xl the wordmark
           dropdown holds the identical list, so nothing becomes unreachable.
-          overflow-hidden is the belt-and-braces: if it ever does run long it
-          clips itself rather than painting over its neighbours. */}
-      <nav className="hidden xl:flex items-center gap-1 min-w-0 overflow-hidden">
+          NO overflow-hidden here: the group dropdown panels are absolutely
+          positioned INSIDE this nav, so clipping the nav clipped the open
+          menus into invisibility (field report 2026-08-01). At xl+ the bar
+          fits with room to spare; overlap protection is the xl gate plus the
+          page headers' flex-wrap, not a clip. */}
+      <nav className="hidden xl:flex items-center gap-1 min-w-0">
         {groups.map((group, gi) => {
           const acc = accentOf(group.section, group.title);
           const activeApp = group.apps.find((a) => isActive(a.href));

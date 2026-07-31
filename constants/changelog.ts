@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-01T00:05:00Z',
+    title: 'Fixed: the Buy / Sell / Finance / Analytics dropdowns open again',
+    details: [
+      'Yesterday’s header overlap fix accidentally clipped the open menus into invisibility — the group button toggled but no list appeared.',
+      'The overlap protection stays; only the clipping is gone.',
+    ],
+  },
+  {
     at: '2026-07-31T10:45:00Z',
     title: 'Price history: free-text lines now name their deal too',
     details: [
