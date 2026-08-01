@@ -20,6 +20,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-01T04:00:00Z',
+    title: 'Skin circles sit on their own row under APPEARANCE',
+    details: ['Cleaner and consistent on desktop and mobile — label above, the four colour circles below.'],
+  },
+  {
     at: '2026-08-01T03:30:00Z',
     title: 'Menu fits the phone screen — no more sideways scroll',
     details: [

@@ -236,15 +236,15 @@ export default function BrandMenu({
       {/* Appearance — a personal preference, so it sits with the account
           rather than in Settings (which holds company-wide defaults). */}
       <div className="mt-1 pt-1.5 border-t border-slate-800/70">
-        <div className="flex items-center gap-2 px-2.5 py-1.5">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 flex-1">Appearance</span>
+        <div className="px-2.5 py-1.5">
+          <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">Appearance</span>
           {/* Four skins since 2026-08-01 (dark · dim · light · paper) — one
-              SOLID circle each, painted the skin's main canvas colour. Nothing
-              here may be wider than the panel: an overflowing row gives the
-              whole menu a sideways scroll that clips every item's first
-              letters (owner hit exactly that on mobile). The name lives in
-              the tooltip. */}
-          <div className="flex items-center gap-1.5 flex-shrink-0">
+              SOLID circle each, painted the skin's main canvas colour, on
+              their own row BELOW the label (owner's call: cleaner, and the
+              row can never outgrow the panel — a too-wide row once gave the
+              whole menu a sideways scroll that clipped every item's first
+              letters). The name lives in the tooltip. */}
+          <div className="flex items-center gap-2">
             {THEMES.map((t) => (
               <button
                 key={t.value}
