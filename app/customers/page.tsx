@@ -151,7 +151,10 @@ function CustomersInner() {
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
-  const [showInactive, setShowInactive] = useState(false);
+  // Toolbar filters (owner's ask): who manages it, which tier, active or not.
+  const [filterAm, setFilterAm] = useState('');       // '' all · 'unassigned' · user id
+  const [filterTier, setFilterTier] = useState('');   // '' all · 'none' · tier_code
+  const [filterStatus, setFilterStatus] = useState<'active' | 'inactive' | 'all'>('active');
 
   const [editing, setEditing] = useState<Customer | null>(null);
   const [draftContacts, setDraftContacts] = useState<Contact[]>([]);
@@ -262,7 +265,9 @@ function CustomersInner() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return customers.filter((c) => {
-      if (!showInactive && !c.is_active) return false;
+      if (filterStatus !== 'all' && c.is_active !== (filterStatus === 'active')) return false;
+      if (filterAm === 'unassigned' ? c.account_manager_id : (filterAm && c.account_manager_id !== filterAm)) return false;
+      if (filterTier === 'none' ? c.tier : (filterTier && c.tier !== filterTier)) return false;
       if (!q) return true;
       const hay = [
         c.customer_code, c.legal_name, c.display_name, c.tier,
@@ -270,15 +275,41 @@ function CustomersInner() {
       ].join(' ').toLowerCase();
       return hay.includes(q);
     });
-  }, [customers, search, showInactive, amById]);
+  }, [customers, search, filterStatus, filterAm, filterTier, amById]);
+
+  // Column-header sort: click a title to sort by it ascending, click again to
+  // flip. Overrides the dropdown order until the dropdown is touched again.
+  type ColKey = 'code' | 'name' | 'tier' | 'am' | 'status';
+  const [colSort, setColSort] = useState<{ key: ColKey; dir: 'asc' | 'desc' } | null>(null);
+  const clickCol = (key: ColKey) =>
+    setColSort((s) => (s?.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
 
   const ordered = useMemo(() => {
     const list = [...filtered];
+    if (colSort) {
+      const { key, dir } = colSort;
+      const val = (c: Customer): string => {
+        switch (key) {
+          case 'code':   return c.customer_code || '';
+          case 'name':   return (c.display_name || c.legal_name || '').toLowerCase();
+          case 'tier':   return c.tier ? (tierLabel.get(c.tier) ?? c.tier).toLowerCase() : '';
+          case 'am':     return c.account_manager_id ? (amById.get(c.account_manager_id) ?? '').toLowerCase() : '';
+          case 'status': return c.is_active ? 'a' : 'b'; // active first when ascending
+        }
+      };
+      list.sort((a, b) => {
+        const va = val(a), vb = val(b);
+        if (!va !== !vb) return va ? -1 : 1; // blanks sink to the bottom either way
+        const cmp = va.localeCompare(vb, undefined, { numeric: true });
+        return dir === 'asc' ? cmp : -cmp;
+      });
+      return list;
+    }
     if (sort === 'name') list.sort((a, b) => (a.display_name || a.legal_name || '').localeCompare(b.display_name || b.legal_name || ''));
     else if (sort === 'updated') list.sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''));
     else list.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));   // 'created'
     return list;
-  }, [filtered, sort]);
+  }, [filtered, sort, colSort, tierLabel, amById]);
 
   // ── Drawer ──────────────────────────────────────────────────────────────────
   function openDrawer(c: Customer | null) {
@@ -512,13 +543,26 @@ function CustomersInner() {
               className="w-full pl-10 pr-4 h-11 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors"
             />
           </div>
-          <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
-            <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)}
-              className="accent-emerald-500 w-4 h-4" />
-            Show inactive
-          </label>
+          <select value={filterAm} onChange={(e) => setFilterAm(e.target.value)} title="Filter by account manager"
+            className="text-xs bg-slate-900/80 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60 max-w-[160px]">
+            <option value="">All managers</option>
+            <option value="unassigned">Unassigned</option>
+            {amUsers.map((u) => <option key={u.id} value={u.id}>{u.display_name || u.email}</option>)}
+          </select>
+          <select value={filterTier} onChange={(e) => setFilterTier(e.target.value)} title="Filter by tier"
+            className="text-xs bg-slate-900/80 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60 max-w-[140px]">
+            <option value="">All tiers</option>
+            <option value="none">No tier</option>
+            {tiers.filter((t) => t.is_active !== false).map((t) => <option key={t.tier_code} value={t.tier_code}>{t.name}</option>)}
+          </select>
+          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as 'active' | 'inactive' | 'all')} title="Filter by status"
+            className="text-xs bg-slate-900/80 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60">
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="all">All statuses</option>
+          </select>
           <span className="text-xs text-slate-600 tabular-nums">{filtered.length} of {customers.length}</span>
-          <select value={sort} onChange={(e) => { sortTouched.current = true; setSort(e.target.value); }}
+          <select value={sort} onChange={(e) => { sortTouched.current = true; setSort(e.target.value); setColSort(null); }}
             title="Order — the default lives in Settings › Lists"
             className="text-xs bg-slate-900/80 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60">
             {listSpec('customers').sorts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -528,8 +572,20 @@ function CustomersInner() {
 
         {/* List */}
         <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
+          {/* Sortable titles: click sorts ascending, click again flips.
+              Overrides the order dropdown until it is touched again. */}
           <div className={`hidden md:grid grid-cols-[130px_1fr_120px_180px_90px] gap-3 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500 ${compact ? 'px-3 py-1.5' : 'px-4 py-2.5'}`}>
-            <span>Code</span><span>Name</span><span>Tier</span><span>Account Manager</span><span>Status</span>
+            {([['code', 'Code'], ['name', 'Name'], ['tier', 'Tier'], ['am', 'Account Manager'], ['status', 'Status']] as [ColKey, string][]).map(([k, label]) => (
+              <button key={k} onClick={() => clickCol(k)} title={`Sort by ${label.toLowerCase()}`}
+                className={`flex items-center gap-1 text-left uppercase tracking-widest transition-colors ${
+                  colSort?.key === k ? 'text-slate-200' : 'hover:text-slate-300'
+                }`}>
+                {label}
+                <span className={`text-[8px] ${colSort?.key === k ? 'text-emerald-400' : 'text-transparent'}`}>
+                  {colSort?.key === k && colSort.dir === 'desc' ? '▼' : '▲'}
+                </span>
+              </button>
+            ))}
           </div>
           {loading ? (
             <div className="p-4 space-y-1.5">{[...Array(6)].map((_, i) => <div key={i} className="h-12 bg-slate-800/40 rounded-xl animate-pulse" />)}</div>

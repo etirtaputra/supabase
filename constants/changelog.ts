@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-01T10:30:00Z',
+    title: 'Customers: sortable column titles + manager / tier / status filters',
+    details: [
+      'Click Code, Name, Tier, Account Manager or Status to sort ascending; click again to flip. The order dropdown takes back over when you change it.',
+      'New toolbar filters: by account manager (incl. Unassigned), by tier (incl. No tier), and by status — the “Show inactive” checkbox became a proper Active / Inactive / All selector.',
+    ],
+  },
+  {
     at: '2026-08-01T09:30:00Z',
     title: 'Live market FX rates · tidier headers · Positioning Map readable',
     details: [
