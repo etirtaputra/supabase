@@ -543,6 +543,24 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   Customer-facing print pages use their own raw CSS and are untouched by any
   of this.
 
+- **Two more skins + a company default (2026-08-01, owner's ask)**: the office
+  runs lower-end monitors where the two originals sit at the extremes — near-
+  black smears on cheap panels, and a cool white glares at office brightness.
+  Each extreme now has a gentler sibling, derived in the same generator:
+  **Dim** (dark with the deep blacks lifted to graphite — only the surface end
+  of slate and the surface tokens move; inks and accents untouched) and
+  **Paper** (light with warm cream neutrals — the classic all-day reading
+  surface; accent ramps stay the light ones so statuses keep their meaning).
+  The nav-menu Appearance switcher offers all four; the personal choice still
+  lives in localStorage. NEW: **Settings › Appearance** sets the
+  **company-wide default** (`defaultTheme` in `lib/settings.ts`) — what a
+  browser with no personal choice shows. `SettingsLoader` caches it under
+  `icaproc_theme_default` so the pre-paint boot script resolves
+  personal → cached default → dark with no flash; a personal pick always wins
+  over the default (this supersedes the 2026-07-29 note that the theme was
+  personal-only). Type is `ThemeName` in `constants/palette.ts`; theme
+  metadata (labels, blurbs) lives in `lib/theme.ts` `THEMES`.
+
 - **Navigation: names that say what they are, groups that match the work
   (2026-07-29)**: the menu had grown names that described the code rather than
   the job. Renames — **Catalog → Purchasing** (the screen is procure-to-pay:

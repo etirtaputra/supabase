@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-01T00:45:00Z',
+    title: 'Four skins — Dark, Dim, Light and Paper — plus a company default in Settings',
+    details: [
+      'Two new looks join the originals: Dim is a softened dark (graphite instead of near-black — kinder to office monitors), and Paper is a warm cream light for all-day reading.',
+      'Pick yours from the ICAPROC menu: the choice sticks to your browser.',
+      'Settings › Appearance sets the company-wide default — what everyone sees before they pick their own.',
+    ],
+  },
+  {
     at: '2026-08-01T00:05:00Z',
     title: 'Fixed: the Buy / Sell / Finance / Analytics dropdowns open again',
     details: [

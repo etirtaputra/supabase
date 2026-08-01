@@ -8,6 +8,7 @@ import { ROLE_PERMISSIONS, type RolePermissions } from '@/constants/roles';
 import { DESTINATIONS, NAV_GROUP_ORDER, sectionAllowed, type NavSection } from '@/constants/navigation';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useTheme } from '@/hooks/useTheme';
+import { THEMES } from '@/lib/theme';
 import { fmtDayTime } from '@/lib/formatters';
 import CommandPalette from './CommandPalette';
 
@@ -237,22 +238,20 @@ export default function BrandMenu({
       <div className="mt-1 pt-1.5 border-t border-slate-800/70">
         <div className="flex items-center gap-2 px-2.5 py-1.5">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 flex-1">Appearance</span>
+          {/* Four skins since 2026-08-01 (dark · dim · light · paper) — text
+              chips, because four icons would need a legend anyway. */}
           <div className="flex bg-slate-950/60 border border-slate-800 rounded-lg p-0.5 gap-0.5">
-            {(['dark', 'light'] as const).map((t) => (
+            {THEMES.map((t) => (
               <button
-                key={t}
-                onClick={() => setTheme(t)}
-                aria-pressed={theme === t}
-                title={t === 'dark' ? 'Dark theme' : 'Light theme'}
-                className={`px-1.5 py-1 rounded-md transition-colors ${
-                  theme === t ? 'bg-slate-800 text-emerald-300' : 'text-slate-600 hover:text-slate-300'
+                key={t.value}
+                onClick={() => setTheme(t.value)}
+                aria-pressed={theme === t.value}
+                title={t.blurb}
+                className={`px-1.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wide transition-colors ${
+                  theme === t.value ? 'bg-slate-800 text-emerald-300' : 'text-slate-600 hover:text-slate-300'
                 }`}
               >
-                {t === 'dark' ? (
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
-                ) : (
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                )}
+                {t.label}
               </button>
             ))}
           </div>

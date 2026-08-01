@@ -85,6 +85,56 @@ for (const [scale, steps] of Object.entries(LIGHT_FIX)) {
   for (const [step, hex] of Object.entries(steps)) light[scale][step] = hexToRgb(hex);
 }
 
+// ── Two more skins (owner's ask, 2026-08-01) ────────────────────────────────
+// The office runs lower-end monitors, where the two originals sit at the
+// extremes: near-black smears and bands on cheap panels, and full office
+// brightness makes even a soft cool white glare. So each extreme gets a
+// gentler sibling — same layout, same accents, only the canvas moves:
+//
+//   DIM   = dark with the deep blacks lifted to graphite (a "dark dimmed"):
+//           less contrast against reflections, no black smearing, still
+//           reads as the house dark. Ink and accent ramps are untouched.
+//   PAPER = light with WARM neutrals (cream instead of cool grey-white):
+//           the classic all-day reading surface — lower glare at office
+//           brightness, and renders consistently on TN panels. Accent ramps
+//           stay the light ones so statuses keep their meaning.
+const clone = (m) => JSON.parse(JSON.stringify(m));
+const dim = clone(dark), paper = clone(light);
+
+// DIM: only the SURFACE end of slate moves (950→700); text steps stay put so
+// contrast is lost from the background side alone, which is the point.
+const DIM_FIX = {
+  slate: { 950: '#1a1d23', 900: '#232730', 800: '#2f343e', 700: '#3d434e' },
+};
+for (const [scale, steps] of Object.entries(DIM_FIX)) {
+  for (const [step, hex] of Object.entries(steps)) dim[scale][step] = hexToRgb(hex);
+}
+const DIM_SURFACES = {
+  chrome: '#181b21', canvas: '#1e222a', sunken: '#1a1e25', raised: '#272c35',
+  rail: '#20242c', deep: '#171a20', navy: '#182640', moss: '#175247', moss2: '#20685a',
+};
+for (const [name, hex] of Object.entries(DIM_SURFACES)) dim[name] = { DEFAULT: hexToRgb(hex) };
+
+// PAPER: the whole neutral ramp goes warm (greys pick up a paper tint at both
+// ends), and every surface token follows. Nothing is pure white here either.
+const PAPER_FIX = {
+  slate: {
+    950: '#faf7ef', 900: '#f4f0e5', 800: '#e5dfd0', 700: '#cfc8b8', 600: '#9d968a',
+    500: '#6f6a5e', 400: '#4f4a40', 300: '#3a352c', 200: '#2b2720', 100: '#211d17', 50: '#171410',
+  },
+};
+for (const [scale, steps] of Object.entries(PAPER_FIX)) {
+  for (const [step, hex] of Object.entries(steps)) paper[scale][step] = hexToRgb(hex);
+}
+paper.white = { DEFAULT: hexToRgb('#171410') };   // the emphasis ink, warm near-black
+const PAPER_SURFACES = {
+  chrome: '#faf7ef', canvas: '#f1ecdf', sunken: '#e9e3d3', raised: '#efeade',
+  rail: '#f5f1e6', deep: '#faf7ef', navy: '#eae6d8', moss: '#dcf3e6', moss2: '#bfe9d6',
+};
+for (const [name, hex] of Object.entries(PAPER_SURFACES)) paper[name] = { DEFAULT: hexToRgb(hex) };
+
+const APP_BG_EXTRA = { dim: hexToRgb('#1e222a'), paper: hexToRgb('#ece6d7') };
+
 const varName = (s, step) => step === 'DEFAULT' ? `--c-${s}` : `--c-${s}-${step}`;
 const block = (map, bg) => {
   const lines = [];
@@ -94,12 +144,18 @@ const block = (map, bg) => {
 };
 
 // Shadows are tuned for a dark canvas — `shadow-black/50` is invisible depth
-// there and a grey smudge on white. In light mode the shadow COLOUR is
-// softened (the blur/spread from shadow-lg/2xl is kept), via an attribute
-// selector so it catches every opacity suffix without listing them.
-const SHADOW_FIX = ':root[data-theme="light"] [class*="shadow-black"]{--tw-shadow-color:rgb(15 23 42 / 0.10);--tw-shadow:var(--tw-shadow-colored)}';
+// there and a grey smudge on white. In the light-family themes the shadow
+// COLOUR is softened (the blur/spread from shadow-lg/2xl is kept), via an
+// attribute selector so it catches every opacity suffix without listing them.
+const SHADOW_FIX = ':root[data-theme="light"] [class*="shadow-black"],:root[data-theme="paper"] [class*="shadow-black"]{--tw-shadow-color:rgb(15 23 42 / 0.10);--tw-shadow:var(--tw-shadow-colored)}';
 
-const css = `:root{${block(dark, APP_BG.dark)}}\n:root[data-theme="light"]{${block(light, APP_BG.light)}}\n${SHADOW_FIX}`;
+const css = [
+  `:root{${block(dark, APP_BG.dark)}}`,
+  `:root[data-theme="light"]{${block(light, APP_BG.light)}}`,
+  `:root[data-theme="dim"]{${block(dim, APP_BG_EXTRA.dim)}}`,
+  `:root[data-theme="paper"]{${block(paper, APP_BG_EXTRA.paper)}}`,
+  SHADOW_FIX,
+].join('\n');
 
 // Colors object for the Tailwind CDN config (raw JS source text).
 const colorEntries = SCALES.map((s) => {
@@ -133,7 +189,7 @@ export const THEME_VARS_CSS = ${JSON.stringify(css)};
 
 export const TAILWIND_COLORS_JS = ${JSON.stringify(colorsJs)};
 
-export type ThemeName = 'dark' | 'light';
+export type ThemeName = 'dark' | 'light' | 'dim' | 'paper';
 `;
 fs.writeFileSync(require('path').join(__dirname, '..', 'constants', 'palette.ts'), out);
 console.log('css bytes:', css.length, '| colors js bytes:', colorsJs.length);

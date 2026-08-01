@@ -116,6 +116,12 @@ export interface AppSettings {
   defaultCustomerTier: string;
 
   // ── Operational defaults ─────────────────────────────────────────────────
+  /**
+   * The COMPANY DEFAULT skin (Settings › Appearance) — what a browser shows
+   * before anyone touches the personal switcher in the nav menu. A personal
+   * choice (localStorage) always wins over this; see lib/theme.ts.
+   */
+  defaultTheme: 'dark' | 'light' | 'dim' | 'paper';
   defaultPpnPct: number;          // VAT % prefilled on new sales documents
   defaultPoPaymentTerms: string;  // prefilled on a new PI/PO
   defaultCompanyId: string;       // issuing company prefilled on a new sales doc ('' = first)
@@ -171,6 +177,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaultMarginFloorPct: 15,
   defaultCustomerTier:   '',
 
+  defaultTheme:          'dark',
   defaultPpnPct:         11,
   defaultPoPaymentTerms: '100% in advance',
   defaultCompanyId:      '',
@@ -297,6 +304,7 @@ export function coerceSettings(raw: Record<string, unknown>): AppSettings {
     defaultTierStepPct:    pick('defaultTierStepPct',    (v) => Math.max(0, numOr(v, d.defaultTierStepPct)), d.defaultTierStepPct),
     defaultCustomerTier:   pick('defaultCustomerTier',   (v) => str(v, d.defaultCustomerTier), d.defaultCustomerTier),
 
+    defaultTheme:          pick('defaultTheme',          (v) => (v === 'light' || v === 'dim' || v === 'paper' ? v : 'dark'), d.defaultTheme),
     defaultPpnPct:         pick('defaultPpnPct',         (v) => numOr(v, d.defaultPpnPct), d.defaultPpnPct),
     defaultPoPaymentTerms: pick('defaultPoPaymentTerms', (v) => str(v, d.defaultPoPaymentTerms), d.defaultPoPaymentTerms),
     defaultCompanyId:      pick('defaultCompanyId',      (v) => str(v, d.defaultCompanyId), d.defaultCompanyId),

@@ -1,7 +1,8 @@
 'use client';
 import { useEffect } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
-import { hydrateSettingsFromCache, loadSettings } from '@/lib/settings';
+import { getSettings, hydrateSettingsFromCache, loadSettings } from '@/lib/settings';
+import { applyCompanyDefaultTheme } from '@/lib/theme';
 
 /**
  * Puts the app settings in force. Mounted once in the root layout; renders
@@ -18,7 +19,14 @@ export default function SettingsLoader() {
     hydrateSettingsFromCache();
     const supabase = createSupabaseClient();
     let cancelled = false;
-    const refresh = () => { if (!cancelled) loadSettings(supabase); };
+    // The company-default skin follows the settings: cache it for the boot
+    // script and apply it now in browsers with no personal choice.
+    const refresh = () => {
+      if (cancelled) return;
+      void loadSettings(supabase).then(() => {
+        if (!cancelled) applyCompanyDefaultTheme(getSettings().defaultTheme);
+      });
+    };
 
     // Settings are RLS-gated to signed-in users: load now if there's already a
     // session, and again whenever one is established.

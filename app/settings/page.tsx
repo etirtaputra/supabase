@@ -33,14 +33,15 @@ import { fetchWarehouses, type Warehouse } from '@/lib/warehouses';
 import { LIST_SPECS } from '@/constants/listDefaults';
 import { PRESET_LABELS, type RangePreset } from '@/lib/dateRange';
 import { accountLabel, type BankAccount } from '@/lib/banks';
+import { THEMES } from '@/lib/theme';
 import Autocomplete from '@/components/ui/Autocomplete';
 import { fmtRupiah } from '@/lib/formatters';
 import Link from 'next/link';
 
-type Tab = 'format' | 'lists' | 'pricing' | 'defaults' | 'company' | 'banks' | 'users';
+type Tab = 'format' | 'appearance' | 'lists' | 'pricing' | 'defaults' | 'company' | 'banks' | 'users';
 const TABS: [Tab, string][] = [
-  ['format', 'Formatting'], ['lists', 'Lists'], ['pricing', 'Pricing'], ['defaults', 'Defaults'],
-  ['company', 'Company'], ['banks', 'Banks'], ['users', 'Users'],
+  ['format', 'Formatting'], ['appearance', 'Appearance'], ['lists', 'Lists'], ['pricing', 'Pricing'],
+  ['defaults', 'Defaults'], ['company', 'Company'], ['banks', 'Banks'], ['users', 'Users'],
 ];
 
 const SEPARATORS: { value: string; label: string }[] = [
@@ -192,6 +193,7 @@ export default function SettingsPage() {
         )}
 
         {tab === 'format'   && <FormatTab draft={draft} set={set} />}
+        {tab === 'appearance' && <AppearanceTab draft={draft} set={set} />}
         {tab === 'lists'    && <ListsTab draft={draft} set={set} />}
         {tab === 'pricing'  && <PricingTab draft={draft} set={set} />}
         {tab === 'defaults' && <DefaultsTab draft={draft} set={set} flash={flash} />}
@@ -369,6 +371,67 @@ function FormatTab({ draft, set }: { draft: AppSettings; set: <K extends keyof A
             </select>
           </Field>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Appearance ──────────────────────────────────────────────────────────────
+// The COMPANY DEFAULT skin — what a browser shows before its person touches
+// the switcher in the ICAPROC menu. A personal choice always wins and is never
+// overwritten by changing this (see lib/theme.ts for the resolution order).
+
+/** True render values per skin, for honest little previews. */
+const THEME_PREVIEW: Record<string, { bg: string; card: string; ink: string; accent: string }> = {
+  dark:  { bg: '#141518', card: '#1b1c1f', ink: '#e1e2e5', accent: '#49eacb' },
+  dim:   { bg: '#1e222a', card: '#232730', ink: '#e1e2e5', accent: '#49eacb' },
+  light: { bg: '#eaecef', card: '#f8f9fa', ink: '#26272b', accent: '#17937c' },
+  paper: { bg: '#ece6d7', card: '#faf7ef', ink: '#2b2720', accent: '#17937c' },
+};
+
+function AppearanceTab({ draft, set }: { draft: AppSettings; set: <K extends keyof AppSettings>(k: K, v: AppSettings[K]) => void }) {
+  return (
+    <div className="space-y-5">
+      <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 space-y-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Default skin</p>
+          <p className="text-[11px] text-slate-500 mt-1 leading-snug max-w-2xl">
+            What every browser shows before its person picks for themselves. Anyone can still choose their own
+            skin from the ICAPROC menu (Appearance) — that personal choice is remembered on their device and is
+            never overwritten by this default.
+          </p>
+        </div>
+        <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
+          {THEMES.map((t) => {
+            const p = THEME_PREVIEW[t.value];
+            const active = draft.defaultTheme === t.value;
+            return (
+              <button key={t.value} onClick={() => set('defaultTheme', t.value)}
+                className={`text-left rounded-xl border p-3 transition-colors ${
+                  active ? 'border-emerald-500/50 bg-emerald-500/[0.07]' : 'border-slate-700 hover:border-slate-600 hover:bg-slate-800/40'
+                }`}>
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm font-bold ${active ? 'text-emerald-300' : 'text-slate-200'}`}>{t.label}</span>
+                  {active && <span className="text-[10px] font-semibold text-emerald-400">DEFAULT</span>}
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1 leading-snug min-h-[2.4em]">{t.blurb}</p>
+                {/* A miniature painted with the skin's REAL values */}
+                <div className="mt-2.5 rounded-lg p-2 space-y-1.5 border border-black/10" style={{ background: p.bg }}>
+                  {[0, 1].map((i) => (
+                    <div key={i} className="rounded px-2 py-1.5 flex items-center gap-2" style={{ background: p.card }}>
+                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: p.accent }} />
+                      <span className="h-1.5 rounded-full flex-1" style={{ background: p.ink, opacity: 0.55 }} />
+                    </div>
+                  ))}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-[11px] text-slate-600 leading-snug max-w-2xl">
+          For office monitors: <span className="text-slate-400">Dim</span> keeps the dark look without the harsh
+          near-black, and <span className="text-slate-400">Paper</span> is the gentlest for reading all day.
+        </p>
       </div>
     </div>
   );
