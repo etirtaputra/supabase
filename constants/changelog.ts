@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-01T01:20:00Z',
+    title: 'Skins: menu row no longer cut off · Settings previews the default live',
+    details: [
+      'The Appearance chips in the ICAPROC menu now sit on their own line, so all four fit instead of running off the edge.',
+      'Selecting a skin in Settings › Appearance now repaints the screen immediately so you see what you are choosing — it only becomes the company default when you Save, and leaving the tab restores your own skin.',
+    ],
+  },
+  {
     at: '2026-08-01T00:45:00Z',
     title: 'Four skins — Dark, Dim, Light and Paper — plus a company default in Settings',
     details: [

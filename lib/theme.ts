@@ -108,6 +108,21 @@ export function applyCompanyDefaultTheme(theme: ThemeName): void {
   listeners.forEach((fn) => fn(theme));
 }
 
+/**
+ * Settings › Appearance preview: paint a skin on the spot so the owner sees
+ * what they are choosing BEFORE saving. Persists nothing and never touches
+ * `current` — ending the preview repaints whatever is actually in effect
+ * (their personal pick, usually), so browsing the options is consequence-free.
+ */
+export function previewTheme(theme: ThemeName): void {
+  paint(theme);
+}
+
+/** Leave preview mode: repaint the theme actually in effect. */
+export function endThemePreview(): void {
+  paint(current);
+}
+
 /** Cycle through the four skins in switcher order. */
 export function toggleTheme(): ThemeName {
   const i = THEMES.findIndex((t) => t.value === getTheme());

@@ -236,18 +236,20 @@ export default function BrandMenu({
       {/* Appearance — a personal preference, so it sits with the account
           rather than in Settings (which holds company-wide defaults). */}
       <div className="mt-1 pt-1.5 border-t border-slate-800/70">
-        <div className="flex items-center gap-2 px-2.5 py-1.5">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 flex-1">Appearance</span>
+        <div className="px-2.5 py-1.5">
+          <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">Appearance</span>
           {/* Four skins since 2026-08-01 (dark · dim · light · paper) — text
-              chips, because four icons would need a legend anyway. */}
-          <div className="flex bg-slate-950/60 border border-slate-800 rounded-lg p-0.5 gap-0.5">
+              chips, because four icons would need a legend anyway. Label above,
+              chips as equal columns: the row fits ANY panel width instead of
+              overflowing beside the label. */}
+          <div className="grid grid-cols-4 bg-slate-950/60 border border-slate-800 rounded-lg p-0.5 gap-0.5">
             {THEMES.map((t) => (
               <button
                 key={t.value}
                 onClick={() => setTheme(t.value)}
                 aria-pressed={theme === t.value}
                 title={t.blurb}
-                className={`px-1.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wide transition-colors ${
+                className={`px-1 py-1 rounded-md text-[9px] text-center font-bold uppercase tracking-wide transition-colors ${
                   theme === t.value ? 'bg-slate-800 text-emerald-300' : 'text-slate-600 hover:text-slate-300'
                 }`}
               >

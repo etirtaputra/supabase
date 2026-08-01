@@ -17,7 +17,7 @@
  * source of truth per fact, no shadow copies.
  */
 'use client';
-import { Fragment, useState, useEffect, useMemo, useCallback } from 'react';
+import { Fragment, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth, type UserProfile } from '@/hooks/useAuth';
@@ -33,7 +33,7 @@ import { fetchWarehouses, type Warehouse } from '@/lib/warehouses';
 import { LIST_SPECS } from '@/constants/listDefaults';
 import { PRESET_LABELS, type RangePreset } from '@/lib/dateRange';
 import { accountLabel, type BankAccount } from '@/lib/banks';
-import { THEMES } from '@/lib/theme';
+import { THEMES, previewTheme, endThemePreview } from '@/lib/theme';
 import Autocomplete from '@/components/ui/Autocomplete';
 import { fmtRupiah } from '@/lib/formatters';
 import Link from 'next/link';
@@ -390,15 +390,26 @@ const THEME_PREVIEW: Record<string, { bg: string; card: string; ink: string; acc
 };
 
 function AppearanceTab({ draft, set }: { draft: AppSettings; set: <K extends keyof AppSettings>(k: K, v: AppSettings[K]) => void }) {
+  // Selecting a card paints the whole screen in that skin immediately — the
+  // choice must be judged on real pages, not on a miniature. The preview
+  // follows the DRAFT (so Revert repaints too) and ends when the tab is left:
+  // nothing is persisted until Save, and a personal pick from the ICAPROC
+  // menu still wins on this browser afterwards.
+  const touched = useRef(false);
+  useEffect(() => {
+    if (touched.current) previewTheme(draft.defaultTheme);
+  }, [draft.defaultTheme]);
+  useEffect(() => () => { endThemePreview(); }, []);
   return (
     <div className="space-y-5">
       <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 space-y-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Default skin</p>
           <p className="text-[11px] text-slate-500 mt-1 leading-snug max-w-2xl">
-            What every browser shows before its person picks for themselves. Anyone can still choose their own
-            skin from the ICAPROC menu (Appearance) — that personal choice is remembered on their device and is
-            never overwritten by this default.
+            What every browser shows before its person picks for themselves. Selecting a skin previews it on this
+            screen right away; it becomes the company default only when you Save. Anyone can still choose their own
+            skin from the ICAPROC menu (Appearance) — that personal choice is remembered on their device, wins over
+            this default there, and is never overwritten by it.
           </p>
         </div>
         <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
@@ -406,7 +417,7 @@ function AppearanceTab({ draft, set }: { draft: AppSettings; set: <K extends key
             const p = THEME_PREVIEW[t.value];
             const active = draft.defaultTheme === t.value;
             return (
-              <button key={t.value} onClick={() => set('defaultTheme', t.value)}
+              <button key={t.value} onClick={() => { touched.current = true; set('defaultTheme', t.value); }}
                 className={`text-left rounded-xl border p-3 transition-colors ${
                   active ? 'border-emerald-500/50 bg-emerald-500/[0.07]' : 'border-slate-700 hover:border-slate-600 hover:bg-slate-800/40'
                 }`}>
