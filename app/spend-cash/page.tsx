@@ -84,7 +84,7 @@ function useNow(intervalMs: number) {
 
 export default function DatabaseViewPage() {
   const router = useRouter();
-  const { user, profile, loading: authLoading, signOut } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const { data, loading, lastFetched, refetch } = useSupabaseData();
   const [activeTab, setActiveTab] = useState<TabId>('spend');
   const [refreshing, setRefreshing] = useState(false);
@@ -147,16 +147,10 @@ export default function DatabaseViewPage() {
         <div className="sticky top-0 z-50 bg-canvas/90 backdrop-blur-xl border-b border-white/[0.07]">
           <header className="px-3 sm:px-4 md:px-6 xl:px-8 pt-4 xl:pt-5 pb-2 max-w-[1800px] 2xl:max-w-[2460px] mx-auto flex items-start justify-between flex-wrap gap-4">
             <BrandMenu wordmarkClass="text-lg md:text-xl xl:text-2xl font-bold" subtitle="Spend & Cash · TUC · Pricing · Cash Cycle" />
-            {/* Refresh control */}
+            {/* Refresh control. No account block here — the ICAPROC menu
+                already shows the signed-in user + Sign out; repeating them
+                next to the clock made the header read as clutter. */}
             <div className="flex items-center gap-2 mt-1 flex-shrink-0">
-              {profile && (
-                <div className="text-right hidden lg:block mr-1">
-                  <p className="text-[11px] text-slate-400 leading-tight">{profile.email}</p>
-                  <button onClick={() => signOut().then(() => router.replace('/login'))} className="text-[10px] text-slate-600 hover:text-slate-300 underline transition-colors">
-                    Sign out
-                  </button>
-                </div>
-              )}
               {lastFetched && (
                 <span className={`text-[11px] ${isStale ? 'text-amber-400' : 'text-slate-500'}`}>
                   {isStale && (

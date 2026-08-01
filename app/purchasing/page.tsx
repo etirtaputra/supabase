@@ -88,7 +88,7 @@ function MasterInsertPage() {
   const [newPoId, setNewPoId] = useState('');
   const [pendingQuoteForPO, setPendingQuoteForPO] = useState('');
 
-  const { user, profile, loading: authLoading, signOut } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const settings = useSettings();
   const { data, loading: dataLoading, refetch } = useSupabaseData();
   const suggestions = useSuggestions(data);
@@ -492,22 +492,12 @@ function MasterInsertPage() {
         <header className="px-3 sm:px-4 md:px-6 xl:px-8 pt-4 xl:pt-5 pb-2 max-w-[1800px] 2xl:max-w-[2460px] mx-auto flex flex-col sm:flex-row sm:items-end justify-between sm:flex-wrap gap-1">
           <BrandMenu wordmarkClass="text-lg md:text-xl xl:text-2xl font-bold" subtitle={`Purchasing${activeItem?.label ? ` · ${activeItem.label}` : ''}`} />
           {/* User badge + sign out — desktop only; mobile signs out via the ICAPROC menu */}
-          {profile && (
+          {/* Account + Sign out live in the ICAPROC menu — headers stay clean. */}
+          {profile && perms?.canManageUsers && (
             <div className="hidden sm:flex items-center gap-2 pb-1">
-              {perms?.canManageUsers && (
-                <Link href="/admin" className="hidden sm:inline-block text-[10px] px-2 py-1 border border-slate-700 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors">
-                  Manage users
-                </Link>
-              )}
-              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800/60 border border-slate-700/60 rounded-full">
-                <div className="w-4 h-4 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-[9px] font-bold text-emerald-400 uppercase">
-                  {(profile.display_name || profile.email).charAt(0)}
-                </div>
-                <span className="text-[11px] text-slate-400 hidden sm:block">{profile.display_name || profile.email}</span>
-                <button onClick={() => signOut().then(() => router.replace('/login'))} className="text-[10px] text-slate-600 hover:text-slate-400 ml-1 transition-colors">
-                  Sign out
-                </button>
-              </div>
+              <Link href="/admin" className="hidden sm:inline-block text-[10px] px-2 py-1 border border-slate-700 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors">
+                Manage users
+              </Link>
             </div>
           )}
         </header>

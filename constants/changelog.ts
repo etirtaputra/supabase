@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-01T09:30:00Z',
+    title: 'Live market FX rates · tidier headers · Positioning Map readable',
+    details: [
+      'Exchange Rates now opens with live market rates (USD / RMB / EUR → IDR) with an “Updated” stamp — fetched automatically and refreshed hourly, next to the supplier implied rates.',
+      'Supplier rate history defaults to a compact one-line view; the detailed cards are one tap away.',
+      'Headers no longer repeat your email + Sign out next to the clock — the account lives in the ICAPROC menu.',
+      'Positioning Map: the price axis switches to a log scale when one outlier would flatten everything, axis labels are back to a sane count, and point labels no longer overlap.',
+    ],
+  },
+  {
     at: '2026-08-01T04:00:00Z',
     title: 'Skin circles sit on their own row under APPEARANCE',
     details: ['Cleaner and consistent on desktop and mobile — label above, the four colour circles below.'],

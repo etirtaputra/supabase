@@ -247,18 +247,23 @@ export default function CategoryPositioningMap({
 
   // Use log scale when X range spans more than 1 order of magnitude
   const useLogScale = xVals.length > 1 && xMin > 0 && (xMax / xMin) > 10;
+  // Y goes log too when the spread is extreme — one badly-priced outlier
+  // otherwise pins every other point to the floor of a linear axis.
+  const useLogY = yVals.length > 1 && yMin > 0 && (yMax / yMin) > 20;
 
   // X axis bounds
   const xL = useLogScale ? Math.max(xMin * 0.6, 0.1) : Math.max(xMin - (xMax - xMin) * 0.1, 0);
   const xR = useLogScale ? xMax * 1.7 : xMax + (xMax - xMin) * 0.1 || xMax * 1.1 || 1;
-  // Y axis bounds (always linear)
+  // Y axis bounds
   const yPad = (yMax - yMin) * 0.12 || yMax * 0.1 || 1;
-  const yB = Math.max(yMin - yPad, 0);
-  const yT = yMax + yPad;
+  const yB = useLogY ? yMin * 0.7 : Math.max(yMin - yPad, 0);
+  const yT = useLogY ? yMax * 1.4 : yMax + yPad;
 
   // Log helpers
   const logXL = useLogScale ? Math.log10(xL) : 0;
   const logXR = useLogScale ? Math.log10(xR) : 0;
+  const logYB = useLogY ? Math.log10(yB) : 0;
+  const logYT = useLogY ? Math.log10(yT) : 0;
 
   const toSvgX = (v: number): number => {
     if (useLogScale) {
@@ -267,25 +272,45 @@ export default function CategoryPositioningMap({
     }
     return PAD.left + ((v - xL) / (xR - xL)) * plotW;
   };
-  const toSvgY = (v: number): number => PAD.top + plotH - ((v - yB) / (yT - yB)) * plotH;
+  const toSvgY = (v: number): number => {
+    if (useLogY) {
+      const lv = Math.log10(Math.max(v, yB));
+      return PAD.top + plotH - ((lv - logYB) / (logYT - logYB)) * plotH;
+    }
+    return PAD.top + plotH - ((v - yB) / (yT - yB)) * plotH;
+  };
 
   const xMed = median(xVals);
   const yMed = median(yVals);
   const xMedSvg = toSvgX(xMed);
   const yMedSvg = toSvgY(yMed);
 
-  // Y-axis tick values (linear)
+  // Y-axis tick values — log or linear. The [1,2,5,10] ladder matters: with
+  // only [1,2,5], a range like 0–49M finds no step ≥ range/5 and fell back to
+  // the raw power of ten, printing ~50 one-million ticks down the axis.
   const yTicks = useMemo(() => {
     if (!dots.length) return [];
+    if (useLogY) {
+      const minPow = Math.floor(Math.log10(yB));
+      const maxPow = Math.ceil(Math.log10(yT));
+      const ticks: number[] = [];
+      for (let p = minPow; p <= maxPow; p++) {
+        for (const mult of [1, 2, 5]) {
+          const t = mult * Math.pow(10, p);
+          if (t > yB && t < yT) ticks.push(t);
+        }
+      }
+      return ticks;
+    }
     const range = yT - yB;
     const step = Math.pow(10, Math.floor(Math.log10(range / 5)));
     const rawStep = range / 5;
-    const niceStep = [1, 2, 5].map((m) => m * step).find((s) => s >= rawStep) ?? step;
+    const niceStep = [1, 2, 5, 10].map((m) => m * step).find((s) => s >= rawStep) ?? 10 * step;
     const ticks: number[] = [];
     let t = Math.ceil(yB / niceStep) * niceStep;
     while (t <= yT) { ticks.push(t); t += niceStep; }
     return ticks;
-  }, [yB, yT, dots.length]);
+  }, [yB, yT, useLogY, dots.length]);
 
   // X-axis tick values — log or linear
   const xTicks = useMemo(() => {
@@ -305,12 +330,29 @@ export default function CategoryPositioningMap({
     const range = xR - xL;
     const step = Math.pow(10, Math.floor(Math.log10(range / 5)));
     const rawStep = range / 5;
-    const niceStep = [1, 2, 5].map((m) => m * step).find((s) => s >= rawStep) ?? step;
+    const niceStep = [1, 2, 5, 10].map((m) => m * step).find((s) => s >= rawStep) ?? 10 * step;
     const ticks: number[] = [];
     let t = Math.ceil(xL / niceStep) * niceStep;
     while (t <= xR) { ticks.push(t); t += niceStep; }
     return ticks;
   }, [xL, xR, useLogScale, dots.length]);
+
+  // Which dots get an inline label: greedy pass, skipping any label whose dot
+  // sits on top of an already-labelled one — crowded clusters (identical
+  // prices at similar capacity) otherwise print unreadable overlapping text.
+  // Hover always shows the label regardless.
+  const labeledIds = (() => {
+    const placed: { x: number; y: number }[] = [];
+    const ids = new Set<string>();
+    for (const d of dots) {
+      const sx = toSvgX(d.normValue);
+      const sy = toSvgY(d.pricePerUnit);
+      if (placed.some((p) => Math.abs(p.x - sx) < 110 && Math.abs(p.y - sy) < 14)) continue;
+      placed.push({ x: sx, y: sy });
+      ids.add(d.component_id);
+    }
+    return ids;
+  })();
 
   const categoriesWithUnits = ENUMS.product_category.filter(hasCategoryUnit);
 
@@ -342,7 +384,7 @@ export default function CategoryPositioningMap({
               X: {unitInfo.axis}{useLogScale ? ' (log)' : ''}
             </span>
             <span className="px-2 py-1 bg-slate-800 rounded-md text-slate-400">
-              Y: {unitInfo.priceLabel} (IDR)
+              Y: {unitInfo.priceLabel} (IDR){useLogY ? ' (log)' : ''}
             </span>
           </div>
         )}
@@ -448,7 +490,7 @@ export default function CategoryPositioningMap({
                 fontSize="11"
                 transform={`rotate(-90, 16, ${PAD.top + plotH / 2})`}
               >
-                {unitInfo?.priceLabel ?? 'Price / unit'} (IDR)
+                {unitInfo?.priceLabel ?? 'Price / unit'} (IDR){useLogY ? ' — log scale' : ''}
               </text>
 
               {/* ── Dots + inline model labels ── */}
@@ -482,21 +524,24 @@ export default function CategoryPositioningMap({
                       }}
                       onMouseLeave={() => setTooltip(null)}
                     />
-                    {/* Inline model label */}
-                    <text
-                      x={nearRight ? sx - 10 : sx + 10}
-                      y={sy + 4}
-                      textAnchor={nearRight ? 'end' : 'start'}
-                      fill={isHovered ? '#fff' : 'rgba(203,213,225,0.85)'}
-                      fontSize="9.5"
-                      fontWeight={isHovered ? '700' : '500'}
-                      stroke="rgba(11,17,32,0.95)"
-                      strokeWidth="2.5"
-                      paintOrder="stroke"
-                      pointerEvents="none"
-                    >
-                      {shortLabel}
-                    </text>
+                    {/* Inline model label — only where it won't overlap a
+                        neighbour's; hover always shows it */}
+                    {(isHovered || labeledIds.has(d.component_id)) && (
+                      <text
+                        x={nearRight ? sx - 10 : sx + 10}
+                        y={sy + 4}
+                        textAnchor={nearRight ? 'end' : 'start'}
+                        fill={isHovered ? '#fff' : 'rgba(203,213,225,0.85)'}
+                        fontSize="9.5"
+                        fontWeight={isHovered ? '700' : '500'}
+                        stroke="rgba(11,17,32,0.95)"
+                        strokeWidth="2.5"
+                        paintOrder="stroke"
+                        pointerEvents="none"
+                      >
+                        {shortLabel}
+                      </text>
+                    )}
                   </g>
                 );
               })}

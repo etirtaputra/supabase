@@ -25,7 +25,7 @@ function renderInline(text: string) {
 export default function AskPage() {
   const supabase = createSupabaseClient();
   const router = useRouter();
-  const { user, profile, loading: authLoading, signOut } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
 
   const [query, setQuery] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -101,16 +101,7 @@ export default function AskPage() {
       <div className="flex-none sticky top-0 z-40 bg-canvas/90 backdrop-blur-xl border-b border-white/[0.07]">
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between flex-wrap gap-4">
           <BrandMenu wordmarkClass="text-xl font-bold" subtitle="Ask · AI assistant" />
-          <div className="flex items-center gap-4 flex-wrap justify-end">
-            {profile && (
-              <div className="text-right hidden sm:block">
-                <p className="text-[11px] text-slate-400 leading-tight">{profile.email}</p>
-                <button onClick={() => signOut()} className="text-[10px] text-slate-600 hover:text-slate-300 underline transition-colors">
-                  Sign out
-                </button>
-              </div>
-            )}
-          </div>
+          {/* Account + Sign out live in the ICAPROC menu — headers stay clean. */}
         </div>
       </div>
 
