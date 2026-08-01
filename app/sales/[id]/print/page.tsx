@@ -229,7 +229,7 @@ export default function SalesPrintPage() {
                 <React.Fragment key={l.item_id}>
                   <tr className="item-row">
                     <td style={{ color: '#94a3b8' }} className="num">{itemNo.get(l.item_id)}</td>
-                    <td>{l.description || '—'}</td>
+                    <td>{l.description || '—'}{cols.lead && l.lead_time ? <span className="lead-tag"> · lead time {l.lead_time}</span> : null}</td>
                     {cols.qty && <td className="num">{fmtIntDoc(Number(l.quantity))}</td>}
                     {cols.unit && <td style={{ color: '#64748b', whiteSpace: 'nowrap' }}>{l.unit}</td>}
                     {cols.price && <td className="num">{fmtIdr(Number(l.unit_price))}</td>}

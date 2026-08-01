@@ -6,7 +6,7 @@
  *    deliver writes stock-out movements.
  */
 'use client';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter, useParams } from 'next/navigation';
@@ -16,7 +16,8 @@ import SalesMilestones from '@/components/ui/SalesMilestones';
 import FulfillmentPanel, { type SoLine, type Invoice, type InvItem, type DeliveryOrder, type DoItem } from '@/components/ui/FulfillmentPanel';
 import { SALES_STATUS as STATUS, COMMITTED_STATUSES as COMMITTED } from '@/lib/salesStatus';
 import { tierPriceFor } from '@/lib/tierPricing';
-import { fmtDay, fmtInt } from '@/lib/formatters';
+import { evalCell } from '@/lib/formula';
+import { fmtDay, fmtDayTime, fmtInt } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
 import { fetchBankAccounts, fetchAccountCompanies, accountLabelWithCompany, defaultAccountFor, type BankAccount } from '@/lib/banks';
 
@@ -60,6 +61,14 @@ const RECEIPT_CATS: { value: string; label: string }[] = [
   { value: 'down_payment', label: 'Down Payment (DP)' },
   { value: 'balance_payment', label: 'Balance Payment' },
 ];
+
+// Same preset list as the EPC proposal editor's section lead times.
+const LEAD_TIMES = ['Ready', '1 minggu', '2 minggu', '3 minggu', '1 bulan', '2 bulan', '3 bulan', 'Custom'];
+
+/** One past sale of a component — the unit-price popover's history rows. */
+interface PriceHistEntry { quote_number: string; date: string; customer: string; mine: boolean; qty: number; price: number; }
+/** One tier option in the unit-price popover. */
+interface TierOption { tier_id: string; code: string; price: number | null; chosen: boolean; }
 
 const num = (v: unknown): number => {
   if (v === '' || v === null || v === undefined) return 0;
@@ -105,6 +114,10 @@ export default function SalesQuotePage() {
   const [custContacts, setCustContacts] = useState<CustContact[]>([]);
   const [physical, setPhysical] = useState<Record<string, number>>({});
   const [reserved, setReserved] = useState<Record<string, number>>({});
+  // Every sales quote's header + catalog lines, for the unit-price history
+  // popover (what did we sell this item for, to whom, when).
+  const [histQuotes, setHistQuotes] = useState<{ quote_id: string; status: string; customer_id: string | null; quote_date: string; quote_number: string }[]>([]);
+  const [histItems, setHistItems] = useState<{ quote_id: string; component_id: string; quantity: number; unit_price: number; created_at: string }[]>([]);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   // Split fulfillment: this order's child invoices + delivery orders
   const [savedLines, setSavedLines] = useState<SoLine[]>([]);
@@ -133,7 +146,7 @@ export default function SalesQuotePage() {
       supabase.from('21.1_item_tier_prices').select('component_id, tier_id, override_price_idr, override_discount_pct'),
       supabase.from('3.0_components').select('component_id, supplier_model, internal_description, unit, selling_price_idr').order('supplier_model').limit(2000),
       supabase.from('30.1_stock_balances').select('component_id, qty_on_hand'),
-      supabase.from('22.0_sales_quotes').select('quote_id, status'),
+      supabase.from('22.0_sales_quotes').select('quote_id, status, customer_id, quote_date, quote_number'),
       supabase.from('22.1_sales_quote_items').select('quote_id, component_id, quantity, is_section, description, unit, unit_price, created_at'),
       supabase.from('22.2_sales_description_library').select('entry_id, description, unit, default_price'),
       supabase.from('20.1_customer_contacts').select('customer_id, name, title, phone'),
@@ -155,6 +168,10 @@ export default function SalesQuotePage() {
       supabase.from('24.0_delivery_orders').select('do_id, quote_id, status'),
       supabase.from('24.1_delivery_order_items').select('do_id, component_id, qty'),
     ]);
+    type QHead = { quote_id: string; status: string; customer_id: string | null; quote_date: string; quote_number: string };
+    setHistQuotes(((allQRes.data as QHead[]) ?? []));
+    setHistItems((((allIRes.data as { quote_id: string; component_id: string | null; quantity: number; is_section: boolean; unit_price: number; created_at: string }[]) ?? [])
+      .filter((x) => x.component_id && !x.is_section) as { quote_id: string; component_id: string; quantity: number; unit_price: number; created_at: string }[]));
     const committed = new Set(((allQRes.data as { quote_id: string; status: string }[]) ?? []).filter((q) => COMMITTED.has(q.status)).map((q) => q.quote_id));
     const orderedByQC = new Map<string, number>();
     for (const it of (allIRes.data as { quote_id: string; component_id: string | null; quantity: number; is_section: boolean }[]) ?? []) {
@@ -270,6 +287,42 @@ export default function SalesQuotePage() {
       (tid) => ovByKey.get(`${componentId}:${tid}`)?.override_price_idr);
   }
 
+  // The customer's tier code (falling back to the house default) — what the
+  // auto-filled price is based on, shown pre-chosen in the price popover.
+  const custTierCode = (editing?.customer_id ? custById.get(editing.customer_id)?.tier : '') || defaultCustomerTier;
+
+  /** Every active tier's price for a component, the customer's own marked. */
+  function tierOptionsFor(componentId: string): TierOption[] {
+    const comp = compById.get(componentId);
+    return activeTiers.map((t) => ({
+      tier_id: t.tier_id,
+      code: t.tier_code,
+      price: tierPriceFor(comp?.selling_price_idr ?? null, activeTiers, t.tier_id,
+        (tid) => ovByKey.get(`${componentId}:${tid}`)?.override_price_idr),
+      chosen: t.tier_code === custTierCode,
+    }));
+  }
+
+  /** Past sales of this component — this customer's deals first, then others. */
+  function priceHistoryFor(componentId: string): PriceHistEntry[] {
+    const qById = new Map(histQuotes.map((q) => [q.quote_id, q]));
+    const out: PriceHistEntry[] = [];
+    for (const it of histItems) {
+      if (it.component_id !== componentId) continue;
+      const q = qById.get(it.quote_id);
+      if (!q || q.quote_id === editing?.quote_id) continue;
+      const c = q.customer_id ? custById.get(q.customer_id) : undefined;
+      out.push({
+        quote_number: q.quote_number, date: q.quote_date,
+        customer: c ? (c.display_name || c.legal_name) : '—',
+        mine: !!editing?.customer_id && q.customer_id === editing.customer_id,
+        qty: Number(it.quantity) || 0, price: Number(it.unit_price) || 0,
+      });
+    }
+    out.sort((a, b) => (Number(b.mine) - Number(a.mine)) || b.date.localeCompare(a.date));
+    return out.slice(0, 8);
+  }
+
   const setHeader = <K extends keyof Quote>(k: K, v: Quote[K]) => setEditing((e) => (e ? { ...e, [k]: v } : e));
   const setLine = (key: string, patch: Partial<EditLine>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   const removeLine = (key: string) => setLines((ls) => ls.filter((l) => l.key !== key));
@@ -330,6 +383,67 @@ export default function SalesQuotePage() {
     return { subtotal, ppn, grand: subtotal + ppn };
   }, [lines, editing?.ppn_pct, defaultPpnPct]);
 
+  // ── Draft autosave ─────────────────────────────────────────────────────────
+  // A draft someone walks away from should not be lost: 2.5s after the last
+  // edit (and again when the tab is hidden) the draft persists itself. Only
+  // drafts — once a quote is validated/sent, saving stays an explicit act.
+  // A brand-new doc gets its row on first autosave; the URL is fixed up with
+  // replaceState so typing is never interrupted by a navigation.
+  const [autoSavedAt, setAutoSavedAt] = useState<string | null>(null);
+  const savedSnapRef = useRef<string | null>(null);
+  const autosavingRef = useRef(false);
+  const snapshotOf = (q: Quote | null, ls: EditLine[]) => JSON.stringify([
+    q?.customer_id, q?.company_id, q?.quote_date, q?.ppn_pct, q?.notes,
+    ls.map((l) => [l.component_id, l.is_section, l.description, l.brand, l.note, l.lead_time, l.unit, l.quantity, l.unit_price]),
+  ]);
+  const snapshot = snapshotOf(editing, lines);
+  const draftLike = !!editing && (editing.status === 'draft' || !editing.quote_id);
+  const hasContent = !!editing?.customer_id || lines.some((l) => l.description.trim() || l.component_id);
+
+  const autosave = useCallback(async () => {
+    if (!editing || autosavingRef.current || busy) return;
+    if (!draftLike || !hasContent) return;
+    if (snapshotOf(editing, lines) === savedSnapRef.current) return;
+    autosavingRef.current = true;
+    const wasNew = !editing.quote_id;
+    const qid = await persist();
+    if (qid) {
+      savedSnapRef.current = snapshotOf(editing, lines);
+      setAutoSavedAt(new Date().toISOString());
+      if (wasNew) {
+        // Adopt the new row in place — no router navigation mid-typing.
+        setEditing((e) => (e ? { ...e, quote_id: qid } : e));
+        window.history.replaceState(null, '', `/sales/${qid}`);
+      }
+    }
+    autosavingRef.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing, lines, busy, draftLike, hasContent]);
+  const autosaveRef = useRef(autosave);
+  autosaveRef.current = autosave;
+
+  // The first settled snapshot after load counts as "saved".
+  useEffect(() => {
+    if (!loading && savedSnapRef.current === null && editing) savedSnapRef.current = snapshotOf(editing, lines);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
+  // Debounce: each change re-arms a 2.5s timer; the newest closure wins.
+  useEffect(() => {
+    if (loading || !draftLike || !hasContent || busy) return;
+    if (snapshot === savedSnapRef.current) return;
+    const t = setTimeout(() => { void autosaveRef.current(); }, 2500);
+    return () => clearTimeout(t);
+  }, [snapshot, loading, draftLike, hasContent, busy]);
+
+  // Leaving the tab (switch, close, navigate): save immediately, best effort.
+  useEffect(() => {
+    const onHide = () => { if (document.visibilityState === 'hidden') void autosaveRef.current(); };
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('pagehide', onHide);
+    return () => { document.removeEventListener('visibilitychange', onHide); window.removeEventListener('pagehide', onHide); };
+  }, []);
+
   async function persist(status?: string, extra?: Record<string, unknown>): Promise<string | null> {
     if (!editing) return null;
     const kept = lines.filter((l) => l.is_section ? l.description.trim() : ((l.component_id || l.description.trim()) && num(l.quantity) > 0));
@@ -359,6 +473,9 @@ export default function SalesQuotePage() {
       const { error } = await supabase.from('22.1_sales_quote_items').insert(rows);
       if (error) flash(`Lines failed: ${error.message}`);
     }
+    // Whatever just persisted is by definition the saved state — this keeps
+    // the autosaver quiet after manual saves and status transitions too.
+    savedSnapRef.current = snapshotOf(editing, lines);
     return qid;
   }
 
@@ -547,6 +664,9 @@ export default function SalesQuotePage() {
             >
               <LineCard line={l} comps={comps} extras={extras} canHub={canHub} available={availableOf(l.component_id)}
                 linkedName={l.component_id ? compName(compById.get(l.component_id)) : ''}
+                tierOptions={l.component_id ? tierOptionsFor(l.component_id) : []}
+                history={l.component_id ? priceHistoryFor(l.component_id) : []}
+                customerTier={custTierCode}
                 onPick={(c) => pickComponent(l.key, c)} onPickExtra={(x) => pickExtra(l.key, x)}
                 onField={(patch) => setLine(l.key, patch)} onRemove={() => removeLine(l.key)}
                 onDragStart={() => setDragKey(l.key)} onDragEnd={endDrag} />
@@ -617,6 +737,11 @@ export default function SalesQuotePage() {
             </button>
           )}
           {busy && <span className="w-4 h-4 border-2 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin flex-shrink-0" />}
+          {autoSavedAt && draftLike && (
+            <span className="flex-shrink-0 text-[10px] text-slate-600 whitespace-nowrap" title="Drafts save themselves shortly after every change">
+              Draft auto-saved {fmtDayTime(autoSavedAt)}
+            </span>
+          )}
         </div>
         {['draft', 'sent', 'accepted'].includes(st) && (
           <p className="text-[11px] text-slate-600 mt-1.5">Confirming reserves these quantities from Live Stock.</p>
@@ -652,11 +777,13 @@ const GRIP = (
   <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" /><circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" /><circle cx="9" cy="18" r="1.5" /><circle cx="15" cy="18" r="1.5" /></svg>
 );
 
-function LineCard({ line, comps, extras, available, linkedName, canHub, onPick, onPickExtra, onField, onRemove, onDragStart, onDragEnd }: {
+function LineCard({ line, comps, extras, available, linkedName, canHub, tierOptions, history, customerTier, onPick, onPickExtra, onField, onRemove, onDragStart, onDragEnd }: {
   line: EditLine; comps: Comp[]; extras: Extra[]; available: number | null; linkedName: string; canHub: boolean;
+  tierOptions: TierOption[]; history: PriceHistEntry[]; customerTier: string;
   onPick: (c: Comp) => void; onPickExtra: (x: Extra) => void; onField: (patch: Partial<EditLine>) => void; onRemove: () => void;
   onDragStart: () => void; onDragEnd: () => void;
 }) {
+  const [showPrices, setShowPrices] = useState(false);
   const grip = (title: string) => (
     <span
       draggable
@@ -697,15 +824,37 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, onPick, 
           </LabeledField>
         </div>
         <div className="grid grid-cols-4 gap-2 lg:w-[400px] flex-shrink-0">
+          {/* Qty and Unit price accept Excel-style formulas: type "=12*40" and
+              it becomes 480 on blur (shared evalCell with the EPC editor). */}
           <LabeledField label={`Qty${short ? ' ⚠' : ''}`} labelCls={short ? 'text-red-400' : ''}>
-            <input value={line.quantity} inputMode="decimal" onChange={(e) => onField({ quantity: e.target.value })} placeholder="0" className={`${inpSm} text-right tabular-nums`} />
+            <input value={line.quantity} onChange={(e) => onField({ quantity: e.target.value })}
+              onBlur={(e) => { const v = evalCell(e.target.value); if (v !== e.target.value) onField({ quantity: v }); }}
+              placeholder="0  (=2*6)" title="Accepts =formulas, e.g. =2*6" className={`${inpSm} text-right tabular-nums`} />
           </LabeledField>
           <LabeledField label="Unit">
             <input value={line.unit} onChange={(e) => onField({ unit: e.target.value })} placeholder="pcs" className={inpSm} />
           </LabeledField>
-          <LabeledField label="Unit price">
-            <input value={line.unit_price} inputMode="decimal" onChange={(e) => onField({ unit_price: e.target.value })} placeholder="0" className={`${inpSm} text-right tabular-nums`} />
-          </LabeledField>
+          <div className="relative">
+            <LabeledField label={
+              (tierOptions.length || history.length) ? (
+                <button onClick={() => setShowPrices((v) => !v)}
+                  className={`inline-flex items-center gap-1 transition-colors ${showPrices ? 'text-emerald-300' : 'hover:text-slate-300'}`}
+                  title="Tier prices + what this item sold for before">
+                  Unit price <span className="text-[8px]">▾</span>
+                </button>
+              ) : 'Unit price'
+            }>
+              <input value={line.unit_price} onChange={(e) => onField({ unit_price: e.target.value })}
+                onBlur={(e) => { const v = evalCell(e.target.value); if (v !== e.target.value) onField({ unit_price: v }); }}
+                placeholder="0  (=formula)" title="Accepts =formulas — and any typed price overrides the tier" className={`${inpSm} text-right tabular-nums`} />
+            </LabeledField>
+            {showPrices && (
+              <PricePopover tierOptions={tierOptions} history={history} customerTier={customerTier}
+                current={num(line.unit_price)}
+                onPickPrice={(p) => { onField({ unit_price: String(Math.round(p)) }); setShowPrices(false); }}
+                onClose={() => setShowPrices(false)} />
+            )}
+          </div>
           <LabeledField label="Line total">
             <div className="px-2 py-1.5 text-right tabular-nums text-sm font-semibold text-slate-200">{fmtInt(qty * num(line.unit_price))}</div>
           </LabeledField>
@@ -728,6 +877,25 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, onPick, 
           ) : (
             <span className="text-[10px] text-slate-600 italic">Custom entry</span>
           )}
+          {/* Per-item lead time — same presets as the EPC proposal editor;
+              "Custom" flips to free text, ↺ returns to the list. */}
+          <span className="inline-flex items-center gap-1.5">
+            <span className="text-[10px] text-slate-500 whitespace-nowrap">Lead time</span>
+            {line.lead_time === '' || (LEAD_TIMES.includes(line.lead_time) && line.lead_time !== 'Custom') ? (
+              <select value={line.lead_time} onChange={(e) => onField({ lead_time: e.target.value })}
+                className="bg-slate-950 border border-slate-800 rounded-lg px-1.5 py-0.5 text-[11px] text-slate-300 outline-none focus:border-emerald-500/50 transition-colors">
+                <option value="">—</option>
+                {LEAD_TIMES.map((l) => <option key={l}>{l}</option>)}
+              </select>
+            ) : (
+              <span className="inline-flex items-center gap-1">
+                <input value={line.lead_time === 'Custom' ? '' : line.lead_time} autoFocus={line.lead_time === 'Custom'}
+                  onChange={(e) => onField({ lead_time: e.target.value })} placeholder="e.g. 4 bulan"
+                  className="w-24 bg-slate-950 border border-slate-800 focus:border-emerald-500/50 rounded-lg px-1.5 py-0.5 text-[11px] text-slate-300 outline-none transition-colors" />
+                <button onClick={() => onField({ lead_time: '' })} className="text-slate-600 hover:text-slate-300 transition-colors text-xs" title="Back to preset list">↺</button>
+              </span>
+            )}
+          </span>
           <button onClick={() => onField({ showNote: !line.showNote })} className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors ml-auto">
             {line.showNote || line.note ? 'Comment' : '+ Comment'}
           </button>
@@ -739,8 +907,72 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, onPick, 
   );
 }
 
-function LabeledField({ label, labelCls, children }: { label: string; labelCls?: string; children: React.ReactNode }) {
+function LabeledField({ label, labelCls, children }: { label: React.ReactNode; labelCls?: string; children: React.ReactNode }) {
   return <div><label className={`block text-[10px] font-medium text-slate-500 mb-0.5 ${labelCls ?? ''}`}>{label}</label>{children}</div>;
+}
+
+// ── Unit-price popover: the customer's tier price pre-chosen, every other
+//    tier one click away, and what this item actually sold for before —
+//    typing any number in the field still overrides everything. ─────────────
+function PricePopover({ tierOptions, history, customerTier, current, onPickPrice, onClose }: {
+  tierOptions: TierOption[]; history: PriceHistEntry[]; customerTier: string; current: number;
+  onPickPrice: (p: number) => void; onClose: () => void;
+}) {
+  return (
+    <>
+      <div className="fixed inset-0 z-40" onClick={onClose} />
+      <div className="absolute right-0 top-full mt-1 z-50 w-72 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-2 max-h-[340px] overflow-y-auto">
+        {tierOptions.length > 0 && (
+          <>
+            <p className="px-1.5 pt-0.5 pb-1 text-[9px] font-bold uppercase tracking-widest text-slate-600">
+              Tier prices{customerTier ? <span className="normal-case tracking-normal font-normal"> · customer is on <span className="text-emerald-400">{customerTier}</span></span> : ''}
+            </p>
+            {tierOptions.map((t) => (
+              <button key={t.tier_id} disabled={t.price == null}
+                onClick={() => t.price != null && onPickPrice(t.price)}
+                className={`w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors disabled:opacity-40 ${
+                  t.chosen ? 'bg-emerald-500/10 text-emerald-300' : 'text-slate-300 hover:bg-white/10'
+                }`}>
+                <span className="flex items-center gap-1.5">
+                  {t.code}
+                  {t.chosen && <span className="text-[8px] font-bold uppercase tracking-wider text-emerald-500">customer’s tier</span>}
+                </span>
+                <span className={`tabular-nums font-semibold ${t.price != null && Math.round(t.price) === Math.round(current) ? 'text-emerald-300' : ''}`}>
+                  {t.price != null ? fmtInt(t.price) : '—'}
+                </span>
+              </button>
+            ))}
+          </>
+        )}
+        {history.length > 0 && (
+          <>
+            <p className={`px-1.5 pb-1 text-[9px] font-bold uppercase tracking-widest text-slate-600 ${tierOptions.length ? 'pt-2 border-t border-slate-800 mt-1.5' : 'pt-0.5'}`}>
+              Sold before
+            </p>
+            {history.map((h, i) => (
+              <button key={i} onClick={() => onPickPrice(h.price)}
+                className="w-full px-2 py-1.5 rounded-lg text-left hover:bg-white/10 transition-colors">
+                <span className="flex items-center justify-between gap-2 text-xs">
+                  <span className={`truncate ${h.mine ? 'text-emerald-300' : 'text-slate-300'}`}>{h.customer}</span>
+                  <span className="tabular-nums font-semibold text-slate-200 flex-shrink-0">{fmtInt(h.price)}</span>
+                </span>
+                <span className="flex items-center justify-between gap-2 text-[10px] text-slate-600">
+                  <span>{h.quote_number}{h.mine ? ' · this customer' : ''}</span>
+                  <span className="tabular-nums">×{fmtInt(h.qty)} · {fmtDay(h.date)}</span>
+                </span>
+              </button>
+            ))}
+          </>
+        )}
+        {tierOptions.length === 0 && history.length === 0 && (
+          <p className="px-2 py-3 text-[11px] text-slate-600">No tier prices or sales history for this item yet.</p>
+        )}
+        <p className="px-1.5 pt-1.5 pb-0.5 text-[9px] text-slate-700 border-t border-slate-800 mt-1.5">
+          Click a price to use it — or just type your own in the field.
+        </p>
+      </div>
+    </>
+  );
 }
 
 // ── Payments (AR) — mirrors the buy-side PO payment pattern ─────────────────

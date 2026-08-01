@@ -16,6 +16,7 @@ import MobileNotice from '@/components/ui/MobileNotice';
 import ProposalPresence from '@/components/ui/ProposalPresence';
 import { useEpcLobby } from '@/hooks/useEpcLobby';
 import { normField, nearestDuplicate } from '@/lib/proposalFields';
+import { evalFormula } from '@/lib/formula';
 import ProposalFieldInput from '@/components/ui/ProposalFieldInput';
 import EnergyEconomicsCard from '@/components/ui/EnergyEconomicsCard';
 import type { EconAssumptions } from '@/lib/energyEconomics';
@@ -62,18 +63,8 @@ function uid() {
 
 function num(s: string) { const n = parseFloat(s); return isNaN(n) ? null : n; }
 
-// Excel-style quantity formulas: "=2520*720" → 1814400. Digits and
-// + - * / ( ) . only; anything else refuses to evaluate.
-function evalFormula(raw: string): number | null {
-  const expr = raw.replace(/^=/, '').replace(/,/g, '').trim();
-  if (!expr || !/^[0-9+\-*/().\s]+$/.test(expr)) return null;
-  try {
-    const v = Function(`"use strict"; return (${expr});`)();
-    return typeof v === 'number' && isFinite(v) ? v : null;
-  } catch {
-    return null;
-  }
-}
+// Excel-style quantity formulas: "=2520*720" → 1814400 — shared with the
+// sales quote editor via lib/formula.ts.
 
 // A qty formula may reference another line by its row number: "=R3*2" or "=#3/4"
 // (R3 = the quantity of row 3). getRow(n) returns that row's resolved quantity.

@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-01T13:45:00Z',
+    title: 'Sales quotes: drafts save themselves · formulas · price intel · per-item lead time',
+    details: [
+      'A draft now auto-saves a moment after every change (and when you leave the tab) — walking away no longer loses work. Only drafts; sent and later stages still save explicitly.',
+      'Qty and Unit price accept Excel-style formulas: type “=12*40”, get 480 on leaving the cell — same as EPC proposals.',
+      'Click the Unit price label on a catalog line for the price picker: every tier’s price with the customer’s tier pre-marked, plus what the item actually sold for before (this customer’s deals first). One click applies; typing any number still overrides.',
+      'Every item line has a lead time (same presets as EPC proposals, custom allowed) and it prints on the PDF when the lead-time column is on.',
+    ],
+  },
+  {
     at: '2026-08-01T12:45:00Z',
     title: 'Customers: duplicate finder with merge · header never overlaps again',
     details: [
