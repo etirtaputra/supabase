@@ -287,7 +287,12 @@ export default function BrandMenu({
   );
 
   return (
-    <div className="relative min-w-0 flex-1 flex items-center gap-1 lg:gap-3">
+    // min-w floors (not min-w-0) at lg/xl: with min-w-0 the menu absorbed any
+    // squeeze from a page's header buttons by silently shrinking below its
+    // content, and the nav painted OVER the search box and clock (field
+    // report 2026-08-01). With a floor, the page header's flex-wrap moves the
+    // page's own buttons to a second row instead — nothing overlaps.
+    <div className="relative min-w-0 lg:min-w-[430px] xl:min-w-[1020px] flex-1 flex items-center gap-1 lg:gap-3">
       <div
         className="relative min-w-0 flex-shrink-0"
         onMouseEnter={() => setOpen(true)}

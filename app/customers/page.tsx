@@ -304,12 +304,123 @@ function CustomersInner() {
     });
   }, [customers, search, filterStatus, filterAm, filterTier, amById]);
 
+  // ── Possible duplicates (post-import cleanup) ─────────────────────────────
+  // Two customers are "possibly the same" when their names normalize to the
+  // same string (case/punctuation/legal-prefix insensitive) OR they share a
+  // contact email / phone. Union-find stitches the signals into groups.
+  const [dupMode, setDupMode] = useState(false);
+  const dupGroups = useMemo(() => {
+    const parent = new Map<string, string>();
+    const find = (x: string): string => {
+      const p = parent.get(x) ?? x;
+      if (p === x) return x;
+      const r = find(p);
+      parent.set(x, r);
+      return r;
+    };
+    const union = (a: string, b: string) => { const ra = find(a), rb = find(b); if (ra !== rb) parent.set(ra, rb); };
+    const norm = (s: string) =>
+      s.toLowerCase().replace(/^(pt|cv|ud|tb|pd|toko)\b\.?\s*/i, '').replace(/[^a-z0-9]+/g, ' ').trim();
+    const byKey = new Map<string, string>();
+    for (const c of customers) {
+      const keys = new Set<string>();
+      const n1 = norm(c.display_name || ''); if (n1) keys.add('n:' + n1);
+      const n2 = norm(c.legal_name || '');   if (n2) keys.add('n:' + n2);
+      for (const ct of contactsByCustomer[c.customer_id] ?? []) {
+        const e = ct.email.trim().toLowerCase(); if (e) keys.add('e:' + e);
+        const p = ct.phone.replace(/\D/g, '');   if (p.length >= 8) keys.add('p:' + p.replace(/^62/, '0'));
+      }
+      for (const k of keys) {
+        const first = byKey.get(k);
+        if (first) union(c.customer_id, first); else byKey.set(k, c.customer_id);
+      }
+    }
+    const groups = new Map<string, Customer[]>();
+    for (const c of customers) {
+      const r = find(c.customer_id);
+      const arr = groups.get(r) ?? [];
+      arr.push(c);
+      groups.set(r, arr);
+    }
+    return [...groups.values()].filter((g) => g.length > 1)
+      .sort((a, b) => (a[0].display_name || '').localeCompare(b[0].display_name || ''));
+  }, [customers, contactsByCustomer]);
+
+  // Merge: fill the survivor's blank fields from the duplicates, repoint
+  // everything that references them (contacts, sales docs, after-sales,
+  // project quotes, links), then delete the duplicates. Documents are
+  // repointed FIRST — their FKs are ON DELETE SET NULL, so deleting before
+  // repointing would silently orphan sales history.
+  const [mergeBusy, setMergeBusy] = useState(false);
+  async function mergeGroup(group: Customer[], survivorId: string) {
+    const survivor = group.find((c) => c.customer_id === survivorId);
+    if (!survivor || mergeBusy) return;
+    const victims = group.filter((c) => c.customer_id !== survivorId);
+    const vIds = victims.map((v) => v.customer_id);
+    setMergeBusy(true);
+
+    const patch: Record<string, unknown> = {};
+    const FILL: (keyof Customer)[] = ['legal_name', 'display_name', 'tier', 'payment_terms', 'tax_id', 'billing_address', 'shipping_address', 'referred_by'];
+    for (const k of FILL) {
+      if (!(survivor[k] as string || '').trim()) {
+        const v = victims.map((x) => (x[k] as string) || '').find((x) => x.trim());
+        if (v) patch[k] = v.trim();
+      }
+    }
+    if (!survivor.account_manager_id) {
+      const v = victims.find((x) => x.account_manager_id);
+      if (v) patch.account_manager_id = v.account_manager_id;
+    }
+    const extraNotes = victims.map((v) => (v.notes || '').trim()).filter((n) => n && n !== (survivor.notes || '').trim());
+    if (extraNotes.length) patch.notes = [(survivor.notes || '').trim(), ...extraNotes].filter(Boolean).join('\n');
+    if (Object.keys(patch).length) {
+      const { error } = await supabase.from('20.0_customers').update(patch).eq('customer_id', survivorId);
+      if (error) { flash(`Merge stopped: ${error.message}`); setMergeBusy(false); return; }
+    }
+
+    // Repoint referencing rows. Bail BEFORE deleting on any real failure —
+    // a missing optional table (project quotes / after-sales not installed)
+    // is the only tolerated error.
+    for (const table of ['20.1_customer_contacts', '22.0_sales_quotes', '27.0_aftersales_cases', '10.0_project_quotes']) {
+      const { error } = await supabase.from(table).update({ customer_id: survivorId }).in('customer_id', vIds);
+      if (error && !/does not exist|relation/i.test(error.message)) {
+        flash(`Merge stopped (nothing deleted): ${table}: ${error.message}`);
+        setMergeBusy(false);
+        return;
+      }
+    }
+
+    // Links: rewrite the victims' pairs onto the survivor, skipping
+    // self-links; the unique constraint absorbs pairs that already exist.
+    const orExpr = vIds.map((id) => `customer_id.eq.${id},linked_customer_id.eq.${id}`).join(',');
+    const { data: vLinks } = await supabase.from('20.2_customer_links').select('customer_id, linked_customer_id').or(orExpr);
+    await supabase.from('20.2_customer_links').delete().or(orExpr);
+    const remap = (id: string) => (vIds.includes(id) ? survivorId : id);
+    const pairs = new Map<string, { customer_id: string; linked_customer_id: string }>();
+    for (const l of (vLinks as CustomerLink[] | null) ?? []) {
+      const a = remap(l.customer_id), b = remap(l.linked_customer_id);
+      if (a !== b) pairs.set([a, b].sort().join('|'), { customer_id: a, linked_customer_id: b });
+    }
+    if (pairs.size) await supabase.from('20.2_customer_links').upsert([...pairs.values()], { onConflict: 'customer_id,linked_customer_id', ignoreDuplicates: true });
+
+    const { error: delError } = await supabase.from('20.0_customers').delete().in('customer_id', vIds);
+    if (delError) flash(`Merged data, but deleting duplicates failed: ${delError.message}`);
+    else flash(`Merged ${victims.length} duplicate${victims.length > 1 ? 's' : ''} into ${survivor.display_name || survivor.legal_name}`);
+    setMergeBusy(false);
+    setProfileFor(null); setProfileData(null);
+    fetchAll();
+  }
+
   // Column-header sort: click a title to sort by it ascending, click again to
   // flip. Overrides the dropdown order until the dropdown is touched again.
   type ColKey = 'code' | 'name' | 'tier' | 'am' | 'status' | 'updated';
   const [colSort, setColSort] = useState<{ key: ColKey; dir: 'asc' | 'desc' } | null>(null);
   const clickCol = (key: ColKey) =>
-    setColSort((s) => (s?.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
+    setColSort((s) => (s?.key === key
+      ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' }
+      // Text columns read naturally A→Z; a DATE column reads naturally
+      // newest-first — so Updated starts descending, the rest ascending.
+      : { key, dir: key === 'updated' ? 'desc' : 'asc' }));
 
   const ordered = useMemo(() => {
     const list = [...filtered];
@@ -603,6 +714,17 @@ function CustomersInner() {
             <option value="inactive">Inactive</option>
             <option value="all">All statuses</option>
           </select>
+          <button onClick={() => setDupMode((v) => !v)}
+            title="Show possible duplicates (similar name or shared contact) with a merge tool"
+            className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
+              dupMode
+                ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
+                : dupGroups.length
+                  ? 'bg-slate-900/80 border-slate-700 text-amber-400/90 hover:border-amber-500/40'
+                  : 'bg-slate-900/80 border-slate-700 text-slate-500 hover:text-slate-300'
+            }`}>
+            Duplicates{dupGroups.length ? ` (${dupGroups.length})` : ''}
+          </button>
           <span className="text-xs text-slate-600 tabular-nums">{filtered.length} of {customers.length}</span>
           <select value={sort} onChange={(e) => { sortTouched.current = true; setSort(e.target.value); setColSort(null); }}
             title="Order — the default lives in Settings › Lists"
@@ -612,7 +734,31 @@ function CustomersInner() {
           <LayoutToggle value={layout} onChange={setLayout} />
         </div>
 
+        {/* Possible-duplicate groups with the merge tool */}
+        {dupMode && (
+          <div className="space-y-3">
+            {dupGroups.length === 0 ? (
+              <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl px-4 py-10 text-center text-sm text-slate-500">
+                No possible duplicates found — names and contacts all look distinct.
+              </div>
+            ) : (
+              <>
+                <p className="text-[11px] text-slate-500 leading-snug">
+                  Grouped by similar name or shared contact email / phone. Pick the record to KEEP — merging fills its blank
+                  fields from the others, moves their contacts, sales documents and links across, then deletes them.
+                </p>
+                {dupGroups.map((g) => (
+                  <DupGroupCard key={g.map((c) => c.customer_id).join('|')} group={g}
+                    tierLabel={tierLabel} amById={amById} contactsByCustomer={contactsByCustomer}
+                    busy={mergeBusy} onMerge={mergeGroup} />
+                ))}
+              </>
+            )}
+          </div>
+        )}
+
         {/* List */}
+        {!dupMode && (
         <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
           {/* Sortable titles: click sorts ascending, click again flips.
               Overrides the order dropdown until it is touched again. */}
@@ -696,6 +842,7 @@ function CustomersInner() {
             </div>
           )}
         </div>
+        )}
       </main>
 
       {/* Drawer */}
@@ -992,6 +1139,72 @@ function Kpi({ label, value, sub, cls }: { label: string; value: string; sub: st
       <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-600">{label}</p>
       <p className={`text-sm font-bold tabular-nums mt-0.5 ${cls}`}>{value}</p>
       <p className="text-[9px] text-slate-600">{sub}</p>
+    </div>
+  );
+}
+
+// ── Possible-duplicate group card ────────────────────────────────────────────
+// One card per group: pick the survivor, two-step Merge button (no confirm()
+// dialog — browsers can suppress those silently, the Back-button lesson).
+function DupGroupCard({ group, tierLabel, amById, contactsByCustomer, busy, onMerge }: {
+  group: Customer[];
+  tierLabel: Map<string, string>;
+  amById: Map<string, string>;
+  contactsByCustomer: Record<string, Contact[]>;
+  busy: boolean;
+  onMerge: (group: Customer[], survivorId: string) => void;
+}) {
+  // Default survivor = the row carrying the most data (then the oldest).
+  const richness = (c: Customer) =>
+    ['tier', 'payment_terms', 'tax_id', 'billing_address', 'shipping_address', 'notes', 'referred_by'].filter((k) => ((c as unknown as Record<string, string>)[k] || '').trim()).length
+    + (c.account_manager_id ? 2 : 0) + (contactsByCustomer[c.customer_id]?.length ?? 0);
+  const [survivor, setSurvivor] = useState(() =>
+    [...group].sort((a, b) => richness(b) - richness(a) || (a.created_at || '').localeCompare(b.created_at || ''))[0].customer_id);
+  const [armed, setArmed] = useState(false);
+  const survivorRow = group.find((c) => c.customer_id === survivor);
+
+  return (
+    <div className="bg-slate-900/40 border border-amber-500/20 rounded-2xl overflow-hidden">
+      <div className="divide-y divide-slate-800/60">
+        {group.map((c) => {
+          const contacts = contactsByCustomer[c.customer_id] ?? [];
+          const keep = c.customer_id === survivor;
+          return (
+            <label key={c.customer_id} className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors ${keep ? 'bg-emerald-500/[0.06]' : 'hover:bg-slate-800/40'}`}>
+              <input type="radio" checked={keep} onChange={() => { setSurvivor(c.customer_id); setArmed(false); }} className="accent-emerald-500 flex-shrink-0" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm text-slate-100 font-medium truncate">
+                  {c.display_name || c.legal_name}
+                  {keep && <span className="ml-2 text-[10px] font-bold text-emerald-400">KEEP</span>}
+                </span>
+                <span className="block text-[11px] text-slate-500 truncate">
+                  <span className="font-mono">{c.customer_code || '—'}</span>
+                  {c.tier ? ` · ${tierLabel.get(c.tier) ?? c.tier}` : ''}
+                  {c.account_manager_id ? ` · ${amById.get(c.account_manager_id) ?? ''}` : ''}
+                  {` · ${contacts.length} contact${contacts.length !== 1 ? 's' : ''}`}
+                  {contacts[0]?.email ? ` · ${contacts[0].email}` : contacts[0]?.phone ? ` · ${contacts[0].phone}` : ''}
+                </span>
+              </span>
+              <span className="text-[10px] text-slate-600 tabular-nums flex-shrink-0 hidden sm:block">{c.updated_at ? fmtDayTime(c.updated_at) : ''}</span>
+            </label>
+          );
+        })}
+      </div>
+      <div className="px-4 py-2.5 border-t border-slate-800/60 flex items-center justify-between gap-3 bg-slate-950/30">
+        <p className="text-[10px] text-slate-600 leading-snug">
+          {armed
+            ? `Contacts, documents and links move to “${survivorRow?.display_name || survivorRow?.legal_name}”; the other ${group.length - 1} record${group.length > 2 ? 's are' : ' is'} deleted.`
+            : 'Not duplicates? Just leave the group as it is.'}
+        </p>
+        <button
+          disabled={busy}
+          onClick={() => { if (!armed) { setArmed(true); return; } onMerge(group, survivor); setArmed(false); }}
+          className={`text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 ${
+            armed ? 'bg-amber-500 text-slate-950 hover:bg-amber-400' : 'bg-slate-800 text-amber-300 hover:bg-slate-700'
+          }`}>
+          {busy ? 'Merging…' : armed ? `Confirm — merge ${group.length - 1} into KEEP` : 'Merge…'}
+        </button>
+      </div>
     </div>
   );
 }

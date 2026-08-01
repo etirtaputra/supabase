@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-01T12:45:00Z',
+    title: 'Customers: duplicate finder with merge · header never overlaps again',
+    details: [
+      'New Duplicates button groups customers with similar names or a shared contact email / phone. Pick the record to keep and merge: blank fields fill in, contacts, sales documents and links move across, the copies are deleted.',
+      'Clicking Updated now sorts newest-first (a second click flips) — text columns still start A→Z.',
+      'The top menu now claims the width it actually needs, so when the browser narrows, page buttons wrap to a second row instead of painting over the search box and clock.',
+    ],
+  },
+  {
     at: '2026-08-01T11:15:00Z',
     title: 'Customers: last-modified column · Referred by · linked customers',
     details: [
