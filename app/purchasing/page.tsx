@@ -892,19 +892,21 @@ function MasterInsertPage() {
               {/* Financials Tab */}
               {activeTab === 'financials' && (
                 <div className="max-w-4xl">
-                  {/* Single / Batch toggle */}
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="flex rounded-xl overflow-hidden border border-slate-700 text-xs font-semibold">
+                  {/* Single / Batch toggle — labels never wrap inside their
+                      buttons; on phones the description drops to its own line
+                      instead of squeezing the toggle. */}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-6">
+                    <div className="flex rounded-xl overflow-hidden border border-slate-700 text-xs font-semibold flex-shrink-0">
                       <button
                         onClick={() => setPaymentMode('single')}
-                        className={`px-4 py-2 transition-colors ${paymentMode === 'single' ? 'bg-rose-500/20 text-rose-300' : 'bg-slate-800/60 text-slate-400 hover:text-slate-300'}`}
+                        className={`px-4 py-2 whitespace-nowrap transition-colors ${paymentMode === 'single' ? 'bg-rose-500/20 text-rose-300' : 'bg-slate-800/60 text-slate-400 hover:text-slate-300'}`}
                       >Single PO</button>
                       <button
                         onClick={() => setPaymentMode('batch')}
-                        className={`px-4 py-2 transition-colors ${paymentMode === 'batch' ? 'bg-rose-500/20 text-rose-300' : 'bg-slate-800/60 text-slate-400 hover:text-slate-300'}`}
+                        className={`px-4 py-2 whitespace-nowrap transition-colors ${paymentMode === 'batch' ? 'bg-rose-500/20 text-rose-300' : 'bg-slate-800/60 text-slate-400 hover:text-slate-300'}`}
                       >Multi-PO Batch</button>
                     </div>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-500 basis-full sm:basis-auto sm:flex-1 min-w-0">
                       {paymentMode === 'batch'
                         ? 'One bank transfer covering multiple POs — amounts split proportionally.'
                         : 'Log payments, bank fees, or landed costs for a single PO.'}

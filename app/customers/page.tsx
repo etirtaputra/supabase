@@ -545,22 +545,28 @@ function CustomersInner() {
                 const open = profileFor?.customer_id === c.customer_id;
                 return (
                   <div key={c.customer_id}>
+                    {/* Compact on a PHONE = one line per customer (name · tier ·
+                        status dot); the stacked card belongs to the card layout.
+                        On md+ both layouts are the table grid — compact only
+                        tightens it. */}
                     <button
                       onClick={() => openProfile(c)}
                       aria-expanded={open}
-                      className={`w-full text-left grid grid-cols-1 md:grid-cols-[130px_1fr_120px_180px_90px] gap-1 md:gap-3 transition-colors items-center ${compact ? 'px-3 py-1.5' : 'px-4 py-3'} ${open ? 'bg-slate-800/40' : 'hover:bg-slate-800/40'}`}
+                      className={`w-full text-left transition-colors items-center md:grid md:grid-cols-[130px_1fr_120px_180px_90px] md:gap-3 ${
+                        compact ? 'flex gap-2 px-3 py-1.5' : 'grid grid-cols-1 gap-1 px-4 py-3'
+                      } ${open ? 'bg-slate-800/40' : 'hover:bg-slate-800/40'}`}
                     >
-                      <span className="font-mono text-[11px] text-slate-400">{c.customer_code || '—'}</span>
-                      <span className="min-w-0">
+                      <span className={`font-mono text-[11px] text-slate-400 ${compact ? 'hidden md:block' : ''}`}>{c.customer_code || '—'}</span>
+                      <span className={`min-w-0 ${compact ? 'flex-1' : ''}`}>
                         <span className="block text-sm text-slate-100 font-medium truncate">{c.display_name || c.legal_name || '(no name)'}</span>
                         {primary && !compact && <span className="block text-[11px] text-slate-500 truncate">{primary.name}{primary.email ? ` · ${primary.email}` : ''}</span>}
                       </span>
-                      <span className="text-xs text-slate-400">{c.tier ? <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-[11px]">{tierLabel.get(c.tier) ?? c.tier}</span> : <span className="text-slate-600">—</span>}</span>
-                      <span className="text-xs text-slate-400 truncate">{c.account_manager_id ? (amById.get(c.account_manager_id) ?? '—') : <span className="text-slate-600">Unassigned</span>}</span>
-                      <span className="flex items-center justify-between gap-2">
+                      <span className={`text-xs text-slate-400 ${compact ? 'flex-shrink-0' : ''}`}>{c.tier ? <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-[11px]">{tierLabel.get(c.tier) ?? c.tier}</span> : <span className="text-slate-600">—</span>}</span>
+                      <span className={`text-xs text-slate-400 truncate ${compact ? 'hidden md:block' : ''}`}>{c.account_manager_id ? (amById.get(c.account_manager_id) ?? '—') : <span className="text-slate-600">Unassigned</span>}</span>
+                      <span className={`flex items-center gap-2 ${compact ? 'flex-shrink-0 md:justify-between' : 'justify-between'}`}>
                         <span className={`inline-flex items-center gap-1.5 text-[11px] font-medium ${c.is_active ? 'text-emerald-400' : 'text-slate-500'}`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${c.is_active ? 'bg-emerald-400' : 'bg-slate-600'}`} />
-                          {c.is_active ? 'Active' : 'Inactive'}
+                          <span className={compact ? 'hidden md:inline' : ''}>{c.is_active ? 'Active' : 'Inactive'}</span>
                         </span>
                         <svg className={`w-3.5 h-3.5 text-slate-600 transition-transform duration-150 ${open ? 'rotate-180 text-slate-400' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
                       </span>

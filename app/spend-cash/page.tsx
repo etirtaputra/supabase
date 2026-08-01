@@ -9,7 +9,6 @@ import { useRouter } from 'next/navigation';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
-import ProductCostLookup from '@/components/ui/ProductCostLookup';
 import BrandMenu from '@/components/ui/BrandMenu';
 import MobileNotice from '@/components/ui/MobileNotice';
 import POCashCycle from '@/components/ui/POCashCycle';
@@ -21,11 +20,13 @@ import CostBreakdown from '@/components/ui/CostBreakdown';
 import { ToastProvider } from '@/hooks/useToast';
 import { deriveExchangeRates } from '@/lib/exchangeRates';
 
-type TabId = 'spend' | 'lookup' | 'pricing' | 'cash' | 'xrates' | 'positioning' | 'costs';
+// 'lookup' (Product Cost Lookup) retired 2026-08-01 — its forensic layer lives
+// in Analytics › Items now (components/ui/ProductCostLookup.tsx kept on disk
+// until the owner is ready to delete it for good).
+type TabId = 'spend' | 'pricing' | 'cash' | 'xrates' | 'positioning' | 'costs';
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'spend',       label: 'Spend Overview'  },
-  { id: 'lookup',      label: 'Cost Lookup'     },
   { id: 'costs',       label: 'Cost Breakdown'  },
   { id: 'pricing',     label: 'Pricing'         },
   { id: 'cash',        label: 'Cash Cycle'      },
@@ -38,11 +39,6 @@ const TAB_ICONS: Record<TabId, React.ReactNode> = {
     <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
       <path strokeLinecap="round" strokeLinejoin="round" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
-    </svg>
-  ),
-  lookup: (
-    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
     </svg>
   ),
   pricing: (
@@ -108,14 +104,12 @@ export default function DatabaseViewPage() {
     if (!p.canViewAnalytics) router.replace('/unauthorized');
   }, [profile, router]);
 
-  // Deep links from the global search palette: /spend-cash?tab=lookup&q=<name>
-  const [lookupQuery, setLookupQuery] = useState('');
+  // Deep links: /spend-cash?tab=<id>. Old ?tab=lookup links (the retired Cost
+  // Lookup) fall back to the first tab rather than erroring.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get('tab');
     if (tab && TABS.some((t) => t.id === tab)) setActiveTab(tab as TabId);
-    const q = params.get('q');
-    if (q) setLookupQuery(q);
   }, []);
 
   // Derive exchange rates on-the-fly from PO payments — always up-to-date
@@ -223,29 +217,6 @@ export default function DatabaseViewPage() {
               poCosts={data.poCosts}
               quoteItems={data.quoteItems}
               isLoading={loading}
-            />
-          </div>
-
-          {/* Cost Lookup */}
-          <div className={activeTab !== 'lookup' ? 'hidden' : 'space-y-6'}>
-            <div className="mb-6">
-              <h2 className="text-base md:text-lg font-semibold text-white tracking-tight">Product Cost Lookup</h2>
-              <p className="text-slate-500 text-[11px] mt-1 max-w-2xl">
-                All amounts are ex-PPN (tax). True unit cost = payments + bank fees + landed costs, split by line share of PO value.
-              </p>
-            </div>
-            <ProductCostLookup
-              components={data.components}
-              quotes={data.quotes}
-              quoteItems={data.quoteItems}
-              pos={data.pos}
-              poItems={data.poItems}
-              poCosts={data.poCosts}
-              suppliers={data.suppliers}
-              componentLinks={data.componentLinks}
-              isLoading={loading}
-              key={lookupQuery || 'lookup'}
-              initialQuery={lookupQuery}
             />
           </div>
 

@@ -29,12 +29,24 @@ export const THEME_STORAGE_KEY = 'icaproc_theme';
 export const THEME_DEFAULT_KEY = 'icaproc_theme_default';
 export const DEFAULT_THEME: ThemeName = 'dark';
 
-/** Order = the Appearance switcher's order: the two darks, then the two lights. */
-export const THEMES: { value: ThemeName; label: string; blurb: string }[] = [
-  { value: 'dark',  label: 'Dark',  blurb: 'The original — near-black, highest contrast' },
-  { value: 'dim',   label: 'Dim',   blurb: 'Softened dark — graphite surfaces, easier on office monitors' },
-  { value: 'light', label: 'Light', blurb: 'Soft light — cool off-whites, for bright rooms' },
-  { value: 'paper', label: 'Paper', blurb: 'Warm light — cream, the gentlest for all-day reading' },
+/**
+ * Order = the Appearance switcher's order: the two darks, then the two lights.
+ * `swatch` holds each skin's REAL render values (canvas / card / ink / accent)
+ * so switchers can show the colour itself instead of naming it — the menu
+ * draws circles from these, Settings draws its preview cards from them.
+ */
+export const THEMES: {
+  value: ThemeName; label: string; blurb: string;
+  swatch: { bg: string; card: string; ink: string; accent: string };
+}[] = [
+  { value: 'dark',  label: 'Dark',  blurb: 'The original — near-black, highest contrast',
+    swatch: { bg: '#141518', card: '#1b1c1f', ink: '#e1e2e5', accent: '#49eacb' } },
+  { value: 'dim',   label: 'Dim',   blurb: 'Softened dark — graphite surfaces, easier on office monitors',
+    swatch: { bg: '#1e222a', card: '#232730', ink: '#e1e2e5', accent: '#49eacb' } },
+  { value: 'light', label: 'Light', blurb: 'Soft light — cool off-whites, for bright rooms',
+    swatch: { bg: '#eaecef', card: '#f8f9fa', ink: '#26272b', accent: '#17937c' } },
+  { value: 'paper', label: 'Paper', blurb: 'Warm light — cream, the gentlest for all-day reading',
+    swatch: { bg: '#ece6d7', card: '#faf7ef', ink: '#2b2720', accent: '#17937c' } },
 ];
 
 export const isTheme = (v: unknown): v is ThemeName =>

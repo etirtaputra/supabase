@@ -473,8 +473,8 @@ function ProductsInner() {
               </Link>
             )}
             <Link href="/purchasing" className="hidden sm:block text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap"
-              title="Prices are set in the Catalog's Component Editor — Sell Price column → Tiers">
-              Set pricing in Catalog →
+              title="Prices are set in Purchasing › Items (the Item Editor) — Sell Price column → Tiers">
+              Set pricing in Items →
             </Link>
           </div>
         </div>
@@ -633,13 +633,18 @@ function ProductsInner() {
             const open = expanded === r.c.component_id;
             return (
               <div key={r.c.component_id} className={`bg-slate-900/40 border rounded-xl transition-colors ${open ? 'border-emerald-500/30' : 'border-slate-800/80'}`}>
-                <button onClick={() => setExpanded(open ? null : r.c.component_id)} className="w-full text-left px-3.5 py-3">
+                {/* Compact = the essentials on two tight lines (name, then
+                    stock + list price); card mode keeps brand/category and the
+                    full tier-price chips. */}
+                <button onClick={() => setExpanded(open ? null : r.c.component_id)} className={`w-full text-left ${compact ? 'px-3 py-2' : 'px-3.5 py-3'}`}>
                   <div className="flex items-start gap-2">
                     <div className="min-w-0 flex-1">
                       <p className="text-sm text-slate-100 font-medium truncate">{descOf(r.c)}</p>
-                      <p className="text-[11px] text-slate-500 truncate">
-                        {[r.c.brand, r.c.category ? humanize(r.c.category) : '', r.c.norm_value ? Number(r.c.norm_value).toLocaleString('en-US') : ''].filter(Boolean).join(' · ') || '—'}
-                      </p>
+                      {!compact && (
+                        <p className="text-[11px] text-slate-500 truncate">
+                          {[r.c.brand, r.c.category ? humanize(r.c.category) : '', r.c.norm_value ? Number(r.c.norm_value).toLocaleString('en-US') : ''].filter(Boolean).join(' · ') || '—'}
+                        </p>
+                      )}
                     </div>
                     {canHub && (
                       <Link href={`/items/${r.c.component_id}`} onClick={(e) => e.stopPropagation()}
@@ -655,7 +660,7 @@ function ProductsInner() {
                     )}
                   </div>
                   {/* Highlights: stock (Live colored / Physical muted) + tap-to-copy prices */}
-                  <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                  <div className={`flex flex-wrap items-center gap-1.5 ${compact ? 'mt-1.5' : 'mt-2'}`}>
                     <span className="px-2 py-1 rounded-lg bg-slate-800/80 text-[11px] font-bold tabular-nums">
                       <span className={r.live > 0 ? 'text-emerald-300' : r.live < 0 ? 'text-red-300' : 'text-slate-500'}>{fmtInt(r.live)}</span>
                       <span className="text-slate-500">/{fmtInt(r.phys)}</span>
@@ -671,7 +676,7 @@ function ProductsInner() {
                         {pickedAt(r.c) && '✓ '}{fmtRupiah(r.c.selling_price_idr)}
                       </span>
                     ) : null}
-                    {activeTiers.map((t) => {
+                    {compact ? null : activeTiers.map((t) => {
                       const p = tierPrice(r.c, t);
                       return p != null ? (
                         <span key={t.tier_id} role="button" tabIndex={0}
@@ -686,7 +691,7 @@ function ProductsInner() {
                         </span>
                       ) : null;
                     })}
-                    {r.c.warranty && <span className="px-2 py-1 rounded-lg bg-slate-800/60 text-[11px] text-slate-400">Warranty {r.c.warranty}</span>}
+                    {!compact && r.c.warranty && <span className="px-2 py-1 rounded-lg bg-slate-800/60 text-[11px] text-slate-400">Warranty {r.c.warranty}</span>}
                   </div>
                 </button>
                 {open && (

@@ -236,24 +236,28 @@ export default function BrandMenu({
       {/* Appearance — a personal preference, so it sits with the account
           rather than in Settings (which holds company-wide defaults). */}
       <div className="mt-1 pt-1.5 border-t border-slate-800/70">
-        <div className="px-2.5 py-1.5">
-          <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">Appearance</span>
-          {/* Four skins since 2026-08-01 (dark · dim · light · paper) — text
-              chips, because four icons would need a legend anyway. Label above,
-              chips as equal columns: the row fits ANY panel width instead of
-              overflowing beside the label. */}
-          <div className="grid grid-cols-4 bg-slate-950/60 border border-slate-800 rounded-lg p-0.5 gap-0.5">
+        <div className="flex items-center gap-2 px-2.5 py-1.5">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 flex-1">Appearance</span>
+          {/* Four skins since 2026-08-01 (dark · dim · light · paper) — each is
+              a CIRCLE painted with the skin's own canvas + card colours (no
+              words to fit), so the row stays narrow on any panel width. The
+              name lives in the tooltip. */}
+          <div className="flex items-center gap-1.5">
             {THEMES.map((t) => (
               <button
                 key={t.value}
                 onClick={() => setTheme(t.value)}
                 aria-pressed={theme === t.value}
-                title={t.blurb}
-                className={`px-1 py-1 rounded-md text-[9px] text-center font-bold uppercase tracking-wide transition-colors ${
-                  theme === t.value ? 'bg-slate-800 text-emerald-300' : 'text-slate-600 hover:text-slate-300'
+                aria-label={t.label}
+                title={`${t.label} — ${t.blurb}`}
+                className={`w-6 h-6 rounded-full flex-shrink-0 transition-all ${
+                  theme === t.value
+                    ? 'ring-2 ring-emerald-400 ring-offset-2 ring-offset-canvas'
+                    : 'ring-1 ring-slate-600 hover:ring-slate-400'
                 }`}
+                style={{ background: `linear-gradient(135deg, ${t.swatch.bg} 50%, ${t.swatch.card} 50%)` }}
               >
-                {t.label}
+                <span className="block w-1.5 h-1.5 rounded-full mx-auto" style={{ background: t.swatch.accent }} />
               </button>
             ))}
           </div>

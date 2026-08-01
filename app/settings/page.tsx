@@ -381,14 +381,6 @@ function FormatTab({ draft, set }: { draft: AppSettings; set: <K extends keyof A
 // the switcher in the ICAPROC menu. A personal choice always wins and is never
 // overwritten by changing this (see lib/theme.ts for the resolution order).
 
-/** True render values per skin, for honest little previews. */
-const THEME_PREVIEW: Record<string, { bg: string; card: string; ink: string; accent: string }> = {
-  dark:  { bg: '#141518', card: '#1b1c1f', ink: '#e1e2e5', accent: '#49eacb' },
-  dim:   { bg: '#1e222a', card: '#232730', ink: '#e1e2e5', accent: '#49eacb' },
-  light: { bg: '#eaecef', card: '#f8f9fa', ink: '#26272b', accent: '#17937c' },
-  paper: { bg: '#ece6d7', card: '#faf7ef', ink: '#2b2720', accent: '#17937c' },
-};
-
 function AppearanceTab({ draft, set }: { draft: AppSettings; set: <K extends keyof AppSettings>(k: K, v: AppSettings[K]) => void }) {
   // Selecting a card paints the whole screen in that skin immediately — the
   // choice must be judged on real pages, not on a miniature. The preview
@@ -414,7 +406,7 @@ function AppearanceTab({ draft, set }: { draft: AppSettings; set: <K extends key
         </div>
         <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
           {THEMES.map((t) => {
-            const p = THEME_PREVIEW[t.value];
+            const p = t.swatch;
             const active = draft.defaultTheme === t.value;
             return (
               <button key={t.value} onClick={() => { touched.current = true; set('defaultTheme', t.value); }}

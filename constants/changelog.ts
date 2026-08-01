@@ -20,6 +20,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-01T03:00:00Z',
+    title: 'Mobile polish round · Cost Lookup retired · “Item Editor” naming',
+    details: [
+      'Skin switcher in the ICAPROC menu is now four colour circles — no more cut-off labels; the name shows on hover.',
+      'Payments: the Single PO / Multi-PO Batch toggle no longer wraps oddly on phones.',
+      'Compact layout is now genuinely compact on phones: Customers become one line per customer, Products drop to name + stock + list price.',
+      'Item Editor filters (Unused, Has Specs, Low Margin…) wrap into visible rows on mobile instead of scrolling far off to the right.',
+      'Spend & Cash › Cost Lookup is retired — everything it showed lives in Analytics › Items.',
+      'The catalog editor is now titled “Item Editor” to match the Items naming everywhere.',
+    ],
+  },
+  {
     at: '2026-08-01T01:20:00Z',
     title: 'Skins: menu row no longer cut off · Settings previews the default live',
     details: [

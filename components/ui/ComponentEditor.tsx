@@ -2049,7 +2049,9 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       {/* Header — stacks on mobile so the action buttons wrap instead of overflowing */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 border-b border-slate-800/80 p-5 md:p-6">
         <div className="flex-1 min-w-0">
-          <h3 className="text-lg font-bold text-white tracking-tight">Component Editor</h3>
+          {/* Named to match everywhere the catalog appears: the Purchasing tab
+              is "Items", the Analytics list is "Items" — this edits them. */}
+          <h3 className="text-lg font-bold text-white tracking-tight">Item Editor</h3>
           <p className="text-xs text-slate-500 mt-0.5"><span className="hidden sm:inline">Click ✎ to edit · <kbd className="px-1 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Ctrl+S</kbd> to save · </span><kbd className="px-1 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">/</kbd> to search</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -2421,7 +2423,9 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
               Replace
             </button>
           </div>
-          {/* Filter controls — horizontally scrollable on mobile */}
+          {/* Filter controls — the dropdown selects keep one scrollable row,
+              but the quick-filter toggles WRAP: on a phone they stack into
+              rows you can see at once instead of hiding off to the right. */}
           <div className="flex gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             {/* Brand filter */}
             <FilterCombobox options={uniqueBrands} value={filterBrand} onChange={setFilterBrand} placeholder="All Brands" minWidth={140} className="min-w-[140px] flex-shrink-0" />
@@ -2435,10 +2439,12 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
             {uniquePONumbers.length > 0 && (
               <FilterCombobox options={uniquePONumbers} value={filterPO} onChange={setFilterPO} placeholder="All POs" minWidth={150} className="min-w-[150px] flex-shrink-0" />
             )}
+          </div>
+          <div className="flex flex-wrap gap-1.5 md:gap-2">
             {/* Quick-filter toggles */}
             <button
               onClick={() => { setFilterUnused((v) => !v); setFilterDuplicates(false); setFilterLinked(false); }}
-              className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all flex-shrink-0 ${
+              className={`py-1.5 px-2.5 md:py-2 md:px-3 rounded-lg text-xs md:text-sm font-semibold border transition-all flex-shrink-0 ${
                 filterUnused
                   ? 'bg-orange-500/20 border-orange-500/40 text-orange-300'
                   : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-orange-300 hover:border-orange-500/30'
@@ -2449,7 +2455,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
             </button>
             <button
               onClick={() => { setFilterDuplicates((v) => !v); setFilterUnused(false); setFilterLinked(false); }}
-              className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all flex-shrink-0 ${
+              className={`py-1.5 px-2.5 md:py-2 md:px-3 rounded-lg text-xs md:text-sm font-semibold border transition-all flex-shrink-0 ${
                 filterDuplicates
                   ? 'bg-red-500/20 border-red-500/40 text-red-300'
                   : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-red-300 hover:border-red-500/30'
@@ -2460,7 +2466,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
             </button>
             <button
               onClick={() => setFilterHasIntel((v) => !v)}
-              className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all flex-shrink-0 ${
+              className={`py-1.5 px-2.5 md:py-2 md:px-3 rounded-lg text-xs md:text-sm font-semibold border transition-all flex-shrink-0 ${
                 filterHasIntel
                   ? 'bg-violet-500/20 border-violet-500/40 text-violet-300'
                   : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-violet-300 hover:border-violet-500/30'
@@ -2471,7 +2477,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
             </button>
             <button
               onClick={() => setFilterTucHidden((v) => !v)}
-              className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all flex-shrink-0 ${
+              className={`py-1.5 px-2.5 md:py-2 md:px-3 rounded-lg text-xs md:text-sm font-semibold border transition-all flex-shrink-0 ${
                 filterTucHidden
                   ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
                   : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-amber-300 hover:border-amber-500/30'
@@ -2482,7 +2488,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
             </button>
             <button
               onClick={() => { setFilterLinked((v) => !v); setFilterUnused(false); setFilterDuplicates(false); }}
-              className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all flex-shrink-0 ${
+              className={`py-1.5 px-2.5 md:py-2 md:px-3 rounded-lg text-xs md:text-sm font-semibold border transition-all flex-shrink-0 ${
                 filterLinked
                   ? 'bg-sky-500/20 border-sky-500/40 text-sky-300'
                   : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-sky-300 hover:border-sky-500/30'
@@ -2493,7 +2499,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
             </button>
             <button
               onClick={() => setFilterHasSpecs((v) => !v)}
-              className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all flex-shrink-0 ${
+              className={`py-1.5 px-2.5 md:py-2 md:px-3 rounded-lg text-xs md:text-sm font-semibold border transition-all flex-shrink-0 ${
                 filterHasSpecs
                   ? 'bg-teal-500/20 border-teal-500/40 text-teal-300'
                   : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-teal-300 hover:border-teal-500/30'
@@ -2504,7 +2510,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
             </button>
             <button
               onClick={() => setFilterHasLeadTime((v) => !v)}
-              className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all flex-shrink-0 ${
+              className={`py-1.5 px-2.5 md:py-2 md:px-3 rounded-lg text-xs md:text-sm font-semibold border transition-all flex-shrink-0 ${
                 filterHasLeadTime
                   ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
                   : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-emerald-300 hover:border-emerald-500/30'
@@ -2515,7 +2521,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
             </button>
             <button
               onClick={() => setFilterHasCashCycle((v) => !v)}
-              className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all flex-shrink-0 ${
+              className={`py-1.5 px-2.5 md:py-2 md:px-3 rounded-lg text-xs md:text-sm font-semibold border transition-all flex-shrink-0 ${
                 filterHasCashCycle
                   ? 'bg-violet-500/20 border-violet-500/40 text-violet-300'
                   : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-violet-300 hover:border-violet-500/30'
@@ -2526,7 +2532,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
             </button>
             <button
               onClick={() => setFilterBelowMarket((v) => !v)}
-              className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all flex-shrink-0 ${
+              className={`py-1.5 px-2.5 md:py-2 md:px-3 rounded-lg text-xs md:text-sm font-semibold border transition-all flex-shrink-0 ${
                 filterBelowMarket
                   ? 'bg-rose-500/20 border-rose-500/40 text-rose-300'
                   : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-rose-300 hover:border-rose-500/30'
@@ -2538,7 +2544,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
             <div className="flex items-center gap-1 flex-shrink-0">
               <button
                 onClick={() => setFilterLowMargin((v) => !v)}
-                className={`py-2 px-3 rounded-lg text-sm font-semibold border transition-all ${
+                className={`py-1.5 px-2.5 md:py-2 md:px-3 rounded-lg text-xs md:text-sm font-semibold border transition-all ${
                   filterLowMargin
                     ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
                     : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-amber-300 hover:border-amber-500/30'

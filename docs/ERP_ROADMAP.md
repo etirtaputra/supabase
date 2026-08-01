@@ -694,8 +694,10 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   full hub) with the full buy dataset + one page-level computeTUCMap/fx so
   every expansion is instant; and the **hub's Buy tab**, whose simpler
   hand-rolled PI/PO tables were replaced by the same component (KPI cards
-  stay). **Spend & Cash › Cost Lookup is deliberately untouched** — it
-  retires only once the owner is comfortable the hub covers it.
+  stay). **Spend & Cash › Cost Lookup was retired on 2026-08-01** (owner's
+  call once the hub covered it): the tab is gone from /spend-cash; the
+  `ProductCostLookup` component stays on disk until the owner asks for the
+  final delete. Old `?tab=lookup` deep links fall back to Spend Overview.
   Also this pass, per the owner: **Pricing moved back to the Admin group**
   (it was moved to Sell in the 2026-07-29 navigation pass on the
   "daily commercial tool" argument — overruled: tiers/floors are
