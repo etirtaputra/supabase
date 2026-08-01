@@ -238,11 +238,13 @@ export default function BrandMenu({
       <div className="mt-1 pt-1.5 border-t border-slate-800/70">
         <div className="flex items-center gap-2 px-2.5 py-1.5">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 flex-1">Appearance</span>
-          {/* Four skins since 2026-08-01 (dark · dim · light · paper) — each is
-              a CIRCLE painted with the skin's own canvas + card colours (no
-              words to fit), so the row stays narrow on any panel width. The
-              name lives in the tooltip. */}
-          <div className="flex items-center gap-1.5">
+          {/* Four skins since 2026-08-01 (dark · dim · light · paper) — one
+              SOLID circle each, painted the skin's main canvas colour. Nothing
+              here may be wider than the panel: an overflowing row gives the
+              whole menu a sideways scroll that clips every item's first
+              letters (owner hit exactly that on mobile). The name lives in
+              the tooltip. */}
+          <div className="flex items-center gap-1.5 flex-shrink-0">
             {THEMES.map((t) => (
               <button
                 key={t.value}
@@ -250,15 +252,13 @@ export default function BrandMenu({
                 aria-pressed={theme === t.value}
                 aria-label={t.label}
                 title={`${t.label} — ${t.blurb}`}
-                className={`w-6 h-6 rounded-full flex-shrink-0 transition-all ${
+                className={`w-5 h-5 rounded-full flex-shrink-0 transition-shadow ${
                   theme === t.value
-                    ? 'ring-2 ring-emerald-400 ring-offset-2 ring-offset-canvas'
+                    ? 'ring-2 ring-emerald-400'
                     : 'ring-1 ring-slate-600 hover:ring-slate-400'
                 }`}
-                style={{ background: `linear-gradient(135deg, ${t.swatch.bg} 50%, ${t.swatch.card} 50%)` }}
-              >
-                <span className="block w-1.5 h-1.5 rounded-full mx-auto" style={{ background: t.swatch.accent }} />
-              </button>
+                style={{ background: t.swatch.bg }}
+              />
             ))}
           </div>
         </div>
@@ -329,7 +329,10 @@ export default function BrandMenu({
         {open && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-            <div className="absolute left-0 top-full mt-2 z-50 w-48 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-1.5 max-h-[80vh] overflow-y-auto">
+            {/* w-56 fits the widest row (Appearance label + 4 circles) and the
+                phone viewport; overflow-x-hidden means content can NEVER give
+                the menu a sideways scroll that clips the item names. */}
+            <div className="absolute left-0 top-full mt-2 z-50 w-56 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-1.5 max-h-[80vh] overflow-y-auto overflow-x-hidden">
               {menuPanel}
             </div>
           </>

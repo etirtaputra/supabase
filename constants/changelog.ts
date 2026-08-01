@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-01T03:30:00Z',
+    title: 'Menu fits the phone screen — no more sideways scroll',
+    details: [
+      'The skin circles were wider than the menu, which silently gave the whole dropdown a sideways scroll and clipped the first letter of every entry.',
+      'Each skin is now one plain circle in its main colour, the menu is slightly wider, and sideways scrolling is disabled for good.',
+    ],
+  },
+  {
     at: '2026-08-01T03:00:00Z',
     title: 'Mobile polish round · Cost Lookup retired · “Item Editor” naming',
     details: [
