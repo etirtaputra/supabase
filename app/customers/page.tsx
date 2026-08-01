@@ -13,7 +13,7 @@ import BrandMenu from '@/components/ui/BrandMenu';
 import CrmMigrationBanner from '@/components/ui/CrmMigrationBanner';
 import { SALES_STATUS } from '@/lib/salesStatus';
 import { downloadCsv, parseCsv, readFileText } from '@/lib/csv';
-import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
+import { fmtDay, fmtDayTime, fmtInt, fmtRupiah } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
 import LayoutToggle from '@/components/ui/LayoutToggle';
 import { useListLayout } from '@/hooks/useListLayout';
@@ -34,11 +34,20 @@ interface Customer {
   billing_address: string;
   shipping_address: string;
   notes: string;
+  referred_by: string;
   is_active: boolean;
   created_at?: string;
   updated_at?: string;
   created_by_email?: string;
   updated_by_email?: string;
+}
+
+/** A related company (same group, subsidiary…). Stored one row per pair;
+ *  read in BOTH directions so either side sees and can edit the link. */
+interface CustomerLink {
+  link_id: string;
+  customer_id: string;
+  linked_customer_id: string;
 }
 
 interface Contact {
@@ -95,6 +104,7 @@ const blankCustomer = (tier = ''): Customer => ({
   billing_address: '',
   shipping_address: '',
   notes: '',
+  referred_by: '',
   is_active: true,
 });
 
@@ -148,6 +158,7 @@ function CustomersInner() {
   const [contactsByCustomer, setContactsByCustomer] = useState<Record<string, Contact[]>>({});
   const [amUsers, setAmUsers] = useState<AmUser[]>([]);
   const [tiers, setTiers] = useState<Tier[]>([]);
+  const [links, setLinks] = useState<CustomerLink[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
@@ -158,6 +169,7 @@ function CustomersInner() {
 
   const [editing, setEditing] = useState<Customer | null>(null);
   const [draftContacts, setDraftContacts] = useState<Contact[]>([]);
+  const [draftLinks, setDraftLinks] = useState<string[]>([]); // linked customer ids
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -226,11 +238,12 @@ function CustomersInner() {
   // ── Data ──────────────────────────────────────────────────────────────────
   const fetchAll = useCallback(async () => {
     setLoading(true);
-    const [custRes, contactRes, userRes, tierRes] = await Promise.all([
+    const [custRes, contactRes, userRes, tierRes, linkRes] = await Promise.all([
       supabase.from('20.0_customers').select('*').order('updated_at', { ascending: false }),
       supabase.from('20.1_customer_contacts').select('*').order('is_primary', { ascending: false }),
       supabase.from('user_profiles').select('id, email, display_name, role').in('role', ['owner', 'sales']),
       supabase.from('21.0_price_tiers').select('tier_code, name, sort_order, is_active').order('sort_order'),
+      supabase.from('20.2_customer_links').select('link_id, customer_id, linked_customer_id'),
     ]);
     setCustomers((custRes.data as Customer[]) ?? []);
     const grouped: Record<string, Contact[]> = {};
@@ -241,6 +254,7 @@ function CustomersInner() {
     setAmUsers((userRes.data as AmUser[]) ?? []);
     // Pricing module may not be installed yet — tolerate its absence.
     setTiers(tierRes.error ? [] : ((tierRes.data as Tier[]) ?? []));
+    setLinks(linkRes.error ? [] : ((linkRes.data as CustomerLink[]) ?? []));
     setLoading(false);
   }, []);
 
@@ -252,6 +266,19 @@ function CustomersInner() {
   const tierLabel = useMemo(
     () => new Map(tiers.map((t) => [t.tier_code, t.name])),
     [tiers]);
+  const customerName = useMemo(
+    () => new Map(customers.map((c) => [c.customer_id, c.display_name || c.legal_name || c.customer_code])),
+    [customers]);
+  // Related companies of a customer — the link rows are one-per-pair, so read
+  // both directions.
+  const linkedIdsOf = useCallback((id: string) => {
+    const out = new Set<string>();
+    for (const l of links) {
+      if (l.customer_id === id) out.add(l.linked_customer_id);
+      else if (l.linked_customer_id === id) out.add(l.customer_id);
+    }
+    return [...out];
+  }, [links]);
 
   // ── Deep link: ?open=<customer_id> opens the drawer once data has loaded ────
   useEffect(() => {
@@ -279,7 +306,7 @@ function CustomersInner() {
 
   // Column-header sort: click a title to sort by it ascending, click again to
   // flip. Overrides the dropdown order until the dropdown is touched again.
-  type ColKey = 'code' | 'name' | 'tier' | 'am' | 'status';
+  type ColKey = 'code' | 'name' | 'tier' | 'am' | 'status' | 'updated';
   const [colSort, setColSort] = useState<{ key: ColKey; dir: 'asc' | 'desc' } | null>(null);
   const clickCol = (key: ColKey) =>
     setColSort((s) => (s?.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
@@ -295,6 +322,7 @@ function CustomersInner() {
           case 'tier':   return c.tier ? (tierLabel.get(c.tier) ?? c.tier).toLowerCase() : '';
           case 'am':     return c.account_manager_id ? (amById.get(c.account_manager_id) ?? '').toLowerCase() : '';
           case 'status': return c.is_active ? 'a' : 'b'; // active first when ascending
+          case 'updated': return c.updated_at || '';    // ISO strings sort lexicographically
         }
       };
       list.sort((a, b) => {
@@ -316,8 +344,9 @@ function CustomersInner() {
     const target = c ?? blankCustomer(defaultCustomerTier);
     setEditing(target);
     setDraftContacts(target.customer_id ? (contactsByCustomer[target.customer_id] ?? []).map((x) => ({ ...x })) : []);
+    setDraftLinks(target.customer_id ? linkedIdsOf(target.customer_id) : []);
   }
-  function closeDrawer() { setEditing(null); setDraftContacts([]); }
+  function closeDrawer() { setEditing(null); setDraftContacts([]); setDraftLinks([]); }
 
   const setField = <K extends keyof Customer>(k: K, v: Customer[K]) =>
     setEditing((e) => (e ? { ...e, [k]: v } : e));
@@ -351,6 +380,7 @@ function CustomersInner() {
       billing_address: editing.billing_address.trim(),
       shipping_address: editing.shipping_address.trim(),
       notes: editing.notes.trim(),
+      referred_by: editing.referred_by.trim(),
       is_active: editing.is_active,
     };
 
@@ -381,6 +411,17 @@ function CustomersInner() {
       if (error) { flash(`Saved customer, but contacts failed: ${error.message}`); }
     }
 
+    // Reconcile links the same way: rewrite every row touching this customer
+    // (both directions), so whichever side edits a pair fully controls it.
+    await supabase.from('20.2_customer_links').delete()
+      .or(`customer_id.eq.${customerId},linked_customer_id.eq.${customerId}`);
+    const linkRows = [...new Set(draftLinks)].filter((id) => id && id !== customerId)
+      .map((id) => ({ customer_id: customerId, linked_customer_id: id }));
+    if (linkRows.length) {
+      const { error } = await supabase.from('20.2_customer_links').insert(linkRows);
+      if (error) { flash(`Saved customer, but links failed: ${error.message}`); }
+    }
+
     setSaving(false);
     flash('Customer saved');
     closeDrawer();
@@ -399,14 +440,14 @@ function CustomersInner() {
   } | null>(null);
 
   function exportCsv() {
-    const headers = ['customer_code', 'display_name', 'legal_name', 'tier', 'account_manager', 'payment_terms', 'default_currency', 'tax_id', 'billing_address', 'shipping_address', 'notes', 'active', 'primary_contact', 'contact_email', 'contact_phone'];
+    const headers = ['customer_code', 'display_name', 'legal_name', 'tier', 'account_manager', 'payment_terms', 'default_currency', 'tax_id', 'billing_address', 'shipping_address', 'notes', 'referred_by', 'active', 'primary_contact', 'contact_email', 'contact_phone'];
     const data = filtered.map((c) => {
       const contacts = contactsByCustomer[c.customer_id] ?? [];
       const primary = contacts.find((x) => x.is_primary) ?? contacts[0];
       return [
         c.customer_code, c.display_name, c.legal_name, c.tier,
         amById.get(c.account_manager_id ?? '') ?? '', c.payment_terms, c.default_currency,
-        c.tax_id, c.billing_address, c.shipping_address, c.notes, c.is_active ? 'yes' : 'no',
+        c.tax_id, c.billing_address, c.shipping_address, c.notes, c.referred_by, c.is_active ? 'yes' : 'no',
         primary?.name ?? '', primary?.email ?? '', primary?.phone ?? '',
       ];
     });
@@ -447,6 +488,7 @@ function CustomersInner() {
           ['billing_address', r.billingaddress, (v) => v],
           ['shipping_address', r.shippingaddress, (v) => v],
           ['notes', r.notes, (v) => v],
+          ['referred_by', r.referredby, (v) => v],
           ['is_active', r.active, (v) => !/^(no|false|0|inactive)$/i.test(v)],
         ];
         if (match) {
@@ -574,8 +616,8 @@ function CustomersInner() {
         <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
           {/* Sortable titles: click sorts ascending, click again flips.
               Overrides the order dropdown until it is touched again. */}
-          <div className={`hidden md:grid grid-cols-[130px_1fr_120px_180px_90px] gap-3 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500 ${compact ? 'px-3 py-1.5' : 'px-4 py-2.5'}`}>
-            {([['code', 'Code'], ['name', 'Name'], ['tier', 'Tier'], ['am', 'Account Manager'], ['status', 'Status']] as [ColKey, string][]).map(([k, label]) => (
+          <div className={`hidden md:grid grid-cols-[130px_1fr_110px_170px_90px_135px] gap-3 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500 ${compact ? 'px-3 py-1.5' : 'px-4 py-2.5'}`}>
+            {([['code', 'Code'], ['name', 'Name'], ['tier', 'Tier'], ['am', 'Account Manager'], ['status', 'Status'], ['updated', 'Updated']] as [ColKey, string][]).map(([k, label]) => (
               <button key={k} onClick={() => clickCol(k)} title={`Sort by ${label.toLowerCase()}`}
                 className={`flex items-center gap-1 text-left uppercase tracking-widest transition-colors ${
                   colSort?.key === k ? 'text-slate-200' : 'hover:text-slate-300'
@@ -608,7 +650,7 @@ function CustomersInner() {
                     <button
                       onClick={() => openProfile(c)}
                       aria-expanded={open}
-                      className={`w-full text-left transition-colors items-center md:grid md:grid-cols-[130px_1fr_120px_180px_90px] md:gap-3 ${
+                      className={`w-full text-left transition-colors items-center md:grid md:grid-cols-[130px_1fr_110px_170px_90px_135px] md:gap-3 ${
                         compact ? 'flex gap-2 px-3 py-1.5' : 'grid grid-cols-1 gap-1 px-4 py-3'
                       } ${open ? 'bg-slate-800/40' : 'hover:bg-slate-800/40'}`}
                     >
@@ -624,7 +666,12 @@ function CustomersInner() {
                           <span className={`w-1.5 h-1.5 rounded-full ${c.is_active ? 'bg-emerald-400' : 'bg-slate-600'}`} />
                           <span className={compact ? 'hidden md:inline' : ''}>{c.is_active ? 'Active' : 'Inactive'}</span>
                         </span>
-                        <svg className={`w-3.5 h-3.5 text-slate-600 transition-transform duration-150 ${open ? 'rotate-180 text-slate-400' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                        <svg className={`w-3.5 h-3.5 text-slate-600 transition-transform duration-150 md:hidden ${open ? 'rotate-180 text-slate-400' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                      </span>
+                      {/* Last modified — the audit trigger stamps every save */}
+                      <span className={`text-[11px] text-slate-500 tabular-nums items-center justify-between gap-2 hidden md:flex`}>
+                        <span title={c.updated_by_email ? `by ${c.updated_by_email}` : undefined}>{c.updated_at ? fmtDayTime(c.updated_at) : '—'}</span>
+                        <svg className={`w-3.5 h-3.5 text-slate-600 transition-transform duration-150 flex-shrink-0 ${open ? 'rotate-180 text-slate-400' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
                       </span>
                     </button>
                     {/* Inline preview — expands under the row; editing opens the drawer */}
@@ -636,6 +683,8 @@ function CustomersInner() {
                         contacts={contacts}
                         amName={c.account_manager_id ? (amById.get(c.account_manager_id) ?? '') : ''}
                         tierName={c.tier ? (tierLabel.get(c.tier) ?? c.tier) : ''}
+                        linked={linkedIdsOf(c.customer_id).map((id) => ({ id, name: customerName.get(id) ?? '(deleted)' }))}
+                        onOpenCustomer={(id) => { const t = customers.find((x) => x.customer_id === id); if (t) openProfile(t); }}
                         onClose={() => { setProfileFor(null); setProfileData(null); }}
                         onEdit={() => openDrawer(c)}
                         onOpenDoc={(qid) => router.push(`/sales/${qid}`)}
@@ -657,6 +706,8 @@ function CustomersInner() {
           amUsers={amUsers}
           tiers={tiers}
           saving={saving}
+          allCustomers={customers}
+          draftLinks={draftLinks}
           onField={setField}
           onClose={closeDrawer}
           onSave={save}
@@ -664,6 +715,7 @@ function CustomersInner() {
           onRemoveContact={(id) => setDraftContacts((l) => l.filter((c) => c.contact_id !== id))}
           onContactField={setContactField}
           onSetPrimary={setPrimary}
+          onLinks={setDraftLinks}
         />
       )}
 
@@ -729,12 +781,14 @@ function CustomersInner() {
 //    document links, and stats. Editing opens the slide-over drawer. ─────────
 
 
-function ProfilePanel({ customer, data, contacts, amName, tierName, onClose, onEdit, onOpenDoc, showEpc }: {
+function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOpenCustomer, onClose, onEdit, onOpenDoc, showEpc }: {
   customer: Customer;
   data: ProfileData | null;
   contacts: Contact[];
   amName: string;
   tierName: string;
+  linked: { id: string; name: string }[];
+  onOpenCustomer: (customerId: string) => void;
   showEpc: boolean;
   onClose: () => void;
   onEdit: () => void;
@@ -774,6 +828,8 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, onClose, onE
           {tierName ? ` · ${tierName}` : ''}
           {amName ? ` · AM: ${amName}` : ''}
           {primary ? ` · ${primary.name}${primary.phone ? ` (${primary.phone})` : ''}` : ''}
+          {customer.referred_by ? ` · Referred by ${customer.referred_by}` : ''}
+          {customer.updated_at ? ` · Edited ${fmtDayTime(customer.updated_at)}${customer.updated_by_email ? ` by ${customer.updated_by_email}` : ''}` : ''}
         </p>
         <button onClick={onEdit}
           className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 text-[11px] font-semibold transition-colors flex-shrink-0">
@@ -797,6 +853,21 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, onClose, onE
               <Kpi label="Outstanding AR" value={fmtRupiah(outstandingAR)} sub="on issued invoices" cls={outstandingAR > 0 ? 'text-amber-300' : 'text-emerald-400'} />
               <Kpi label="Quotes → orders" value={winRate != null ? `${winRate.toFixed(0)}%` : '—'} sub={`${committed.length} of ${quoteCount} quotes`} cls="text-slate-200" />
             </div>
+
+            {/* Related companies — same group / subsidiaries, click to jump */}
+            {linked.length > 0 && (
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">Linked customers</h3>
+                <div className="flex flex-wrap gap-1.5">
+                  {linked.map((l) => (
+                    <button key={l.id} onClick={() => onOpenCustomer(l.id)}
+                      className="px-2.5 py-1 rounded-lg bg-slate-800/70 border border-slate-700/60 text-[11px] text-slate-300 hover:text-emerald-300 hover:border-emerald-500/40 transition-colors">
+                      {l.name} →
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
 
             {/* Documents: every quote/order/invoice/DO, linked */}
             <section>
@@ -927,14 +998,16 @@ function Kpi({ label, value, sub, cls }: { label: string; value: string; sub: st
 
 // ── Drawer (slide-over) ──────────────────────────────────────────────────────
 function Drawer({
-  customer, contacts, amUsers, tiers, saving,
-  onField, onClose, onSave, onAddContact, onRemoveContact, onContactField, onSetPrimary,
+  customer, contacts, amUsers, tiers, saving, allCustomers, draftLinks,
+  onField, onClose, onSave, onAddContact, onRemoveContact, onContactField, onSetPrimary, onLinks,
 }: {
   customer: Customer;
   contacts: Contact[];
   amUsers: AmUser[];
   tiers: Tier[];
   saving: boolean;
+  allCustomers: Customer[];
+  draftLinks: string[];
   onField: <K extends keyof Customer>(k: K, v: Customer[K]) => void;
   onClose: () => void;
   onSave: () => void;
@@ -942,6 +1015,7 @@ function Drawer({
   onRemoveContact: (id: string) => void;
   onContactField: (id: string, k: keyof Contact, v: Contact[keyof Contact]) => void;
   onSetPrimary: (id: string) => void;
+  onLinks: (ids: string[]) => void;
 }) {
   const isNew = !customer.customer_id;
 
@@ -1035,6 +1109,41 @@ function Drawer({
             <Field label="Notes">
               <textarea value={customer.notes} onChange={(e) => onField('notes', e.target.value)} rows={2} className={inputCls} />
             </Field>
+            <Field label="Referred by">
+              {/* Free text: a referrer can be a customer, a person, or a channel.
+                  The datalist offers existing customer names for quick pick. */}
+              <input value={customer.referred_by} onChange={(e) => onField('referred_by', e.target.value)}
+                placeholder="Customer, person, or channel — e.g. AYANA, Pak Budi, Instagram" list="referrer-options" className={inputCls} />
+              <datalist id="referrer-options">
+                {allCustomers.filter((c) => c.customer_id !== customer.customer_id)
+                  .map((c) => <option key={c.customer_id} value={c.display_name || c.legal_name} />)}
+              </datalist>
+            </Field>
+          </div>
+
+          {/* Linked customers — same group / subsidiaries; symmetric, so the
+              link shows (and can be removed) from either company's page. */}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">Linked customers</p>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {draftLinks.map((id) => {
+                const c = allCustomers.find((x) => x.customer_id === id);
+                return (
+                  <span key={id} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-800/70 border border-slate-700/60 text-[11px] text-slate-300">
+                    {c ? (c.display_name || c.legal_name) : '(deleted)'}
+                    <button onClick={() => onLinks(draftLinks.filter((x) => x !== id))}
+                      className="text-slate-500 hover:text-rose-300 transition-colors" title="Remove link">✕</button>
+                  </span>
+                );
+              })}
+              <select value="" onChange={(e) => { if (e.target.value) onLinks([...draftLinks, e.target.value]); }}
+                className="text-[11px] bg-slate-900/80 border border-slate-700 text-slate-400 rounded-lg px-2 py-1 focus:outline-none focus:border-emerald-500/60 max-w-[200px]">
+                <option value="">+ Link a customer…</option>
+                {allCustomers
+                  .filter((c) => c.customer_id && c.customer_id !== customer.customer_id && !draftLinks.includes(c.customer_id))
+                  .map((c) => <option key={c.customer_id} value={c.customer_id}>{c.display_name || c.legal_name}</option>)}
+              </select>
+            </div>
           </div>
 
           {/* Active toggle */}

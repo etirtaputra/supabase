@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-01T11:15:00Z',
+    title: 'Customers: last-modified column · Referred by · linked customers',
+    details: [
+      'The list shows when each customer was last modified (hover for by whom) — sortable like the other columns.',
+      'New “Referred by” field on every customer — a customer, a person, or a channel; existing customer names autocomplete.',
+      'Customers can now be linked to each other (same group, subsidiaries): add links in the editor, and the profile shows them as chips that jump straight to the linked company.',
+    ],
+  },
+  {
     at: '2026-08-01T10:30:00Z',
     title: 'Customers: sortable column titles + manager / tier / status filters',
     details: [
