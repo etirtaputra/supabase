@@ -20,6 +20,7 @@ import { evalCell } from '@/lib/formula';
 import { fmtDay, fmtDayTime, fmtInt } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
 import { fetchBankAccounts, fetchAccountCompanies, accountLabelWithCompany, defaultAccountFor, type BankAccount } from '@/lib/banks';
+import Autocomplete from '@/components/ui/Autocomplete';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
@@ -118,6 +119,14 @@ export default function SalesQuotePage() {
   // popover (what did we sell this item for, to whom, when).
   const [histQuotes, setHistQuotes] = useState<{ quote_id: string; status: string; customer_id: string | null; quote_date: string; quote_number: string }[]>([]);
   const [histItems, setHistItems] = useState<{ quote_id: string; component_id: string; quantity: number; unit_price: number; created_at: string }[]>([]);
+  // EPC project quotes' sell prices — most of the selling history lives THERE,
+  // not in the young sales module, so "sold before" reads both.
+  const [epcQuotes, setEpcQuotes] = useState<{ quote_id: string; quote_number: string; quote_date: string; customer_id: string | null; customer_name: string | null }[]>([]);
+  const [epcItems, setEpcItems] = useState<{ quote_id: string; component_id: string; quantity: number; sell_price: number }[]>([]);
+  // Average PO-created → received days per component (fully-received POs only)
+  // — the same lead-time reading Purchasing / Deal Lookup derive. Empty when
+  // the role can't read buy-side tables; the suggestion simply won't appear.
+  const [leadDaysByComp, setLeadDaysByComp] = useState<Record<string, number>>({});
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   // Split fulfillment: this order's child invoices + delivery orders
   const [savedLines, setSavedLines] = useState<SoLine[]>([]);
@@ -164,10 +173,43 @@ export default function SalesQuotePage() {
 
     // Reserved = qty on committed orders MINUS what their delivered DOs
     // already shipped (partial shipments release their share of the reserve).
-    const [allDoRes, allDoItemRes] = await Promise.all([
+    const [allDoRes, allDoItemRes, poRes, poLineRes] = await Promise.all([
       supabase.from('24.0_delivery_orders').select('do_id, quote_id, status'),
       supabase.from('24.1_delivery_order_items').select('do_id, component_id, qty'),
+      supabase.from('5.0_purchases').select('po_id, po_date, actual_received_date, status'),
+      supabase.from('5.1_purchase_line_items').select('po_id, component_id'),
     ]);
+
+    // EPC selling history (tolerate missing access — projects are role-gated)
+    const [epcQRes, epcIRes] = await Promise.all([
+      supabase.from('10.0_project_quotes').select('quote_id, quote_number, quote_date, customer_id, customer_name'),
+      supabase.from('10.2_quote_items').select('quote_id, component_id, quantity, sell_price'),
+    ]);
+    setEpcQuotes(epcQRes.error ? [] : ((epcQRes.data as { quote_id: string; quote_number: string; quote_date: string; customer_id: string | null; customer_name: string | null }[]) ?? []));
+    setEpcItems(epcIRes.error ? [] : ((((epcIRes.data as { quote_id: string; component_id: string | null; quantity: number; sell_price: number | null }[]) ?? [])
+      .filter((x) => x.component_id && Number(x.sell_price) > 0)) as { quote_id: string; component_id: string; quantity: number; sell_price: number }[]));
+
+    // Historical lead time per component: PO created → fully received.
+    // (5.0's po_id is a UUID live — always String() it before keying.)
+    if (!poRes.error && !poLineRes.error) {
+      const daysByPo = new Map<string, number>();
+      for (const p of (poRes.data as { po_id: unknown; po_date: string | null; actual_received_date: string | null; status: string }[]) ?? []) {
+        if (p.status !== 'Fully Received' || !p.actual_received_date || !p.po_date) continue;
+        const d = Math.round((new Date(p.actual_received_date).getTime() - new Date(p.po_date).getTime()) / 86_400_000);
+        if (d >= 0) daysByPo.set(String(p.po_id), d);
+      }
+      const sums = new Map<string, { total: number; n: number }>();
+      for (const li of (poLineRes.data as { po_id: unknown; component_id: string | null }[]) ?? []) {
+        const d = daysByPo.get(String(li.po_id));
+        if (d == null || !li.component_id) continue;
+        const s = sums.get(li.component_id) ?? { total: 0, n: 0 };
+        s.total += d; s.n += 1;
+        sums.set(li.component_id, s);
+      }
+      const avg: Record<string, number> = {};
+      for (const [cid, s] of sums) avg[cid] = Math.round(s.total / s.n);
+      setLeadDaysByComp(avg);
+    }
     type QHead = { quote_id: string; status: string; customer_id: string | null; quote_date: string; quote_number: string };
     setHistQuotes(((allQRes.data as QHead[]) ?? []));
     setHistItems((((allIRes.data as { quote_id: string; component_id: string | null; quantity: number; is_section: boolean; unit_price: number; created_at: string }[]) ?? [])
@@ -303,12 +345,16 @@ export default function SalesQuotePage() {
     }));
   }
 
-  /** Past sales of this component — this customer's deals first, then others. */
+  /** Past sales of this component — sales quotes AND EPC proposals, this
+   *  customer's deals first, then newest. EPC matters most: that is where the
+   *  selling history actually lives while the sales module is young. */
   function priceHistoryFor(componentId: string): PriceHistEntry[] {
+    const cur = editing?.customer_id ? custById.get(editing.customer_id) : undefined;
+    const curName = (cur?.display_name || cur?.legal_name || '').trim().toLowerCase();
     const qById = new Map(histQuotes.map((q) => [q.quote_id, q]));
     const out: PriceHistEntry[] = [];
     for (const it of histItems) {
-      if (it.component_id !== componentId) continue;
+      if (it.component_id !== componentId || !(Number(it.unit_price) > 0)) continue;
       const q = qById.get(it.quote_id);
       if (!q || q.quote_id === editing?.quote_id) continue;
       const c = q.customer_id ? custById.get(q.customer_id) : undefined;
@@ -319,8 +365,40 @@ export default function SalesQuotePage() {
         qty: Number(it.quantity) || 0, price: Number(it.unit_price) || 0,
       });
     }
+    const eById = new Map(epcQuotes.map((q) => [q.quote_id, q]));
+    for (const it of epcItems) {
+      if (it.component_id !== componentId) continue;
+      const q = eById.get(it.quote_id);
+      if (!q) continue;
+      const name = q.customer_id ? (custById.get(q.customer_id)?.display_name || custById.get(q.customer_id)?.legal_name) : null;
+      const label = name || q.customer_name || '—';
+      // "Mine" matches by id, or by name for legacy EPC rows that predate the
+      // customer link and carry only free-text customer_name.
+      const mine = !!editing?.customer_id && (q.customer_id === editing.customer_id
+        || (!q.customer_id && !!curName && (q.customer_name || '').trim().toLowerCase() === curName));
+      out.push({ quote_number: q.quote_number, date: q.quote_date, customer: label, mine, qty: Number(it.quantity) || 0, price: Number(it.sell_price) || 0 });
+    }
     out.sort((a, b) => (Number(b.mine) - Number(a.mine)) || b.date.localeCompare(a.date));
-    return out.slice(0, 8);
+    return out.slice(0, 10);
+  }
+
+  /**
+   * Suggested lead time for a line: live stock covers the quantity → "Ready";
+   * otherwise the item's historical PO→received average, always rounded UP to
+   * whole months (82 days → "3 bulan", 53 → "2 bulan"). Null when there is
+   * neither stock cover nor history.
+   */
+  function suggestLeadFor(componentId: string, qty: number): { value: string; why: string } | null {
+    const avail = availableOf(componentId);
+    if (avail != null && avail > 0 && avail >= Math.max(qty, 1)) {
+      return { value: 'Ready', why: `Live stock (${fmtInt(avail)}) covers this quantity` };
+    }
+    const days = leadDaysByComp[componentId];
+    if (days != null) {
+      const months = Math.max(1, Math.ceil(days / 30));
+      return { value: `${months} bulan`, why: `Average PO → received on this item is ${days} days, rounded up to whole months` };
+    }
+    return null;
   }
 
   const setHeader = <K extends keyof Quote>(k: K, v: Quote[K]) => setEditing((e) => (e ? { ...e, [k]: v } : e));
@@ -361,11 +439,18 @@ export default function SalesQuotePage() {
 
   function pickComponent(key: string, comp: Comp) {
     const price = priceFor(comp.component_id);
-    setLines((ls) => ls.map((l) => (l.key === key ? {
-      ...l, component_id: comp.component_id, description: compName(comp) || l.description,
-      unit: comp.unit || l.unit,
-      unit_price: price != null ? String(Math.round(price)) : l.unit_price, quantity: l.quantity || '1',
-    } : l)));
+    setLines((ls) => ls.map((l) => {
+      if (l.key !== key) return l;
+      // Auto-fill the lead time on pick when it's still blank — the chip in
+      // the row lets the user re-apply the suggestion after qty changes.
+      const suggested = l.lead_time ? null : suggestLeadFor(comp.component_id, num(l.quantity) || 1);
+      return {
+        ...l, component_id: comp.component_id, description: compName(comp) || l.description,
+        unit: comp.unit || l.unit,
+        unit_price: price != null ? String(Math.round(price)) : l.unit_price, quantity: l.quantity || '1',
+        lead_time: suggested ? suggested.value : l.lead_time,
+      };
+    }));
   }
 
   function pickExtra(key: string, x: Extra) {
@@ -437,12 +522,37 @@ export default function SalesQuotePage() {
   }, [snapshot, loading, draftLike, hasContent, busy]);
 
   // Leaving the tab (switch, close, navigate): save immediately, best effort.
+  // The unmount cleanup catches IN-APP navigation too (menu links) — the
+  // request outlives the component.
   useEffect(() => {
     const onHide = () => { if (document.visibilityState === 'hidden') void autosaveRef.current(); };
     document.addEventListener('visibilitychange', onHide);
     window.addEventListener('pagehide', onHide);
-    return () => { document.removeEventListener('visibilitychange', onHide); window.removeEventListener('pagehide', onHide); };
+    return () => {
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('pagehide', onHide);
+      void autosaveRef.current();
+    };
   }, []);
+
+  // ── Unsaved-changes guard ──────────────────────────────────────────────────
+  const dirty = !loading && !!editing && snapshot !== savedSnapRef.current;
+  // Browser-level leave (close / refresh / external link): the native prompt.
+  useEffect(() => {
+    if (!dirty) return;
+    const h = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', h);
+    return () => window.removeEventListener('beforeunload', h);
+  }, [dirty]);
+  // Back to list: drafts save-and-go (the autosaver's job anyway); other
+  // statuses get an explicit inline choice — NOT a confirm() dialog, which
+  // browsers can suppress silently (the EPC Back-button lesson).
+  const [leaveArmed, setLeaveArmed] = useState(false);
+  async function backToList() {
+    if (!dirty) { router.push('/sales'); return; }
+    if (draftLike) { await persist(); router.push('/sales'); return; }
+    setLeaveArmed(true);
+  }
 
   async function persist(status?: string, extra?: Record<string, unknown>): Promise<string | null> {
     if (!editing) return null;
@@ -584,7 +694,19 @@ export default function SalesQuotePage() {
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-4">
           <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Sales · Quotation" mobileNav={false} />
-          <button onClick={() => router.push('/sales')} className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors">← Back to list</button>
+          {leaveArmed ? (
+            <span className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] text-amber-300 font-semibold">Unsaved changes —</span>
+              <button onClick={async () => { await persist(); router.push('/sales'); }}
+                className="text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-colors">Save & leave</button>
+              <button onClick={() => router.push('/sales')}
+                className="text-xs px-3 py-1.5 rounded-lg border border-slate-700 text-slate-400 hover:text-red-300 hover:border-red-500/40 transition-colors">Discard</button>
+              <button onClick={() => setLeaveArmed(false)} title="Stay on this quote"
+                className="text-slate-500 hover:text-white px-1 transition-colors">✕</button>
+            </span>
+          ) : (
+            <button onClick={backToList} className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors">← Back to list</button>
+          )}
         </div>
       </div>
       <main className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-6 space-y-5">
@@ -634,10 +756,7 @@ export default function SalesQuotePage() {
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4">
           <FieldBox label="Customer" full>
-            <select value={editing.customer_id ?? ''} onChange={(e) => setHeader('customer_id', e.target.value || null)} className={inp}>
-              <option value="">— Select customer —</option>
-              {customers.map((c) => <option key={c.customer_id} value={c.customer_id}>{c.display_name || c.legal_name}{c.tier ? ` (${c.tier})` : ''}</option>)}
-            </select>
+            <CustomerPicker customers={customers} value={editing.customer_id} onPick={(cid) => setHeader('customer_id', cid)} />
           </FieldBox>
           <FieldBox label="Selling company" full>
             <select value={editing.company_id ?? ''} onChange={(e) => setHeader('company_id', e.target.value || null)} className={inp}>
@@ -667,6 +786,7 @@ export default function SalesQuotePage() {
                 tierOptions={l.component_id ? tierOptionsFor(l.component_id) : []}
                 history={l.component_id ? priceHistoryFor(l.component_id) : []}
                 customerTier={custTierCode}
+                leadSuggestion={l.component_id && !l.is_section ? suggestLeadFor(l.component_id, num(l.quantity)) : null}
                 onPick={(c) => pickComponent(l.key, c)} onPickExtra={(x) => pickExtra(l.key, x)}
                 onField={(patch) => setLine(l.key, patch)} onRemove={() => removeLine(l.key)}
                 onDragStart={() => setDragKey(l.key)} onDragEnd={endDrag} />
@@ -760,6 +880,31 @@ const inpSm = 'w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-
 function CenterSpinner() {
   return <div className="min-h-screen bg-chrome flex items-center justify-center"><div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" /></div>;
 }
+// Type-to-search customer picker — a 500-customer <select> forced scrolling;
+// this filters as you type (same Autocomplete the rest of the app uses).
+function CustomerPicker({ customers, value, onPick }: {
+  customers: Customer[]; value: string | null; onPick: (customerId: string | null) => void;
+}) {
+  const sel = value ? customers.find((c) => c.customer_id === value) : undefined;
+  const selName = sel ? (sel.display_name || sel.legal_name) : '';
+  const [text, setText] = useState(selName);
+  useEffect(() => { setText(selName); }, [selName]);
+  const names = useMemo(() => customers.map((c) => c.display_name || c.legal_name).filter(Boolean), [customers]);
+  return (
+    <Autocomplete
+      value={text} onChange={setText} suggestions={names}
+      placeholder="Type to search customers…" inputClassName={inp}
+      onCommit={(v) => {
+        const t = v.trim().toLowerCase();
+        if (!t) { onPick(null); return; }
+        const m = customers.find((c) => (c.display_name || c.legal_name).trim().toLowerCase() === t);
+        if (m) onPick(m.customer_id);
+        else setText(selName); // unknown text never silently clears the pick
+      }}
+    />
+  );
+}
+
 function FieldBox({ label, children, full }: { label: string; children: React.ReactNode; full?: boolean }) {
   return <div className={full ? 'col-span-2' : ''}><label className="block text-[11px] font-medium text-slate-500 mb-1">{label}</label>{children}</div>;
 }
@@ -777,9 +922,10 @@ const GRIP = (
   <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" /><circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" /><circle cx="9" cy="18" r="1.5" /><circle cx="15" cy="18" r="1.5" /></svg>
 );
 
-function LineCard({ line, comps, extras, available, linkedName, canHub, tierOptions, history, customerTier, onPick, onPickExtra, onField, onRemove, onDragStart, onDragEnd }: {
+function LineCard({ line, comps, extras, available, linkedName, canHub, tierOptions, history, customerTier, leadSuggestion, onPick, onPickExtra, onField, onRemove, onDragStart, onDragEnd }: {
   line: EditLine; comps: Comp[]; extras: Extra[]; available: number | null; linkedName: string; canHub: boolean;
   tierOptions: TierOption[]; history: PriceHistEntry[]; customerTier: string;
+  leadSuggestion: { value: string; why: string } | null;
   onPick: (c: Comp) => void; onPickExtra: (x: Extra) => void; onField: (patch: Partial<EditLine>) => void; onRemove: () => void;
   onDragStart: () => void; onDragEnd: () => void;
 }) {
@@ -894,6 +1040,18 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, tierOpti
                   className="w-24 bg-slate-950 border border-slate-800 focus:border-emerald-500/50 rounded-lg px-1.5 py-0.5 text-[11px] text-slate-300 outline-none transition-colors" />
                 <button onClick={() => onField({ lead_time: '' })} className="text-slate-600 hover:text-slate-300 transition-colors text-xs" title="Back to preset list">↺</button>
               </span>
+            )}
+            {/* The suggestion: stock covers the qty → Ready; otherwise the
+                item's historical PO→received average rounded up to months. */}
+            {leadSuggestion && leadSuggestion.value !== line.lead_time && (
+              <button onClick={() => onField({ lead_time: leadSuggestion.value })} title={leadSuggestion.why}
+                className={`text-[10px] px-1.5 py-0.5 rounded-md border transition-colors ${
+                  leadSuggestion.value === 'Ready'
+                    ? 'border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10'
+                    : 'border-sky-500/30 text-sky-400 hover:bg-sky-500/10'
+                }`}>
+                suggest: {leadSuggestion.value}
+              </button>
             )}
           </span>
           <button onClick={() => onField({ showNote: !line.showNote })} className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors ml-auto">

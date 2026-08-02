@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-01T14:30:00Z',
+    title: 'Sales quotes: leave-warning · smart lead times · searchable customer · EPC price history',
+    details: [
+      'Leaving a quote with unsaved changes now warns you: closing or refreshing the tab shows the browser prompt, and Back to list offers Save & leave / Discard. Drafts simply save themselves and go.',
+      'Lead time now suggests itself: when live stock covers the ordered quantity it proposes “Ready”; otherwise it uses the item’s real historical PO → received average from Purchasing, always rounded up to whole months (82 days → 3 bulan). One tap applies it, and it pre-fills when you pick a catalog item.',
+      'The Customer field is now type-to-search instead of a scroll-through list.',
+      'The “sold before” price history now also reads EPC proposals — where most selling history actually lives — matching this customer by link or by name on older proposals.',
+    ],
+  },
+  {
     at: '2026-08-01T13:45:00Z',
     title: 'Sales quotes: drafts save themselves · formulas · price intel · per-item lead time',
     details: [
