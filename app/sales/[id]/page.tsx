@@ -634,15 +634,21 @@ export default function SalesQuotePage() {
     load(true);
   }
 
-  // Revise: back to draft with the revision counter bumped (trigger stamps
-  // revised_at and clears the downstream quote milestones for the new round).
+  // Revise: back to draft. The revision counter only bumps when the customer
+  // has SEEN the quote (it was sent/accepted at some point) — a revision
+  // number tracks what went out the door. Validated-but-never-sent simply
+  // reopens under the same number; the trigger clears milestones only on a
+  // bump, so that path clears validated_at itself.
+  const reviseBumps = !!editing?.sent_at || ['sent', 'accepted'].includes(editing?.status ?? '');
   async function revise() {
     if (!editing?.quote_id) return;
     setBusy(true);
-    const qid = await persist('draft', { revision: (editing.revision ?? 0) + 1 });
+    const qid = await persist('draft', reviseBumps
+      ? { revision: (editing.revision ?? 0) + 1 }
+      : { validated_at: null });
     setBusy(false);
     if (!qid) return;
-    flash(`Revision ${(editing.revision ?? 0) + 1} — back to draft`);
+    flash(reviseBumps ? `Revision ${(editing.revision ?? 0) + 1} — back to draft` : 'Back to draft — same revision');
     load(true);
   }
 
@@ -754,7 +760,9 @@ export default function SalesQuotePage() {
             ))}
             {canRevise && (
               <button onClick={revise} disabled={busy}
-                title="Re-open for edits as a new revision (Rev n) — the quote goes back to Draft"
+                title={reviseBumps
+                  ? 'Re-open for edits as a new revision (Rev n) — the customer has seen this quote'
+                  : 'Re-open for edits — not sent yet, so it keeps the same revision number'}
                 className="flex-shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-semibold bg-sky-500/10 text-sky-300 ring-1 ring-sky-500/25 hover:bg-sky-500/20 transition-colors disabled:opacity-50">
                 Revise
               </button>

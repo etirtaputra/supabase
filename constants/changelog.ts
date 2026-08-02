@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-01T17:45:00Z',
+    title: 'Sales quote revisions only count what the customer has seen',
+    details: [
+      'Revising a quote that was validated but never sent re-opens it under the SAME revision number — Rev only bumps when the quote has actually gone out (sent or accepted).',
+    ],
+  },
+  {
     at: '2026-08-01T17:15:00Z',
     title: 'Sales quote: no “Ready” without the stock to back it',
     details: [
