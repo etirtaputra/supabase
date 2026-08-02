@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-01T17:15:00Z',
+    title: 'Sales quote: no “Ready” without the stock to back it',
+    details: [
+      'A line whose live stock can’t cover the quantity never gets “Ready” suggested — the field stays blank instead.',
+      'If a short line still says “Ready” (or is left blank), the lead-time control turns amber with a warning to set the real lead time.',
+    ],
+  },
+  {
     at: '2026-08-01T16:45:00Z',
     title: 'Sales quote Save behaves like EPC: mutes when saved, Ctrl+S works',
     details: [

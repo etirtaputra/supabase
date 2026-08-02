@@ -1037,12 +1037,18 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, tierOpti
             <span className="text-[10px] text-slate-600 italic">Custom entry</span>
           )}
           {/* Per-item lead time — same presets as the EPC proposal editor;
-              "Custom" flips to free text, ↺ returns to the list. */}
-          <span className="inline-flex items-center gap-1.5">
+              "Custom" flips to free text, ↺ returns to the list. A line the
+              stock can't cover must not claim "Ready" (and blank needs a real
+              value) — the control turns amber and says so. */}
+          <span className="inline-flex items-center gap-1.5 flex-wrap">
             <span className="text-[10px] text-slate-500 whitespace-nowrap">Lead time</span>
             {line.lead_time === '' || (LEAD_TIMES.includes(line.lead_time) && line.lead_time !== 'Custom') ? (
               <select value={line.lead_time} onChange={(e) => onField({ lead_time: e.target.value })}
-                className="bg-slate-950 border border-slate-800 rounded-lg px-1.5 py-0.5 text-[11px] text-slate-300 outline-none focus:border-emerald-500/50 transition-colors">
+                className={`bg-slate-950 border rounded-lg px-1.5 py-0.5 text-[11px] outline-none focus:border-emerald-500/50 transition-colors ${
+                  short && (line.lead_time === 'Ready' || line.lead_time === '')
+                    ? 'border-amber-500/60 text-amber-300'
+                    : 'border-slate-800 text-slate-300'
+                }`}>
                 <option value="">—</option>
                 {LEAD_TIMES.map((l) => <option key={l}>{l}</option>)}
               </select>
@@ -1052,6 +1058,11 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, tierOpti
                   onChange={(e) => onField({ lead_time: e.target.value })} placeholder="e.g. 4 bulan"
                   className="w-24 bg-slate-950 border border-slate-800 focus:border-emerald-500/50 rounded-lg px-1.5 py-0.5 text-[11px] text-slate-300 outline-none transition-colors" />
                 <button onClick={() => onField({ lead_time: '' })} className="text-slate-600 hover:text-slate-300 transition-colors text-xs" title="Back to preset list">↺</button>
+              </span>
+            )}
+            {short && (line.lead_time === 'Ready' || line.lead_time === '') && (
+              <span className="text-[10px] text-amber-400 whitespace-nowrap" title="Live stock cannot cover this quantity">
+                ⚠ {line.lead_time === 'Ready' ? 'no stock for “Ready” — set the real lead time' : 'set the lead time — stock can’t cover this qty'}
               </span>
             )}
             {/* The suggestion: stock covers the qty → Ready; otherwise the
