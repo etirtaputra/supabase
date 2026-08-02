@@ -18,6 +18,7 @@ import { useSettings } from '@/hooks/useSettings';
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
   customer_id: string | null; company_id: string | null; quote_date: string; status: string;
+  valid_until?: string | null;
   ppn_pct: number; notes: string;
 }
 interface Line { item_id: string; is_section: boolean; description: string; brand: string; note: string; lead_time: string; unit: string; quantity: number; unit_price: number; sort_order: number; }
@@ -186,6 +187,11 @@ export default function SalesPrintPage() {
             <div className="doc-label">{isInvoice ? 'Invoice' : isOrder ? 'Konfirmasi Pesanan' : 'Penawaran Harga'}</div>
             <div className="quote-num">{isInvoice ? quote.invoice_number : isOrder ? quote.order_number : quote.quote_number}</div>
             <div className="quote-date">{fmtDate(quote.quote_date)}</div>
+            {/* Validity is a property of the OFFER — the quotation only, never
+                the order confirmation or invoice built from it. */}
+            {!isInvoice && !isOrder && quote.valid_until && (
+              <div className="quote-sub">Berlaku s/d {fmtDate(quote.valid_until)}</div>
+            )}
             {(isInvoice || isOrder) && (
               <div className="quote-sub">Ref. Penawaran: {quote.quote_number}{isInvoice && quote.order_number ? ` · Pesanan: ${quote.order_number}` : ''}</div>
             )}

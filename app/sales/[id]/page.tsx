@@ -25,6 +25,7 @@ import Autocomplete from '@/components/ui/Autocomplete';
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
   customer_id: string | null; company_id: string | null; quote_date: string; status: string;
+  valid_until?: string | null;
   ppn_pct: number; subtotal: number; ppn_amount: number; grand_total: number; notes: string;
   revision?: number;
   validated_at?: string | null; sent_at?: string | null; accepted_at?: string | null;
@@ -81,11 +82,20 @@ const num = (v: unknown): number => {
 // price is the Tier-1 NET; higher tiers mark up from the previous tier.
 
 const blankLine = (): EditLine => ({ key: `new-${Date.now()}-${Math.random()}`, component_id: null, is_section: false, description: '', brand: '', note: '', lead_time: '', unit: '', quantity: '', unit_price: '', showNote: false });
-const blankQuote = (companyId: string | null, ppnPct: number, notes = ''): Quote => ({
-  quote_id: '', quote_number: '', customer_id: null, company_id: companyId,
-  quote_date: new Date().toISOString().slice(0, 10), status: 'draft', ppn_pct: ppnPct,
-  subtotal: 0, ppn_amount: 0, grand_total: 0, notes,
-});
+/** ISO date + n days → ISO date (calendar arithmetic, timezone-safe at noon). */
+const addDays = (iso: string, days: number): string => {
+  const d = new Date(`${iso}T12:00:00`);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+};
+const blankQuote = (companyId: string | null, ppnPct: number, notes = '', validityDays = 30): Quote => {
+  const today = new Date().toISOString().slice(0, 10);
+  return {
+    quote_id: '', quote_number: '', customer_id: null, company_id: companyId,
+    quote_date: today, valid_until: addDays(today, validityDays), status: 'draft', ppn_pct: ppnPct,
+    subtotal: 0, ppn_amount: 0, grand_total: 0, notes,
+  };
+};
 const mapLine = (it: DbLine): EditLine => ({
   key: `db-${it.item_id}`, component_id: it.component_id, is_section: !!it.is_section,
   description: it.description, brand: it.brand ?? '', note: it.note ?? '', lead_time: it.lead_time ?? '', unit: it.unit,
@@ -102,7 +112,7 @@ export default function SalesQuotePage() {
   // Item hub link only for roles that can open it (Analytics is owner-only)
   const canHub = !!profile && ROLE_PERMISSIONS[profile.role].canViewAnalytics;
   // What a brand-new quotation starts with (Settings)
-  const { defaultPpnPct, defaultCompanyId, defaultSalesTerms, defaultCustomerTier } = useSettings();
+  const { defaultPpnPct, defaultCompanyId, defaultSalesTerms, defaultCustomerTier, quoteValidityDays } = useSettings();
 
   const [editing, setEditing] = useState<Quote | null>(null);
   const [lines, setLines] = useState<EditLine[]>([]);
@@ -256,7 +266,7 @@ export default function SalesQuotePage() {
     if (isNew) {
       // Issuing company: the configured one when it still exists, else the first
       const issuer = coList.find((c) => c.company_id === defaultCompanyId)?.company_id ?? coList[0]?.company_id ?? null;
-      const q = blankQuote(issuer, defaultPpnPct, defaultSalesTerms);
+      const q = blankQuote(issuer, defaultPpnPct, defaultSalesTerms, quoteValidityDays);
       const ls = [blankLine()];
       setEditing((prev) => prev ?? q);
       setLines((prev) => (prev.length ? prev : ls));
@@ -295,7 +305,7 @@ export default function SalesQuotePage() {
       setDoItems(doIRes.error ? [] : (((doIRes.data as DoItem[]) ?? []).filter((x) => doIds.has(x.do_id))));
     }
     setLoading(false);
-  }, [id, isNew, defaultPpnPct, defaultCompanyId, defaultSalesTerms]);
+  }, [id, isNew, defaultPpnPct, defaultCompanyId, defaultSalesTerms, quoteValidityDays]);
 
   useEffect(() => { if (canEdit) load(); }, [canEdit, load]);
 
@@ -459,7 +469,7 @@ export default function SalesQuotePage() {
   const savedSnapRef = useRef<string | null>(null);
   const autosavingRef = useRef(false);
   const snapshotOf = (q: Quote | null, ls: EditLine[]) => JSON.stringify([
-    q?.customer_id, q?.company_id, q?.quote_date, q?.ppn_pct, q?.notes,
+    q?.customer_id, q?.company_id, q?.quote_date, q?.valid_until ?? null, q?.ppn_pct, q?.notes,
     ls.map((l) => [l.component_id, l.is_section, l.description, l.brand, l.note, l.lead_time, l.unit, l.quantity, l.unit_price]),
   ]);
   const snapshot = snapshotOf(editing, lines);
@@ -550,6 +560,7 @@ export default function SalesQuotePage() {
     const kept = lines.filter((l) => l.is_section ? l.description.trim() : ((l.component_id || l.description.trim()) && num(l.quantity) > 0));
     const header = {
       customer_id: editing.customer_id, company_id: editing.company_id, quote_date: editing.quote_date,
+      valid_until: editing.valid_until || null,
       status: status ?? editing.status, ppn_pct: num(editing.ppn_pct),
       subtotal: totals.subtotal, ppn_amount: totals.ppn, grand_total: totals.grand, notes: editing.notes,
       ...(extra ?? {}),
@@ -648,8 +659,10 @@ export default function SalesQuotePage() {
   async function revise() {
     if (!editing?.quote_id) return;
     setBusy(true);
+    // A bumped revision is a fresh offer — its validity restarts from today,
+    // so an old quote doesn't come back already Expired.
     const qid = await persist('draft', reviseBumps
-      ? { revision: (editing.revision ?? 0) + 1 }
+      ? { revision: (editing.revision ?? 0) + 1, valid_until: addDays(new Date().toISOString().slice(0, 10), quoteValidityDays) }
       : { validated_at: null });
     setBusy(false);
     if (!qid) return;
@@ -675,6 +688,10 @@ export default function SalesQuotePage() {
   const billTotal = Number(editing.grand_total) || totals.grand;
   const fullyPaid = billTotal > 0 && received >= billTotal - 0.5;
   const showPayments = !newDoc && ['ordered', 'invoiced', 'preparing', 'delivered'].includes(st);
+  // An offer past its own date, while still on the table (draft is not an
+  // offer yet; accepted/ordered+ has already landed). NULL = no expiry.
+  const expired = !!editing.valid_until && ['validated', 'sent'].includes(st)
+    && editing.valid_until < new Date().toISOString().slice(0, 10);
   const actions: { label: string; to: string; primary?: boolean; danger?: boolean }[] = [];
   if (st === 'draft') { actions.push({ label: 'Validate', to: 'validated', primary: true }); actions.push({ label: 'Sent', to: 'sent' }); }
   if (st === 'validated') actions.push({ label: 'Sent', to: 'sent', primary: true });
@@ -725,6 +742,12 @@ export default function SalesQuotePage() {
             <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-sky-500/15 text-sky-300">Rev {editing.revision}</span>
           )}
           <span className={`flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS[st]?.cls ?? ''}`}>{STATUS[st]?.label ?? st}</span>
+          {expired && (
+            <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30"
+              title={`Offer expired ${fmtDay(editing.valid_until!)} — Revise to re-issue with fresh validity`}>
+              Expired {fmtDay(editing.valid_until!)}
+            </span>
+          )}
           {showPayments && fullyPaid && (
             <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40">PAID</span>
           )}
@@ -814,6 +837,17 @@ export default function SalesQuotePage() {
           </FieldBox>
           <FieldBox label="Quote date">
             <input type="date" value={editing.quote_date} onChange={(e) => setHeader('quote_date', e.target.value)} className={inp} />
+          </FieldBox>
+          <FieldBox label="Valid until">
+            <input type="date" value={editing.valid_until ?? ''} onChange={(e) => setHeader('valid_until', e.target.value || null)} className={inp} />
+            <p className="mt-1 text-[10px] text-slate-600">
+              {editing.valid_until
+                ? (() => {
+                    const days = Math.round((new Date(`${editing.valid_until}T12:00:00`).getTime() - new Date(`${editing.quote_date}T12:00:00`).getTime()) / 86400000);
+                    return days >= 0 ? `${days} day${days !== 1 ? 's' : ''} from the quote date` : 'Before the quote date';
+                  })()
+                : 'No expiry — offer stands until revised'}
+            </p>
           </FieldBox>
           <FieldBox label="PPN %">
             <input value={String(editing.ppn_pct)} onChange={(e) => setHeader('ppn_pct', num(e.target.value) as any)} className={`${inp} text-right tabular-nums`} />

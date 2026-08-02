@@ -134,6 +134,8 @@ export interface AppSettings {
   arOverdueDays: number;
   /** Dashboard: a quotation sent this long ago with no answer needs a nudge. */
   quoteFollowUpDays: number;
+  /** A new quotation's offer stands this many days (prefills valid_until). */
+  quoteValidityDays: number;
   /**
    * How close a PO's IDR principal must sit to its expected value before the
    * realised FX rate is trusted (a shared or part payment would otherwise
@@ -188,6 +190,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   costDriftPct:          10,
   arOverdueDays:         30,
   quoteFollowUpDays:     7,
+  quoteValidityDays:     30,
   fxSettledTolerancePct: 5,
 
   companyName:        '',
@@ -317,6 +320,7 @@ export function coerceSettings(raw: Record<string, unknown>): AppSettings {
     costDriftPct:          pick('costDriftPct',          (v) => Math.max(0, numOr(v, d.costDriftPct)), d.costDriftPct),
     arOverdueDays:         pick('arOverdueDays',         (v) => Math.max(1, Math.round(numOr(v, d.arOverdueDays))), d.arOverdueDays),
     quoteFollowUpDays:     pick('quoteFollowUpDays',     (v) => Math.max(1, Math.round(numOr(v, d.quoteFollowUpDays))), d.quoteFollowUpDays),
+    quoteValidityDays:     pick('quoteValidityDays',     (v) => Math.max(1, Math.round(numOr(v, d.quoteValidityDays))), d.quoteValidityDays),
 
     companyName:        pick('companyName',        (v) => str(v, d.companyName), d.companyName),
     companyAddress:     pick('companyAddress',     (v) => str(v, d.companyAddress), d.companyAddress),

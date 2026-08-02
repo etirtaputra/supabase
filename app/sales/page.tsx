@@ -22,7 +22,7 @@ import { inRange, type DateRange } from '@/lib/dateRange';
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
   customer_id: string | null; status: string; grand_total: number; updated_at?: string; revision?: number;
-  quote_date?: string | null;
+  quote_date?: string | null; valid_until?: string | null;
 }
 interface Customer { customer_id: string; display_name: string; legal_name: string; }
 interface PreviewLine { quote_id: string; description: string; quantity: number; unit_price: number; is_section: boolean; sort_order: number; }
@@ -67,7 +67,7 @@ export default function SalesListPage() {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     const [qRes, custRes, rRes, iRes] = await Promise.all([
-      supabase.from('22.0_sales_quotes').select('quote_id, quote_number, order_number, invoice_number, do_number, customer_id, status, grand_total, updated_at, revision, quote_date').order('updated_at', { ascending: false }),
+      supabase.from('22.0_sales_quotes').select('quote_id, quote_number, order_number, invoice_number, do_number, customer_id, status, grand_total, updated_at, revision, quote_date, valid_until').order('updated_at', { ascending: false }),
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name'),
       supabase.from('26.0_customer_receipts').select('quote_id, amount'),
       supabase.from('22.1_sales_quote_items').select('quote_id, description, quantity, unit_price, is_section, sort_order').order('sort_order'),
@@ -93,12 +93,15 @@ export default function SalesListPage() {
     const c = q.customer_id ? custById.get(q.customer_id) : undefined;
     return (c?.display_name || c?.legal_name || '').toLowerCase();
   };
+  // An offer past its own valid_until while still on the table (validated/sent).
+  const today = new Date().toISOString().slice(0, 10);
+  const isExpired = (q: Quote) => !!q.valid_until && ['validated', 'sent'].includes(q.status) && q.valid_until < today;
   const filtered = quotes.filter((q) => {
     if (!inRange(q.quote_date ?? q.updated_at ?? null, range)) return false;
     const s = search.trim().toLowerCase();
     if (!s) return true;
     const c = q.customer_id ? custById.get(q.customer_id) : undefined;
-    return [q.quote_number, q.order_number, q.invoice_number, q.do_number, c?.display_name, c?.legal_name, STATUS[q.status]?.label]
+    return [q.quote_number, q.order_number, q.invoice_number, q.do_number, c?.display_name, c?.legal_name, STATUS[q.status]?.label, isExpired(q) ? 'expired' : '']
       .filter(Boolean).join(' ').toLowerCase().includes(s);
   }).sort((a, b) => {
     if (sort === 'value')    return (Number(b.grand_total) || 0) - (Number(a.grand_total) || 0);
@@ -193,6 +196,7 @@ export default function SalesListPage() {
                       <span className="flex flex-col gap-1">
                         <span className="flex items-center gap-1.5 flex-wrap">
                           <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS[q.status]?.cls ?? ''}`}>{STATUS[q.status]?.label ?? q.status}</span>
+                          {isExpired(q) && <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300" title={`Offer expired ${fmtDay(q.valid_until!)}`}>EXPIRED</span>}
                           {billed && pct >= 100 && <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300">PAID</span>}
                         </span>
                         {!compact && <MilestoneDots status={q.status} paid={billed && pct >= 100} delivered={q.status === 'delivered'} />}

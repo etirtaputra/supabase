@@ -670,6 +670,10 @@ function DefaultsTab({ draft, set, flash }: {
           <textarea rows={4} className={`${inputCls} resize-y leading-relaxed`} value={draft.defaultSalesTerms}
             onChange={(e) => set('defaultSalesTerms', e.target.value)} />
         </Field>
+        <Field label="Quotation valid for (days)" hint="Prefills the Valid until date on a new quotation — printed on the PDF; a validated/sent quote past it shows Expired.">
+          <input type="number" min={1} className={inputCls} value={draft.quoteValidityDays}
+            onChange={(e) => set('quoteValidityDays', Math.max(1, Math.round(Number(e.target.value) || 1)))} />
+        </Field>
         <Field label="Invoice overdue after (days)" hint="The dashboard chases an issued invoice this old that still has money outstanding.">
           <input type="number" min={1} className={inputCls} value={draft.arOverdueDays}
             onChange={(e) => set('arOverdueDays', Math.max(1, Math.round(Number(e.target.value) || 1)))} />

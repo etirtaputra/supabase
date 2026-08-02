@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-02T09:10:00Z',
+    title: 'Sales quotes now carry a validity date',
+    details: [
+      'A new quotation gets a “Valid until” date automatically — quote date + the days set in Settings › Defaults › “Quotation valid for (days)” (ships at 30). Editable per quote; clear it for an open-ended offer.',
+      'The PDF prints “Berlaku s/d …” under the quote date — on the quotation only, never on the order confirmation or invoice.',
+      'A validated/sent quote past its date shows an amber EXPIRED badge on the sales list and in the editor. Existing quotes have no date, so nothing expires retroactively.',
+      'Revising a quote the customer has seen restarts validity from today — a revision is a fresh offer.',
+      'The dashboard’s “quotations awaiting an answer” now also flags sent quotes past their validity, however recent, and says how many are past it.',
+    ],
+  },
+  {
     at: '2026-08-02T08:20:00Z',
     title: 'Sales list: “Open document” moved to the left of the preview, more compact',
     details: [

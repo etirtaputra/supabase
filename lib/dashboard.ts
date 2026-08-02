@@ -75,14 +75,14 @@ export async function fetchActionQueue(
   // ── Sell side ─────────────────────────────────────────────────────────────
   if (perms.sellSide) {
     const [qRes, iRes, invRes, rcpRes, balRes] = await Promise.all([
-      supabase.from('22.0_sales_quotes').select('quote_id, quote_number, order_number, status, grand_total, quote_date, updated_at, customer_id'),
+      supabase.from('22.0_sales_quotes').select('quote_id, quote_number, order_number, status, grand_total, quote_date, valid_until, updated_at, customer_id'),
       supabase.from('22.1_sales_quote_items').select('quote_id, component_id, quantity, is_section'),
       supabase.from('25.0_sales_invoices').select('invoice_id, quote_id, invoice_number, grand_total, issued_at'),
       supabase.from('26.0_customer_receipts').select('invoice_id, quote_id, amount'),
       supabase.from('30.1_stock_balances').select('component_id, qty_on_hand'),
     ]);
 
-    const quotes = (qRes.data ?? []) as { quote_id: string; quote_number: string; order_number: string | null; status: string; grand_total: number; quote_date: string; updated_at: string; customer_id: string | null }[];
+    const quotes = (qRes.data ?? []) as { quote_id: string; quote_number: string; order_number: string | null; status: string; grand_total: number; quote_date: string; valid_until: string | null; updated_at: string; customer_id: string | null }[];
 
     // ── Orders that cannot ship ────────────────────────────────────────────
     // Committed demand per component, less what already left on a delivered DO,
@@ -148,16 +148,23 @@ export async function fetchActionQueue(
     }
 
     // ── Quotes sent, no answer ─────────────────────────────────────────────
+    // A sent quote needs a nudge when it has gone quiet past the follow-up
+    // threshold OR its own valid_until has passed — an expired offer is stale
+    // by definition, however recently it went out.
     if (!qRes.error) {
       const cutoff = daysAgo(opts.quoteFollowUpDays);
-      const stale = quotes.filter((q) => q.status === 'sent' && (q.updated_at ?? q.quote_date ?? '').slice(0, 10) <= cutoff);
+      const today = new Date().toISOString().slice(0, 10);
+      const lapsed = (q: { valid_until: string | null }) => !!q.valid_until && q.valid_until < today;
+      const stale = quotes.filter((q) => q.status === 'sent'
+        && ((q.updated_at ?? q.quote_date ?? '').slice(0, 10) <= cutoff || lapsed(q)));
       if (stale.length) {
         const value = stale.reduce((s, q) => s + (Number(q.grand_total) || 0), 0);
         const oldest = Math.max(...stale.map((q) => daysBetween(q.updated_at ?? q.quote_date ?? '')));
+        const expired = stale.filter(lapsed).length;
         items.push({
           key: 'quote-followup', domain: 'sell', tone: 'watch',
           title: `${stale.length} quotation${stale.length !== 1 ? 's' : ''} awaiting an answer`,
-          detail: `sent over ${opts.quoteFollowUpDays} days ago — oldest ${oldest} days`,
+          detail: `sent over ${opts.quoteFollowUpDays} days ago — oldest ${oldest} days${expired ? ` · ${expired} past validity` : ''}`,
           amount: value, count: stale.length, href: '/sales',
         });
       }
