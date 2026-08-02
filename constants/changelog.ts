@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-01T15:45:00Z',
+    title: 'Sold-before history stays inside Sales Quotes',
+    details: [
+      'Owner’s call: the Sales Quote price history reads sales quotes ONLY, and EPC proposals keep their own price log — the two product lines’ libraries never mix.',
+    ],
+  },
+  {
     at: '2026-08-01T15:15:00Z',
     title: 'Sales quote: one command bar on top — number, status and every action together',
     details: [
@@ -35,7 +42,6 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Leaving a quote with unsaved changes now warns you: closing or refreshing the tab shows the browser prompt, and Back to list offers Save & leave / Discard. Drafts simply save themselves and go.',
       'Lead time now suggests itself: when live stock covers the ordered quantity it proposes “Ready”; otherwise it uses the item’s real historical PO → received average from Purchasing, always rounded up to whole months (82 days → 3 bulan). One tap applies it, and it pre-fills when you pick a catalog item.',
       'The Customer field is now type-to-search instead of a scroll-through list.',
-      'The “sold before” price history now also reads EPC proposals — where most selling history actually lives — matching this customer by link or by name on older proposals.',
     ],
   },
   {

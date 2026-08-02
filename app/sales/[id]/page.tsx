@@ -119,10 +119,6 @@ export default function SalesQuotePage() {
   // popover (what did we sell this item for, to whom, when).
   const [histQuotes, setHistQuotes] = useState<{ quote_id: string; status: string; customer_id: string | null; quote_date: string; quote_number: string }[]>([]);
   const [histItems, setHistItems] = useState<{ quote_id: string; component_id: string; quantity: number; unit_price: number; created_at: string }[]>([]);
-  // EPC project quotes' sell prices — most of the selling history lives THERE,
-  // not in the young sales module, so "sold before" reads both.
-  const [epcQuotes, setEpcQuotes] = useState<{ quote_id: string; quote_number: string; quote_date: string; customer_id: string | null; customer_name: string | null }[]>([]);
-  const [epcItems, setEpcItems] = useState<{ quote_id: string; component_id: string; quantity: number; sell_price: number }[]>([]);
   // Average PO-created → received days per component (fully-received POs only)
   // — the same lead-time reading Purchasing / Deal Lookup derive. Empty when
   // the role can't read buy-side tables; the suggestion simply won't appear.
@@ -179,15 +175,6 @@ export default function SalesQuotePage() {
       supabase.from('5.0_purchases').select('po_id, po_date, actual_received_date, status'),
       supabase.from('5.1_purchase_line_items').select('po_id, component_id'),
     ]);
-
-    // EPC selling history (tolerate missing access — projects are role-gated)
-    const [epcQRes, epcIRes] = await Promise.all([
-      supabase.from('10.0_project_quotes').select('quote_id, quote_number, quote_date, customer_id, customer_name'),
-      supabase.from('10.2_quote_items').select('quote_id, component_id, quantity, sell_price'),
-    ]);
-    setEpcQuotes(epcQRes.error ? [] : ((epcQRes.data as { quote_id: string; quote_number: string; quote_date: string; customer_id: string | null; customer_name: string | null }[]) ?? []));
-    setEpcItems(epcIRes.error ? [] : ((((epcIRes.data as { quote_id: string; component_id: string | null; quantity: number; sell_price: number | null }[]) ?? [])
-      .filter((x) => x.component_id && Number(x.sell_price) > 0)) as { quote_id: string; component_id: string; quantity: number; sell_price: number }[]));
 
     // Historical lead time per component: PO created → fully received.
     // (5.0's po_id is a UUID live — always String() it before keying.)
@@ -345,12 +332,10 @@ export default function SalesQuotePage() {
     }));
   }
 
-  /** Past sales of this component — sales quotes AND EPC proposals, this
-   *  customer's deals first, then newest. EPC matters most: that is where the
-   *  selling history actually lives while the sales module is young. */
+  /** Past SALES-QUOTE sales of this component — this customer's deals first,
+   *  then newest. Deliberately sales-only (owner's call): EPC proposals keep
+   *  their own price log in the EPC editor; the two libraries never mix. */
   function priceHistoryFor(componentId: string): PriceHistEntry[] {
-    const cur = editing?.customer_id ? custById.get(editing.customer_id) : undefined;
-    const curName = (cur?.display_name || cur?.legal_name || '').trim().toLowerCase();
     const qById = new Map(histQuotes.map((q) => [q.quote_id, q]));
     const out: PriceHistEntry[] = [];
     for (const it of histItems) {
@@ -364,19 +349,6 @@ export default function SalesQuotePage() {
         mine: !!editing?.customer_id && q.customer_id === editing.customer_id,
         qty: Number(it.quantity) || 0, price: Number(it.unit_price) || 0,
       });
-    }
-    const eById = new Map(epcQuotes.map((q) => [q.quote_id, q]));
-    for (const it of epcItems) {
-      if (it.component_id !== componentId) continue;
-      const q = eById.get(it.quote_id);
-      if (!q) continue;
-      const name = q.customer_id ? (custById.get(q.customer_id)?.display_name || custById.get(q.customer_id)?.legal_name) : null;
-      const label = name || q.customer_name || '—';
-      // "Mine" matches by id, or by name for legacy EPC rows that predate the
-      // customer link and carry only free-text customer_name.
-      const mine = !!editing?.customer_id && (q.customer_id === editing.customer_id
-        || (!q.customer_id && !!curName && (q.customer_name || '').trim().toLowerCase() === curName));
-      out.push({ quote_number: q.quote_number, date: q.quote_date, customer: label, mine, qty: Number(it.quantity) || 0, price: Number(it.sell_price) || 0 });
     }
     out.sort((a, b) => (Number(b.mine) - Number(a.mine)) || b.date.localeCompare(a.date));
     return out.slice(0, 10);
