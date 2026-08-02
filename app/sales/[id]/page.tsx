@@ -256,8 +256,11 @@ export default function SalesQuotePage() {
     if (isNew) {
       // Issuing company: the configured one when it still exists, else the first
       const issuer = coList.find((c) => c.company_id === defaultCompanyId)?.company_id ?? coList[0]?.company_id ?? null;
-      setEditing((prev) => prev ?? blankQuote(issuer, defaultPpnPct, defaultSalesTerms));
-      setLines((prev) => (prev.length ? prev : [blankLine()]));
+      const q = blankQuote(issuer, defaultPpnPct, defaultSalesTerms);
+      const ls = [blankLine()];
+      setEditing((prev) => prev ?? q);
+      setLines((prev) => (prev.length ? prev : ls));
+      if (savedSnapRef.current === null) savedSnapRef.current = snapshotOf(q, ls);
     } else {
       const [qRes, iRes, rRes, invRes, invIRes, doRes, doIRes] = await Promise.all([
         supabase.from('22.0_sales_quotes').select('*').eq('quote_id', id).single(),
@@ -269,8 +272,14 @@ export default function SalesQuotePage() {
         supabase.from('24.1_delivery_order_items').select('*').order('sort_order'),
       ]);
       if (!qRes.data) { setNotFound(true); setLoading(false); return; }
-      setEditing(qRes.data as Quote);
-      setLines([...((iRes.data as DbLine[]) ?? []).map(mapLine), blankLine()]);
+      const loadedQ = qRes.data as Quote;
+      const loadedLines = [...((iRes.data as DbLine[]) ?? []).map(mapLine), blankLine()];
+      setEditing(loadedQ);
+      setLines(loadedLines);
+      // What the DB just returned IS the saved state — stamp it as such, so
+      // dirty can never stick after a save + reload from normalization
+      // differences between typed values and their stored round-trip.
+      savedSnapRef.current = snapshotOf(loadedQ, loadedLines);
       setReceipts(rRes.error ? [] : ((rRes.data as Receipt[]) ?? []));
       setSavedLines(((iRes.data as DbLine[]) ?? []).map((l) => ({
         item_id: l.item_id, component_id: l.component_id, is_section: !!l.is_section,
@@ -477,11 +486,7 @@ export default function SalesQuotePage() {
   const autosaveRef = useRef(autosave);
   autosaveRef.current = autosave;
 
-  // The first settled snapshot after load counts as "saved".
-  useEffect(() => {
-    if (!loading && savedSnapRef.current === null && editing) savedSnapRef.current = snapshotOf(editing, lines);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading]);
+  // (load() stamps savedSnapRef itself — freshly loaded state IS saved state.)
 
   // Debounce: each change re-arms a 2.5s timer; the newest closure wins.
   useEffect(() => {

@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-01T18:30:00Z',
+    title: 'Sales quote: no phantom “Unsaved” after saving · Library lists used custom lines',
+    details: [
+      'Fixed: after saving, Back to list could still claim unsaved changes and the Save button stayed lit — the freshly loaded state now always counts as saved.',
+      'The Sales Description Library now also lists custom lines already used in sales quotes (with usage count and last price) — one click adds any of them as a curated LIB suggestion.',
+    ],
+  },
+  {
     at: '2026-08-01T17:45:00Z',
     title: 'Sales quote revisions only count what the customer has seen',
     details: [

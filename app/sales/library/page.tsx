@@ -44,12 +44,37 @@ export default function SalesLibraryPage() {
     if (profile && profile.role !== 'owner') router.replace('/unauthorized');
   }, [authLoading, user, profile, router]);
 
+  // Custom (non-catalog) lines already used in sales quotes — shown so the
+  // owner can promote them into the curated library with one click, mirroring
+  // how the EPC Description Library lists quote usage next to curated rows.
+  const [used, setUsed] = useState<{ description: string; unit: string; price: number | null; count: number }[]>([]);
+
   const fetchAll = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from('22.2_sales_description_library')
-      .select('entry_id, description, unit, default_price, notes, updated_at')
-      .order('description');
-    setEntries((data as Entry[]) ?? []);
+    const [libRes, itemRes] = await Promise.all([
+      supabase.from('22.2_sales_description_library')
+        .select('entry_id, description, unit, default_price, notes, updated_at')
+        .order('description'),
+      supabase.from('22.1_sales_quote_items')
+        .select('component_id, is_section, description, unit, unit_price, created_at'),
+    ]);
+    setEntries((libRes.data as Entry[]) ?? []);
+    type Line = { component_id: string | null; is_section: boolean; description: string; unit: string; unit_price: number; created_at: string };
+    const agg = new Map<string, { description: string; unit: string; price: number | null; count: number; at: string }>();
+    for (const it of ((itemRes.data as Line[]) ?? [])) {
+      if (it.component_id || it.is_section) continue;
+      const desc = (it.description ?? '').trim();
+      if (desc.length < 3) continue;
+      const k = desc.toLowerCase();
+      const ex = agg.get(k);
+      if (ex) {
+        ex.count += 1;
+        if ((it.created_at ?? '') > ex.at) Object.assign(ex, { description: desc, unit: it.unit ?? '', price: Number(it.unit_price) || null, at: it.created_at ?? '' });
+      } else {
+        agg.set(k, { description: desc, unit: it.unit ?? '', price: Number(it.unit_price) || null, count: 1, at: it.created_at ?? '' });
+      }
+    }
+    setUsed([...agg.values()].sort((a, b) => b.count - a.count || a.description.localeCompare(b.description)).map(({ at: _at, ...x }) => x));
     setLoading(false);
   }, [supabase]);
   useEffect(() => { if (isOwner) fetchAll(); }, [isOwner, fetchAll]);
@@ -58,6 +83,26 @@ export default function SalesLibraryPage() {
     const q = search.trim().toLowerCase();
     return q ? entries.filter((e) => `${e.description} ${e.unit}`.toLowerCase().includes(q)) : entries;
   }, [entries, search]);
+
+  // Used-in-quotes texts not yet curated (curated ones already show above)
+  const usedVisible = useMemo(() => {
+    const curated = new Set(entries.map((e) => e.description.trim().toLowerCase()));
+    const q = search.trim().toLowerCase();
+    return used.filter((u) => !curated.has(u.description.toLowerCase()))
+      .filter((u) => !q || `${u.description} ${u.unit}`.toLowerCase().includes(q));
+  }, [used, entries, search]);
+
+  async function promote(u: { description: string; unit: string; price: number | null }) {
+    setBusy(true);
+    const { error } = await supabase.from('22.2_sales_description_library').insert({
+      description: u.description, unit: u.unit, default_price: u.price,
+      created_by_email: profile?.email ?? '',
+    });
+    setBusy(false);
+    if (error) { flash(`Failed: ${error.message}`); return; }
+    flash('Added to library');
+    fetchAll();
+  }
 
   async function add() {
     const desc = draft.description.trim();
@@ -176,6 +221,31 @@ export default function SalesLibraryPage() {
             </div>
           )}
         </div>
+
+        {/* Custom texts already used in sales quotes but not curated yet —
+            one click registers them as LIB entries. */}
+        {usedVisible.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-[11px] text-slate-500">
+              <span className="font-semibold text-slate-400">Used in sales quotes</span> — custom lines your team already typed, not in the library yet.
+              Adding one makes it a suggested entry for everyone.
+            </p>
+            <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden divide-y divide-slate-800/60">
+              {usedVisible.map((u) => (
+                <div key={u.description.toLowerCase()} className="px-4 py-2.5 flex items-center gap-3 hover:bg-slate-800/30 transition-colors">
+                  <span className="text-sm text-slate-200 flex-1 min-w-0 truncate">{u.description}</span>
+                  <span className="text-[10px] text-slate-600 tabular-nums flex-shrink-0" title="Times used in sales quotes">×{u.count}</span>
+                  <span className="text-xs text-slate-500 flex-shrink-0">{u.unit || '—'}</span>
+                  <span className="text-xs text-slate-300 tabular-nums flex-shrink-0 w-28 text-right">{u.price != null ? `Rp${fmtInt(u.price)}` : <span className="text-slate-600">no price</span>}</span>
+                  <button onClick={() => promote(u)} disabled={busy}
+                    className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 transition-colors flex-shrink-0 disabled:opacity-50">
+                    + Add to library
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </main>
 
       {toast && <div className="fixed bottom-6 right-6 z-[110] px-4 py-2.5 bg-slate-800 border border-slate-700 text-white text-sm font-semibold rounded-xl shadow-lg">{toast}</div>}
