@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-02T08:20:00Z',
+    title: 'Sales list: “Open document” moved to the left of the preview, more compact',
+    details: [
+      'Expanding a quote row now puts the Open document button first, where reading starts, with the SO / INV / DO numbers beside it — and the button is smaller so the preview stays about the items.',
+    ],
+  },
+  {
     at: '2026-08-01T18:30:00Z',
     title: 'Sales quote: no phantom “Unsaved” after saving · Library lists used custom lines',
     details: [

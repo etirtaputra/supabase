@@ -217,14 +217,14 @@ export default function SalesListPage() {
                     </button>
                     {open && (
                       <div className="px-4 pb-3 pt-1 bg-slate-950/40">
-                        <div className="flex items-center justify-between gap-3 py-1.5">
+                        <div className="flex items-center gap-3 py-1.5">
+                          <button onClick={() => router.push(`/sales/${q.quote_id}`)}
+                            className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 transition-colors whitespace-nowrap flex-shrink-0">
+                            Open document →
+                          </button>
                           <p className="text-[10px] text-slate-600 font-mono truncate">
                             {[q.order_number && `SO ${q.order_number}`, q.invoice_number && `INV ${q.invoice_number}`, q.do_number && `DO ${q.do_number}`].filter(Boolean).join(' · ')}
                           </p>
-                          <button onClick={() => router.push(`/sales/${q.quote_id}`)}
-                            className="text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 transition-colors whitespace-nowrap flex-shrink-0">
-                            Open document →
-                          </button>
                         </div>
                         {items.length === 0 ? (
                           <p className="text-[11px] text-slate-600 italic py-1.5">No items on this quote.</p>
