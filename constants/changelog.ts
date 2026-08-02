@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-01T16:15:00Z',
+    title: 'Sales quote price intel opens on hover / while editing — like EPC costs',
+    details: [
+      'No more clicking the Unit price label: hovering the price shows the log when THIS customer has bought or quoted the item before (a green dot marks such lines), and focusing the field to edit opens tier prices + history whenever there is anything to show.',
+      'Clicking a price in the panel still applies it; typing your own still overrides.',
+    ],
+  },
+  {
     at: '2026-08-01T15:45:00Z',
     title: 'Sold-before history stays inside Sales Quotes',
     details: [

@@ -908,7 +908,16 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, tierOpti
   onPick: (c: Comp) => void; onPickExtra: (x: Extra) => void; onField: (patch: Partial<EditLine>) => void; onRemove: () => void;
   onDragStart: () => void; onDragEnd: () => void;
 }) {
-  const [showPrices, setShowPrices] = useState(false);
+  // Price-intel popover, EPC-style: HOVER opens it when this customer has
+  // bought/quoted the item before (the nudge that matters); FOCUS opens it
+  // whenever there is anything to show (editing the price = wanting options).
+  // A short grace delay keeps it alive while the mouse travels into it.
+  const [priceOpen, setPriceOpen] = useState(false);
+  const closeTimer = useRef<number | null>(null);
+  const scheduleClose = () => { if (closeTimer.current) window.clearTimeout(closeTimer.current); closeTimer.current = window.setTimeout(() => setPriceOpen(false), 250); };
+  const cancelClose = () => { if (closeTimer.current) { window.clearTimeout(closeTimer.current); closeTimer.current = null; } };
+  const mineHistory = history.some((h) => h.mine);
+  const hasPriceIntel = tierOptions.length > 0 || history.length > 0;
   const grip = (title: string) => (
     <span
       draggable
@@ -959,25 +968,27 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, tierOpti
           <LabeledField label="Unit">
             <input value={line.unit} onChange={(e) => onField({ unit: e.target.value })} placeholder="pcs" className={inpSm} />
           </LabeledField>
-          <div className="relative">
-            <LabeledField label={
-              (tierOptions.length || history.length) ? (
-                <button onClick={() => setShowPrices((v) => !v)}
-                  className={`inline-flex items-center gap-1 transition-colors ${showPrices ? 'text-emerald-300' : 'hover:text-slate-300'}`}
-                  title="Tier prices + what this item sold for before">
-                  Unit price <span className="text-[8px]">▾</span>
-                </button>
-              ) : 'Unit price'
-            }>
+          <div className="relative"
+            onMouseEnter={() => { if (mineHistory) { cancelClose(); setPriceOpen(true); } }}
+            onMouseLeave={scheduleClose}
+          >
+            <LabeledField label={mineHistory ? (
+              <span className="inline-flex items-center gap-1" title="This customer has bought or quoted this item before — hover the price for the log">
+                Unit price <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+              </span>
+            ) : 'Unit price'}>
               <input value={line.unit_price} onChange={(e) => onField({ unit_price: e.target.value })}
-                onBlur={(e) => { const v = evalCell(e.target.value); if (v !== e.target.value) onField({ unit_price: v }); }}
-                placeholder="0  (=formula)" title="Accepts =formulas — and any typed price overrides the tier" className={`${inpSm} text-right tabular-nums`} />
+                onFocus={() => { if (hasPriceIntel) { cancelClose(); setPriceOpen(true); } }}
+                onBlur={(e) => { const v = evalCell(e.target.value); if (v !== e.target.value) onField({ unit_price: v }); scheduleClose(); }}
+                onKeyDown={(e) => { if (e.key === 'Escape') setPriceOpen(false); }}
+                placeholder="0  (=formula)" title="Accepts =formulas — and any typed price overrides the tier"
+                className={`${inpSm} text-right tabular-nums ${mineHistory ? 'cursor-help border-emerald-500/30' : ''}`} />
             </LabeledField>
-            {showPrices && (
+            {priceOpen && (
               <PricePopover tierOptions={tierOptions} history={history} customerTier={customerTier}
                 current={num(line.unit_price)}
-                onPickPrice={(p) => { onField({ unit_price: String(Math.round(p)) }); setShowPrices(false); }}
-                onClose={() => setShowPrices(false)} />
+                onPickPrice={(p) => { onField({ unit_price: String(Math.round(p)) }); setPriceOpen(false); }}
+                onHoverIn={cancelClose} onHoverOut={scheduleClose} />
             )}
           </div>
           <LabeledField label="Line total">
@@ -1051,14 +1062,16 @@ function LabeledField({ label, labelCls, children }: { label: React.ReactNode; l
 // ── Unit-price popover: the customer's tier price pre-chosen, every other
 //    tier one click away, and what this item actually sold for before —
 //    typing any number in the field still overrides everything. ─────────────
-function PricePopover({ tierOptions, history, customerTier, current, onPickPrice, onClose }: {
+function PricePopover({ tierOptions, history, customerTier, current, onPickPrice, onHoverIn, onHoverOut }: {
   tierOptions: TierOption[]; history: PriceHistEntry[]; customerTier: string; current: number;
-  onPickPrice: (p: number) => void; onClose: () => void;
+  onPickPrice: (p: number) => void; onHoverIn: () => void; onHoverOut: () => void;
 }) {
   return (
     <>
-      <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className="absolute right-0 top-full mt-1 z-50 w-72 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-2 max-h-[340px] overflow-y-auto">
+      {/* Hover-driven, EPC-style: entering the panel cancels the grace-close;
+          rows apply on MOUSEDOWN so a click lands before the input's blur. */}
+      <div onMouseEnter={onHoverIn} onMouseLeave={onHoverOut}
+        className="absolute right-0 top-full mt-1 z-50 w-72 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-2 max-h-[340px] overflow-y-auto">
         {tierOptions.length > 0 && (
           <>
             <p className="px-1.5 pt-0.5 pb-1 text-[9px] font-bold uppercase tracking-widest text-slate-600">
@@ -1066,7 +1079,7 @@ function PricePopover({ tierOptions, history, customerTier, current, onPickPrice
             </p>
             {tierOptions.map((t) => (
               <button key={t.tier_id} disabled={t.price == null}
-                onClick={() => t.price != null && onPickPrice(t.price)}
+                onMouseDown={(e) => { e.preventDefault(); if (t.price != null) onPickPrice(t.price); }}
                 className={`w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors disabled:opacity-40 ${
                   t.chosen ? 'bg-emerald-500/10 text-emerald-300' : 'text-slate-300 hover:bg-white/10'
                 }`}>
@@ -1087,7 +1100,7 @@ function PricePopover({ tierOptions, history, customerTier, current, onPickPrice
               Sold before
             </p>
             {history.map((h, i) => (
-              <button key={i} onClick={() => onPickPrice(h.price)}
+              <button key={i} onMouseDown={(e) => { e.preventDefault(); onPickPrice(h.price); }}
                 className="w-full px-2 py-1.5 rounded-lg text-left hover:bg-white/10 transition-colors">
                 <span className="flex items-center justify-between gap-2 text-xs">
                   <span className={`truncate ${h.mine ? 'text-emerald-300' : 'text-slate-300'}`}>{h.customer}</span>
