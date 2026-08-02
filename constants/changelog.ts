@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-01T15:15:00Z',
+    title: 'Sales quote: one command bar on top — number, status and every action together',
+    details: [
+      'Save, PDF and the status buttons moved from the bottom of the page into a sticky bar at the top, right above the milestone strip — always in reach while you edit.',
+      'Back to list sits beside the quote number and status pill in the same bar.',
+      'A draft shows its own unique SQ number the moment the first auto-save lands — no more “New Sales Quote” placeholder hanging around.',
+    ],
+  },
+  {
     at: '2026-08-01T14:30:00Z',
     title: 'Sales quotes: leave-warning · smart lead times · searchable customer · EPC price history',
     details: [

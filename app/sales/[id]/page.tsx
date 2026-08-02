@@ -495,11 +495,9 @@ export default function SalesQuotePage() {
     if (qid) {
       savedSnapRef.current = snapshotOf(editing, lines);
       setAutoSavedAt(new Date().toISOString());
-      if (wasNew) {
-        // Adopt the new row in place — no router navigation mid-typing.
-        setEditing((e) => (e ? { ...e, quote_id: qid } : e));
-        window.history.replaceState(null, '', `/sales/${qid}`);
-      }
+      // persist() already adopted the new row's id + SQ number in place;
+      // just fix the URL without a router navigation mid-typing.
+      if (wasNew) window.history.replaceState(null, '', `/sales/${qid}`);
     }
     autosavingRef.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -568,9 +566,14 @@ export default function SalesQuotePage() {
       const { error } = await supabase.from('22.0_sales_quotes').update(header).eq('quote_id', qid);
       if (error) { flash(`Error: ${error.message}`); return null; }
     } else {
-      const { data, error } = await supabase.from('22.0_sales_quotes').insert(header).select('quote_id').single();
+      // The DB trigger stamps the unique SQ number ON INSERT — a draft has its
+      // number from the first (auto)save. Read it back so the header shows it
+      // immediately instead of waiting for a reload.
+      const { data, error } = await supabase.from('22.0_sales_quotes').insert(header).select('quote_id, quote_number').single();
       if (error || !data) { flash(`Error: ${error?.message ?? 'insert failed'}`); return null; }
       qid = data.quote_id as string;
+      const qnum = (data as { quote_number?: string }).quote_number ?? '';
+      setEditing((e) => (e ? { ...e, quote_id: qid!, quote_number: e.quote_number || qnum } : e));
     }
     await supabase.from('22.1_sales_quote_items').delete().eq('quote_id', qid);
     if (kept.length) {
@@ -691,43 +694,80 @@ export default function SalesQuotePage() {
 
   return (
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
+      {/* ── One sticky command bar: identity (back · number · status) on the
+             left, every action on the right — always in reach, directly above
+             the milestone strip, instead of a bar hiding at the page bottom. ── */}
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
-        <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-4">
+        <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 pt-3 sm:pt-4">
           <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Sales · Quotation" mobileNav={false} />
+        </div>
+        <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-2 sm:py-2.5 flex items-center gap-2 sm:gap-2.5 overflow-x-auto scrollbar-none">
           {leaveArmed ? (
-            <span className="flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] text-amber-300 font-semibold">Unsaved changes —</span>
+            <span className="flex items-center gap-2 flex-shrink-0">
+              <span className="text-[11px] text-amber-300 font-semibold whitespace-nowrap">Unsaved —</span>
               <button onClick={async () => { await persist(); router.push('/sales'); }}
-                className="text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-colors">Save & leave</button>
+                className="text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-colors whitespace-nowrap">Save & leave</button>
               <button onClick={() => router.push('/sales')}
-                className="text-xs px-3 py-1.5 rounded-lg border border-slate-700 text-slate-400 hover:text-red-300 hover:border-red-500/40 transition-colors">Discard</button>
+                className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-700 text-slate-400 hover:text-red-300 hover:border-red-500/40 transition-colors">Discard</button>
               <button onClick={() => setLeaveArmed(false)} title="Stay on this quote"
                 className="text-slate-500 hover:text-white px-1 transition-colors">✕</button>
             </span>
           ) : (
-            <button onClick={backToList} className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors">← Back to list</button>
+            <button onClick={backToList} title="Back to the sales list"
+              className="flex-shrink-0 text-xs text-slate-400 hover:text-white px-2.5 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap">←&nbsp;List</button>
           )}
-        </div>
-      </div>
-      <main className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-6 space-y-5">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-lg font-bold text-white">{newDoc ? 'New Sales Quote' : editing.quote_number}</h1>
+          {/* Identity: the SQ number exists from the FIRST (auto)save — a
+              draft carries its own unique number, not a placeholder. */}
+          <h1 className="text-sm sm:text-base font-bold text-white whitespace-nowrap flex-shrink-0">
+            {editing.quote_number || 'New Sales Quote'}
+          </h1>
           {(editing.revision ?? 0) > 0 && (
-            <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-sky-500/15 text-sky-300">Rev {editing.revision}</span>
+            <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-sky-500/15 text-sky-300">Rev {editing.revision}</span>
           )}
-          <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS[st]?.cls ?? ''}`}>{STATUS[st]?.label ?? st}</span>
+          <span className={`flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS[st]?.cls ?? ''}`}>{STATUS[st]?.label ?? st}</span>
           {showPayments && fullyPaid && (
-            <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40">PAID</span>
+            <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40">PAID</span>
           )}
           {showPayments && !fullyPaid && received > 0 && (
-            <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/15 text-amber-300">PARTIAL</span>
+            <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/15 text-amber-300">PARTIAL</span>
           )}
-          <div className="flex flex-wrap gap-2 ml-auto">
+          <span className="hidden lg:flex gap-2 flex-shrink-0">
             {editing.order_number && <DocTag label="SO" value={editing.order_number} />}
             {editing.invoice_number && <DocTag label="INV" value={editing.invoice_number} />}
             {editing.do_number && <DocTag label="DO" value={editing.do_number} />}
-          </div>
+          </span>
+          {/* Actions — right side of the same bar */}
+          <span className="ml-auto flex items-center gap-2 flex-shrink-0">
+            {autoSavedAt && draftLike && (
+              <span className="hidden md:inline text-[10px] text-slate-600 whitespace-nowrap" title="Drafts save themselves shortly after every change">
+                Auto-saved {fmtDayTime(autoSavedAt)}
+              </span>
+            )}
+            {busy && <span className="w-4 h-4 border-2 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin flex-shrink-0" />}
+            <button onClick={save} disabled={busy} className="flex-shrink-0 px-3.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold transition-colors disabled:opacity-50">Save</button>
+            <button onClick={printPdf} disabled={busy} title="Print / PDF"
+              className="flex-shrink-0 px-2.5 py-1.5 rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs font-semibold transition-colors disabled:opacity-50 inline-flex items-center gap-1.5 whitespace-nowrap">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z" /></svg>
+              PDF
+            </button>
+            {actions.map((a) => (
+              <button key={a.to} onClick={() => transition(a.to)} disabled={busy}
+                title={a.to === 'ordered' ? 'Confirming reserves these quantities from Live Stock' : undefined}
+                className={`flex-shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 ${a.danger ? 'bg-red-500/15 text-red-300 ring-1 ring-red-500/30 hover:bg-red-500/25' : a.primary ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                {a.label}
+              </button>
+            ))}
+            {canRevise && (
+              <button onClick={revise} disabled={busy}
+                title="Re-open for edits as a new revision (Rev n) — the quote goes back to Draft"
+                className="flex-shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-semibold bg-sky-500/10 text-sky-300 ring-1 ring-sky-500/25 hover:bg-sky-500/20 transition-colors disabled:opacity-50">
+                Revise
+              </button>
+            )}
+          </span>
         </div>
+      </div>
+      <main className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-6 space-y-5">
 
         {/* Milestone timeline — the defined progression with each stage's doc code */}
         {!newDoc && <SalesMilestones q={editing} received={received} billTotal={billTotal} />}
@@ -834,39 +874,6 @@ export default function SalesQuotePage() {
           />
         )}
 
-        {/* One row, scrolled sideways on a phone — wrapping ate three rows of
-            screen. The hint moves under the bar rather than into it. */}
-        <div className="sticky bottom-0 bg-chrome/95 backdrop-blur border-t border-slate-800 pt-2.5 pb-1.5 sm:py-3 -mx-3 px-3 sm:mx-0 sm:px-0">
-        <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto scrollbar-none">
-          <button onClick={save} disabled={busy} className="flex-shrink-0 px-4 sm:px-5 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-xs sm:text-sm font-semibold transition-colors disabled:opacity-50">Save</button>
-          <button onClick={printPdf} disabled={busy} className="flex-shrink-0 px-3 sm:px-4 py-2 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs sm:text-sm font-semibold transition-colors disabled:opacity-50 inline-flex items-center gap-2 whitespace-nowrap">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z" /></svg>
-            Print / PDF
-          </button>
-          {actions.map((a) => (
-            <button key={a.to} onClick={() => transition(a.to)} disabled={busy}
-              className={`flex-shrink-0 whitespace-nowrap px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors disabled:opacity-50 ${a.danger ? 'bg-red-500/15 text-red-300 ring-1 ring-red-500/30 hover:bg-red-500/25' : a.primary ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
-              {a.label}
-            </button>
-          ))}
-          {canRevise && (
-            <button onClick={revise} disabled={busy}
-              title="Re-open for edits as a new revision (Rev n) — the quote goes back to Draft and re-runs validation"
-              className="flex-shrink-0 whitespace-nowrap px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-sky-500/10 text-sky-300 ring-1 ring-sky-500/25 hover:bg-sky-500/20 transition-colors disabled:opacity-50">
-              Revise
-            </button>
-          )}
-          {busy && <span className="w-4 h-4 border-2 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin flex-shrink-0" />}
-          {autoSavedAt && draftLike && (
-            <span className="flex-shrink-0 text-[10px] text-slate-600 whitespace-nowrap" title="Drafts save themselves shortly after every change">
-              Draft auto-saved {fmtDayTime(autoSavedAt)}
-            </span>
-          )}
-        </div>
-        {['draft', 'sent', 'accepted'].includes(st) && (
-          <p className="text-[11px] text-slate-600 mt-1.5">Confirming reserves these quantities from Live Stock.</p>
-        )}
-        </div>
       </main>
       {toast && <Toast msg={toast} />}
     </div>
