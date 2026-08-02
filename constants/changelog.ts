@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-01T16:45:00Z',
+    title: 'Sales quote Save behaves like EPC: mutes when saved, Ctrl+S works',
+    details: [
+      'The Save button dims and stops being clickable once everything is saved — it lights up again on the next change (auto-save counts).',
+      'Ctrl+S / Cmd+S saves from anywhere in the editor, same as EPC proposals.',
+    ],
+  },
+  {
     at: '2026-08-01T16:15:00Z',
     title: 'Sales quote price intel opens on hover / while editing — like EPC costs',
     details: [

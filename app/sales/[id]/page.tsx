@@ -514,6 +514,22 @@ export default function SalesQuotePage() {
     window.addEventListener('beforeunload', h);
     return () => window.removeEventListener('beforeunload', h);
   }, [dirty]);
+  // Ctrl+S / Cmd+S saves, exactly like the EPC editor. Refs carry the latest
+  // state into the once-registered listener.
+  const dirtyRef = useRef(dirty); dirtyRef.current = dirty;
+  const busyRef = useRef(busy); busyRef.current = busy;
+  const saveRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        if (dirtyRef.current && !busyRef.current) saveRef.current();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   // Back to list: drafts save-and-go (the autosaver's job anyway); other
   // statuses get an explicit inline choice — NOT a confirm() dialog, which
   // browsers can suppress silently (the EPC Back-button lesson).
@@ -573,6 +589,7 @@ export default function SalesQuotePage() {
     flash('Saved');
     if (wasNew) router.replace(`/sales/${qid}`); else load(true);
   }
+  saveRef.current = () => { void save(); };
 
   async function printPdf() {
     setBusy(true);
@@ -716,7 +733,13 @@ export default function SalesQuotePage() {
               </span>
             )}
             {busy && <span className="w-4 h-4 border-2 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin flex-shrink-0" />}
-            <button onClick={save} disabled={busy} className="flex-shrink-0 px-3.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold transition-colors disabled:opacity-50">Save</button>
+            {/* Muted once everything is saved — same contract as the EPC
+                editor's Save; Ctrl+S / Cmd+S works too. */}
+            <button onClick={save} disabled={busy || !dirty} title="Ctrl+S / Cmd+S"
+              className="flex-shrink-0 px-3.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold transition-colors disabled:opacity-40 inline-flex items-center gap-1.5">
+              {busy ? 'Saving…' : 'Save'}
+              <span className="hidden sm:inline text-white/50 text-[9px] font-normal">⌘S</span>
+            </button>
             <button onClick={printPdf} disabled={busy} title="Print / PDF"
               className="flex-shrink-0 px-2.5 py-1.5 rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs font-semibold transition-colors disabled:opacity-50 inline-flex items-center gap-1.5 whitespace-nowrap">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z" /></svg>
