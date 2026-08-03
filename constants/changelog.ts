@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-03T23:47:00Z',
+    title: 'PDF upload is just a button now',
+    details: [
+      'The Upload Quote/PI PDF and Upload PI/PO PDF banners are gone — each is now a single left-aligned button above the forms (explanation in the tooltip, “n items extracted” beside it after a run).',
+      'Step 2’s pre-fill banner collapsed into a small Upload PDF button in the form’s own title row.',
+    ],
+  },
+  {
     at: '2026-08-03T23:41:00Z',
     title: 'Tab titles fixed everywhere · slimmer purchasing forms',
     details: [

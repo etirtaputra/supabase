@@ -418,18 +418,11 @@ export default function BatchLineItemsForm({
 
   return (
     <div className="bg-slate-900/40 backdrop-blur-sm rounded-2xl border border-slate-800/80 p-4 md:p-5 shadow-xl ring-1 ring-white/5 space-y-4">
-      {/* Title */}
+      {/* Title — the PDF pre-fill lives here as a small button, not a banner */}
       <div className="flex items-center gap-3 border-b border-slate-800/80 pb-3">
-        <h3 className="text-sm font-bold text-white tracking-tight">{title}</h3>
-      </div>
-
-      {/* PDF Upload (if enabled) — slim strip, same language as PDFUploadBanner */}
-      {enablePdfUpload && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3.5 py-2 bg-slate-900/40 border border-slate-800 rounded-xl">
-          <svg className="w-4 h-4 text-emerald-400/80 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8"><path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
-          <span className="text-xs font-semibold text-slate-200">Upload PDF to pre-fill</span>
-          <span className="text-[11px] text-slate-500 truncate hidden sm:inline">AI fills the form below from the document</span>
-          <label className="cursor-pointer ml-auto">
+        <h3 className="text-sm font-bold text-white tracking-tight flex-1">{title}</h3>
+        {enablePdfUpload && (
+          <label className="cursor-pointer flex-shrink-0" title="AI fills the form below from an uploaded PDF">
             <input
               type="file"
               accept="application/pdf"
@@ -437,7 +430,7 @@ export default function BatchLineItemsForm({
               disabled={pdfUploading}
               className="hidden"
             />
-            <span className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold transition-colors disabled:opacity-50">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 text-[11px] font-semibold transition-colors">
               {pdfUploading ? (
                 <>
                   <Spinner className="w-3 h-3" />
@@ -448,11 +441,12 @@ export default function BatchLineItemsForm({
               )}
             </span>
           </label>
-          {pdfError && (
-            <div className="w-full p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400">
-              {pdfError}
-            </div>
-          )}
+        )}
+      </div>
+
+      {pdfError && (
+        <div className="p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400">
+          {pdfError}
         </div>
       )}
 
