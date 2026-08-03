@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-03T18:30:00Z',
+    title: 'Sales list: fulfillment digest in the expanded row + Payment/Delivery filters',
+    details: [
+      'Expanding an order now shows the whole fulfillment picture above the items: payment state with Rp received of total, every invoice with its own Paid/Partial/Unpaid chip and how much of the order is billed, and every delivery order with its Delivered/Preparing chip — including ×2 counts and “partly delivered / fully invoiced” notes for split fulfillment.',
+      'Two new filters beside the sort: Payment (Unpaid / Partial / Outstanding / Paid) and Delivery (Not shipped / Preparing / Partly delivered / Delivered) — “delivered but not fully paid” is now two clicks.',
+    ],
+  },
+  {
     at: '2026-08-03T18:00:00Z',
     title: 'Status chips read the same everywhere · doc tags count every child',
     details: [

@@ -26,6 +26,8 @@ interface Quote {
 }
 interface Customer { customer_id: string; display_name: string; legal_name: string; }
 interface PreviewLine { quote_id: string; description: string; quantity: number; unit_price: number; is_section: boolean; sort_order: number; }
+interface InvLite { invoice_id: string; quote_id: string; invoice_number: string; grand_total: number; }
+interface DoLite { do_id: string; quote_id: string; do_number: string; status: string; }
 
 
 export default function SalesListPage() {
@@ -52,6 +54,10 @@ export default function SalesListPage() {
   }, [defaults.range.from, defaults.range.to, defaults.sort]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [layout, setLayout] = useListLayout('sales');
   const compact = layout === 'compact';
+  // Money and goods each get their own filter — "delivered but not paid" is
+  // two clicks, not a search phrase.
+  const [payFilter, setPayFilter] = useState('all');
+  const [delFilter, setDelFilter] = useState('all');
 
   useEffect(() => { document.title = 'Sales — ICAPROC'; }, []);
   useEffect(() => {
@@ -62,24 +68,40 @@ export default function SalesListPage() {
 
   const [receivedByQuote, setReceivedByQuote] = useState<Record<string, number>>({});
   const [linesByQuote, setLinesByQuote] = useState<Record<string, PreviewLine[]>>({});
+  const [invoicesByQuote, setInvoicesByQuote] = useState<Record<string, InvLite[]>>({});
+  const [dosByQuote, setDosByQuote] = useState<Record<string, DoLite[]>>({});
+  const [paidByInvoice, setPaidByInvoice] = useState<Record<string, number>>({});
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
-    const [qRes, custRes, rRes, iRes] = await Promise.all([
+    const [qRes, custRes, rRes, iRes, invRes, doRes] = await Promise.all([
       supabase.from('22.0_sales_quotes').select('quote_id, quote_number, order_number, invoice_number, do_number, customer_id, status, grand_total, updated_at, revision, quote_date, valid_until').order('updated_at', { ascending: false }),
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name'),
-      supabase.from('26.0_customer_receipts').select('quote_id, amount'),
+      supabase.from('26.0_customer_receipts').select('quote_id, invoice_id, amount'),
       supabase.from('22.1_sales_quote_items').select('quote_id, description, quantity, unit_price, is_section, sort_order').order('sort_order'),
+      supabase.from('25.0_sales_invoices').select('invoice_id, quote_id, invoice_number, grand_total').order('created_at'),
+      supabase.from('24.0_delivery_orders').select('do_id, quote_id, do_number, status').order('created_at'),
     ]);
     setQuotes((qRes.data as Quote[]) ?? []);
     setCustomers((custRes.data as Customer[]) ?? []);
     const rcv: Record<string, number> = {};
-    for (const r of ((rRes.data as { quote_id: string; amount: number }[]) ?? [])) rcv[r.quote_id] = (rcv[r.quote_id] ?? 0) + (Number(r.amount) || 0);
+    const paidInv: Record<string, number> = {};
+    for (const r of ((rRes.data as { quote_id: string; invoice_id?: string | null; amount: number }[]) ?? [])) {
+      rcv[r.quote_id] = (rcv[r.quote_id] ?? 0) + (Number(r.amount) || 0);
+      if (r.invoice_id) paidInv[r.invoice_id] = (paidInv[r.invoice_id] ?? 0) + (Number(r.amount) || 0);
+    }
     setReceivedByQuote(rcv);
+    setPaidByInvoice(paidInv);
     const grouped: Record<string, PreviewLine[]> = {};
     for (const l of ((iRes.data as PreviewLine[]) ?? [])) (grouped[l.quote_id] ??= []).push(l);
     setLinesByQuote(grouped);
+    const invG: Record<string, InvLite[]> = {};
+    for (const i of ((invRes.error ? [] : invRes.data as InvLite[]) ?? [])) (invG[i.quote_id] ??= []).push(i);
+    setInvoicesByQuote(invG);
+    const doG: Record<string, DoLite[]> = {};
+    for (const d of ((doRes.error ? [] : doRes.data as DoLite[]) ?? [])) (doG[d.quote_id] ??= []).push(d);
+    setDosByQuote(doG);
     setLoading(false);
   }, []);
   useEffect(() => { if (canEdit) fetchAll(); }, [canEdit, fetchAll]);
@@ -96,12 +118,28 @@ export default function SalesListPage() {
   // An offer past its own valid_until while still on the table (validated/sent).
   const today = todayISO();
   const isExpired = (q: Quote) => !!q.valid_until && ['validated', 'sent'].includes(q.status) && q.valid_until < today;
-  const hasArOpen = (q: Quote) => {
+  const BILLED = ['ordered', 'invoiced', 'preparing', 'delivered'];
+  // One vocabulary for the Payment column, the expanded digest AND the filter —
+  // computed once so they can never disagree.
+  const payStateOf = (q: Quote): 'none' | 'unpaid' | 'partial' | 'outstanding' | 'paid' => {
     const t = Number(q.grand_total) || 0;
-    return q.status === 'delivered' && t > 0 && (receivedByQuote[q.quote_id] ?? 0) < t - 0.5;
+    if (!BILLED.includes(q.status) || t <= 0) return 'none';
+    const r = receivedByQuote[q.quote_id] ?? 0;
+    if (r >= t - 0.5) return 'paid';
+    if (q.status === 'delivered') return 'outstanding';
+    return r > 0 ? 'partial' : 'unpaid';
   };
+  const delStateOf = (q: Quote): 'none' | 'preparing' | 'partial' | 'delivered' => {
+    if (q.status === 'delivered') return 'delivered';
+    const ds = dosByQuote[q.quote_id] ?? [];
+    if (ds.some((d) => d.status === 'delivered')) return 'partial';
+    return ds.length > 0 ? 'preparing' : 'none';
+  };
+  const hasArOpen = (q: Quote) => payStateOf(q) === 'outstanding';
   const filtered = quotes.filter((q) => {
     if (!inRange(q.quote_date ?? q.updated_at ?? null, range)) return false;
+    if (payFilter !== 'all' && payStateOf(q) !== payFilter) return false;
+    if (delFilter !== 'all' && delStateOf(q) !== delFilter) return false;
     const s = search.trim().toLowerCase();
     if (!s) return true;
     const c = q.customer_id ? custById.get(q.customer_id) : undefined;
@@ -156,6 +194,24 @@ export default function SalesListPage() {
               title="Order — the default lives in Settings › Lists"
               className="text-xs bg-slate-900/80 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60">
               {listSpec('sales').sorts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <select value={payFilter} onChange={(e) => setPayFilter(e.target.value)}
+              title="Filter by payment state"
+              className={`text-xs bg-slate-900/80 border rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60 ${payFilter !== 'all' ? 'border-emerald-500/50 text-emerald-300' : 'border-slate-700 text-slate-300'}`}>
+              <option value="all">Payment: all</option>
+              <option value="unpaid">Unpaid</option>
+              <option value="partial">Partial</option>
+              <option value="outstanding">Outstanding</option>
+              <option value="paid">Paid</option>
+            </select>
+            <select value={delFilter} onChange={(e) => setDelFilter(e.target.value)}
+              title="Filter by delivery state"
+              className={`text-xs bg-slate-900/80 border rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60 ${delFilter !== 'all' ? 'border-emerald-500/50 text-emerald-300' : 'border-slate-700 text-slate-300'}`}>
+              <option value="all">Delivery: all</option>
+              <option value="none">Not shipped</option>
+              <option value="preparing">Preparing</option>
+              <option value="partial">Partly delivered</option>
+              <option value="delivered">Delivered</option>
             </select>
             <LayoutToggle value={layout} onChange={setLayout} />
           </div>
@@ -245,9 +301,66 @@ export default function SalesListPage() {
                             Open document →
                           </button>
                           <p className="text-[10px] text-slate-600 font-mono truncate">
-                            {[q.order_number && `SO ${q.order_number}`, q.invoice_number && `INV ${q.invoice_number}`, q.do_number && `DO ${q.do_number}`].filter(Boolean).join(' · ')}
+                            {q.order_number ? `SO ${q.order_number}` : ''}
                           </p>
                         </div>
+                        {/* Fulfillment digest — every invoice with its paid
+                            state, every DO with its delivery state, and how
+                            much of the order each side covers, without opening
+                            the document (the Item-hub expansion idea). */}
+                        {billed && (() => {
+                          const invs = invoicesByQuote[q.quote_id] ?? [];
+                          const qdos = dosByQuote[q.quote_id] ?? [];
+                          const invoicedTotal = invs.reduce((s, i) => s + (Number(i.grand_total) || 0), 0);
+                          const payChip = (label: string, cls: string, ttl?: string) => (
+                            <span title={ttl} className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${cls}`}>{label}</span>
+                          );
+                          const ps = payStateOf(q);
+                          return (
+                            <div className="flex flex-wrap items-center gap-x-7 gap-y-1.5 pb-2 mb-1.5 border-b border-slate-800/60 text-[11px]">
+                              <span className="flex items-center gap-1.5">
+                                <span className="text-[9px] font-semibold uppercase tracking-widest text-slate-600">Payment</span>
+                                {ps === 'paid' ? payChip('Paid', 'bg-emerald-500/20 text-emerald-300')
+                                  : ps === 'outstanding' ? payChip('Outstanding', rcv > 0 ? 'bg-amber-500/15 text-amber-300' : 'bg-red-500/10 text-red-300')
+                                  : ps === 'partial' ? payChip('Partial', 'bg-amber-500/15 text-amber-300')
+                                  : payChip('Unpaid', 'bg-slate-800 text-slate-400')}
+                                <span className="text-slate-500 tabular-nums">Rp {fmtInt(rcv)} of {fmtInt(total)}{total > 0 ? ` · ${pct.toFixed(0)}%` : ''}</span>
+                              </span>
+                              <span className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[9px] font-semibold uppercase tracking-widest text-slate-600">Invoices{invs.length > 1 ? ` ×${invs.length}` : ''}</span>
+                                {invs.length === 0 ? <span className="text-slate-600 italic">none yet</span> : (
+                                  <>
+                                    {invs.map((i) => {
+                                      const it = Number(i.grand_total) || 0;
+                                      const ip = paidByInvoice[i.invoice_id] ?? 0;
+                                      const st2 = it > 0 && ip >= it - 0.5 ? 'Paid' : ip > 0 ? 'Partial' : 'Unpaid';
+                                      const cls = st2 === 'Paid' ? 'bg-emerald-500/10 text-emerald-300' : st2 === 'Partial' ? 'bg-amber-500/10 text-amber-300' : 'bg-slate-800 text-slate-400';
+                                      return <span key={i.invoice_id} title={`Rp ${fmtInt(it)} · Rp ${fmtInt(ip)} received`} className={`px-1.5 py-0.5 rounded font-mono text-[10px] ${cls}`}>{i.invoice_number} · {st2}</span>;
+                                    })}
+                                    <span className="text-slate-500 tabular-nums">
+                                      {total > 0 && invoicedTotal >= total - 0.5 ? 'fully invoiced' : `${total > 0 ? ((invoicedTotal / total) * 100).toFixed(0) : 0}% billed`}
+                                    </span>
+                                  </>
+                                )}
+                              </span>
+                              <span className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[9px] font-semibold uppercase tracking-widest text-slate-600">Delivery{qdos.length > 1 ? ` ×${qdos.length}` : ''}</span>
+                                {qdos.length === 0 ? <span className="text-slate-600 italic">no DO yet</span> : (
+                                  <>
+                                    {qdos.map((d) => (
+                                      <span key={d.do_id} className={`px-1.5 py-0.5 rounded font-mono text-[10px] ${d.status === 'delivered' ? 'bg-emerald-500/10 text-emerald-300' : 'bg-orange-500/10 text-orange-300'}`}>
+                                        {d.do_number} · {d.status === 'delivered' ? 'Delivered' : 'Preparing'}
+                                      </span>
+                                    ))}
+                                    <span className="text-slate-500">
+                                      {q.status === 'delivered' ? 'fully delivered' : delStateOf(q) === 'partial' ? 'partly delivered' : 'in preparation'}
+                                    </span>
+                                  </>
+                                )}
+                              </span>
+                            </div>
+                          );
+                        })()}
                         {items.length === 0 ? (
                           <p className="text-[11px] text-slate-600 italic py-1.5">No items on this quote.</p>
                         ) : (
