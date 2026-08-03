@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-03T17:10:00Z',
+    title: 'Delivered-but-unpaid orders are tagged OUTSTANDING',
+    details: [
+      'When goods have gone out but the money hasn’t fully come in, the sales list and the editor now show an OUTSTANDING badge next to Delivered — red when nothing is received, amber when partly paid, with the open amount in the tooltip. Typing “outstanding” (or “belum lunas”) in the list search finds them.',
+      'Fixed: a payment a rounding-hair under 100% showed “100%” in amber with no PAID badge — paid checks now use the house half-rupiah tolerance.',
+    ],
+  },
+  {
     at: '2026-08-03T16:45:00Z',
     title: 'Fulfillment: Invoices and Delivery each get their own box',
     details: [

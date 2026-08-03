@@ -766,7 +766,15 @@ export default function SalesQuotePage() {
           {showPayments && fullyPaid && (
             <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40">PAID</span>
           )}
-          {showPayments && !fullyPaid && received > 0 && (
+          {/* Delivered with money open is its own state — goods are gone, so
+              the missing rupiah outranks a mere "partial" note. */}
+          {showPayments && !fullyPaid && st === 'delivered' && (
+            <span className={`flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-bold ${received > 0 ? 'bg-amber-500/15 text-amber-300' : 'bg-red-500/10 text-red-300'}`}
+              title={`Delivered, but Rp ${fmtInt(billTotal - received)} has not been received`}>
+              OUTSTANDING
+            </span>
+          )}
+          {showPayments && !fullyPaid && received > 0 && st !== 'delivered' && (
             <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/15 text-amber-300">PARTIAL</span>
           )}
           <span className="hidden lg:flex gap-2 flex-shrink-0">

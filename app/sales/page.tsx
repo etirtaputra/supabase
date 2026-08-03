@@ -96,12 +96,16 @@ export default function SalesListPage() {
   // An offer past its own valid_until while still on the table (validated/sent).
   const today = todayISO();
   const isExpired = (q: Quote) => !!q.valid_until && ['validated', 'sent'].includes(q.status) && q.valid_until < today;
+  const hasArOpen = (q: Quote) => {
+    const t = Number(q.grand_total) || 0;
+    return q.status === 'delivered' && t > 0 && (receivedByQuote[q.quote_id] ?? 0) < t - 0.5;
+  };
   const filtered = quotes.filter((q) => {
     if (!inRange(q.quote_date ?? q.updated_at ?? null, range)) return false;
     const s = search.trim().toLowerCase();
     if (!s) return true;
     const c = q.customer_id ? custById.get(q.customer_id) : undefined;
-    return [q.quote_number, q.order_number, q.invoice_number, q.do_number, c?.display_name, c?.legal_name, STATUS[q.status]?.label, isExpired(q) ? 'expired' : '']
+    return [q.quote_number, q.order_number, q.invoice_number, q.do_number, c?.display_name, c?.legal_name, STATUS[q.status]?.label, isExpired(q) ? 'expired' : '', hasArOpen(q) ? 'outstanding belum lunas' : '']
       .filter(Boolean).join(' ').toLowerCase().includes(s);
   }).sort((a, b) => {
     if (sort === 'value')    return (Number(b.grand_total) || 0) - (Number(a.grand_total) || 0);
@@ -178,6 +182,11 @@ export default function SalesListPage() {
                 const rcv = receivedByQuote[q.quote_id] ?? 0;
                 const billed = ['ordered', 'invoiced', 'preparing', 'delivered'].includes(q.status);
                 const pct = total > 0 ? Math.min(100, (rcv / total) * 100) : 0;
+                // Tolerance, not equality — a rounding hair under 100% must
+                // still read as paid (the 0.5-rupiah rule used everywhere).
+                const paidFull = billed && total > 0 && rcv >= total - 0.5;
+                // Goods gone, money not collected — the state worth shouting.
+                const arOpen = q.status === 'delivered' && billed && !paidFull;
                 const lines = linesByQuote[q.quote_id] ?? [];
                 const items = lines.filter((l) => !l.is_section);
                 const subtotal = items.reduce((s, l) => s + (Number(l.quantity) || 0) * (Number(l.unit_price) || 0), 0);
@@ -197,20 +206,26 @@ export default function SalesListPage() {
                         <span className="flex items-center gap-1.5 flex-wrap">
                           <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS[q.status]?.cls ?? ''}`}>{STATUS[q.status]?.label ?? q.status}</span>
                           {isExpired(q) && <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300" title={`Offer expired ${fmtDay(q.valid_until!)}`}>EXPIRED</span>}
-                          {billed && pct >= 100 && <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300">PAID</span>}
+                          {paidFull && <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300">PAID</span>}
+                          {arOpen && (
+                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${rcv > 0 ? 'bg-amber-500/15 text-amber-300' : 'bg-red-500/10 text-red-300'}`}
+                              title={`Delivered, but Rp ${fmtInt(total - rcv)} has not been received`}>
+                              OUTSTANDING
+                            </span>
+                          )}
                         </span>
-                        {!compact && <MilestoneDots status={q.status} paid={billed && pct >= 100} delivered={q.status === 'delivered'} />}
+                        {!compact && <MilestoneDots status={q.status} paid={paidFull} delivered={q.status === 'delivered'} />}
                       </span>
                       <span className={compact ? 'text-right whitespace-nowrap' : 'text-right'}>
                         <span className={compact ? 'tabular-nums text-slate-200' : 'block tabular-nums text-slate-200'}>{fmtInt(total)}</span>
                         {billed && total > 0 && (compact ? (
-                          <span className={`ml-1.5 text-[10px] tabular-nums ${pct >= 100 ? 'text-emerald-400' : pct > 0 ? 'text-amber-300' : 'text-slate-600'}`}>{pct.toFixed(0)}%</span>
+                          <span className={`ml-1.5 text-[10px] tabular-nums ${paidFull ? 'text-emerald-400' : pct > 0 ? 'text-amber-300' : 'text-slate-600'}`}>{pct.toFixed(0)}%</span>
                         ) : (
                           <span className="mt-1 ml-auto flex items-center gap-1.5 justify-end">
                             <span className="w-12 h-1 bg-slate-700 rounded-full overflow-hidden inline-block">
-                              <span className={`block h-full rounded-full ${pct >= 100 ? 'bg-emerald-500' : pct > 0 ? 'bg-amber-400' : 'bg-slate-600'}`} style={{ width: `${pct}%` }} />
+                              <span className={`block h-full rounded-full ${paidFull ? 'bg-emerald-500' : pct > 0 ? 'bg-amber-400' : 'bg-slate-600'}`} style={{ width: `${pct}%` }} />
                             </span>
-                            <span className={`text-[10px] tabular-nums ${pct >= 100 ? 'text-emerald-400' : pct > 0 ? 'text-amber-300' : 'text-slate-600'}`}>{pct.toFixed(0)}%</span>
+                            <span className={`text-[10px] tabular-nums ${paidFull ? 'text-emerald-400' : pct > 0 ? 'text-amber-300' : 'text-slate-600'}`}>{pct.toFixed(0)}%</span>
                           </span>
                         ))}
                       </span>
