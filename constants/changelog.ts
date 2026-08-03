@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-03T19:50:00Z',
+    title: 'Milestones show every document with its time · full activity log',
+    details: [
+      'The milestone strip now stacks EVERY invoice and delivery order under its step — “Invoice ×2”, “Delivery ×3”, one line each with its own stamp — and timestamps include the time of day.',
+      'New Activity panel at the foot of every sales document: who did what, when — created, status changes, revisions, invoices created/deleted, DOs created/delivered/reopened/deleted, payments recorded/removed. Written by the database itself, so no change can slip through unlogged, and the log cannot be edited or deleted.',
+      'History starts today — actions from before this update were not recorded.',
+    ],
+  },
+  {
     at: '2026-08-03T19:10:00Z',
     title: 'Payment is a progress bar · half-shipped orders say “Partly Delivered”',
     details: [

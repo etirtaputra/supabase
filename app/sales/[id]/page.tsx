@@ -61,6 +61,7 @@ interface Receipt {
 const METHOD_LABELS: Record<string, string> = {
   bank_transfer: 'Bank Transfer', cash: 'Cash', cheque: 'Cheque', giro: 'Giro', other: 'Other',
 };
+interface LogRow { log_id: string; at: string; actor_email: string; action: string; detail: string; }
 const RECEIPT_CATS: { value: string; label: string }[] = [
   { value: 'down_payment', label: 'Down Payment (DP)' },
   { value: 'balance_payment', label: 'Balance Payment' },
@@ -138,6 +139,7 @@ export default function SalesQuotePage() {
   // the role can't read buy-side tables; the suggestion simply won't appear.
   const [leadDaysByComp, setLeadDaysByComp] = useState<Record<string, number>>({});
   const [receipts, setReceipts] = useState<Receipt[]>([]);
+  const [logs, setLogs] = useState<LogRow[]>([]);
   // Split fulfillment: this order's child invoices + delivery orders
   const [savedLines, setSavedLines] = useState<SoLine[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -276,7 +278,7 @@ export default function SalesQuotePage() {
       setLines((prev) => (prev.length ? prev : ls));
       if (savedSnapRef.current === null) savedSnapRef.current = snapshotOf(q, ls);
     } else {
-      const [qRes, iRes, rRes, invRes, invIRes, doRes, doIRes] = await Promise.all([
+      const [qRes, iRes, rRes, invRes, invIRes, doRes, doIRes, logRes] = await Promise.all([
         supabase.from('22.0_sales_quotes').select('*').eq('quote_id', id).single(),
         supabase.from('22.1_sales_quote_items').select('*').eq('quote_id', id).order('sort_order'),
         supabase.from('26.0_customer_receipts').select('*').eq('quote_id', id).order('payment_date', { ascending: false }),
@@ -284,6 +286,7 @@ export default function SalesQuotePage() {
         supabase.from('25.1_sales_invoice_items').select('*'),
         supabase.from('24.0_delivery_orders').select('*').eq('quote_id', id).order('created_at'),
         supabase.from('24.1_delivery_order_items').select('*').order('sort_order'),
+        supabase.from('22.3_sales_activity_log').select('*').eq('quote_id', id).order('at', { ascending: false }).limit(200),
       ]);
       if (!qRes.data) { setNotFound(true); setLoading(false); return; }
       const loadedQ = qRes.data as Quote;
@@ -307,6 +310,7 @@ export default function SalesQuotePage() {
       setDos(doList);
       const doIds = new Set(doList.map((d) => d.do_id));
       setDoItems(doIRes.error ? [] : (((doIRes.data as DoItem[]) ?? []).filter((x) => doIds.has(x.do_id))));
+      setLogs(logRes.error ? [] : ((logRes.data as LogRow[]) ?? []));
     }
     setLoading(false);
   }, [id, isNew, defaultPpnPct, defaultCompanyId, defaultSalesTerms, quoteValidityDays]);
@@ -846,7 +850,7 @@ export default function SalesQuotePage() {
       <main className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-6 space-y-5">
 
         {/* Milestone timeline — the defined progression with each stage's doc code */}
-        {!newDoc && <SalesMilestones q={editing} received={received} billTotal={billTotal} />}
+        {!newDoc && <SalesMilestones q={editing} received={received} billTotal={billTotal} invoices={invoices} dos={dos} />}
 
         {/* Fulfillment: this order's invoices + delivery orders (split-capable) */}
         {!newDoc && ['ordered', 'invoiced', 'preparing', 'delivered'].includes(st) && (
@@ -996,6 +1000,10 @@ export default function SalesQuotePage() {
           </div>
         </div>
 
+        {/* Every change on this document — who, what, when. Written by
+            database triggers, so nothing can happen without a row here. */}
+        {!newDoc && logs.length > 0 && <ActivityPanel logs={logs} />}
+
       </main>
       {toast && <Toast msg={toast} />}
     </div>
@@ -1031,6 +1039,53 @@ function CustomerPicker({ customers, value, onPick }: {
         else setText(selName); // unknown text never silently clears the pick
       }}
     />
+  );
+}
+
+// ── Activity log — the traceability panel ───────────────────────────────────
+const LOG_LABELS: Record<string, { label: string; cls: string }> = {
+  created:          { label: 'Created',          cls: 'text-slate-300' },
+  status:           { label: 'Status',           cls: 'text-sky-300' },
+  revised:          { label: 'Revised',          cls: 'text-sky-300' },
+  invoice_created:  { label: 'Invoice created',  cls: 'text-emerald-300' },
+  invoice_deleted:  { label: 'Invoice deleted',  cls: 'text-red-300' },
+  do_created:       { label: 'DO created',       cls: 'text-orange-300' },
+  do_delivered:     { label: 'Delivered',        cls: 'text-emerald-300' },
+  do_reopened:      { label: 'DO reopened',      cls: 'text-amber-300' },
+  do_deleted:       { label: 'DO deleted',       cls: 'text-red-300' },
+  payment_recorded: { label: 'Payment recorded', cls: 'text-emerald-300' },
+  payment_removed:  { label: 'Payment removed',  cls: 'text-red-300' },
+};
+
+function ActivityPanel({ logs }: { logs: LogRow[] }) {
+  const [showAll, setShowAll] = useState(false);
+  const visible = showAll ? logs : logs.slice(0, 8);
+  return (
+    <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4 space-y-3">
+      <div className="flex flex-wrap items-baseline gap-3">
+        <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Activity</h3>
+        <span className="text-[11px] text-slate-600">every change on this document — who and when</span>
+      </div>
+      <div className="rounded-xl border border-slate-800 divide-y divide-slate-800/60">
+        {visible.map((l) => {
+          const m = LOG_LABELS[l.action] ?? { label: l.action, cls: 'text-slate-300' };
+          return (
+            <div key={l.log_id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-1.5 text-[11px]">
+              <span className="text-slate-600 tabular-nums whitespace-nowrap w-32 flex-shrink-0">{fmtDayTime(l.at)}</span>
+              <span className={`font-semibold whitespace-nowrap ${m.cls}`}>{m.label}</span>
+              {l.detail && <span className="text-slate-400 font-mono text-[10px] truncate">{l.detail}</span>}
+              <span className="ml-auto text-slate-600 truncate">{l.actor_email}</span>
+            </div>
+          );
+        })}
+      </div>
+      {logs.length > 8 && (
+        <button onClick={() => setShowAll((v) => !v)}
+          className="px-2 py-1 rounded-lg border border-white/[0.06] text-[10px] font-medium text-slate-400 hover:text-white hover:bg-white/10 transition-all">
+          {showAll ? 'Show fewer' : `Show all ${logs.length}`}
+        </button>
+      )}
+    </div>
   );
 }
 

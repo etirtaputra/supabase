@@ -1,13 +1,16 @@
 'use client';
 import { milestoneIndex } from '@/lib/salesStatus';
+import { fmtDay, fmtDayTime } from '@/lib/formatters';
 
 /**
  * Milestone stepper for a sales document — the defined progression the whole
- * sell-side funnel follows, with each stage's document code and date:
+ * sell-side funnel follows, with each stage's document code and stamp:
  *   Quote (SQ) → Validated → Sent → Sales Order (SO) → Invoice (INV)
  *   → Payment (RCPT receipts) → Delivery (DO) → Complete.
- * Revisions show on the Quote step (Rev n). Payment and Complete are derived
- * (receipts vs grand total; delivered AND fully paid). Cancelled/rejected
+ * Split fulfillment stacks: EVERY invoice and EVERY delivery order gets its
+ * own line under its milestone, each with its own timestamp. Timestamps render
+ * with the time of day (settings-driven fmtDayTime); date-only fields (the
+ * quote date, an invoice's issue date) stay dates. Cancelled/rejected
  * documents show a terminal banner instead of progress.
  */
 
@@ -18,15 +21,15 @@ export interface MilestoneQuote {
   ordered_at?: string | null; invoiced_at?: string | null; preparing_at?: string | null; delivered_at?: string | null;
   delivery_date?: string | null;
 }
+export interface MilestoneInvoice { invoice_id: string; invoice_number: string; issued_at?: string | null; }
+export interface MilestoneDo { do_id: string; do_number: string; status: string; delivered_at?: string | null; delivery_date?: string | null; }
 
-const fmtD = (d?: string | null) => {
-  if (!d) return '';
-  const dt = new Date(d.length <= 10 ? `${d}T00:00:00` : d);
-  return isNaN(dt.getTime()) ? '' : dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' });
-};
+// Timestamps carry the clock; date-only strings stay dates.
+const fmtD = (d?: string | null) => (!d ? '' : d.length > 10 ? fmtDayTime(d) : fmtDay(d));
 
-export default function SalesMilestones({ q, received, billTotal }: {
+export default function SalesMilestones({ q, received, billTotal, invoices = [], dos = [] }: {
   q: MilestoneQuote; received: number; billTotal: number;
+  invoices?: MilestoneInvoice[]; dos?: MilestoneDo[];
 }) {
   if (['cancelled', 'rejected'].includes(q.status)) {
     return (
@@ -41,55 +44,63 @@ export default function SalesMilestones({ q, received, billTotal }: {
   const delivered = q.status === 'delivered';
   const paymentPct = billTotal > 0 ? Math.min(100, (received / billTotal) * 100) : 0;
 
-  const steps: { label: string; sub: string; done: boolean; active?: boolean }[] = [
+  // Split fulfillment: one line per child document; the legacy single-number
+  // columns only back-fill documents from before the child tables existed.
+  const invoiceSubs = invoices.length > 0
+    ? invoices.map((i) => [i.invoice_number, fmtD(i.issued_at)].filter(Boolean).join(' · '))
+    : q.invoice_number ? [[q.invoice_number, fmtD(q.invoiced_at)].filter(Boolean).join(' · ')] : [];
+  const doSubs = dos.length > 0
+    ? dos.map((d) => [
+        d.do_number,
+        d.status === 'delivered' ? fmtD(d.delivered_at) || 'delivered' : `preparing${d.delivery_date ? ` · target ${fmtD(d.delivery_date)}` : ''}`,
+      ].filter(Boolean).join(' · '))
+    : q.do_number
+      ? [[q.do_number, delivered ? fmtD(q.delivered_at) : q.status === 'preparing' ? `preparing${q.delivery_date ? ` · target ${fmtD(q.delivery_date)}` : ''}` : ''].filter(Boolean).join(' · ')]
+      : [];
+
+  const steps: { label: string; subs: string[]; done: boolean; active?: boolean }[] = [
     {
       label: 'Quote',
-      sub: [q.quote_number, q.revision ? `Rev ${q.revision}` : '', fmtD(q.quote_date)].filter(Boolean).join(' · '),
+      subs: [[q.quote_number, q.revision ? `Rev ${q.revision}` : '', fmtD(q.quote_date)].filter(Boolean).join(' · ')],
       done: true,
     },
     {
       label: 'Validated',
-      sub: fmtD(q.validated_at) || (idx > 1 ? 'skipped' : ''),
+      subs: [fmtD(q.validated_at) || (idx > 1 ? 'skipped' : '')].filter(Boolean),
       done: !!q.validated_at || idx > 1,
     },
     {
       label: 'Sent',
-      sub: fmtD(q.sent_at) || (idx > 2 ? '—' : ''),
+      subs: [fmtD(q.sent_at) || (idx > 2 ? '—' : '')].filter(Boolean),
       done: !!q.sent_at || idx > 2,
     },
     {
       label: 'Sales Order',
-      sub: q.order_number ? `${q.order_number} · ${fmtD(q.ordered_at)}` : '',
+      subs: q.order_number ? [[q.order_number, fmtD(q.ordered_at)].filter(Boolean).join(' · ')] : [],
       done: idx >= 4,
     },
     {
-      label: 'Invoice',
-      sub: q.invoice_number ? `${q.invoice_number} · ${fmtD(q.invoiced_at)}` : '',
+      label: invoiceSubs.length > 1 ? `Invoice ×${invoiceSubs.length}` : 'Invoice',
+      subs: invoiceSubs,
       done: idx >= 5,
     },
     {
       label: 'Payment',
-      sub: billTotal > 0 && received > 0
+      subs: [billTotal > 0 && received > 0
         ? (fullyPaid ? 'Paid in full' : `${paymentPct.toFixed(0)}% received`)
-        : (idx >= 4 ? 'awaiting payment' : ''),
+        : (idx >= 4 ? 'awaiting payment' : '')].filter(Boolean),
       done: fullyPaid && idx >= 4,
       active: idx >= 4 && received > 0 && !fullyPaid,
     },
     {
-      label: 'Delivery',
-      sub: q.do_number
-        ? `${q.do_number} · ${delivered
-            ? fmtD(q.delivered_at)
-            : q.status === 'preparing'
-            ? `preparing${q.delivery_date ? ` · target ${fmtD(q.delivery_date)}` : ''}`
-            : ''}`
-        : '',
+      label: doSubs.length > 1 ? `Delivery ×${doSubs.length}` : 'Delivery',
+      subs: doSubs,
       done: delivered,
-      active: q.status === 'preparing',
+      active: q.status === 'preparing' || (!delivered && dos.some((d) => d.status === 'delivered')),
     },
     {
       label: 'Complete',
-      sub: delivered && fullyPaid ? 'delivered & fully paid' : '',
+      subs: delivered && fullyPaid ? ['delivered & fully paid'] : [],
       done: delivered && fullyPaid,
     },
   ];
@@ -121,7 +132,9 @@ export default function SalesMilestones({ q, received, billTotal }: {
             <p className={`mt-1 max-w-full truncate text-[10px] font-semibold ${s.done ? 'text-emerald-300' : s.active || i === currentIdx ? 'text-amber-300' : 'text-slate-600'}`}>
               {s.label}
             </p>
-            {s.sub && <p className="max-w-full truncate text-center text-[9px] text-slate-500 font-mono" title={s.sub}>{s.sub}</p>}
+            {s.subs.map((t, j) => (
+              <p key={j} className="max-w-full truncate text-center text-[9px] text-slate-500 font-mono leading-relaxed" title={t}>{t}</p>
+            ))}
           </div>
         ))}
       </div>
