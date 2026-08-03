@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-03T15:10:00Z',
+    title: 'Fulfillment panel: each side owns its button',
+    details: [
+      '“+ New Invoice” now sits under the Invoiced meter and “+ New Delivery Order” (with Ship from) under the Delivered meter — billing on the left, shipping on the right.',
+      'All fulfillment buttons restyled to the sleek outlined language of the command bar.',
+      'Reminder of what was already there: an order can carry any number of invoices and delivery orders, and both dialogs let you pick which items and quantities go on each one (set a line to 0 to leave it for later).',
+    ],
+  },
+  {
     at: '2026-08-03T14:45:00Z',
     title: 'Sales quote: pre-set Payment terms & Delivery terms',
     details: [

@@ -297,7 +297,10 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
         {invoicedPct > 100.5 && <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/15 text-red-300">Invoiced {invoicedPct.toFixed(0)}% — over 100%</span>}
       </div>
 
-      {/* Meters */}
+      {/* Meters — each side owns its meter AND its create button, so billing
+          lives under Invoiced and shipping under Delivered. Both stay active
+          until their side is complete: an order can carry any number of
+          invoices and delivery orders. */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <div className="flex justify-between text-[11px] mb-1">
@@ -306,6 +309,15 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
           </div>
           {meter(invoicedPct, invoicedPct >= 99.5 ? 'bg-emerald-500' : 'bg-amber-400')}
           {orderTotal - invoicedTotal > 0.5 && <p className="text-[10px] text-slate-600 mt-1">Rp {fmtInt(orderTotal - invoicedTotal)} left to invoice</p>}
+          {canEdit && (
+            <div className="mt-2.5">
+              <button onClick={() => setShowInv(true)} disabled={busy || invoicedPct >= 100}
+                title={invoicedPct >= 100 ? 'The order is fully invoiced' : 'Bill all or part of this order — pick the items and quantities in the next step'}
+                className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-emerald-300 hover:text-emerald-200 hover:bg-emerald-500/10 border border-emerald-500/25 transition-all disabled:opacity-40 whitespace-nowrap">
+                + New Invoice
+              </button>
+            </div>
+          )}
         </div>
         <div>
           <div className="flex justify-between text-[11px] mb-1">
@@ -314,6 +326,26 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
           </div>
           {meter(orderedQty > 0 ? (deliveredQty / orderedQty) * 100 : 0, fullyDelivered ? 'bg-emerald-500' : 'bg-orange-400')}
           {orderedQty - shippedQty > 0.001 && <p className="text-[10px] text-slate-600 mt-1">{fmtInt(orderedQty - shippedQty)} units not yet on a DO</p>}
+          {canEdit && (
+            <div className="mt-2.5 flex items-center gap-2.5 flex-wrap">
+              <button onClick={() => setShowDo(true)} disabled={busy || orderedQty - shippedQty <= 0.001}
+                title={orderedQty - shippedQty <= 0.001 ? 'Everything is already on a DO' : 'Ship all or part of this order — pick the items and quantities in the next step'}
+                className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-orange-300 hover:text-orange-200 hover:bg-orange-500/10 border border-orange-500/25 transition-all disabled:opacity-40 whitespace-nowrap">
+                + New Delivery Order
+              </button>
+              {/* Deliveries draw stock from this warehouse when a DO is marked delivered */}
+              {warehouses.length > 1 && (
+                <label className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                  Ship from
+                  <select value={shipFrom} onChange={(e) => setShipFrom(e.target.value)}
+                    title="Warehouse the stock-out is posted against when a DO is marked delivered"
+                    className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 text-[11px] outline-none focus:border-emerald-500/60 cursor-pointer">
+                    {warehouses.map((w) => <option key={w.code} value={w.code} className="bg-slate-900">{w.name}</option>)}
+                  </select>
+                </label>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -336,7 +368,7 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
                 <span className="text-[10px] text-slate-600">{orderTotal > 0 ? `${((total / orderTotal) * 100).toFixed(0)}% of order` : ''}</span>
                 <span className="text-slate-600 tabular-nums">{fmtDay(i.issued_at)}</span>
                 <a href={`/sales/${quote.quote_id}/print?inv=${i.invoice_id}`} target="_blank" rel="noopener noreferrer"
-                  className="px-2 py-1 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 text-[10px] font-semibold transition-colors">Print</a>
+                  className="px-2 py-1 rounded-lg text-[10px] font-medium text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all">Print</a>
                 {canEdit && (
                   <button onClick={() => deleteInvoice(i)} disabled={busy} className="text-slate-600 hover:text-red-400 transition-colors" title="Delete invoice">×</button>
                 )}
@@ -363,11 +395,11 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
                   <span className="text-slate-500 truncate">{lines.length} line{lines.length !== 1 ? 's' : ''} · {fmtInt(qty)} units{d.delivery_date ? ` · ${fmtDay(d.delivery_date)}` : ''}{d.delivery_method === 'pickup' ? ' · pick-up' : d.delivery_via ? ` · ${d.delivery_via}` : ''}</span>
                   <span className="ml-auto flex items-center gap-1.5">
                     <a href={`/sales/${quote.quote_id}/do?do=${d.do_id}`} target="_blank" rel="noopener noreferrer"
-                      className="px-2 py-1 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 text-[10px] font-semibold transition-colors">Surat Jalan</a>
+                      className="px-2 py-1 rounded-lg text-[10px] font-medium text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all">Surat Jalan</a>
                     {canEdit && d.status === 'preparing' && (
                       <>
                         <button onClick={() => markDelivered(d)} disabled={busy}
-                          className="px-2 py-1 rounded-lg bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 text-[10px] font-bold transition-colors">
+                          className="px-2 py-1 rounded-lg text-[10px] font-semibold text-emerald-300 hover:text-emerald-200 hover:bg-emerald-500/10 border border-emerald-500/25 transition-all disabled:opacity-40">
                           Mark Delivered
                         </button>
                         <button onClick={() => deleteDo(d)} disabled={busy} className="text-slate-600 hover:text-red-400 transition-colors" title="Delete DO">×</button>
@@ -376,7 +408,7 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
                     {canEdit && d.status === 'delivered' && (
                       <button onClick={() => reopenDo(d)} disabled={busy}
                         title="Reverse this DO's stock-out and put it back in Preparing"
-                        className="px-2 py-1 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 text-[10px] font-semibold transition-colors">
+                        className="px-2 py-1 rounded-lg text-[10px] font-medium text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all disabled:opacity-40">
                         Reopen
                       </button>
                     )}
@@ -388,32 +420,6 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
               </div>
             );
           })}
-        </div>
-      )}
-
-      {canEdit && (
-        <div className="flex flex-wrap gap-2">
-          <button onClick={() => setShowInv(true)} disabled={busy || invoicedPct >= 100}
-            title={invoicedPct >= 100 ? 'The order is fully invoiced' : 'Bill all or part of this order'}
-            className="px-4 py-2 rounded-xl bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 text-xs font-semibold transition-colors disabled:opacity-40">
-            + New Invoice
-          </button>
-          <button onClick={() => setShowDo(true)} disabled={busy || orderedQty - shippedQty <= 0.001}
-            title={orderedQty - shippedQty <= 0.001 ? 'Everything is already on a DO' : 'Ship all or part of this order'}
-            className="px-4 py-2 rounded-xl bg-orange-500/15 text-orange-300 ring-1 ring-orange-500/30 hover:bg-orange-500/25 text-xs font-semibold transition-colors disabled:opacity-40">
-            + New Delivery Order
-          </button>
-          {/* Deliveries draw stock from this warehouse when a DO is marked delivered */}
-          {warehouses.length > 1 && (
-            <label className="flex items-center gap-1.5 text-[11px] text-slate-500">
-              Ship from
-              <select value={shipFrom} onChange={(e) => setShipFrom(e.target.value)}
-                title="Warehouse the stock-out is posted against when a DO is marked delivered"
-                className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 text-[11px] outline-none focus:border-emerald-500/60 cursor-pointer">
-                {warehouses.map((w) => <option key={w.code} value={w.code} className="bg-slate-900">{w.name}</option>)}
-              </select>
-            </label>
-          )}
         </div>
       )}
 
