@@ -1070,7 +1070,7 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOp
                     const payChip = (st: 'Paid' | 'Partial' | 'Unpaid') =>
                       st === 'Paid' ? 'bg-emerald-500/10 text-emerald-300' : st === 'Partial' ? 'bg-amber-500/10 text-amber-300' : 'bg-slate-800 text-slate-400';
                     const quotePay: 'Paid' | 'Partial' | 'Unpaid' = pay === 'paid' ? 'Paid' : pay === 'partial' ? 'Partial' : 'Unpaid';
-                    const chipCls = 'px-1.5 py-0.5 rounded font-mono text-[10px] hover:brightness-125 transition-all';
+                    const docLink = 'inline-flex items-center gap-1 text-slate-500 hover:text-emerald-300 transition-colors';
                     return (
                       <div key={d.quote_id} role="link" tabIndex={0}
                         onClick={() => window.open(`/sales/${d.quote_id}`, '_blank', 'noopener')}
@@ -1089,36 +1089,38 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOp
                           <span className="text-[10px] text-slate-600 tabular-nums">{fmtDay(d.updated_at || d.quote_date)}</span>
                         </div>
                         {(d.order_number || invs.length > 0 || d.invoice_number || qdos.length > 0 || d.do_number) && (
-                          <p className="mt-1 text-[10px] font-mono flex flex-wrap items-center gap-x-2 gap-y-1">
+                          /* Child documents: quiet uniform links — the number
+                             IS the label (SO-/INV-/DO- prefix), a coloured dot
+                             carries the state, the tooltip carries the words.
+                             The badges above already shout the headline. */
+                          <p className="mt-1 text-[10px] font-mono flex flex-wrap items-center gap-x-3 gap-y-1">
                             {d.order_number && (
                               <a href={`/sales/${d.quote_id}`} target="_blank" rel="noopener noreferrer"
                                 onClick={(e) => e.stopPropagation()}
-                                className="text-slate-500 hover:text-emerald-300 transition-colors">SO {d.order_number}</a>
+                                className={docLink}>{d.order_number}</a>
                             )}
                             {invs.length > 0 ? invs.map((i) => {
                               const it = Number(i.grand_total) || 0;
                               const ip = data.paidByInvoice[i.invoice_id] ?? 0;
-                              const st = it > 0 && ip >= it - 0.5 ? 'Paid' as const : ip > 0 ? 'Partial' as const : 'Unpaid' as const;
+                              const st = it > 0 && ip >= it - 0.5 ? 'Paid' : ip > 0 ? 'Partial' : 'Unpaid';
                               return (
                                 <a key={i.invoice_id} href={`/sales/${d.quote_id}/print?inv=${i.invoice_id}`} target="_blank" rel="noopener noreferrer"
-                                  onClick={(e) => e.stopPropagation()} title={`Rp ${fmtInt(it)} · Rp ${fmtInt(ip)} received`}
-                                  className={`${chipCls} ${payChip(st)}`}>{i.invoice_number} · {st}</a>
+                                  onClick={(e) => e.stopPropagation()} title={`${st} — Rp ${fmtInt(ip)} received of Rp ${fmtInt(it)}`}
+                                  className={docLink}>{i.invoice_number}<Dot cls={st === 'Paid' ? 'bg-emerald-400' : st === 'Partial' ? 'bg-amber-400' : 'bg-slate-600'} /></a>
                               );
                             }) : d.invoice_number && (
                               <a href={`/sales/${d.quote_id}/print`} target="_blank" rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className={`${chipCls} ${payChip(quotePay)}`}>{d.invoice_number} · {quotePay}</a>
+                                onClick={(e) => e.stopPropagation()} title={quotePay}
+                                className={docLink}>{d.invoice_number}<Dot cls={quotePay === 'Paid' ? 'bg-emerald-400' : quotePay === 'Partial' ? 'bg-amber-400' : 'bg-slate-600'} /></a>
                             )}
                             {qdos.length > 0 ? qdos.map((dd) => (
                               <a key={dd.do_id} href={`/sales/${d.quote_id}/do?do=${dd.do_id}`} target="_blank" rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className={`${chipCls} ${dd.status === 'delivered' ? 'bg-emerald-500/10 text-emerald-300' : 'bg-orange-500/10 text-orange-300'}`}>
-                                {dd.do_number} · {dd.status === 'delivered' ? 'Delivered' : 'Preparing'}</a>
+                                onClick={(e) => e.stopPropagation()} title={dd.status === 'delivered' ? 'Delivered' : 'Preparing'}
+                                className={docLink}>{dd.do_number}<Dot cls={dd.status === 'delivered' ? 'bg-emerald-400' : 'bg-orange-400'} /></a>
                             )) : d.do_number && (
                               <a href={`/sales/${d.quote_id}/do`} target="_blank" rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className={`${chipCls} ${d.status === 'delivered' ? 'bg-emerald-500/10 text-emerald-300' : 'bg-orange-500/10 text-orange-300'}`}>
-                                {d.do_number} · {d.status === 'delivered' ? 'Delivered' : 'Preparing'}</a>
+                                onClick={(e) => e.stopPropagation()} title={d.status === 'delivered' ? 'Delivered' : 'Preparing'}
+                                className={docLink}>{d.do_number}<Dot cls={d.status === 'delivered' ? 'bg-emerald-400' : 'bg-orange-400'} /></a>
                             )}
                           </p>
                         )}
@@ -1204,6 +1206,11 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOp
       )}
     </div>
   );
+}
+
+/** Tiny state dot on a document link — colour says paid/delivered, tooltip says the word. */
+function Dot({ cls }: { cls: string }) {
+  return <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${cls}`} />;
 }
 
 function Kpi({ label, value, sub, cls }: { label: string; value: string; sub: string; cls: string }) {

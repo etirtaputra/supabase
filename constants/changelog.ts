@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-03T10:40:00Z',
+    title: 'Customer profile document line decluttered',
+    details: [
+      'The SO/invoice/DO line under each document lost its coloured boxes and repeated status words — now quiet uniform links with a small state dot (green paid/delivered, amber partial/preparing, grey unpaid). Hover for the full status and amounts.',
+      'Dropped the doubled prefix (“SO SO-…”) — the document number already says what it is.',
+    ],
+  },
+  {
     at: '2026-08-03T09:16:00Z',
     title: 'Customers can be sorted by most transactions',
     details: [
