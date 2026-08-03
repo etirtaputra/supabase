@@ -300,8 +300,8 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
           <div key={i.invoice_id} className="flex flex-wrap items-center gap-x-2.5 gap-y-1 px-3 py-2 text-xs">
             <span className="font-mono text-slate-200">{i.invoice_number}</span>
             {i.kind === 'progress' && <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300 font-semibold">{Number(i.pct ?? 0)}%</span>}
-            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${state === 'paid' ? 'bg-emerald-500/20 text-emerald-300' : state === 'partial' ? 'bg-amber-500/15 text-amber-300' : 'bg-red-500/10 text-red-400/90'}`}>
-              {state.toUpperCase()}
+            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded ${state === 'paid' ? 'bg-emerald-500/20 text-emerald-300' : state === 'partial' ? 'bg-amber-500/15 text-amber-300' : 'bg-red-500/10 text-red-400/90'}`}>
+              {state === 'paid' ? 'Paid' : state === 'partial' ? 'Partial' : 'Unpaid'}
             </span>
             <span className="ml-auto tabular-nums text-slate-200 font-semibold whitespace-nowrap">Rp {fmtInt(total)}</span>
             <span className="text-slate-600 tabular-nums whitespace-nowrap">{fmtDay(i.issued_at)}</span>
@@ -325,8 +325,8 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
           <div key={d.do_id} className="px-3 py-2 text-xs">
             <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
               <span className="font-mono text-slate-200">{d.do_number}</span>
-              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${d.status === 'delivered' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-orange-500/15 text-orange-300'}`}>
-                {d.status === 'delivered' ? 'DELIVERED' : 'PREPARING'}
+              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded ${d.status === 'delivered' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-orange-500/15 text-orange-300'}`}>
+                {d.status === 'delivered' ? 'Delivered' : 'Preparing'}
               </span>
               <span className="text-slate-500 truncate">{fmtInt(qty)} units{d.delivery_date ? ` · ${fmtDay(d.delivery_date)}` : ''}{d.delivery_method === 'pickup' ? ' · pick-up' : d.delivery_via ? ` · ${d.delivery_via}` : ''}</span>
               <span className="ml-auto flex items-center gap-1.5">

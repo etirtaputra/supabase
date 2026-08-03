@@ -764,23 +764,32 @@ export default function SalesQuotePage() {
             </span>
           )}
           {showPayments && fullyPaid && (
-            <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40">PAID</span>
+            <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40">Paid</span>
           )}
           {/* Delivered with money open is its own state — goods are gone, so
               the missing rupiah outranks a mere "partial" note. */}
           {showPayments && !fullyPaid && st === 'delivered' && (
-            <span className={`flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-bold ${received > 0 ? 'bg-amber-500/15 text-amber-300' : 'bg-red-500/10 text-red-300'}`}
+            <span className={`flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold ${received > 0 ? 'bg-amber-500/15 text-amber-300' : 'bg-red-500/10 text-red-300'}`}
               title={`Delivered, but Rp ${fmtInt(billTotal - received)} has not been received`}>
-              OUTSTANDING
+              Outstanding
             </span>
           )}
           {showPayments && !fullyPaid && received > 0 && st !== 'delivered' && (
-            <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/15 text-amber-300">PARTIAL</span>
+            <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/15 text-amber-300">Partial</span>
           )}
           <span className="hidden lg:flex gap-2 flex-shrink-0">
+            {/* Derived from the REAL child documents, not the legacy mirror of
+                the first one — two invoices show as "INV-… +1", all numbers in
+                the tooltip. */}
             {editing.order_number && <DocTag label="SO" value={editing.order_number} />}
-            {editing.invoice_number && <DocTag label="INV" value={editing.invoice_number} />}
-            {editing.do_number && <DocTag label="DO" value={editing.do_number} />}
+            {invoices.length > 0 ? (
+              <DocTag label="INV" title={invoices.map((i) => i.invoice_number).join(' · ')}
+                value={invoices.length === 1 ? invoices[0].invoice_number : `${invoices[0].invoice_number} +${invoices.length - 1}`} />
+            ) : editing.invoice_number ? <DocTag label="INV" value={editing.invoice_number} /> : null}
+            {dos.length > 0 ? (
+              <DocTag label="DO" title={dos.map((d) => d.do_number).join(' · ')}
+                value={dos.length === 1 ? dos[0].do_number : `${dos[0].do_number} +${dos.length - 1}`} />
+            ) : editing.do_number ? <DocTag label="DO" value={editing.do_number} /> : null}
           </span>
           {/* Actions — right side of the same bar */}
           <span className="ml-auto flex items-center gap-2 flex-shrink-0">
@@ -1037,8 +1046,8 @@ function FieldBox({ label, children, full }: { label: string; children: React.Re
 function Row({ label, value }: { label: string; value: string }) {
   return <div className="flex justify-between text-slate-400"><span>{label}</span><span className="tabular-nums text-slate-200">{value}</span></div>;
 }
-function DocTag({ label, value }: { label: string; value: string }) {
-  return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 text-[11px]"><span className="text-slate-500 font-semibold">{label}</span><span className="font-mono text-slate-300">{value}</span></span>;
+function DocTag({ label, value, title }: { label: string; value: string; title?: string }) {
+  return <span title={title} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 text-[11px]"><span className="text-slate-500 font-semibold">{label}</span><span className="font-mono text-slate-300">{value}</span></span>;
 }
 function Toast({ msg }: { msg: string }) {
   return <div className="fixed bottom-6 right-6 z-[110] px-4 py-2.5 bg-slate-800 border border-slate-700 text-white text-sm font-semibold rounded-xl shadow-lg">{msg}</div>;

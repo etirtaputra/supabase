@@ -207,7 +207,7 @@ export default function SalesListPage() {
                       <span className="flex flex-col gap-1">
                         <span className="flex items-center gap-1.5 flex-wrap">
                           <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS[q.status]?.cls ?? ''}`}>{STATUS[q.status]?.label ?? q.status}</span>
-                          {isExpired(q) && <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300" title={`Offer expired ${fmtDay(q.valid_until!)}`}>EXPIRED</span>}
+                          {isExpired(q) && <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/15 text-amber-300" title={`Offer expired ${fmtDay(q.valid_until!)}`}>Expired</span>}
                         </span>
                         {!compact && <MilestoneDots status={q.status} paid={paidFull} delivered={q.status === 'delivered'} />}
                       </span>
@@ -216,16 +216,16 @@ export default function SalesListPage() {
                         {!billed ? (
                           <span className="text-slate-700 text-[11px]">—</span>
                         ) : paidFull ? (
-                          <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300">PAID</span>
+                          <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/20 text-emerald-300">Paid</span>
                         ) : arOpen ? (
-                          <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${rcv > 0 ? 'bg-amber-500/15 text-amber-300' : 'bg-red-500/10 text-red-300'}`}
+                          <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${rcv > 0 ? 'bg-amber-500/15 text-amber-300' : 'bg-red-500/10 text-red-300'}`}
                             title={`Delivered, but Rp ${fmtInt(total - rcv)} has not been received`}>
-                            OUTSTANDING
+                            Outstanding
                           </span>
                         ) : rcv > 0 ? (
-                          <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300">PARTIAL</span>
+                          <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/15 text-amber-300">Partial</span>
                         ) : (
-                          <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-400">UNPAID</span>
+                          <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-800 text-slate-400">Unpaid</span>
                         )}
                         {billed && total > 0 && !paidFull && (
                           <span className={`text-[10px] tabular-nums ${pct > 0 ? 'text-amber-300' : 'text-slate-600'}`} title={`Rp ${fmtInt(rcv)} received of Rp ${fmtInt(total)}`}>{pct.toFixed(0)}%</span>

@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-03T18:00:00Z',
+    title: 'Status chips read the same everywhere · doc tags count every child',
+    details: [
+      'All state chips now use the same style as the status pills — Paid, Partial, Unpaid, Outstanding, Expired, Delivered, Preparing — instead of a mix of ALL-CAPS badges.',
+      'The SO / INV / DO tags in the editor’s top bar now come from the real child documents: two delivery orders show as “DO-… +1”, and hovering the tag lists every number. Before, only the first invoice/DO ever appeared.',
+    ],
+  },
+  {
     at: '2026-08-03T17:35:00Z',
     title: 'Sales list: Status and Payment are separate columns',
     details: [
