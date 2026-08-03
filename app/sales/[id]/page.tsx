@@ -730,13 +730,13 @@ export default function SalesQuotePage() {
               <button onClick={async () => { await persist(); router.push('/sales'); }}
                 className="text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-colors whitespace-nowrap">Save & leave</button>
               <button onClick={() => router.push('/sales')}
-                className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-700 text-slate-400 hover:text-red-300 hover:border-red-500/40 transition-colors">Discard</button>
+                className="text-[11px] font-medium px-2.5 py-1.5 rounded-lg border border-white/[0.06] text-slate-400 hover:text-red-300 hover:bg-red-500/10 transition-all">Discard</button>
               <button onClick={() => setLeaveArmed(false)} title="Stay on this quote"
                 className="text-slate-500 hover:text-white px-1 transition-colors">✕</button>
             </span>
           ) : (
             <button onClick={backToList} title="Back to the sales list"
-              className="flex-shrink-0 text-xs text-slate-400 hover:text-white px-2.5 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap">←&nbsp;List</button>
+              className="flex-shrink-0 text-[11px] font-medium text-slate-400 hover:text-white px-2.5 py-1.5 border border-white/[0.06] rounded-lg hover:bg-white/10 transition-all whitespace-nowrap">←&nbsp;List</button>
           )}
           {/* Identity: the SQ number exists from the FIRST (auto)save — a
               draft carries its own unique number, not a placeholder. */}
@@ -772,22 +772,28 @@ export default function SalesQuotePage() {
               </span>
             )}
             {busy && <span className="w-4 h-4 border-2 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin flex-shrink-0" />}
-            {/* Muted once everything is saved — same contract as the EPC
-                editor's Save; Ctrl+S / Cmd+S works too. */}
+            {/* EPC command-bar grammar: quiet ghost buttons (hairline border,
+                muted text that lights on hover) with ONE solid accent — Save.
+                Status transitions keep their meaning through text colour only:
+                emerald = the natural next step, red = destructive, sky = revise. */}
             <button onClick={save} disabled={busy || !dirty} title="Ctrl+S / Cmd+S"
-              className="flex-shrink-0 px-3.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold transition-colors disabled:opacity-40 inline-flex items-center gap-1.5">
+              className="flex-shrink-0 flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-all disabled:opacity-40">
               {busy ? 'Saving…' : 'Save'}
               <span className="hidden sm:inline text-white/50 text-[9px] font-normal">⌘S</span>
             </button>
             <button onClick={printPdf} disabled={busy} title="Print / PDF"
-              className="flex-shrink-0 px-2.5 py-1.5 rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs font-semibold transition-colors disabled:opacity-50 inline-flex items-center gap-1.5 whitespace-nowrap">
+              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all disabled:opacity-40 whitespace-nowrap">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z" /></svg>
               PDF
             </button>
             {actions.map((a) => (
               <button key={a.to} onClick={() => transition(a.to)} disabled={busy}
                 title={a.to === 'ordered' ? 'Confirming reserves these quantities from Live Stock' : undefined}
-                className={`flex-shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 ${a.danger ? 'bg-red-500/15 text-red-300 ring-1 ring-red-500/30 hover:bg-red-500/25' : a.primary ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                className={`flex-shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-[11px] border transition-all disabled:opacity-40 ${a.danger
+                  ? 'font-medium text-red-400/90 hover:text-red-300 hover:bg-red-500/10 border-white/[0.06]'
+                  : a.primary
+                    ? 'font-semibold text-emerald-300 hover:text-emerald-200 hover:bg-emerald-500/10 border-emerald-500/25'
+                    : 'font-medium text-slate-400 hover:text-white hover:bg-white/10 border-white/[0.06]'}`}>
                 {a.label}
               </button>
             ))}
@@ -796,7 +802,7 @@ export default function SalesQuotePage() {
                 title={reviseBumps
                   ? 'Re-open for edits as a new revision (Rev n) — the customer has seen this quote'
                   : 'Re-open for edits — not sent yet, so it keeps the same revision number'}
-                className="flex-shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-semibold bg-sky-500/10 text-sky-300 ring-1 ring-sky-500/25 hover:bg-sky-500/20 transition-colors disabled:opacity-50">
+                className="flex-shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-[11px] font-medium text-sky-300/90 hover:text-sky-200 hover:bg-sky-500/10 border border-white/[0.06] transition-all disabled:opacity-40">
                 Revise
               </button>
             )}
@@ -845,29 +851,35 @@ export default function SalesQuotePage() {
             {/* Drafts only — a validated/sent document's date is part of what
                 went out and shouldn't invite one-click rewriting. */}
             {draftLike && editing.quote_date !== todayIso && (
-              <button onClick={() => setHeader('quote_date', todayIso)}
-                className="mt-1 text-[10px] font-semibold text-sky-300 hover:text-sky-200 underline underline-offset-2 decoration-sky-500/40 transition-colors">
-                Set to today&rsquo;s date
-              </button>
+              <span className="mt-1.5 block">
+                <button onClick={() => setHeader('quote_date', todayIso)}
+                  className="px-2 py-1 rounded-lg border border-white/[0.06] text-[10px] font-medium text-slate-400 hover:text-white hover:bg-white/10 transition-all">
+                  Set to today&rsquo;s date
+                </button>
+              </span>
             )}
           </FieldBox>
           <FieldBox label="Valid until">
             <input type="date" value={editing.valid_until ?? ''} onChange={(e) => setHeader('valid_until', e.target.value || null)} className={inp} />
-            <span className="mt-1 flex items-center gap-1">
-              {[7, 14, 30].map((d) => {
-                const target = addDays(editing.quote_date, d);
-                const active = editing.valid_until === target;
-                return (
-                  <button key={d} onClick={() => setHeader('valid_until', target)}
-                    title={`Valid until ${fmtDay(target)} (quote date + ${d} days)`}
-                    className={`px-1.5 py-0.5 rounded text-[10px] font-semibold transition-colors ${active
-                      ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30'
-                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200'}`}>
-                    {d}d
-                  </button>
-                );
-              })}
-              <span className="text-[10px] text-slate-600 ml-0.5">
+            {/* Segmented preset control — one hairline outline, divided cells,
+                the active span tinted; same ghost grammar as the command bar. */}
+            <span className="mt-1.5 flex items-center gap-2">
+              <span className="inline-flex rounded-lg border border-white/[0.06] overflow-hidden divide-x divide-white/[0.06]">
+                {[7, 14, 30].map((d) => {
+                  const target = addDays(editing.quote_date, d);
+                  const active = editing.valid_until === target;
+                  return (
+                    <button key={d} onClick={() => setHeader('valid_until', target)}
+                      title={`Valid until ${fmtDay(target)} (quote date + ${d} days)`}
+                      className={`px-2 py-1 text-[10px] transition-all ${active
+                        ? 'bg-emerald-500/15 text-emerald-300 font-semibold'
+                        : 'text-slate-400 hover:text-white hover:bg-white/10 font-medium'}`}>
+                      {d}d
+                    </button>
+                  );
+                })}
+              </span>
+              <span className="text-[10px] text-slate-600">
                 {editing.valid_until
                   ? (() => {
                       const days = Math.round((new Date(`${editing.valid_until}T12:00:00`).getTime() - new Date(`${editing.quote_date}T12:00:00`).getTime()) / 86400000);
@@ -878,7 +890,7 @@ export default function SalesQuotePage() {
             </span>
           </FieldBox>
           <FieldBox label="PPN %">
-            <input value={String(editing.ppn_pct)} onChange={(e) => setHeader('ppn_pct', num(e.target.value) as any)} className={`${inp} text-right tabular-nums`} />
+            <input value={String(editing.ppn_pct)} onChange={(e) => setHeader('ppn_pct', num(e.target.value) as any)} className={`${inp} tabular-nums`} />
           </FieldBox>
         </div>
 
@@ -1032,8 +1044,10 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, tierOpti
       onField({ [valueKey]: t, [formulaKey]: '' });
     }
   };
+  // Badge sits on the RIGHT — the numbers are left-aligned, so the right edge
+  // is the quiet corner of the field.
   const fBadge = (formula: string, editing: boolean) => (formula && !editing ? (
-    <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[9px] font-bold text-sky-500/80 italic pointer-events-none select-none" title={`Formula: ${formula}`}>ƒ</span>
+    <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] font-bold text-sky-500/80 italic pointer-events-none select-none" title={`Formula: ${formula}`}>ƒ</span>
   ) : null);
   const grip = (title: string) => (
     <span
@@ -1085,7 +1099,7 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, tierOpti
                 onFocus={() => setQtyDraft(line.qty_formula || line.quantity)}
                 onChange={(e) => setQtyDraft(e.target.value)}
                 onBlur={() => { commitCell(qtyDraft, 'quantity', 'qty_formula'); setQtyDraft(null); }}
-                placeholder="0" className={`${inpSm} text-right tabular-nums`} />
+                placeholder="0" className={`${inpSm} tabular-nums`} />
             </span>
           </LabeledField>
           <LabeledField label="Unit">
@@ -1108,7 +1122,7 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, tierOpti
                   onBlur={() => { commitCell(priceDraft, 'unit_price', 'price_formula'); setPriceDraft(null); scheduleClose(); }}
                   onKeyDown={(e) => { if (e.key === 'Escape') setPriceOpen(false); }}
                   placeholder="0" title="Any typed price overrides the tier"
-                  className={`${inpSm} text-right tabular-nums ${mineHistory ? 'cursor-help border-emerald-500/30' : ''}`} />
+                  className={`${inpSm} tabular-nums ${mineHistory ? 'cursor-help border-emerald-500/30' : ''}`} />
               </span>
             </LabeledField>
             {priceOpen && (

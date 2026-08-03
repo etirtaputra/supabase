@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-03T13:40:00Z',
+    title: 'Sales quote editor restyled to the EPC command-bar language',
+    details: [
+      'The action bar now matches the EPC proposal editor: quiet outlined buttons that light up on hover, with Save as the single solid green button. Status actions keep their meaning through colour — green for the natural next step, red for Reject/Cancel, blue for Revise.',
+      'The 7d/14d/30d validity presets became one segmented control, and “Set to today’s date” is a proper button beneath the quote date (drafts only).',
+      'PPN %, Qty and Unit price now align left like every other field; the ƒ formula badge moved to the right corner of the field.',
+    ],
+  },
+  {
     at: '2026-08-02T10:20:00Z',
     title: 'Sales quote: formula cells now work like the EPC editor',
     details: [
