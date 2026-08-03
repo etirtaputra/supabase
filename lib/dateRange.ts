@@ -15,6 +15,16 @@ export interface DateRange { from: string | null; to: string | null }
 
 export const ALL_TIME: DateRange = { from: null, to: null };
 
+/**
+ * Today's date in the VIEWER's timezone as YYYY-MM-DD.
+ * `new Date().toISOString()` is UTC — in Jakarta that turns "today" into
+ * yesterday until 07:00, which mis-dates new documents and expiry checks.
+ */
+export function todayISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export type RangePreset =
   | 'all' | 'today' | 'week' | 'month' | 'mtd' | 'quarter' | 'year' | 'ytd'
   | 'last7' | 'last30' | 'last90' | 'lastMonth' | 'lastYear' | 'custom';

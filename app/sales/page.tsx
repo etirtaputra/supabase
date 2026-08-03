@@ -17,7 +17,7 @@ import LayoutToggle from '@/components/ui/LayoutToggle';
 import { useListLayout } from '@/hooks/useListLayout';
 import { useListDefaults } from '@/hooks/useListDefaults';
 import { listSpec } from '@/constants/listDefaults';
-import { inRange, type DateRange } from '@/lib/dateRange';
+import { inRange, todayISO, type DateRange } from '@/lib/dateRange';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
@@ -94,7 +94,7 @@ export default function SalesListPage() {
     return (c?.display_name || c?.legal_name || '').toLowerCase();
   };
   // An offer past its own valid_until while still on the table (validated/sent).
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   const isExpired = (q: Quote) => !!q.valid_until && ['validated', 'sent'].includes(q.status) && q.valid_until < today;
   const filtered = quotes.filter((q) => {
     if (!inRange(q.quote_date ?? q.updated_at ?? null, range)) return false;

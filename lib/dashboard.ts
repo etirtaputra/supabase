@@ -15,6 +15,7 @@ import type { RolePermissions } from '@/constants/roles';
 import { COMMITTED_STATUSES } from './salesStatus';
 import { fetchDeliveredByQuoteComp } from './reservedStock';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
+import { todayISO } from './dateRange';
 
 export type ActionDomain = 'sell' | 'buy' | 'cash';
 
@@ -153,7 +154,7 @@ export async function fetchActionQueue(
     // by definition, however recently it went out.
     if (!qRes.error) {
       const cutoff = daysAgo(opts.quoteFollowUpDays);
-      const today = new Date().toISOString().slice(0, 10);
+      const today = todayISO();
       const lapsed = (q: { valid_until: string | null }) => !!q.valid_until && q.valid_until < today;
       const stale = quotes.filter((q) => q.status === 'sent'
         && ((q.updated_at ?? q.quote_date ?? '').slice(0, 10) <= cutoff || lapsed(q)));

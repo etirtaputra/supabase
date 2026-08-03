@@ -21,6 +21,7 @@ import { fmtDay, fmtDayTime, fmtInt } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
 import { fetchBankAccounts, fetchAccountCompanies, accountLabelWithCompany, defaultAccountFor, type BankAccount } from '@/lib/banks';
 import Autocomplete from '@/components/ui/Autocomplete';
+import { todayISO } from '@/lib/dateRange';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
@@ -89,7 +90,7 @@ const addDays = (iso: string, days: number): string => {
   return d.toISOString().slice(0, 10);
 };
 const blankQuote = (companyId: string | null, ppnPct: number, notes = '', validityDays = 30): Quote => {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   return {
     quote_id: '', quote_number: '', customer_id: null, company_id: companyId,
     quote_date: today, valid_until: addDays(today, validityDays), status: 'draft', ppn_pct: ppnPct,
@@ -666,7 +667,7 @@ export default function SalesQuotePage() {
     // A bumped revision is a fresh offer — its validity restarts from today,
     // so an old quote doesn't come back already Expired.
     const qid = await persist('draft', reviseBumps
-      ? { revision: (editing.revision ?? 0) + 1, valid_until: addDays(new Date().toISOString().slice(0, 10), quoteValidityDays) }
+      ? { revision: (editing.revision ?? 0) + 1, valid_until: addDays(todayISO(), quoteValidityDays) }
       : { validated_at: null });
     setBusy(false);
     if (!qid) return;
@@ -692,7 +693,7 @@ export default function SalesQuotePage() {
   const billTotal = Number(editing.grand_total) || totals.grand;
   const fullyPaid = billTotal > 0 && received >= billTotal - 0.5;
   const showPayments = !newDoc && ['ordered', 'invoiced', 'preparing', 'delivered'].includes(st);
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = todayISO();
   // An offer past its own date, while still on the table (draft is not an
   // offer yet; accepted/ordered+ has already landed). NULL = no expiry.
   const expired = !!editing.valid_until && ['validated', 'sent'].includes(st)
@@ -848,9 +849,9 @@ export default function SalesQuotePage() {
           </FieldBox>
           <FieldBox label="Quote date">
             <input type="date" value={editing.quote_date} onChange={(e) => setHeader('quote_date', e.target.value)} className={inp} />
-            {/* Drafts only — a validated/sent document's date is part of what
-                went out and shouldn't invite one-click rewriting. */}
-            {draftLike && editing.quote_date !== todayIso && (
+            {/* The date field is editable in every status, so the shortcut is
+                too — it appears whenever the date isn't today. */}
+            {editing.quote_date !== todayIso && (
               <span className="mt-1.5 block">
                 <button onClick={() => setHeader('quote_date', todayIso)}
                   className="px-2 py-1 rounded-lg border border-white/[0.06] text-[10px] font-medium text-slate-400 hover:text-white hover:bg-white/10 transition-all">
@@ -1364,7 +1365,7 @@ function RecordPaymentModal({ quoteId, companyId, outstanding, received, onClose
   const [category, setCategory] = useState(received > 0 ? 'balance_payment' : 'down_payment');
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState('bank_transfer');
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(todayISO());
   const [bankRef, setBankRef] = useState('');
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);

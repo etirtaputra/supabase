@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-03T14:00:00Z',
+    title: '“Set to today’s date” shows on every quote, and “today” means YOUR today',
+    details: [
+      'The shortcut under the quote date now appears whenever the date isn’t today — on any status, not only drafts (the date field was always editable anyway).',
+      'Fixed: “today” was computed in UTC, so before 07:00 WIB a new quote was dated yesterday and expiry flipped a day early. New documents, the expiry badges and the dashboard check now use your local date.',
+    ],
+  },
+  {
     at: '2026-08-03T13:40:00Z',
     title: 'Sales quote editor restyled to the EPC command-bar language',
     details: [
