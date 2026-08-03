@@ -164,6 +164,7 @@ function CustomersInner() {
   const [amUsers, setAmUsers] = useState<AmUser[]>([]);
   const [tiers, setTiers] = useState<Tier[]>([]);
   const [links, setLinks] = useState<CustomerLink[]>([]);
+  const [txnByCustomer, setTxnByCustomer] = useState<Record<string, { n: number; value: number }>>({});
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
@@ -251,12 +252,13 @@ function CustomersInner() {
   // ── Data ──────────────────────────────────────────────────────────────────
   const fetchAll = useCallback(async () => {
     setLoading(true);
-    const [custRes, contactRes, userRes, tierRes, linkRes] = await Promise.all([
+    const [custRes, contactRes, userRes, tierRes, linkRes, txnRes] = await Promise.all([
       supabase.from('20.0_customers').select('*').order('updated_at', { ascending: false }),
       supabase.from('20.1_customer_contacts').select('*').order('is_primary', { ascending: false }),
       supabase.from('user_profiles').select('id, email, display_name, role').in('role', ['owner', 'sales']),
       supabase.from('21.0_price_tiers').select('tier_code, name, sort_order, is_active').order('sort_order'),
       supabase.from('20.2_customer_links').select('link_id, customer_id, linked_customer_id'),
+      supabase.from('22.0_sales_quotes').select('customer_id, status, grand_total'),
     ]);
     setCustomers((custRes.data as Customer[]) ?? []);
     const grouped: Record<string, Contact[]> = {};
@@ -268,6 +270,16 @@ function CustomersInner() {
     // Pricing module may not be installed yet — tolerate its absence.
     setTiers(tierRes.error ? [] : ((tierRes.data as Tier[]) ?? []));
     setLinks(linkRes.error ? [] : ((linkRes.data as CustomerLink[]) ?? []));
+    // Transactions = confirmed business (SO onward), same rule as the profile
+    // KPIs; value breaks ties on the "Most transactions" sort.
+    const txn: Record<string, { n: number; value: number }> = {};
+    for (const q of ((txnRes.error ? [] : txnRes.data as { customer_id: string | null; status: string; grand_total: number }[]) ?? [])) {
+      if (!q.customer_id || !['ordered', 'invoiced', 'preparing', 'delivered'].includes(q.status)) continue;
+      const t = (txn[q.customer_id] ??= { n: 0, value: 0 });
+      t.n += 1;
+      t.value += Number(q.grand_total) || 0;
+    }
+    setTxnByCustomer(txn);
     setLoading(false);
   }, []);
 
@@ -459,9 +471,14 @@ function CustomersInner() {
     }
     if (sort === 'name') list.sort((a, b) => (a.display_name || a.legal_name || '').localeCompare(b.display_name || b.legal_name || ''));
     else if (sort === 'updated') list.sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''));
+    else if (sort === 'transactions') list.sort((a, b) => {
+      const ta = txnByCustomer[a.customer_id], tb = txnByCustomer[b.customer_id];
+      return ((tb?.n ?? 0) - (ta?.n ?? 0)) || ((tb?.value ?? 0) - (ta?.value ?? 0))
+        || (a.display_name || a.legal_name || '').localeCompare(b.display_name || b.legal_name || '');
+    });
     else list.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));   // 'created'
     return list;
-  }, [filtered, sort, colSort, tierLabel, amById]);
+  }, [filtered, sort, colSort, tierLabel, amById, txnByCustomer]);
 
   // ── Drawer ──────────────────────────────────────────────────────────────────
   function openDrawer(c: Customer | null) {
@@ -815,7 +832,16 @@ function CustomersInner() {
                     >
                       <span className={`font-mono text-[11px] text-slate-400 ${compact ? 'hidden md:block' : ''}`}>{c.customer_code || '—'}</span>
                       <span className={`min-w-0 ${compact ? 'flex-1' : ''}`}>
-                        <span className="block text-sm text-slate-100 font-medium truncate">{c.display_name || c.legal_name || '(no name)'}</span>
+                        <span className="flex items-center gap-2 min-w-0">
+                          <span className="text-sm text-slate-100 font-medium truncate">{c.display_name || c.legal_name || '(no name)'}</span>
+                          {/* Ranked by transactions → show the number being ranked on */}
+                          {sort === 'transactions' && !colSort && (
+                            <span className="flex-shrink-0 px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 text-[10px] font-semibold tabular-nums"
+                              title={txnByCustomer[c.customer_id] ? fmtRupiah(txnByCustomer[c.customer_id].value) : undefined}>
+                              {txnByCustomer[c.customer_id]?.n ?? 0} order{(txnByCustomer[c.customer_id]?.n ?? 0) !== 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </span>
                         {primary && !compact && <span className="block text-[11px] text-slate-500 truncate">{primary.name}{primary.email ? ` · ${primary.email}` : ''}</span>}
                       </span>
                       <span className={`text-xs text-slate-400 ${compact ? 'flex-shrink-0' : ''}`}>{c.tier ? <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-[11px]">{tierLabel.get(c.tier) ?? c.tier}</span> : <span className="text-slate-600">—</span>}</span>

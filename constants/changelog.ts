@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-03T09:16:00Z',
+    title: 'Customers can be sorted by most transactions',
+    details: [
+      'New “Most transactions” option in the Customers order dropdown — ranks by confirmed orders (SO onward), ties broken by total order value.',
+      'While that sort is active, each row shows its order count (hover for the total value).',
+    ],
+  },
+  {
     at: '2026-08-03T09:05:00Z',
     title: 'Customer profile: every document is a link · Sales-page status chips',
     details: [

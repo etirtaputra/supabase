@@ -58,9 +58,10 @@ export const LIST_SPECS: ListSpec[] = [
   {
     key: 'customers', label: 'Customers', href: '/customers', dateLabel: 'date added',
     sorts: [
-      { value: 'created', label: 'Newest additions' },
-      { value: 'updated', label: 'Recently updated' },
-      { value: 'name',    label: 'Name A→Z' },
+      { value: 'created',      label: 'Newest additions' },
+      { value: 'updated',      label: 'Recently updated' },
+      { value: 'name',         label: 'Name A→Z' },
+      { value: 'transactions', label: 'Most transactions' },
     ],
     defaults: { sort: 'created', period: 'all' },
   },
