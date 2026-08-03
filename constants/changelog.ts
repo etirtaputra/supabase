@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-03T16:45:00Z',
+    title: 'Fulfillment: Invoices and Delivery each get their own box',
+    details: [
+      'The panel is now two side-by-side boxes — INVOICES (meter, + New Invoice, its documents) and DELIVERY (meter, + New Delivery Order, Ship from, its DOs) — instead of one interleaved list. On a phone they stack as two clean sections.',
+      'Row chips slimmed to fit the narrower boxes: the box title says what the rows are, so the INV/DO badges went.',
+    ],
+  },
+  {
     at: '2026-08-03T16:20:00Z',
     title: 'Money & quantity fields accept =formulas like Excel',
     details: [

@@ -288,6 +288,77 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
     </div>
   );
 
+  // Document rows — inline closures over the panel's data, rendered inside
+  // their own flow box (Invoices left, Delivery right).
+  const InvoiceRows = () => (
+    <div className="rounded-lg border border-slate-800 divide-y divide-slate-800/60">
+      {invoices.map((i) => {
+        const paid = paidByInvoice[i.invoice_id] ?? 0;
+        const total = Number(i.grand_total) || 0;
+        const state = total > 0 && paid >= total - 0.5 ? 'paid' : paid > 0 ? 'partial' : 'unpaid';
+        return (
+          <div key={i.invoice_id} className="flex flex-wrap items-center gap-x-2.5 gap-y-1 px-3 py-2 text-xs">
+            <span className="font-mono text-slate-200">{i.invoice_number}</span>
+            {i.kind === 'progress' && <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300 font-semibold">{Number(i.pct ?? 0)}%</span>}
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${state === 'paid' ? 'bg-emerald-500/20 text-emerald-300' : state === 'partial' ? 'bg-amber-500/15 text-amber-300' : 'bg-red-500/10 text-red-400/90'}`}>
+              {state.toUpperCase()}
+            </span>
+            <span className="ml-auto tabular-nums text-slate-200 font-semibold whitespace-nowrap">Rp {fmtInt(total)}</span>
+            <span className="text-slate-600 tabular-nums whitespace-nowrap">{fmtDay(i.issued_at)}</span>
+            <a href={`/sales/${quote.quote_id}/print?inv=${i.invoice_id}`} target="_blank" rel="noopener noreferrer"
+              className="px-2 py-1 rounded-lg text-[10px] font-medium text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all">Print</a>
+            {canEdit && (
+              <button onClick={() => deleteInvoice(i)} disabled={busy} className="text-slate-600 hover:text-red-400 transition-colors" title="Delete invoice">×</button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const DoRows = () => (
+    <div className="rounded-lg border border-slate-800 divide-y divide-slate-800/60">
+      {dos.map((d) => {
+        const lines = doItems.filter((it) => it.do_id === d.do_id);
+        const qty = lines.reduce((s, l) => s + (Number(l.qty) || 0), 0);
+        return (
+          <div key={d.do_id} className="px-3 py-2 text-xs">
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+              <span className="font-mono text-slate-200">{d.do_number}</span>
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${d.status === 'delivered' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-orange-500/15 text-orange-300'}`}>
+                {d.status === 'delivered' ? 'DELIVERED' : 'PREPARING'}
+              </span>
+              <span className="text-slate-500 truncate">{fmtInt(qty)} units{d.delivery_date ? ` · ${fmtDay(d.delivery_date)}` : ''}{d.delivery_method === 'pickup' ? ' · pick-up' : d.delivery_via ? ` · ${d.delivery_via}` : ''}</span>
+              <span className="ml-auto flex items-center gap-1.5">
+                <a href={`/sales/${quote.quote_id}/do?do=${d.do_id}`} target="_blank" rel="noopener noreferrer"
+                  className="px-2 py-1 rounded-lg text-[10px] font-medium text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all whitespace-nowrap">Surat Jalan</a>
+                {canEdit && d.status === 'preparing' && (
+                  <>
+                    <button onClick={() => markDelivered(d)} disabled={busy}
+                      className="px-2 py-1 rounded-lg text-[10px] font-semibold text-emerald-300 hover:text-emerald-200 hover:bg-emerald-500/10 border border-emerald-500/25 transition-all disabled:opacity-40 whitespace-nowrap">
+                      Mark Delivered
+                    </button>
+                    <button onClick={() => deleteDo(d)} disabled={busy} className="text-slate-600 hover:text-red-400 transition-colors" title="Delete DO">×</button>
+                  </>
+                )}
+                {canEdit && d.status === 'delivered' && (
+                  <button onClick={() => reopenDo(d)} disabled={busy}
+                    title="Reverse this DO's stock-out and put it back in Preparing"
+                    className="px-2 py-1 rounded-lg text-[10px] font-medium text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all disabled:opacity-40">
+                    Reopen
+                  </button>
+                )}
+              </span>
+            </div>
+            <p className="mt-1 text-[10px] text-slate-600 truncate">
+              {lines.map((l) => `${fmtInt(Number(l.qty))}× ${l.description}`).join(' · ')}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+
   return (
     <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4 space-y-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -298,37 +369,37 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
         {invoicedPct > 100.5 && <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/15 text-red-300">Invoiced {invoicedPct.toFixed(0)}% — over 100%</span>}
       </div>
 
-      {/* Meters — each side owns its meter AND its create button, so billing
-          lives under Invoiced and shipping under Delivered. Both stay active
-          until their side is complete: an order can carry any number of
-          invoices and delivery orders. */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <div className="flex justify-between text-[11px] mb-1">
-            <span className="text-slate-500">Invoiced</span>
+      {/* Two boxes, one per flow — INVOICES owns billing (meter, button, its
+          documents), DELIVERY owns shipping. Nothing interleaves; on a phone
+          they stack as two clean sections. Both stay active until their side
+          is complete: an order carries any number of invoices and DOs. */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+        <section className="rounded-xl border border-slate-800/80 bg-slate-950/30 p-3.5 space-y-3">
+          <div className="flex justify-between items-baseline text-[11px]">
+            <span className="font-semibold uppercase tracking-widest text-slate-500">Invoices</span>
             <span className="tabular-nums text-slate-300">Rp {fmtInt(invoicedTotal)} · {invoicedPct.toFixed(0)}%</span>
           </div>
           {meter(invoicedPct, invoicedPct >= 99.5 ? 'bg-emerald-500' : 'bg-amber-400')}
-          {orderTotal - invoicedTotal > 0.5 && <p className="text-[10px] text-slate-600 mt-1">Rp {fmtInt(orderTotal - invoicedTotal)} left to invoice</p>}
+          {orderTotal - invoicedTotal > 0.5 && <p className="text-[10px] text-slate-600">Rp {fmtInt(orderTotal - invoicedTotal)} left to invoice</p>}
           {canEdit && (
-            <div className="mt-2.5">
-              <button onClick={() => setShowInv(true)} disabled={busy || invoicedPct >= 100}
-                title={invoicedPct >= 100 ? 'The order is fully invoiced' : 'Bill all or part of this order — pick the items and quantities in the next step'}
-                className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-emerald-300 hover:text-emerald-200 hover:bg-emerald-500/10 border border-emerald-500/25 transition-all disabled:opacity-40 whitespace-nowrap">
-                + New Invoice
-              </button>
-            </div>
+            <button onClick={() => setShowInv(true)} disabled={busy || invoicedPct >= 100}
+              title={invoicedPct >= 100 ? 'The order is fully invoiced' : 'Bill all or part of this order — pick the items and quantities in the next step'}
+              className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-emerald-300 hover:text-emerald-200 hover:bg-emerald-500/10 border border-emerald-500/25 transition-all disabled:opacity-40 whitespace-nowrap">
+              + New Invoice
+            </button>
           )}
-        </div>
-        <div>
-          <div className="flex justify-between text-[11px] mb-1">
-            <span className="text-slate-500">Delivered</span>
+          {invoices.length > 0 && <InvoiceRows />}
+        </section>
+
+        <section className="rounded-xl border border-slate-800/80 bg-slate-950/30 p-3.5 space-y-3">
+          <div className="flex justify-between items-baseline text-[11px]">
+            <span className="font-semibold uppercase tracking-widest text-slate-500">Delivery</span>
             <span className="tabular-nums text-slate-300">{fmtInt(deliveredQty)} of {fmtInt(orderedQty)} units{shippedQty > deliveredQty ? ` · ${fmtInt(shippedQty - deliveredQty)} preparing` : ''}</span>
           </div>
           {meter(orderedQty > 0 ? (deliveredQty / orderedQty) * 100 : 0, fullyDelivered ? 'bg-emerald-500' : 'bg-orange-400')}
-          {orderedQty - shippedQty > 0.001 && <p className="text-[10px] text-slate-600 mt-1">{fmtInt(orderedQty - shippedQty)} units not yet on a DO</p>}
+          {orderedQty - shippedQty > 0.001 && <p className="text-[10px] text-slate-600">{fmtInt(orderedQty - shippedQty)} units not yet on a DO</p>}
           {canEdit && (
-            <div className="mt-2.5 flex items-center gap-2.5 flex-wrap">
+            <div className="flex items-center gap-2.5 flex-wrap">
               <button onClick={() => setShowDo(true)} disabled={busy || orderedQty - shippedQty <= 0.001}
                 title={orderedQty - shippedQty <= 0.001 ? 'Everything is already on a DO' : 'Ship all or part of this order — pick the items and quantities in the next step'}
                 className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-orange-300 hover:text-orange-200 hover:bg-orange-500/10 border border-orange-500/25 transition-all disabled:opacity-40 whitespace-nowrap">
@@ -347,82 +418,9 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
               )}
             </div>
           )}
-        </div>
+          {dos.length > 0 && <DoRows />}
+        </section>
       </div>
-
-      {/* Invoices */}
-      {invoices.length > 0 && (
-        <div className="rounded-xl border border-slate-800 divide-y divide-slate-800/60">
-          {invoices.map((i) => {
-            const paid = paidByInvoice[i.invoice_id] ?? 0;
-            const total = Number(i.grand_total) || 0;
-            const state = total > 0 && paid >= total - 0.5 ? 'paid' : paid > 0 ? 'partial' : 'unpaid';
-            return (
-              <div key={i.invoice_id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-xs">
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-lime-500/15 text-lime-300">INV</span>
-                <span className="font-mono text-slate-200">{i.invoice_number}</span>
-                {i.kind === 'progress' && <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300 font-semibold">{Number(i.pct ?? 0)}% progress</span>}
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${state === 'paid' ? 'bg-emerald-500/20 text-emerald-300' : state === 'partial' ? 'bg-amber-500/15 text-amber-300' : 'bg-red-500/10 text-red-400/90'}`}>
-                  {state.toUpperCase()}
-                </span>
-                <span className="ml-auto tabular-nums text-slate-200 font-semibold">Rp {fmtInt(total)}</span>
-                <span className="text-[10px] text-slate-600">{orderTotal > 0 ? `${((total / orderTotal) * 100).toFixed(0)}% of order` : ''}</span>
-                <span className="text-slate-600 tabular-nums">{fmtDay(i.issued_at)}</span>
-                <a href={`/sales/${quote.quote_id}/print?inv=${i.invoice_id}`} target="_blank" rel="noopener noreferrer"
-                  className="px-2 py-1 rounded-lg text-[10px] font-medium text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all">Print</a>
-                {canEdit && (
-                  <button onClick={() => deleteInvoice(i)} disabled={busy} className="text-slate-600 hover:text-red-400 transition-colors" title="Delete invoice">×</button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Delivery orders */}
-      {dos.length > 0 && (
-        <div className="rounded-xl border border-slate-800 divide-y divide-slate-800/60">
-          {dos.map((d) => {
-            const lines = doItems.filter((it) => it.do_id === d.do_id);
-            const qty = lines.reduce((s, l) => s + (Number(l.qty) || 0), 0);
-            return (
-              <div key={d.do_id} className="px-3 py-2 text-xs">
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-500/15 text-orange-300">DO</span>
-                  <span className="font-mono text-slate-200">{d.do_number}</span>
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${d.status === 'delivered' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-orange-500/15 text-orange-300'}`}>
-                    {d.status === 'delivered' ? 'DELIVERED' : 'PREPARING'}
-                  </span>
-                  <span className="text-slate-500 truncate">{lines.length} line{lines.length !== 1 ? 's' : ''} · {fmtInt(qty)} units{d.delivery_date ? ` · ${fmtDay(d.delivery_date)}` : ''}{d.delivery_method === 'pickup' ? ' · pick-up' : d.delivery_via ? ` · ${d.delivery_via}` : ''}</span>
-                  <span className="ml-auto flex items-center gap-1.5">
-                    <a href={`/sales/${quote.quote_id}/do?do=${d.do_id}`} target="_blank" rel="noopener noreferrer"
-                      className="px-2 py-1 rounded-lg text-[10px] font-medium text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all">Surat Jalan</a>
-                    {canEdit && d.status === 'preparing' && (
-                      <>
-                        <button onClick={() => markDelivered(d)} disabled={busy}
-                          className="px-2 py-1 rounded-lg text-[10px] font-semibold text-emerald-300 hover:text-emerald-200 hover:bg-emerald-500/10 border border-emerald-500/25 transition-all disabled:opacity-40">
-                          Mark Delivered
-                        </button>
-                        <button onClick={() => deleteDo(d)} disabled={busy} className="text-slate-600 hover:text-red-400 transition-colors" title="Delete DO">×</button>
-                      </>
-                    )}
-                    {canEdit && d.status === 'delivered' && (
-                      <button onClick={() => reopenDo(d)} disabled={busy}
-                        title="Reverse this DO's stock-out and put it back in Preparing"
-                        className="px-2 py-1 rounded-lg text-[10px] font-medium text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all disabled:opacity-40">
-                        Reopen
-                      </button>
-                    )}
-                  </span>
-                </div>
-                <p className="mt-1 text-[10px] text-slate-600 truncate">
-                  {lines.map((l) => `${fmtInt(Number(l.qty))}× ${l.description}`).join(' · ')}
-                </p>
-              </div>
-            );
-          })}
-        </div>
-      )}
 
       {showInv && (
         <InvoiceModal
