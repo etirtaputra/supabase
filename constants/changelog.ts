@@ -20,7 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    at: '2026-08-03T19:50:00Z',
+    at: '2026-08-03T09:05:00Z',
+    title: 'Customer profile: every document is a link · Sales-page status chips',
+    details: [
+      'In Documents & Activity, the quote/SO row, every invoice, and every delivery order (previously not shown per-DO) now open their own document in a NEW browser tab — split invoices and split shipments each get their own chip.',
+      'Payment and delivery states on the profile now use the exact same title-case chips as the Sales page — “INV-… · Paid / Partial / Unpaid”, “DO-… · Delivered / Preparing” — no more ALL-CAPS mismatch.',
+      'Accounts-receivable rows open the document in a new tab too.',
+    ],
+  },
+  {
+    at: '2026-08-03T08:23:50Z',
     title: 'Milestones show every document with its time · full activity log',
     details: [
       'The milestone strip now stacks EVERY invoice and delivery order under its step — “Invoice ×2”, “Delivery ×3”, one line each with its own stamp — and timestamps include the time of day.',
@@ -29,7 +38,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
-    at: '2026-08-03T19:10:00Z',
+    at: '2026-08-03T08:04:34Z',
     title: 'Payment is a progress bar · half-shipped orders say “Partly Delivered”',
     details: [
       'The Payment column (and the expanded digest) dropped the word-chips for a slim progress bar + % — green when paid, amber when partial, red when the goods are delivered and nothing has been received. Amounts stay in the tooltip.',
@@ -37,14 +46,14 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
-    at: '2026-08-03T18:50:00Z',
+    at: '2026-08-03T08:01:47Z',
     title: 'Sales list: the number IS the link',
     details: [
       'Click the SQ number to open the document; click anywhere else on the row to expand the preview. The “Open document →” button is gone — the number underlines green on hover to say it’s the door.',
     ],
   },
   {
-    at: '2026-08-03T18:30:00Z',
+    at: '2026-08-03T07:45:40Z',
     title: 'Sales list: fulfillment digest in the expanded row + Payment/Delivery filters',
     details: [
       'Expanding an order now shows the whole fulfillment picture above the items: payment state with Rp received of total, every invoice with its own Paid/Partial/Unpaid chip and how much of the order is billed, and every delivery order with its Delivered/Preparing chip — including ×2 counts and “partly delivered / fully invoiced” notes for split fulfillment.',
@@ -52,7 +61,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
-    at: '2026-08-03T18:00:00Z',
+    at: '2026-08-03T07:42:35Z',
     title: 'Status chips read the same everywhere · doc tags count every child',
     details: [
       'All state chips now use the same style as the status pills — Paid, Partial, Unpaid, Outstanding, Expired, Delivered, Preparing — instead of a mix of ALL-CAPS badges.',
@@ -60,7 +69,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
-    at: '2026-08-03T17:35:00Z',
+    at: '2026-08-03T07:29:29Z',
     title: 'Sales list: Status and Payment are separate columns',
     details: [
       '“Where is the order” and “where is the money” no longer share one crowded cell: Status keeps the lifecycle pill (and EXPIRED), and a new Payment column shows exactly one chip — PAID, PARTIAL, UNPAID, or OUTSTANDING (delivered but money open) — with the paid %.',
@@ -68,7 +77,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
-    at: '2026-08-03T17:10:00Z',
+    at: '2026-08-03T07:09:45Z',
     title: 'Delivered-but-unpaid orders are tagged OUTSTANDING',
     details: [
       'When goods have gone out but the money hasn’t fully come in, the sales list and the editor now show an OUTSTANDING badge next to Delivered — red when nothing is received, amber when partly paid, with the open amount in the tooltip. Typing “outstanding” (or “belum lunas”) in the list search finds them.',
@@ -76,7 +85,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
-    at: '2026-08-03T16:45:00Z',
+    at: '2026-08-03T07:07:31Z',
     title: 'Fulfillment: Invoices and Delivery each get their own box',
     details: [
       'The panel is now two side-by-side boxes — INVOICES (meter, + New Invoice, its documents) and DELIVERY (meter, + New Delivery Order, Ship from, its DOs) — instead of one interleaved list. On a phone they stack as two clean sections.',
@@ -84,14 +93,14 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
-    at: '2026-08-03T16:20:00Z',
+    at: '2026-08-03T07:04:03Z',
     title: 'Money & quantity fields accept =formulas like Excel',
     details: [
       'The payment Amount, the invoice/DO quantity fields and the progress-% field now evaluate =formulas on blur — type =2181773/2 and it becomes the number. Same calculator as the quote lines and the EPC editor.',
     ],
   },
   {
-    at: '2026-08-03T16:00:00Z',
+    at: '2026-08-03T06:56:42Z',
     title: 'Payments are now applied to a specific invoice',
     details: [
       'Record Payment opens with the invoice pre-selected (the first one still owed) and the amount pre-filled with THAT invoice’s outstanding — switch invoice and the amount follows. The payment writes its invoice link, so the invoice’s UNPAID badge finally turns PARTIAL/PAID.',
@@ -101,14 +110,14 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
-    at: '2026-08-03T15:30:00Z',
+    at: '2026-08-03T06:46:02Z',
     title: '“Set to today’s date” is always under the quote date',
     details: [
       'The button no longer appears and disappears — it sits permanently under the Quote date box, muted when the quote is already dated today.',
     ],
   },
   {
-    at: '2026-08-03T15:10:00Z',
+    at: '2026-08-03T06:40:25Z',
     title: 'Fulfillment panel: each side owns its button',
     details: [
       '“+ New Invoice” now sits under the Invoiced meter and “+ New Delivery Order” (with Ship from) under the Delivered meter — billing on the left, shipping on the right.',
@@ -117,7 +126,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
-    at: '2026-08-03T14:45:00Z',
+    at: '2026-08-03T06:38:16Z',
     title: 'Sales quote: pre-set Payment terms & Delivery terms',
     details: [
       'Two new dropdowns on the quotation: Payment terms (lunas 100%, DP 20/30/50%, or 7/14/21/30 hari setelah Invoice / Surat Jalan) and Delivery terms (Di antar / Di ambil sendiri).',
@@ -126,7 +135,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
-    at: '2026-08-03T14:00:00Z',
+    at: '2026-08-03T06:30:51Z',
     title: '“Set to today’s date” shows on every quote, and “today” means YOUR today',
     details: [
       'The shortcut under the quote date now appears whenever the date isn’t today — on any status, not only drafts (the date field was always editable anyway).',
@@ -134,7 +143,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
-    at: '2026-08-03T13:40:00Z',
+    at: '2026-08-03T06:19:07Z',
     title: 'Sales quote editor restyled to the EPC command-bar language',
     details: [
       'The action bar now matches the EPC proposal editor: quiet outlined buttons that light up on hover, with Save as the single solid green button. Status actions keep their meaning through colour — green for the natural next step, red for Reject/Cancel, blue for Revise.',

@@ -82,11 +82,16 @@ interface EpcQuote {
   quote_id: string; quote_number: string; quote_date: string; status: string;
   project_description: string; updated_at?: string;
 }
+interface InvLite { invoice_id: string; quote_id: string; invoice_number: string; grand_total: number }
+interface DoLite { do_id: string; quote_id: string; do_number: string; status: string }
 interface ProfileData {
   docs: SalesDoc[];
   received: Record<string, number>;
   topItems: { desc: string; qty: number; value: number; unit: string; times: number }[];
   epcQuotes: EpcQuote[];
+  invoicesByQuote: Record<string, InvLite[]>;
+  dosByQuote: Record<string, DoLite[]>;
+  paidByInvoice: Record<string, number>;
 }
 
 const CURRENCIES = ['IDR', 'USD', 'EUR', 'CNY', 'SGD'];
@@ -196,15 +201,23 @@ function CustomersInner() {
     const list = (docs as SalesDoc[]) ?? [];
     const ids = list.map((d) => d.quote_id);
     const received: Record<string, number> = {};
+    const paidByInvoice: Record<string, number> = {};
+    const invoicesByQuote: Record<string, InvLite[]> = {};
+    const dosByQuote: Record<string, DoLite[]> = {};
     const agg = new Map<string, { desc: string; qty: number; value: number; unit: string; times: number }>();
     if (ids.length) {
-      const [rRes, iRes] = await Promise.all([
-        supabase.from('26.0_customer_receipts').select('quote_id, amount').in('quote_id', ids),
+      const [rRes, iRes, invRes, doRes] = await Promise.all([
+        supabase.from('26.0_customer_receipts').select('quote_id, invoice_id, amount').in('quote_id', ids),
         supabase.from('22.1_sales_quote_items').select('quote_id, description, quantity, unit, line_total, is_section').in('quote_id', ids),
+        supabase.from('25.0_sales_invoices').select('invoice_id, quote_id, invoice_number, grand_total').in('quote_id', ids).order('created_at'),
+        supabase.from('24.0_delivery_orders').select('do_id, quote_id, do_number, status').in('quote_id', ids).order('created_at'),
       ]);
-      for (const r of (rRes.data as { quote_id: string; amount: number }[]) ?? []) {
+      for (const r of (rRes.data as { quote_id: string; invoice_id?: string | null; amount: number }[]) ?? []) {
         received[r.quote_id] = (received[r.quote_id] ?? 0) + (Number(r.amount) || 0);
+        if (r.invoice_id) paidByInvoice[r.invoice_id] = (paidByInvoice[r.invoice_id] ?? 0) + (Number(r.amount) || 0);
       }
+      for (const i of ((invRes.error ? [] : invRes.data as InvLite[]) ?? [])) (invoicesByQuote[i.quote_id] ??= []).push(i);
+      for (const d of ((doRes.error ? [] : doRes.data as DoLite[]) ?? [])) (dosByQuote[d.quote_id] ??= []).push(d);
       // "Most ordered" counts confirmed business only (SO onward), not quotes
       const committed = new Set(list.filter((d) => ['ordered', 'invoiced', 'preparing', 'delivered'].includes(d.status)).map((d) => d.quote_id));
       for (const it of (iRes.data as { quote_id: string; description: string; quantity: number; unit: string; line_total: number; is_section: boolean }[]) ?? []) {
@@ -220,7 +233,7 @@ function CustomersInner() {
       }
     }
     const topItems = [...agg.values()].sort((a, b) => b.value - a.value).slice(0, 6);
-    setProfileData({ docs: list, received, topItems, epcQuotes: (epc as EpcQuote[]) ?? [] });
+    setProfileData({ docs: list, received, topItems, epcQuotes: (epc as EpcQuote[]) ?? [], invoicesByQuote, dosByQuote, paidByInvoice });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, profileFor]);
 
@@ -833,7 +846,6 @@ function CustomersInner() {
                         onOpenCustomer={(id) => { const t = customers.find((x) => x.customer_id === id); if (t) openProfile(t); }}
                         onClose={() => { setProfileFor(null); setProfileData(null); }}
                         onEdit={() => openDrawer(c)}
-                        onOpenDoc={(qid) => router.push(`/sales/${qid}`)}
                       />
                     )}
                   </div>
@@ -928,7 +940,7 @@ function CustomersInner() {
 //    document links, and stats. Editing opens the slide-over drawer. ─────────
 
 
-function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOpenCustomer, onClose, onEdit, onOpenDoc, showEpc }: {
+function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOpenCustomer, onClose, onEdit, showEpc }: {
   customer: Customer;
   data: ProfileData | null;
   contacts: Contact[];
@@ -939,7 +951,6 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOp
   showEpc: boolean;
   onClose: () => void;
   onEdit: () => void;
-  onOpenDoc: (quoteId: string) => void;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -1025,31 +1036,67 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOp
                 <div className="rounded-xl border border-slate-800 divide-y divide-slate-800/60">
                   {docs.map((d) => {
                     const pay = paidState(d);
+                    // Real per-quote invoices/DOs (split billing & shipments);
+                    // fall back to the legacy quote-level numbers for old docs.
+                    const invs = data.invoicesByQuote[d.quote_id] ?? [];
+                    const qdos = data.dosByQuote[d.quote_id] ?? [];
+                    // Same vocabulary + colours as the Sales page digest chips
+                    const payChip = (st: 'Paid' | 'Partial' | 'Unpaid') =>
+                      st === 'Paid' ? 'bg-emerald-500/10 text-emerald-300' : st === 'Partial' ? 'bg-amber-500/10 text-amber-300' : 'bg-slate-800 text-slate-400';
+                    const quotePay: 'Paid' | 'Partial' | 'Unpaid' = pay === 'paid' ? 'Paid' : pay === 'partial' ? 'Partial' : 'Unpaid';
+                    const chipCls = 'px-1.5 py-0.5 rounded font-mono text-[10px] hover:brightness-125 transition-all';
                     return (
-                      <button key={d.quote_id} onClick={() => onOpenDoc(d.quote_id)}
-                        className="w-full text-left px-3 py-2.5 hover:bg-slate-800/40 transition-colors">
+                      <div key={d.quote_id} role="link" tabIndex={0}
+                        onClick={() => window.open(`/sales/${d.quote_id}`, '_blank', 'noopener')}
+                        onKeyDown={(e) => { if (e.key === 'Enter') window.open(`/sales/${d.quote_id}`, '_blank', 'noopener'); }}
+                        className="w-full text-left px-3 py-2.5 hover:bg-slate-800/40 transition-colors cursor-pointer">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-mono text-[11px] text-slate-300">{d.quote_number}</span>
+                          <a href={`/sales/${d.quote_id}`} target="_blank" rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="font-mono text-[11px] text-slate-300 hover:text-emerald-300 transition-colors">{d.quote_number}</a>
                           {(d.revision ?? 0) > 0 && <span className="text-[9px] font-bold text-sky-400">R{d.revision}</span>}
                           <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${SALES_STATUS[d.status]?.cls ?? ''}`}>{SALES_STATUS[d.status]?.label ?? d.status}</span>
                           {['invoiced', 'preparing', 'delivered'].includes(d.status) && (
-                            pay === 'paid'
-                              ? <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300">PAID</span>
-                              : pay === 'partial'
-                              ? <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/15 text-amber-300">PARTIAL</span>
-                              : <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-500/10 text-red-400/90">UNPAID</span>
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${payChip(quotePay)}`}>{quotePay}</span>
                           )}
                           <span className="ml-auto tabular-nums text-xs text-slate-200 font-semibold">{fmtRupiah(Number(d.grand_total) || 0)}</span>
                           <span className="text-[10px] text-slate-600 tabular-nums">{fmtDay(d.updated_at || d.quote_date)}</span>
                         </div>
-                        {(d.order_number || d.invoice_number || d.do_number) && (
-                          <p className="mt-1 text-[10px] text-slate-500 font-mono flex flex-wrap gap-x-3">
-                            {d.order_number && <span>SO {d.order_number}</span>}
-                            {d.invoice_number && <span>INV {d.invoice_number}</span>}
-                            {d.do_number && <span>DO {d.do_number}</span>}
+                        {(d.order_number || invs.length > 0 || d.invoice_number || qdos.length > 0 || d.do_number) && (
+                          <p className="mt-1 text-[10px] font-mono flex flex-wrap items-center gap-x-2 gap-y-1">
+                            {d.order_number && (
+                              <a href={`/sales/${d.quote_id}`} target="_blank" rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-slate-500 hover:text-emerald-300 transition-colors">SO {d.order_number}</a>
+                            )}
+                            {invs.length > 0 ? invs.map((i) => {
+                              const it = Number(i.grand_total) || 0;
+                              const ip = data.paidByInvoice[i.invoice_id] ?? 0;
+                              const st = it > 0 && ip >= it - 0.5 ? 'Paid' as const : ip > 0 ? 'Partial' as const : 'Unpaid' as const;
+                              return (
+                                <a key={i.invoice_id} href={`/sales/${d.quote_id}/print?inv=${i.invoice_id}`} target="_blank" rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()} title={`Rp ${fmtInt(it)} · Rp ${fmtInt(ip)} received`}
+                                  className={`${chipCls} ${payChip(st)}`}>{i.invoice_number} · {st}</a>
+                              );
+                            }) : d.invoice_number && (
+                              <a href={`/sales/${d.quote_id}/print`} target="_blank" rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className={`${chipCls} ${payChip(quotePay)}`}>{d.invoice_number} · {quotePay}</a>
+                            )}
+                            {qdos.length > 0 ? qdos.map((dd) => (
+                              <a key={dd.do_id} href={`/sales/${d.quote_id}/do?do=${dd.do_id}`} target="_blank" rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className={`${chipCls} ${dd.status === 'delivered' ? 'bg-emerald-500/10 text-emerald-300' : 'bg-orange-500/10 text-orange-300'}`}>
+                                {dd.do_number} · {dd.status === 'delivered' ? 'Delivered' : 'Preparing'}</a>
+                            )) : d.do_number && (
+                              <a href={`/sales/${d.quote_id}/do`} target="_blank" rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className={`${chipCls} ${d.status === 'delivered' ? 'bg-emerald-500/10 text-emerald-300' : 'bg-orange-500/10 text-orange-300'}`}>
+                                {d.do_number} · {d.status === 'delivered' ? 'Delivered' : 'Preparing'}</a>
+                            )}
                           </p>
                         )}
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -1065,12 +1112,12 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOp
                     const total = Number(d.grand_total) || 0;
                     const out = Math.max(0, total - (received[d.quote_id] ?? 0));
                     return (
-                      <button key={d.quote_id} onClick={() => onOpenDoc(d.quote_id)}
+                      <a key={d.quote_id} href={`/sales/${d.quote_id}`} target="_blank" rel="noopener noreferrer"
                         className="w-full text-left flex items-center gap-2 px-3 py-2 hover:bg-slate-800/30 transition-colors text-xs">
                         <span className="font-mono text-[11px] text-slate-300">{d.invoice_number || d.quote_number}</span>
                         <span className="text-slate-500">{fmtDay(d.updated_at || d.quote_date)}</span>
                         <span className="ml-auto tabular-nums text-amber-300 font-semibold">{fmtRupiah(out)} outstanding</span>
-                      </button>
+                      </a>
                     );
                   })}
                 </div>
