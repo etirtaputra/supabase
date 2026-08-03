@@ -1479,7 +1479,11 @@ function RecordPaymentModal({ quoteId, companyId, outstanding, received, invoice
           </FieldBox>
           <FieldBox label="Amount (IDR)" full>
             <div className="flex gap-2">
-              <input value={amount} inputMode="decimal" onChange={(e) => setAmount(e.target.value)} placeholder="0" className={`${inp} text-right tabular-nums`} />
+              {/* =formulas evaluate on blur (shared evalCell) — "=2181773/2"
+                  is how a split amount actually gets typed. */}
+              <input value={amount} inputMode="decimal" onChange={(e) => setAmount(e.target.value)}
+                onBlur={(e) => { const v = evalCell(e.target.value); if (v !== e.target.value) setAmount(String(Math.round(num(v)))); }}
+                placeholder="0" className={`${inp} text-right tabular-nums`} />
               {(invId ? invOutstanding(invId) : outstanding) > 0 && (
                 <button onClick={() => setAmount(fillFor(invId))}
                   title={invId ? 'Fill this invoice’s outstanding amount' : 'Fill the order’s outstanding amount'}

@@ -29,6 +29,7 @@ const num = (v: unknown): number => { if (v === '' || v == null) return 0; const
 const today = () => new Date().toISOString().slice(0, 10);
 import { fetchWarehouses, defaultWarehouse, type Warehouse } from '@/lib/warehouses';
 import { fmtDay, fmtInt } from '@/lib/formatters';
+import { evalCell } from '@/lib/formula';
 
 const TIME_OF_DAY = ['Pagi (08–11)', 'Siang (11–14)', 'Sore (14–17)'];
 const VIA_SUGGESTIONS = ['Armada sendiri', 'Kurir instan (GoSend/Grab)', 'Ekspedisi / cargo', 'JNE/J&T', 'Truk sewa'];
@@ -493,6 +494,7 @@ function InvoiceModal({ items, invoicedQtyByLine, orderTotal, invoicedTotal, ppn
                   <span className="text-slate-600 tabular-nums whitespace-nowrap">{fmtInt(done)} / {fmtInt(l.quantity)} billed</span>
                   <input value={qtys[l.item_id] ?? ''} inputMode="decimal"
                     onChange={(e) => setQtys((m) => ({ ...m, [l.item_id]: e.target.value }))}
+                    onBlur={(e) => { const v = evalCell(e.target.value); if (v !== e.target.value) setQtys((m) => ({ ...m, [l.item_id]: v })); }}
                     className={`${inpSm} ${num(qtys[l.item_id]) > left ? 'border-amber-500/60' : ''}`} title={`Remaining: ${fmtInt(left)}`} />
                   <span className="text-slate-500 tabular-nums w-24 text-right">@ {fmtInt(l.unit_price)}</span>
                 </div>
@@ -503,7 +505,9 @@ function InvoiceModal({ items, invoicedQtyByLine, orderTotal, invoicedTotal, ppn
           <div className="flex items-end gap-3">
             <div className="w-32">
               <label className="block text-[11px] font-medium text-slate-500 mb-1">% of order total</label>
-              <input value={pct} inputMode="decimal" onChange={(e) => setPct(e.target.value)} className={`${inp} text-right tabular-nums`} />
+              <input value={pct} inputMode="decimal" onChange={(e) => setPct(e.target.value)}
+                onBlur={(e) => { const v = evalCell(e.target.value); if (v !== e.target.value) setPct(v); }}
+                className={`${inp} text-right tabular-nums`} />
             </div>
             <div className="flex gap-1.5 pb-0.5">
               {[30, 50, 70].map((p) => (
@@ -581,6 +585,7 @@ function DoModal({ items, shippedQtyByLine, contacts, shippingAddress, busy, onC
                 <span className="text-slate-600 tabular-nums whitespace-nowrap">{fmtInt(shipped)} / {fmtInt(l.quantity)} on DOs</span>
                 <input value={qtys[l.item_id] ?? ''} inputMode="decimal"
                   onChange={(e) => setQtys((m) => ({ ...m, [l.item_id]: e.target.value }))}
+                  onBlur={(e) => { const v = evalCell(e.target.value); if (v !== e.target.value) setQtys((m) => ({ ...m, [l.item_id]: v })); }}
                   className={`${inpSm} ${num(qtys[l.item_id]) > left ? 'border-amber-500/60' : ''}`} title={`Remaining: ${fmtInt(left)}`} />
                 <span className="text-slate-600 w-10">{l.unit}</span>
               </div>

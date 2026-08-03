@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-03T16:20:00Z',
+    title: 'Money & quantity fields accept =formulas like Excel',
+    details: [
+      'The payment Amount, the invoice/DO quantity fields and the progress-% field now evaluate =formulas on blur — type =2181773/2 and it becomes the number. Same calculator as the quote lines and the EPC editor.',
+    ],
+  },
+  {
     at: '2026-08-03T16:00:00Z',
     title: 'Payments are now applied to a specific invoice',
     details: [
