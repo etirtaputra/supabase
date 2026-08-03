@@ -1007,7 +1007,7 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOp
       {/* Context strip: code · tier · AM · primary contact, plus actions.
           The row above already shows the name, so no repeated heading. */}
       <div className="px-4 py-2.5 flex items-center gap-3 border-b border-slate-800/60">
-        <p className="text-[11px] text-slate-500 truncate flex-1">
+        <p className="text-[11px] text-slate-500 truncate min-w-0">
           <span className="font-mono">{customer.customer_code}</span>
           {tierName ? ` · ${tierName}` : ''}
           {amName ? ` · AM: ${amName}` : ''}
@@ -1015,10 +1015,13 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOp
           {customer.referred_by ? ` · Referred by ${customer.referred_by}` : ''}
           {customer.updated_at ? ` · Edited ${fmtDayTime(customer.updated_at)}${customer.updated_by_email ? ` by ${customer.updated_by_email}` : ''}` : ''}
         </p>
+        {/* Ghost button, right beside the context it edits — not exiled to the far edge */}
         <button onClick={onEdit}
-          className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 text-[11px] font-semibold transition-colors flex-shrink-0">
-          ✎ Edit
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-slate-700/70 text-[11px] font-medium text-slate-400 hover:text-emerald-300 hover:border-emerald-500/40 transition-colors flex-shrink-0">
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+          Edit
         </button>
+        <span className="flex-1" />
         <button onClick={onClose} title="Collapse" className="p-1.5 -m-1 text-slate-500 hover:text-white transition-colors flex-shrink-0">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" /></svg>
         </button>
