@@ -20,11 +20,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    at: '2026-08-03T23:47:00Z',
-    title: 'PDF upload is just a button now',
+    at: '2026-08-03T23:53:00Z',
+    title: 'PDF upload lives in the form headers',
     details: [
-      'The Upload Quote/PI PDF and Upload PI/PO PDF banners are gone — each is now a single left-aligned button above the forms (explanation in the tooltip, “n items extracted” beside it after a run).',
-      'Step 2’s pre-fill banner collapsed into a small Upload PDF button in the form’s own title row.',
+      'The Upload Quote/PI PDF and Upload PI/PO PDF banners are gone. Each is now a small button at the right end of the Step-1 form’s own title row — exactly matching the items form’s Upload PDF button, so all four cards read the same.',
+      'After an extraction, “✓ n items” and a Clear link appear beside the button; the explanation lives in the tooltip.',
     ],
   },
   {

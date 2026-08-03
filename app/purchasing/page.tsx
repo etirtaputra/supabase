@@ -16,7 +16,6 @@ import MobileNotice from '@/components/ui/MobileNotice';
 import CompetitorPriceForm from '@/components/forms/CompetitorPriceForm';
 import MultiPaymentForm from '@/components/forms/MultiPaymentForm';
 import DealLookupTab from '@/components/ui/DealLookupTab';
-import PDFUploadBanner from '@/components/ui/PDFUploadBanner';
 import ExchangeRateSuggestion from '@/components/ui/ExchangeRateSuggestion';
 import { ToastContainer } from '@/components/ui/Toast';
 import { ToastProvider } from '@/hooks/useToast';
@@ -447,6 +446,32 @@ function MasterInsertPage() {
 
   const activeItem = MENU_ITEMS.find((m) => m.id === activeTab);
 
+  // PDF-extraction entry point, rendered inside the Step-1 form's title row —
+  // mirrors the items form's Upload PDF button so the two headers match.
+  const pdfHeaderAction = (label: string, description: string) => (
+    <span className="flex items-center gap-2 flex-shrink-0">
+      {pdfData && (
+        <>
+          <span className="text-emerald-400 text-[11px] font-semibold"
+            title={`${pdfData.line_items?.length || 0} items extracted${pdfData.supplier_name ? ` from ${pdfData.supplier_name}` : ''}`}>
+            ✓ {pdfData.line_items?.length || 0} items
+          </span>
+          <button type="button" onClick={() => setPdfData(null)}
+            className="text-[11px] text-slate-500 hover:text-slate-300 hover:underline underline-offset-2 transition-colors">
+            Clear
+          </button>
+        </>
+      )}
+      <label className="cursor-pointer" title={description}>
+        <input type="file" accept="application/pdf" onChange={handlePdfUpload} disabled={pdfUploading} className="hidden" />
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 text-[11px] font-semibold transition-colors ${pdfUploading ? 'opacity-70 cursor-not-allowed' : ''}`}>
+          {pdfUploading && <span className="w-3 h-3 border-2 border-emerald-400/30 border-t-emerald-400 rounded-full animate-spin" />}
+          {pdfUploading ? 'Extracting…' : label}
+        </span>
+      </label>
+    </span>
+  );
+
   // ── Tab SVG icons ───────────────────────────────────────────────────────────
   const TAB_ICONS: Record<string, React.ReactNode> = {
     catalog: (
@@ -606,17 +631,10 @@ function MasterInsertPage() {
                       <button onClick={() => setLastSaved(null)} className="text-slate-500 hover:text-slate-300 text-sm leading-none">✕</button>
                     </div>
                   )}
-                  <PDFUploadBanner
-                    title="Upload Quote/PI PDF"
-                    description="AI extracts supplier info, quote details, and line items automatically."
-                    pdfData={pdfData}
-                    uploading={pdfUploading}
-                    onUpload={handlePdfUpload}
-                    onClear={() => setPdfData(null)}
-                  />
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 items-start">
                     <SimpleForm
                       title="Step 1: Quote Header"
+                      headerAction={pdfHeaderAction('Upload Quote/PI PDF', 'AI extracts supplier info, quote details, and line items automatically.')}
                       fields={[
                         { name: 'supplier_id', label: 'Supplier', type: 'rich-select', options: data.suppliers, config: { labelKey: 'supplier_name', valueKey: 'supplier_id', subLabelKey: 'location' }, req: true, default: pdfDefaults.supplier_id },
                         { name: 'company_id', label: 'Addressed To', type: 'select', options: options.companies, req: true, default: pdfDefaults.company_id },
@@ -668,14 +686,6 @@ function MasterInsertPage() {
                       <button onClick={() => setLastSaved(null)} className="text-slate-500 hover:text-slate-300 text-sm leading-none">✕</button>
                     </div>
                   )}
-                  <PDFUploadBanner
-                    title="Upload PI/PO PDF"
-                    description="AI extracts PI details, PO information, and all line items automatically."
-                    pdfData={pdfData}
-                    uploading={pdfUploading}
-                    onUpload={handlePdfUpload}
-                    onClear={() => setPdfData(null)}
-                  />
                   {dupWarning && (
                     <div className="mb-4 flex items-start gap-3 px-4 py-3 bg-amber-500/10 border border-amber-500/30 rounded-xl">
                       <span className="text-amber-400 text-sm flex-shrink-0 mt-0.5">⚠️</span>
@@ -687,6 +697,7 @@ function MasterInsertPage() {
                     <SimpleForm
                       key={`po-form-${pendingQuoteForPO}`}
                       title="1. Purchase Order (with PI fields)"
+                      headerAction={pdfHeaderAction('Upload PI/PO PDF', 'AI extracts PI details, PO information, and all line items automatically.')}
                       onFieldChange={(name, value, current) => {
                         const overrides: Record<string, any> = {};
                         // A supplier's most recent PO tells us which currency they

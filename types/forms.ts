@@ -3,6 +3,8 @@
  * Provides type safety for form fields and configurations
  */
 
+import type React from 'react';
+
 // Field types supported by the form system
 export type FieldType = 'text' | 'email' | 'number' | 'date' | 'textarea' | 'select' | 'rich-select';
 
@@ -41,6 +43,8 @@ export interface SimpleFormProps {
   loading: boolean;
   /** Called on every field change; return a partial record of fields to auto-update. */
   onFieldChange?: (name: string, value: any, current: Record<string, any>) => Partial<Record<string, any>>;
+  /** Rendered at the right end of the title row (e.g. a PDF-upload button). */
+  headerAction?: React.ReactNode;
 }
 
 // Parent field configuration for BatchLineItemsForm

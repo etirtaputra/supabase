@@ -9,7 +9,7 @@ import FieldRenderer from './FieldRenderer';
 import { Spinner } from '../ui/LoadingSkeleton';
 import type { SimpleFormProps } from '../../types/forms';
 
-export default function SimpleForm({ title, fields, onSubmit, loading, onFieldChange }: SimpleFormProps) {
+export default function SimpleForm({ title, fields, onSubmit, loading, onFieldChange, headerAction }: SimpleFormProps) {
   const storageKey = `form-draft:${title}`;
   const formId = useId();
 
@@ -96,6 +96,7 @@ export default function SimpleForm({ title, fields, onSubmit, loading, onFieldCh
       {/* Form Title */}
       <div className="flex items-center gap-3 border-b border-slate-800/80 pb-3 mb-4">
         <h3 className="text-sm font-bold text-white tracking-tight flex-1">{title}</h3>
+        {headerAction}
         {hasDraft && (
           <button
             type="button"
