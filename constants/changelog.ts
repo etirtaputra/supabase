@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-03T10:51:00Z',
+    title: 'Customer profile: sleeker Edit button',
+    details: [
+      'Edit moved next to the customer context line (was parked at the far right) and slimmed into a bordered ghost button with a pencil icon — emerald on hover.',
+    ],
+  },
+  {
     at: '2026-08-03T10:47:00Z',
     title: 'Sales list: fulfillment digest realigned',
     details: [
