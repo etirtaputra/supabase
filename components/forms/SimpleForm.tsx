@@ -91,11 +91,11 @@ export default function SimpleForm({ title, fields, onSubmit, loading, onFieldCh
   return (
     <form
       onSubmit={handleSubmit}
-      className="bg-slate-900/40 backdrop-blur-sm rounded-2xl border border-slate-800/80 p-5 md:p-8 shadow-xl ring-1 ring-white/5 h-full flex flex-col transition-all"
+      className="bg-slate-900/40 backdrop-blur-sm rounded-2xl border border-slate-800/80 p-4 md:p-5 shadow-xl ring-1 ring-white/5 h-full flex flex-col transition-all"
     >
       {/* Form Title */}
-      <div className="flex items-center gap-3 border-b border-slate-800/80 pb-4 mb-6">
-        <h3 className="text-lg font-bold text-white tracking-tight flex-1">{title}</h3>
+      <div className="flex items-center gap-3 border-b border-slate-800/80 pb-3 mb-4">
+        <h3 className="text-sm font-bold text-white tracking-tight flex-1">{title}</h3>
         {hasDraft && (
           <button
             type="button"
@@ -108,7 +108,7 @@ export default function SimpleForm({ title, fields, onSubmit, loading, onFieldCh
         )}
       </div>
       {/* Form Fields */}
-      <div className="grid gap-6 flex-1">
+      <div className="grid gap-3.5 flex-1">
         {fields.map((field) => (
           <div key={field.name} className="group">
             <FieldRenderer
@@ -122,11 +122,11 @@ export default function SimpleForm({ title, fields, onSubmit, loading, onFieldCh
         ))}
       </div>
       {/* Submit Button */}
-      <div className="mt-8 pt-6 border-t border-slate-800/80">
+      <div className="mt-5 pt-4 border-t border-slate-800/80">
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 px-4 rounded-xl text-sm shadow-lg shadow-emerald-900/20 border border-emerald-500/50 transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:transform-none disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-4 rounded-xl text-sm shadow-lg shadow-emerald-900/20 border border-emerald-500/50 transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:transform-none disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {loading ? (
             <>

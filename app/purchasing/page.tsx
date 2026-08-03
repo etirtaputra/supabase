@@ -67,7 +67,10 @@ function MasterInsertPage() {
   useEffect(() => {
     const label = MENU_ITEMS.find((m) => m.id === activeTab)?.label ?? 'Data Entry';
     document.title = `Purchasing · ${label} — ICAPROC`;
-  }, [activeTab]);
+    // searchParams is a dep on purpose: soft navigations re-apply the route's
+    // static metadata AFTER our effect ran once — re-assert on every URL change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, searchParams]);
 
   const [showSupplierForm, setShowSupplierForm] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -122,7 +125,9 @@ function MasterInsertPage() {
     setActiveTab(tab);
     setLastSaved(null);
     setDupWarning(null);
-    router.replace(`/purchasing?tab=${tab}`, { scroll: false });
+    // Shallow update: keeps the URL shareable without a server round-trip —
+    // which would also re-apply the static route title over the tab title.
+    window.history.replaceState(null, '', `/purchasing?tab=${tab}`);
   };
 
   const handleMarkFullyPaid = async (poId: string, amount: number, currency: string) => {

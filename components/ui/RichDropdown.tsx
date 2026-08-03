@@ -126,7 +126,7 @@ const RichDropdown = memo(function RichDropdown({
         <input
           ref={inputRef}
           type="text"
-          className={`w-full p-2.5 md:p-3 bg-slate-950 border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all ${
+          className={`w-full px-2.5 py-2 bg-slate-950 border rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all ${
             isOpen ? 'border-emerald-500 rounded-b-none' : 'border-slate-700'
           }`}
           placeholder={placeholder}

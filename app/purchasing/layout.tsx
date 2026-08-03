@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Catalog',
+  title: 'Purchasing',
 };
 
-export default function CatalogLayout({ children }: { children: React.ReactNode }) {
+export default function PurchasingLayout({ children }: { children: React.ReactNode }) {
   return children;
 }

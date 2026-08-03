@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-03T23:41:00Z',
+    title: 'Tab titles fixed everywhere · slimmer purchasing forms',
+    details: [
+      'The browser tab now always names the screen you are on — “Purchasing · Supplier Quotes”, “Settings · Banks” — instead of getting stuck on “Catalog”. Every module was audited so the tab title, the menu name and the URL agree; Settings tabs now update the URL too, so any view can be bookmarked or shared.',
+      'The Upload Quote/PI PDF hero card shrank to a one-line strip (both on the page and inside Step 2), and the Supplier Quote / Purchase Order forms are tighter — smaller paddings, labels and inputs — so more of the form fits on screen.',
+    ],
+  },
+  {
     at: '2026-08-03T10:51:00Z',
     title: 'Customer profile: sleeker Edit button',
     details: [

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'AI Assistant',
+  title: 'Ask',
 };
 
 export default function AskLayout({ children }: { children: React.ReactNode }) {

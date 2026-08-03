@@ -181,7 +181,8 @@ export default function SettingsPage() {
             a second row that pushes the content down. */}
         <div className="flex items-center gap-4 sm:gap-5 border-b border-slate-800/80 overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0 scrollbar-none">
           {TABS.map(([k, label]) => (
-            <button key={k} onClick={() => setTab(k)}
+            <button key={k}
+              onClick={() => { setTab(k); window.history.replaceState(null, '', `/settings?tab=${k}`); }}
               className={`pb-2.5 -mb-px text-[13px] whitespace-nowrap transition-colors border-b-2 ${tab === k ? 'border-emerald-400 text-white font-bold' : 'border-transparent text-slate-500 hover:text-slate-300 font-medium'}`}>
               {label}
             </button>

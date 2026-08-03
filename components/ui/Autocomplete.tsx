@@ -22,7 +22,7 @@ interface AutocompleteProps {
 }
 
 const DEFAULT_INPUT_CLASS =
-  'w-full p-2.5 md:p-3 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none placeholder-slate-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed';
+  'w-full px-2.5 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none placeholder-slate-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed';
 
 export default function Autocomplete({
   value,

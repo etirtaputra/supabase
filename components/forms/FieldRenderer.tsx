@@ -30,10 +30,10 @@ export default function FieldRenderer({
   const datalistId = `${formId || 'form'}-${field.name}-${uniqueId}`;
 
   const baseInputClasses =
-    'w-full p-2.5 md:p-3 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none placeholder-slate-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed [&::-webkit-calendar-picker-indicator]:invert';
+    'w-full px-2.5 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none placeholder-slate-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed [&::-webkit-calendar-picker-indicator]:invert';
 
   const labelClasses =
-    'block text-[11px] font-bold text-slate-400 mb-2 ml-1 group-focus-within:text-emerald-400 transition-colors uppercase tracking-wider';
+    'block text-[10px] font-bold text-slate-400 mb-1 ml-0.5 group-focus-within:text-emerald-400 transition-colors uppercase tracking-wider';
 
   return (
     <div className="relative w-full group">
