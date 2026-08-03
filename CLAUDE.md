@@ -3,6 +3,9 @@
 ## Git Workflow
 
 - Always commit and push directly to **main**. Never push to feature branches — merge to main instead.
+- **No preview deployments** (owner's rule, 2026-08-03): do not create or trigger
+  Vercel preview deploys. Pushing to main is the whole release — production
+  deploys from main automatically.
 
 ## Mission (why ICAPROC exists)
 

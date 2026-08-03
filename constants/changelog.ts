@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-03T10:47:00Z',
+    title: 'Sales list: fulfillment digest realigned',
+    details: [
+      'The expanded row now stacks SO · Payment · Invoices · Delivery as aligned rows with a fixed label column — no more chips drifting across one long line.',
+      'Invoices and DOs use the same quiet link + state dot language as the customer profile, and now open their own document in a new tab.',
+    ],
+  },
+  {
     at: '2026-08-03T10:42:00Z',
     title: 'Sales list: search finds orders by product',
     details: [

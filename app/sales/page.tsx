@@ -305,59 +305,75 @@ export default function SalesListPage() {
                     </div>
                     {open && (
                       <div className="px-4 pb-3 pt-1 bg-slate-950/40">
-                        {q.order_number && (
-                          <p className="text-[10px] text-slate-600 font-mono truncate py-1.5">SO {q.order_number}</p>
-                        )}
-                        {/* Fulfillment digest — every invoice with its paid
-                            state, every DO with its delivery state, and how
-                            much of the order each side covers, without opening
-                            the document (the Item-hub expansion idea). */}
-                        {billed && (() => {
+                        {/* Fulfillment digest — one aligned row per aspect
+                            (SO · Payment · Invoices · Delivery), fixed label
+                            column so everything lines up. Documents are quiet
+                            links with a state dot (same language as the
+                            customer profile); words live in the tooltip. */}
+                        {(q.order_number || billed) && (() => {
                           const invs = invoicesByQuote[q.quote_id] ?? [];
                           const qdos = dosByQuote[q.quote_id] ?? [];
                           const invoicedTotal = invs.reduce((s, i) => s + (Number(i.grand_total) || 0), 0);
+                          const lbl = 'w-24 flex-shrink-0 text-[9px] font-semibold uppercase tracking-widest text-slate-600';
+                          const docLink = 'inline-flex items-center gap-1 font-mono text-[10px] text-slate-400 hover:text-emerald-300 transition-colors';
+                          const dot = (cls: string) => <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${cls}`} />;
                           return (
-                            <div className="flex flex-wrap items-center gap-x-7 gap-y-1.5 pb-2 mb-1.5 border-b border-slate-800/60 text-[11px]">
-                              <span className="flex items-center gap-1.5">
-                                <span className="text-[9px] font-semibold uppercase tracking-widest text-slate-600">Payment</span>
-                                <span className="w-14 h-1.5 bg-slate-800 rounded-full overflow-hidden inline-block flex-shrink-0">
-                                  <span className={`block h-full rounded-full ${paidFull ? 'bg-emerald-500' : arOpen && rcv <= 0 ? 'bg-red-500/70' : pct > 0 ? 'bg-amber-400' : 'bg-slate-700'}`} style={{ width: `${pct}%` }} />
-                                </span>
-                                <span className={`text-[10px] tabular-nums font-semibold ${paidFull ? 'text-emerald-400' : arOpen && rcv <= 0 ? 'text-red-300' : pct > 0 ? 'text-amber-300' : 'text-slate-600'}`}>{pct.toFixed(0)}%</span>
-                                <span className="text-slate-500 tabular-nums">Rp {fmtInt(rcv)} of {fmtInt(total)}</span>
-                              </span>
-                              <span className="flex items-center gap-1.5 flex-wrap">
-                                <span className="text-[9px] font-semibold uppercase tracking-widest text-slate-600">Invoices{invs.length > 1 ? ` ×${invs.length}` : ''}</span>
-                                {invs.length === 0 ? <span className="text-slate-600 italic">none yet</span> : (
-                                  <>
-                                    {invs.map((i) => {
-                                      const it = Number(i.grand_total) || 0;
-                                      const ip = paidByInvoice[i.invoice_id] ?? 0;
-                                      const st2 = it > 0 && ip >= it - 0.5 ? 'Paid' : ip > 0 ? 'Partial' : 'Unpaid';
-                                      const cls = st2 === 'Paid' ? 'bg-emerald-500/10 text-emerald-300' : st2 === 'Partial' ? 'bg-amber-500/10 text-amber-300' : 'bg-slate-800 text-slate-400';
-                                      return <span key={i.invoice_id} title={`Rp ${fmtInt(it)} · Rp ${fmtInt(ip)} received`} className={`px-1.5 py-0.5 rounded font-mono text-[10px] ${cls}`}>{i.invoice_number} · {st2}</span>;
-                                    })}
-                                    <span className="text-slate-500 tabular-nums">
-                                      {total > 0 && invoicedTotal >= total - 0.5 ? 'fully invoiced' : `${total > 0 ? ((invoicedTotal / total) * 100).toFixed(0) : 0}% billed`}
-                                    </span>
-                                  </>
-                                )}
-                              </span>
-                              <span className="flex items-center gap-1.5 flex-wrap">
-                                <span className="text-[9px] font-semibold uppercase tracking-widest text-slate-600">Delivery{qdos.length > 1 ? ` ×${qdos.length}` : ''}</span>
-                                {qdos.length === 0 ? <span className="text-slate-600 italic">no DO yet</span> : (
-                                  <>
-                                    {qdos.map((d) => (
-                                      <span key={d.do_id} className={`px-1.5 py-0.5 rounded font-mono text-[10px] ${d.status === 'delivered' ? 'bg-emerald-500/10 text-emerald-300' : 'bg-orange-500/10 text-orange-300'}`}>
-                                        {d.do_number} · {d.status === 'delivered' ? 'Delivered' : 'Preparing'}
+                            <div className="pt-1.5 pb-2 mb-1.5 border-b border-slate-800/60 text-[11px] space-y-1.5">
+                              {q.order_number && (
+                                <p className="flex items-center gap-2 flex-wrap">
+                                  <span className={lbl}>SO</span>
+                                  <a href={`/sales/${q.quote_id}`} target="_blank" rel="noopener noreferrer" className={docLink}>{q.order_number}</a>
+                                </p>
+                              )}
+                              {billed && (
+                                <p className="flex items-center gap-2 flex-wrap">
+                                  <span className={lbl}>Payment</span>
+                                  <span className="w-14 h-1.5 bg-slate-800 rounded-full overflow-hidden inline-block flex-shrink-0">
+                                    <span className={`block h-full rounded-full ${paidFull ? 'bg-emerald-500' : arOpen && rcv <= 0 ? 'bg-red-500/70' : pct > 0 ? 'bg-amber-400' : 'bg-slate-700'}`} style={{ width: `${pct}%` }} />
+                                  </span>
+                                  <span className={`text-[10px] tabular-nums font-semibold ${paidFull ? 'text-emerald-400' : arOpen && rcv <= 0 ? 'text-red-300' : pct > 0 ? 'text-amber-300' : 'text-slate-600'}`}>{pct.toFixed(0)}%</span>
+                                  <span className="text-slate-500 tabular-nums">Rp {fmtInt(rcv)} of {fmtInt(total)}</span>
+                                </p>
+                              )}
+                              {billed && (
+                                <p className="flex items-center gap-x-3 gap-y-1 flex-wrap">
+                                  <span className={lbl}>Invoices{invs.length > 1 ? ` ×${invs.length}` : ''}</span>
+                                  {invs.length === 0 ? <span className="text-slate-600 italic">none yet</span> : (
+                                    <>
+                                      {invs.map((i) => {
+                                        const it = Number(i.grand_total) || 0;
+                                        const ip = paidByInvoice[i.invoice_id] ?? 0;
+                                        const st2 = it > 0 && ip >= it - 0.5 ? 'Paid' : ip > 0 ? 'Partial' : 'Unpaid';
+                                        return (
+                                          <a key={i.invoice_id} href={`/sales/${q.quote_id}/print?inv=${i.invoice_id}`} target="_blank" rel="noopener noreferrer"
+                                            title={`${st2} — Rp ${fmtInt(ip)} received of Rp ${fmtInt(it)}`} className={docLink}>
+                                            {i.invoice_number}{dot(st2 === 'Paid' ? 'bg-emerald-400' : st2 === 'Partial' ? 'bg-amber-400' : 'bg-slate-600')}</a>
+                                        );
+                                      })}
+                                      <span className="text-slate-600 tabular-nums">
+                                        {total > 0 && invoicedTotal >= total - 0.5 ? 'fully invoiced' : `${total > 0 ? ((invoicedTotal / total) * 100).toFixed(0) : 0}% billed`}
                                       </span>
-                                    ))}
-                                    <span className="text-slate-500">
-                                      {q.status === 'delivered' ? 'fully delivered' : delStateOf(q) === 'partial' ? 'partly delivered' : 'in preparation'}
-                                    </span>
-                                  </>
-                                )}
-                              </span>
+                                    </>
+                                  )}
+                                </p>
+                              )}
+                              {billed && (
+                                <p className="flex items-center gap-x-3 gap-y-1 flex-wrap">
+                                  <span className={lbl}>Delivery{qdos.length > 1 ? ` ×${qdos.length}` : ''}</span>
+                                  {qdos.length === 0 ? <span className="text-slate-600 italic">no DO yet</span> : (
+                                    <>
+                                      {qdos.map((d) => (
+                                        <a key={d.do_id} href={`/sales/${q.quote_id}/do?do=${d.do_id}`} target="_blank" rel="noopener noreferrer"
+                                          title={d.status === 'delivered' ? 'Delivered' : 'Preparing'} className={docLink}>
+                                          {d.do_number}{dot(d.status === 'delivered' ? 'bg-emerald-400' : 'bg-orange-400')}</a>
+                                      ))}
+                                      <span className="text-slate-600">
+                                        {q.status === 'delivered' ? 'fully delivered' : delStateOf(q) === 'partial' ? 'partly delivered' : 'in preparation'}
+                                      </span>
+                                    </>
+                                  )}
+                                </p>
+                              )}
                             </div>
                           );
                         })()}
