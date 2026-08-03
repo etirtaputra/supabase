@@ -688,10 +688,11 @@ export default function SalesQuotePage() {
   const billTotal = Number(editing.grand_total) || totals.grand;
   const fullyPaid = billTotal > 0 && received >= billTotal - 0.5;
   const showPayments = !newDoc && ['ordered', 'invoiced', 'preparing', 'delivered'].includes(st);
+  const todayIso = new Date().toISOString().slice(0, 10);
   // An offer past its own date, while still on the table (draft is not an
   // offer yet; accepted/ordered+ has already landed). NULL = no expiry.
   const expired = !!editing.valid_until && ['validated', 'sent'].includes(st)
-    && editing.valid_until < new Date().toISOString().slice(0, 10);
+    && editing.valid_until < todayIso;
   const actions: { label: string; to: string; primary?: boolean; danger?: boolean }[] = [];
   if (st === 'draft') { actions.push({ label: 'Validate', to: 'validated', primary: true }); actions.push({ label: 'Sent', to: 'sent' }); }
   if (st === 'validated') actions.push({ label: 'Sent', to: 'sent', primary: true });
@@ -837,17 +838,40 @@ export default function SalesQuotePage() {
           </FieldBox>
           <FieldBox label="Quote date">
             <input type="date" value={editing.quote_date} onChange={(e) => setHeader('quote_date', e.target.value)} className={inp} />
+            {/* Drafts only — a validated/sent document's date is part of what
+                went out and shouldn't invite one-click rewriting. */}
+            {draftLike && editing.quote_date !== todayIso && (
+              <button onClick={() => setHeader('quote_date', todayIso)}
+                className="mt-1 text-[10px] font-semibold text-sky-300 hover:text-sky-200 underline underline-offset-2 decoration-sky-500/40 transition-colors">
+                Set to today&rsquo;s date
+              </button>
+            )}
           </FieldBox>
           <FieldBox label="Valid until">
             <input type="date" value={editing.valid_until ?? ''} onChange={(e) => setHeader('valid_until', e.target.value || null)} className={inp} />
-            <p className="mt-1 text-[10px] text-slate-600">
-              {editing.valid_until
-                ? (() => {
-                    const days = Math.round((new Date(`${editing.valid_until}T12:00:00`).getTime() - new Date(`${editing.quote_date}T12:00:00`).getTime()) / 86400000);
-                    return days >= 0 ? `${days} day${days !== 1 ? 's' : ''} from the quote date` : 'Before the quote date';
-                  })()
-                : 'No expiry — offer stands until revised'}
-            </p>
+            <span className="mt-1 flex items-center gap-1">
+              {[7, 14, 30].map((d) => {
+                const target = addDays(editing.quote_date, d);
+                const active = editing.valid_until === target;
+                return (
+                  <button key={d} onClick={() => setHeader('valid_until', target)}
+                    title={`Valid until ${fmtDay(target)} (quote date + ${d} days)`}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-semibold transition-colors ${active
+                      ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30'
+                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200'}`}>
+                    {d}d
+                  </button>
+                );
+              })}
+              <span className="text-[10px] text-slate-600 ml-0.5">
+                {editing.valid_until
+                  ? (() => {
+                      const days = Math.round((new Date(`${editing.valid_until}T12:00:00`).getTime() - new Date(`${editing.quote_date}T12:00:00`).getTime()) / 86400000);
+                      return days >= 0 ? `${days} day${days !== 1 ? 's' : ''}` : 'before quote date';
+                    })()
+                  : 'no expiry'}
+              </span>
+            </span>
           </FieldBox>
           <FieldBox label="PPN %">
             <input value={String(editing.ppn_pct)} onChange={(e) => setHeader('ppn_pct', num(e.target.value) as any)} className={`${inp} text-right tabular-nums`} />

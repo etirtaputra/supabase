@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-02T09:45:00Z',
+    title: 'Sales quote: one-click validity presets + “Set to today’s date”',
+    details: [
+      '“Valid until” now has 7d / 14d / 30d buttons — one click sets the date from the quote date, with the active preset highlighted and the day count shown beside it.',
+      'On a draft, a “Set to today’s date” shortcut appears under the quote date whenever it isn’t today — sent documents keep their date without a one-click rewrite.',
+    ],
+  },
+  {
     at: '2026-08-02T09:10:00Z',
     title: 'Sales quotes now carry a validity date',
     details: [
