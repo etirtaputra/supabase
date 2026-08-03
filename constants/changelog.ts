@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-03T19:10:00Z',
+    title: 'Payment is a progress bar · half-shipped orders say “Partly Delivered”',
+    details: [
+      'The Payment column (and the expanded digest) dropped the word-chips for a slim progress bar + % — green when paid, amber when partial, red when the goods are delivered and nothing has been received. Amounts stay in the tooltip.',
+      'An order with some delivery orders delivered and the rest still preparing now reads “Partly Delivered” on the list and in the editor — before, it misleadingly said “Preparing” until the last item shipped. Display only: the stored status still completes when everything is delivered.',
+    ],
+  },
+  {
     at: '2026-08-03T18:50:00Z',
     title: 'Sales list: the number IS the link',
     details: [

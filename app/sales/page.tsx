@@ -263,35 +263,38 @@ export default function SalesListPage() {
                         {(q.revision ?? 0) > 0 && <span className="ml-1 text-[9px] font-bold text-sky-400">R{q.revision}</span>}
                       </span>
                       <span className="text-sm text-slate-100 truncate">{c?.display_name || c?.legal_name || <span className="text-slate-600">No customer</span>}</span>
-                      {/* Column 1 of the pair: WHERE IS THE ORDER — lifecycle
-                          only (plus the offer's own EXPIRED state). */}
+                      {/* Column 1 of the pair: WHERE IS THE ORDER. A half-
+                          shipped order says so — "Partly Delivered" is derived
+                          from its DOs (the stored status only becomes
+                          Delivered when every item has left). */}
                       <span className="flex flex-col gap-1">
                         <span className="flex items-center gap-1.5 flex-wrap">
-                          <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS[q.status]?.cls ?? ''}`}>{STATUS[q.status]?.label ?? q.status}</span>
+                          {delStateOf(q) === 'partial' ? (
+                            <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-teal-500/15 text-teal-300"
+                              title="Some delivery orders are delivered, the rest still preparing — the order completes when every item has shipped">
+                              Partly Delivered
+                            </span>
+                          ) : (
+                            <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS[q.status]?.cls ?? ''}`}>{STATUS[q.status]?.label ?? q.status}</span>
+                          )}
                           {isExpired(q) && <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/15 text-amber-300" title={`Offer expired ${fmtDay(q.valid_until!)}`}>Expired</span>}
                         </span>
                         {!compact && <MilestoneDots status={q.status} paid={paidFull} delivered={q.status === 'delivered'} />}
                       </span>
-                      {/* Column 2: WHERE IS THE MONEY — one chip + the paid %. */}
-                      <span className="flex items-center gap-1.5 flex-wrap">
-                        {!billed ? (
-                          <span className="text-slate-700 text-[11px]">—</span>
-                        ) : paidFull ? (
-                          <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/20 text-emerald-300">Paid</span>
-                        ) : arOpen ? (
-                          <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${rcv > 0 ? 'bg-amber-500/15 text-amber-300' : 'bg-red-500/10 text-red-300'}`}
-                            title={`Delivered, but Rp ${fmtInt(total - rcv)} has not been received`}>
-                            Outstanding
+                      {/* Column 2: WHERE IS THE MONEY — a bar and the number.
+                          Colour carries the state: green paid, amber partial,
+                          red = delivered with nothing received. */}
+                      {!billed ? (
+                        <span className="text-slate-700 text-[11px]">—</span>
+                      ) : (
+                        <span className="flex items-center gap-1.5"
+                          title={`Rp ${fmtInt(rcv)} received of Rp ${fmtInt(total)}${arOpen ? ' — delivered with money still open' : ''}`}>
+                          <span className="w-14 h-1.5 bg-slate-800 rounded-full overflow-hidden inline-block flex-shrink-0">
+                            <span className={`block h-full rounded-full ${paidFull ? 'bg-emerald-500' : arOpen && rcv <= 0 ? 'bg-red-500/70' : pct > 0 ? 'bg-amber-400' : 'bg-slate-700'}`} style={{ width: `${Math.max(pct, paidFull ? 100 : pct)}%` }} />
                           </span>
-                        ) : rcv > 0 ? (
-                          <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/15 text-amber-300">Partial</span>
-                        ) : (
-                          <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-800 text-slate-400">Unpaid</span>
-                        )}
-                        {billed && total > 0 && !paidFull && (
-                          <span className={`text-[10px] tabular-nums ${pct > 0 ? 'text-amber-300' : 'text-slate-600'}`} title={`Rp ${fmtInt(rcv)} received of Rp ${fmtInt(total)}`}>{pct.toFixed(0)}%</span>
-                        )}
-                      </span>
+                          <span className={`text-[10px] tabular-nums font-semibold ${paidFull ? 'text-emerald-400' : arOpen && rcv <= 0 ? 'text-red-300' : pct > 0 ? 'text-amber-300' : 'text-slate-600'}`}>{pct.toFixed(0)}%</span>
+                        </span>
+                      )}
                       <span className="text-right tabular-nums text-slate-200">{fmtInt(total)}</span>
                       <span className="text-right text-[11px] text-slate-500 tabular-nums flex items-center justify-end gap-2">
                         {fmtDay(q.updated_at)}
@@ -311,19 +314,15 @@ export default function SalesListPage() {
                           const invs = invoicesByQuote[q.quote_id] ?? [];
                           const qdos = dosByQuote[q.quote_id] ?? [];
                           const invoicedTotal = invs.reduce((s, i) => s + (Number(i.grand_total) || 0), 0);
-                          const payChip = (label: string, cls: string, ttl?: string) => (
-                            <span title={ttl} className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${cls}`}>{label}</span>
-                          );
-                          const ps = payStateOf(q);
                           return (
                             <div className="flex flex-wrap items-center gap-x-7 gap-y-1.5 pb-2 mb-1.5 border-b border-slate-800/60 text-[11px]">
                               <span className="flex items-center gap-1.5">
                                 <span className="text-[9px] font-semibold uppercase tracking-widest text-slate-600">Payment</span>
-                                {ps === 'paid' ? payChip('Paid', 'bg-emerald-500/20 text-emerald-300')
-                                  : ps === 'outstanding' ? payChip('Outstanding', rcv > 0 ? 'bg-amber-500/15 text-amber-300' : 'bg-red-500/10 text-red-300')
-                                  : ps === 'partial' ? payChip('Partial', 'bg-amber-500/15 text-amber-300')
-                                  : payChip('Unpaid', 'bg-slate-800 text-slate-400')}
-                                <span className="text-slate-500 tabular-nums">Rp {fmtInt(rcv)} of {fmtInt(total)}{total > 0 ? ` · ${pct.toFixed(0)}%` : ''}</span>
+                                <span className="w-14 h-1.5 bg-slate-800 rounded-full overflow-hidden inline-block flex-shrink-0">
+                                  <span className={`block h-full rounded-full ${paidFull ? 'bg-emerald-500' : arOpen && rcv <= 0 ? 'bg-red-500/70' : pct > 0 ? 'bg-amber-400' : 'bg-slate-700'}`} style={{ width: `${pct}%` }} />
+                                </span>
+                                <span className={`text-[10px] tabular-nums font-semibold ${paidFull ? 'text-emerald-400' : arOpen && rcv <= 0 ? 'text-red-300' : pct > 0 ? 'text-amber-300' : 'text-slate-600'}`}>{pct.toFixed(0)}%</span>
+                                <span className="text-slate-500 tabular-nums">Rp {fmtInt(rcv)} of {fmtInt(total)}</span>
                               </span>
                               <span className="flex items-center gap-1.5 flex-wrap">
                                 <span className="text-[9px] font-semibold uppercase tracking-widest text-slate-600">Invoices{invs.length > 1 ? ` ×${invs.length}` : ''}</span>

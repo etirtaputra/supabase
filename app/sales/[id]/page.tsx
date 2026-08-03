@@ -756,7 +756,14 @@ export default function SalesQuotePage() {
           {(editing.revision ?? 0) > 0 && (
             <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-sky-500/15 text-sky-300">Rev {editing.revision}</span>
           )}
-          <span className={`flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS[st]?.cls ?? ''}`}>{STATUS[st]?.label ?? st}</span>
+          {st !== 'delivered' && dos.some((d) => d.status === 'delivered') ? (
+            <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-teal-500/15 text-teal-300"
+              title="Some delivery orders are delivered, the rest still preparing — the order completes when every item has shipped">
+              Partly Delivered
+            </span>
+          ) : (
+            <span className={`flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS[st]?.cls ?? ''}`}>{STATUS[st]?.label ?? st}</span>
+          )}
           {expired && (
             <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30"
               title={`Offer expired ${fmtDay(editing.valid_until!)} — Revise to re-issue with fresh validity`}>
