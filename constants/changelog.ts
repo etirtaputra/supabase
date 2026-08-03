@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-03T10:42:00Z',
+    title: 'Sales list: search finds orders by product',
+    details: [
+      'The Sales search box now also matches the items ON each document — type a product name (e.g. “ICA550” or “MPPT”) to surface every quote and order that carries it, alongside the existing number/customer/status matching.',
+    ],
+  },
+  {
     at: '2026-08-03T10:40:00Z',
     title: 'Customer profile document line decluttered',
     details: [
