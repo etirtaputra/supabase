@@ -20,6 +20,15 @@ and tooling instead of renting it. Core beliefs that should shape every module:
 - **AI-first** — *the old era was telling the AI what to do; the new era is asking
   the AI what it thinks we should do next.* Propose the next best step, surface the
   economic consequence, let the human decide.
+- **Everything connects — path of least resistance (owner's standing rule,
+  2026-08-03).** Whenever a module or feature is built or touched, CHECK its
+  interconnections: does the new document/action link to the records it belongs
+  to (invoice ↔ payment, DO ↔ stock, quote ↔ customer…), do the adjacent
+  screens/panels reflect it without manual re-entry, and does the next obvious
+  step sit one click away (pre-selected, pre-filled, placed where the user
+  already is)? Nothing ships as an island; seamlessness for the user beats
+  everything else. (Precedent: receipts must carry `invoice_id`, payment panel
+  lives under Fulfillment, amounts prefill from the linked document.)
 
 ## Distribution ERP Roadmap
 

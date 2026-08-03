@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-03T16:00:00Z',
+    title: 'Payments are now applied to a specific invoice',
+    details: [
+      'Record Payment opens with the invoice pre-selected (the first one still owed) and the amount pre-filled with THAT invoice’s outstanding — switch invoice and the amount follows. The payment writes its invoice link, so the invoice’s UNPAID badge finally turns PARTIAL/PAID.',
+      'Each payment row now shows which invoice it pays; “Whole order” remains available for money not tied to one invoice (e.g. a DP taken before invoicing).',
+      'The Payments panel moved up to sit directly under Fulfillment — invoices, deliveries and money in one screenful, no scrolling past the item list.',
+      'The printed invoice already counted only its own payments for the LUNAS stamp — with payments now linked, that stamp is finally fed correctly.',
+    ],
+  },
+  {
     at: '2026-08-03T15:30:00Z',
     title: '“Set to today’s date” is always under the quote date',
     details: [

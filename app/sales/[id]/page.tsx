@@ -55,6 +55,7 @@ interface DeliveryDetails { date: string; time: string; method: string; via: str
 interface Receipt {
   receipt_id: string; quote_id: string; receipt_number: string; category: string;
   amount: number; payment_method: string; payment_date: string; bank_ref: string; notes: string; created_by_email?: string;
+  invoice_id?: string | null;
 }
 
 const METHOD_LABELS: Record<string, string> = {
@@ -695,6 +696,12 @@ export default function SalesQuotePage() {
   const billTotal = Number(editing.grand_total) || totals.grand;
   const fullyPaid = billTotal > 0 && received >= billTotal - 0.5;
   const showPayments = !newDoc && ['ordered', 'invoiced', 'preparing', 'delivered'].includes(st);
+  // Receipts per invoice — the link that makes an invoice's PAID/PARTIAL state
+  // real. Shared by the Fulfillment rows and the Payments panel.
+  const paidByInvoice = receipts.reduce((m, r) => {
+    if (r.invoice_id) m[r.invoice_id] = (m[r.invoice_id] ?? 0) + (Number(r.amount) || 0);
+    return m;
+  }, {} as Record<string, number>);
   const todayIso = todayISO();
   // An offer past its own date, while still on the table (draft is not an
   // offer yet; accepted/ordered+ has already landed). NULL = no expiry.
@@ -826,16 +833,24 @@ export default function SalesQuotePage() {
             invItems={invItems}
             dos={dos}
             doItems={doItems}
-            paidByInvoice={receipts.reduce((m, r) => {
-              const iid = (r as Receipt & { invoice_id?: string | null }).invoice_id;
-              if (iid) m[iid] = (m[iid] ?? 0) + (Number(r.amount) || 0);
-              return m;
-            }, {} as Record<string, number>)}
+            paidByInvoice={paidByInvoice}
             contacts={custContacts.filter((c) => c.customer_id === editing.customer_id)}
             shippingAddress={editing.customer_id ? (custById.get(editing.customer_id)?.shipping_address || custById.get(editing.customer_id)?.billing_address || '') : ''}
             canEdit={canEdit}
             onChanged={() => load(true)}
             flash={flash}
+          />
+        )}
+
+        {/* Payments live directly under Fulfillment — record money against the
+            invoice it pays without scrolling past the whole document. */}
+        {showPayments && (
+          <PaymentsPanel
+            receipts={receipts} billTotal={billTotal} received={received} canRecord={canRecord}
+            quoteId={editing.quote_id} companyId={editing.company_id}
+            docNumber={editing.order_number || editing.quote_number}
+            invoices={invoices} paidByInvoice={paidByInvoice}
+            onChanged={() => load(true)} flash={flash}
           />
         )}
 
@@ -956,15 +971,6 @@ export default function SalesQuotePage() {
             {cust?.tier && <p className="text-[10px] text-slate-600">Prices auto-filled at the customer’s <span className="text-slate-400">{cust.tier}</span> tier.</p>}
           </div>
         </div>
-
-        {showPayments && (
-          <PaymentsPanel
-            receipts={receipts} billTotal={billTotal} received={received} canRecord={canRecord}
-            quoteId={editing.quote_id} companyId={editing.company_id}
-            invoiceNumber={editing.invoice_number || editing.order_number || editing.quote_number}
-            onChanged={() => load(true)} flash={flash}
-          />
-        )}
 
       </main>
       {toast && <Toast msg={toast} />}
@@ -1301,15 +1307,18 @@ function PricePopover({ tierOptions, history, customerTier, current, onPickPrice
 }
 
 // ── Payments (AR) — mirrors the buy-side PO payment pattern ─────────────────
-function PaymentsPanel({ receipts, billTotal, received, canRecord, quoteId, companyId, invoiceNumber, onChanged, flash }: {
+function PaymentsPanel({ receipts, billTotal, received, canRecord, quoteId, companyId, docNumber, invoices, paidByInvoice, onChanged, flash }: {
   receipts: Receipt[]; billTotal: number; received: number; canRecord: boolean;
-  quoteId: string; companyId: string | null; invoiceNumber: string; onChanged: () => void; flash: (m: string) => void;
+  quoteId: string; companyId: string | null; docNumber: string;
+  invoices: Invoice[]; paidByInvoice: Record<string, number>;
+  onChanged: () => void; flash: (m: string) => void;
 }) {
   const supabase = createSupabaseClient();
   const [showModal, setShowModal] = useState(false);
   const outstanding = Math.max(0, billTotal - received);
   const pct = billTotal > 0 ? Math.min(100, (received / billTotal) * 100) : 0;
-  
+  const invNumById = useMemo(() => new Map(invoices.map((i) => [i.invoice_id, i.invoice_number])), [invoices]);
+
   async function removeReceipt(r: Receipt) {
     const { error } = await supabase.from('26.0_customer_receipts').delete().eq('receipt_id', r.receipt_id);
     if (error) { flash(`Failed: ${error.message}`); return; }
@@ -1320,7 +1329,7 @@ function PaymentsPanel({ receipts, billTotal, received, canRecord, quoteId, comp
   return (
     <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4 space-y-3">
       <div className="flex flex-wrap items-center gap-3">
-        <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Payments · {invoiceNumber}</h3>
+        <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Payments · {docNumber}</h3>
         <div className="flex items-center gap-2 ml-auto">
           <div className="w-28 h-1.5 bg-slate-700 rounded-full overflow-hidden">
             <div className={`h-full rounded-full ${pct >= 100 ? 'bg-emerald-500' : pct > 0 ? 'bg-amber-400' : 'bg-slate-600'}`} style={{ width: `${pct}%` }} />
@@ -1330,7 +1339,7 @@ function PaymentsPanel({ receipts, billTotal, received, canRecord, quoteId, comp
       </div>
 
       <div className="grid grid-cols-3 gap-3 text-center">
-        <MiniStat label="Invoice total" value={fmtInt(billTotal)} cls="text-slate-200" />
+        <MiniStat label="Order total" value={fmtInt(billTotal)} cls="text-slate-200" />
         <MiniStat label="Received" value={fmtInt(received)} cls={received > 0 ? 'text-emerald-300' : 'text-slate-500'} />
         <MiniStat label="Outstanding" value={fmtInt(outstanding)} cls={outstanding > 0 ? 'text-amber-300' : 'text-emerald-400'} />
       </div>
@@ -1340,6 +1349,9 @@ function PaymentsPanel({ receipts, billTotal, received, canRecord, quoteId, comp
           {receipts.map((r) => (
             <div key={r.receipt_id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-xs">
               <span className="font-mono text-[10px] text-slate-500">{r.receipt_number}</span>
+              {r.invoice_id && invNumById.has(r.invoice_id) && (
+                <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-lime-500/10 text-lime-300/90" title="This payment is applied to this invoice">{invNumById.get(r.invoice_id)}</span>
+              )}
               <span className="text-slate-400">{RECEIPT_CATS.find((c) => c.value === r.category)?.label ?? r.category}</span>
               <span className="text-slate-500">{METHOD_LABELS[r.payment_method] ?? r.payment_method}{r.bank_ref ? ` · ${r.bank_ref}` : ''}</span>
               <span className="ml-auto tabular-nums text-emerald-200 font-semibold">{fmtInt(Number(r.amount))}</span>
@@ -1354,7 +1366,7 @@ function PaymentsPanel({ receipts, billTotal, received, canRecord, quoteId, comp
 
       {canRecord ? (
         <button onClick={() => setShowModal(true)}
-          className="px-4 py-2 rounded-xl bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 text-xs font-semibold transition-colors">
+          className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-emerald-300 hover:text-emerald-200 hover:bg-emerald-500/10 border border-emerald-500/25 transition-all">
           + Record Payment
         </button>
       ) : (
@@ -1363,6 +1375,7 @@ function PaymentsPanel({ receipts, billTotal, received, canRecord, quoteId, comp
 
       {showModal && (
         <RecordPaymentModal quoteId={quoteId} companyId={companyId} outstanding={outstanding} received={received}
+          invoices={invoices} paidByInvoice={paidByInvoice}
           onClose={() => setShowModal(false)} onDone={() => { setShowModal(false); onChanged(); }} flash={flash} />
       )}
     </div>
@@ -1378,14 +1391,28 @@ function MiniStat({ label, value, cls }: { label: string; value: string; cls: st
   );
 }
 
-function RecordPaymentModal({ quoteId, companyId, outstanding, received, onClose, onDone, flash }: {
+function RecordPaymentModal({ quoteId, companyId, outstanding, received, invoices, paidByInvoice, onClose, onDone, flash }: {
   quoteId: string; companyId: string | null; outstanding: number; received: number;
+  invoices: Invoice[]; paidByInvoice: Record<string, number>;
   onClose: () => void; onDone: () => void; flash: (m: string) => void;
 }) {
   const supabase = createSupabaseClient();
+  // The payment applies to an INVOICE — that link is what turns the invoice's
+  // UNPAID badge into PARTIAL/PAID. Defaults to the first invoice still owed;
+  // the amount prefills with THAT invoice's outstanding and follows the pick.
+  const invOutstanding = (id: string) => {
+    const inv = invoices.find((i) => i.invoice_id === id);
+    return inv ? Math.max(0, (Number(inv.grand_total) || 0) - (paidByInvoice[id] ?? 0)) : outstanding;
+  };
+  const firstOwed = invoices.find((i) => invOutstanding(i.invoice_id) > 0.5);
+  const [invId, setInvId] = useState(firstOwed?.invoice_id ?? '');
+  const fillFor = (id: string) => {
+    const o = id ? invOutstanding(id) : outstanding;
+    return o > 0 ? String(Math.round(o)) : '';
+  };
   // First payment defaults to DP; later ones to balance — mirroring PO practice.
   const [category, setCategory] = useState(received > 0 ? 'balance_payment' : 'down_payment');
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState(() => fillFor(firstOwed?.invoice_id ?? ''));
   const [method, setMethod] = useState('bank_transfer');
   const [date, setDate] = useState(todayISO());
   const [bankRef, setBankRef] = useState('');
@@ -1411,7 +1438,7 @@ function RecordPaymentModal({ quoteId, companyId, outstanding, received, onClose
     if (amt <= 0) { flash('Enter an amount'); return; }
     setBusy(true);
     const { error } = await supabase.from('26.0_customer_receipts').insert({
-      quote_id: quoteId, category, amount: amt, payment_method: method,
+      quote_id: quoteId, invoice_id: invId || null, category, amount: amt, payment_method: method,
       payment_date: date, bank_ref: bankRef.trim(), notes: notes.trim(),
       bank_account_id: bankId || null,
     });
@@ -1428,6 +1455,23 @@ function RecordPaymentModal({ quoteId, companyId, outstanding, received, onClose
         <h3 className="text-base font-bold text-white">Record customer payment</h3>
 
         <div className="grid grid-cols-2 gap-3">
+          {invoices.length > 0 && (
+            <FieldBox label="For invoice" full>
+              <select value={invId}
+                onChange={(e) => { setInvId(e.target.value); setAmount(fillFor(e.target.value)); }}
+                className={inp}>
+                {invoices.map((i) => {
+                  const o = invOutstanding(i.invoice_id);
+                  return (
+                    <option key={i.invoice_id} value={i.invoice_id}>
+                      {i.invoice_number} — {o > 0.5 ? `Rp ${fmtInt(o)} outstanding` : 'PAID'}
+                    </option>
+                  );
+                })}
+                <option value="">Whole order (not tied to an invoice)</option>
+              </select>
+            </FieldBox>
+          )}
           <FieldBox label="Type" full>
             <select value={category} onChange={(e) => setCategory(e.target.value)} className={inp}>
               {RECEIPT_CATS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
@@ -1436,9 +1480,10 @@ function RecordPaymentModal({ quoteId, companyId, outstanding, received, onClose
           <FieldBox label="Amount (IDR)" full>
             <div className="flex gap-2">
               <input value={amount} inputMode="decimal" onChange={(e) => setAmount(e.target.value)} placeholder="0" className={`${inp} text-right tabular-nums`} />
-              {outstanding > 0 && (
-                <button onClick={() => setAmount(String(Math.round(outstanding)))}
-                  className="px-3 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 text-[11px] font-semibold whitespace-nowrap transition-colors">
+              {(invId ? invOutstanding(invId) : outstanding) > 0 && (
+                <button onClick={() => setAmount(fillFor(invId))}
+                  title={invId ? 'Fill this invoice’s outstanding amount' : 'Fill the order’s outstanding amount'}
+                  className="px-3 rounded-lg text-[11px] font-medium text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] whitespace-nowrap transition-all">
                   Fill remaining
                 </button>
               )}
