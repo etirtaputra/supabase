@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-03T18:50:00Z',
+    title: 'Sales list: the number IS the link',
+    details: [
+      'Click the SQ number to open the document; click anywhere else on the row to expand the preview. The “Open document →” button is gone — the number underlines green on hover to say it’s the door.',
+    ],
+  },
+  {
     at: '2026-08-03T18:30:00Z',
     title: 'Sales list: fulfillment digest in the expanded row + Payment/Delivery filters',
     details: [

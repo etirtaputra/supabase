@@ -249,12 +249,17 @@ export default function SalesListPage() {
                 const open = expanded === q.quote_id;
                 return (
                   <Fragment key={q.quote_id}>
-                    {/* Bar click = inline preview; the document opens from the
-                        preview's "Open document" (or the doc number link). */}
-                    <button onClick={() => setExpanded(open ? null : q.quote_id)} aria-expanded={open}
-                      className={`w-full min-w-0 text-left grid grid-cols-1 md:grid-cols-[150px_1fr_120px_120px_130px_100px] gap-1 md:gap-3 items-center transition-colors ${compact ? 'px-3 py-1.5' : 'px-4 py-3'} ${open ? 'bg-slate-800/30' : 'hover:bg-slate-800/40'}`}>
-                      <span className="font-mono text-[11px] text-slate-300">
-                        {q.quote_number}
+                    {/* The NUMBER is the link — click it to open the document;
+                        click anywhere else on the row to expand the preview. */}
+                    <div onClick={() => setExpanded(open ? null : q.quote_id)} aria-expanded={open}
+                      role="button" tabIndex={0}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(open ? null : q.quote_id); } }}
+                      className={`w-full min-w-0 text-left grid grid-cols-1 md:grid-cols-[150px_1fr_120px_120px_130px_100px] gap-1 md:gap-3 items-center cursor-pointer transition-colors ${compact ? 'px-3 py-1.5' : 'px-4 py-3'} ${open ? 'bg-slate-800/30' : 'hover:bg-slate-800/40'}`}>
+                      <span className="font-mono text-[11px]">
+                        <a href={`/sales/${q.quote_id}`} onClick={(e) => e.stopPropagation()} title="Open document"
+                          className="text-slate-300 hover:text-emerald-300 hover:underline underline-offset-2 decoration-emerald-500/50 transition-colors">
+                          {q.quote_number}
+                        </a>
                         {(q.revision ?? 0) > 0 && <span className="ml-1 text-[9px] font-bold text-sky-400">R{q.revision}</span>}
                       </span>
                       <span className="text-sm text-slate-100 truncate">{c?.display_name || c?.legal_name || <span className="text-slate-600">No customer</span>}</span>
@@ -292,18 +297,12 @@ export default function SalesListPage() {
                         {fmtDay(q.updated_at)}
                         <svg className={`w-3.5 h-3.5 text-slate-600 transition-transform duration-150 ${open ? 'rotate-180 text-slate-400' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
                       </span>
-                    </button>
+                    </div>
                     {open && (
                       <div className="px-4 pb-3 pt-1 bg-slate-950/40">
-                        <div className="flex items-center gap-3 py-1.5">
-                          <button onClick={() => router.push(`/sales/${q.quote_id}`)}
-                            className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 transition-colors whitespace-nowrap flex-shrink-0">
-                            Open document →
-                          </button>
-                          <p className="text-[10px] text-slate-600 font-mono truncate">
-                            {q.order_number ? `SO ${q.order_number}` : ''}
-                          </p>
-                        </div>
+                        {q.order_number && (
+                          <p className="text-[10px] text-slate-600 font-mono truncate py-1.5">SO {q.order_number}</p>
+                        )}
                         {/* Fulfillment digest — every invoice with its paid
                             state, every DO with its delivery state, and how
                             much of the order each side covers, without opening
