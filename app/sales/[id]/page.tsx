@@ -851,16 +851,15 @@ export default function SalesQuotePage() {
           </FieldBox>
           <FieldBox label="Quote date">
             <input type="date" value={editing.quote_date} onChange={(e) => setHeader('quote_date', e.target.value)} className={inp} />
-            {/* The date field is editable in every status, so the shortcut is
-                too — it appears whenever the date isn't today. */}
-            {editing.quote_date !== todayIso && (
-              <span className="mt-1.5 block">
-                <button onClick={() => setHeader('quote_date', todayIso)}
-                  className="px-2 py-1 rounded-lg border border-white/[0.06] text-[10px] font-medium text-slate-400 hover:text-white hover:bg-white/10 transition-all">
-                  Set to today&rsquo;s date
-                </button>
-              </span>
-            )}
+            {/* Always right under the box — a fixed control, not one that
+                appears and vanishes. Muted when the date is already today. */}
+            <span className="mt-1.5 block">
+              <button onClick={() => setHeader('quote_date', todayIso)} disabled={editing.quote_date === todayIso}
+                title={editing.quote_date === todayIso ? 'The quote is already dated today' : undefined}
+                className="px-2 py-1 rounded-lg border border-white/[0.06] text-[10px] font-medium text-slate-400 hover:text-white hover:bg-white/10 transition-all disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-400">
+                Set to today&rsquo;s date
+              </button>
+            </span>
           </FieldBox>
           <FieldBox label="Valid until">
             <input type="date" value={editing.valid_until ?? ''} onChange={(e) => setHeader('valid_until', e.target.value || null)} className={inp} />

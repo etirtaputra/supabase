@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-03T15:30:00Z',
+    title: '“Set to today’s date” is always under the quote date',
+    details: [
+      'The button no longer appears and disappears — it sits permanently under the Quote date box, muted when the quote is already dated today.',
+    ],
+  },
+  {
     at: '2026-08-03T15:10:00Z',
     title: 'Fulfillment panel: each side owns its button',
     details: [
