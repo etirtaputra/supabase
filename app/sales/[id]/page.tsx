@@ -35,8 +35,8 @@ interface Quote {
   updated_at?: string; updated_by_email?: string;
 }
 interface CustContact { customer_id: string; name: string; title: string; phone: string; }
-interface DbLine { item_id: string; component_id: string | null; is_section: boolean; description: string; brand: string; note: string; lead_time: string; unit: string; quantity: number; unit_price: number; sort_order: number; }
-interface EditLine { key: string; component_id: string | null; is_section: boolean; description: string; brand: string; note: string; lead_time: string; unit: string; quantity: string; unit_price: string; showNote: boolean; }
+interface DbLine { item_id: string; component_id: string | null; is_section: boolean; description: string; brand: string; note: string; lead_time: string; unit: string; quantity: number; unit_price: number; qty_formula?: string; price_formula?: string; sort_order: number; }
+interface EditLine { key: string; component_id: string | null; is_section: boolean; description: string; brand: string; note: string; lead_time: string; unit: string; quantity: string; unit_price: string; qty_formula: string; price_formula: string; showNote: boolean; }
 interface Customer { customer_id: string; display_name: string; legal_name: string; tier: string; shipping_address?: string; billing_address?: string; }
 interface Company { company_id: string; legal_name: string; }
 interface Tier { tier_id: string; tier_code: string; default_discount_pct: number; sort_order: number; is_active: boolean; }
@@ -81,7 +81,7 @@ const num = (v: unknown): number => {
 // Tier prices follow the markup chain (lib/tierPricing): the item's entered
 // price is the Tier-1 NET; higher tiers mark up from the previous tier.
 
-const blankLine = (): EditLine => ({ key: `new-${Date.now()}-${Math.random()}`, component_id: null, is_section: false, description: '', brand: '', note: '', lead_time: '', unit: '', quantity: '', unit_price: '', showNote: false });
+const blankLine = (): EditLine => ({ key: `new-${Date.now()}-${Math.random()}`, component_id: null, is_section: false, description: '', brand: '', note: '', lead_time: '', unit: '', quantity: '', unit_price: '', qty_formula: '', price_formula: '', showNote: false });
 /** ISO date + n days → ISO date (calendar arithmetic, timezone-safe at noon). */
 const addDays = (iso: string, days: number): string => {
   const d = new Date(`${iso}T12:00:00`);
@@ -99,7 +99,8 @@ const blankQuote = (companyId: string | null, ppnPct: number, notes = '', validi
 const mapLine = (it: DbLine): EditLine => ({
   key: `db-${it.item_id}`, component_id: it.component_id, is_section: !!it.is_section,
   description: it.description, brand: it.brand ?? '', note: it.note ?? '', lead_time: it.lead_time ?? '', unit: it.unit,
-  quantity: String(it.quantity ?? ''), unit_price: String(it.unit_price ?? ''), showNote: !!(it.note ?? ''),
+  quantity: String(it.quantity ?? ''), unit_price: String(it.unit_price ?? ''),
+  qty_formula: it.qty_formula ?? '', price_formula: it.price_formula ?? '', showNote: !!(it.note ?? ''),
 });
 
 export default function SalesQuotePage() {
@@ -439,6 +440,7 @@ export default function SalesQuotePage() {
         ...l, component_id: comp.component_id, description: compName(comp) || l.description,
         unit: comp.unit || l.unit,
         unit_price: price != null ? String(Math.round(price)) : l.unit_price, quantity: l.quantity || '1',
+        price_formula: price != null ? '' : l.price_formula,
         lead_time: suggested ? suggested.value : l.lead_time,
       };
     }));
@@ -449,6 +451,7 @@ export default function SalesQuotePage() {
       ...l, component_id: null, description: x.description,
       unit: x.unit || l.unit,
       unit_price: x.price != null ? String(Math.round(x.price)) : l.unit_price,
+      price_formula: x.price != null ? '' : l.price_formula,
       quantity: l.quantity || '1',
     } : l)));
   }
@@ -470,7 +473,7 @@ export default function SalesQuotePage() {
   const autosavingRef = useRef(false);
   const snapshotOf = (q: Quote | null, ls: EditLine[]) => JSON.stringify([
     q?.customer_id, q?.company_id, q?.quote_date, q?.valid_until ?? null, q?.ppn_pct, q?.notes,
-    ls.map((l) => [l.component_id, l.is_section, l.description, l.brand, l.note, l.lead_time, l.unit, l.quantity, l.unit_price]),
+    ls.map((l) => [l.component_id, l.is_section, l.description, l.brand, l.note, l.lead_time, l.unit, l.quantity, l.unit_price, l.qty_formula, l.price_formula]),
   ]);
   const snapshot = snapshotOf(editing, lines);
   const draftLike = !!editing && (editing.status === 'draft' || !editing.quote_id);
@@ -585,6 +588,7 @@ export default function SalesQuotePage() {
         quote_id: qid, component_id: l.is_section ? null : l.component_id, is_section: l.is_section,
         description: l.description.trim(), brand: l.brand.trim(), note: l.note.trim(), lead_time: l.lead_time.trim(), unit: l.unit.trim(),
         quantity: l.is_section ? 0 : num(l.quantity), unit_price: l.is_section ? 0 : num(l.unit_price),
+        qty_formula: l.is_section ? '' : l.qty_formula.trim(), price_formula: l.is_section ? '' : l.price_formula.trim(),
         line_total: l.is_section ? 0 : num(l.quantity) * num(l.unit_price), sort_order: i,
       }));
       const { error } = await supabase.from('22.1_sales_quote_items').insert(rows);
@@ -1012,6 +1016,25 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, tierOpti
   const cancelClose = () => { if (closeTimer.current) { window.clearTimeout(closeTimer.current); closeTimer.current = null; } };
   const mineHistory = history.some((h) => h.mine);
   const hasPriceIntel = tierOptions.length > 0 || history.length > 0;
+  // Excel-like formula cells (EPC parity): the field shows the VALUE with an
+  // ƒ badge when a formula backs it; focusing swaps the formula back in for
+  // editing; blur re-evaluates. An invalid =formula reverts to the last value.
+  const [qtyDraft, setQtyDraft] = useState<string | null>(null);
+  const [priceDraft, setPriceDraft] = useState<string | null>(null);
+  const commitCell = (draft: string | null, valueKey: 'quantity' | 'unit_price', formulaKey: 'qty_formula' | 'price_formula') => {
+    if (draft == null) return;
+    const t = draft.trim();
+    if (t.startsWith('=')) {
+      const v = evalCell(t);
+      if (v !== t) onField({ [valueKey]: v, [formulaKey]: t });
+      // invalid formula: leave the line untouched — the field reverts on blur
+    } else {
+      onField({ [valueKey]: t, [formulaKey]: '' });
+    }
+  };
+  const fBadge = (formula: string, editing: boolean) => (formula && !editing ? (
+    <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[9px] font-bold text-sky-500/80 italic pointer-events-none select-none" title={`Formula: ${formula}`}>ƒ</span>
+  ) : null);
   const grip = (title: string) => (
     <span
       draggable
@@ -1052,12 +1075,18 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, tierOpti
           </LabeledField>
         </div>
         <div className="grid grid-cols-4 gap-2 lg:w-[400px] flex-shrink-0">
-          {/* Qty and Unit price accept Excel-style formulas: type "=12*40" and
-              it becomes 480 on blur (shared evalCell with the EPC editor). */}
+          {/* Qty and Unit price accept Excel-style formulas (shared evalCell
+              with the EPC editor): the field shows the value, the ƒ badge says
+              a formula backs it, focus brings the formula back for editing. */}
           <LabeledField label={`Qty${short ? ' ⚠' : ''}`} labelCls={short ? 'text-red-400' : ''}>
-            <input value={line.quantity} onChange={(e) => onField({ quantity: e.target.value })}
-              onBlur={(e) => { const v = evalCell(e.target.value); if (v !== e.target.value) onField({ quantity: v }); }}
-              placeholder="0  (=2*6)" title="Accepts =formulas, e.g. =2*6" className={`${inpSm} text-right tabular-nums`} />
+            <span className="relative block">
+              {fBadge(line.qty_formula, qtyDraft != null)}
+              <input value={qtyDraft ?? line.quantity}
+                onFocus={() => setQtyDraft(line.qty_formula || line.quantity)}
+                onChange={(e) => setQtyDraft(e.target.value)}
+                onBlur={() => { commitCell(qtyDraft, 'quantity', 'qty_formula'); setQtyDraft(null); }}
+                placeholder="0" className={`${inpSm} text-right tabular-nums`} />
+            </span>
           </LabeledField>
           <LabeledField label="Unit">
             <input value={line.unit} onChange={(e) => onField({ unit: e.target.value })} placeholder="pcs" className={inpSm} />
@@ -1071,17 +1100,21 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, tierOpti
                 Unit price <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
               </span>
             ) : 'Unit price'}>
-              <input value={line.unit_price} onChange={(e) => onField({ unit_price: e.target.value })}
-                onFocus={() => { if (hasPriceIntel) { cancelClose(); setPriceOpen(true); } }}
-                onBlur={(e) => { const v = evalCell(e.target.value); if (v !== e.target.value) onField({ unit_price: v }); scheduleClose(); }}
-                onKeyDown={(e) => { if (e.key === 'Escape') setPriceOpen(false); }}
-                placeholder="0  (=formula)" title="Accepts =formulas — and any typed price overrides the tier"
-                className={`${inpSm} text-right tabular-nums ${mineHistory ? 'cursor-help border-emerald-500/30' : ''}`} />
+              <span className="relative block">
+                {fBadge(line.price_formula, priceDraft != null)}
+                <input value={priceDraft ?? line.unit_price}
+                  onFocus={() => { setPriceDraft(line.price_formula || line.unit_price); if (hasPriceIntel) { cancelClose(); setPriceOpen(true); } }}
+                  onChange={(e) => setPriceDraft(e.target.value)}
+                  onBlur={() => { commitCell(priceDraft, 'unit_price', 'price_formula'); setPriceDraft(null); scheduleClose(); }}
+                  onKeyDown={(e) => { if (e.key === 'Escape') setPriceOpen(false); }}
+                  placeholder="0" title="Any typed price overrides the tier"
+                  className={`${inpSm} text-right tabular-nums ${mineHistory ? 'cursor-help border-emerald-500/30' : ''}`} />
+              </span>
             </LabeledField>
             {priceOpen && (
               <PricePopover tierOptions={tierOptions} history={history} customerTier={customerTier}
                 current={num(line.unit_price)}
-                onPickPrice={(p) => { onField({ unit_price: String(Math.round(p)) }); setPriceOpen(false); }}
+                onPickPrice={(p) => { onField({ unit_price: String(Math.round(p)), price_formula: '' }); setPriceOpen(false); }}
                 onHoverIn={cancelClose} onHoverOut={scheduleClose} />
             )}
           </div>

@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-02T10:20:00Z',
+    title: 'Sales quote: formula cells now work like the EPC editor',
+    details: [
+      'Qty and Unit price fields look normal again — no “(=formula)” hint in the empty field.',
+      'Type =2*6 and the field shows 12 with a small ƒ badge saying a formula is behind it (hover the badge to read it). Click back into the field and the formula returns for editing — exactly like the EPC proposal editor.',
+      'The formula is remembered with the quote, so the ƒ badge survives reopening the document. Documents and totals always use the calculated number.',
+    ],
+  },
+  {
     at: '2026-08-02T09:45:00Z',
     title: 'Sales quote: one-click validity presets + “Set to today’s date”',
     details: [
