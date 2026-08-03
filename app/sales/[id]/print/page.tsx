@@ -18,7 +18,7 @@ import { useSettings } from '@/hooks/useSettings';
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
   customer_id: string | null; company_id: string | null; quote_date: string; status: string;
-  valid_until?: string | null;
+  valid_until?: string | null; payment_terms?: string; delivery_terms?: string;
   ppn_pct: number; notes: string;
 }
 interface Line { item_id: string; is_section: boolean; description: string; brand: string; note: string; lead_time: string; unit: string; quantity: number; unit_price: number; sort_order: number; }
@@ -266,6 +266,26 @@ export default function SalesPrintPage() {
             )}
           </div>
         </div>
+
+        {/* Chosen payment/delivery terms — payment follows the money documents
+            (quote, order confirmation AND invoice); delivery stays on the
+            offer documents where the logistics are agreed. */}
+        {(quote.payment_terms || (quote.delivery_terms && !isInvoice)) && (
+          <div className="terms">
+            {quote.payment_terms && (
+              <>
+                <div className="terms-title">Ketentuan Pembayaran</div>
+                <div className="terms-line">{quote.payment_terms}</div>
+              </>
+            )}
+            {quote.delivery_terms && !isInvoice && (
+              <>
+                <div className="terms-title" style={{ marginTop: quote.payment_terms ? '3mm' : 0 }}>Pengiriman</div>
+                <div className="terms-line">{quote.delivery_terms}</div>
+              </>
+            )}
+          </div>
+        )}
 
         {quote.notes && (
           <div className="terms">

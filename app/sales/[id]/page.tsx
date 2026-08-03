@@ -26,7 +26,7 @@ import { todayISO } from '@/lib/dateRange';
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
   customer_id: string | null; company_id: string | null; quote_date: string; status: string;
-  valid_until?: string | null;
+  valid_until?: string | null; payment_terms?: string; delivery_terms?: string;
   ppn_pct: number; subtotal: number; ppn_amount: number; grand_total: number; notes: string;
   revision?: number;
   validated_at?: string | null; sent_at?: string | null; accepted_at?: string | null;
@@ -94,6 +94,7 @@ const blankQuote = (companyId: string | null, ppnPct: number, notes = '', validi
   return {
     quote_id: '', quote_number: '', customer_id: null, company_id: companyId,
     quote_date: today, valid_until: addDays(today, validityDays), status: 'draft', ppn_pct: ppnPct,
+    payment_terms: '', delivery_terms: '',
     subtotal: 0, ppn_amount: 0, grand_total: 0, notes,
   };
 };
@@ -114,7 +115,7 @@ export default function SalesQuotePage() {
   // Item hub link only for roles that can open it (Analytics is owner-only)
   const canHub = !!profile && ROLE_PERMISSIONS[profile.role].canViewAnalytics;
   // What a brand-new quotation starts with (Settings)
-  const { defaultPpnPct, defaultCompanyId, defaultSalesTerms, defaultCustomerTier, quoteValidityDays } = useSettings();
+  const { defaultPpnPct, defaultCompanyId, defaultSalesTerms, defaultCustomerTier, quoteValidityDays, salesPaymentTermsOptions, salesDeliveryTermsOptions } = useSettings();
 
   const [editing, setEditing] = useState<Quote | null>(null);
   const [lines, setLines] = useState<EditLine[]>([]);
@@ -473,7 +474,7 @@ export default function SalesQuotePage() {
   const savedSnapRef = useRef<string | null>(null);
   const autosavingRef = useRef(false);
   const snapshotOf = (q: Quote | null, ls: EditLine[]) => JSON.stringify([
-    q?.customer_id, q?.company_id, q?.quote_date, q?.valid_until ?? null, q?.ppn_pct, q?.notes,
+    q?.customer_id, q?.company_id, q?.quote_date, q?.valid_until ?? null, q?.payment_terms ?? '', q?.delivery_terms ?? '', q?.ppn_pct, q?.notes,
     ls.map((l) => [l.component_id, l.is_section, l.description, l.brand, l.note, l.lead_time, l.unit, l.quantity, l.unit_price, l.qty_formula, l.price_formula]),
   ]);
   const snapshot = snapshotOf(editing, lines);
@@ -565,6 +566,7 @@ export default function SalesQuotePage() {
     const header = {
       customer_id: editing.customer_id, company_id: editing.company_id, quote_date: editing.quote_date,
       valid_until: editing.valid_until || null,
+      payment_terms: editing.payment_terms ?? '', delivery_terms: editing.delivery_terms ?? '',
       status: status ?? editing.status, ppn_pct: num(editing.ppn_pct),
       subtotal: totals.subtotal, ppn_amount: totals.ppn, grand_total: totals.grand, notes: editing.notes,
       ...(extra ?? {}),
@@ -893,6 +895,14 @@ export default function SalesQuotePage() {
           <FieldBox label="PPN %">
             <input value={String(editing.ppn_pct)} onChange={(e) => setHeader('ppn_pct', num(e.target.value) as any)} className={`${inp} tabular-nums`} />
           </FieldBox>
+          <FieldBox label="Payment terms" full>
+            <TermSelect value={editing.payment_terms ?? ''} options={salesPaymentTermsOptions}
+              placeholder="— Select payment terms —" onChange={(v) => setHeader('payment_terms', v)} />
+          </FieldBox>
+          <FieldBox label="Delivery terms" full>
+            <TermSelect value={editing.delivery_terms ?? ''} options={salesDeliveryTermsOptions}
+              placeholder="— Select delivery terms —" onChange={(v) => setHeader('delivery_terms', v)} />
+          </FieldBox>
         </div>
 
         <div className="space-y-2">
@@ -995,6 +1005,19 @@ function CustomerPicker({ customers, value, onPick }: {
   );
 }
 
+/** Preset-list dropdown that keeps a stored custom value selectable even after
+ *  it disappears from the Settings list — an old document must reopen intact. */
+function TermSelect({ value, options, placeholder, onChange }: {
+  value: string; options: string[]; placeholder: string; onChange: (v: string) => void;
+}) {
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)} className={inp}>
+      <option value="">{placeholder}</option>
+      {options.map((o) => <option key={o} value={o}>{o}</option>)}
+      {value && !options.includes(value) && <option value={value}>{value}</option>}
+    </select>
+  );
+}
 function FieldBox({ label, children, full }: { label: string; children: React.ReactNode; full?: boolean }) {
   return <div className={full ? 'col-span-2' : ''}><label className="block text-[11px] font-medium text-slate-500 mb-1">{label}</label>{children}</div>;
 }

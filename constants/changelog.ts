@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-03T14:45:00Z',
+    title: 'Sales quote: pre-set Payment terms & Delivery terms',
+    details: [
+      'Two new dropdowns on the quotation: Payment terms (lunas 100%, DP 20/30/50%, or 7/14/21/30 hari setelah Invoice / Surat Jalan) and Delivery terms (Di antar / Di ambil sendiri).',
+      'The lists live in Settings › Terms — one term per line, edit them any time; documents keep the exact wording they were saved with.',
+      'The chosen payment term prints on the quotation, the order confirmation AND the invoice (“Ketentuan Pembayaran”); the delivery term prints on the quotation and order (“Pengiriman”).',
+    ],
+  },
+  {
     at: '2026-08-03T14:00:00Z',
     title: '“Set to today’s date” shows on every quote, and “today” means YOUR today',
     details: [

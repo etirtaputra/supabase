@@ -136,6 +136,10 @@ export interface AppSettings {
   quoteFollowUpDays: number;
   /** A new quotation's offer stands this many days (prefills valid_until). */
   quoteValidityDays: number;
+  /** Preset payment terms offered on the sales quotation (one per entry). */
+  salesPaymentTermsOptions: string[];
+  /** Preset delivery terms offered on the sales quotation. */
+  salesDeliveryTermsOptions: string[];
   /**
    * How close a PO's IDR principal must sit to its expected value before the
    * realised FX rate is trusted (a shared or part payment would otherwise
@@ -191,6 +195,24 @@ export const DEFAULT_SETTINGS: AppSettings = {
   arOverdueDays:         30,
   quoteFollowUpDays:     7,
   quoteValidityDays:     30,
+  salesPaymentTermsOptions: [
+    'Pembayaran lunas 100% sebelum pengiriman barang.',
+    'Pembayaran DP 20%, sebagai tanda jadi PO dan sebelum persiapan barang. Sisa 80% sebelum pengiriman barang.',
+    'Pembayaran DP 30%, sebagai tanda jadi PO dan sebelum persiapan barang. Sisa 70% sebelum pengiriman barang.',
+    'Pembayaran DP 50%, sebagai tanda jadi PO dan sebelum persiapan barang. Sisa 50% sebelum pengiriman barang.',
+    'Pembayaran 7 hari setelah tanggal Invoice.',
+    'Pembayaran 14 hari setelah tanggal Invoice.',
+    'Pembayaran 21 hari setelah tanggal Invoice.',
+    'Pembayaran 30 hari setelah tanggal Invoice.',
+    'Pembayaran 7 hari setelah tanggal Surat Jalan.',
+    'Pembayaran 14 hari setelah tanggal Surat Jalan.',
+    'Pembayaran 21 hari setelah tanggal Surat Jalan.',
+    'Pembayaran 30 hari setelah tanggal Surat Jalan.',
+  ],
+  salesDeliveryTermsOptions: [
+    'Di ambil sendiri.',
+    'Di antar.',
+  ],
   fxSettledTolerancePct: 5,
 
   companyName:        '',
@@ -233,6 +255,8 @@ function publish(next: AppSettings) {
 // ── Coercion — never trust a stored row to have the right shape ─────────────
 
 const str = (v: unknown, fb: string): string => (typeof v === 'string' ? v : fb);
+const strList = (v: unknown, fb: string[]): string[] =>
+  (Array.isArray(v) ? v.map((x) => String(x)).filter((s) => s.trim()) : fb);
 const bool = (v: unknown, fb: boolean): boolean => (typeof v === 'boolean' ? v : fb);
 const numOr = (v: unknown, fb: number): number => {
   const n = typeof v === 'number' ? v : Number(v);
@@ -321,6 +345,8 @@ export function coerceSettings(raw: Record<string, unknown>): AppSettings {
     arOverdueDays:         pick('arOverdueDays',         (v) => Math.max(1, Math.round(numOr(v, d.arOverdueDays))), d.arOverdueDays),
     quoteFollowUpDays:     pick('quoteFollowUpDays',     (v) => Math.max(1, Math.round(numOr(v, d.quoteFollowUpDays))), d.quoteFollowUpDays),
     quoteValidityDays:     pick('quoteValidityDays',     (v) => Math.max(1, Math.round(numOr(v, d.quoteValidityDays))), d.quoteValidityDays),
+    salesPaymentTermsOptions:  pick('salesPaymentTermsOptions',  (v) => strList(v, d.salesPaymentTermsOptions), d.salesPaymentTermsOptions),
+    salesDeliveryTermsOptions: pick('salesDeliveryTermsOptions', (v) => strList(v, d.salesDeliveryTermsOptions), d.salesDeliveryTermsOptions),
 
     companyName:        pick('companyName',        (v) => str(v, d.companyName), d.companyName),
     companyAddress:     pick('companyAddress',     (v) => str(v, d.companyAddress), d.companyAddress),

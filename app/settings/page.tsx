@@ -38,10 +38,10 @@ import Autocomplete from '@/components/ui/Autocomplete';
 import { fmtRupiah } from '@/lib/formatters';
 import Link from 'next/link';
 
-type Tab = 'format' | 'appearance' | 'lists' | 'pricing' | 'defaults' | 'company' | 'banks' | 'users';
+type Tab = 'format' | 'appearance' | 'lists' | 'pricing' | 'defaults' | 'terms' | 'company' | 'banks' | 'users';
 const TABS: [Tab, string][] = [
   ['format', 'Formatting'], ['appearance', 'Appearance'], ['lists', 'Lists'], ['pricing', 'Pricing'],
-  ['defaults', 'Defaults'], ['company', 'Company'], ['banks', 'Banks'], ['users', 'Users'],
+  ['defaults', 'Defaults'], ['terms', 'Terms'], ['company', 'Company'], ['banks', 'Banks'], ['users', 'Users'],
 ];
 
 const SEPARATORS: { value: string; label: string }[] = [
@@ -197,6 +197,7 @@ export default function SettingsPage() {
         {tab === 'lists'    && <ListsTab draft={draft} set={set} />}
         {tab === 'pricing'  && <PricingTab draft={draft} set={set} />}
         {tab === 'defaults' && <DefaultsTab draft={draft} set={set} flash={flash} />}
+        {tab === 'terms'    && <TermsTab draft={draft} set={set} />}
         {tab === 'company'  && <CompanyTab draft={draft} set={set} />}
         {tab === 'banks'    && <BanksTab flash={flash} email={profile?.email ?? ''} />}
         {tab === 'users'    && <UsersTab myId={profile?.id ?? ''} flash={flash} />}
@@ -730,6 +731,33 @@ function DefaultsTab({ draft, set, flash }: {
 }
 
 // ── Company ─────────────────────────────────────────────────────────────────
+
+/** Preset payment & delivery terms the sales quotation offers as choices. */
+function TermsTab({ draft, set }: { draft: AppSettings; set: <K extends keyof AppSettings>(k: K, v: AppSettings[K]) => void }) {
+  const listArea = (k: 'salesPaymentTermsOptions' | 'salesDeliveryTermsOptions', rows: number) => (
+    <textarea rows={rows} className={`${inputCls} resize-y leading-relaxed`}
+      value={draft[k].join('\n')}
+      onChange={(e) => set(k, e.target.value.split('\n'))} />
+  );
+  return (
+    <div className="grid lg:grid-cols-2 gap-4">
+      <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 space-y-3.5">
+        <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">Payment terms</p>
+        <Field label="Choices offered on a sales quotation"
+          hint="One term per line. The quotation editor offers these in the Payment terms dropdown; the chosen term prints on the quotation, order confirmation and invoice.">
+          {listArea('salesPaymentTermsOptions', 14)}
+        </Field>
+      </div>
+      <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 space-y-3.5">
+        <p className="text-xs font-bold uppercase tracking-widest text-sky-300">Delivery terms</p>
+        <Field label="Choices offered on a sales quotation"
+          hint="One term per line (Di antar / Di ambil sendiri / …). Prints on the quotation and order confirmation.">
+          {listArea('salesDeliveryTermsOptions', 6)}
+        </Field>
+      </div>
+    </div>
+  );
+}
 
 function CompanyTab({ draft, set }: { draft: AppSettings; set: <K extends keyof AppSettings>(k: K, v: AppSettings[K]) => void }) {
   const rows: [keyof AppSettings, string, string][] = [
