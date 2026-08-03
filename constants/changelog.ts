@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-03T17:35:00Z',
+    title: 'Sales list: Status and Payment are separate columns',
+    details: [
+      '“Where is the order” and “where is the money” no longer share one crowded cell: Status keeps the lifecycle pill (and EXPIRED), and a new Payment column shows exactly one chip — PAID, PARTIAL, UNPAID, or OUTSTANDING (delivered but money open) — with the paid %.',
+      'Grand Total went back to being just the number.',
+    ],
+  },
+  {
     at: '2026-08-03T17:10:00Z',
     title: 'Delivered-but-unpaid orders are tagged OUTSTANDING',
     details: [

@@ -167,8 +167,8 @@ export default function SalesListPage() {
         </div>
 
         <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
-          <div className={`hidden md:grid grid-cols-[150px_1fr_130px_140px_110px] gap-3 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500 ${compact ? 'px-3 py-1.5' : 'px-4 py-2.5'}`}>
-            <span>Number</span><span>Customer</span><span>Status</span><span className="text-right">Grand Total</span><span className="text-right">Updated</span>
+          <div className={`hidden md:grid grid-cols-[150px_1fr_120px_120px_130px_100px] gap-3 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500 ${compact ? 'px-3 py-1.5' : 'px-4 py-2.5'}`}>
+            <span>Number</span><span>Customer</span><span>Status</span><span>Payment</span><span className="text-right">Grand Total</span><span className="text-right">Updated</span>
           </div>
           {loading ? (
             <div className="p-4 space-y-1.5">{[...Array(6)].map((_, i) => <div key={i} className="h-12 bg-slate-800/40 rounded-xl animate-pulse" />)}</div>
@@ -196,39 +196,42 @@ export default function SalesListPage() {
                     {/* Bar click = inline preview; the document opens from the
                         preview's "Open document" (or the doc number link). */}
                     <button onClick={() => setExpanded(open ? null : q.quote_id)} aria-expanded={open}
-                      className={`w-full min-w-0 text-left grid grid-cols-1 md:grid-cols-[150px_1fr_130px_140px_110px] gap-1 md:gap-3 items-center transition-colors ${compact ? 'px-3 py-1.5' : 'px-4 py-3'} ${open ? 'bg-slate-800/30' : 'hover:bg-slate-800/40'}`}>
+                      className={`w-full min-w-0 text-left grid grid-cols-1 md:grid-cols-[150px_1fr_120px_120px_130px_100px] gap-1 md:gap-3 items-center transition-colors ${compact ? 'px-3 py-1.5' : 'px-4 py-3'} ${open ? 'bg-slate-800/30' : 'hover:bg-slate-800/40'}`}>
                       <span className="font-mono text-[11px] text-slate-300">
                         {q.quote_number}
                         {(q.revision ?? 0) > 0 && <span className="ml-1 text-[9px] font-bold text-sky-400">R{q.revision}</span>}
                       </span>
                       <span className="text-sm text-slate-100 truncate">{c?.display_name || c?.legal_name || <span className="text-slate-600">No customer</span>}</span>
+                      {/* Column 1 of the pair: WHERE IS THE ORDER — lifecycle
+                          only (plus the offer's own EXPIRED state). */}
                       <span className="flex flex-col gap-1">
                         <span className="flex items-center gap-1.5 flex-wrap">
                           <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS[q.status]?.cls ?? ''}`}>{STATUS[q.status]?.label ?? q.status}</span>
                           {isExpired(q) && <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300" title={`Offer expired ${fmtDay(q.valid_until!)}`}>EXPIRED</span>}
-                          {paidFull && <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300">PAID</span>}
-                          {arOpen && (
-                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${rcv > 0 ? 'bg-amber-500/15 text-amber-300' : 'bg-red-500/10 text-red-300'}`}
-                              title={`Delivered, but Rp ${fmtInt(total - rcv)} has not been received`}>
-                              OUTSTANDING
-                            </span>
-                          )}
                         </span>
                         {!compact && <MilestoneDots status={q.status} paid={paidFull} delivered={q.status === 'delivered'} />}
                       </span>
-                      <span className={compact ? 'text-right whitespace-nowrap' : 'text-right'}>
-                        <span className={compact ? 'tabular-nums text-slate-200' : 'block tabular-nums text-slate-200'}>{fmtInt(total)}</span>
-                        {billed && total > 0 && (compact ? (
-                          <span className={`ml-1.5 text-[10px] tabular-nums ${paidFull ? 'text-emerald-400' : pct > 0 ? 'text-amber-300' : 'text-slate-600'}`}>{pct.toFixed(0)}%</span>
-                        ) : (
-                          <span className="mt-1 ml-auto flex items-center gap-1.5 justify-end">
-                            <span className="w-12 h-1 bg-slate-700 rounded-full overflow-hidden inline-block">
-                              <span className={`block h-full rounded-full ${paidFull ? 'bg-emerald-500' : pct > 0 ? 'bg-amber-400' : 'bg-slate-600'}`} style={{ width: `${pct}%` }} />
-                            </span>
-                            <span className={`text-[10px] tabular-nums ${paidFull ? 'text-emerald-400' : pct > 0 ? 'text-amber-300' : 'text-slate-600'}`}>{pct.toFixed(0)}%</span>
+                      {/* Column 2: WHERE IS THE MONEY — one chip + the paid %. */}
+                      <span className="flex items-center gap-1.5 flex-wrap">
+                        {!billed ? (
+                          <span className="text-slate-700 text-[11px]">—</span>
+                        ) : paidFull ? (
+                          <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300">PAID</span>
+                        ) : arOpen ? (
+                          <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${rcv > 0 ? 'bg-amber-500/15 text-amber-300' : 'bg-red-500/10 text-red-300'}`}
+                            title={`Delivered, but Rp ${fmtInt(total - rcv)} has not been received`}>
+                            OUTSTANDING
                           </span>
-                        ))}
+                        ) : rcv > 0 ? (
+                          <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300">PARTIAL</span>
+                        ) : (
+                          <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-400">UNPAID</span>
+                        )}
+                        {billed && total > 0 && !paidFull && (
+                          <span className={`text-[10px] tabular-nums ${pct > 0 ? 'text-amber-300' : 'text-slate-600'}`} title={`Rp ${fmtInt(rcv)} received of Rp ${fmtInt(total)}`}>{pct.toFixed(0)}%</span>
+                        )}
                       </span>
+                      <span className="text-right tabular-nums text-slate-200">{fmtInt(total)}</span>
                       <span className="text-right text-[11px] text-slate-500 tabular-nums flex items-center justify-end gap-2">
                         {fmtDay(q.updated_at)}
                         <svg className={`w-3.5 h-3.5 text-slate-600 transition-transform duration-150 ${open ? 'rotate-180 text-slate-400' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
