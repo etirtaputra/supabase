@@ -11,6 +11,7 @@ import QuoteItemsImportModal from './QuoteItemsImportModal';
 import type { BatchLineItemsFormProps } from '../../types/forms';
 export default function BatchLineItemsForm({
   title,
+  storageKey: storageKeyProp,
   parentField,
   itemFields,
   stickyFields = [],
@@ -30,7 +31,7 @@ export default function BatchLineItemsForm({
 }: BatchLineItemsFormProps) {
   const uniqueFormId = useId();
   const formId = customFormId || uniqueFormId;
-  const storageKey = `form-draft:${title}`;
+  const storageKey = `form-draft:${storageKeyProp ?? title}`;
 
   const loadSaved = () => {
     try {

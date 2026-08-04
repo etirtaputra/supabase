@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-04T03:41:00Z',
+    title: 'Quote modes mean what they say',
+    details: [
+      'Quote only: stores price quotes, full stop — no PO is ever created or written to in this mode.',
+      'Quote + PO: the straight PI → PO pipeline. The quote lands as Accepted automatically (ordering against it IS accepting it), so the Status field disappears — one less thing to fill.',
+      'The card titles follow the mode — “Quote + PO Header” and “Quote + PO Items” when both documents are being recorded. Drafts survive switching modes.',
+    ],
+  },
+  {
     at: '2026-08-04T03:36:00Z',
     title: 'Quote items mirror to the linked PO — always',
     details: [

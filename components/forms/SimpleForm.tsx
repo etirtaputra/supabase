@@ -9,8 +9,8 @@ import FieldRenderer from './FieldRenderer';
 import { Spinner } from '../ui/LoadingSkeleton';
 import type { SimpleFormProps } from '../../types/forms';
 
-export default function SimpleForm({ title, fields, onSubmit, loading, onFieldChange, headerAction }: SimpleFormProps) {
-  const storageKey = `form-draft:${title}`;
+export default function SimpleForm({ title, fields, onSubmit, loading, onFieldChange, headerAction, storageKey: storageKeyProp }: SimpleFormProps) {
+  const storageKey = `form-draft:${storageKeyProp ?? title}`;
   const formId = useId();
 
   const buildDefaults = (flds: typeof fields) => {

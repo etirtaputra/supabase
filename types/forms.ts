@@ -48,6 +48,8 @@ export interface SimpleFormProps {
   onFieldChange?: (name: string, value: any, current: Record<string, any>) => Partial<Record<string, any>>;
   /** Rendered at the right end of the title row (e.g. a PDF-upload button). */
   headerAction?: React.ReactNode;
+  /** Stable localStorage draft key — pass when the visible title varies (e.g. by mode). */
+  storageKey?: string;
 }
 
 // Parent field configuration for BatchLineItemsForm
@@ -60,6 +62,8 @@ export interface ParentFieldConfig {
 // Batch form props
 export interface BatchLineItemsFormProps {
   title: string;
+  /** Stable localStorage draft key — pass when the visible title varies (e.g. by mode). */
+  storageKey?: string;
   parentField?: ParentFieldConfig;
   itemFields: FieldConfig[];
   stickyFields?: string[];

@@ -297,6 +297,8 @@ function MasterInsertPage() {
   const submitQuoteHeader = async (d: any) => {
     if (!withPo) { await handleInsert('4.0_price_quotes', d); return; }
     const { po_number, po_date, exchange_rate, ...quote } = d;
+    // Straight from PI to PO: ordering against the quote IS accepting it
+    quote.status = 'Accepted';
     const qRows = await handleInsert('4.0_price_quotes', quote);
     const q = qRows?.[0];
     if (!q) return;
@@ -698,7 +700,8 @@ function MasterInsertPage() {
                   </div>
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 items-start">
                     <SimpleForm
-                      title="Step 1: Quote Header"
+                      title={withPo ? 'Step 1: Quote + PO Header' : 'Step 1: Quote Header'}
+                      storageKey="Step 1: Quote Header"
                       headerAction={pdfHeaderAction('Upload Quote/PI PDF', 'AI extracts supplier info, quote details, and line items automatically.')}
                       fields={[
                         { name: 'supplier_id', label: 'Supplier', type: 'rich-select', options: data.suppliers, config: { labelKey: 'supplier_name', valueKey: 'supplier_id', subLabelKey: 'location' }, req: true, default: pdfDefaults.supplier_id },
@@ -707,7 +710,12 @@ function MasterInsertPage() {
                         { name: 'pi_number', label: 'Quote Ref', type: 'text', suggestions: suggestions.quoteNumbers, default: pdfData?.quote_number || pdfData?.pi_number },
                         { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true, default: pdfData?.currency },
                         { name: 'total_value', label: 'Total Value', type: 'number', default: pdfData?.total_value },
-                        { name: 'status', label: 'Status', type: 'select', options: ENUMS.price_quotes_status, default: 'Open' },
+                        // Quote-only stores an OPEN price quote; Quote + PO goes
+                        // straight from PI to PO, so the quote lands as Accepted
+                        // automatically and the Status field disappears entirely.
+                        ...(withPo ? [] : [
+                          { name: 'status', label: 'Status', type: 'select' as const, options: ENUMS.price_quotes_status, default: 'Open' },
+                        ]),
                         // Quote + PO mode — only what the PO adds; everything else
                         // is shared. Violet border = belongs to the PO.
                         ...(withPo ? [
@@ -723,7 +731,8 @@ function MasterInsertPage() {
                       loading={loading}
                     />
                     <BatchLineItemsForm
-                      title="Step 2: Quote Items"
+                      title={withPo ? 'Step 2: Quote + PO Items' : 'Step 2: Quote Items'}
+                      storageKey="Step 2: Quote Items"
                       enablePdfUpload={true}
                       defaultParentId={newQuoteId}
                       parentField={{ name: 'quote_id', label: 'Select Quote', options: options.quotes }}
@@ -752,7 +761,10 @@ function MasterInsertPage() {
                         const qid = list[0]?.quote_id;
                         if (!qid) return;
                         let poId = comboPo && String(qid) === comboPo.quoteId ? comboPo.poId : null;
-                        if (!poId) {
+                        // In Quote-only mode this stops here: price quotes are
+                        // stored without ever touching a PO. The fallback lookup
+                        // runs only in Quote + PO mode (e.g. after a reload).
+                        if (!poId && withPo) {
                           const linked = data.pos.find((p) => p.quote_id && String(p.quote_id) === String(qid));
                           const hasItems = linked && data.poItems.some((pi) => String(pi.po_id) === String(linked.po_id));
                           if (linked && !hasItems) poId = String(linked.po_id);
