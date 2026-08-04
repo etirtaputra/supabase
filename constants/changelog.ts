@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-04T01:22:00Z',
+    title: 'After-sales rows link their documents without expanding',
+    details: [
+      'Collapsed case rows now show the SO, invoice and DO numbers as quiet clickable links (new tab) — compact rows show one of each with a “+n” for the rest, card rows show them all.',
+    ],
+  },
+  {
     at: '2026-08-04T01:06:00Z',
     title: 'After Sales: New Case moves left, ghost-styled',
     details: [

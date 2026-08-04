@@ -377,14 +377,26 @@ export default function AfterSalesPage() {
                       const docLink = 'inline-flex items-center gap-1 font-mono text-[10px] text-slate-400 hover:text-emerald-300 transition-colors';
                       return (
                         <div key={c.case_id} className={`bg-slate-900/50 border transition-all overflow-hidden ${open ? 'border-slate-700' : 'border-slate-800 hover:border-slate-700'} ${compact ? 'rounded-lg' : 'rounded-2xl'}`}>
-                          <button onClick={() => setExpandedId(open ? null : c.case_id)} aria-expanded={open}
-                            className={`w-full text-left hover:bg-slate-900/80 transition-colors ${compact ? 'px-3 py-2' : 'px-4 sm:px-5 py-3.5'}`}>
+                          {/* div, not <button>: the row carries real <a> links inside */}
+                          <div role="button" tabIndex={0} aria-expanded={open}
+                            onClick={() => setExpandedId(open ? null : c.case_id)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedId(open ? null : c.case_id); } }}
+                            className={`w-full text-left cursor-pointer hover:bg-slate-900/80 transition-colors ${compact ? 'px-3 py-2' : 'px-4 sm:px-5 py-3.5'}`}>
                             {compact ? (
                               <div className="flex items-center gap-2 min-w-0">
                                 <span className="font-semibold text-slate-100 text-[13px] truncate flex-shrink-0 max-w-[30%]">{custName.get(c.customer_id ?? '') || 'No customer'}</span>
                                 <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold whitespace-nowrap flex-shrink-0 ${cat.cls}`}>{cat.label}</span>
                                 <span className="text-[11px] text-slate-400 truncate">{what}</span>
                                 <span className="ml-auto flex items-center gap-3 flex-shrink-0 tabular-nums">
+                                  {/* The case's documents, one click away without expanding */}
+                                  {(so || invs.length > 0 || qdos.length > 0) && (
+                                    <span className="hidden lg:flex items-center gap-2 font-mono text-[10px]">
+                                      {so && <a href={`/sales/${so.quote_id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-slate-500 hover:text-emerald-300 transition-colors">{so.order_number || so.quote_number}</a>}
+                                      {invs.slice(0, 1).map((i) => <a key={i.invoice_id} href={`/sales/${i.quote_id}/print?inv=${i.invoice_id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-slate-500 hover:text-emerald-300 transition-colors">{i.invoice_number}</a>)}
+                                      {qdos.slice(0, 1).map((d) => <a key={d.do_id} href={`/sales/${d.quote_id}/do?do=${d.do_id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-slate-500 hover:text-emerald-300 transition-colors">{d.do_number}</a>)}
+                                      {(invs.length > 1 || qdos.length > 1) && <span className="text-slate-600" title="More invoices / delivery orders — expand the row">+{Math.max(0, invs.length - 1) + Math.max(0, qdos.length - 1)}</span>}
+                                    </span>
+                                  )}
                                   {parts.length > 0 && <span className="text-[10px] text-slate-500">{fmtInt(parts.length)} item{parts.length !== 1 ? 's' : ''}</span>}
                                   <span className="font-mono text-[10px] text-slate-600 hidden sm:block">{c.case_number}</span>
                                   <span className="w-[4.5rem] text-right text-[10px] text-slate-500">{fmtDay(c.reported_at)}</span>
@@ -396,17 +408,19 @@ export default function AfterSalesPage() {
                                   <span className="font-semibold text-white truncate">{custName.get(c.customer_id ?? '') || 'No customer'}</span>
                                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap flex-shrink-0 ${cat.cls}`}>{cat.label}</span>
                                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap flex-shrink-0 ${STATUS_BADGE[c.status]}`}>{statusLabel(c.status)}</span>
-                                  {c.quote_id && <span className="font-mono text-[10px] text-slate-500">{orderLabel(c.quote_id)}</span>}
+                                  {so && <a href={`/sales/${so.quote_id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="font-mono text-[10px] text-slate-500 hover:text-emerald-300 transition-colors">{so.order_number || so.quote_number}</a>}
                                 </div>
                                 <p className="text-xs text-slate-400 truncate mb-1">{what}</p>
                                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
                                   <span className="font-mono">{c.case_number}</span>
                                   <span>reported {fmtDay(c.reported_at)}</span>
                                   {c.resolved_at && <span className="text-emerald-400/80">resolved {fmtDay(c.resolved_at)}</span>}
+                                  {invs.map((i) => <a key={i.invoice_id} href={`/sales/${i.quote_id}/print?inv=${i.invoice_id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="font-mono text-[10px] text-slate-500 hover:text-emerald-300 transition-colors">{i.invoice_number}</a>)}
+                                  {qdos.map((d) => <a key={d.do_id} href={`/sales/${d.quote_id}/do?do=${d.do_id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="font-mono text-[10px] text-slate-500 hover:text-emerald-300 transition-colors">{d.do_number}</a>)}
                                 </div>
                               </>
                             )}
-                          </button>
+                          </div>
                           {/* Expanded overview — the case in its commercial context:
                               order, invoice, delivery (each with its running age,
                               the two clocks warranty judgement runs on), items,
