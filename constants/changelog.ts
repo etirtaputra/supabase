@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-04T03:32:00Z',
+    title: 'EPC proposals list fits the phone again',
+    details: [
+      'The compact rows carried fixed-width amount and date columns that overflowed a phone screen and dragged the whole page sideways. On phones the amount now sizes itself and the date steps aside; from tablet up the aligned columns are unchanged.',
+    ],
+  },
+  {
     at: '2026-08-04T02:02:00Z',
     title: 'Quote entry: mode chosen up front, PO fields in violet',
     details: [
