@@ -681,11 +681,11 @@ function MasterInsertPage() {
                   )}
                   {/* What are we recording? — the choice up front, remembered.
                       Violet marks everything PO throughout the form below. */}
-                  <div className="mb-4 flex items-center gap-1.5">
+                  <div className="mb-4 flex flex-wrap items-center gap-1.5">
                     {([[false, 'Quote only'], [true, 'Quote + PO']] as const).map(([combo, label]) => (
                       <button key={label} type="button" onClick={() => setQuoteMode(combo)}
                         title={combo ? 'One save records the supplier quote AND its purchase order — shared fields filled once, items land on both' : 'Record the supplier quote only'}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap flex-shrink-0 transition-colors ${
                           withPo === combo
                             ? combo ? 'bg-violet-500/15 text-violet-300 ring-1 ring-violet-500/40'
                                     : 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30'
@@ -693,7 +693,8 @@ function MasterInsertPage() {
                         {label}
                       </button>
                     ))}
-                    {withPo && <span className="text-[11px] text-slate-600 ml-2">Violet fields belong to the PO — everything else is shared.</span>}
+                    {/* Caption takes its own line on a phone instead of squeezing the buttons */}
+                    {withPo && <span className="text-[11px] text-slate-600 basis-full sm:basis-auto sm:ml-2">Violet fields belong to the PO — everything else is shared.</span>}
                   </div>
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 items-start">
                     <SimpleForm

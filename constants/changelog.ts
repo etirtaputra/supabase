@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-04T03:33:00Z',
+    title: 'Quote-mode selector steady on mobile',
+    details: [
+      'The Quote only / Quote + PO buttons no longer wrap onto two lines on a phone — the explainer caption moves to its own line instead of squeezing them.',
+    ],
+  },
+  {
     at: '2026-08-04T03:32:00Z',
     title: 'EPC proposals list fits the phone again',
     details: [
