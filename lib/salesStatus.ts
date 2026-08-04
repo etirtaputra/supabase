@@ -26,3 +26,17 @@ export const COMMITTED_STATUSES = new Set(['ordered', 'invoiced', 'preparing']);
  */
 export const MILESTONE_ORDER = ['draft', 'validated', 'sent', 'accepted', 'ordered', 'invoiced', 'preparing', 'delivered'] as const;
 export const milestoneIndex = (status: string) => MILESTONE_ORDER.indexOf(status as (typeof MILESTONE_ORDER)[number]);
+
+/**
+ * The code a sales document SHOWS follows its lifecycle (owner's rule,
+ * 2026-08-04): DQ while draft, SQ once validated (Sent is just an SQ state),
+ * SO once the order is confirmed. Stored numbers never change — the draft
+ * prefix is a display derivation, and from `ordered` onward the SO number
+ * (stamped at confirmation) takes over.
+ */
+export const displayDocNumber = (q: { quote_number?: string | null; order_number?: string | null; status?: string | null }): string => {
+  const qn = q.quote_number ?? '';
+  if (q.status === 'draft') return qn.replace(/^SQ-/, 'DQ-');
+  if (milestoneIndex(q.status ?? '') >= milestoneIndex('ordered') && q.order_number) return q.order_number;
+  return qn;
+};

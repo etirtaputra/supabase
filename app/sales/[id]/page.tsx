@@ -14,7 +14,7 @@ import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 import SalesMilestones from '@/components/ui/SalesMilestones';
 import FulfillmentPanel, { type SoLine, type Invoice, type InvItem, type DeliveryOrder, type DoItem } from '@/components/ui/FulfillmentPanel';
-import { SALES_STATUS as STATUS, COMMITTED_STATUSES as COMMITTED } from '@/lib/salesStatus';
+import { SALES_STATUS as STATUS, COMMITTED_STATUSES as COMMITTED, displayDocNumber } from '@/lib/salesStatus';
 import { tierPriceFor } from '@/lib/tierPricing';
 import { evalCell } from '@/lib/formula';
 import { fmtDay, fmtDayTime, fmtInt } from '@/lib/formatters';
@@ -357,7 +357,7 @@ export default function SalesQuotePage() {
 
   // Tab title mirrors the nav label + the document you are on
   useEffect(() => {
-    const n = editing?.order_number || editing?.quote_number;
+    const n = editing ? displayDocNumber(editing) : '';
     document.title = `Sales · ${n || 'New quotation'} — ICAPROC`;
   }, [editing?.order_number, editing?.quote_number]);
   const ovByKey = useMemo(() => { const m = new Map<string, Override>(); for (const o of overrides) m.set(`${o.component_id}:${o.tier_id}`, o); return m; }, [overrides]);
@@ -789,7 +789,7 @@ export default function SalesQuotePage() {
           {/* Identity: the SQ number exists from the FIRST (auto)save — a
               draft carries its own unique number, not a placeholder. */}
           <h1 className="text-sm sm:text-base font-bold text-white whitespace-nowrap flex-shrink-0">
-            {editing.quote_number || 'New Sales Quote'}
+            {displayDocNumber(editing) || 'New Sales Quote'}
           </h1>
           {(editing.revision ?? 0) > 0 && (
             <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-sky-500/15 text-sky-300">Rev {editing.revision}</span>

@@ -11,7 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS, ROLE_LABELS, type UserRole } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 import CrmMigrationBanner from '@/components/ui/CrmMigrationBanner';
-import { SALES_STATUS } from '@/lib/salesStatus';
+import { SALES_STATUS, displayDocNumber } from '@/lib/salesStatus';
 import { downloadCsv, parseCsv, readFileText } from '@/lib/csv';
 import { fmtDay, fmtDayTime, fmtInt, fmtRupiah } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
@@ -1082,7 +1082,7 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOp
                         <div className="flex items-center gap-2 flex-wrap">
                           <a href={`/sales/${d.quote_id}`} target="_blank" rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            className="font-mono text-[11px] text-slate-300 hover:text-emerald-300 transition-colors">{d.quote_number}</a>
+                            className="font-mono text-[11px] text-slate-300 hover:text-emerald-300 transition-colors">{displayDocNumber(d)}</a>
                           {(d.revision ?? 0) > 0 && <span className="text-[9px] font-bold text-sky-400">R{d.revision}</span>}
                           <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${SALES_STATUS[d.status]?.cls ?? ''}`}>{SALES_STATUS[d.status]?.label ?? d.status}</span>
                           {['invoiced', 'preparing', 'delivered'].includes(d.status) && (

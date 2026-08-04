@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-04T23:03:00Z',
+    title: 'Document codes follow the lifecycle: DQ → SQ → SO',
+    details: [
+      'A draft shows as DQ-…; validation turns it into SQ-… (Sent stays an SQ — it is a status, not a new document); confirming the order shows the SO-… number. The list, the editor header, the browser tab and the customer profile all follow. Stored numbers are untouched — the code is derived, so history and links never break.',
+      'The menu entry is now “Sales Orders” (searching “sales” still finds it), and the list’s column headers sort on click — ascending, click again for descending — on Number, Customer, Status, Payment, Grand Total and Updated.',
+    ],
+  },
+  {
     at: '2026-08-04T22:48:00Z',
     title: 'Description library: the Duplicates view explains itself',
     details: [

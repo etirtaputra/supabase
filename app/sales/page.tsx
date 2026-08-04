@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 import SalesMigrationBanner from '@/components/ui/SalesMigrationBanner';
-import { SALES_STATUS as STATUS, milestoneIndex } from '@/lib/salesStatus';
+import { SALES_STATUS as STATUS, milestoneIndex, displayDocNumber } from '@/lib/salesStatus';
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 import DateRangeFilter from '@/components/ui/DateRangeFilter';
 import LayoutToggle from '@/components/ui/LayoutToggle';
@@ -58,8 +58,16 @@ export default function SalesListPage() {
   // two clicks, not a search phrase.
   const [payFilter, setPayFilter] = useState('all');
   const [delFilter, setDelFilter] = useState('all');
+  // Column-header sort: click sorts, click again flips; using the order
+  // dropdown clears it. Text reads A→Z first, money/date biggest-first.
+  type ColKey = 'number' | 'customer' | 'status' | 'payment' | 'total' | 'updated';
+  const [colSort, setColSort] = useState<{ key: ColKey; dir: 'asc' | 'desc' } | null>(null);
+  const clickCol = (key: ColKey) =>
+    setColSort((s) => (s?.key === key
+      ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' }
+      : { key, dir: ['payment', 'total', 'updated'].includes(key) ? 'desc' : 'asc' }));
 
-  useEffect(() => { document.title = 'Sales — ICAPROC'; }, []);
+  useEffect(() => { document.title = 'Sales Orders — ICAPROC'; }, []);
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/sales')}`); return; }
@@ -143,11 +151,27 @@ export default function SalesListPage() {
     const s = search.trim().toLowerCase();
     if (!s) return true;
     const c = q.customer_id ? custById.get(q.customer_id) : undefined;
-    if ([q.quote_number, q.order_number, q.invoice_number, q.do_number, c?.display_name, c?.legal_name, STATUS[q.status]?.label, isExpired(q) ? 'expired' : '', hasArOpen(q) ? 'outstanding belum lunas' : '']
+    if ([displayDocNumber(q), q.quote_number, q.order_number, q.invoice_number, q.do_number, c?.display_name, c?.legal_name, STATUS[q.status]?.label, isExpired(q) ? 'expired' : '', hasArOpen(q) ? 'outstanding belum lunas' : '']
       .filter(Boolean).join(' ').toLowerCase().includes(s)) return true;
     // Products on the document count too — find every order that carries an item
     return (linesByQuote[q.quote_id] ?? []).some((l) => !l.is_section && (l.description || '').toLowerCase().includes(s));
   }).sort((a, b) => {
+    if (colSort) {
+      const pctOf = (q: Quote) => {
+        const t = Number(q.grand_total) || 0;
+        return t > 0 ? (receivedByQuote[q.quote_id] ?? 0) / t : -1;
+      };
+      let cmp = 0;
+      switch (colSort.key) {
+        case 'number':   cmp = displayDocNumber(a).localeCompare(displayDocNumber(b), undefined, { numeric: true }); break;
+        case 'customer': cmp = nameOf(a).localeCompare(nameOf(b)); break;
+        case 'status':   cmp = milestoneIndex(a.status) - milestoneIndex(b.status); break;
+        case 'payment':  cmp = pctOf(a) - pctOf(b); break;
+        case 'total':    cmp = (Number(a.grand_total) || 0) - (Number(b.grand_total) || 0); break;
+        case 'updated':  cmp = (a.updated_at || '').localeCompare(b.updated_at || ''); break;
+      }
+      return colSort.dir === 'asc' ? cmp : -cmp;
+    }
     if (sort === 'value')    return (Number(b.grand_total) || 0) - (Number(a.grand_total) || 0);
     if (sort === 'customer') return nameOf(a).localeCompare(nameOf(b));
     if (sort === 'updated')  return (b.updated_at || '').localeCompare(a.updated_at || '');
@@ -167,7 +191,7 @@ export default function SalesListPage() {
         {/* Phones: wordmark row then actions row — side-by-side squeezes the
             buttons into the wordmark. sm+ keeps the single row. */}
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-4">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Sales · Quotes & orders" />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Sales Orders · DQ → SQ → SO" />
           {profile?.role === 'owner' && (
             <button onClick={() => router.push('/sales/library')}
               title="Owner-only: curated custom line texts that feed the item picker"
@@ -195,7 +219,7 @@ export default function SalesListPage() {
               New Quote
             </button>
             <DateRangeFilter value={range} onChange={(r) => { touched.current = true; setRange(r); }} label="Quote date" align="left" />
-            <select value={sort} onChange={(e) => { touched.current = true; setSort(e.target.value); }}
+            <select value={sort} onChange={(e) => { touched.current = true; setSort(e.target.value); setColSort(null); }}
               title="Order — the default lives in Settings › Lists"
               className="text-xs bg-slate-900/80 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60">
               {listSpec('sales').sorts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -229,7 +253,15 @@ export default function SalesListPage() {
 
         <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
           <div className={`hidden md:grid grid-cols-[150px_1fr_120px_120px_130px_100px] gap-3 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500 ${compact ? 'px-3 py-1.5' : 'px-4 py-2.5'}`}>
-            <span>Number</span><span>Customer</span><span>Status</span><span>Payment</span><span className="text-right">Grand Total</span><span className="text-right">Updated</span>
+            {([['number', 'Number', ''], ['customer', 'Customer', ''], ['status', 'Status', ''], ['payment', 'Payment', ''], ['total', 'Grand Total', 'justify-end'], ['updated', 'Updated', 'justify-end']] as [ColKey, string, string][]).map(([k, label, align]) => (
+              <button key={k} onClick={() => clickCol(k)} title={`Sort by ${label.toLowerCase()} — click again to flip`}
+                className={`flex items-center gap-1 uppercase tracking-widest transition-colors ${align} ${colSort?.key === k ? 'text-slate-200' : 'hover:text-slate-300'}`}>
+                {label}
+                <span className={`text-[8px] ${colSort?.key === k ? 'text-emerald-400' : 'text-transparent'}`}>
+                  {colSort?.key === k && colSort.dir === 'desc' ? '▼' : '▲'}
+                </span>
+              </button>
+            ))}
           </div>
           {loading ? (
             <div className="p-4 space-y-1.5">{[...Array(6)].map((_, i) => <div key={i} className="h-12 bg-slate-800/40 rounded-xl animate-pulse" />)}</div>
@@ -263,7 +295,7 @@ export default function SalesListPage() {
                       <span className="font-mono text-[11px]">
                         <a href={`/sales/${q.quote_id}`} onClick={(e) => e.stopPropagation()} title="Open document"
                           className="text-slate-300 hover:text-emerald-300 hover:underline underline-offset-2 decoration-emerald-500/50 transition-colors">
-                          {q.quote_number}
+                          {displayDocNumber(q)}
                         </a>
                         {(q.revision ?? 0) > 0 && <span className="ml-1 text-[9px] font-bold text-sky-400">R{q.revision}</span>}
                         {q.case_id && <span className="ml-1 px-1 py-0.5 rounded text-[9px] font-bold bg-orange-500/15 text-orange-300 align-middle" title="After-sales quote — repair / replacement for a service case">SVC</span>}

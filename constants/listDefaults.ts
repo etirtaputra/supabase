@@ -34,7 +34,7 @@ export interface ListSpec {
 
 export const LIST_SPECS: ListSpec[] = [
   {
-    key: 'sales', label: 'Sales', href: '/sales', dateLabel: 'quote date',
+    key: 'sales', label: 'Sales Orders', href: '/sales', dateLabel: 'quote date',
     sorts: [
       { value: 'created',  label: 'Newest first' },
       { value: 'updated',  label: 'Recently updated' },
