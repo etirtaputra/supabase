@@ -34,6 +34,8 @@ interface Quote {
   delivery_date?: string | null; delivery_time?: string; delivery_method?: string; delivery_via?: string;
   delivery_address?: string; delivery_map_url?: string; delivery_contact?: string;
   updated_at?: string; updated_by_email?: string;
+  /** Set = this is an after-sales quote (repair / replacement) for that case. */
+  case_id?: string | null;
 }
 interface CustContact { customer_id: string; name: string; title: string; phone: string; }
 interface DbLine { item_id: string; component_id: string | null; is_section: boolean; description: string; brand: string; note: string; lead_time: string; unit: string; quantity: number; unit_price: number; qty_formula?: string; price_formula?: string; sort_order: number; }
@@ -47,10 +49,10 @@ interface Override { component_id: string; tier_id: string; override_price_idr: 
 interface Comp { component_id: string; supplier_model: string; internal_description: string | null; unit: string | null; selling_price_idr: number | null; }
 // Customer-facing product name: our internal description, never the supplier MODEL/SKU.
 const compName = (c?: Comp | null) => (c?.internal_description?.trim() || c?.supplier_model || '');
-interface LibEntry { entry_id: string; description: string; unit: string; default_price: number | null; }
+interface LibEntry { entry_id: string; description: string; unit: string; default_price: number | null; section?: string | null; }
 // Non-catalog suggestions: custom lines from past sales quotes (PREV) and
 // owner-curated library entries (LIB)
-interface Extra { kind: 'prev' | 'lib'; description: string; unit: string; price: number | null; count: number }
+interface Extra { kind: 'prev' | 'lib'; description: string; unit: string; price: number | null; count: number; section?: string }
 interface DeliveryDetails { date: string; time: string; method: string; via: string; address: string; mapUrl: string; contact: string; }
 interface Receipt {
   receipt_id: string; quote_id: string; receipt_number: string; category: string;
@@ -140,6 +142,16 @@ export default function SalesQuotePage() {
   const [leadDaysByComp, setLeadDaysByComp] = useState<Record<string, number>>({});
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [logs, setLogs] = useState<LogRow[]>([]);
+  // Set when this quote is an after-sales quote — badge links back to the case
+  const [caseInfo, setCaseInfo] = useState<{ case_id: string; case_number: string } | null>(null);
+  // Service quotes see the after-sales library first; regular quotes see it
+  // last — one combined picker, ordered for the document at hand. (Stable
+  // sort, so recency order inside each group is preserved.)
+  const sortedExtras = useMemo(() => {
+    const svc = !!editing?.case_id;
+    const hit = (x: Extra) => ((x.section === 'aftersales') === svc ? 1 : 0);
+    return [...extras].sort((a, b) => hit(b) - hit(a));
+  }, [extras, editing?.case_id]);
   // Split fulfillment: this order's child invoices + delivery orders
   const [savedLines, setSavedLines] = useState<SoLine[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -169,7 +181,7 @@ export default function SalesQuotePage() {
       supabase.from('30.1_stock_balances').select('component_id, qty_on_hand'),
       supabase.from('22.0_sales_quotes').select('quote_id, status, customer_id, quote_date, quote_number'),
       supabase.from('22.1_sales_quote_items').select('quote_id, component_id, quantity, is_section, description, unit, unit_price, created_at'),
-      supabase.from('22.2_sales_description_library').select('entry_id, description, unit, default_price'),
+      supabase.from('22.2_sales_description_library').select('entry_id, description, unit, default_price, section'),
       supabase.from('20.1_customer_contacts').select('customer_id, name, title, phone'),
     ]);
     const coList = (coRes.data as Company[]) ?? [];
@@ -265,7 +277,7 @@ export default function SalesQuotePage() {
     for (const e of ((libRes.error ? [] : libRes.data) as LibEntry[] ?? [])) {
       const desc = (e.description ?? '').trim();
       if (desc.length < 3 || past.has(desc.toLowerCase())) continue;
-      past.set(desc.toLowerCase(), { kind: 'lib', description: desc, unit: e.unit ?? '', price: e.default_price != null ? Number(e.default_price) : null, count: 0, at: '' });
+      past.set(desc.toLowerCase(), { kind: 'lib', section: e.section ?? 'sales', description: desc, unit: e.unit ?? '', price: e.default_price != null ? Number(e.default_price) : null, count: 0, at: '' });
     }
     setExtras([...past.values()].sort((a, b) => (b.at || '').localeCompare(a.at || '')).map(({ at: _at, ...x }) => x));
 
@@ -273,6 +285,22 @@ export default function SalesQuotePage() {
       // Issuing company: the configured one when it still exists, else the first
       const issuer = coList.find((c) => c.company_id === defaultCompanyId)?.company_id ?? coList[0]?.company_id ?? null;
       const q = blankQuote(issuer, defaultPpnPct, defaultSalesTerms, quoteValidityDays);
+      // ?case=<id> starts an AFTER-SALES quote: linked to the case, customer
+      // pre-selected — the path of least resistance from the case screen.
+      const sp = new URLSearchParams(window.location.search);
+      const caseId = sp.get('case');
+      const custId = sp.get('customer');
+      if (caseId) {
+        const { data: cs } = await supabase.from('27.0_aftersales_cases')
+          .select('case_id, case_number, customer_id').eq('case_id', caseId).single();
+        if (cs) {
+          q.case_id = cs.case_id as string;
+          q.customer_id = (cs.customer_id as string | null) ?? custId ?? null;
+          setCaseInfo({ case_id: cs.case_id as string, case_number: (cs.case_number as string) ?? '' });
+        }
+      } else if (custId) {
+        q.customer_id = custId;
+      }
       const ls = [blankLine()];
       setEditing((prev) => prev ?? q);
       setLines((prev) => (prev.length ? prev : ls));
@@ -311,6 +339,11 @@ export default function SalesQuotePage() {
       const doIds = new Set(doList.map((d) => d.do_id));
       setDoItems(doIRes.error ? [] : (((doIRes.data as DoItem[]) ?? []).filter((x) => doIds.has(x.do_id))));
       setLogs(logRes.error ? [] : ((logRes.data as LogRow[]) ?? []));
+      if (loadedQ.case_id) {
+        const { data: cs } = await supabase.from('27.0_aftersales_cases')
+          .select('case_id, case_number').eq('case_id', loadedQ.case_id).single();
+        if (cs) setCaseInfo({ case_id: cs.case_id as string, case_number: (cs.case_number as string) ?? '' });
+      }
     }
     setLoading(false);
   }, [id, isNew, defaultPpnPct, defaultCompanyId, defaultSalesTerms, quoteValidityDays]);
@@ -574,6 +607,7 @@ export default function SalesQuotePage() {
       payment_terms: editing.payment_terms ?? '', delivery_terms: editing.delivery_terms ?? '',
       status: status ?? editing.status, ppn_pct: num(editing.ppn_pct),
       subtotal: totals.subtotal, ppn_amount: totals.ppn, grand_total: totals.grand, notes: editing.notes,
+      case_id: editing.case_id ?? null,
       ...(extra ?? {}),
     };
     let qid = editing.quote_id;
@@ -768,6 +802,14 @@ export default function SalesQuotePage() {
           ) : (
             <span className={`flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS[st]?.cls ?? ''}`}>{STATUS[st]?.label ?? st}</span>
           )}
+          {/* After-sales quote — repair/replacement, badge links back to the case */}
+          {(caseInfo || editing.case_id) && (
+            <a href="/aftersales" target="_blank" rel="noopener noreferrer"
+              className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-orange-500/15 text-orange-300 ring-1 ring-orange-500/30 hover:bg-orange-500/25 transition-colors"
+              title="After-sales quote — open the case list">
+              Service{caseInfo?.case_number ? ` · ${caseInfo.case_number}` : ''}
+            </a>
+          )}
           {expired && (
             <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30"
               title={`Offer expired ${fmtDay(editing.valid_until!)} — Revise to re-issue with fresh validity`}>
@@ -956,7 +998,7 @@ export default function SalesQuotePage() {
               onDrop={(e) => { e.preventDefault(); if (dragKey) moveLines(dragKey, l.key); endDrag(); }}
               className={`rounded-xl transition-shadow ${dropKey === l.key ? 'ring-1 ring-violet-500/70' : ''} ${dragKey === l.key ? 'opacity-50' : ''}`}
             >
-              <LineCard line={l} comps={comps} extras={extras} canHub={canHub} available={availableOf(l.component_id)}
+              <LineCard line={l} comps={comps} extras={sortedExtras} canHub={canHub} available={availableOf(l.component_id)}
                 linkedName={l.component_id ? compName(compById.get(l.component_id)) : ''}
                 tierOptions={l.component_id ? tierOptionsFor(l.component_id) : []}
                 history={l.component_id ? priceHistoryFor(l.component_id) : []}
@@ -1752,7 +1794,7 @@ function ProductAutocomplete({ comps, extras, value, onText, onPick, onPickExtra
               <button key={`${x.kind}-${x.description}`} onMouseDown={(e) => { e.preventDefault(); choose(i); }}
                 className={`w-full text-left px-3 py-1.5 text-xs border-b border-slate-800/50 last:border-0 ${i === active ? 'bg-emerald-600/30 text-white' : 'hover:bg-slate-800 text-slate-300'}`}>
                 <span className="block truncate">
-                  <span className={`mr-1.5 px-1 py-0.5 rounded text-[9px] font-bold align-middle ${x.kind === 'prev' ? 'bg-amber-500/20 text-amber-300' : 'bg-violet-500/20 text-violet-300'}`}>{x.kind === 'prev' ? 'PREV' : 'LIB'}</span>
+                  <span className={`mr-1.5 px-1 py-0.5 rounded text-[9px] font-bold align-middle ${x.kind === 'prev' ? 'bg-amber-500/20 text-amber-300' : x.section === 'aftersales' ? 'bg-orange-500/20 text-orange-300' : 'bg-violet-500/20 text-violet-300'}`}>{x.kind === 'prev' ? 'PREV' : x.section === 'aftersales' ? 'SVC' : 'LIB'}</span>
                   {x.description}
                 </span>
                 <span className="block text-[10px] text-slate-500 truncate">

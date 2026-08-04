@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-04T00:16:00Z',
+    title: 'After-sales quotes — repairs & replacements, one quote system',
+    details: [
+      'A case can now raise its own quotes: “+ New quote” on the case opens the full Sales Quote editor with the customer pre-selected and the quote linked to the case. It is a real sales quote — free-text lines, revisions, print, and the SO → invoice → payment pipeline for billable work all come with it.',
+      'The case shows every quote raised for it (number, status, value); the quote carries an orange “Service · CASE-x” badge, and service quotes are tagged SVC in the Sales list.',
+      'The Description Library has a new After-sales section for repair and component-replacement texts. Both sections feed the same item picker: on a service quote the after-sales texts (SVC) surface first, on a normal quote last.',
+    ],
+  },
+  {
     at: '2026-08-04T00:02:00Z',
     title: 'After-sales case form: searchable pickers · items from the order',
     details: [

@@ -13,7 +13,7 @@ import { useAuth } from '@/hooks/useAuth';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { fmtInt } from '@/lib/formatters';
 
-interface Entry { entry_id: string; description: string; unit: string; default_price: number | null; notes: string; updated_at?: string; }
+interface Entry { entry_id: string; description: string; unit: string; default_price: number | null; notes: string; section?: string; updated_at?: string; }
 
 const num = (v: string): number | null => {
   const n = Number(v.replace(/[, ]/g, ''));
@@ -28,6 +28,9 @@ export default function SalesLibraryPage() {
   const isOwner = profile?.role === 'owner';
 
   const [entries, setEntries] = useState<Entry[]>([]);
+  // Which shelf is open: regular sales texts, or after-sales (repair /
+  // replacement) texts. Same table, same editor — separate sections.
+  const [section, setSection] = useState<'sales' | 'aftersales'>('sales');
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [draft, setDraft] = useState({ description: '', unit: '', price: '' });
@@ -53,7 +56,7 @@ export default function SalesLibraryPage() {
     setLoading(true);
     const [libRes, itemRes] = await Promise.all([
       supabase.from('22.2_sales_description_library')
-        .select('entry_id, description, unit, default_price, notes, updated_at')
+        .select('entry_id, description, unit, default_price, notes, section, updated_at')
         .order('description'),
       supabase.from('22.1_sales_quote_items')
         .select('component_id, is_section, description, unit, unit_price, created_at'),
@@ -81,8 +84,9 @@ export default function SalesLibraryPage() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return q ? entries.filter((e) => `${e.description} ${e.unit}`.toLowerCase().includes(q)) : entries;
-  }, [entries, search]);
+    return entries.filter((e) => (e.section ?? 'sales') === section)
+      .filter((e) => !q || `${e.description} ${e.unit}`.toLowerCase().includes(q));
+  }, [entries, search, section]);
 
   // Used-in-quotes texts not yet curated (curated ones already show above)
   const usedVisible = useMemo(() => {
@@ -95,7 +99,7 @@ export default function SalesLibraryPage() {
   async function promote(u: { description: string; unit: string; price: number | null }) {
     setBusy(true);
     const { error } = await supabase.from('22.2_sales_description_library').insert({
-      description: u.description, unit: u.unit, default_price: u.price,
+      description: u.description, unit: u.unit, default_price: u.price, section,
       created_by_email: profile?.email ?? '',
     });
     setBusy(false);
@@ -107,10 +111,10 @@ export default function SalesLibraryPage() {
   async function add() {
     const desc = draft.description.trim();
     if (desc.length < 3) { flash('Description needs at least 3 characters'); return; }
-    if (entries.some((e) => e.description.trim().toLowerCase() === desc.toLowerCase())) { flash('That entry already exists'); return; }
+    if (entries.some((e) => (e.section ?? 'sales') === section && e.description.trim().toLowerCase() === desc.toLowerCase())) { flash('That entry already exists'); return; }
     setBusy(true);
     const { error } = await supabase.from('22.2_sales_description_library').insert({
-      description: desc, unit: draft.unit.trim(), default_price: num(draft.price),
+      description: desc, unit: draft.unit.trim(), default_price: num(draft.price), section,
       created_by_email: profile?.email ?? '',
     });
     setBusy(false);
@@ -165,6 +169,20 @@ export default function SalesLibraryPage() {
           Curated custom line texts that appear as <span className="px-1 py-0.5 rounded bg-violet-500/20 text-violet-300 text-[9px] font-bold">LIB</span> suggestions
           in the Sales Quote item picker for every sales user. Only owners see and manage this page.
         </p>
+
+        {/* Section shelves — one table, two vocabularies */}
+        <div className="flex items-center gap-1.5">
+          {([['sales', 'Sales'], ['aftersales', 'After-sales']] as const).map(([k, label]) => (
+            <button key={k} onClick={() => setSection(k)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                section === k ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/60'}`}>
+              {label}
+            </button>
+          ))}
+          {section === 'aftersales' && (
+            <span className="text-[11px] text-slate-600 ml-2">Repair &amp; component-replacement texts — offered first on quotes linked to a case.</span>
+          )}
+        </div>
 
         {/* Add row */}
         <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-[1fr_110px_150px_auto] gap-2 items-end">

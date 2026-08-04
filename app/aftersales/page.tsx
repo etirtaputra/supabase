@@ -30,6 +30,7 @@ import { useListLayout } from '@/hooks/useListLayout';
 import { useListDefaults } from '@/hooks/useListDefaults';
 import { inRange, type DateRange } from '@/lib/dateRange';
 import { fmtDay, fmtDayTime, fmtInt } from '@/lib/formatters';
+import { SALES_STATUS } from '@/lib/salesStatus';
 
 interface Case {
   case_id: string; case_number: string; customer_id: string | null; quote_id: string | null;
@@ -40,7 +41,7 @@ interface Case {
 interface Part { part_id: string; case_id: string; component_id: string | null; description: string; action: string; quantity: number; notes: string }
 interface Update { update_id: string; case_id: string; note: string; created_at: string; created_by_email: string }
 interface Customer { customer_id: string; display_name: string; legal_name: string }
-interface Order { quote_id: string; quote_number: string; order_number: string | null; status: string; customer_id: string | null }
+interface Order { quote_id: string; quote_number: string; order_number: string | null; status: string; customer_id: string | null; case_id?: string | null; grand_total?: number }
 interface Comp { component_id: string; internal_description: string | null }
 
 const CATEGORIES: Record<string, { label: string; cls: string }> = {
@@ -126,7 +127,7 @@ export default function AfterSalesPage() {
       supabase.from('27.0_aftersales_cases').select('*').order('reported_at', { ascending: false }),
       supabase.from('27.1_aftersales_parts').select('*'),
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name').order('display_name'),
-      supabase.from('22.0_sales_quotes').select('quote_id, quote_number, order_number, status, customer_id'),
+      supabase.from('22.0_sales_quotes').select('quote_id, quote_number, order_number, status, customer_id, case_id, grand_total'),
       supabase.from('3.0_components').select('component_id, internal_description').order('internal_description'),
       supabase.from('22.1_sales_quote_items').select('quote_id, description, quantity, is_section').order('sort_order'),
     ]);
@@ -264,6 +265,10 @@ export default function AfterSalesPage() {
   const soItems = useMemo(
     () => (draft.quote_id ? quoteItems.filter((l) => l.quote_id === draft.quote_id) : []),
     [quoteItems, draft.quote_id]);
+  // Quotes raised FOR this case (repair / replacement offers)
+  const caseQuotes = useMemo(
+    () => (editing && editing !== 'new' ? orders.filter((o) => o.case_id === editing.case_id) : []),
+    [orders, editing]);
 
   if (authLoading || !user) {
     return <div className="min-h-screen bg-chrome flex items-center justify-center"><div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" /></div>;
@@ -536,6 +541,37 @@ export default function AfterSalesPage() {
                 {comps.map((c) => <option key={c.component_id} value={c.internal_description ?? ''} />)}
               </datalist>
             </div>
+
+            {/* ── Repair / replacement quotes — the case's own quote pipeline.
+                One system: an after-sales quote IS a sales quote linked to
+                this case, so it inherits the editor, library, print and the
+                SO → invoice flow for billable work. ── */}
+            {editing !== 'new' && (
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] uppercase tracking-widest text-slate-500">Repair / replacement quotes</span>
+                  {canEdit && (
+                    <a href={`/sales/new?case=${(editing as Case).case_id}${draft.customer_id ? `&customer=${draft.customer_id}` : ''}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="text-[11px] font-semibold text-emerald-300 hover:text-emerald-200 transition-colors">+ New quote</a>
+                  )}
+                </div>
+                {caseQuotes.length === 0 ? (
+                  <p className="text-[11px] text-slate-600 italic">No quote for this case yet — repairs and component replacements are quoted from here.</p>
+                ) : (
+                  <div className="rounded-lg border border-slate-800 divide-y divide-slate-800/60">
+                    {caseQuotes.map((q) => (
+                      <a key={q.quote_id} href={`/sales/${q.quote_id}`} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] hover:bg-slate-800/40 transition-colors">
+                        <span className="font-mono text-slate-300">{q.order_number || q.quote_number}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${SALES_STATUS[q.status]?.cls ?? ''}`}>{SALES_STATUS[q.status]?.label ?? q.status}</span>
+                        <span className="ml-auto tabular-nums text-slate-200 font-semibold">{fmtInt(Number(q.grand_total) || 0)}</span>
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {(draft.status === 'resolved' || draft.status === 'closed' || (draft.resolution ?? '') !== '') && (
               <label className="block">

@@ -20,7 +20,7 @@ import { listSpec } from '@/constants/listDefaults';
 import { inRange, todayISO, type DateRange } from '@/lib/dateRange';
 
 interface Quote {
-  quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
+  quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string; case_id?: string | null;
   customer_id: string | null; status: string; grand_total: number; updated_at?: string; revision?: number;
   quote_date?: string | null; valid_until?: string | null;
 }
@@ -76,7 +76,7 @@ export default function SalesListPage() {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     const [qRes, custRes, rRes, iRes, invRes, doRes] = await Promise.all([
-      supabase.from('22.0_sales_quotes').select('quote_id, quote_number, order_number, invoice_number, do_number, customer_id, status, grand_total, updated_at, revision, quote_date, valid_until').order('updated_at', { ascending: false }),
+      supabase.from('22.0_sales_quotes').select('quote_id, quote_number, order_number, invoice_number, do_number, customer_id, status, grand_total, updated_at, revision, quote_date, valid_until, case_id').order('updated_at', { ascending: false }),
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name'),
       supabase.from('26.0_customer_receipts').select('quote_id, invoice_id, amount'),
       supabase.from('22.1_sales_quote_items').select('quote_id, description, quantity, unit_price, is_section, sort_order').order('sort_order'),
@@ -263,6 +263,7 @@ export default function SalesListPage() {
                           {q.quote_number}
                         </a>
                         {(q.revision ?? 0) > 0 && <span className="ml-1 text-[9px] font-bold text-sky-400">R{q.revision}</span>}
+                        {q.case_id && <span className="ml-1 px-1 py-0.5 rounded text-[9px] font-bold bg-orange-500/15 text-orange-300 align-middle" title="After-sales quote — repair / replacement for a service case">SVC</span>}
                       </span>
                       <span className="text-sm text-slate-100 truncate">{c?.display_name || c?.legal_name || <span className="text-slate-600">No customer</span>}</span>
                       {/* Column 1 of the pair: WHERE IS THE ORDER. A half-
