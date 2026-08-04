@@ -168,16 +168,13 @@ export default function SalesListPage() {
             buttons into the wordmark. sm+ keeps the single row. */}
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-4">
           <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Sales · Quotes & orders" />
-          <div className="flex items-center gap-2 flex-wrap">
-            {profile?.role === 'owner' && (
-              <button onClick={() => router.push('/sales/library')}
-                title="Owner-only: curated custom line texts that feed the item picker"
-                className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap">
-                Library
-              </button>
-            )}
-            <button onClick={() => router.push('/sales/new')} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 transition-colors whitespace-nowrap">+ New Quote</button>
-          </div>
+          {profile?.role === 'owner' && (
+            <button onClick={() => router.push('/sales/library')}
+              title="Owner-only: curated custom line texts that feed the item picker"
+              className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap">
+              Library
+            </button>
+          )}
         </div>
       </div>
       <main className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-6 space-y-5">
@@ -191,6 +188,12 @@ export default function SalesListPage() {
         {/* Period filter + what the period is worth */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 justify-between">
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Leftmost primary action — same placement + ghost style as After Sales */}
+            <button onClick={() => router.push('/sales/new')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 text-xs font-semibold whitespace-nowrap transition-colors">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+              New Quote
+            </button>
             <DateRangeFilter value={range} onChange={(r) => { touched.current = true; setRange(r); }} label="Quote date" align="left" />
             <select value={sort} onChange={(e) => { touched.current = true; setSort(e.target.value); }}
               title="Order — the default lives in Settings › Lists"

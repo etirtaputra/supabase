@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-04T01:30:00Z',
+    title: 'Sales: New Quote joins the toolbar · Deal Lookup columns sort',
+    details: [
+      'The New Quote button moved from the header corner to the start of the Sales toolbar — same position and ghost style as After Sales’ New Case.',
+      'Deal Lookup’s table view: every column header (PI #, Supplier, Date, Stage, Total, Paid, Outstanding) now sorts on click — once for ascending, again to flip. Dates and amounts start biggest-first, text columns A→Z.',
+    ],
+  },
+  {
     at: '2026-08-04T01:22:00Z',
     title: 'After-sales rows link their documents without expanding',
     details: [

@@ -339,6 +339,13 @@ export default function DealLookupTab({
   const [layout, setLayout]                   = useListLayout('deals');
   const tableView = layout === 'compact';
   const [expandedKey, setExpandedKey]         = useState<string | null>(null);
+  // Column-header sort for the table view: click a title to sort by it, click
+  // again to flip. Text columns start A→Z; date and money start biggest-first.
+  const [colSort, setColSort] = useState<{ key: 'pi' | 'supplier' | 'date' | 'stage' | 'total' | 'paid' | 'outstanding'; dir: 'asc' | 'desc' } | null>(null);
+  const clickCol = (key: NonNullable<typeof colSort>['key']) =>
+    setColSort((s) => s?.key === key
+      ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' }
+      : { key, dir: ['date', 'total', 'paid', 'outstanding'].includes(key) ? 'desc' : 'asc' });
   const [selectedSuppId, setSelectedSuppId]   = useState<string | null>(null);
   const [selectedCompId, setSelectedCompId]   = useState<string | null>(null);
   const [updatingQuote, setUpdatingQuote]     = useState<string | null>(null);
@@ -1921,22 +1928,47 @@ export default function DealLookupTab({
 
   // ── Compact table view ───────────────────────────────────────────────────
 
-  const renderDealTable = (groups: DealGroup[]) => (
+  const renderDealTable = (groups: DealGroup[]) => {
+    // Header sort overrides the incoming order until cleared by another click
+    const STAGE_ORDER = ['quote', 'active', 'received', 'completed', 'superseded'];
+    const refOf = (g: DealGroup) => g.piNumber ?? (g.quotes[0] ? `Q#${g.quotes[0].quote_id}` : `PO#${g.pos[0]?.po_number ?? g.key}`);
+    const sortedGroups = !colSort ? groups : [...groups].sort((a, b) => {
+      let cmp = 0;
+      switch (colSort.key) {
+        case 'pi':          cmp = refOf(a).localeCompare(refOf(b), undefined, { numeric: true }); break;
+        case 'supplier':    cmp = (a.supplier?.supplier_name ?? '').localeCompare(b.supplier?.supplier_name ?? ''); break;
+        case 'date':        cmp = (a.latestDate ?? '').localeCompare(b.latestDate ?? ''); break;
+        case 'stage':       cmp = STAGE_ORDER.indexOf(dealStage(a)) - STAGE_ORDER.indexOf(dealStage(b)); break;
+        case 'total':       cmp = a.totalIdr - b.totalIdr; break;
+        case 'paid':        cmp = (a.totalIdr > 0 ? a.paidIdr / a.totalIdr : 0) - (b.totalIdr > 0 ? b.paidIdr / b.totalIdr : 0); break;
+        case 'outstanding': cmp = a.outstandingIdr - b.outstandingIdr; break;
+      }
+      return colSort.dir === 'asc' ? cmp : -cmp;
+    });
+    return (
     <div className="overflow-x-auto rounded-xl border border-slate-800/80">
       <table className="w-full text-xs border-collapse">
         <thead>
           <tr className="border-b border-slate-700/60 bg-slate-900/80">
-            <th className="text-left py-2 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap">PI #</th>
-            <th className="text-left py-2 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap">Supplier</th>
-            <th className="text-left py-2 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap">Date</th>
-            <th className="text-left py-2 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap">Stage</th>
-            <th className="text-right py-2 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap">Total</th>
-            <th className="text-right py-2 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap">Paid</th>
-            <th className="text-right py-2 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap">Outstanding</th>
+            {([
+              ['pi', 'PI #', 'text-left'], ['supplier', 'Supplier', 'text-left'], ['date', 'Date', 'text-left'], ['stage', 'Stage', 'text-left'],
+              ['total', 'Total', 'text-right'], ['paid', 'Paid', 'text-right'], ['outstanding', 'Outstanding', 'text-right'],
+            ] as const).map(([k, label, align]) => (
+              <th key={k} className={`py-2 px-3 whitespace-nowrap ${align}`}>
+                <button onClick={() => clickCol(k)} title={`Sort by ${label.toLowerCase()} — click again to flip`}
+                  className={`inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-widest transition-colors ${
+                    colSort?.key === k ? 'text-slate-200' : 'text-slate-400 hover:text-slate-300'}`}>
+                  {label}
+                  <span className={`text-[8px] ${colSort?.key === k ? 'text-emerald-400' : 'text-transparent'}`}>
+                    {colSort?.key === k && colSort.dir === 'desc' ? '▼' : '▲'}
+                  </span>
+                </button>
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
-          {groups.map((g) => {
+          {sortedGroups.map((g) => {
             const stage   = dealStage(g);
             const expanded = expandedKey === g.key;
             const dealRef = g.piNumber ?? (g.quotes[0] ? `Q#${g.quotes[0].quote_id}` : `PO#${g.pos[0]?.po_number ?? g.key}`);
@@ -2026,7 +2058,8 @@ export default function DealLookupTab({
         </tbody>
       </table>
     </div>
-  );
+    );
+  };
 
   // ── Left-panel item (vendor or company) ───────────────────────────────────
 
