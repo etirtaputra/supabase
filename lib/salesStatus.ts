@@ -40,3 +40,12 @@ export const displayDocNumber = (q: { quote_number?: string | null; order_number
   if (milestoneIndex(q.status ?? '') >= milestoneIndex('ordered') && q.order_number) return q.order_number;
   return qn;
 };
+
+/** Colour for the document code: DQ grey (unfinished), SQ sky (offer out),
+ *  SO violet (confirmed order — matches the Confirmed Order chip). Dead
+ *  documents (cancelled / rejected) fade out. */
+export const docNumberCls = (status?: string | null): string => {
+  if (status === 'cancelled' || status === 'rejected') return 'text-slate-600';
+  if (status === 'draft') return 'text-slate-500';
+  return milestoneIndex(status ?? '') >= milestoneIndex('ordered') ? 'text-violet-300' : 'text-sky-300';
+};

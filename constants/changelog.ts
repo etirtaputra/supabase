@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-04T23:10:00Z',
+    title: 'DQ, SQ and SO each get their own colour',
+    details: [
+      'Document codes are colour-coded so SQ and SO can never be misread: DQ grey (unfinished), SQ sky blue (offer out), SO violet (confirmed order — same violet as the status chip). Cancelled and rejected documents fade out. Applied on the Sales Orders list and the customer profile.',
+    ],
+  },
+  {
     at: '2026-08-04T23:03:00Z',
     title: 'Document codes follow the lifecycle: DQ → SQ → SO',
     details: [
