@@ -296,12 +296,24 @@ function MasterInsertPage() {
 
   const submitQuoteHeader = async (d: any) => {
     if (!withPo) { await handleInsert('4.0_price_quotes', d); return; }
-    const { po_number, po_date, exchange_rate, ...quote } = d;
+    const { po_number, po_date, exchange_rate, existing_quote_id, ...quote } = d;
     // Straight from PI to PO: ordering against the quote IS accepting it
     quote.status = 'Accepted';
-    const qRows = await handleInsert('4.0_price_quotes', quote);
-    const q = qRows?.[0];
-    if (!q) return;
+    let q: any = null;
+    let copiedItems: any[] = [];
+    if (existing_quote_id) {
+      // Quote entered earlier, PO processed today — the stored quote IS the
+      // header. No re-entry, no separate PO form: accept it, raise the PO,
+      // carry its items across. Only PO # and date were typed.
+      q = data.quotes.find((x) => String(x.quote_id) === String(existing_quote_id));
+      if (!q) { showToast('Stored quote not found — refresh and retry.', 'error'); return; }
+      await supabase.from('4.0_price_quotes').update({ status: 'Accepted' }).eq('quote_id', q.quote_id);
+      copiedItems = data.quoteItems.filter((qi) => String(qi.quote_id) === String(q.quote_id));
+    } else {
+      const qRows = await handleInsert('4.0_price_quotes', quote);
+      q = qRows?.[0];
+      if (!q) return;
+    }
     // Estimated rate: what payments on this supplier's past POs actually imply
     let rate = quote.currency === 'IDR' ? null : (Number(exchange_rate) || null);
     if (quote.currency !== 'IDR' && !rate) {
@@ -319,11 +331,19 @@ function MasterInsertPage() {
       document_url: quote.document_url || null,
     });
     if (poRows?.[0]) {
-      setComboPo({ quoteId: String(q.quote_id), poId: String(poRows[0].po_id) });
-      setLastSaved({
-        message: `Quote + PO ${po_number} saved — items entered below go onto both.`,
-        cta: 'Log payment →', nextTab: 'financials', poId: String(poRows[0].po_id),
-      });
+      const poId = String(poRows[0].po_id);
+      // Stored quote → PO: its lines carry across automatically (price → cost).
+      // "Unless there's a change in items" — amend the PO lines in Deal Lookup.
+      if (copiedItems.length) {
+        await handleInsert('5.1_purchase_line_items', copiedItems.map((qi: any) => ({
+          po_id: poId, component_id: qi.component_id, supplier_description: qi.supplier_description ?? null,
+          quantity: qi.quantity, unit_cost: qi.unit_price, currency: qi.currency,
+        })));
+      }
+      setComboPo({ quoteId: String(q.quote_id), poId });
+      setLastSaved(existing_quote_id
+        ? { message: `PO ${po_number} raised from the stored quote — ${copiedItems.length} item${copiedItems.length !== 1 ? 's' : ''} carried across.`, cta: 'Log payment →', nextTab: 'financials', poId }
+        : { message: `Quote + PO ${po_number} saved — items entered below go onto both.`, cta: 'Log payment →', nextTab: 'financials', poId });
     }
   };
 
@@ -698,12 +718,51 @@ function MasterInsertPage() {
                     {/* Caption takes its own line on a phone instead of squeezing the buttons */}
                     {withPo && <span className="text-[11px] text-slate-600 basis-full sm:basis-auto sm:ml-2">Violet fields belong to the PO — everything else is shared.</span>}
                   </div>
+                  {dupWarning && (
+                    <div className="mb-4 flex items-start gap-3 px-4 py-3 bg-amber-500/10 border border-amber-500/30 rounded-xl">
+                      <span className="text-amber-400 text-sm flex-shrink-0 mt-0.5">⚠️</span>
+                      <span className="text-amber-300 text-xs leading-relaxed">{dupWarning.replace('⚠️ ', '')}</span>
+                      <button onClick={() => setDupWarning(null)} className="ml-auto text-slate-500 hover:text-slate-300 text-sm leading-none flex-shrink-0">✕</button>
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 items-start">
                     <SimpleForm
                       title={withPo ? 'Step 1: Quote + PO Header' : 'Step 1: Quote Header'}
                       storageKey="Step 1: Quote Header"
                       headerAction={pdfHeaderAction('Upload Quote/PI PDF', 'AI extracts supplier info, quote details, and line items automatically.')}
+                      onFieldChange={(name, value) => {
+                        const o: Record<string, any> = {};
+                        // Stored quote picked → the whole shared header arrives
+                        // prefilled; PO date jumps to today (the processing date);
+                        // only PO # is left to type. Items copy across at save.
+                        if (name === 'existing_quote_id') {
+                          if (value) {
+                            const src = data.quotes.find((x) => String(x.quote_id) === String(value));
+                            if (src) {
+                              o.supplier_id = src.supplier_id;
+                              o.company_id = src.company_id;
+                              o.quote_date = src.quote_date;
+                              o.pi_number = src.pi_number;
+                              o.currency = src.currency;
+                              o.total_value = src.total_value;
+                              o.po_date = new Date().toISOString().split('T')[0];
+                            }
+                            const existingPO = data.pos.find((p) => p.quote_id && String(p.quote_id) === String(value));
+                            setDupWarning(existingPO
+                              ? `⚠️ This quote is already linked to PO ${existingPO.po_number}${existingPO.pi_number ? ` / ${existingPO.pi_number}` : ''} (${existingPO.po_date}). Creating another PO may be a duplicate.`
+                              : null);
+                          } else {
+                            setDupWarning(null);
+                          }
+                        }
+                        return o;
+                      }}
                       fields={[
+                        // Quote + PO only: process the PO for a quote stored earlier —
+                        // no separate PO form, no re-entry.
+                        ...(withPo ? [
+                          { name: 'existing_quote_id', label: 'Stored Quote (raise its PO — empty = new PI)', type: 'select' as const, options: options.quotes },
+                        ] : []),
                         { name: 'supplier_id', label: 'Supplier', type: 'rich-select', options: data.suppliers, config: { labelKey: 'supplier_name', valueKey: 'supplier_id', subLabelKey: 'location' }, req: true, default: pdfDefaults.supplier_id },
                         { name: 'company_id', label: 'Addressed To', type: 'select', options: options.companies, req: true, default: pdfDefaults.company_id },
                         { name: 'quote_date', label: 'Date', type: 'date', req: true, default: pdfData?.quote_date || pdfData?.pi_date || new Date().toISOString().split('T')[0] },

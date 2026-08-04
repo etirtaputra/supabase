@@ -1004,15 +1004,15 @@ Orders tab retires (amendments live in Deal Lookup), nav/Spotlight keeps
 old keywords (`supplier quotes`, `PI`, `PO`, `purchase order`) pointing
 at New Deal so muscle memory survives.
 
-**Quote today, PO later** (first-class, not an afterthought): a stored
-quote-only deal must be upgradable by LOADING it into New Deal (e.g.
-`?quote=<id>` from Deal Lookup's "+ Create PO") — shared fields arrive
-read-only-prefilled, the mode flips to Quote + PO, and the user types
-only the PO-specific fields (PO #, date; incoterms optional). Items copy
-across on save (price → cost) exactly like the same-day combined flow.
-This replaces today's three-door equivalent (post-save banner → ordering
-tab, Deal Lookup "+ Create PO", manual Link Quote), which already
-prefills PI/supplier/currency/total and offers one-click item import.
+**Quote today, PO later — SHIPPED in v1 form (2026-08-04):** the
+combined form's Quote + PO mode carries a **Stored Quote** selector —
+picking one prefills the whole shared header, jumps PO date to today,
+leaves only PO # to type, flips the quote to Accepted and copies its
+items onto the new PO at save (price → cost). Item changes are amended
+on the PO lines in Deal Lookup. The separate Purchase Orders tab is now
+redundant for PO creation — the rebuild retires it (browse/amend moves
+fully to Deal Lookup) and should wire Deal Lookup's "+ Create PO" to
+open New Deal with the stored quote preselected.
 
 ## Conventions to keep every module consistent
 

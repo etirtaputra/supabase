@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-04T03:57:00Z',
+    title: 'Stored quote → PO, inside the same form',
+    details: [
+      'Quote + PO mode gains a Stored Quote selector: pick a quote entered earlier and the whole shared header prefills, PO date jumps to today, and only the PO # is left to type.',
+      'On save the quote flips to Accepted, the PO is raised, and the quote’s items carry across automatically (price → cost). Item changes? Amend the PO lines in Deal Lookup.',
+      'It also warns if that quote already has a PO. No more separate PO form for processing a stored quote.',
+    ],
+  },
+  {
     at: '2026-08-04T03:41:00Z',
     title: 'Quote modes mean what they say',
     details: [
