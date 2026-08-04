@@ -479,7 +479,7 @@ export default function AfterSalesPage() {
                                   <span className={lbl}>Quotes</span>
                                   {svcQuotes.map((q) => (
                                     <span key={q.quote_id} className="inline-flex items-center gap-1.5">
-                                      <a href={`/sales/${q.quote_id}`} target="_blank" rel="noopener noreferrer" className={docLink}>{q.order_number || q.quote_number}</a>
+                                      <a href={`/sales/${q.quote_id}`} target="_blank" rel="noopener noreferrer" className={docLink}>{displayDocNumber(q)}</a>
                                       <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${SALES_STATUS[q.status]?.cls ?? ''}`}>{SALES_STATUS[q.status]?.label ?? q.status}</span>
                                     </span>
                                   ))}

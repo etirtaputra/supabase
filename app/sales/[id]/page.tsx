@@ -179,7 +179,7 @@ export default function SalesQuotePage() {
       supabase.from('21.1_item_tier_prices').select('component_id, tier_id, override_price_idr, override_discount_pct'),
       supabase.from('3.0_components').select('component_id, supplier_model, internal_description, unit, selling_price_idr').order('supplier_model').limit(2000),
       supabase.from('30.1_stock_balances').select('component_id, qty_on_hand'),
-      supabase.from('22.0_sales_quotes').select('quote_id, status, customer_id, quote_date, quote_number'),
+      supabase.from('22.0_sales_quotes').select('quote_id, status, customer_id, quote_date, quote_number, order_number'),
       supabase.from('22.1_sales_quote_items').select('quote_id, component_id, quantity, is_section, description, unit, unit_price, created_at'),
       supabase.from('22.2_sales_description_library').select('entry_id, description, unit, default_price, section'),
       supabase.from('20.1_customer_contacts').select('customer_id, name, title, phone'),
@@ -404,7 +404,7 @@ export default function SalesQuotePage() {
       if (!q || q.quote_id === editing?.quote_id) continue;
       const c = q.customer_id ? custById.get(q.customer_id) : undefined;
       out.push({
-        quote_number: q.quote_number, date: q.quote_date,
+        quote_number: displayDocNumber(q as any), date: q.quote_date,
         customer: c ? (c.display_name || c.legal_name) : '—',
         mine: !!editing?.customer_id && q.customer_id === editing.customer_id,
         qty: Number(it.quantity) || 0, price: Number(it.unit_price) || 0,
@@ -918,7 +918,7 @@ export default function SalesQuotePage() {
           <PaymentsPanel
             receipts={receipts} billTotal={billTotal} received={received} canRecord={canRecord}
             quoteId={editing.quote_id} companyId={editing.company_id}
-            docNumber={editing.order_number || editing.quote_number}
+            docNumber={displayDocNumber(editing)}
             invoices={invoices} paidByInvoice={paidByInvoice}
             onChanged={() => load(true)} flash={flash}
           />

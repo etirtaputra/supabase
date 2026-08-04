@@ -11,6 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
+import { displayDocNumber } from '@/lib/salesStatus';
 import { fmtDay, fmtInt, fmtIdrShort as fmtIdr } from '@/lib/formatters';
 import DateRangeFilter from '@/components/ui/DateRangeFilter';
 import LayoutToggle from '@/components/ui/LayoutToggle';
@@ -114,7 +115,7 @@ export default function InvoicesPage() {
         if (!inRange(q.invoiced_at, range)) return false;
         if (!s) return true;
         const c = q.customer_id ? custById.get(q.customer_id) : undefined;
-        return [q.invoice_number, q.quote_number, q.order_number, q.do_number, c?.display_name, c?.legal_name]
+        return [q.invoice_number, displayDocNumber(q), q.quote_number, q.order_number, q.do_number, c?.display_name, c?.legal_name]
           .filter(Boolean).join(' ').toLowerCase().includes(s);
       })
       .sort((a, b) => {
@@ -198,7 +199,7 @@ export default function InvoicesPage() {
                     className={`w-full text-left grid grid-cols-2 md:grid-cols-[160px_1fr_100px_130px_150px_90px] gap-1 md:gap-3 hover:bg-slate-800/40 transition-colors items-center ${compact ? 'px-3 py-1.5' : 'px-4 py-3'}`}>
                     <span>
                       <span className="block font-mono text-[11px] text-amber-200">{q.invoice_number || '—'}</span>
-                      {!compact && <span className="block text-[10px] text-slate-600 font-mono">{q.quote_number}{q.kind === 'progress' ? ` · ${Number(q.pct ?? 0)}%` : ''}</span>}
+                      {!compact && <span className="block text-[10px] text-slate-600 font-mono">{displayDocNumber(q)}{q.kind === 'progress' ? ` · ${Number(q.pct ?? 0)}%` : ''}</span>}
                     </span>
                     <span className="text-sm text-slate-100 truncate">{c?.display_name || c?.legal_name || <span className="text-slate-600">No customer</span>}</span>
                     <span className="md:text-right text-[11px] text-slate-500 tabular-nums">{fmtDay(q.invoiced_at)}</span>

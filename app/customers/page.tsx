@@ -1145,7 +1145,7 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOp
                     return (
                       <a key={d.quote_id} href={`/sales/${d.quote_id}`} target="_blank" rel="noopener noreferrer"
                         className="w-full text-left flex items-center gap-2 px-3 py-2 hover:bg-slate-800/30 transition-colors text-xs">
-                        <span className="font-mono text-[11px] text-slate-300">{d.invoice_number || d.quote_number}</span>
+                        <span className="font-mono text-[11px] text-slate-300">{d.invoice_number || displayDocNumber(d)}</span>
                         <span className="text-slate-500">{fmtDay(d.updated_at || d.quote_date)}</span>
                         <span className="ml-auto tabular-nums text-amber-300 font-semibold">{fmtRupiah(out)} outstanding</span>
                       </a>

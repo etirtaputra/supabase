@@ -12,6 +12,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
+import { displayDocNumber } from '@/lib/salesStatus';
 import { fmtDay, fmtInt } from '@/lib/formatters';
 import DateRangeFilter from '@/components/ui/DateRangeFilter';
 import LayoutToggle from '@/components/ui/LayoutToggle';
@@ -124,7 +125,7 @@ export default function DeliveryPage() {
     if (!inRange(dateOf ?? null, range)) return false;
     const s = search.trim().toLowerCase();
     if (!s) return true;
-    return [q.do_number, q.order_number, q.invoice_number, q.quote_number, custName(q.customer_id)]
+    return [q.do_number, displayDocNumber(q), q.order_number, q.invoice_number, q.quote_number, custName(q.customer_id)]
       .filter(Boolean).join(' ').toLowerCase().includes(s);
   }, [search, custById, range]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -179,7 +180,7 @@ export default function DeliveryPage() {
                     <button key={q.row_key} onClick={() => router.push(`/sales/${q.quote_id}`)}
                       className={`w-full text-left grid grid-cols-2 md:grid-cols-[170px_1fr_140px_120px_110px] gap-1 md:gap-3 hover:bg-slate-800/40 transition-colors items-center ${compact ? 'px-3 py-1.5' : 'px-4 py-3'}`}>
                       <span>
-                        <span className={`block font-mono text-[11px] ${q.status === 'preparing' ? 'text-orange-300' : 'text-violet-300'}`}>{(q.status === 'preparing' && q.do_number) || q.order_number || q.quote_number}</span>
+                        <span className={`block font-mono text-[11px] ${q.status === 'preparing' ? 'text-orange-300' : 'text-violet-300'}`}>{(q.status === 'preparing' && q.do_number) || displayDocNumber(q)}</span>
                         {q.invoice_number && !compact && <span className="block text-[10px] text-amber-200/70 font-mono">{q.invoice_number}</span>}
                       </span>
                       <span className="min-w-0">
@@ -228,7 +229,7 @@ export default function DeliveryPage() {
                       className={`w-full text-left grid grid-cols-2 md:grid-cols-[170px_1fr_140px_120px_110px] gap-1 md:gap-3 hover:bg-slate-800/40 transition-colors items-center ${compact ? 'px-3 py-1.5' : 'px-4 py-3'}`}>
                       <span>
                         <span className="block font-mono text-[11px] text-emerald-300">{q.do_number || '—'}</span>
-                        {!compact && <span className="block text-[10px] text-slate-600 font-mono">{q.order_number || q.quote_number}</span>}
+                        {!compact && <span className="block text-[10px] text-slate-600 font-mono">{displayDocNumber(q)}</span>}
                       </span>
                       <span className="text-sm text-slate-100 truncate">{custName(q.customer_id) || <span className="text-slate-600">No customer</span>}</span>
                       <span className="text-[11px] text-slate-500 tabular-nums">

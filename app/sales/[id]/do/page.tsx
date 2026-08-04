@@ -9,6 +9,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
+import { displayDocNumber } from '@/lib/salesStatus';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { fmtDayDoc as fmtDate, fmtIntDoc } from '@/lib/formatters';
@@ -154,7 +155,7 @@ export default function DeliveryOrderPrintPage() {
           <div className="doc-title">
             <div className="doc-label">Surat Jalan · Delivery Order</div>
             <div className="do-num">{quote.do_number || '(belum terbit)'}</div>
-            <div className="doc-sub">Ref: {quote.order_number || quote.quote_number}{quote.invoice_number ? ` · ${quote.invoice_number}` : ''}</div>
+            <div className="doc-sub">Ref: {displayDocNumber(quote)}{quote.invoice_number ? ` · ${quote.invoice_number}` : ''}</div>
             <div className="doc-sub">Diterbitkan: {fmtDate(quote.preparing_at || quote.delivered_at)}</div>
           </div>
         </div>

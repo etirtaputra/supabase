@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-04T23:32:00Z',
+    title: 'Lifecycle codes verified on every list',
+    details: [
+      'Audit of the DQ/PQ/SO codes: Invoices and Delivery lists, the After Sales case panel, Accounts Receivable rows on the customer profile, the editor’s price-history popover, and the Surat Jalan reference line now all derive the lifecycle code. Searching by PQ-/DQ- also matches on Invoices and Delivery. EPC proposals keep their own Q- numbers by design.',
+    ],
+  },
+  {
     at: '2026-08-04T23:29:00Z',
     title: 'SQ becomes PQ — Price Quote',
     details: [
