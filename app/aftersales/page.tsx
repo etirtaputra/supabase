@@ -23,6 +23,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
+import RichDropdown from '@/components/ui/RichDropdown';
 import LayoutToggle from '@/components/ui/LayoutToggle';
 import DateRangeFilter from '@/components/ui/DateRangeFilter';
 import { useListLayout } from '@/hooks/useListLayout';
@@ -71,6 +72,7 @@ const STATUS_BADGE: Record<string, string> = {
 const statusLabel = (s: string) => STATUS_SECTIONS.find((x) => x.key === s)?.label ?? s;
 
 interface DraftPart { part_id?: string; component_id: string | null; description: string; action: string; quantity: string; notes: string }
+interface QuoteItem { quote_id: string; description: string; quantity: number; is_section: boolean }
 
 export default function AfterSalesPage() {
   const supabase = createSupabaseClient();
@@ -104,6 +106,7 @@ export default function AfterSalesPage() {
   const [editing, setEditing] = useState<Case | 'new' | null>(null);
   const [draft, setDraft] = useState<Partial<Case>>({});
   const [draftParts, setDraftParts] = useState<DraftPart[]>([]);
+  const [quoteItems, setQuoteItems] = useState<QuoteItem[]>([]);
   const [updates, setUpdates] = useState<Update[]>([]);
   const [newNote, setNewNote] = useState('');
   const [busy, setBusy] = useState(false);
@@ -119,12 +122,13 @@ export default function AfterSalesPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [cRes, pRes, custRes, oRes, compRes] = await Promise.all([
+    const [cRes, pRes, custRes, oRes, compRes, qiRes] = await Promise.all([
       supabase.from('27.0_aftersales_cases').select('*').order('reported_at', { ascending: false }),
       supabase.from('27.1_aftersales_parts').select('*'),
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name').order('display_name'),
       supabase.from('22.0_sales_quotes').select('quote_id, quote_number, order_number, status, customer_id'),
       supabase.from('3.0_components').select('component_id, internal_description').order('internal_description'),
+      supabase.from('22.1_sales_quote_items').select('quote_id, description, quantity, is_section').order('sort_order'),
     ]);
     setCases((cRes.data as Case[]) ?? []);
     const by = new Map<string, Part[]>();
@@ -133,6 +137,7 @@ export default function AfterSalesPage() {
     setCustomers((custRes.data as Customer[]) ?? []);
     setOrders((oRes.data as Order[]) ?? []);
     setComps(((compRes.data as Comp[]) ?? []).filter((c) => c.internal_description?.trim()));
+    setQuoteItems(((qiRes.error ? [] : qiRes.data as QuoteItem[]) ?? []).filter((l) => !l.is_section && (l.description ?? '').trim()));
     setLoading(false);
   }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (user && perms?.sellSide) load(); }, [user, perms?.sellSide, load]);
@@ -244,6 +249,21 @@ export default function AfterSalesPage() {
   const customerOrders = useMemo(
     () => orders.filter((o) => !draft.customer_id || o.customer_id === draft.customer_id),
     [orders, draft.customer_id]);
+  const customerOptions = useMemo(() => customers.map((c) => ({
+    customer_id: c.customer_id,
+    name: c.display_name || c.legal_name,
+    sub: c.legal_name && c.legal_name !== (c.display_name || c.legal_name) ? c.legal_name : '',
+  })), [customers]);
+  const orderOptions = useMemo(() => customerOrders.map((o) => ({
+    quote_id: o.quote_id,
+    label: o.order_number || o.quote_number || '—',
+    sub: [custName.get(o.customer_id ?? ''), o.status].filter(Boolean).join(' · '),
+  })), [customerOrders, custName]);
+  // The items ON the selected order — offered as one-click chips, because a
+  // case about SO-x is almost always about something that was on SO-x.
+  const soItems = useMemo(
+    () => (draft.quote_id ? quoteItems.filter((l) => l.quote_id === draft.quote_id) : []),
+    [quoteItems, draft.quote_id]);
 
   if (authLoading || !user) {
     return <div className="min-h-screen bg-chrome flex items-center justify-center"><div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" /></div>;
@@ -391,25 +411,33 @@ export default function AfterSalesPage() {
             </div>
 
             <div className="grid sm:grid-cols-2 gap-3">
+              {/* Searchable comboboxes (same component as the Payment pickers) —
+                  489 customers do not fit a native select. */}
               <label className="block">
                 <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Customer</span>
-                <select className={inputCls} value={draft.customer_id ?? ''} disabled={!canEdit}
-                  onChange={(e) => { set('customer_id', e.target.value || null); set('quote_id', null); }}>
-                  <option value="">— none —</option>
-                  {customers.map((c) => <option key={c.customer_id} value={c.customer_id}>{c.display_name || c.legal_name}</option>)}
-                </select>
+                <fieldset disabled={!canEdit} className={!canEdit ? 'opacity-60 pointer-events-none' : ''}>
+                  <RichDropdown
+                    options={customerOptions}
+                    value={draft.customer_id ?? ''}
+                    placeholder="Search customer…"
+                    config={{ labelKey: 'name', valueKey: 'customer_id', subLabelKey: 'sub' }}
+                    onChange={(v: any) => { set('customer_id', v || null); set('quote_id', null); }}
+                  />
+                </fieldset>
               </label>
               <label className="block">
                 <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Sales order / document</span>
-                <select className={inputCls} value={draft.quote_id ?? ''} disabled={!canEdit}
-                  onChange={(e) => e.target.value && !draft.customer_id
-                    ? (set('quote_id', e.target.value), set('customer_id', orderById.get(e.target.value)?.customer_id ?? null))
-                    : set('quote_id', e.target.value || null)}>
-                  <option value="">— none —</option>
-                  {customerOrders.map((o) => (
-                    <option key={o.quote_id} value={o.quote_id}>{(o.order_number || o.quote_number || '—') + ` · ${o.status}`}</option>
-                  ))}
-                </select>
+                <fieldset disabled={!canEdit} className={!canEdit ? 'opacity-60 pointer-events-none' : ''}>
+                  <RichDropdown
+                    options={orderOptions}
+                    value={draft.quote_id ?? ''}
+                    placeholder="Search SO / SQ number…"
+                    config={{ labelKey: 'label', valueKey: 'quote_id', subLabelKey: 'sub' }}
+                    onChange={(v: any) => v && !draft.customer_id
+                      ? (set('quote_id', v), set('customer_id', orderById.get(String(v))?.customer_id ?? null))
+                      : set('quote_id', v || null)}
+                  />
+                </fieldset>
               </label>
               <label className="block">
                 <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Category</span>
@@ -450,6 +478,28 @@ export default function AfterSalesPage() {
                     className="text-[11px] font-semibold text-emerald-300 hover:text-emerald-200 transition-colors">+ Add item</button>
                 )}
               </div>
+              {/* The selected SO's own lines, one click to log — items and case connected */}
+              {canEdit && soItems.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                  <span className="text-[10px] text-slate-600 flex-shrink-0">On this order:</span>
+                  {soItems.map((l, k) => {
+                    const added = draftParts.some((p) => p.description.trim().toLowerCase() === l.description.trim().toLowerCase());
+                    return (
+                      <button key={k} type="button" disabled={added}
+                        onClick={() => setDraftParts((p) => [...p, {
+                          component_id: compByDesc.get(l.description.trim().toLowerCase())?.component_id ?? null,
+                          description: l.description, action: 'repaired', quantity: '1', notes: '',
+                        }])}
+                        className={`px-2 py-0.5 rounded-md border text-[11px] max-w-[16rem] truncate transition-colors ${
+                          added ? 'border-slate-800 text-slate-600 cursor-default'
+                                : 'border-slate-700/70 text-slate-300 hover:border-emerald-500/40 hover:text-emerald-300'}`}
+                        title={added ? 'Already listed' : `Add ${l.description}`}>
+                        {added ? '✓' : '+'} {l.description}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
               {draftParts.length === 0 ? (
                 <p className="text-[11px] text-slate-600 italic">No items logged.</p>
               ) : (

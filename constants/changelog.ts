@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-04T00:02:00Z',
+    title: 'After-sales case form: searchable pickers · items from the order',
+    details: [
+      'Customer and Sales Order are now searchable comboboxes (same as the Payment pickers) — type to find, instead of scrolling a 489-entry dropdown.',
+      'When a sales order is selected, its own line items appear as one-click chips under Items Involved — click to log the exact item that came back, already linked to the catalog. Free search stays for anything else.',
+    ],
+  },
+  {
     at: '2026-08-03T23:53:00Z',
     title: 'PDF upload lives in the form headers',
     details: [
