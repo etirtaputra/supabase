@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-04T10:03:00Z',
+    title: 'Quote + PO reaches full PO parity',
+    details: [
+      'The violet PO section gains Incoterms, Ship Via, Freight and PO Terms (terms prefilled from Settings) — everything the old PO form asked for now lives in the one combined form.',
+      'Picking a Stored Quote shows its line items immediately in a violet panel — you see exactly what will carry onto the PO before saving, no Import click needed.',
+      'Mode-switch safety: a quote-only save now strips any PO fields lingering in the shared draft.',
+    ],
+  },
+  {
     at: '2026-08-04T03:57:00Z',
     title: 'Stored quote → PO, inside the same form',
     details: [

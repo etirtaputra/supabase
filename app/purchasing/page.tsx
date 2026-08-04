@@ -30,7 +30,7 @@ import { ENUMS } from '@/constants/enums';
 import { getLatestExchangeRate, deriveExchangeRates } from '@/lib/exchangeRates';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
-import { fmtIdr } from '@/lib/formatters';
+import { fmtIdr, fmtInt } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
 import type { Tab, MenuItem } from '@/types/forms';
 
@@ -293,10 +293,17 @@ function MasterInsertPage() {
     try { localStorage.setItem('purchasing:quote-mode', combo ? 'combo' : 'quote'); } catch {}
   };
   const [comboPo, setComboPo] = useState<{ quoteId: string; poId: string } | null>(null);
+  // Mirrors the form's Stored Quote selection so the page can SHOW the items
+  // that will carry onto the PO before anything is saved.
+  const [storedQuoteSel, setStoredQuoteSel] = useState('');
 
   const submitQuoteHeader = async (d: any) => {
-    if (!withPo) { await handleInsert('4.0_price_quotes', d); return; }
-    const { po_number, po_date, exchange_rate, existing_quote_id, ...quote } = d;
+    // PO-only keys may linger in the shared draft after a mode switch — a
+    // quote-only save must never try to write them into 4.0.
+    const { po_number, po_date, exchange_rate, existing_quote_id,
+            incoterms, method_of_shipment, freight_charges_intl, payment_terms: poTerms,
+            ...quote } = d;
+    if (!withPo) { await handleInsert('4.0_price_quotes', quote); return; }
     // Straight from PI to PO: ordering against the quote IS accepting it
     quote.status = 'Accepted';
     let q: any = null;
@@ -327,7 +334,10 @@ function MasterInsertPage() {
       po_number, po_date: po_date || quote.quote_date,
       currency: quote.currency, exchange_rate: rate,
       total_value: quote.total_value, status: 'Confirmed',
-      payment_terms: settings.defaultPoPaymentTerms || null,
+      incoterms: incoterms || null,
+      method_of_shipment: method_of_shipment || null,
+      freight_charges_intl: freight_charges_intl || null,
+      payment_terms: poTerms || settings.defaultPoPaymentTerms || null,
       document_url: quote.document_url || null,
     });
     if (poRows?.[0]) {
@@ -341,6 +351,7 @@ function MasterInsertPage() {
         })));
       }
       setComboPo({ quoteId: String(q.quote_id), poId });
+      setStoredQuoteSel('');
       setLastSaved(existing_quote_id
         ? { message: `PO ${po_number} raised from the stored quote — ${copiedItems.length} item${copiedItems.length !== 1 ? 's' : ''} carried across.`, cta: 'Log payment →', nextTab: 'financials', poId }
         : { message: `Quote + PO ${po_number} saved — items entered below go onto both.`, cta: 'Log payment →', nextTab: 'financials', poId });
@@ -726,6 +737,7 @@ function MasterInsertPage() {
                     </div>
                   )}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 items-start">
+                    <div className="space-y-4 min-w-0">
                     <SimpleForm
                       title={withPo ? 'Step 1: Quote + PO Header' : 'Step 1: Quote Header'}
                       storageKey="Step 1: Quote Header"
@@ -736,6 +748,7 @@ function MasterInsertPage() {
                         // prefilled; PO date jumps to today (the processing date);
                         // only PO # is left to type. Items copy across at save.
                         if (name === 'existing_quote_id') {
+                          setStoredQuoteSel(value ? String(value) : '');
                           if (value) {
                             const src = data.quotes.find((x) => String(x.quote_id) === String(value));
                             if (src) {
@@ -781,6 +794,10 @@ function MasterInsertPage() {
                           { name: 'po_number', label: 'PO #', type: 'text' as const, req: true, suggestions: suggestions.poNumbers, default: pdfData?.po_number, accent: true },
                           { name: 'po_date', label: 'PO Date (empty = same as PI date)', type: 'date' as const, accent: true },
                           { name: 'exchange_rate', label: 'Exch Rate (est. — auto if empty, IDR ignores)', type: 'number' as const, accent: true },
+                          { name: 'incoterms', label: 'Incoterms', type: 'text' as const, suggestions: ['FOB', 'EXW', 'CIF', 'DDP', ...suggestions.incoterms], accent: true },
+                          { name: 'method_of_shipment', label: 'Ship Via', type: 'select' as const, options: ENUMS.method_of_shipment, accent: true },
+                          { name: 'freight_charges_intl', label: 'Freight', type: 'number' as const, accent: true },
+                          { name: 'payment_terms', label: 'PO Terms', type: 'text' as const, suggestions: suggestions.paymentTerms, default: settings.defaultPoPaymentTerms, accent: true },
                         ] : []),
                         { name: 'estimated_lead_time_days', label: 'Lead Time', type: 'select', options: ENUMS.lead_time, default: pdfData?.lead_time_days },
                         { name: 'replaces_quote_id', label: 'Replaces', type: 'select', options: options.quotes },
@@ -789,6 +806,37 @@ function MasterInsertPage() {
                       onSubmit={submitQuoteHeader}
                       loading={loading}
                     />
+                    {/* The stored quote's lines, visible BEFORE saving — these are
+                        what lands on the PO. Parity with the old PO form's
+                        "Import Quote Items", minus the extra click. */}
+                    {withPo && storedQuoteSel && (() => {
+                      const its = data.quoteItems.filter((qi) => String(qi.quote_id) === String(storedQuoteSel));
+                      return (
+                        <div className="bg-slate-900/40 border border-violet-500/25 rounded-2xl p-4">
+                          <p className="text-[11px] font-bold uppercase tracking-wider text-violet-300/80 mb-2">
+                            Items carried onto the PO{its.length ? ` (${its.length})` : ''}
+                          </p>
+                          {its.length === 0 ? (
+                            <p className="text-xs text-slate-600 italic">The stored quote has no line items yet — add them in Step 2 and they will land on both documents.</p>
+                          ) : (
+                            <div className="divide-y divide-slate-800/60 rounded-lg border border-slate-800 bg-slate-950/50">
+                              {its.map((qi: any, i: number) => {
+                                const comp = data.components.find((c) => String(c.component_id) === String(qi.component_id));
+                                return (
+                                  <div key={i} className="flex items-center gap-3 px-3 py-1.5 text-[11px]">
+                                    <span className="text-slate-500 tabular-nums w-10 text-right flex-shrink-0">{fmtInt(Number(qi.quantity) || 0)}×</span>
+                                    <span className="text-slate-300 truncate flex-1">{qi.supplier_description || comp?.supplier_model || comp?.internal_description || '—'}</span>
+                                    <span className="text-slate-400 tabular-nums flex-shrink-0">@ {fmtInt(Number(qi.unit_price) || 0)} {qi.currency}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                          <p className="text-[10px] text-slate-600 mt-2">Copied to the PO on save (price → cost). Ordering different items? Amend the PO lines in Deal Lookup after saving.</p>
+                        </div>
+                      );
+                    })()}
+                    </div>
                     <BatchLineItemsForm
                       title={withPo ? 'Step 2: Quote + PO Items' : 'Step 2: Quote Items'}
                       storageKey="Step 2: Quote Items"
