@@ -970,6 +970,39 @@ per-invoice issued→paid dates; tsc + build green.
   UI labels, nav ("EPC Proposals"), Spotlight, the customer-facing print
   header, and the routes (now `/proposals`, with permanent redirects from
   `/quotes`) all say Proposal; tables and Q- numbers unchanged.
+- **New Deal** (decided 2026-08-04, owner's pick) = the future combined
+  buy-side entry form replacing the separate Supplier Quotes and Purchase
+  Orders tabs. "Deal" is the vocabulary Deal Lookup already established
+  (a deal = PI → PO → payments); New Deal records one, Deal Lookup finds
+  one. See the Module kickoff spec below.
+
+## Module — New Deal: single-form buy-side entry (kickoff spec)
+
+Owner direction (2026-08-04): *"Our goal is to combine the quote and not
+separate Quote and PO forms separately… I like minimalist… I like New Deal."*
+Build in its own thread. What exists already (shipped on the old two-card
+layout, must carry over):
+
+- **Mode selector, preselected & persisted** (`purchasing:quote-mode` in
+  localStorage): **Quote only** = store a price quote, never touch a PO;
+  **Quote + PO** = straight PI → PO — quote auto-`Accepted` (no Status
+  field), PO `Confirmed`, `pi_status` Accepted, PO date defaults to PI
+  date, exchange rate derived from payment-implied history when blank.
+- **Violet = PO**: `FieldConfig.accent` renders violet border/label for
+  fields that belong to the PO; shared fields stay standard. Keep this
+  convention in the single form.
+- **Items typed once land on both** documents (quote `unit_price` → PO
+  `unit_cost`); a PO that already has lines is never overwritten; in
+  Quote-only mode no PO is ever written.
+- One PDF upload should prefill the WHOLE form (header + items) — the
+  extraction already returns both.
+
+The rebuild itself: one document-shaped form (header on top, line rows
+below, one save — mirror the sales editor's structure, not
+SimpleForm+BatchLineItemsForm), tab renamed **New Deal**, Purchase
+Orders tab retires (amendments live in Deal Lookup), nav/Spotlight keeps
+old keywords (`supplier quotes`, `PI`, `PO`, `purchase order`) pointing
+at New Deal so muscle memory survives.
 
 ## Conventions to keep every module consistent
 
