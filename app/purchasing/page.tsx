@@ -296,6 +296,10 @@ function MasterInsertPage() {
   // Set by "Raise its PO →" / Deal Lookup's "+ Create PO": preselects the
   // stored quote in the form and prefills the shared header via defaults.
   const [pendingStoredQuote, setPendingStoredQuote] = useState('');
+  // The stored quote's lines, EDITABLE before the PO exists: untick, change
+  // qty or cost — the PO gets exactly what this list shows. The quote itself
+  // is history and is never rewritten.
+  const [carriedItems, setCarriedItems] = useState<{ component_id: any; label: string; supplier_description: string | null; quantity: string; unit_cost: string; currency: string; include: boolean }[]>([]);
   const startPoForQuote = (quoteId: string) => {
     if (activeTab !== 'quoting') handleTabChange('quoting');   // clears banners first
     setQuoteMode(true);
@@ -307,6 +311,22 @@ function MasterInsertPage() {
       ? `⚠️ This quote is already linked to PO ${existingPO.po_number}${existingPO.pi_number ? ` / ${existingPO.pi_number}` : ''} (${existingPO.po_date}). Creating another PO may be a duplicate.`
       : null);
   };
+
+  useEffect(() => {
+    if (!storedQuoteSel) { setCarriedItems([]); return; }
+    const its = data.quoteItems.filter((qi) => String(qi.quote_id) === String(storedQuoteSel));
+    setCarriedItems(its.map((qi) => {
+      const comp = data.components.find((c) => String(c.component_id) === String(qi.component_id));
+      return {
+        component_id: qi.component_id,
+        label: qi.supplier_description || comp?.supplier_model || comp?.internal_description || '—',
+        supplier_description: qi.supplier_description ?? null,
+        quantity: String(qi.quantity ?? ''), unit_cost: String(qi.unit_price ?? ''),
+        currency: qi.currency, include: true,
+      };
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storedQuoteSel, data.quoteItems]);
 
   // Shared header values of the pending stored quote — SimpleForm fills them
   // into empty fields as defaults, so the whole header arrives pre-typed.
@@ -339,7 +359,12 @@ function MasterInsertPage() {
       q = data.quotes.find((x) => String(x.quote_id) === String(existing_quote_id));
       if (!q) { showToast('Stored quote not found — refresh and retry.', 'error'); return; }
       await supabase.from('4.0_price_quotes').update({ status: 'Accepted' }).eq('quote_id', q.quote_id);
-      copiedItems = data.quoteItems.filter((qi) => String(qi.quote_id) === String(q.quote_id));
+      copiedItems = carriedItems
+        .filter((ci) => ci.include && Number(ci.quantity) > 0)
+        .map((ci) => ({
+          component_id: ci.component_id, supplier_description: ci.supplier_description,
+          quantity: Number(ci.quantity), unit_price: Number(ci.unit_cost) || 0, currency: ci.currency,
+        }));
     } else {
       const qRows = await handleInsert('4.0_price_quotes', quote);
       q = qRows?.[0];
@@ -829,33 +854,38 @@ function MasterInsertPage() {
                     {/* The stored quote's lines, visible BEFORE saving — these are
                         what lands on the PO. Parity with the old PO form's
                         "Import Quote Items", minus the extra click. */}
-                    {withPo && storedQuoteSel && (() => {
-                      const its = data.quoteItems.filter((qi) => String(qi.quote_id) === String(storedQuoteSel));
-                      return (
-                        <div className="bg-slate-900/40 border border-violet-500/25 rounded-2xl p-4">
-                          <p className="text-[11px] font-bold uppercase tracking-wider text-violet-300/80 mb-2">
-                            Items carried onto the PO{its.length ? ` (${its.length})` : ''}
-                          </p>
-                          {its.length === 0 ? (
-                            <p className="text-xs text-slate-600 italic">The stored quote has no line items yet — add them in Step 2 and they will land on both documents.</p>
-                          ) : (
-                            <div className="divide-y divide-slate-800/60 rounded-lg border border-slate-800 bg-slate-950/50">
-                              {its.map((qi: any, i: number) => {
-                                const comp = data.components.find((c) => String(c.component_id) === String(qi.component_id));
-                                return (
-                                  <div key={i} className="flex items-center gap-3 px-3 py-1.5 text-[11px]">
-                                    <span className="text-slate-500 tabular-nums w-10 text-right flex-shrink-0">{fmtInt(Number(qi.quantity) || 0)}×</span>
-                                    <span className="text-slate-300 truncate flex-1">{qi.supplier_description || comp?.supplier_model || comp?.internal_description || '—'}</span>
-                                    <span className="text-slate-400 tabular-nums flex-shrink-0">@ {fmtInt(Number(qi.unit_price) || 0)} {qi.currency}</span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                          <p className="text-[10px] text-slate-600 mt-2">Copied to the PO on save (price → cost). Ordering different items? Amend the PO lines in Deal Lookup after saving.</p>
-                        </div>
-                      );
-                    })()}
+                    {withPo && storedQuoteSel && (
+                      <div className="bg-slate-900/40 border border-violet-500/25 rounded-2xl p-4">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-violet-300/80 mb-2">
+                          Items going onto the PO ({carriedItems.filter((ci) => ci.include).length}/{carriedItems.length})
+                        </p>
+                        {carriedItems.length === 0 ? (
+                          <p className="text-xs text-slate-600 italic">The stored quote has no line items yet — add them in Step 2 and they will land on both documents.</p>
+                        ) : (
+                          <div className="divide-y divide-slate-800/60 rounded-lg border border-slate-800 bg-slate-950/50">
+                            {carriedItems.map((ci, i) => (
+                              <div key={i} className={`flex items-center gap-2.5 px-3 py-1.5 text-[11px] ${ci.include ? '' : 'opacity-40'}`}>
+                                <button type="button" title={ci.include ? 'Exclude from the PO' : 'Include on the PO'}
+                                  onClick={() => setCarriedItems((arr) => arr.map((x, j) => j === i ? { ...x, include: !x.include } : x))}
+                                  className={`w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border transition-colors ${ci.include ? 'bg-violet-600 border-violet-500' : 'border-slate-600'}`}>
+                                  {ci.include && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                                </button>
+                                <span className="text-slate-300 truncate flex-1">{ci.label}</span>
+                                <input type="number" min={0} value={ci.quantity} disabled={!ci.include} title="Quantity on the PO"
+                                  onChange={(e) => setCarriedItems((arr) => arr.map((x, j) => j === i ? { ...x, quantity: e.target.value } : x))}
+                                  className="w-16 px-1.5 py-1 rounded bg-slate-950 border border-slate-700 text-right tabular-nums text-white focus:outline-none focus:border-violet-500 disabled:cursor-not-allowed" />
+                                <span className="text-slate-600">×</span>
+                                <input type="number" min={0} value={ci.unit_cost} disabled={!ci.include} title="Unit cost on the PO"
+                                  onChange={(e) => setCarriedItems((arr) => arr.map((x, j) => j === i ? { ...x, unit_cost: e.target.value } : x))}
+                                  className="w-24 px-1.5 py-1 rounded bg-slate-950 border border-slate-700 text-right tabular-nums text-white focus:outline-none focus:border-violet-500 disabled:cursor-not-allowed" />
+                                <span className="text-slate-500 w-8 flex-shrink-0">{ci.currency}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <p className="text-[10px] text-slate-600 mt-2">Untick a line or adjust qty / cost — the PO gets exactly what is shown here when you save. The stored quote itself is never changed.</p>
+                      </div>
+                    )}
                     </div>
                     <BatchLineItemsForm
                       title={withPo ? 'Step 2: Quote + PO Items' : 'Step 2: Quote Items'}

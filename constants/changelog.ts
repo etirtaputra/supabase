@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-04T10:20:00Z',
+    title: 'Stored quote → PO: carried items are editable before saving',
+    details: [
+      'The carried-items panel is no longer read-only: untick lines, change quantities or unit costs right there — the PO receives exactly what the panel shows when you save. Partial orders and renegotiated prices no longer detour through Deal Lookup.',
+      'The stored quote itself is never rewritten — it stays the record of what the supplier offered.',
+    ],
+  },
+  {
     at: '2026-08-04T10:14:00Z',
     title: 'Comparables: link many at once · successors show direction',
     details: [
