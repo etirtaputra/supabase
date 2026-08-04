@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-04T01:06:00Z',
+    title: 'After Sales: New Case moves left, ghost-styled',
+    details: [
+      'The New Case button left the header’s far corner for the start of the toolbar, restyled as a slim outlined button matching the rest of the design.',
+    ],
+  },
+  {
     at: '2026-08-04T01:04:00Z',
     title: 'After-sales cases expand into a warranty overview',
     details: [

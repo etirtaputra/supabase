@@ -302,12 +302,6 @@ export default function AfterSalesPage() {
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1400px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-4">
           <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="After Sales · Service & warranty cases" />
-          {canEdit && (
-            <button onClick={() => openEditor('new')}
-              className="self-start sm:self-auto px-3.5 py-2 rounded-xl bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 text-xs font-semibold whitespace-nowrap transition-colors">
-              + New Case
-            </button>
-          )}
         </div>
       </div>
 
@@ -316,6 +310,14 @@ export default function AfterSalesPage() {
 
         {/* ── Filters ── */}
         <div className="flex flex-wrap items-center gap-2">
+          {/* Leftmost: the primary action, ghost-styled like the rest of the toolbar */}
+          {canEdit && (
+            <button onClick={() => openEditor('new')}
+              className="flex items-center gap-1.5 px-3 h-10 rounded-xl border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 text-xs font-semibold whitespace-nowrap transition-colors flex-shrink-0">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+              New Case
+            </button>
+          )}
           <div className="relative flex-1 min-w-[180px]">
             <svg className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search case, customer, order, item…"
