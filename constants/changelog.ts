@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-04T22:48:00Z',
+    title: 'Description library: the Duplicates view explains itself',
+    details: [
+      'The Duplicates filter now opens with a plain-language explainer: what a near-duplicate is, what clicking “~N similar · merge” does (unify the spelling everywhere, histories join, prices never change), and when to leave rows alone.',
+    ],
+  },
+  {
     at: '2026-08-04T10:20:00Z',
     title: 'Stored quote → PO: carried items are editable before saving',
     details: [

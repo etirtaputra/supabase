@@ -704,6 +704,20 @@ export default function DescriptionLibraryPage() {
           ))}
         </div>
 
+        {/* The Duplicates view needs a sentence of instruction — badges alone
+            don't say what clicking them does or that merging is safe. */}
+        {filter === 'dups' && !loading && visible.length > 0 && (
+          <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-500/5 border border-amber-500/25 text-xs leading-relaxed">
+            <span className="text-amber-400 flex-shrink-0 mt-0.5">⚠</span>
+            <p className="text-slate-400">
+              These descriptions are spelled <span className="text-slate-200 font-semibold">almost the same</span> in different proposals
+              (e.g. “Kabel NYA 4mm2” vs “KMI Kabel NYA 4 mm²”) — so their price histories are split across spellings.
+              Click an <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 font-semibold whitespace-nowrap">~N similar · merge</span> badge,
+              pick which spelling wins, and every proposal line and its history is rewritten to that one spelling.
+              Quantities and prices never change — only the text unifies. Rows that are genuinely different items (4 mm² vs 6 mm²) should simply be left alone.
+            </p>
+          </div>
+        )}
         {loading ? (
           <div className="flex items-center justify-center h-48 text-slate-500">Loading…</div>
         ) : visible.length === 0 ? (
