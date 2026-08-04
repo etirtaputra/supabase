@@ -179,8 +179,7 @@ export default function Home() {
                   { href: '/customers',  label: 'Customers',           accent: 'emerald' },
                 ] : []),
                 ...(perms?.buySide ? [
-                  { href: '/purchasing?tab=quoting',    label: 'Enter Supplier Quote / PI', accent: 'blue' },
-                  { href: '/purchasing?tab=ordering',   label: 'Create Purchase Order',      accent: 'amber' },
+                  { href: '/purchasing?tab=quoting',    label: 'New Deal — PI / PO',        accent: 'blue' },
                   { href: '/purchasing?tab=financials', label: 'Log Payment',                accent: 'rose' },
                 ] : []),
                 ...(perms?.projects ? [

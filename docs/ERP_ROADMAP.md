@@ -997,12 +997,18 @@ layout, must carry over):
 - One PDF upload should prefill the WHOLE form (header + items) — the
   extraction already returns both.
 
-The rebuild itself: one document-shaped form (header on top, line rows
-below, one save — mirror the sales editor's structure, not
-SimpleForm+BatchLineItemsForm), tab renamed **New Deal**, Purchase
-Orders tab retires (amendments live in Deal Lookup), nav/Spotlight keeps
-old keywords (`supplier quotes`, `PI`, `PO`, `purchase order`) pointing
-at New Deal so muscle memory survives.
+**SHIPPED 2026-08-04 (v1):** tab renamed **New Deal**, Purchase Orders
+tab retired — `?tab=ordering` links redirect to New Deal, Deal Lookup's
+"+ Create PO" and the post-save "Raise its PO →" banner both preselect
+the stored quote in the form (header prefilled, PO date = today, items
+panel visible), nav/Spotlight keeps the old keywords. The violet PO
+section carries full PO-form parity (incoterms, ship via, freight,
+terms). PO line amendments live in Deal Lookup.
+
+Still open for the rebuild: one document-shaped form (header + line rows
+in a single card, one save — mirror the sales editor's structure instead
+of SimpleForm + BatchLineItemsForm) with one PDF upload prefilling the
+whole thing.
 
 **Quote today, PO later — SHIPPED in v1 form (2026-08-04):** the
 combined form's Quote + PO mode carries a **Stored Quote** selector —

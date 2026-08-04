@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-04T10:09:00Z',
+    title: 'New Deal — the Purchase Orders tab retires',
+    details: [
+      'Supplier Quotes is now NEW DEAL: one form for every buy-side entry — a price quote alone, PI + PO in one save, or raising the PO for a stored quote.',
+      'The Purchase Orders tab is gone. Old links land on New Deal; Deal Lookup’s “+ Create PO” and the “Raise its PO →” banner open the form with the stored quote preselected and the header prefilled — type the PO number, save.',
+      'Searching “purchase order”, “supplier quotes” or “PI” in Spotlight still finds it. PO line amendments live in Deal Lookup.',
+    ],
+  },
+  {
     at: '2026-08-04T10:03:00Z',
     title: 'Quote + PO reaches full PO parity',
     details: [

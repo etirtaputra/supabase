@@ -61,12 +61,12 @@ export const DESTINATIONS: Destination[] = [
   { href: '/purchasing?tab=lookup', label: 'Deal Lookup', group: 'Buy', section: 'buySide', inNav: false,
     hint: 'Every PI → PO → payment as one deal',
     keywords: 'deals pi po payments history search catalog' },
-  { href: '/purchasing?tab=quoting', label: 'Supplier Quotes', group: 'Buy', section: 'buySide', inNav: false,
-    hint: 'Record a supplier quote / proforma invoice',
-    keywords: 'pi proforma quote entry new catalog' },
-  { href: '/purchasing?tab=ordering', label: 'Purchase Orders', group: 'Buy', section: 'buySide', inNav: false,
-    hint: 'Raise a PO against a supplier quote',
-    keywords: 'po purchase order new raise catalog' },
+  // Supplier Quotes + Purchase Orders merged into ONE entry form (2026-08-04):
+  // record a PI, or PI + PO in one save, or raise the PO for a stored quote.
+  // Old names stay as keywords so Spotlight muscle memory keeps working.
+  { href: '/purchasing?tab=quoting', label: 'New Deal', group: 'Buy', section: 'buySide', inNav: false,
+    hint: 'Record a supplier quote / PI — alone or straight to its PO',
+    keywords: 'pi proforma quote entry new catalog supplier quotes po purchase order raise deal' },
   { href: '/suppliers', label: 'Suppliers', group: 'Buy', section: 'buySide', inNav: true,
     hint: 'Vendor profiles, purchase volume, outstanding payables',
     keywords: 'vendors payables' },

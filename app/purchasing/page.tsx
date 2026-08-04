@@ -16,7 +16,6 @@ import MobileNotice from '@/components/ui/MobileNotice';
 import CompetitorPriceForm from '@/components/forms/CompetitorPriceForm';
 import MultiPaymentForm from '@/components/forms/MultiPaymentForm';
 import DealLookupTab from '@/components/ui/DealLookupTab';
-import ExchangeRateSuggestion from '@/components/ui/ExchangeRateSuggestion';
 import { ToastContainer } from '@/components/ui/Toast';
 import { ToastProvider } from '@/hooks/useToast';
 import { FormSkeleton } from '@/components/ui/LoadingSkeleton';
@@ -38,12 +37,9 @@ const MENU_ITEMS: MenuItem[] = [
   { id: 'catalog', label: 'Items', icon: '🗂️',
     color: 'text-slate-400 hover:text-sky-300 hover:bg-slate-800/50',
     activeColor: 'bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30' },
-  { id: 'quoting', label: 'Supplier Quotes', icon: '📝',
+  { id: 'quoting', label: 'New Deal', icon: '📝',
     color: 'text-slate-400 hover:text-blue-300 hover:bg-slate-800/50',
     activeColor: 'bg-blue-500/15 text-blue-300 ring-1 ring-blue-500/30' },
-  { id: 'ordering', label: 'Purchase Orders', icon: '📦',
-    color: 'text-slate-400 hover:text-violet-300 hover:bg-slate-800/50',
-    activeColor: 'bg-violet-500/15 text-violet-300 ring-1 ring-violet-500/30' },
   { id: 'financials', label: 'Payments', icon: '💰',
     color: 'text-slate-400 hover:text-rose-300 hover:bg-slate-800/50',
     activeColor: 'bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30' },
@@ -59,7 +55,9 @@ function MasterInsertPage() {
   const supabase = createSupabaseClient();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialTab = (searchParams.get('tab') as Tab) || 'catalog';
+  const rawTab = (searchParams.get('tab') as Tab) || 'catalog';
+  // The Purchase Orders tab retired into New Deal (2026-08-04) — old links follow
+  const initialTab = (rawTab as string) === 'ordering' ? ('quoting' as Tab) : rawTab;
   const initialLookupQ = searchParams.get('q') ?? '';
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
 
@@ -85,10 +83,8 @@ function MasterInsertPage() {
   const [lastSaved, setLastSaved] = useState<{ message: string; cta: string; nextTab: Tab; quoteId?: string; poId?: string } | null>(null);
   const [pdfUploading, setPdfUploading] = useState(false);
   const [dupWarning, setDupWarning] = useState<string | null>(null);
-  const [orderingPoId, setOrderingPoId] = useState('');
   const [newQuoteId, setNewQuoteId] = useState('');
   const [newPoId, setNewPoId] = useState('');
-  const [pendingQuoteForPO, setPendingQuoteForPO] = useState('');
 
   const { user, profile, loading: authLoading } = useAuth();
   const settings = useSettings();
@@ -115,7 +111,8 @@ function MasterInsertPage() {
 
   // Nav links (BrandMenu's Buy menu) change ?tab= directly — adopt it
   useEffect(() => {
-    const t = (searchParams.get('tab') as Tab) || 'catalog';
+    const raw = (searchParams.get('tab') as Tab) || 'catalog';
+    const t = (raw as string) === 'ordering' ? ('quoting' as Tab) : raw;
     setActiveTab((cur) => (cur === t ? cur : t));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
@@ -269,7 +266,7 @@ function MasterInsertPage() {
       const qId = String(insertedRows[0].quote_id);
       setNewQuoteId(qId);
       setQuoteItemsCurrency(insertedRows[0].currency || '');
-      setLastSaved({ message: 'Quote saved!', cta: 'Create PO →', nextTab: 'ordering', quoteId: qId });
+      setLastSaved({ message: 'Quote saved!', cta: 'Raise its PO →', nextTab: 'quoting', quoteId: qId });
     } else if (table === '5.0_purchases' && insertedRows?.[0]) {
       const pId = String(insertedRows[0].po_id);
       setNewPoId(pId);
@@ -296,6 +293,33 @@ function MasterInsertPage() {
   // Mirrors the form's Stored Quote selection so the page can SHOW the items
   // that will carry onto the PO before anything is saved.
   const [storedQuoteSel, setStoredQuoteSel] = useState('');
+  // Set by "Raise its PO →" / Deal Lookup's "+ Create PO": preselects the
+  // stored quote in the form and prefills the shared header via defaults.
+  const [pendingStoredQuote, setPendingStoredQuote] = useState('');
+  const startPoForQuote = (quoteId: string) => {
+    if (activeTab !== 'quoting') handleTabChange('quoting');   // clears banners first
+    setQuoteMode(true);
+    setPendingStoredQuote(quoteId);
+    setStoredQuoteSel(quoteId);
+    setLastSaved(null);
+    const existingPO = data.pos.find((p) => p.quote_id && String(p.quote_id) === String(quoteId));
+    setDupWarning(existingPO
+      ? `⚠️ This quote is already linked to PO ${existingPO.po_number}${existingPO.pi_number ? ` / ${existingPO.pi_number}` : ''} (${existingPO.po_date}). Creating another PO may be a duplicate.`
+      : null);
+  };
+
+  // Shared header values of the pending stored quote — SimpleForm fills them
+  // into empty fields as defaults, so the whole header arrives pre-typed.
+  const storedDefaults = useMemo(() => {
+    if (!pendingStoredQuote) return null;
+    const q = data.quotes.find((x) => String(x.quote_id) === String(pendingStoredQuote));
+    if (!q) return null;
+    return {
+      supplier_id: q.supplier_id, company_id: q.company_id, quote_date: q.quote_date,
+      pi_number: q.pi_number, currency: q.currency, total_value: q.total_value,
+      po_date: new Date().toISOString().split('T')[0],
+    };
+  }, [pendingStoredQuote, data.quotes]);
 
   const submitQuoteHeader = async (d: any) => {
     // PO-only keys may linger in the shared draft after a mode switch — a
@@ -352,6 +376,7 @@ function MasterInsertPage() {
       }
       setComboPo({ quoteId: String(q.quote_id), poId });
       setStoredQuoteSel('');
+      setPendingStoredQuote('');
       setLastSaved(existing_quote_id
         ? { message: `PO ${po_number} raised from the stored quote — ${copiedItems.length} item${copiedItems.length !== 1 ? 's' : ''} carried across.`, cta: 'Log payment →', nextTab: 'financials', poId }
         : { message: `Quote + PO ${po_number} saved — items entered below go onto both.`, cta: 'Log payment →', nextTab: 'financials', poId });
@@ -566,11 +591,6 @@ function MasterInsertPage() {
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
       </svg>
     ),
-    ordering: (
-      <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-      </svg>
-    ),
     financials: (
       <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
         <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
@@ -708,7 +728,7 @@ function MasterInsertPage() {
                   {lastSaved && (
                     <div className="mb-4 flex items-center gap-3 px-4 py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
                       <span className="text-emerald-400 text-sm font-semibold">{lastSaved.message}</span>
-                      <button onClick={() => { if (lastSaved.quoteId) setPendingQuoteForPO(lastSaved.quoteId); if (lastSaved.poId) setSinglePoId(lastSaved.poId); handleTabChange(lastSaved.nextTab); }} className="ml-auto px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-colors">{lastSaved.cta}</button>
+                      <button onClick={() => { if (lastSaved.quoteId) { startPoForQuote(lastSaved.quoteId); } else { if (lastSaved.poId) setSinglePoId(lastSaved.poId); handleTabChange(lastSaved.nextTab); } }} className="ml-auto px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-colors">{lastSaved.cta}</button>
                       <button onClick={() => setLastSaved(null)} className="text-slate-500 hover:text-slate-300 text-sm leading-none">✕</button>
                     </div>
                   )}
@@ -774,14 +794,14 @@ function MasterInsertPage() {
                         // Quote + PO only: process the PO for a quote stored earlier —
                         // no separate PO form, no re-entry.
                         ...(withPo ? [
-                          { name: 'existing_quote_id', label: 'Stored Quote (raise its PO — empty = new PI)', type: 'select' as const, options: options.quotes },
+                          { name: 'existing_quote_id', label: 'Stored Quote (raise its PO — empty = new PI)', type: 'select' as const, options: options.quotes, default: pendingStoredQuote || undefined },
                         ] : []),
-                        { name: 'supplier_id', label: 'Supplier', type: 'rich-select', options: data.suppliers, config: { labelKey: 'supplier_name', valueKey: 'supplier_id', subLabelKey: 'location' }, req: true, default: pdfDefaults.supplier_id },
-                        { name: 'company_id', label: 'Addressed To', type: 'select', options: options.companies, req: true, default: pdfDefaults.company_id },
-                        { name: 'quote_date', label: 'Date', type: 'date', req: true, default: pdfData?.quote_date || pdfData?.pi_date || new Date().toISOString().split('T')[0] },
-                        { name: 'pi_number', label: 'Quote Ref', type: 'text', suggestions: suggestions.quoteNumbers, default: pdfData?.quote_number || pdfData?.pi_number },
-                        { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true, default: pdfData?.currency },
-                        { name: 'total_value', label: 'Total Value', type: 'number', default: pdfData?.total_value },
+                        { name: 'supplier_id', label: 'Supplier', type: 'rich-select', options: data.suppliers, config: { labelKey: 'supplier_name', valueKey: 'supplier_id', subLabelKey: 'location' }, req: true, default: storedDefaults?.supplier_id ?? pdfDefaults.supplier_id },
+                        { name: 'company_id', label: 'Addressed To', type: 'select', options: options.companies, req: true, default: storedDefaults?.company_id ?? pdfDefaults.company_id },
+                        { name: 'quote_date', label: 'Date', type: 'date', req: true, default: storedDefaults?.quote_date || pdfData?.quote_date || pdfData?.pi_date || new Date().toISOString().split('T')[0] },
+                        { name: 'pi_number', label: 'Quote Ref', type: 'text', suggestions: suggestions.quoteNumbers, default: storedDefaults?.pi_number || pdfData?.quote_number || pdfData?.pi_number },
+                        { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true, default: storedDefaults?.currency ?? pdfData?.currency },
+                        { name: 'total_value', label: 'Total Value', type: 'number', default: storedDefaults?.total_value ?? pdfData?.total_value },
                         // Quote-only stores an OPEN price quote; Quote + PO goes
                         // straight from PI to PO, so the quote lands as Accepted
                         // automatically and the Status field disappears entirely.
@@ -792,7 +812,7 @@ function MasterInsertPage() {
                         // is shared. Violet border = belongs to the PO.
                         ...(withPo ? [
                           { name: 'po_number', label: 'PO #', type: 'text' as const, req: true, suggestions: suggestions.poNumbers, default: pdfData?.po_number, accent: true },
-                          { name: 'po_date', label: 'PO Date (empty = same as PI date)', type: 'date' as const, accent: true },
+                          { name: 'po_date', label: 'PO Date (empty = same as PI date)', type: 'date' as const, default: storedDefaults?.po_date, accent: true },
                           { name: 'exchange_rate', label: 'Exch Rate (est. — auto if empty, IDR ignores)', type: 'number' as const, accent: true },
                           { name: 'incoterms', label: 'Incoterms', type: 'text' as const, suggestions: ['FOB', 'EXW', 'CIF', 'DDP', ...suggestions.incoterms], accent: true },
                           { name: 'method_of_shipment', label: 'Ship Via', type: 'select' as const, options: ENUMS.method_of_shipment, accent: true },
@@ -885,226 +905,6 @@ function MasterInsertPage() {
                       }}
                       loading={loading}
                     />
-                  </div>
-                </>
-              )}
-
-              {/* Ordering Tab */}
-              {activeTab === 'ordering' && (
-                <>
-                  {/* What's next banner */}
-                  {lastSaved && (
-                    <div className="mb-4 flex items-center gap-3 px-4 py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-                      <span className="text-emerald-400 text-sm font-semibold">{lastSaved.message}</span>
-                      <button onClick={() => { if (lastSaved.quoteId) setPendingQuoteForPO(lastSaved.quoteId); if (lastSaved.poId) setSinglePoId(lastSaved.poId); handleTabChange(lastSaved.nextTab); }} className="ml-auto px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-colors">{lastSaved.cta}</button>
-                      <button onClick={() => setLastSaved(null)} className="text-slate-500 hover:text-slate-300 text-sm leading-none">✕</button>
-                    </div>
-                  )}
-                  {dupWarning && (
-                    <div className="mb-4 flex items-start gap-3 px-4 py-3 bg-amber-500/10 border border-amber-500/30 rounded-xl">
-                      <span className="text-amber-400 text-sm flex-shrink-0 mt-0.5">⚠️</span>
-                      <span className="text-amber-300 text-xs leading-relaxed">{dupWarning.replace('⚠️ ', '')}</span>
-                      <button onClick={() => setDupWarning(null)} className="ml-auto text-slate-500 hover:text-slate-300 text-sm leading-none flex-shrink-0">✕</button>
-                    </div>
-                  )}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 items-start">
-                    <SimpleForm
-                      key={`po-form-${pendingQuoteForPO}`}
-                      title="1. Purchase Order (with PI fields)"
-                      headerAction={pdfHeaderAction('Upload PI/PO PDF', 'AI extracts PI details, PO information, and all line items automatically.')}
-                      onFieldChange={(name, value, current) => {
-                        const overrides: Record<string, any> = {};
-                        // A supplier's most recent PO tells us which currency they
-                        // invoice in — prefill it rather than making the user pick.
-                        const lastPoFor = (supplierId: unknown) => {
-                          if (!supplierId) return null;
-                          const sid = String(supplierId);
-                          return data.pos
-                            .filter((p) => {
-                              const direct = p.supplier_id ? String(p.supplier_id) : null;
-                              const viaQuote = p.quote_id
-                                ? data.quotes.find((q) => String(q.quote_id) === String(p.quote_id))?.supplier_id
-                                : null;
-                              return (direct ?? (viaQuote ? String(viaQuote) : null)) === sid;
-                            })
-                            .sort((a, b) => (b.po_date || '').localeCompare(a.po_date || ''))[0] ?? null;
-                        };
-                        // Exchange rate: the rate actually IMPLIED BY PAYMENTS on
-                        // this supplier's past POs beats any typed estimate. Falls
-                        // back to the last PO's rate when nothing has been paid yet.
-                        const rateFor = (supplierId: unknown, currency: unknown) => {
-                          if (!supplierId || !currency || currency === 'IDR') return undefined;
-                          // Derived LIVE from payments — 9.0_exchange_rate_history
-                          // is a one-off snapshot that stops at its import date.
-                          const liveRates = deriveExchangeRates(data.pos, data.poItems, data.poCosts, data.quotes);
-                          const actual = getLatestExchangeRate(liveRates, String(supplierId), String(currency));
-                          // The derived history contains occasional bad rows (a
-                          // part-payment logged against a full PO value implies an
-                          // absurd rate), so only trust the latest reading when it
-                          // sits near this supplier's average — else use the average.
-                          if (actual?.rate) {
-                            const sane = actual.count > 1 && actual.avg > 0
-                              ? (Math.abs(actual.rate - actual.avg) / actual.avg <= 0.3 ? actual.rate : actual.avg)
-                              : actual.rate;
-                            const lastRate = data.pos
-                              .filter((p) => p.currency === currency && p.exchange_rate)
-                              .sort((a, b) => (b.po_date || '').localeCompare(a.po_date || ''))[0]?.exchange_rate;
-                            // Some POs carry payments belonging to other POs, which
-                            // implies an impossible rate — fall back to the most
-                            // recent typed rate when the two disagree wildly.
-                            const trusted = lastRate && Math.abs(sane - Number(lastRate)) / Number(lastRate) > 0.3
-                              ? Number(lastRate) : sane;
-                            if (trusted > 0) return Math.round(trusted);
-                          }
-                          const lastPo = data.pos
-                            .filter((p) => {
-                              const viaQuote = p.quote_id
-                                ? data.quotes.find((q) => String(q.quote_id) === String(p.quote_id))?.supplier_id
-                                : null;
-                              const sid = p.supplier_id ? String(p.supplier_id) : (viaQuote ? String(viaQuote) : null);
-                              return sid === String(supplierId) && p.currency === currency && p.exchange_rate;
-                            })
-                            .sort((a, b) => (b.po_date || '').localeCompare(a.po_date || ''))[0];
-                          return lastPo?.exchange_rate ? Number(lastPo.exchange_rate) : undefined;
-                        };
-
-                        if (name === 'supplier_id' && value) {
-                          const lastPo = lastPoFor(value);
-                          const ccy = current?.currency || lastPo?.currency;
-                          if (!current?.currency && lastPo?.currency) overrides.currency = lastPo.currency;
-                          const r = rateFor(value, ccy);
-                          if (r !== undefined) overrides.exchange_rate = r;
-                        }
-                        if (name === 'currency' && value) {
-                          const r = rateFor(current?.supplier_id, value);
-                          if (r !== undefined) overrides.exchange_rate = r;
-                          if (value === 'IDR') overrides.exchange_rate = undefined;
-                        }
-                        if (name === 'quote_id') {
-                          if (value) {
-                            const q = data.quotes.find((q) => String(q.quote_id) === String(value));
-                            if (q) {
-                              overrides.pi_number = q.pi_number || '';
-                              overrides.pi_date   = q.quote_date || '';
-                              overrides.total_value = q.total_value || undefined;
-                              overrides.currency = q.currency || undefined;
-                              overrides.supplier_id = q.supplier_id;
-                              overrides.company_id = q.company_id;
-                              // Payment terms stay at the house default
-                              // (Settings › Defaults) — set per-PO when it differs.
-                              const r = rateFor(q.supplier_id, q.currency);
-                              if (r !== undefined) overrides.exchange_rate = r;
-                            }
-                            // Duplicate detection: quote already linked to a PO?
-                            const existingPO = data.pos.find((p) => p.quote_id && String(p.quote_id) === String(value));
-                            setDupWarning(existingPO
-                              ? `⚠️ This quote is already linked to PO ${existingPO.po_number}${existingPO.pi_number ? ` / ${existingPO.pi_number}` : ''} (${existingPO.po_date}). Creating another PO may be a duplicate.`
-                              : null);
-                          } else {
-                            setDupWarning(null);
-                          }
-                        }
-                        if (name === 'pi_number' && value) {
-                          const existingPO = data.pos.find((p) => p.pi_number && p.pi_number.toLowerCase() === String(value).toLowerCase());
-                          if (existingPO) {
-                            setDupWarning(`⚠️ PI# "${value}" is already recorded on PO ${existingPO.po_number} (${existingPO.po_date}). Check before saving.`);
-                          }
-                        }
-                        return overrides;
-                      }}
-                      fields={(() => {
-                        const pq = pendingQuoteForPO ? data.quotes.find((q) => String(q.quote_id) === pendingQuoteForPO) : null;
-                        return [
-                        { name: 'quote_id', label: 'Link Quote', type: 'select', options: options.quotes, default: pendingQuoteForPO || undefined },
-                        { name: 'supplier_id', label: 'Supplier', type: 'rich-select', options: data.suppliers, config: { labelKey: 'supplier_name', valueKey: 'supplier_id', subLabelKey: 'location' }, default: pdfDefaults.supplier_id },
-                        { name: 'company_id', label: 'Addressed To', type: 'select', options: options.companies, default: pdfDefaults.company_id },
-                        { name: 'pi_number', label: 'PI #', type: 'text', default: pq?.pi_number || pdfData?.pi_number },
-                        { name: 'pi_date', label: 'PI Date', type: 'date', default: pq?.quote_date || pdfData?.pi_date },
-                        { name: 'pi_status', label: 'PI Status', type: 'select', options: ENUMS.proforma_status, default: 'Accepted' },
-                        { name: 'po_number', label: 'PO #', type: 'text', req: true, suggestions: suggestions.poNumbers, default: pdfData?.po_number },
-                        { name: 'po_date', label: 'PO Date', type: 'date', req: true, default: pdfData?.po_date || new Date().toISOString().split('T')[0] },
-                        { name: 'incoterms', label: 'Incoterms', type: 'text', suggestions: ['FOB', 'EXW', 'CIF', 'DDP', ...suggestions.incoterms] },
-                        { name: 'method_of_shipment', label: 'Ship Via', type: 'select', options: ENUMS.method_of_shipment },
-                        { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true, default: pq?.currency || pdfData?.currency },
-                        { name: 'exchange_rate', label: 'Exch Rate (est.)', type: 'number' },
-                        { name: 'total_value', label: 'Total Value', type: 'number', default: pdfData?.total_value },
-                        { name: 'payment_terms', label: 'Terms', type: 'text', suggestions: suggestions.paymentTerms, default: pdfData?.payment_terms || settings.defaultPoPaymentTerms },
-                        { name: 'freight_charges_intl', label: 'Freight', type: 'number' },
-                        { name: 'status', label: 'Status', type: 'select', options: ENUMS.purchases_status, default: 'Draft' },
-                        { name: 'replaces_po_id', label: 'Replaces PO', type: 'select', options: options.pos },
-                        { name: 'document_url', label: 'Document URL', type: 'text', placeholder: 'https://drive.google.com/…' },
-                        ]; })()}
-                      onSubmit={(d) => handleInsert('5.0_purchases', d)}
-                      loading={loading}
-                    />
-                    {pendingQuoteForPO && (() => {
-                      const pq = data.quotes.find((q) => String(q.quote_id) === pendingQuoteForPO);
-                      return (
-                        <ExchangeRateSuggestion
-                          rates={data.exchangeRates || []}
-                          supplierId={pq?.supplier_id ? String(pq.supplier_id) : undefined}
-                          currency={pq?.currency}
-                          suppliers={data.suppliers}
-                        />
-                      );
-                    })()}
-                    {(() => {
-                      const selPo   = orderingPoId ? data.pos.find((p) => String(p.po_id) === orderingPoId) : null;
-                      const selCosts = orderingPoId ? data.poCosts.filter((c) => String(c.po_id) === orderingPoId) : [];
-                      const totIdr   = selPo ? (selPo.currency === 'IDR' ? Number(selPo.total_value) : Number(selPo.total_value) * (Number(selPo.exchange_rate) || 1)) : 0;
-                      const paidIdr2 = selCosts.filter((c) => PRINCIPAL_CATS.has(c.cost_category)).reduce((s, c) => s + (c.currency === 'IDR' ? Number(c.amount) : Number(c.amount) * (Number(selPo?.exchange_rate) || 1)), 0);
-                      const outIdr2  = Math.max(0, totIdr - paidIdr2);
-                      const pct2     = totIdr > 0 ? Math.min(100, (paidIdr2 / totIdr) * 100) : 0;
-                      return (<>
-                        <BatchLineItemsForm
-                          title="2. PO Items"
-                          enablePdfUpload={true}
-                          enableQuoteImport={true}
-                          defaultParentId={newPoId}
-                          parentField={{ name: 'po_id', label: 'Select PO', options: options.pos }}
-                          onParentChange={(id) => setOrderingPoId(id)}
-                          itemFields={[
-                            { name: 'component_id', label: 'Component', type: 'rich-select', options: data.components, config: { labelKey: 'supplier_model', valueKey: 'component_id', subLabelKey: 'internal_description' }, req: true },
-                            { name: 'supplier_description', label: 'Supplier Desc', type: 'text' },
-                            { name: 'quantity', label: 'Qty', type: 'number', req: true },
-                            { name: 'unit_cost', label: 'Cost', type: 'number', req: true },
-                            { name: 'currency', label: 'Curr', type: 'select', options: ENUMS.currency, req: true },
-                          ]}
-                          stickyFields={['currency']}
-                          allQuoteItems={data.quoteItems}
-                          allQuotes={data.quotes}
-                          allPurchases={data.pos}
-                          components={data.components}
-                          onSubmit={(items) => handleInsert('5.1_purchase_line_items', items)}
-                          loading={loading}
-                        />
-                        {selPo && totIdr > 0 && (
-                          <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-4 mt-1">
-                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">Payment Status — {selPo.po_number}</p>
-                            <div className="flex items-center gap-3 mb-2">
-                              <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
-                                <div className={`h-full rounded-full transition-all ${pct2 >= 100 ? 'bg-emerald-500' : 'bg-amber-400'}`} style={{ width: `${pct2}%` }} />
-                              </div>
-                              <span className={`text-xs font-bold flex-shrink-0 ${pct2 >= 100 ? 'text-emerald-400' : 'text-amber-300'}`}>{pct2.toFixed(1)}%</span>
-                            </div>
-                            <div className="grid grid-cols-3 gap-2 text-xs">
-                              <div className="bg-slate-800/40 rounded-lg p-2.5">
-                                <p className="text-[10px] text-slate-500 mb-0.5">PO Total</p>
-                                <p className="font-bold text-white">{fmtIdr(totIdr)}</p>
-                              </div>
-                              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2.5">
-                                <p className="text-[10px] text-slate-500 mb-0.5">Paid</p>
-                                <p className="font-bold text-emerald-300">{fmtIdr(paidIdr2)}</p>
-                              </div>
-                              <div className={`rounded-lg p-2.5 ${outIdr2 > 0 ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-slate-800/40'}`}>
-                                <p className="text-[10px] text-slate-500 mb-0.5">Outstanding</p>
-                                <p className={`font-bold ${outIdr2 > 0 ? 'text-amber-300' : 'text-slate-400'}`}>{fmtIdr(outIdr2)}</p>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </>);
-                    })()}
                   </div>
                 </>
               )}
@@ -1383,7 +1183,7 @@ function MasterInsertPage() {
                   onPoStatusChange={handleStatusChange}
                   onUpdatePo={handleUpdatePo}
                   onMarkFullyPaid={handleMarkFullyPaid}
-                  onCreatePO={(quoteId) => { setPendingQuoteForPO(quoteId); handleTabChange('ordering'); }}
+                  onCreatePO={(quoteId) => startPoForQuote(quoteId)}
                   onUpdateQuoteItem={handleUpdateQuoteItem}
                   onUpdatePoItem={handleUpdatePoItem}
                   onUpdateQuoteLineItem={handleUpdateQuoteLineItem}
