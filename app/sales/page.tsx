@@ -58,6 +58,16 @@ export default function SalesListPage() {
   // two clicks, not a search phrase.
   const [payFilter, setPayFilter] = useState('all');
   const [delFilter, setDelFilter] = useState('all');
+  // Lifecycle stage filter — the DQ / PQ / SO axis
+  const [stageFilter, setStageFilter] = useState('all');
+  // Bulk housekeeping: DRAFTS ONLY are selectable for deletion. An SO is
+  // wired to invoices / DOs / payments — unwind those first (revert or
+  // cancel), deletion of live documents is deliberately impossible here.
+  const [selectedDrafts, setSelectedDrafts] = useState<Set<string>>(new Set());
+  const [deleteArmed, setDeleteArmed] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const flash = (m: string) => { setToastMsg(m); setTimeout(() => setToastMsg(null), 3000); };
   // Column-header sort: click sorts, click again flips; using the order
   // dropdown clears it. Text reads A→Z first, money/date biggest-first.
   type ColKey = 'number' | 'customer' | 'status' | 'payment' | 'total' | 'updated';
@@ -146,6 +156,9 @@ export default function SalesListPage() {
   const hasArOpen = (q: Quote) => payStateOf(q) === 'outstanding';
   const filtered = quotes.filter((q) => {
     if (!inRange(q.quote_date ?? q.updated_at ?? null, range)) return false;
+    if (stageFilter === 'draft' && q.status !== 'draft') return false;
+    if (stageFilter === 'quote' && !['validated', 'sent', 'accepted'].includes(q.status)) return false;
+    if (stageFilter === 'order' && !BILLED.includes(q.status)) return false;
     if (payFilter !== 'all' && payStateOf(q) !== payFilter) return false;
     if (delFilter !== 'all' && delStateOf(q) !== delFilter) return false;
     const s = search.trim().toLowerCase();
@@ -180,10 +193,30 @@ export default function SalesListPage() {
         || (b.updated_at || '').localeCompare(a.updated_at || '');
   });
 
-  // What the filtered set is worth — the reason to filter by week/month/year
-  const committed = filtered.filter((q) => ['ordered', 'invoiced', 'preparing', 'delivered'].includes(q.status));
-  const periodValue = committed.reduce((sum, q) => sum + (Number(q.grand_total) || 0), 0);
-  const periodReceived = filtered.reduce((sum, q) => sum + (receivedByQuote[q.quote_id] ?? 0), 0);
+  // What the filtered set is worth — the reason to filter by week/month/year.
+  // Three lifecycle buckets, coloured like their codes: Quoted = live PQs on
+  // the table, Ordered = everything confirmed (SO onward), Delivered = the
+  // subset that has fully shipped.
+  const sumOf = (list: Quote[]) => list.reduce((sum, q) => sum + (Number(q.grand_total) || 0), 0);
+  const quotedDocs    = filtered.filter((q) => ['validated', 'sent', 'accepted'].includes(q.status));
+  const committed     = filtered.filter((q) => ['ordered', 'invoiced', 'preparing', 'delivered'].includes(q.status));
+  const deliveredDocs = filtered.filter((q) => q.status === 'delivered');
+  const draftsSelected = [...selectedDrafts].filter((id) => quotes.find((q) => q.quote_id === id)?.status === 'draft');
+
+  async function deleteSelectedDrafts() {
+    if (!draftsSelected.length || deleting) return;
+    setDeleting(true);
+    // Items first, then the header — with a server-side status guard so
+    // nothing beyond draft can ever be deleted from here.
+    const { error: e1 } = await supabase.from('22.1_sales_quote_items').delete().in('quote_id', draftsSelected);
+    const { error: e2 } = e1 ? { error: e1 } : await supabase.from('22.0_sales_quotes').delete().in('quote_id', draftsSelected).eq('status', 'draft');
+    setDeleting(false);
+    setDeleteArmed(false);
+    if (e1 || e2) { flash(`Error: ${(e1 || e2)!.message}`); return; }
+    flash(`${draftsSelected.length} draft${draftsSelected.length !== 1 ? 's' : ''} deleted`);
+    setSelectedDrafts(new Set());
+    fetchAll();
+  }
 
   return (
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
@@ -224,6 +257,14 @@ export default function SalesListPage() {
               className="text-xs bg-slate-900/80 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60">
               {listSpec('sales').sorts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
+            <select value={stageFilter} onChange={(e) => setStageFilter(e.target.value)}
+              title="Filter by lifecycle stage — draft, price quote or confirmed order"
+              className={`text-xs bg-slate-900/80 border rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60 ${stageFilter !== 'all' ? 'border-emerald-500/50 text-emerald-300' : 'border-slate-700 text-slate-300'}`}>
+              <option value="all">Stage: all</option>
+              <option value="draft">Draft (DQ)</option>
+              <option value="quote">Quote (PQ)</option>
+              <option value="order">Order (SO)</option>
+            </select>
             <select value={payFilter} onChange={(e) => setPayFilter(e.target.value)}
               title="Filter by payment state"
               className={`text-xs bg-slate-900/80 border rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60 ${payFilter !== 'all' ? 'border-emerald-500/50 text-emerald-300' : 'border-slate-700 text-slate-300'}`}>
@@ -243,11 +284,24 @@ export default function SalesListPage() {
               <option value="delivered">Delivered</option>
             </select>
             <LayoutToggle value={layout} onChange={setLayout} />
+            {draftsSelected.length > 0 && (
+              <button onClick={deleteArmed ? deleteSelectedDrafts : () => { setDeleteArmed(true); setTimeout(() => setDeleteArmed(false), 4000); }}
+                disabled={deleting}
+                title="Deletes the selected DRAFTS only. Live documents (PQ/SO) cannot be deleted — an SO's invoices and delivery orders must be reverted or cancelled first."
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold whitespace-nowrap transition-colors disabled:opacity-50 ${
+                  deleteArmed ? 'bg-red-600 border-red-500 text-white' : 'border-red-500/40 text-red-300 hover:bg-red-500/10'}`}>
+                {deleting ? 'Deleting…' : deleteArmed ? `Confirm — delete ${draftsSelected.length}` : `Delete ${draftsSelected.length} draft${draftsSelected.length !== 1 ? 's' : ''}`}
+              </button>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500">
-            <span><span className="text-slate-300 font-semibold tabular-nums">{filtered.length}</span> quote{filtered.length !== 1 ? 's' : ''}</span>
-            <span>Ordered+ <span className="text-emerald-300 font-semibold tabular-nums">{fmtRupiah(periodValue)}</span></span>
-            <span>Received <span className="text-slate-300 font-semibold tabular-nums">{fmtRupiah(periodReceived)}</span></span>
+            <span><span className="text-slate-300 font-semibold tabular-nums">{filtered.length}</span> doc{filtered.length !== 1 ? 's' : ''}</span>
+            <span title={`${quotedDocs.length} live price quote${quotedDocs.length !== 1 ? 's' : ''} (validated / sent / accepted) in the period`}>
+              Quoted <span className="text-sky-300 font-semibold tabular-nums">{fmtRupiah(sumOf(quotedDocs))}</span></span>
+            <span title={`${committed.length} confirmed order${committed.length !== 1 ? 's' : ''} (SO onward) in the period`}>
+              Ordered <span className="text-violet-300 font-semibold tabular-nums">{fmtRupiah(sumOf(committed))}</span></span>
+            <span title={`${deliveredDocs.length} fully delivered in the period`}>
+              Delivered <span className="text-emerald-300 font-semibold tabular-nums">{fmtRupiah(sumOf(deliveredDocs))}</span></span>
           </div>
         </div>
 
@@ -292,7 +346,17 @@ export default function SalesListPage() {
                       role="button" tabIndex={0}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(open ? null : q.quote_id); } }}
                       className={`w-full min-w-0 text-left grid grid-cols-1 md:grid-cols-[150px_1fr_120px_120px_130px_100px] gap-1 md:gap-3 items-center cursor-pointer transition-colors ${compact ? 'px-3 py-1.5' : 'px-4 py-3'} ${open ? 'bg-slate-800/30' : 'hover:bg-slate-800/40'}`}>
-                      <span className="font-mono text-[11px]">
+                      <span className="font-mono text-[11px] flex items-center">
+                        {q.status === 'draft' && (
+                          <input type="checkbox" checked={selectedDrafts.has(q.quote_id)}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => {
+                              const on = e.target.checked;
+                              setSelectedDrafts((prev) => { const n = new Set(prev); if (on) n.add(q.quote_id); else n.delete(q.quote_id); return n; });
+                            }}
+                            title="Select this draft for deletion (only drafts can be deleted)"
+                            className="mr-1.5 accent-red-500 cursor-pointer flex-shrink-0" />
+                        )}
                         <a href={`/sales/${q.quote_id}`} onClick={(e) => e.stopPropagation()} title="Open document"
                           className={`${docNumberCls(q.status)} hover:text-emerald-300 hover:underline underline-offset-2 decoration-emerald-500/50 transition-colors`}>
                           {displayDocNumber(q)}
@@ -442,6 +506,11 @@ export default function SalesListPage() {
           )}
         </div>
       </main>
+      {toastMsg && (
+        <div className="fixed bottom-6 right-6 z-[110] px-4 py-2.5 bg-slate-800 border border-slate-700 text-white text-sm font-semibold rounded-xl shadow-lg">
+          {toastMsg}
+        </div>
+      )}
     </div>
   );
 }

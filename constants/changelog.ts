@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-04T23:40:00Z',
+    title: 'Sales Orders: Quoted / Ordered / Delivered totals · stage filter · draft cleanup',
+    details: [
+      'The period totals now read the lifecycle: Quoted (live PQs, sky), Ordered (SO onward, violet), Delivered (fully shipped, emerald) — Received left the strip (it lives in the Payment column and Invoices). All three follow the selected period and filters.',
+      'New Stage filter: show only Drafts (DQ), Price Quotes (PQ) or Orders (SO).',
+      'Drafts can be bulk-deleted: tick the checkbox that appears on DQ rows, then Delete → Confirm. Only drafts are selectable — a PQ/SO cannot be deleted here; to unwind an SO, revert or cancel its invoices and delivery orders first.',
+    ],
+  },
+  {
     at: '2026-08-04T23:32:00Z',
     title: 'Lifecycle codes verified on every list',
     details: [
