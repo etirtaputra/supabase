@@ -9,6 +9,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
+import { displayDocNumber } from '@/lib/salesStatus';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { DEFAULT_SALES_COLS, SALES_COL_KEYS, SALES_COL_LABELS, loadSalesCols, saveSalesCols, type SalesExportCols } from '@/lib/salesExportCols';
@@ -93,7 +94,7 @@ export default function SalesPrintPage() {
   }, [user, id]);
 
   useEffect(() => {
-    if (!loading && quote) document.title = `${quote.quote_number}${customerName ? ` - ${customerName}` : ''}`;
+    if (!loading && quote) document.title = `${displayDocNumber(quote)}${customerName ? ` - ${customerName}` : ''}`;
   }, [loading, quote, customerName]);
 
   if (authLoading || !user || loading || !quote) {
@@ -185,7 +186,7 @@ export default function SalesPrintPage() {
           </div>
           <div className="doc-title">
             <div className="doc-label">{isInvoice ? 'Invoice' : isOrder ? 'Konfirmasi Pesanan' : 'Penawaran Harga'}</div>
-            <div className="quote-num">{isInvoice ? quote.invoice_number : isOrder ? quote.order_number : quote.quote_number}</div>
+            <div className="quote-num">{isInvoice ? quote.invoice_number : isOrder ? quote.order_number : displayDocNumber(quote)}</div>
             <div className="quote-date">{fmtDate(quote.quote_date)}</div>
             {/* Validity is a property of the OFFER — the quotation only, never
                 the order confirmation or invoice built from it. */}
@@ -193,7 +194,7 @@ export default function SalesPrintPage() {
               <div className="quote-sub">Berlaku s/d {fmtDate(quote.valid_until)}</div>
             )}
             {(isInvoice || isOrder) && (
-              <div className="quote-sub">Ref. Penawaran: {quote.quote_number}{isInvoice && quote.order_number ? ` · Pesanan: ${quote.order_number}` : ''}</div>
+              <div className="quote-sub">Ref. Penawaran: {displayDocNumber({ ...quote, status: 'sent' })}{isInvoice && quote.order_number ? ` · Pesanan: ${quote.order_number}` : ''}</div>
             )}
             {isInvoice && fullyPaid && <div className="paid-stamp">LUNAS / PAID</div>}
           </div>

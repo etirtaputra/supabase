@@ -30,7 +30,7 @@ import { useListLayout } from '@/hooks/useListLayout';
 import { useListDefaults } from '@/hooks/useListDefaults';
 import { inRange, type DateRange } from '@/lib/dateRange';
 import { fmtDay, fmtDayTime, fmtInt } from '@/lib/formatters';
-import { SALES_STATUS } from '@/lib/salesStatus';
+import { SALES_STATUS, displayDocNumber } from '@/lib/salesStatus';
 
 interface Case {
   case_id: string; case_number: string; customer_id: string | null; quote_id: string | null;
@@ -159,7 +159,7 @@ export default function AfterSalesPage() {
 
   const orderLabel = (id: string | null) => {
     const o = id ? orderById.get(id) : null;
-    return o ? (o.order_number || o.quote_number || '—') : '';
+    return o ? (displayDocNumber(o) || '—') : '';
   };
 
   // Elapsed time since a document date — the number the warranty judgement
@@ -278,7 +278,7 @@ export default function AfterSalesPage() {
   })), [customers]);
   const orderOptions = useMemo(() => customerOrders.map((o) => ({
     quote_id: o.quote_id,
-    label: o.order_number || o.quote_number || '—',
+    label: displayDocNumber(o) || '—',
     sub: [custName.get(o.customer_id ?? ''), o.status].filter(Boolean).join(' · '),
   })), [customerOrders, custName]);
   // The items ON the selected order — offered as one-click chips, because a
@@ -391,7 +391,7 @@ export default function AfterSalesPage() {
                                   {/* The case's documents, one click away without expanding */}
                                   {(so || invs.length > 0 || qdos.length > 0) && (
                                     <span className="hidden lg:flex items-center gap-2 font-mono text-[10px]">
-                                      {so && <a href={`/sales/${so.quote_id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-slate-500 hover:text-emerald-300 transition-colors">{so.order_number || so.quote_number}</a>}
+                                      {so && <a href={`/sales/${so.quote_id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-slate-500 hover:text-emerald-300 transition-colors">{displayDocNumber(so)}</a>}
                                       {invs.slice(0, 1).map((i) => <a key={i.invoice_id} href={`/sales/${i.quote_id}/print?inv=${i.invoice_id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-slate-500 hover:text-emerald-300 transition-colors">{i.invoice_number}</a>)}
                                       {qdos.slice(0, 1).map((d) => <a key={d.do_id} href={`/sales/${d.quote_id}/do?do=${d.do_id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-slate-500 hover:text-emerald-300 transition-colors">{d.do_number}</a>)}
                                       {(invs.length > 1 || qdos.length > 1) && <span className="text-slate-600" title="More invoices / delivery orders — expand the row">+{Math.max(0, invs.length - 1) + Math.max(0, qdos.length - 1)}</span>}
@@ -408,7 +408,7 @@ export default function AfterSalesPage() {
                                   <span className="font-semibold text-white truncate">{custName.get(c.customer_id ?? '') || 'No customer'}</span>
                                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap flex-shrink-0 ${cat.cls}`}>{cat.label}</span>
                                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap flex-shrink-0 ${STATUS_BADGE[c.status]}`}>{statusLabel(c.status)}</span>
-                                  {so && <a href={`/sales/${so.quote_id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="font-mono text-[10px] text-slate-500 hover:text-emerald-300 transition-colors">{so.order_number || so.quote_number}</a>}
+                                  {so && <a href={`/sales/${so.quote_id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="font-mono text-[10px] text-slate-500 hover:text-emerald-300 transition-colors">{displayDocNumber(so)}</a>}
                                 </div>
                                 <p className="text-xs text-slate-400 truncate mb-1">{what}</p>
                                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
@@ -431,7 +431,7 @@ export default function AfterSalesPage() {
                                 <span className={lbl}>Sales order</span>
                                 {so ? (
                                   <>
-                                    <a href={`/sales/${so.quote_id}`} target="_blank" rel="noopener noreferrer" className={docLink}>{so.order_number || so.quote_number}</a>
+                                    <a href={`/sales/${so.quote_id}`} target="_blank" rel="noopener noreferrer" className={docLink}>{displayDocNumber(so)}</a>
                                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${SALES_STATUS[so.status]?.cls ?? ''}`}>{SALES_STATUS[so.status]?.label ?? so.status}</span>
                                   </>
                                 ) : <span className="text-slate-600 italic">none linked</span>}
@@ -678,7 +678,7 @@ export default function AfterSalesPage() {
                     {caseQuotes.map((q) => (
                       <a key={q.quote_id} href={`/sales/${q.quote_id}`} target="_blank" rel="noopener noreferrer"
                         className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] hover:bg-slate-800/40 transition-colors">
-                        <span className="font-mono text-slate-300">{q.order_number || q.quote_number}</span>
+                        <span className="font-mono text-slate-300">{displayDocNumber(q)}</span>
                         <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${SALES_STATUS[q.status]?.cls ?? ''}`}>{SALES_STATUS[q.status]?.label ?? q.status}</span>
                         <span className="ml-auto tabular-nums text-slate-200 font-semibold">{fmtInt(Number(q.grand_total) || 0)}</span>
                       </a>

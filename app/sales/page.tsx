@@ -191,7 +191,7 @@ export default function SalesListPage() {
         {/* Phones: wordmark row then actions row — side-by-side squeezes the
             buttons into the wordmark. sm+ keeps the single row. */}
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-4">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Sales Orders · DQ → SQ → SO" />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Sales Orders · DQ → PQ → SO" />
           {profile?.role === 'owner' && (
             <button onClick={() => router.push('/sales/library')}
               title="Owner-only: curated custom line texts that feed the item picker"

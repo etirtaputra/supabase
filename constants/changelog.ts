@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-04T23:29:00Z',
+    title: 'SQ becomes PQ — Price Quote',
+    details: [
+      'The quote-stage code now reads PQ (Price Quote) instead of SQ, so it can never be confused with SO even at a glance: DQ → PQ → SO. Applied across the Sales Orders list, editor, customer profile, After Sales and the printed quote (including the Ref. Penawaran line on invoices).',
+      'Stored numbers are unchanged — searching an old “SQ-…” reference still finds the document.',
+    ],
+  },
+  {
     at: '2026-08-04T23:10:00Z',
     title: 'DQ, SQ and SO each get their own colour',
     details: [

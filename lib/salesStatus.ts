@@ -29,8 +29,9 @@ export const milestoneIndex = (status: string) => MILESTONE_ORDER.indexOf(status
 
 /**
  * The code a sales document SHOWS follows its lifecycle (owner's rule,
- * 2026-08-04): DQ while draft, SQ once validated (Sent is just an SQ state),
- * SO once the order is confirmed. Stored numbers never change — the draft
+ * 2026-08-04): DQ while draft, PQ (Price Quote) once validated — PQ, not SQ,
+ * so it can never be misread as SO — and the SO number once the order is
+ * confirmed. Stored numbers never change (still SQ- in the database); the
  * prefix is a display derivation, and from `ordered` onward the SO number
  * (stamped at confirmation) takes over.
  */
@@ -38,7 +39,7 @@ export const displayDocNumber = (q: { quote_number?: string | null; order_number
   const qn = q.quote_number ?? '';
   if (q.status === 'draft') return qn.replace(/^SQ-/, 'DQ-');
   if (milestoneIndex(q.status ?? '') >= milestoneIndex('ordered') && q.order_number) return q.order_number;
-  return qn;
+  return qn.replace(/^SQ-/, 'PQ-');
 };
 
 /** Colour for the document code: DQ grey (unfinished), SQ sky (offer out),
