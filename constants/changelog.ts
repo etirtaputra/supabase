@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-04T10:14:00Z',
+    title: 'Comparables: link many at once · successors show direction',
+    details: [
+      'Adding comparable links is batch now: before you even type, the picker lists every item in the SAME CATEGORY — tap to tick as many as you want (chips stack up), search the whole catalog for the rest, one save links them all.',
+      'Successor links are directional: when creating one you say which replaces which, and the linked cards show “Successor ↑” (replaces this item) vs “Predecessor ↓” (older model) instead of one ambiguous badge. Existing successor links may need re-creating in the right direction.',
+      'Normalized links in a batch take each item’s Wp/kWh value right on its chip.',
+    ],
+  },
+  {
     at: '2026-08-04T10:09:00Z',
     title: 'New Deal — the Purchase Orders tab retires',
     details: [
