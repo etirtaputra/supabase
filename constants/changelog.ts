@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-04T01:36:00Z',
+    title: 'Quote + PO in one save — fill the shared fields once',
+    details: [
+      'New “+ PO in one go” toggle on the Supplier Quote form. Off: the plain quote form, exactly as before. On: three extra fields (PO #, PO date, estimated rate) and ONE save creates the quote and its linked PO — supplier, company, currency, value and PI details copied across, PO date defaulting to the PI date unless you set another.',
+      'The exchange rate auto-fills from what payments on this supplier’s past POs actually implied when left empty; IDR needs none.',
+      'Step 2 items are typed once and land on BOTH documents (quote price = PO cost), with the quote↔PO link already in place for Deal Lookup and payments.',
+    ],
+  },
+  {
     at: '2026-08-04T01:30:00Z',
     title: 'Sales: New Quote joins the toolbar · Deal Lookup columns sort',
     details: [

@@ -243,7 +243,7 @@ function MasterInsertPage() {
     return defaults;
   }, [pdfData, data.suppliers, data.companies]);
 
-  const handleInsert = async (table: string, insertData: any) => {
+  const handleInsert = async (table: string, insertData: any): Promise<any[] | null> => {
     setLoading(true);
     const payload = Array.isArray(insertData) ? insertData : [insertData];
     const cleanPayload = payload.map((item) =>
@@ -261,19 +261,58 @@ function MasterInsertPage() {
     setLoading(false);
     if (error) {
       showToast(`Error: ${error.message}`, 'error');
-    } else {
-      showToast(`✅ Added ${cleanPayload.length} record(s)!`, 'success');
-      refetch();
-      if (table === '4.0_price_quotes' && insertedRows?.[0]) {
-        const qId = String(insertedRows[0].quote_id);
-        setNewQuoteId(qId);
-        setQuoteItemsCurrency(insertedRows[0].currency || '');  // add this line
-        setLastSaved({ message: 'Quote saved!', cta: 'Create PO →', nextTab: 'ordering', quoteId: qId });
-      } else if (table === '5.0_purchases' && insertedRows?.[0]) {
-        const pId = String(insertedRows[0].po_id);
-        setNewPoId(pId);
-        setLastSaved({ message: 'PO saved!', cta: 'Log payment →', nextTab: 'financials', poId: pId });
-      }
+      return null;
+    }
+    showToast(`✅ Added ${cleanPayload.length} record(s)!`, 'success');
+    refetch();
+    if (table === '4.0_price_quotes' && insertedRows?.[0]) {
+      const qId = String(insertedRows[0].quote_id);
+      setNewQuoteId(qId);
+      setQuoteItemsCurrency(insertedRows[0].currency || '');
+      setLastSaved({ message: 'Quote saved!', cta: 'Create PO →', nextTab: 'ordering', quoteId: qId });
+    } else if (table === '5.0_purchases' && insertedRows?.[0]) {
+      const pId = String(insertedRows[0].po_id);
+      setNewPoId(pId);
+      setLastSaved({ message: 'PO saved!', cta: 'Log payment →', nextTab: 'financials', poId: pId });
+    }
+    return insertedRows ?? [];
+  };
+
+  // ── Fill-once: Quote + PO in one save ─────────────────────────────────────
+  // The PI and the PO carry the same supplier, company, date, currency and
+  // items — with the toggle on, the quote form grows three PO fields and one
+  // save writes both documents, linked. Step 2's items then feed both too.
+  const [withPo, setWithPo] = useState(false);
+  const [comboPo, setComboPo] = useState<{ quoteId: string; poId: string } | null>(null);
+
+  const submitQuoteHeader = async (d: any) => {
+    if (!withPo) { await handleInsert('4.0_price_quotes', d); return; }
+    const { po_number, po_date, exchange_rate, ...quote } = d;
+    const qRows = await handleInsert('4.0_price_quotes', quote);
+    const q = qRows?.[0];
+    if (!q) return;
+    // Estimated rate: what payments on this supplier's past POs actually imply
+    let rate = quote.currency === 'IDR' ? null : (Number(exchange_rate) || null);
+    if (quote.currency !== 'IDR' && !rate) {
+      const liveRates = deriveExchangeRates(data.pos, data.poItems, data.poCosts, data.quotes);
+      const actual = getLatestExchangeRate(liveRates, String(quote.supplier_id), String(quote.currency));
+      if (actual?.rate) rate = Math.round(actual.rate);
+    }
+    const poRows = await handleInsert('5.0_purchases', {
+      quote_id: q.quote_id, supplier_id: quote.supplier_id, company_id: quote.company_id,
+      pi_number: quote.pi_number, pi_date: quote.quote_date, pi_status: 'Accepted',
+      po_number, po_date: po_date || quote.quote_date,
+      currency: quote.currency, exchange_rate: rate,
+      total_value: quote.total_value, status: 'Confirmed',
+      payment_terms: settings.defaultPoPaymentTerms || null,
+      document_url: quote.document_url || null,
+    });
+    if (poRows?.[0]) {
+      setComboPo({ quoteId: String(q.quote_id), poId: String(poRows[0].po_id) });
+      setLastSaved({
+        message: `Quote + PO ${po_number} saved — items entered below go onto both.`,
+        cta: 'Log payment →', nextTab: 'financials', poId: String(poRows[0].po_id),
+      });
     }
   };
 
@@ -611,7 +650,7 @@ function MasterInsertPage() {
                     onAddComponentLink={handleAddComponentLink}
                     onDeleteComponentLink={handleDeleteComponentLink}
                     onSave={handleComponentUpdates}
-                    onAdd={(fields) => handleInsert('3.0_components', [fields])}
+                    onAdd={async (fields) => { await handleInsert('3.0_components', [fields]); }}
                     onAddSupplier={() => setShowSupplierForm(true)}
                     onDelete={handleComponentDelete}
                     onSaveLineItem={handleSaveLineItem}
@@ -623,8 +662,8 @@ function MasterInsertPage() {
               {/* Quoting Tab */}
               {activeTab === 'quoting' && (
                 <>
-                  {/* What's next banner */}
-                  {lastSaved?.nextTab === 'quoting' && (
+                  {/* What's next banner — any save made on this tab */}
+                  {lastSaved && (
                     <div className="mb-4 flex items-center gap-3 px-4 py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
                       <span className="text-emerald-400 text-sm font-semibold">{lastSaved.message}</span>
                       <button onClick={() => { if (lastSaved.quoteId) setPendingQuoteForPO(lastSaved.quoteId); if (lastSaved.poId) setSinglePoId(lastSaved.poId); handleTabChange(lastSaved.nextTab); }} className="ml-auto px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-colors">{lastSaved.cta}</button>
@@ -634,7 +673,19 @@ function MasterInsertPage() {
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 items-start">
                     <SimpleForm
                       title="Step 1: Quote Header"
-                      headerAction={pdfHeaderAction('Upload Quote/PI PDF', 'AI extracts supplier info, quote details, and line items automatically.')}
+                      headerAction={
+                        <span className="flex items-center gap-2 flex-shrink-0">
+                          {/* Fill once: same supplier / date / currency / items → both documents */}
+                          <button type="button" onClick={() => setWithPo((v) => !v)}
+                            title="Raise the Purchase Order in the same save — supplier, dates, currency and items are entered once and land on both documents"
+                            className={`px-2.5 py-1 rounded-md border text-[11px] font-semibold transition-colors ${
+                              withPo ? 'bg-violet-500/15 border-violet-500/40 text-violet-300'
+                                     : 'border-slate-700/70 text-slate-400 hover:text-slate-200 hover:border-slate-500'}`}>
+                            {withPo ? '✓' : '+'} PO in one go
+                          </button>
+                          {pdfHeaderAction('Upload Quote/PI PDF', 'AI extracts supplier info, quote details, and line items automatically.')}
+                        </span>
+                      }
                       fields={[
                         { name: 'supplier_id', label: 'Supplier', type: 'rich-select', options: data.suppliers, config: { labelKey: 'supplier_name', valueKey: 'supplier_id', subLabelKey: 'location' }, req: true, default: pdfDefaults.supplier_id },
                         { name: 'company_id', label: 'Addressed To', type: 'select', options: options.companies, req: true, default: pdfDefaults.company_id },
@@ -643,11 +694,17 @@ function MasterInsertPage() {
                         { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true, default: pdfData?.currency },
                         { name: 'total_value', label: 'Total Value', type: 'number', default: pdfData?.total_value },
                         { name: 'status', label: 'Status', type: 'select', options: ENUMS.price_quotes_status, default: 'Open' },
+                        // "+ PO in one go" — only what the PO adds; everything else is shared
+                        ...(withPo ? [
+                          { name: 'po_number', label: 'PO #', type: 'text' as const, req: true, suggestions: suggestions.poNumbers, default: pdfData?.po_number },
+                          { name: 'po_date', label: 'PO Date (empty = same as PI date)', type: 'date' as const },
+                          { name: 'exchange_rate', label: 'Exch Rate (est. — auto if empty, IDR ignores)', type: 'number' as const },
+                        ] : []),
                         { name: 'estimated_lead_time_days', label: 'Lead Time', type: 'select', options: ENUMS.lead_time, default: pdfData?.lead_time_days },
                         { name: 'replaces_quote_id', label: 'Replaces', type: 'select', options: options.quotes },
                         { name: 'document_url', label: 'Document URL', type: 'text', placeholder: 'https://drive.google.com/…' },
                       ]}
-                      onSubmit={(d) => handleInsert('4.0_price_quotes', d)}
+                      onSubmit={submitQuoteHeader}
                       loading={loading}
                     />
                     <BatchLineItemsForm
@@ -668,7 +725,20 @@ function MasterInsertPage() {
                         { name: 'currency', label: 'Curr', type: 'select', options: ENUMS.currency, req: true },
                       ]}
                       stickyFields={['currency']}
-                      onSubmit={(items) => handleInsert('4.1_price_quote_line_items', items)}
+                      onSubmit={async (items) => {
+                        await handleInsert('4.1_price_quote_line_items', items);
+                        // "+ PO in one go": mirror the same lines onto the linked
+                        // PO, typed once (unit_price on the quote = unit_cost on
+                        // the PO — the deal was struck at this price).
+                        const list = Array.isArray(items) ? items : [items];
+                        const qid = list[0]?.quote_id;
+                        if (qid && comboPo && String(qid) === comboPo.quoteId) {
+                          await handleInsert('5.1_purchase_line_items', list.map(({ quote_id: _q, unit_price, ...rest }: any) => ({
+                            ...rest, po_id: comboPo.poId, unit_cost: unit_price,
+                          })));
+                          showToast('Items written to the quote AND its PO.', 'success');
+                        }
+                      }}
                       loading={loading}
                     />
                   </div>
