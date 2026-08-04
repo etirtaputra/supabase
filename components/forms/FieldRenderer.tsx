@@ -29,11 +29,16 @@ export default function FieldRenderer({
   const uniqueId = useId();
   const datalistId = `${formId || 'form'}-${field.name}-${uniqueId}`;
 
-  const baseInputClasses =
-    'w-full px-2.5 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none placeholder-slate-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed [&::-webkit-calendar-picker-indicator]:invert';
+  // accent = the field belongs to a secondary document (violet border/label)
+  const baseInputClasses = `w-full px-2.5 py-2 bg-slate-950 border rounded-lg text-sm text-white focus:ring-2 focus:outline-none placeholder-slate-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed [&::-webkit-calendar-picker-indicator]:invert ${
+    field.accent
+      ? 'border-violet-500/50 focus:border-violet-400 focus:ring-violet-500/20'
+      : 'border-slate-700 focus:border-emerald-500 focus:ring-emerald-500/20'}`;
 
-  const labelClasses =
-    'block text-[10px] font-bold text-slate-400 mb-1 ml-0.5 group-focus-within:text-emerald-400 transition-colors uppercase tracking-wider';
+  const labelClasses = `block text-[10px] font-bold mb-1 ml-0.5 transition-colors uppercase tracking-wider ${
+    field.accent
+      ? 'text-violet-300/80 group-focus-within:text-violet-300'
+      : 'text-slate-400 group-focus-within:text-emerald-400'}`;
 
   return (
     <div className="relative w-full group">
@@ -88,6 +93,7 @@ export default function FieldRenderer({
       ) : field.type === 'text' && field.suggestions ? (
         <Autocomplete
           id={datalistId}
+          inputClassName={baseInputClasses}
           value={value || ''}
           onChange={(val) => onChange(field.name, val)}
           suggestions={field.suggestions || []}

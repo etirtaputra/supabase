@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-04T02:02:00Z',
+    title: 'Quote entry: mode chosen up front, PO fields in violet',
+    details: [
+      'The Supplier Quote form now opens with a “Quote only / Quote + PO” selector — the choice is remembered, so your usual mode is preselected next visit.',
+      'In Quote + PO mode the three PO fields wear a violet border and label, so what belongs to the PO is visible at a glance; shared fields stay standard.',
+    ],
+  },
+  {
     at: '2026-08-04T01:36:00Z',
     title: 'Quote + PO in one save — fill the shared fields once',
     details: [

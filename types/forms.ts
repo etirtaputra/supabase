@@ -33,6 +33,9 @@ export interface FieldConfig {
   options?: readonly string[] | SelectOption[] | any[]; // for select/rich-select
   config?: RichSelectConfig; // for rich-select
   width?: string; // for batch forms (tailwind class)
+  /** Violet border + label: marks fields belonging to a secondary document
+      (e.g. the PO fields on the combined quote form). */
+  accent?: boolean;
 }
 
 // Form props for SimpleForm

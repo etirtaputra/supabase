@@ -282,7 +282,16 @@ function MasterInsertPage() {
   // The PI and the PO carry the same supplier, company, date, currency and
   // items — with the toggle on, the quote form grows three PO fields and one
   // save writes both documents, linked. Step 2's items then feed both too.
+  // Preselected mode, remembered per browser — someone who always books
+  // quote + PO together never has to flip the switch again.
   const [withPo, setWithPo] = useState(false);
+  useEffect(() => {
+    try { setWithPo(localStorage.getItem('purchasing:quote-mode') === 'combo'); } catch {}
+  }, []);
+  const setQuoteMode = (combo: boolean) => {
+    setWithPo(combo);
+    try { localStorage.setItem('purchasing:quote-mode', combo ? 'combo' : 'quote'); } catch {}
+  };
   const [comboPo, setComboPo] = useState<{ quoteId: string; poId: string } | null>(null);
 
   const submitQuoteHeader = async (d: any) => {
@@ -670,22 +679,26 @@ function MasterInsertPage() {
                       <button onClick={() => setLastSaved(null)} className="text-slate-500 hover:text-slate-300 text-sm leading-none">✕</button>
                     </div>
                   )}
+                  {/* What are we recording? — the choice up front, remembered.
+                      Violet marks everything PO throughout the form below. */}
+                  <div className="mb-4 flex items-center gap-1.5">
+                    {([[false, 'Quote only'], [true, 'Quote + PO']] as const).map(([combo, label]) => (
+                      <button key={label} type="button" onClick={() => setQuoteMode(combo)}
+                        title={combo ? 'One save records the supplier quote AND its purchase order — shared fields filled once, items land on both' : 'Record the supplier quote only'}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                          withPo === combo
+                            ? combo ? 'bg-violet-500/15 text-violet-300 ring-1 ring-violet-500/40'
+                                    : 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30'
+                            : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/60'}`}>
+                        {label}
+                      </button>
+                    ))}
+                    {withPo && <span className="text-[11px] text-slate-600 ml-2">Violet fields belong to the PO — everything else is shared.</span>}
+                  </div>
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 items-start">
                     <SimpleForm
                       title="Step 1: Quote Header"
-                      headerAction={
-                        <span className="flex items-center gap-2 flex-shrink-0">
-                          {/* Fill once: same supplier / date / currency / items → both documents */}
-                          <button type="button" onClick={() => setWithPo((v) => !v)}
-                            title="Raise the Purchase Order in the same save — supplier, dates, currency and items are entered once and land on both documents"
-                            className={`px-2.5 py-1 rounded-md border text-[11px] font-semibold transition-colors ${
-                              withPo ? 'bg-violet-500/15 border-violet-500/40 text-violet-300'
-                                     : 'border-slate-700/70 text-slate-400 hover:text-slate-200 hover:border-slate-500'}`}>
-                            {withPo ? '✓' : '+'} PO in one go
-                          </button>
-                          {pdfHeaderAction('Upload Quote/PI PDF', 'AI extracts supplier info, quote details, and line items automatically.')}
-                        </span>
-                      }
+                      headerAction={pdfHeaderAction('Upload Quote/PI PDF', 'AI extracts supplier info, quote details, and line items automatically.')}
                       fields={[
                         { name: 'supplier_id', label: 'Supplier', type: 'rich-select', options: data.suppliers, config: { labelKey: 'supplier_name', valueKey: 'supplier_id', subLabelKey: 'location' }, req: true, default: pdfDefaults.supplier_id },
                         { name: 'company_id', label: 'Addressed To', type: 'select', options: options.companies, req: true, default: pdfDefaults.company_id },
@@ -694,11 +707,12 @@ function MasterInsertPage() {
                         { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true, default: pdfData?.currency },
                         { name: 'total_value', label: 'Total Value', type: 'number', default: pdfData?.total_value },
                         { name: 'status', label: 'Status', type: 'select', options: ENUMS.price_quotes_status, default: 'Open' },
-                        // "+ PO in one go" — only what the PO adds; everything else is shared
+                        // Quote + PO mode — only what the PO adds; everything else
+                        // is shared. Violet border = belongs to the PO.
                         ...(withPo ? [
-                          { name: 'po_number', label: 'PO #', type: 'text' as const, req: true, suggestions: suggestions.poNumbers, default: pdfData?.po_number },
-                          { name: 'po_date', label: 'PO Date (empty = same as PI date)', type: 'date' as const },
-                          { name: 'exchange_rate', label: 'Exch Rate (est. — auto if empty, IDR ignores)', type: 'number' as const },
+                          { name: 'po_number', label: 'PO #', type: 'text' as const, req: true, suggestions: suggestions.poNumbers, default: pdfData?.po_number, accent: true },
+                          { name: 'po_date', label: 'PO Date (empty = same as PI date)', type: 'date' as const, accent: true },
+                          { name: 'exchange_rate', label: 'Exch Rate (est. — auto if empty, IDR ignores)', type: 'number' as const, accent: true },
                         ] : []),
                         { name: 'estimated_lead_time_days', label: 'Lead Time', type: 'select', options: ENUMS.lead_time, default: pdfData?.lead_time_days },
                         { name: 'replaces_quote_id', label: 'Replaces', type: 'select', options: options.quotes },
