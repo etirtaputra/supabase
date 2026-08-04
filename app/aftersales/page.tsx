@@ -74,6 +74,8 @@ const statusLabel = (s: string) => STATUS_SECTIONS.find((x) => x.key === s)?.lab
 
 interface DraftPart { part_id?: string; component_id: string | null; description: string; action: string; quantity: string; notes: string }
 interface QuoteItem { quote_id: string; description: string; quantity: number; is_section: boolean }
+interface Inv { invoice_id: string; quote_id: string; invoice_number: string; issued_at: string | null; created_at: string }
+interface DoRow { do_id: string; quote_id: string; do_number: string; status: string; delivery_date: string | null; delivered_at: string | null }
 
 export default function AfterSalesPage() {
   const supabase = createSupabaseClient();
@@ -108,6 +110,10 @@ export default function AfterSalesPage() {
   const [draft, setDraft] = useState<Partial<Case>>({});
   const [draftParts, setDraftParts] = useState<DraftPart[]>([]);
   const [quoteItems, setQuoteItems] = useState<QuoteItem[]>([]);
+  const [invoices, setInvoices] = useState<Inv[]>([]);
+  const [dos, setDos] = useState<DoRow[]>([]);
+  // Row click expands an overview (like the Sales list); editing is a step deeper
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [updates, setUpdates] = useState<Update[]>([]);
   const [newNote, setNewNote] = useState('');
   const [busy, setBusy] = useState(false);
@@ -123,13 +129,15 @@ export default function AfterSalesPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [cRes, pRes, custRes, oRes, compRes, qiRes] = await Promise.all([
+    const [cRes, pRes, custRes, oRes, compRes, qiRes, invRes, doRes] = await Promise.all([
       supabase.from('27.0_aftersales_cases').select('*').order('reported_at', { ascending: false }),
       supabase.from('27.1_aftersales_parts').select('*'),
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name').order('display_name'),
       supabase.from('22.0_sales_quotes').select('quote_id, quote_number, order_number, status, customer_id, case_id, grand_total'),
       supabase.from('3.0_components').select('component_id, internal_description').order('internal_description'),
       supabase.from('22.1_sales_quote_items').select('quote_id, description, quantity, is_section').order('sort_order'),
+      supabase.from('25.0_sales_invoices').select('invoice_id, quote_id, invoice_number, issued_at, created_at').order('created_at'),
+      supabase.from('24.0_delivery_orders').select('do_id, quote_id, do_number, status, delivery_date, delivered_at').order('created_at'),
     ]);
     setCases((cRes.data as Case[]) ?? []);
     const by = new Map<string, Part[]>();
@@ -139,6 +147,8 @@ export default function AfterSalesPage() {
     setOrders((oRes.data as Order[]) ?? []);
     setComps(((compRes.data as Comp[]) ?? []).filter((c) => c.internal_description?.trim()));
     setQuoteItems(((qiRes.error ? [] : qiRes.data as QuoteItem[]) ?? []).filter((l) => !l.is_section && (l.description ?? '').trim()));
+    setInvoices((invRes.error ? [] : invRes.data as Inv[]) ?? []);
+    setDos((doRes.error ? [] : doRes.data as DoRow[]) ?? []);
     setLoading(false);
   }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (user && perms?.sellSide) load(); }, [user, perms?.sellSide, load]);
@@ -150,6 +160,17 @@ export default function AfterSalesPage() {
   const orderLabel = (id: string | null) => {
     const o = id ? orderById.get(id) : null;
     return o ? (o.order_number || o.quote_number || '—') : '';
+  };
+
+  // Elapsed time since a document date — the number the warranty judgement
+  // needs ("13.4 months since the invoice"). Deliberately no verdict: the
+  // period differs per product and supplier, so after-sales decides.
+  const runningFor = (iso: string | null | undefined): string | null => {
+    if (!iso) return null;
+    const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+    if (days < 0) return null;
+    if (days < 31) return `${days} day${days === 1 ? '' : 's'}`;
+    return `${(days / 30.44).toFixed(1)} months`;
   };
 
   const visible = useMemo(() => {
@@ -343,42 +364,120 @@ export default function AfterSalesPage() {
                     {group.map((c) => {
                       const parts = partsByCase.get(c.case_id) ?? [];
                       const cat = CATEGORIES[c.category] ?? CATEGORIES.other;
+                      const open = expandedId === c.case_id;
+                      // What is actually being repaired — subject, else the items, else the report
+                      const what = c.subject || parts.map((p) => p.description).filter(Boolean).join(', ') || c.description || '—';
+                      const so = c.quote_id ? orderById.get(c.quote_id) : null;
+                      const invs = c.quote_id ? invoices.filter((i) => i.quote_id === c.quote_id) : [];
+                      const qdos = c.quote_id ? dos.filter((d) => d.quote_id === c.quote_id) : [];
+                      const svcQuotes = orders.filter((o) => o.case_id === c.case_id);
+                      const lbl = 'w-20 flex-shrink-0 text-[9px] font-semibold uppercase tracking-widest text-slate-600';
+                      const docLink = 'inline-flex items-center gap-1 font-mono text-[10px] text-slate-400 hover:text-emerald-300 transition-colors';
                       return (
-                        <button key={c.case_id} onClick={() => openEditor(c)}
-                          className={`w-full text-left bg-slate-900/50 hover:bg-slate-900/80 border border-slate-800 hover:border-slate-700 transition-all ${compact ? 'rounded-lg px-3 py-2' : 'rounded-2xl px-4 sm:px-5 py-3.5'}`}>
-                          {compact ? (
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="font-semibold text-slate-100 text-[13px] truncate flex-shrink-0 max-w-[30%]">{custName.get(c.customer_id ?? '') || 'No customer'}</span>
-                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold whitespace-nowrap flex-shrink-0 ${cat.cls}`}>{cat.label}</span>
-                              <span className="text-[11px] text-slate-400 truncate">{c.subject || c.description || '—'}</span>
-                              <span className="ml-auto flex items-center gap-3 flex-shrink-0 tabular-nums">
-                                {parts.length > 0 && <span className="text-[10px] text-slate-500">{fmtInt(parts.length)} item{parts.length !== 1 ? 's' : ''}</span>}
-                                <span className="font-mono text-[10px] text-slate-600 hidden sm:block">{c.case_number}</span>
-                                <span className="w-[4.5rem] text-right text-[10px] text-slate-500">{fmtDay(c.reported_at)}</span>
-                              </span>
-                            </div>
-                          ) : (
-                            <>
-                              <div className="flex flex-wrap items-center gap-2 mb-1">
-                                <span className="font-semibold text-white truncate">{custName.get(c.customer_id ?? '') || 'No customer'}</span>
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap flex-shrink-0 ${cat.cls}`}>{cat.label}</span>
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap flex-shrink-0 ${STATUS_BADGE[c.status]}`}>{statusLabel(c.status)}</span>
-                                {c.quote_id && <span className="font-mono text-[10px] text-slate-500">{orderLabel(c.quote_id)}</span>}
+                        <div key={c.case_id} className={`bg-slate-900/50 border transition-all overflow-hidden ${open ? 'border-slate-700' : 'border-slate-800 hover:border-slate-700'} ${compact ? 'rounded-lg' : 'rounded-2xl'}`}>
+                          <button onClick={() => setExpandedId(open ? null : c.case_id)} aria-expanded={open}
+                            className={`w-full text-left hover:bg-slate-900/80 transition-colors ${compact ? 'px-3 py-2' : 'px-4 sm:px-5 py-3.5'}`}>
+                            {compact ? (
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="font-semibold text-slate-100 text-[13px] truncate flex-shrink-0 max-w-[30%]">{custName.get(c.customer_id ?? '') || 'No customer'}</span>
+                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold whitespace-nowrap flex-shrink-0 ${cat.cls}`}>{cat.label}</span>
+                                <span className="text-[11px] text-slate-400 truncate">{what}</span>
+                                <span className="ml-auto flex items-center gap-3 flex-shrink-0 tabular-nums">
+                                  {parts.length > 0 && <span className="text-[10px] text-slate-500">{fmtInt(parts.length)} item{parts.length !== 1 ? 's' : ''}</span>}
+                                  <span className="font-mono text-[10px] text-slate-600 hidden sm:block">{c.case_number}</span>
+                                  <span className="w-[4.5rem] text-right text-[10px] text-slate-500">{fmtDay(c.reported_at)}</span>
+                                </span>
                               </div>
-                              {(c.subject || c.description) && <p className="text-xs text-slate-400 truncate mb-1">{c.subject || c.description}</p>}
-                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
-                                <span className="font-mono">{c.case_number}</span>
-                                <span>reported {fmtDay(c.reported_at)}</span>
-                                {c.resolved_at && <span className="text-emerald-400/80">resolved {fmtDay(c.resolved_at)}</span>}
-                                {parts.length > 0 && (
-                                  <span className="truncate max-w-[24rem]">
-                                    {parts.map((p) => `${ACTIONS[p.action] ?? p.action}: ${p.description}`).join(' · ')}
+                            ) : (
+                              <>
+                                <div className="flex flex-wrap items-center gap-2 mb-1">
+                                  <span className="font-semibold text-white truncate">{custName.get(c.customer_id ?? '') || 'No customer'}</span>
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap flex-shrink-0 ${cat.cls}`}>{cat.label}</span>
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap flex-shrink-0 ${STATUS_BADGE[c.status]}`}>{statusLabel(c.status)}</span>
+                                  {c.quote_id && <span className="font-mono text-[10px] text-slate-500">{orderLabel(c.quote_id)}</span>}
+                                </div>
+                                <p className="text-xs text-slate-400 truncate mb-1">{what}</p>
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
+                                  <span className="font-mono">{c.case_number}</span>
+                                  <span>reported {fmtDay(c.reported_at)}</span>
+                                  {c.resolved_at && <span className="text-emerald-400/80">resolved {fmtDay(c.resolved_at)}</span>}
+                                </div>
+                              </>
+                            )}
+                          </button>
+                          {/* Expanded overview — the case in its commercial context:
+                              order, invoice, delivery (each with its running age,
+                              the two clocks warranty judgement runs on), items,
+                              and any repair quotes. Editing is one more click. */}
+                          {open && (
+                            <div className="border-t border-slate-800/60 bg-slate-950/40 px-4 py-3 space-y-1.5 text-[11px]">
+                              <p className="flex items-center gap-2 flex-wrap">
+                                <span className={lbl}>Sales order</span>
+                                {so ? (
+                                  <>
+                                    <a href={`/sales/${so.quote_id}`} target="_blank" rel="noopener noreferrer" className={docLink}>{so.order_number || so.quote_number}</a>
+                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${SALES_STATUS[so.status]?.cls ?? ''}`}>{SALES_STATUS[so.status]?.label ?? so.status}</span>
+                                  </>
+                                ) : <span className="text-slate-600 italic">none linked</span>}
+                              </p>
+                              <p className="flex items-center gap-x-3 gap-y-1 flex-wrap">
+                                <span className={lbl}>Invoice{invs.length > 1 ? `s ×${invs.length}` : ''}</span>
+                                {invs.length === 0 ? <span className="text-slate-600 italic">none</span> : invs.map((i) => (
+                                  <span key={i.invoice_id} className="inline-flex items-center gap-1.5">
+                                    <a href={`/sales/${i.quote_id}/print?inv=${i.invoice_id}`} target="_blank" rel="noopener noreferrer" className={docLink}>{i.invoice_number}</a>
+                                    <span className="text-slate-500">issued {fmtDay(i.issued_at || i.created_at)}</span>
+                                    {runningFor(i.issued_at || i.created_at) && <span className="text-amber-300/90 tabular-nums">{runningFor(i.issued_at || i.created_at)} running</span>}
                                   </span>
-                                )}
+                                ))}
+                              </p>
+                              <p className="flex items-center gap-x-3 gap-y-1 flex-wrap">
+                                <span className={lbl}>Delivery{qdos.length > 1 ? ` ×${qdos.length}` : ''}</span>
+                                {qdos.length === 0 ? <span className="text-slate-600 italic">none</span> : qdos.map((d) => (
+                                  <span key={d.do_id} className="inline-flex items-center gap-1.5">
+                                    <a href={`/sales/${d.quote_id}/do?do=${d.do_id}`} target="_blank" rel="noopener noreferrer" className={docLink}>{d.do_number}</a>
+                                    {d.status === 'delivered' ? (
+                                      <>
+                                        <span className="text-slate-500">delivered {fmtDay(d.delivered_at || d.delivery_date)}</span>
+                                        {runningFor(d.delivered_at || d.delivery_date) && <span className="text-amber-300/90 tabular-nums">{runningFor(d.delivered_at || d.delivery_date)} running</span>}
+                                      </>
+                                    ) : <span className="text-orange-300/80">preparing</span>}
+                                  </span>
+                                ))}
+                              </p>
+                              {(invs.length > 0 || qdos.some((d) => d.status === 'delivered')) && (
+                                <p className="flex items-center gap-2 flex-wrap">
+                                  <span className={lbl}>Warranty</span>
+                                  <span className="text-slate-500">runs from the invoice and delivery dates above — after-sales judges by both clocks</span>
+                                </p>
+                              )}
+                              {parts.length > 0 && (
+                                <p className="flex items-start gap-2 flex-wrap">
+                                  <span className={`${lbl} mt-0.5`}>Items</span>
+                                  <span className="flex-1 min-w-0 text-slate-400">
+                                    {parts.map((p) => `${ACTIONS[p.action] ?? p.action}: ${p.description}${Number(p.quantity) > 1 ? ` ×${fmtInt(Number(p.quantity))}` : ''}`).join(' · ')}
+                                  </span>
+                                </p>
+                              )}
+                              {svcQuotes.length > 0 && (
+                                <p className="flex items-center gap-x-3 gap-y-1 flex-wrap">
+                                  <span className={lbl}>Quotes</span>
+                                  {svcQuotes.map((q) => (
+                                    <span key={q.quote_id} className="inline-flex items-center gap-1.5">
+                                      <a href={`/sales/${q.quote_id}`} target="_blank" rel="noopener noreferrer" className={docLink}>{q.order_number || q.quote_number}</a>
+                                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${SALES_STATUS[q.status]?.cls ?? ''}`}>{SALES_STATUS[q.status]?.label ?? q.status}</span>
+                                    </span>
+                                  ))}
+                                </p>
+                              )}
+                              <div className="pt-1.5">
+                                <button onClick={() => openEditor(c)}
+                                  className="px-2.5 py-1 rounded-md border border-slate-700/70 text-[11px] font-medium text-slate-400 hover:text-emerald-300 hover:border-emerald-500/40 transition-colors">
+                                  {canEdit ? '✎ Open case' : 'View details'}
+                                </button>
                               </div>
-                            </>
+                            </div>
                           )}
-                        </button>
+                        </div>
                       );
                     })}
                   </div>

@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-04T01:04:00Z',
+    title: 'After-sales cases expand into a warranty overview',
+    details: [
+      'Clicking a case now expands it in place (like the Sales list) instead of jumping straight into editing: sales order, every invoice and delivery order (all linked, new tab), the items involved, and any repair quotes.',
+      'Each invoice and delivered DO shows its running age — “13.4 months running” from the issue date and the delivery date — the two clocks the warranty judgement runs on. No automatic verdict: after-sales decides.',
+      'Collapsed rows now say WHAT is being repaired: the subject, or failing that the items involved — no more bare “Repair” chips.',
+      'Sales quote editor: the Notes/terms box now aligns edge-to-edge with the totals card.',
+    ],
+  },
+  {
     at: '2026-08-04T00:16:00Z',
     title: 'After-sales quotes — repairs & replacements, one quote system',
     details: [

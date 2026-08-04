@@ -1026,10 +1026,13 @@ export default function SalesQuotePage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
+        {/* Notes stretch to the exact height of the totals card — the two
+            columns share top and bottom edges instead of a ragged gap. */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
+          <div className="flex flex-col">
             <label className="block text-[11px] font-medium text-slate-500 mb-1">Notes / terms</label>
-            <textarea value={editing.notes} onChange={(e) => setHeader('notes', e.target.value)} rows={4} className={inp} />
+            <textarea value={editing.notes} onChange={(e) => setHeader('notes', e.target.value)} rows={4}
+              className={`${inp} flex-1 min-h-[96px] resize-y rounded-2xl`} />
           </div>
           <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4 space-y-2 text-sm">
             <Row label="Subtotal" value={fmtInt(totals.subtotal)} />
