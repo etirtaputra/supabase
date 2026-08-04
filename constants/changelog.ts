@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-04T03:36:00Z',
+    title: 'Quote items mirror to the linked PO — always',
+    details: [
+      'Line items entered for a quote now copy onto its linked PO whenever that PO has no lines yet — combined Quote + PO save, after a page reload, or via the classic Create PO → flow. Quote price becomes PO cost; a PO that already carries lines is never touched.',
+    ],
+  },
+  {
     at: '2026-08-04T03:33:00Z',
     title: 'Quote-mode selector steady on mobile',
     details: [

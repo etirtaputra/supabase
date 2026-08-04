@@ -742,14 +742,24 @@ function MasterInsertPage() {
                       stickyFields={['currency']}
                       onSubmit={async (items) => {
                         await handleInsert('4.1_price_quote_line_items', items);
-                        // "+ PO in one go": mirror the same lines onto the linked
-                        // PO, typed once (unit_price on the quote = unit_cost on
-                        // the PO — the deal was struck at this price).
+                        // Items typed once land on BOTH documents (unit_price on
+                        // the quote = unit_cost on the PO — the deal was struck at
+                        // this price). Mirrors whenever the quote's linked PO has
+                        // no lines yet — combined save, reload, or the two-step
+                        // Create-PO path alike. A PO that already has lines is
+                        // never touched.
                         const list = Array.isArray(items) ? items : [items];
                         const qid = list[0]?.quote_id;
-                        if (qid && comboPo && String(qid) === comboPo.quoteId) {
+                        if (!qid) return;
+                        let poId = comboPo && String(qid) === comboPo.quoteId ? comboPo.poId : null;
+                        if (!poId) {
+                          const linked = data.pos.find((p) => p.quote_id && String(p.quote_id) === String(qid));
+                          const hasItems = linked && data.poItems.some((pi) => String(pi.po_id) === String(linked.po_id));
+                          if (linked && !hasItems) poId = String(linked.po_id);
+                        }
+                        if (poId) {
                           await handleInsert('5.1_purchase_line_items', list.map(({ quote_id: _q, unit_price, ...rest }: any) => ({
-                            ...rest, po_id: comboPo.poId, unit_cost: unit_price,
+                            ...rest, po_id: poId, unit_cost: unit_price,
                           })));
                           showToast('Items written to the quote AND its PO.', 'success');
                         }
