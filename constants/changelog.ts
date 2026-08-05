@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-05T04:02:00Z',
+    title: 'My Spotlight — personal search settings · who’s online, live',
+    details: [
+      'Spotlight gains a ⚙ settings panel (bottom-right of the palette): switch whole sections on or off — sell side, after-sales, buy side, EPC, items, pages. Personal per browser: a sell admin can keep their palette purely sell-side, and switched-off sections are not even loaded. Also there: recents on/off + clear history, and the new filter-token hint row (tap “po”, “inv”, “cust”… to learn the shortcuts).',
+      'The header now shows a green “who’s online” counter next to the clock — everywhere, like the EPC proposals presence but app-wide. Click it to see each signed-in colleague and the exact screen they are on right now (“Sales · SO-20260803-0002”), and open that screen yourself with one click. Live, no refresh, built to handle 30+ concurrent users.',
+    ],
+  },
+  {
     at: '2026-08-05T01:39:00Z',
     title: 'Sales Orders: compact really is compact on the phone',
     details: [

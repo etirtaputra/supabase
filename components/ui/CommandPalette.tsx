@@ -136,6 +136,48 @@ const saveStoredRecent = (item: Item) => {
   } catch { /* private mode etc. — recents just don't persist */ }
 };
 
+// ── Per-user Spotlight preferences ──────────────────────────────────────────
+// Personal, per browser (like the recents): a sell-side admin lives in
+// customers + sales documents, a buy-side admin in PI/PO — each can switch
+// whole sections off so their palette only carries what they work with.
+// Sections a role cannot see never even appear as toggles.
+type SpotGroup = 'pages' | 'sell' | 'aftersales' | 'buy' | 'epc' | 'items';
+interface SpotPrefs { groups: Record<SpotGroup, boolean>; recents: boolean; hints: boolean }
+const SPOT_PREFS_KEY = 'icaproc.spotlight.prefs';
+const DEFAULT_SPOT_PREFS: SpotPrefs = {
+  groups: { pages: true, sell: true, aftersales: true, buy: true, epc: true, items: true },
+  recents: true, hints: true,
+};
+const readSpotPrefs = (): SpotPrefs => {
+  try {
+    const p = JSON.parse(localStorage.getItem(SPOT_PREFS_KEY) ?? 'null');
+    if (!p) return DEFAULT_SPOT_PREFS;
+    return { ...DEFAULT_SPOT_PREFS, ...p, groups: { ...DEFAULT_SPOT_PREFS.groups, ...(p.groups ?? {}) } };
+  } catch { return DEFAULT_SPOT_PREFS; }
+};
+const KIND_TO_SPOT_GROUP: Record<Item['kind'], SpotGroup> = {
+  page: 'pages',
+  customer: 'sell', sales: 'sell', receipt: 'sell',
+  case: 'aftersales',
+  supplier: 'buy', company: 'buy', pi: 'buy', po: 'buy', grn: 'buy',
+  quote: 'epc', component: 'items',
+};
+const SPOT_GROUP_META: { key: SpotGroup; label: string; hint: string; visible: (p: RolePermissions) => boolean }[] = [
+  { key: 'pages',      label: 'Pages & menus',       hint: 'Navigate anywhere by name',            visible: () => true },
+  { key: 'sell',       label: 'Sell side',           hint: 'Customers, sales documents, payments', visible: (p) => p.sellSide },
+  { key: 'aftersales', label: 'After-sales cases',   hint: 'Service, warranty, repairs',           visible: (p) => p.sellSide },
+  { key: 'buy',        label: 'Buy side',            hint: 'Suppliers, PI, PO, goods receipts',    visible: (p) => p.buySide },
+  { key: 'epc',        label: 'EPC proposals',       hint: 'Project quotes',                       visible: (p) => p.projects },
+  { key: 'items',      label: 'Items (catalog)',     hint: 'Products and components',              visible: (p) => p.buySide || p.sellSide },
+];
+// The prefix-token cheat row, shown under an empty search until dismissed
+const HINT_TOKENS: { token: string; group: SpotGroup }[] = [
+  { token: 'cust', group: 'sell' }, { token: 'so', group: 'sell' }, { token: 'inv', group: 'sell' },
+  { token: 'case', group: 'aftersales' },
+  { token: 'pi', group: 'buy' }, { token: 'po', group: 'buy' }, { token: 'grn', group: 'buy' },
+  { token: 'epc', group: 'epc' }, { token: 'item', group: 'items' }, { token: 'go', group: 'pages' },
+];
+
 interface Props {
   variant?: 'modal' | 'inline';
   /** false renders nothing */
@@ -166,6 +208,16 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
   const [items, setItems] = useState<Item[] | null>(null);
   const [recents, setRecents] = useState<Item[]>([]);       // fallback: newest documents
   const [stored, setStored] = useState<Item[]>([]);         // personal: recently opened
+  // Per-user palette preferences + the inline settings panel
+  const [prefs, setPrefs] = useState<SpotPrefs>(DEFAULT_SPOT_PREFS);
+  const [showPrefs, setShowPrefs] = useState(false);
+  useEffect(() => { setPrefs(readSpotPrefs()); }, []);
+  const kindEnabled = useCallback((k: Item['kind']) => prefs.groups[KIND_TO_SPOT_GROUP[k]], [prefs]);
+  const savePrefs = (next: SpotPrefs, refetch = false) => {
+    setPrefs(next);
+    try { localStorage.setItem(SPOT_PREFS_KEY, JSON.stringify(next)); } catch {}
+    if (refetch) setItems(null);   // section gating changed → rebuild the index
+  };
   const [drill, setDrill] = useState<{ title: string; refs: DealRef[] } | null>(null);
   const [openLines, setOpenLines] = useState<number | null>(null); // drill row whose items are expanded
   const inputRef = useRef<HTMLInputElement>(null);
@@ -203,6 +255,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
       setQuery('');
       setIndex(0);
       setDrill(null);
+      setShowPrefs(false);
       setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 0);
     }
   }, [open]);
@@ -215,9 +268,12 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
 
   const loadData = useCallback(async () => {
     if (!perms) return;
-    const canBuy = perms.buySide;
-    const canSell = perms.sellSide;
-    const canProjects = perms.projects;
+    // Personal section toggles narrow the ROLE gates — a switched-off section
+    // is not even fetched (a sell admin's browser never pulls 1,500 POs).
+    // After-sales labels need sell data, so 'sell' fetches stay on for it.
+    const canBuy = perms.buySide && prefs.groups.buy;
+    const canSell = perms.sellSide && (prefs.groups.sell || prefs.groups.aftersales);
+    const canProjects = perms.projects && prefs.groups.epc;
     const showBrand = perms.canViewBrand;
 
     const fetchAllComponents = async () => {
@@ -579,7 +635,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
         .slice(0, 8),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile]);
+  }, [profile, prefs]);
 
   useEffect(() => {
     if (active && items === null && perms) loadData();
@@ -596,7 +652,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
       kindFilter = KIND_ALIASES[tokens[0]];
       tokens = tokens.slice(1);
     }
-    const pool = kindFilter ? items.filter((i) => i.kind === kindFilter) : items;
+    const pool = (kindFilter ? items.filter((i) => i.kind === kindFilter) : items).filter((i) => kindEnabled(i.kind));
     // Alias alone → that kind's latest entries (documents by date, items by activity)
     if (tokens.length === 0) {
       if (!kindFilter) return [];
@@ -649,10 +705,11 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
       if (capped.length >= 24) break;
     }
     return capped;
-  }, [items, query]);
+  }, [items, query, kindEnabled]);
 
   const searching = query.trim().length >= 2;
-  const rootRows = searching ? results : (stored.length > 0 ? stored : recents);
+  const enabledRecents = prefs.recents ? (stored.length > 0 ? stored : recents).filter((r) => kindEnabled(r.kind)) : [];
+  const rootRows = searching ? results : enabledRecents;
 
   useEffect(() => { setIndex(0); setOpenLines(null); }, [query, drill]);
   useEffect(() => {
@@ -713,9 +770,55 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
 
   if (!enabled || !perms) return null;
 
+  // Per-user settings panel — swapped in place of the results when the gear
+  // is open. Personal to this browser, like the recents.
+  const prefsPanel = (
+    <div className="px-4 py-3 space-y-1.5">
+      <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500 pb-1">My Spotlight — what I search</p>
+      {SPOT_GROUP_META.filter((g) => perms && g.visible(perms)).map((g) => (
+        <label key={g.key} className="flex items-center gap-2.5 cursor-pointer py-0.5">
+          <input type="checkbox" checked={prefs.groups[g.key]}
+            onChange={(e) => savePrefs({ ...prefs, groups: { ...prefs.groups, [g.key]: e.target.checked } }, true)}
+            className="w-3.5 h-3.5 accent-emerald-500 flex-shrink-0" />
+          <span className="text-xs text-slate-200 flex-shrink-0">{g.label}</span>
+          <span className="text-[10px] text-slate-600 truncate">{g.hint}</span>
+        </label>
+      ))}
+      <div className="border-t border-slate-800 mt-2 pt-2 space-y-1.5">
+        <label className="flex items-center gap-2.5 cursor-pointer">
+          <input type="checkbox" checked={prefs.recents}
+            onChange={(e) => savePrefs({ ...prefs, recents: e.target.checked })}
+            className="w-3.5 h-3.5 accent-emerald-500 flex-shrink-0" />
+          <span className="text-xs text-slate-200">Show my recent activity when the search is empty</span>
+          <button onClick={(e) => { e.preventDefault(); try { localStorage.removeItem(RECENTS_KEY); } catch {} setStored([]); }}
+            className="ml-auto text-[10px] text-slate-500 hover:text-red-300 transition-colors flex-shrink-0">clear history</button>
+        </label>
+        <label className="flex items-center gap-2.5 cursor-pointer">
+          <input type="checkbox" checked={prefs.hints}
+            onChange={(e) => savePrefs({ ...prefs, hints: e.target.checked })}
+            className="w-3.5 h-3.5 accent-emerald-500 flex-shrink-0" />
+          <span className="text-xs text-slate-200">Show the filter-token hints</span>
+        </label>
+      </div>
+      <p className="text-[10px] text-slate-600 pt-1">Personal to this browser — every colleague keeps their own mix. Sections you switch off are not even loaded.</p>
+    </div>
+  );
+
   // Scrollable results list — shared by both variants
-  const body = (
+  const resultsBody = (
     <div ref={listRef} className="max-h-[50vh] overflow-y-auto">
+      {/* Prefix-token cheat row — the palette's power feature, made visible */}
+      {!drill && !searching && prefs.hints && perms && (
+        <div className="px-4 pt-2.5 pb-1 flex flex-wrap items-center gap-1.5 text-[10px]">
+          <span className="text-slate-600">narrow:</span>
+          {HINT_TOKENS.filter((h) => prefs.groups[h.group] && SPOT_GROUP_META.find((g) => g.key === h.group)!.visible(perms)).map((h) => (
+            <button key={h.token} onMouseDown={(e) => e.preventDefault()}
+              onClick={() => { setQuery(h.token + ' '); inputRef.current?.focus(); }}
+              className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 hover:text-emerald-300 font-mono transition-colors">{h.token}</button>
+          ))}
+          <span className="text-slate-700 hidden sm:inline">e.g. “po jinko” · “inv 0007”</span>
+        </div>
+      )}
       {items === null && (
         <div className="px-4 py-6 flex items-center justify-center gap-2 text-sm text-slate-500">
           <div className="w-3.5 h-3.5 border-2 border-slate-600 border-t-slate-300 rounded-full animate-spin" />
@@ -820,6 +923,8 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
     </div>
   );
 
+  const body = showPrefs ? prefsPanel : resultsBody;
+
   // ── Inline variant: the search bar IS the UI (dashboard hero) ──────────────
   if (inline) {
     return (
@@ -851,7 +956,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
           />
           <kbd className="text-[10px] font-mono text-slate-500 border border-slate-700 rounded px-1.5 py-0.5 leading-none flex-shrink-0">{modKey} I</kbd>
         </div>
-        {active && (searching || rootRows.length > 0 || items === null || drill) && (
+        {active && (searching || rootRows.length > 0 || items === null || drill || showPrefs || prefs.hints) && (
           <div
             onMouseDown={(e) => e.preventDefault()}
             className="absolute left-0 right-0 mt-2 min-w-[420px] bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden z-[60]"
@@ -861,7 +966,12 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
               <span>↑↓ navigate</span>
               {drill ? <><span>← back</span><span>→ items</span></> : <span>→ drill in</span>}
               <span>↵ open in new tab</span>
-              <span className="ml-auto hidden sm:inline">filter: po · inv · cust · item …</span>
+              <button onMouseDown={(e) => e.preventDefault()} onClick={() => setShowPrefs((v) => !v)}
+                title="My Spotlight — choose which sections this search covers (personal)"
+                className={`ml-auto flex items-center gap-1 transition-colors ${showPrefs ? 'text-emerald-300' : 'hover:text-slate-300'}`}>
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                settings
+              </button>
             </div>
           </div>
         )}
@@ -908,7 +1018,12 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
           {drill ? <><span>← back</span><span>→ items</span></> : <span>→ drill in</span>}
           <span>↵ open</span>
           <span className="hidden sm:inline">Esc close</span>
-          <span className="ml-auto hidden sm:inline">filter: po · inv · cust · item …</span>
+          <button onClick={() => setShowPrefs((v) => !v)}
+            title="My Spotlight — choose which sections this search covers (personal)"
+            className={`ml-auto flex items-center gap-1 transition-colors ${showPrefs ? 'text-emerald-300' : 'hover:text-slate-300'}`}>
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+            settings
+          </button>
         </div>
       </div>
     </div>

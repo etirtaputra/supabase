@@ -4,6 +4,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/hooks/useAuth';
+import OnlineUsers from './OnlineUsers';
 import { ROLE_PERMISSIONS, type RolePermissions } from '@/constants/roles';
 import { DESTINATIONS, NAV_GROUP_ORDER, sectionAllowed, type NavSection } from '@/constants/navigation';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
@@ -434,6 +435,8 @@ export default function BrandMenu({
       {/* Live date + time — fixed in the header at every width; on phones it
           right-aligns beside the wordmark, on desktop after the search. */}
       <HeaderClock />
+      {/* Who else is in the system right now, and on which screen */}
+      <OnlineUsers />
 
       {/* ── Mobile: fixed bottom tab bar (thumb reach) + More sheet.
              Portaled to <body>: page headers use backdrop-blur, which WebKit
