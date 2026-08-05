@@ -13,6 +13,8 @@ import { fmtIdr, parseDate } from '@/lib/formatters';
 import FitText from '@/components/ui/FitText';
 import { getSettings } from '@/lib/settings';
 import { fetchActionQueue, fetchActivity, type ActionItem, type ActivityRow } from '@/lib/dashboard';
+import { fetchShortages, fetchReorderAlerts, type ShortageAlert, type ReorderAlert } from '@/lib/reorder';
+import { fmtInt } from '@/lib/formatters';
 
 function fmtDate(d?: string | null) {
   const dt = parseDate(d);
@@ -33,6 +35,8 @@ export default function Home() {
   const [stockValue, setStockValue] = useState<number | null>(null);
   const [queue, setQueue] = useState<ActionItem[] | null>(null);
   const [activity, setActivity] = useState<ActivityRow[] | null>(null);
+  const [shortages, setShortages] = useState<ShortageAlert[] | null>(null);
+  const [reorders, setReorders] = useState<ReorderAlert[] | null>(null);
 
   useEffect(() => { document.title = 'Dashboard — ICAPROC'; }, []);
 
@@ -55,6 +59,16 @@ export default function Home() {
       .catch(() => { if (live) setActivity([]); });
     return () => { live = false; };
   }, [user, profile?.role, arOverdueDays, quoteFollowUpDays]);
+
+  // ── Stock alerts: shortages (orders that cannot ship) + reorder points ────
+  // Same engines /stock uses — the dashboard is a window, not a second truth.
+  useEffect(() => {
+    if (!user || !perms?.buySide) return;
+    let live = true;
+    fetchShortages(supabase).then((r) => { if (live) setShortages(r); }).catch(() => { if (live) setShortages([]); });
+    fetchReorderAlerts(supabase).then((r) => { if (live) setReorders(r); }).catch(() => { if (live) setReorders([]); });
+    return () => { live = false; };
+  }, [user, perms?.buySide]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!user || !perms?.buySide) return;
@@ -161,6 +175,10 @@ export default function Home() {
         </div>
         )}
 
+        {/* ── Stock alerts — shortages (the fire) + reorder points (the smoke
+               detector), in one dedicated section ── */}
+        {perms?.buySide && <StockAlerts shortages={shortages} reorders={reorders} />}
+
         {/* ── Activity + quick actions ── */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
           <div className="xl:col-span-2"><ActivityStream rows={activity} /></div>
@@ -262,6 +280,98 @@ function ActionQueue({ items, atStake }: { items: ActionItem[] | null; atStake: 
               )}
               <span className="flex-shrink-0 text-slate-700 group-hover:text-slate-400 transition-colors">→</span>
             </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The warehouse's two alarms on the dashboard itself: Shortages = committed
+ * orders that cannot ship today (red, /stock's exact rule), Reorder = items
+ * whose live + incoming just crossed the reorder point (amber — demand rate ×
+ * measured lead time says the next PO is due). Full detail stays on /stock;
+ * this section is the daily glance.
+ */
+function StockAlerts({ shortages, reorders }: { shortages: ShortageAlert[] | null; reorders: ReorderAlert[] | null }) {
+  const loading = shortages === null || reorders === null;
+  const quiet = !loading && shortages.length === 0 && reorders.length === 0;
+  return (
+    <div className="bg-slate-900/60 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl overflow-hidden">
+      <div className="flex items-center gap-3 px-4 sm:px-5 py-3.5 border-b border-slate-800/70">
+        <h2 className="text-sm font-bold text-white">Stock alerts</h2>
+        {!loading && (shortages.length > 0 || reorders.length > 0) && (
+          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+            {shortages.length > 0 ? `${shortages.length} short` : ''}
+            {shortages.length > 0 && reorders.length > 0 ? ' · ' : ''}
+            {reorders.length > 0 ? `${reorders.length} to reorder` : ''}
+          </span>
+        )}
+        <Link href="/stock" className="ml-auto text-[11px] text-slate-500 hover:text-sky-300 transition-colors whitespace-nowrap">
+          Stock →
+        </Link>
+      </div>
+
+      {loading ? (
+        <div className="p-4 sm:p-5 space-y-2">
+          {[...Array(2)].map((_, i) => <div key={i} className="h-12 bg-slate-800/40 rounded-xl animate-pulse" />)}
+        </div>
+      ) : quiet ? (
+        <p className="px-5 py-6 text-center text-xs text-slate-500">
+          Nothing to flag — every committed order can ship, and no item is at its reorder point.
+        </p>
+      ) : (
+        <div className="divide-y divide-slate-800/50">
+          {/* Shortages first — these are blocking revenue TODAY */}
+          {shortages.map((sh) => (
+            <div key={`sh-${sh.component_id}`} className="px-4 sm:px-5 py-3">
+              <div className="flex items-baseline gap-x-2.5 gap-y-1 flex-wrap">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400 self-center flex-shrink-0" />
+                <span className="text-[13px] font-semibold text-white truncate max-w-[340px]">{sh.name}</span>
+                <span className="text-[11px] tabular-nums text-red-300 font-bold">
+                  short {fmtInt(sh.short)}{sh.unit ? ` ${sh.unit}` : ''}
+                </span>
+                <span className="text-[10px] tabular-nums text-slate-500">
+                  have {fmtInt(sh.physical)} · committed {fmtInt(sh.committed)}
+                </span>
+                <span className="ml-auto flex flex-wrap gap-1.5">
+                  {sh.orders.slice(0, 3).map((o) => (
+                    <Link key={`${o.quote_id}-${o.number}`} href={`/sales/${o.quote_id}`}
+                      title={`${o.customer || 'No customer'} — waiting on ${fmtInt(o.qty)}${sh.unit ? ` ${sh.unit}` : ''}`}
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-slate-800/70 hover:bg-slate-700 transition-colors font-mono text-[10px] text-violet-300">
+                      {o.number}
+                    </Link>
+                  ))}
+                  {sh.orders.length > 3 && <span className="text-[10px] text-slate-600 self-center">+{sh.orders.length - 3}</span>}
+                </span>
+              </div>
+            </div>
+          ))}
+          {/* Then the reorder points — the shortages that haven't happened yet */}
+          {reorders.map((a) => (
+            <div key={`ro-${a.component_id}`} className="px-4 sm:px-5 py-3">
+              <div className="flex items-baseline gap-x-2.5 gap-y-1 flex-wrap">
+                <span className={`w-1.5 h-1.5 rounded-full self-center flex-shrink-0 ${a.urgent ? 'bg-red-400' : 'bg-amber-400 opacity-80'}`} />
+                <span className="text-[13px] font-semibold text-slate-200 truncate max-w-[340px]">{a.name}</span>
+                <span className="text-[11px] tabular-nums text-amber-300 font-bold">
+                  order ~{fmtInt(a.suggestedQty)}{a.unit ? ` ${a.unit}` : ''}
+                </span>
+                {a.urgent && (
+                  <span className="text-[10px] font-bold text-red-300 uppercase tracking-wide"
+                    title="At the current demand rate, stock runs out before a PO raised today could arrive">
+                    stock-out before replenishment
+                  </span>
+                )}
+                <span className="text-[10px] tabular-nums text-slate-500">
+                  live {fmtInt(a.live)}{a.incoming > 0 ? ` + ${fmtInt(a.incoming)} incoming` : ''} · covers {Math.round(a.coverDays)}d · lead {Math.round(a.leadDays)}d{a.leadMeasured ? '' : ' (est.)'}
+                </span>
+                <Link href="/purchasing?tab=quoting"
+                  className="ml-auto text-[10px] px-2 py-0.5 rounded-lg bg-sky-500/10 text-sky-300 ring-1 ring-sky-500/25 hover:bg-sky-500/20 transition-colors whitespace-nowrap self-center">
+                  New PO →
+                </Link>
+              </div>
+            </div>
           ))}
         </div>
       )}

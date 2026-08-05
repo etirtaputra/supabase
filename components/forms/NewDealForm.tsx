@@ -251,9 +251,11 @@ export default function NewDealForm({
   return (
     <form onSubmit={handleSubmit}
       className="bg-slate-900/40 backdrop-blur-sm rounded-2xl border border-slate-800/80 p-4 md:p-5 shadow-xl ring-1 ring-white/5 space-y-4">
-      {/* Title row — one PDF upload for the whole document */}
-      <div className="flex items-center gap-3 border-b border-slate-800/80 pb-3">
-        <h3 className="text-sm font-bold text-white tracking-tight flex-1">{title}</h3>
+      {/* Title row — one PDF upload for the whole document. On phones the
+          title takes the full first line and the actions sit beneath it,
+          instead of squeezing the title into a three-line sliver. */}
+      <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 border-b border-slate-800/80 pb-3">
+        <h3 className="text-sm font-bold text-white tracking-tight w-full sm:w-auto sm:flex-1">{title}</h3>
         {headerAction}
         {draftLive && (
           <button type="button" onClick={clearDraft}
@@ -285,29 +287,33 @@ export default function NewDealForm({
             const total = (Number(l.quantity) || 0) * (Number(l.unit_price) || 0);
             return (
               <div key={l.key}
-                className="grid grid-cols-2 md:grid-cols-[minmax(0,2.2fr)_minmax(0,1.6fr)_70px_110px_84px_100px_24px] gap-2 items-center bg-slate-950/40 border border-slate-800/60 rounded-xl px-1.5 py-1.5 md:border-0 md:bg-transparent md:px-1 md:py-0">
-                <div className="col-span-2 md:col-span-1">
+                className="grid grid-cols-6 md:grid-cols-[minmax(0,2.2fr)_minmax(0,1.6fr)_70px_110px_84px_100px_24px] gap-2 items-center bg-slate-950/40 border border-slate-800/60 rounded-xl px-2.5 py-2.5 md:border-0 md:bg-transparent md:px-1 md:py-0">
+                <div className="col-span-6 md:col-span-1">
                   <RichDropdown options={components} value={l.component_id}
                     config={{ labelKey: 'supplier_model', valueKey: 'component_id', subLabelKey: 'internal_description' }}
                     placeholder="Search catalog…"
                     onChange={(v: any) => pickComponent(l.key, v ? String(v) : null)} />
                 </div>
                 <input value={l.supplier_description} onChange={(e) => setLine(l.key, { supplier_description: e.target.value })}
-                  placeholder="Supplier description" className={`${lineInp} col-span-2 md:col-span-1`} />
+                  placeholder="Supplier description" className={`${lineInp} col-span-6 md:col-span-1`} />
+                {/* Phones: Qty · Price · Curr share one row, then the line total
+                    and ✕ share the footer — no orphaned boxes. */}
                 <input value={l.quantity} onChange={(e) => setLine(l.key, { quantity: e.target.value })}
-                  placeholder="Qty" inputMode="decimal" className={`${lineInp} text-right tabular-nums`} />
+                  placeholder="Qty" inputMode="decimal" className={`${lineInp} col-span-2 md:col-span-1 text-right tabular-nums`} />
                 <input value={l.unit_price} onChange={(e) => setLine(l.key, { unit_price: e.target.value })}
-                  placeholder="Price" inputMode="decimal" className={`${lineInp} text-right tabular-nums`} />
+                  placeholder="Price" inputMode="decimal" className={`${lineInp} col-span-2 md:col-span-1 text-right tabular-nums`} />
                 <select value={l.currency || header.currency || ''} onChange={(e) => setLine(l.key, { currency: e.target.value })}
-                  className={`${lineInp} appearance-none`}>
-                  <option value="">—</option>
+                  title="Line currency" className={`${lineInp} col-span-2 md:col-span-1 appearance-none`}>
+                  <option value="">Curr</option>
                   {currencies.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
-                <span className="text-right text-xs tabular-nums text-slate-300 font-semibold whitespace-nowrap">
-                  {total > 0 ? fmtInt(total) : <span className="text-slate-700">—</span>}
+                <span className="col-span-5 md:col-span-1 text-right text-xs tabular-nums text-slate-300 font-semibold whitespace-nowrap">
+                  {total > 0
+                    ? <><span className="md:hidden text-slate-500 font-normal">Line total </span>{fmtInt(total)}</>
+                    : <span className="text-slate-700">—</span>}
                 </span>
                 <button type="button" onClick={() => removeLine(l.key)} tabIndex={-1}
-                  className="text-slate-600 hover:text-red-400 transition-colors text-base leading-none justify-self-end"
+                  className="col-span-1 text-slate-600 hover:text-red-400 transition-colors text-base leading-none justify-self-end"
                   title="Remove line">×</button>
               </div>
             );
@@ -336,7 +342,7 @@ export default function NewDealForm({
           </span>
         )}
         <button type="submit" disabled={loading}
-          className={`ml-auto font-bold py-2.5 px-6 rounded-xl text-sm shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:transform-none disabled:cursor-not-allowed flex items-center justify-center gap-2 text-white ${
+          className={`w-full sm:w-auto sm:ml-auto font-bold py-2.5 px-6 rounded-xl text-sm shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:transform-none disabled:cursor-not-allowed flex items-center justify-center gap-2 text-white ${
             withPo ? 'bg-violet-600 hover:bg-violet-500 border border-violet-500/50 shadow-violet-900/20'
                    : 'bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/50 shadow-emerald-900/20'}`}>
           {loading ? (<><Spinner className="w-4 h-4" /><span>Saving…</span></>)

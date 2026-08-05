@@ -20,6 +20,7 @@ import { useSettings } from '@/hooks/useSettings';
 import type { Component, PriceQuoteLineItem, PriceQuote, PurchaseOrder, PurchaseLineItem, CompetitorPrice, POCost, ComponentLink } from '../../types/database';
 import { computeTUC, computeTUCMap } from '../../lib/computeTUC';
 import { WARRANTY_UNITS, warrantyLabel } from '@/lib/warranty';
+import { fetchReorderAlerts, type ReorderAlert } from '@/lib/reorder';
 import { computeTierChain } from '../../lib/tierPricing';
 import { PRINCIPAL_CATS, BALANCE_CATS, BANK_FEE_CATS, TAX_CATS } from '../../constants/costCategories';
 import { ENUMS } from '../../constants/enums';
@@ -669,6 +670,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const [filterPI, setFilterPI] = useState('');
   const [filterPO, setFilterPO] = useState('');
   const [filterUnused, setFilterUnused] = useState(false);
+  const [filterReorder, setFilterReorder] = useState(false);   // at/below reorder point
   const [filterDuplicates, setFilterDuplicates] = useState(false);
   const [filterHasIntel, setFilterHasIntel] = useState(false);
   const [filterTucHidden, setFilterTucHidden] = useState(false); // TUC hidden from Project Quotes
@@ -720,6 +722,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
         if (f.filterPI) setFilterPI(f.filterPI);
         if (f.filterPO) setFilterPO(f.filterPO);
         if (f.filterUnused) setFilterUnused(f.filterUnused);
+        if (f.filterReorder) setFilterReorder(f.filterReorder);
         if (f.filterDuplicates) setFilterDuplicates(f.filterDuplicates);
         if (f.filterHasIntel) setFilterHasIntel(f.filterHasIntel);
         if (f.filterLinked) setFilterLinked(f.filterLinked);
@@ -737,10 +740,10 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   useEffect(() => {
     try {
       localStorage.setItem('componentEditor_filters', JSON.stringify({
-        searchInput, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs, filterHasLeadTime, filterHasCashCycle, filterLowMargin, marginThreshold, filterBelowMarket,
+        searchInput, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterReorder, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs, filterHasLeadTime, filterHasCashCycle, filterLowMargin, marginThreshold, filterBelowMarket,
       }));
     } catch {}
-  }, [searchInput, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs, filterHasLeadTime, filterHasCashCycle, filterLowMargin, marginThreshold, filterBelowMarket]);
+  }, [searchInput, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterReorder, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs, filterHasLeadTime, filterHasCashCycle, filterLowMargin, marginThreshold, filterBelowMarket]);
 
   // ── Persist column visibility ─────────────────────────────────────────────
   useEffect(() => {
@@ -778,6 +781,26 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   // for every selected component in one write.
   const supabase = useMemo(() => createSupabaseClient(), []);
   const { profile } = useAuth();
+  // Usage the buy-side tables in this editor cannot see: EPC proposal lines
+  // (10.2) and sales quote lines (22.1). An item on a proposal or a sales
+  // document is USED — the Unused filter must never surface it.
+  const [externalUsedIds, setExternalUsedIds] = useState<Set<string>>(new Set());
+  // The reorder engine's verdicts, for the Reorder quick-filter.
+  const [reorderById, setReorderById] = useState<Map<string, ReorderAlert>>(new Map());
+  useEffect(() => {
+    Promise.all([
+      supabase.from('10.2_quote_items').select('component_id').not('component_id', 'is', null).limit(20000),
+      supabase.from('22.1_sales_quote_items').select('component_id').not('component_id', 'is', null).limit(20000),
+    ]).then(([epc, sales]) => {
+      const s = new Set<string>();
+      for (const r of ((epc.data ?? []) as { component_id: string }[])) s.add(String(r.component_id));
+      for (const r of ((sales.data ?? []) as { component_id: string }[])) s.add(String(r.component_id));
+      setExternalUsedIds(s);
+    }).catch(() => {});
+    fetchReorderAlerts(supabase)
+      .then((as) => setReorderById(new Map(as.map((a) => [a.component_id, a]))))
+      .catch(() => {});
+  }, [supabase]);
   const isOwner = profile?.role === 'owner';
   const [bulkCostBusy, setBulkCostBusy] = useState<QuoteCostMode | null>(null);
   const [bulkBuffer, setBulkBuffer] = useState('');
@@ -1172,8 +1195,11 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       !usageMap.has(String(c.component_id)) &&
       !lastPoByComponent.has(c.component_id) &&
       !c.selling_price_idr &&
-      !linkedComponentIds.has(c.component_id)
+      !linkedComponentIds.has(c.component_id) &&
+      // On an EPC proposal or a sales document = used (owner, 2026-08-06)
+      !externalUsedIds.has(String(c.component_id))
     );
+    if (filterReorder) result = result.filter((c) => reorderById.has(String(c.component_id)));
     if (filterDuplicates) result = result.filter((c) => duplicateModels.has(c.supplier_model?.toLowerCase().trim() ?? ''));
     if (filterHasIntel) result = result.filter((c) => intelComponentIds.has(c.component_id));
     if (filterTucHidden) result = result.filter((c) => {
@@ -1234,7 +1260,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
       const bv = ((b[sortCol as keyof Component] as string) || '').toLowerCase();
       return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
     });
-  }, [components, search, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterDuplicates, filterHasIntel, filterTucHidden, optimistic, filterLinked, filterHasSpecs, filterHasLeadTime, filterHasCashCycle, filterLowMargin, marginThreshold, filterBelowMarket, sortCol, sortDir, usageMap, duplicateModels, intelComponentIds, linkedComponentIds, compIdsWithLeadTime, compIdsWithCashCycle, sparklineLinesByComponent, marginByComponent, marketAvgIdrByComponent, lastPoByComponent]);
+  }, [components, search, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterReorder, filterDuplicates, filterHasIntel, filterTucHidden, optimistic, filterLinked, filterHasSpecs, filterHasLeadTime, filterHasCashCycle, filterLowMargin, marginThreshold, filterBelowMarket, sortCol, sortDir, usageMap, duplicateModels, intelComponentIds, linkedComponentIds, compIdsWithLeadTime, compIdsWithCashCycle, sparklineLinesByComponent, marginByComponent, marketAvgIdrByComponent, lastPoByComponent, externalUsedIds, reorderById]);
 
   const toggleSort = (col: SortCol) => {
     if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -1503,7 +1529,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
   const clearAllFilters = () => {
     setSearchInput(''); setSearch('');
     setFilterBrand(''); setFilterCategory(''); setFilterPI(''); setFilterPO('');
-    setFilterUnused(false); setFilterDuplicates(false); setFilterHasIntel(false); setFilterLinked(false); setFilterHasSpecs(false);
+    setFilterUnused(false); setFilterReorder(false); setFilterDuplicates(false); setFilterHasIntel(false); setFilterLinked(false); setFilterHasSpecs(false);
     setFilterLowMargin(false); setFilterBelowMarket(false);
   };
 
@@ -2465,9 +2491,20 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                   ? 'bg-orange-500/20 border-orange-500/40 text-orange-300'
                   : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-orange-300 hover:border-orange-500/30'
               }`}
-              title="Show components never used in any quote"
+              title="Show components used NOWHERE — no supplier quote, PO, sell price, link, EPC proposal or sales document"
             >
               Unused{filterUnused ? ` (${filtered.length})` : ''}
+            </button>
+            <button
+              onClick={() => setFilterReorder((v) => !v)}
+              className={`py-1.5 px-2.5 md:py-2 md:px-3 rounded-lg text-xs md:text-sm font-semibold border transition-all flex-shrink-0 ${
+                filterReorder
+                  ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+                  : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-amber-300 hover:border-amber-500/30'
+              }`}
+              title="Items at their reorder point — live + incoming at or below 90-day demand × measured lead time + safety buffer (the same alert as the Dashboard and /stock)"
+            >
+              Reorder{filterReorder ? ` (${filtered.length})` : reorderById.size ? ` ${reorderById.size}` : ''}
             </button>
             <button
               onClick={() => { setFilterDuplicates((v) => !v); setFilterUnused(false); setFilterLinked(false); }}

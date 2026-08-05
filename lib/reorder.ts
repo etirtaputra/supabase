@@ -57,6 +57,77 @@ export interface ReorderAlert {
   urgent: boolean;          // stock-out projected before a PO raised today lands
 }
 
+/** A committed order line stock cannot cover — the same rule /stock's
+ *  Shortages panel applies (on-hand across all warehouses vs undelivered
+ *  committed qty), packaged for the Dashboard's stock section. */
+export interface ShortageAlert {
+  component_id: string;
+  name: string;
+  unit: string | null;
+  physical: number;   // on-hand, all warehouses
+  committed: number;  // undelivered qty on committed orders
+  short: number;      // committed − physical (> 0)
+  orders: { quote_id: string; number: string; customer: string; qty: number }[];
+}
+
+export async function fetchShortages(supabase: SupabaseClient): Promise<ShortageAlert[]> {
+  const [balRes, sqRes, sqiRes, custRes, delivered] = await Promise.all([
+    supabase.from('30.1_stock_balances').select('component_id, qty_on_hand'),
+    supabase.from('22.0_sales_quotes').select('quote_id, status, order_number, quote_number, customer_id'),
+    supabase.from('22.1_sales_quote_items').select('quote_id, component_id, quantity, is_section'),
+    supabase.from('20.0_customers').select('customer_id, display_name, legal_name'),
+    fetchDeliveredByQuoteComp(supabase),
+  ]);
+  if (balRes.error || sqRes.error || sqiRes.error) return [];
+
+  const custName = new Map(((custRes.data ?? []) as { customer_id: string; display_name: string; legal_name: string }[])
+    .map((c) => [c.customer_id, c.display_name || c.legal_name || '']));
+  const docs = (sqRes.data ?? []) as { quote_id: string; status: string; order_number: string | null; quote_number: string; customer_id: string | null }[];
+  const committed = new Map(docs.filter((d) => COMMITTED_STATUSES.has(d.status)).map((d) => [d.quote_id, d]));
+
+  const physical = new Map<string, number>();
+  for (const b of (balRes.data ?? []) as { component_id: string; qty_on_hand: number }[]) {
+    physical.set(b.component_id, (physical.get(b.component_id) ?? 0) + (Number(b.qty_on_hand) || 0));
+  }
+
+  const demand = new Map<string, { qty: number; orders: ShortageAlert['orders'] }>();
+  for (const it of (sqiRes.data ?? []) as { quote_id: string; component_id: string | null; quantity: number; is_section: boolean }[]) {
+    if (!it.component_id || it.is_section) continue;
+    const doc = committed.get(it.quote_id);
+    if (!doc) continue;
+    const open = Math.max(0, (Number(it.quantity) || 0) - (delivered.get(`${it.quote_id}·${it.component_id}`) ?? 0));
+    if (open <= 0) continue;
+    const e = demand.get(it.component_id) ?? { qty: 0, orders: [] };
+    e.qty += open;
+    e.orders.push({
+      quote_id: doc.quote_id, number: doc.order_number || doc.quote_number,
+      customer: custName.get(doc.customer_id ?? '') ?? '', qty: open,
+    });
+    demand.set(it.component_id, e);
+  }
+
+  const hits: Omit<ShortageAlert, 'name' | 'unit'>[] = [];
+  for (const [cid, d] of demand) {
+    const have = physical.get(cid) ?? 0;
+    if (d.qty - have > 0.0001) hits.push({ component_id: cid, physical: have, committed: d.qty, short: d.qty - have, orders: d.orders });
+  }
+  if (!hits.length) return [];
+
+  const names = new Map<string, { name: string; unit: string | null }>();
+  const ids = hits.map((h) => h.component_id);
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data } = await supabase.from('3.0_components')
+      .select('component_id, supplier_model, internal_description, unit')
+      .in('component_id', ids.slice(i, i + 200));
+    for (const c of (data ?? []) as { component_id: string; supplier_model: string; internal_description: string | null; unit: string | null }[]) {
+      names.set(c.component_id, { name: c.internal_description || c.supplier_model || c.component_id, unit: c.unit });
+    }
+  }
+  return hits
+    .map((h) => ({ ...h, ...(names.get(h.component_id) ?? { name: h.component_id, unit: null }) }))
+    .sort((a, b) => b.short - a.short);
+}
+
 export async function fetchReorderAlerts(supabase: SupabaseClient): Promise<ReorderAlert[]> {
   const since = new Date(Date.now() - DEMAND_WINDOW_DAYS * 86_400_000).toISOString();
   const [balRes, movRes, poRes, poiRes, sqRes, sqiRes, delivered] = await Promise.all([

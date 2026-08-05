@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-05T23:55:00Z',
+    title: 'Stock alerts on the Dashboard · New Deal is phone-friendly · smarter Item Editor filters',
+    details: [
+      'The Dashboard gains a dedicated Stock alerts section: Shortages (committed orders that cannot ship — red, with the waiting order numbers one click away) and Reorder points (amber, with the suggested order qty and a New PO shortcut). Same engines as /stock, so fixing it there clears it here.',
+      'New Deal on phones: line rows are tidy cards — catalog + description full-width, Qty · Price · Currency on one row, line total and remove ✕ sharing the footer. The card title keeps its own line with the PDF/Clear buttons beneath, and Save goes full-width.',
+      'Item Editor: the Unused filter no longer flags items that sit on an EPC proposal or a sales document — “unused” now really means used nowhere. And a new Reorder quick-filter shows exactly the items at their reorder point, with the live count on the button.',
+    ],
+  },
+  {
     at: '2026-08-05T23:40:00Z',
     title: 'One-form New Deal · Reorder alerts · structured warranties · doc numbers open Deal Lookup · “newer version” tags',
     details: [
