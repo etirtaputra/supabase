@@ -20,10 +20,10 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    at: '2026-08-04T23:47:00Z',
-    title: 'Sales list: numbers back in column',
+    at: '2026-08-04T23:52:00Z',
+    title: 'Sales list: numbers back in column, never wrapping',
     details: [
-      'Every row now reserves the draft-checkbox slot, so DQ/PQ/SO numbers align whether or not a row is selectable.',
+      'Every row now reserves the draft-checkbox slot, so DQ/PQ/SO numbers align whether or not a row is selectable; the Number column widened so a code with badges never breaks onto two lines.',
     ],
   },
   {
