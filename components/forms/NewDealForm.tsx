@@ -278,10 +278,10 @@ export default function NewDealForm({
       {/* ── Line items — same card, one save ── */}
       {!itemsLocked && (
         <div className="space-y-1.5 pt-1">
-          {/* Desktop separates the items with column headers; phones get a
-              section title here and an "Item N" header on every card, so the
-              lines never blend into the header fields above. */}
-          <p className="md:hidden text-[10px] font-bold uppercase tracking-wider text-slate-500 px-1 pt-2 border-t border-slate-800/80">Items</p>
+          {/* The Items section announces itself on every screen size — the
+              same "Items" title desktop and mobile; phones additionally give
+              each card an "Item N" header since they have no column row. */}
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1 pt-2 border-t border-slate-800/80">Items</p>
           <div className="hidden md:grid grid-cols-[minmax(0,2.2fr)_minmax(0,1.6fr)_70px_110px_84px_100px_24px] gap-2 px-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
             <span>Component</span><span>Supplier description</span>
             <span className="text-right">Qty</span><span className="text-right">Unit price</span>
