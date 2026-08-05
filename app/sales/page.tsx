@@ -306,7 +306,7 @@ export default function SalesListPage() {
         </div>
 
         <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
-          <div className={`hidden md:grid grid-cols-[150px_1fr_120px_120px_130px_100px] gap-3 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500 ${compact ? 'px-3 py-1.5' : 'px-4 py-2.5'}`}>
+          <div className={`hidden md:grid grid-cols-[175px_1fr_120px_120px_130px_100px] gap-3 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500 ${compact ? 'px-3 py-1.5' : 'px-4 py-2.5'}`}>
             {([['number', 'Number', ''], ['customer', 'Customer', ''], ['status', 'Status', ''], ['payment', 'Payment', ''], ['total', 'Grand Total', 'justify-end'], ['updated', 'Updated', 'justify-end']] as [ColKey, string, string][]).map(([k, label, align]) => (
               <button key={k} onClick={() => clickCol(k)} title={`Sort by ${label.toLowerCase()} — click again to flip`}
                 className={`flex items-center gap-1 uppercase tracking-widest transition-colors ${align} ${colSort?.key === k ? 'text-slate-200' : 'hover:text-slate-300'}`}>
@@ -345,7 +345,7 @@ export default function SalesListPage() {
                     <div onClick={() => setExpanded(open ? null : q.quote_id)} aria-expanded={open}
                       role="button" tabIndex={0}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(open ? null : q.quote_id); } }}
-                      className={`w-full min-w-0 text-left grid grid-cols-1 md:grid-cols-[150px_1fr_120px_120px_130px_100px] gap-1 md:gap-3 items-center cursor-pointer transition-colors ${compact ? 'px-3 py-1.5' : 'px-4 py-3'} ${open ? 'bg-slate-800/30' : 'hover:bg-slate-800/40'}`}>
+                      className={`w-full min-w-0 text-left grid grid-cols-1 md:grid-cols-[175px_1fr_120px_120px_130px_100px] gap-1 md:gap-3 items-center cursor-pointer transition-colors ${compact ? 'px-3 py-1.5' : 'px-4 py-3'} ${open ? 'bg-slate-800/30' : 'hover:bg-slate-800/40'}`}>
                       <span className="font-mono text-[11px] flex items-center">
                         {/* Every row reserves the slot so the numbers stay in
                             column; only drafts render the actual checkbox. */}
@@ -362,7 +362,7 @@ export default function SalesListPage() {
                           <span aria-hidden className="mr-1.5 w-3.5 flex-shrink-0" />
                         )}
                         <a href={`/sales/${q.quote_id}`} onClick={(e) => e.stopPropagation()} title="Open document"
-                          className={`${docNumberCls(q.status)} hover:text-emerald-300 hover:underline underline-offset-2 decoration-emerald-500/50 transition-colors`}>
+                          className={`${docNumberCls(q.status)} hover:text-emerald-300 hover:underline underline-offset-2 decoration-emerald-500/50 transition-colors whitespace-nowrap`}>
                           {displayDocNumber(q)}
                         </a>
                         {(q.revision ?? 0) > 0 && <span className="ml-1 text-[9px] font-bold text-sky-400">R{q.revision}</span>}
