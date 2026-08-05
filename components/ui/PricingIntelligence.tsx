@@ -26,6 +26,7 @@ import type {
 
 import { PRINCIPAL_CATS, BANK_FEE_CATS, TAX_CATS, BALANCE_CATS } from '@/constants/costCategories';
 import { fmtDay, fmtIdr, fmtNum } from '@/lib/formatters';
+import DealLink from './DealLink';
 
 const CONFIDENCE_WEIGHT: Record<string, number> = { high: 1.0, medium: 0.6, low: 0.3 };
 
@@ -1011,7 +1012,7 @@ export default function PricingIntelligence({
                           </td>
                           <td className="px-4 py-3">
                             {qi.quote.pi_number
-                              ? <div className="font-semibold text-white">{qi.quote.pi_number}</div>
+                              ? <div className="font-semibold text-white"><DealLink number={qi.quote.pi_number} className="hover:text-sky-300" /></div>
                               : <div className="text-slate-500">Quote #{qi.quote_id}</div>
                             }
                           </td>

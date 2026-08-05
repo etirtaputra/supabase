@@ -25,6 +25,7 @@ import type {
 } from '@/types/database';
 
 import { BALANCE_CATS } from '@/constants/costCategories';
+import DealLink from './DealLink';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function daysBetween(a: string, b: string): number {
@@ -401,12 +402,12 @@ export default function POCashCycle({
                             <td className="px-5 py-3 text-slate-500 font-bold">{entries.length - idx}</td>
                             <td className="px-4 py-3">
                               <span className="text-sky-400 font-mono font-semibold bg-sky-500/10 px-1.5 py-0.5 rounded border border-sky-500/20">
-                                {entry.po.po_number}
+                                <DealLink number={entry.po.po_number} className="hover:text-sky-300" />
                               </span>
                             </td>
                             <td className="px-4 py-3">
                               {entry.po.pi_number
-                                ? <span className="text-slate-400 font-mono">{entry.po.pi_number}</span>
+                                ? <span className="text-slate-400 font-mono"><DealLink number={entry.po.pi_number} className="hover:text-slate-200" /></span>
                                 : <span className="text-slate-700">—</span>}
                             </td>
                             <td className="px-4 py-3">
@@ -452,8 +453,8 @@ export default function POCashCycle({
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <span className="text-slate-500 font-bold text-xs">#{entries.length - idx}</span>
-                            <span className="text-sky-400 font-mono text-xs font-semibold bg-sky-500/10 px-1.5 py-0.5 rounded border border-sky-500/20">{entry.po.po_number}</span>
-                            {entry.po.pi_number && <span className="text-slate-400 font-mono text-[10px]">{entry.po.pi_number}</span>}
+                            <span className="text-sky-400 font-mono text-xs font-semibold bg-sky-500/10 px-1.5 py-0.5 rounded border border-sky-500/20"><DealLink number={entry.po.po_number} className="hover:text-sky-300" /></span>
+                            {entry.po.pi_number && <span className="text-slate-400 font-mono text-[10px]"><DealLink number={entry.po.pi_number} className="hover:text-slate-200" /></span>}
                           </div>
                           {entry.cycleGap !== null ? (
                             <span className={`font-extrabold text-xs px-2 py-0.5 rounded border ${gapBadge(entry.cycleGap)}`}>{entry.cycleGap}d</span>

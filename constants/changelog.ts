@@ -20,6 +20,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-05T23:40:00Z',
+    title: 'One-form New Deal · Reorder alerts · structured warranties · doc numbers open Deal Lookup · “newer version” tags',
+    details: [
+      'New Deal (Purchasing): header and line items are ONE card with ONE save — no more Step 1 / Step 2. Quote-only writes the quote + its lines; Quote + PO writes both documents from the same rows (price on the quote = cost on the PO). A PDF upload prefills everything, components auto-matched; a failed save keeps your typing.',
+      'Stock Reorder Alerts: the Dashboard queue and /stock now warn BEFORE a shortage exists. Alert when live + incoming ≤ the reorder point = 90-day outbound demand × measured lead time (Deal Lookup’s PO → receipt number) + a safety buffer (25% of lead, min 7 days). Red = at the current rate, stock runs out before a PO raised today could arrive. Each alert suggests an order qty (lead + safety + a month of runway) with one-click paths to the item and New PO.',
+      'Warranties are structured now: value + unit (Years default, Months/Days selectable), Product warranty and Performance warranty separately (PV modules: the claimable repair period vs the output guarantee). Entered in the Item Editor’s edit row or the Products expanded row; shown on Products, the item hub and CSV export.',
+      'After Sales computes the warranty clock itself: each case item linked to the catalog shows its product warranty running from the delivery (or invoice) date — “✓ 8.2 years left · until 03 Aug 36” or “✕ expired 3 months ago”. No structured warranty set → the both-clocks note stays.',
+      'Every Quote / PI / PO number is a link into Deal Lookup — payment status, item forensics, PO cash cycle, pricing intel, goods receipt — opening in a new tab like every document link.',
+      'Superseded items say so everywhere: an amber “↑ Newer version” tag with a link to the successor appears on the item hub header, the Products list, and sales quote lines that still point at the old model.',
+      'Fix: the stray scrollbar beside the item hub’s tab row is gone.',
+    ],
+  },
+  {
     at: '2026-08-05T22:38:00Z',
     title: 'Full rupiah everywhere · GP on every Sales Order (owner) · customer links on the Sales list',
     details: [

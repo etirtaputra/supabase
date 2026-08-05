@@ -21,6 +21,7 @@ import { formatCategory as humanize } from '@/lib/formatCategory';
 import { fetchWarehouses, warehouseLabel, type Warehouse } from '@/lib/warehouses';
 import { COMMITTED_STATUSES as COMMITTED } from '@/lib/salesStatus';
 import { fetchDeliveredByQuoteComp } from '@/lib/reservedStock';
+import { fetchReorderAlerts, type ReorderAlert } from '@/lib/reorder';
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 import FitText from '@/components/ui/FitText';
 
@@ -53,6 +54,7 @@ export default function StockPage() {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [filterWh, setFilterWh] = useState('');          // '' = all warehouses
   const [shortages, setShortages] = useState<Shortage[]>([]);
+  const [reorders, setReorders] = useState<ReorderAlert[]>([]);
   const [transfer, setTransfer] = useState<{ c: Comp; from: string; available: number } | null>(null);
   const [toast, setToast] = useState('');
   const [loading, setLoading] = useState(true);
@@ -88,6 +90,8 @@ export default function StockPage() {
       }
       return all;
     };
+    // Reorder alerts fetch their own tables — independent, never blocks the page
+    fetchReorderAlerts(supabase).then(setReorders).catch(() => setReorders([]));
     const [allComps, balRes, movRes, whs, sqRes, sqiRes, custRes, deliveredMap] = await Promise.all([
       fetchAllComponents(),
       supabase.from('30.1_stock_balances').select('component_id, location, qty_on_hand, avg_cost_idr, updated_at'),
@@ -279,6 +283,57 @@ export default function StockPage() {
                         <span className="text-[10px] tabular-nums text-slate-300 font-semibold">{fmtInt(o.qty)}</span>
                       </Link>
                     ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Reorder alerts — the shortage that hasn't happened yet: demand rate ×
+            measured lead time says the next PO is due. Red = even ordering
+            today lands after the projected stock-out. */}
+        {reorders.length > 0 && (
+          <div className="bg-amber-500/[0.05] border border-amber-500/25 rounded-2xl p-4 space-y-2.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-[11px] font-bold uppercase tracking-widest text-amber-300">
+                ⏱ Reorder — {reorders.length} item{reorders.length !== 1 ? 's' : ''} at reorder point
+              </h2>
+              <span className="text-[10px] text-slate-500">
+                live + incoming ≤ demand over lead time + safety · demand = 90-day outbound average · lead = measured PO → receipt
+              </span>
+            </div>
+            <div className="space-y-2">
+              {reorders.map((a) => (
+                <div key={a.component_id} className={`rounded-xl bg-slate-950/40 border px-3 py-2 ${a.urgent ? 'border-red-500/40' : 'border-slate-800'}`}>
+                  <div className="flex items-baseline gap-x-2.5 gap-y-1 flex-wrap">
+                    <span className="text-sm text-slate-100 font-medium truncate max-w-[380px]">{a.name}</span>
+                    {a.urgent && (
+                      <span className="text-[10px] font-bold text-red-300 uppercase tracking-wide"
+                        title="At the current demand rate, stock runs out before a PO raised today could arrive">
+                        stock-out before replenishment
+                      </span>
+                    )}
+                    <span className="text-[11px] tabular-nums text-amber-300 font-bold">
+                      order ~{fmtInt(a.suggestedQty)}{a.unit ? ` ${a.unit}` : ''}
+                    </span>
+                    <span className="text-[10px] tabular-nums text-slate-500">
+                      live {fmtInt(a.live)}{a.incoming > 0 ? ` + ${fmtInt(a.incoming)} incoming` : ''} ·
+                      ~{fmtInt(a.dailyDemand * 30.44)}/mo ·
+                      lead {Math.round(a.leadDays)}d{a.leadMeasured ? '' : ' (est.)'} ·
+                      covers {Math.round(a.coverDays)}d ·
+                      reorder at {fmtInt(a.reorderPoint)}
+                    </span>
+                    <span className="ml-auto flex items-center gap-2">
+                      {canHub && (
+                        <Link href={`/items/${a.component_id}`}
+                          className="text-[10px] px-2 py-0.5 rounded-lg bg-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+                          title="Open the item hub — buy history, lead times, demand">item ↗</Link>
+                      )}
+                      <Link href="/purchasing?tab=quoting"
+                        className="text-[10px] px-2 py-0.5 rounded-lg bg-sky-500/10 text-sky-300 ring-1 ring-sky-500/25 hover:bg-sky-500/20 transition-colors whitespace-nowrap"
+                        title="Raise the next deal — New Deal, Quote + PO">New PO →</Link>
+                    </span>
                   </div>
                 </div>
               ))}

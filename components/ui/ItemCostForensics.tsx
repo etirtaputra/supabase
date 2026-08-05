@@ -23,6 +23,7 @@ import type {
 import { PRINCIPAL_CATS, BANK_FEE_CATS, TAX_CATS, BALANCE_CATS } from '@/constants/costCategories';
 import { computeTUCMap, fxRateOf, fxAgeDays, FX_STALE_DAYS, type FxRate, type TUCResult } from '@/lib/computeTUC';
 import { fmtCcy, fmtDay, fmtIdr, fmtInt } from '@/lib/formatters';
+import DealLink from './DealLink';
 
 const COST_LABELS: Record<string, string> = {
   down_payment: 'Down Payment', balance_payment: 'Balance Payment',
@@ -349,7 +350,7 @@ export default function ItemCostForensics({
                       const stale = cur !== 'IDR' && (obs ? fxAgeDays(fx, cur) > FX_STALE_DAYS : true);
                       return (
                         <tr key={qi.quote_line_id} className="hover:bg-slate-800/30 transition-colors">
-                          <td className="px-3 py-2 text-emerald-400/90 font-mono">{qt?.pi_number ?? `#${qi.quote_id}`}</td>
+                          <td className="px-3 py-2 text-emerald-400/90 font-mono">{qt?.pi_number ? <DealLink number={qt.pi_number} className="hover:text-emerald-300" /> : `#${qi.quote_id}`}</td>
                           <td className="px-3 py-2 text-slate-400 whitespace-nowrap">{fmtDay(qt?.quote_date)}</td>
                           <td className="px-3 py-2 text-slate-300 truncate max-w-[160px]">{supName(qt?.supplier_id)}</td>
                           <td className="px-3 py-2 text-right text-white font-semibold tabular-nums">{fmtInt(qi.quantity)}</td>
@@ -400,7 +401,7 @@ export default function ItemCostForensics({
                     {allocs.map((a) => (
                       <tr key={a.item.po_line_item_id} className={`hover:bg-slate-800/30 transition-colors ${!a.hasBalance ? 'opacity-60' : ''}`}>
                         <td className="px-3 py-2 whitespace-nowrap">
-                          <Link href={`/purchasing?tab=lookup&q=${encodeURIComponent(a.po.po_number ?? '')}`} className="text-sky-400 hover:text-sky-300 font-mono">{a.po.po_number || `PO ${a.po.po_id}`}</Link>
+                          {a.po.po_number ? <DealLink number={a.po.po_number} className="text-sky-400 hover:text-sky-300 font-mono" /> : <span className="text-sky-400 font-mono">{`PO ${a.po.po_id}`}</span>}
                         </td>
                         <td className="px-3 py-2 text-slate-400 whitespace-nowrap">{fmtDay(a.po.po_date)}</td>
                         <td className="px-3 py-2 text-right text-white font-semibold tabular-nums">{fmtInt(a.item.quantity)}</td>
@@ -448,8 +449,8 @@ export default function ItemCostForensics({
                 {poGroups.map((g) => (
                   <div key={String(g.po.po_id)} className="rounded-xl border border-slate-800 overflow-hidden">
                     <div className="bg-slate-900 px-4 py-2.5 flex items-center gap-3 flex-wrap">
-                      <span className="text-sky-400 font-mono text-xs font-semibold">{g.po.po_number}</span>
-                      {g.po.pi_number && <span className="text-violet-400 font-mono text-[10px]">PI: {g.po.pi_number}</span>}
+                      <span className="text-sky-400 font-mono text-xs font-semibold"><DealLink number={g.po.po_number} className="hover:text-sky-300" /></span>
+                      {g.po.pi_number && <span className="text-violet-400 font-mono text-[10px]">PI: <DealLink number={g.po.pi_number} className="hover:text-violet-300" /></span>}
                       <span className="text-slate-500 text-[11px]">{fmtDay(g.po.po_date)}</span>
                       <span className={`ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full border ${g.hasBalance ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'}`}>
                         {g.hasBalance ? 'Balance Paid' : 'Balance Unpaid'}

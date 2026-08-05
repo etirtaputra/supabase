@@ -31,6 +31,7 @@ import { useListDefaults } from '@/hooks/useListDefaults';
 import { inRange, type DateRange } from '@/lib/dateRange';
 import { fmtDay, fmtDayTime, fmtInt, fmtQty } from '@/lib/formatters';
 import { SALES_STATUS, displayDocNumber } from '@/lib/salesStatus';
+import { fmtWarranty, warrantyRun, type WarrantyUnit } from '@/lib/warranty';
 
 interface Case {
   case_id: string; case_number: string; customer_id: string | null; quote_id: string | null;
@@ -42,7 +43,11 @@ interface Part { part_id: string; case_id: string; component_id: string | null; 
 interface Update { update_id: string; case_id: string; note: string; created_at: string; created_by_email: string }
 interface Customer { customer_id: string; display_name: string; legal_name: string }
 interface Order { quote_id: string; quote_number: string; order_number: string | null; status: string; customer_id: string | null; case_id?: string | null; grand_total?: number }
-interface Comp { component_id: string; internal_description: string | null }
+interface Comp {
+  component_id: string; internal_description: string | null;
+  warranty_value: number | null; warranty_unit: string | null;
+  perf_warranty_value: number | null; perf_warranty_unit: string | null;
+}
 
 const CATEGORIES: Record<string, { label: string; cls: string }> = {
   warranty:    { label: 'Warranty',    cls: 'bg-violet-500/15 text-violet-300' },
@@ -134,7 +139,7 @@ export default function AfterSalesPage() {
       supabase.from('27.1_aftersales_parts').select('*'),
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name').order('display_name'),
       supabase.from('22.0_sales_quotes').select('quote_id, quote_number, order_number, status, customer_id, case_id, grand_total'),
-      supabase.from('3.0_components').select('component_id, internal_description').order('internal_description'),
+      supabase.from('3.0_components').select('component_id, internal_description, warranty_value, warranty_unit, perf_warranty_value, perf_warranty_unit').order('internal_description'),
       supabase.from('22.1_sales_quote_items').select('quote_id, description, quantity, is_section').order('sort_order'),
       supabase.from('25.0_sales_invoices').select('invoice_id, quote_id, invoice_number, issued_at, created_at').order('created_at'),
       supabase.from('24.0_delivery_orders').select('do_id, quote_id, do_number, status, delivery_date, delivered_at').order('created_at'),
@@ -156,6 +161,7 @@ export default function AfterSalesPage() {
   const custName = useMemo(() => new Map(customers.map((c) => [c.customer_id, c.display_name || c.legal_name])), [customers]);
   const orderById = useMemo(() => new Map(orders.map((o) => [o.quote_id, o])), [orders]);
   const compByDesc = useMemo(() => new Map(comps.map((c) => [(c.internal_description ?? '').trim().toLowerCase(), c])), [comps]);
+  const compById = useMemo(() => new Map(comps.map((c) => [c.component_id, c])), [comps]);
 
   const orderLabel = (id: string | null) => {
     const o = id ? orderById.get(id) : null;
@@ -460,12 +466,49 @@ export default function AfterSalesPage() {
                                   </span>
                                 ))}
                               </p>
-                              {(invs.length > 0 || qdos.some((d) => d.status === 'delivered')) && (
-                                <p className="flex items-center gap-2 flex-wrap">
-                                  <span className={lbl}>Warranty</span>
-                                  <span className="text-slate-500">runs from the invoice and delivery dates above — after-sales judges by both clocks</span>
-                                </p>
-                              )}
+                              {(invs.length > 0 || qdos.some((d) => d.status === 'delivered')) && (() => {
+                                // The clock starts when the goods went out: the
+                                // first delivery, else the first invoice. Each
+                                // linked part with a structured warranty gets a
+                                // computed verdict-helper; anything else keeps
+                                // the judge-by-both-clocks note.
+                                const delivered = qdos.filter((d) => d.status === 'delivered').map((d) => d.delivered_at || d.delivery_date).filter(Boolean).sort() as string[];
+                                const issued = invs.map((i) => i.issued_at || i.created_at).filter(Boolean).sort() as string[];
+                                const start = delivered[0] ?? issued[0] ?? null;
+                                const startKind = delivered[0] ? 'delivery' : 'invoice';
+                                const runs = !start ? [] : parts.flatMap((p) => {
+                                  const cmp = p.component_id ? compById.get(p.component_id) : null;
+                                  if (!cmp || !cmp.warranty_value) return [];
+                                  return [{ p, cmp, run: warrantyRun(start, Number(cmp.warranty_value), (cmp.warranty_unit as WarrantyUnit) || 'years') }];
+                                });
+                                return (
+                                  <p className="flex items-start gap-2 flex-wrap">
+                                    <span className={`${lbl} mt-0.5`}>Warranty</span>
+                                    {runs.length > 0 ? (
+                                      <span className="flex-1 min-w-0 space-y-0.5">
+                                        {runs.map(({ p, cmp, run }) => (
+                                          <span key={p.part_id} className="flex flex-wrap items-center gap-x-2">
+                                            <span className="text-slate-400 truncate max-w-[260px]">{p.description}</span>
+                                            <span className="text-slate-500">{fmtWarranty(cmp.warranty_value, cmp.warranty_unit)} from {startKind} {fmtDay(start!)}</span>
+                                            <span className={`font-semibold tabular-nums ${run.expired ? 'text-rose-300' : 'text-emerald-300'}`}>
+                                              {run.expired ? '✕' : '✓'} {run.label} · until {fmtDay(run.end.toISOString())}
+                                            </span>
+                                            {fmtWarranty(cmp.perf_warranty_value, cmp.perf_warranty_unit) && (
+                                              <span className="text-slate-600" title="Performance warranty — output guarantee, not a repair claim">
+                                                perf {fmtWarranty(cmp.perf_warranty_value, cmp.perf_warranty_unit)}
+                                              </span>
+                                            )}
+                                          </span>
+                                        ))}
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-500">
+                                        runs from the invoice and delivery dates above — no structured warranty on the linked items yet; set it in Products or the Item Editor and this line computes itself
+                                      </span>
+                                    )}
+                                  </p>
+                                );
+                              })()}
                               {parts.length > 0 && (
                                 <p className="flex items-start gap-2 flex-wrap">
                                   <span className={`${lbl} mt-0.5`}>Items</span>
@@ -634,7 +677,10 @@ export default function AfterSalesPage() {
                             const hit = compByDesc.get(v.trim().toLowerCase());
                             setDraftParts((arr) => arr.map((x, j) => j === i ? { ...x, description: v, component_id: hit?.component_id ?? null } : x));
                           }} />
-                        {p.component_id && <p className="text-[9px] text-emerald-400/80 mt-0.5">linked to catalog</p>}
+                        {p.component_id && (() => {
+                          const w = fmtWarranty(compById.get(p.component_id!)?.warranty_value, compById.get(p.component_id!)?.warranty_unit);
+                          return <p className="text-[9px] text-emerald-400/80 mt-0.5">linked to catalog{w ? ` · product warranty ${w}` : ''}</p>;
+                        })()}
                       </div>
                       <select className={inputCls} value={p.action} disabled={!canEdit}
                         onChange={(e) => setDraftParts((arr) => arr.map((x, j) => j === i ? { ...x, action: e.target.value } : x))}>

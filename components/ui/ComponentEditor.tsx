@@ -19,6 +19,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
 import type { Component, PriceQuoteLineItem, PriceQuote, PurchaseOrder, PurchaseLineItem, CompetitorPrice, POCost, ComponentLink } from '../../types/database';
 import { computeTUC, computeTUCMap } from '../../lib/computeTUC';
+import { WARRANTY_UNITS, warrantyLabel } from '@/lib/warranty';
 import { computeTierChain } from '../../lib/tierPricing';
 import { PRINCIPAL_CATS, BALANCE_CATS, BANK_FEE_CATS, TAX_CATS } from '../../constants/costCategories';
 import { ENUMS } from '../../constants/enums';
@@ -572,7 +573,7 @@ const EXPORT_FIELDS: ExportField[] = [
   { key: 'sellPrice',    label: 'Sell Price IDR',  group: 'Cost & price', get: (c) => c.selling_price_idr != null ? Math.round(c.selling_price_idr).toString() : '' },
   { key: 'margin',       label: 'Gross Margin %',  group: 'Cost & price', get: (_c, x) => x.margin != null ? x.margin.toFixed(1) : '' },
   { key: 'marketAvg',    label: 'Market Avg IDR',  group: 'Cost & price', get: (_c, x) => x.marketAvg != null ? x.marketAvg.toFixed(2) : '' },
-  { key: 'warranty',     label: 'Warranty',        group: 'Technical', get: (c) => c.warranty ?? '' },
+  { key: 'warranty',     label: 'Warranty',        group: 'Technical', get: (c) => warrantyLabel(c) ?? '' },
   { key: 'datasheet',    label: 'Datasheet URL',   group: 'Technical', get: (c) => c.datasheet_url ?? '' },
   { key: 'specsReady',   label: 'Calculator-ready', group: 'Technical', get: (_c, x) => x.specsReady ?? '' },
 ];
@@ -3496,7 +3497,39 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                     <td className="px-4 py-1.5 align-middle">
                       <div className="flex gap-1.5 justify-end items-center">
                         {/* Datasheet / file link */}
-                        {isEditing ? (
+                        {isEditing ? (<>
+                          {/* Structured warranty — After Sales runs its clocks on
+                              these numbers. Wty = product (claimable), Perf = PV
+                              output guarantee (informational). */}
+                          {([
+                            { vf: 'warranty_value', uf: 'warranty_unit', tag: 'Wty', tip: 'Product warranty — the claimable period After Sales judges by' },
+                            { vf: 'perf_warranty_value', uf: 'perf_warranty_unit', tag: 'Perf', tip: 'Performance warranty — PV output guarantee (informational)' },
+                          ] as const).map(({ vf, uf, tag, tip }) => (
+                            <span key={vf} className="flex items-center gap-1 flex-shrink-0" title={tip}>
+                              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-600">{tag}</span>
+                              <input
+                                type="number" min="0" step="any"
+                                data-fld={vf}
+                                value={(getVal(c, vf as any) as number | null) ?? ''}
+                                onChange={(e) => {
+                                  const v = e.target.value === '' ? null : parseFloat(e.target.value);
+                                  setField(c, vf as any, v);
+                                  // A number typed with no unit yet means the default unit
+                                  if (v != null && !((getVal(c, uf as any) as string) ?? '')) setField(c, uf as any, 'years');
+                                }}
+                                placeholder="—"
+                                className="w-12 px-1.5 py-0.5 text-[10px] bg-slate-950 border border-slate-700 rounded text-slate-300 text-right tabular-nums placeholder-slate-700 focus:outline-none focus:border-sky-500/50"
+                              />
+                              <select
+                                data-fld={uf}
+                                value={(getVal(c, uf as any) as string) ?? 'years'}
+                                onChange={(e) => setField(c, uf as any, e.target.value)}
+                                className="px-1 py-0.5 text-[10px] bg-slate-950 border border-slate-700 rounded text-slate-400 focus:outline-none focus:border-sky-500/50"
+                              >
+                                {WARRANTY_UNITS.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
+                              </select>
+                            </span>
+                          ))}
                           <input
                             type="url"
                             data-fld="datasheet_url"
@@ -3506,7 +3539,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                             title="Datasheet / file URL (Google Drive, etc.)"
                             className="w-32 px-1.5 py-0.5 text-[10px] bg-slate-950 border border-slate-700 rounded text-slate-300 placeholder-slate-700 focus:outline-none focus:border-sky-500/50"
                           />
-                        ) : c.datasheet_url ? (
+                        </>) : c.datasheet_url ? (
                           <a
                             href={c.datasheet_url}
                             target="_blank"

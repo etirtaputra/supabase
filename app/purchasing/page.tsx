@@ -10,12 +10,14 @@ import { createSupabaseClient } from '@/lib/supabase';
 // Components
 import SimpleForm from '@/components/forms/SimpleForm';
 import BatchLineItemsForm from '@/components/forms/BatchLineItemsForm';
+import NewDealForm, { blankDealLine, type DealLine } from '@/components/forms/NewDealForm';
 import ComponentEditor from '@/components/ui/ComponentEditor';
 import BrandMenu from '@/components/ui/BrandMenu';
 import MobileNotice from '@/components/ui/MobileNotice';
 import CompetitorPriceForm from '@/components/forms/CompetitorPriceForm';
 import MultiPaymentForm from '@/components/forms/MultiPaymentForm';
 import DealLookupTab from '@/components/ui/DealLookupTab';
+import DealLink from '@/components/ui/DealLink';
 import { ToastContainer } from '@/components/ui/Toast';
 import { ToastProvider } from '@/hooks/useToast';
 import { FormSkeleton } from '@/components/ui/LoadingSkeleton';
@@ -79,12 +81,9 @@ function MasterInsertPage() {
   const [hideSettledPos, setHideSettledPos] = useState(false);
   const [showCostBreakdown, setShowCostBreakdown] = useState(false);
   const [singlePoRate, setSinglePoRate] = useState<number | null>(null);
-  const [quoteItemsCurrency, setQuoteItemsCurrency] = useState<string>('');
   const [lastSaved, setLastSaved] = useState<{ message: string; cta: string; nextTab: Tab; quoteId?: string; poId?: string } | null>(null);
   const [pdfUploading, setPdfUploading] = useState(false);
   const [dupWarning, setDupWarning] = useState<string | null>(null);
-  const [newQuoteId, setNewQuoteId] = useState('');
-  const [newPoId, setNewPoId] = useState('');
 
   const { user, profile, loading: authLoading } = useAuth();
   const settings = useSettings();
@@ -264,12 +263,9 @@ function MasterInsertPage() {
     refetch();
     if (table === '4.0_price_quotes' && insertedRows?.[0]) {
       const qId = String(insertedRows[0].quote_id);
-      setNewQuoteId(qId);
-      setQuoteItemsCurrency(insertedRows[0].currency || '');
       setLastSaved({ message: 'Quote saved!', cta: 'Raise its PO →', nextTab: 'quoting', quoteId: qId });
     } else if (table === '5.0_purchases' && insertedRows?.[0]) {
       const pId = String(insertedRows[0].po_id);
-      setNewPoId(pId);
       setLastSaved({ message: 'PO saved!', cta: 'Log payment →', nextTab: 'financials', poId: pId });
     }
     return insertedRows ?? [];
@@ -289,7 +285,6 @@ function MasterInsertPage() {
     setWithPo(combo);
     try { localStorage.setItem('purchasing:quote-mode', combo ? 'combo' : 'quote'); } catch {}
   };
-  const [comboPo, setComboPo] = useState<{ quoteId: string; poId: string } | null>(null);
   // Mirrors the form's Stored Quote selection so the page can SHOW the items
   // that will carry onto the PO before anything is saved.
   const [storedQuoteSel, setStoredQuoteSel] = useState('');
@@ -341,23 +336,39 @@ function MasterInsertPage() {
     };
   }, [pendingStoredQuote, data.quotes]);
 
-  const submitQuoteHeader = async (d: any) => {
+  // ── The single-form save: header + items together, one click ─────────────
+  // Quote-only writes 4.0 + 4.1. Quote + PO also writes 5.0 + 5.1 with the
+  // same lines (quote price → PO cost). The stored-quote path accepts the old
+  // quote and copies the carried-items panel onto the new PO, as before.
+  // Returns false on a failed insert so the form KEEPS the typed draft.
+  const submitDeal = async (d: any, items: DealLine[]): Promise<boolean> => {
     // PO-only keys may linger in the shared draft after a mode switch — a
     // quote-only save must never try to write them into 4.0.
     const { po_number, po_date, exchange_rate, existing_quote_id,
             incoterms, method_of_shipment, freight_charges_intl, payment_terms: poTerms,
             ...quote } = d;
-    if (!withPo) { await handleInsert('4.0_price_quotes', quote); return; }
+    const lineRows = items.map((l) => ({
+      component_id: l.component_id, supplier_description: l.supplier_description || null,
+      quantity: Number(l.quantity), unit_price: Number(l.unit_price) || 0,
+      currency: l.currency || quote.currency,
+    }));
+    if (!withPo) {
+      const qRows = await handleInsert('4.0_price_quotes', quote);
+      const q0 = qRows?.[0];
+      if (!q0) return false;
+      if (lineRows.length) await handleInsert('4.1_price_quote_line_items', lineRows.map((r) => ({ ...r, quote_id: q0.quote_id })));
+      return true;
+    }
     // Straight from PI to PO: ordering against the quote IS accepting it
     quote.status = 'Accepted';
     let q: any = null;
     let copiedItems: any[] = [];
     if (existing_quote_id) {
       // Quote entered earlier, PO processed today — the stored quote IS the
-      // header. No re-entry, no separate PO form: accept it, raise the PO,
-      // carry its items across. Only PO # and date were typed.
+      // header. No re-entry: accept it, raise the PO, carry its items across
+      // exactly as the carried-items panel shows. Only PO # and date were typed.
       q = data.quotes.find((x) => String(x.quote_id) === String(existing_quote_id));
-      if (!q) { showToast('Stored quote not found — refresh and retry.', 'error'); return; }
+      if (!q) { showToast('Stored quote not found — refresh and retry.', 'error'); return false; }
       await supabase.from('4.0_price_quotes').update({ status: 'Accepted' }).eq('quote_id', q.quote_id);
       copiedItems = carriedItems
         .filter((ci) => ci.include && Number(ci.quantity) > 0)
@@ -368,7 +379,9 @@ function MasterInsertPage() {
     } else {
       const qRows = await handleInsert('4.0_price_quotes', quote);
       q = qRows?.[0];
-      if (!q) return;
+      if (!q) return false;
+      if (lineRows.length) await handleInsert('4.1_price_quote_line_items', lineRows.map((r) => ({ ...r, quote_id: q.quote_id })));
+      copiedItems = lineRows;   // the same lines land on the PO, price → cost
     }
     // Estimated rate: what payments on this supplier's past POs actually imply
     let rate = quote.currency === 'IDR' ? null : (Number(exchange_rate) || null);
@@ -389,24 +402,61 @@ function MasterInsertPage() {
       payment_terms: poTerms || settings.defaultPoPaymentTerms || null,
       document_url: quote.document_url || null,
     });
-    if (poRows?.[0]) {
-      const poId = String(poRows[0].po_id);
-      // Stored quote → PO: its lines carry across automatically (price → cost).
-      // "Unless there's a change in items" — amend the PO lines in Deal Lookup.
-      if (copiedItems.length) {
-        await handleInsert('5.1_purchase_line_items', copiedItems.map((qi: any) => ({
-          po_id: poId, component_id: qi.component_id, supplier_description: qi.supplier_description ?? null,
-          quantity: qi.quantity, unit_cost: qi.unit_price, currency: qi.currency,
-        })));
-      }
-      setComboPo({ quoteId: String(q.quote_id), poId });
-      setStoredQuoteSel('');
-      setPendingStoredQuote('');
-      setLastSaved(existing_quote_id
-        ? { message: `PO ${po_number} raised from the stored quote — ${copiedItems.length} item${copiedItems.length !== 1 ? 's' : ''} carried across.`, cta: 'Log payment →', nextTab: 'financials', poId }
-        : { message: `Quote + PO ${po_number} saved — items entered below go onto both.`, cta: 'Log payment →', nextTab: 'financials', poId });
+    if (!poRows?.[0]) return false;
+    const poId = String(poRows[0].po_id);
+    if (copiedItems.length) {
+      await handleInsert('5.1_purchase_line_items', copiedItems.map((qi: any) => ({
+        po_id: poId, component_id: qi.component_id, supplier_description: qi.supplier_description ?? null,
+        quantity: qi.quantity, unit_cost: qi.unit_price, currency: qi.currency,
+      })));
     }
+    setStoredQuoteSel('');
+    setPendingStoredQuote('');
+    setLastSaved(existing_quote_id
+      ? { message: `PO ${po_number} raised from the stored quote — ${copiedItems.length} item${copiedItems.length !== 1 ? 's' : ''} carried across.`, cta: 'Log payment →', nextTab: 'financials', poId }
+      : { message: `Quote + PO ${po_number} saved — the ${copiedItems.length ? `${copiedItems.length} item${copiedItems.length !== 1 ? 's' : ''} went` : 'items go'} onto both documents.`, cta: 'Log payment →', nextTab: 'financials', poId });
+    return true;
   };
+
+  // PDF line items → prefilled deal lines, with the same component matching
+  // the old items form did (SKU exact → SKU fuzzy → brand+description →
+  // description). Unmatched lines keep the extracted text as a custom entry.
+  const pdfLineSeeds = useMemo(() => {
+    const lineItems = pdfData?.line_items;
+    if (!lineItems?.length) return null;
+    const comps = data.components as any[];
+    return lineItems.map((item: any): DealLine => {
+      const searchSku = item.model_sku?.toLowerCase().trim() || '';
+      const searchDesc = item.description?.toLowerCase().trim() || '';
+      const searchBrand = item.brand?.toLowerCase().trim() || '';
+      let m: any = searchSku ? comps.find((c) => c.supplier_model?.toLowerCase().trim() === searchSku) : null;
+      if (!m && searchSku) {
+        m = comps.find((c) => c.supplier_model?.toLowerCase().includes(searchSku) || searchSku.includes(c.supplier_model?.toLowerCase()));
+      }
+      if (!m && searchBrand && searchDesc) {
+        m = comps.find((c) => {
+          const b = c.brand?.toLowerCase().trim() || '';
+          const dsc = c.internal_description?.toLowerCase().trim() || '';
+          return b === searchBrand && dsc && (dsc.includes(searchDesc) || searchDesc.includes(dsc));
+        });
+      }
+      if (!m && searchDesc && searchDesc.length > 10) {
+        m = comps.find((c) => {
+          const dsc = c.internal_description?.toLowerCase().trim() || '';
+          return dsc && (dsc.includes(searchDesc) || searchDesc.includes(dsc));
+        });
+      }
+      return {
+        ...blankDealLine(pdfData.currency || ''),
+        component_id: m ? String(m.component_id) : null,
+        supplier_description: m
+          ? (m.internal_description || m.supplier_model || '')
+          : (item.description || item.supplier_description || ''),
+        quantity: String(item.quantity ?? ''),
+        unit_price: String(item.unit_price ?? item.unit_cost ?? ''),
+      };
+    });
+  }, [pdfData, data.components]);
 
   const handleUpdateQuoteItem = async (quoteLineId: number, componentId: string) => {
     const { error } = await supabase.from('4.1_price_quote_line_items').update({ component_id: componentId }).eq('quote_line_id', quoteLineId);
@@ -781,12 +831,15 @@ function MasterInsertPage() {
                       <button onClick={() => setDupWarning(null)} className="ml-auto text-slate-500 hover:text-slate-300 text-sm leading-none flex-shrink-0">✕</button>
                     </div>
                   )}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 items-start">
-                    <div className="space-y-4 min-w-0">
-                    <SimpleForm
-                      title={withPo ? 'Step 1: Quote + PO Header' : 'Step 1: Quote Header'}
-                      storageKey="Step 1: Quote Header"
-                      headerAction={pdfHeaderAction('Upload Quote/PI PDF', 'AI extracts supplier info, quote details, and line items automatically.')}
+                  <div className="max-w-[1150px] space-y-4">
+                    <NewDealForm
+                      title={withPo ? 'New Deal — Quote + PO' : 'New Deal — Supplier Quote'}
+                      withPo={withPo}
+                      components={data.components}
+                      currencies={ENUMS.currency}
+                      itemsLocked={withPo && !!storedQuoteSel}
+                      seedLines={pdfLineSeeds}
+                      headerAction={pdfHeaderAction('Upload Quote/PI PDF', 'One upload prefills the whole form — header AND line items, components auto-matched.')}
                       onFieldChange={(name, value) => {
                         const o: Record<string, any> = {};
                         // Stored quote picked → the whole shared header arrives
@@ -815,7 +868,7 @@ function MasterInsertPage() {
                         }
                         return o;
                       }}
-                      fields={[
+                      headerFields={[
                         // Quote + PO only: process the PO for a quote stored earlier —
                         // no separate PO form, no re-entry.
                         ...(withPo ? [
@@ -848,7 +901,7 @@ function MasterInsertPage() {
                         { name: 'replaces_quote_id', label: 'Replaces', type: 'select', options: options.quotes },
                         { name: 'document_url', label: 'Document URL', type: 'text', placeholder: 'https://drive.google.com/…' },
                       ]}
-                      onSubmit={submitQuoteHeader}
+                      onSubmit={submitDeal}
                       loading={loading}
                     />
                     {/* The stored quote's lines, visible BEFORE saving — these are
@@ -886,55 +939,10 @@ function MasterInsertPage() {
                         <p className="text-[10px] text-slate-600 mt-2">Untick a line or adjust qty / cost — the PO gets exactly what is shown here when you save. The stored quote itself is never changed.</p>
                       </div>
                     )}
-                    </div>
-                    <BatchLineItemsForm
-                      title={withPo ? 'Step 2: Quote + PO Items' : 'Step 2: Quote Items'}
-                      storageKey="Step 2: Quote Items"
-                      enablePdfUpload={true}
-                      defaultParentId={newQuoteId}
-                      parentField={{ name: 'quote_id', label: 'Select Quote', options: options.quotes }}
-                      onParentChange={(id) => {
-                        const q = data.quotes.find(q => String(q.quote_id) === id);
-                        if (q?.currency) setQuoteItemsCurrency(q.currency);
-                      }}
-                      fieldDefaultsOnParentChange={quoteItemsCurrency ? { currency: quoteItemsCurrency } : {}}
-                      itemFields={[
-                        { name: 'component_id', label: 'Component', type: 'rich-select', options: data.components, config: { labelKey: 'supplier_model', valueKey: 'component_id', subLabelKey: 'internal_description' }, req: true },
-                        { name: 'supplier_description', label: 'Supplier Desc', type: 'text' },
-                        { name: 'quantity', label: 'Qty', type: 'number', req: true },
-                        { name: 'unit_price', label: 'Price', type: 'number', req: true },
-                        { name: 'currency', label: 'Curr', type: 'select', options: ENUMS.currency, req: true },
-                      ]}
-                      stickyFields={['currency']}
-                      onSubmit={async (items) => {
-                        await handleInsert('4.1_price_quote_line_items', items);
-                        // Items typed once land on BOTH documents (unit_price on
-                        // the quote = unit_cost on the PO — the deal was struck at
-                        // this price). Mirrors whenever the quote's linked PO has
-                        // no lines yet — combined save, reload, or the two-step
-                        // Create-PO path alike. A PO that already has lines is
-                        // never touched.
-                        const list = Array.isArray(items) ? items : [items];
-                        const qid = list[0]?.quote_id;
-                        if (!qid) return;
-                        let poId = comboPo && String(qid) === comboPo.quoteId ? comboPo.poId : null;
-                        // In Quote-only mode this stops here: price quotes are
-                        // stored without ever touching a PO. The fallback lookup
-                        // runs only in Quote + PO mode (e.g. after a reload).
-                        if (!poId && withPo) {
-                          const linked = data.pos.find((p) => p.quote_id && String(p.quote_id) === String(qid));
-                          const hasItems = linked && data.poItems.some((pi) => String(pi.po_id) === String(linked.po_id));
-                          if (linked && !hasItems) poId = String(linked.po_id);
-                        }
-                        if (poId) {
-                          await handleInsert('5.1_purchase_line_items', list.map(({ quote_id: _q, unit_price, ...rest }: any) => ({
-                            ...rest, po_id: poId, unit_cost: unit_price,
-                          })));
-                          showToast('Items written to the quote AND its PO.', 'success');
-                        }
-                      }}
-                      loading={loading}
-                    />
+                    <p className="text-[11px] text-slate-600">
+                      Need to change lines on a document that is already saved? Amend them in{' '}
+                      <a href="/purchasing?tab=lookup" className="text-sky-400 hover:text-sky-300 underline underline-offset-2">Deal Lookup</a>.
+                    </p>
                   </div>
                 </>
               )}
@@ -1007,7 +1015,7 @@ function MasterInsertPage() {
                     />
                     {selPo && totalIdr > 0 && (
                       <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-4 mt-1">
-                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">Payment Status — {selPo.po_number}</p>
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">Payment Status — <DealLink number={selPo.po_number} className="text-slate-300 hover:text-sky-300" /></p>
                         <div className="flex items-center gap-3 mb-2">
                           <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
                             <div className={`h-full rounded-full transition-all ${pct >= 100 ? 'bg-emerald-500' : 'bg-amber-400'}`} style={{ width: `${pct}%` }} />

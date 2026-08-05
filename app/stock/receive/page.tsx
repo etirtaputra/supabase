@@ -22,6 +22,7 @@ import { TAX_CATS } from '@/constants/costCategories';
 import type { PurchaseOrder, PurchaseLineItem, POCost } from '@/types/database';
 import { fetchWarehouses, defaultWarehouse, type Warehouse } from '@/lib/warehouses';
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
+import DealLink from '@/components/ui/DealLink';
 
 const numOf = (v: unknown): number => { if (v === '' || v == null) return 0; const n = Number(String(v).replace(/[, ]/g, '')); return isNaN(n) ? 0 : n; };
 const today = () => new Date().toISOString().slice(0, 10);
@@ -318,7 +319,7 @@ function ReceivePage() {
             <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl px-4 py-3.5 flex flex-wrap items-end gap-x-6 gap-y-2">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-600">PO</p>
-                <p className="text-base font-bold text-sky-300">{selected.po_number || String(selected.po_id)}</p>
+                <p className="text-base font-bold text-sky-300">{selected.po_number ? <DealLink number={selected.po_number} className="hover:text-sky-200" /> : String(selected.po_id)}</p>
               </div>
               <div className="min-w-0">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-600">Supplier</p>

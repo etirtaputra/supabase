@@ -46,6 +46,8 @@ import { fetchTradePositions, type PositionRow } from '@/lib/tradePosition';
 import { specReadiness, normalizeSpecs } from '@/lib/specSchema';
 import ItemCostForensics, { type CompLite } from '@/components/ui/ItemCostForensics';
 import type { PurchaseOrder, PurchaseLineItem, POCost, PriceQuote, PriceQuoteLineItem, ComponentLink } from '@/types/database';
+import { successorIdOf } from '@/lib/successors';
+import { fmtWarranty, warrantyLabel } from '@/lib/warranty';
 
 // PO statuses that mean "ordered, on the way, not yet fully arrived" — the
 // same set Products uses for its Incoming column.
@@ -56,6 +58,8 @@ interface Comp {
   brand?: string | null; category: string | null; unit: string | null;
   norm_value: number | null; selling_price_idr: number | null;
   datasheet_url: string | null; warranty: string | null; updated_at: string | null;
+  warranty_value: number | null; warranty_unit: string | null;
+  perf_warranty_value: number | null; perf_warranty_unit: string | null;
   specifications: Record<string, unknown> | null;
 }
 interface Balance { location: string; qty_on_hand: number; avg_cost_idr: number | null; updated_at: string | null }
@@ -142,7 +146,7 @@ export default function ItemHubPage() {
     // margin vs landed cost to that role; per-movement cost stays buy-side.
     const canCost = canBuy || canFloor;
     const compCols = `component_id, supplier_model, internal_description, category, unit, norm_value,
-      selling_price_idr, datasheet_url, warranty, updated_at, specifications${canBrand ? ', brand' : ''}`;
+      selling_price_idr, datasheet_url, warranty, warranty_value, warranty_unit, perf_warranty_value, perf_warranty_unit, updated_at, specifications${canBrand ? ', brand' : ''}`;
     const [compRes, balRes, movRes, whs, tierRes, ovRes, sqRes, sqiRes, custRes, delivered] = await Promise.all([
       supabase.from('3.0_components').select(compCols).eq('component_id', componentId).maybeSingle(),
       supabase.from('30.1_stock_balances').select(`location, qty_on_hand, updated_at${canCost ? ', avg_cost_idr' : ''}`).eq('component_id', componentId),
@@ -345,13 +349,30 @@ export default function ItemHubPage() {
               <div className="flex flex-col lg:flex-row lg:items-start gap-4">
                 <div className="min-w-0 flex-1">
                   <h1 className="text-lg sm:text-xl font-bold text-white leading-snug">{descOf(comp)}</h1>
+                  {/* Superseded? Say so at the top, with the door to the newer
+                      item — a buyer quoting the old model should know first. */}
+                  {(() => {
+                    const succId = successorIdOf(componentId, componentLinks);
+                    const succ = succId ? linkedComps.find((c) => String(c.component_id) === succId) : null;
+                    if (!succId) return null;
+                    return (
+                      <a href={`/items/${succId}`} target="_blank" rel="noopener noreferrer"
+                        title="A successor link marks this item as replaced — open the newer item"
+                        className="inline-flex items-center gap-1.5 mt-1.5 px-2 py-0.5 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-300 text-[11px] font-semibold hover:bg-amber-500/20 transition-colors">
+                        ↑ Newer version{succ ? `: ${succ.internal_description || succ.supplier_model}` : ' available'} ↗
+                      </a>
+                    );
+                  })()}
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5 text-[11px] text-slate-500">
                     {canBrand && comp.supplier_model && <span className="font-mono text-sky-400/80">{comp.supplier_model}</span>}
                     {canBrand && comp.brand && <span>{comp.brand}</span>}
                     {comp.category && <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">{humanize(comp.category)}</span>}
                     {comp.norm_value != null && Number(comp.norm_value) !== 0 && <span className="tabular-nums">{fmtInt(Number(comp.norm_value))}</span>}
                     {comp.unit && <span>per {comp.unit}</span>}
-                    {comp.warranty && <span>warranty {comp.warranty}</span>}
+                    {warrantyLabel(comp) && <span title="Product warranty — the claimable clock After Sales runs on">warranty {warrantyLabel(comp)}</span>}
+                    {fmtWarranty(comp.perf_warranty_value, comp.perf_warranty_unit) && (
+                      <span title="Performance warranty — PV output guarantee (informational)">perf {fmtWarranty(comp.perf_warranty_value, comp.perf_warranty_unit)}</span>
+                    )}
                     {comp.datasheet_url && (
                       <a href={comp.datasheet_url} target="_blank" rel="noopener noreferrer" className="text-sky-400 hover:text-sky-300">datasheet ↗</a>
                     )}
@@ -376,7 +397,9 @@ export default function ItemHubPage() {
             </div>
 
             {/* ── Tabs — no scroll-snap (it eats the left gutter on phones) ── */}
-            <div className="flex items-center gap-1 border-b border-slate-800/80 overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
+            {/* scrollbar-none: without it the overflow container paints a
+                permanent scrollbar gutter beside the tabs on desktop */}
+            <div className="flex items-center gap-1 border-b border-slate-800/80 overflow-x-auto scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0">
               {tabs.filter((t) => t.show).map((t) => (
                 <button key={t.key} onClick={() => setTab(t.key)}
                   className={`text-xs font-semibold px-3.5 py-2.5 border-b-2 -mb-px whitespace-nowrap transition-colors ${

@@ -16,6 +16,7 @@ import { COMMITTED_STATUSES } from './salesStatus';
 import { fetchDeliveredByQuoteComp } from './reservedStock';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 import { todayISO } from './dateRange';
+import { fetchReorderAlerts } from './reorder';
 
 export type ActionDomain = 'sell' | 'buy' | 'cash';
 
@@ -204,6 +205,24 @@ export async function fetchActionQueue(
         });
       }
     }
+
+    // ── Items at their reorder point ───────────────────────────────────────
+    // Demand rate × measured lead time says the next PO is due NOW — the
+    // shortage that hasn't happened yet. Full math + per-item detail on /stock.
+    try {
+      const alerts = await fetchReorderAlerts(supabase);
+      if (alerts.length) {
+        const urgent = alerts.filter((a) => a.urgent).length;
+        items.push({
+          key: 'reorder', domain: 'buy', tone: urgent ? 'urgent' : 'watch',
+          title: `${alerts.length} item${alerts.length !== 1 ? 's' : ''} at reorder point`,
+          detail: urgent
+            ? `${urgent} projected to stock out before a PO raised today could arrive`
+            : 'live + incoming at or below demand over lead time + safety buffer',
+          amount: 0, count: alerts.length, href: '/stock',
+        });
+      }
+    } catch { /* alerts are additive — never cost the rest of the queue */ }
   }
 
   // ── Cash: movements nobody assigned to an account ────────────────────────

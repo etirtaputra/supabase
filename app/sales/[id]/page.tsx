@@ -22,6 +22,7 @@ import { useSettings } from '@/hooks/useSettings';
 import { fetchBankAccounts, fetchAccountCompanies, accountLabelWithCompany, defaultAccountFor, type BankAccount } from '@/lib/banks';
 import Autocomplete from '@/components/ui/Autocomplete';
 import { todayISO } from '@/lib/dateRange';
+import { successorMap } from '@/lib/successors';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
@@ -139,6 +140,9 @@ export default function SalesQuotePage() {
   // Owner-only: current moving-average landed cost per component (30.1,
   // quantity-weighted across warehouses) — the per-line GP basis.
   const [unitCost, setUnitCost] = useState<Record<string, number>>({});
+  // component_id -> the item that replaces it (8.0 successor links) — quoting
+  // an outdated model should say so on the line.
+  const [successors, setSuccessors] = useState<Map<string, string>>(new Map());
   // Every sales quote's header + catalog lines, for the unit-price history
   // popover (what did we sell this item for, to whom, when).
   const [histQuotes, setHistQuotes] = useState<{ quote_id: string; status: string; customer_id: string | null; quote_date: string; quote_number: string }[]>([]);
@@ -191,6 +195,9 @@ export default function SalesQuotePage() {
       supabase.from('22.2_sales_description_library').select('entry_id, description, unit, default_price, section'),
       supabase.from('20.1_customer_contacts').select('customer_id, name, title, phone'),
     ]);
+    // Successor links are informational — tolerate RLS hiding 8.0 from a role.
+    supabase.from('8.0_component_links').select('component_id_a, component_id_b, link_type').eq('link_type', 'successor')
+      .then(({ data: lk, error: lkErr }) => setSuccessors(successorMap(lkErr ? [] : ((lk as any[]) ?? []))));
     const coList = (coRes.data as Company[]) ?? [];
     setCustomers((custRes.data as Customer[]) ?? []);
     setCompanies(coList);
@@ -1048,6 +1055,10 @@ export default function SalesQuotePage() {
             >
               <LineCard line={l} comps={comps} extras={sortedExtras} canHub={canHub} available={availableOf(l.component_id)}
                 unitCost={canGP && l.component_id ? unitCost[l.component_id] ?? null : null}
+                successor={(() => {
+                  const sid = l.component_id ? successors.get(l.component_id) : undefined;
+                  return sid ? { id: sid, name: compName(compById.get(sid)) || 'newer item' } : null;
+                })()}
                 linkedName={l.component_id ? compName(compById.get(l.component_id)) : ''}
                 tierOptions={l.component_id ? tierOptionsFor(l.component_id) : []}
                 history={l.component_id ? priceHistoryFor(l.component_id) : []}
@@ -1233,10 +1244,12 @@ const GRIP = (
   <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" /><circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" /><circle cx="9" cy="18" r="1.5" /><circle cx="15" cy="18" r="1.5" /></svg>
 );
 
-function LineCard({ line, comps, extras, available, linkedName, canHub, unitCost, tierOptions, history, customerTier, leadSuggestion, onPick, onPickExtra, onField, onRemove, onDragStart, onDragEnd }: {
+function LineCard({ line, comps, extras, available, linkedName, canHub, unitCost, successor, tierOptions, history, customerTier, leadSuggestion, onPick, onPickExtra, onField, onRemove, onDragStart, onDragEnd }: {
   line: EditLine; comps: Comp[]; extras: Extra[]; available: number | null; linkedName: string; canHub: boolean;
   /** Owner-only moving-average landed cost — null hides the GP chip entirely. */
   unitCost: number | null;
+  /** Set when the linked catalog item has a newer version (successor link). */
+  successor: { id: string; name: string } | null;
   tierOptions: TierOption[]; history: PriceHistEntry[]; customerTier: string;
   leadSuggestion: { value: string; why: string } | null;
   onPick: (c: Comp) => void; onPickExtra: (x: Extra) => void; onField: (patch: Partial<EditLine>) => void; onRemove: () => void;
@@ -1377,6 +1390,20 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, unitCost
             </span>
           ) : (
             <span className="text-[10px] text-slate-600 italic">Custom entry</span>
+          )}
+          {successor && (
+            canHub ? (
+              <a href={`/items/${successor.id}`} target="_blank" rel="noopener noreferrer"
+                title={`This item is replaced by ${successor.name} — open the newer item`}
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-300 text-[10px] font-semibold hover:bg-amber-500/20 transition-colors">
+                ↑ Newer version: <span className="truncate max-w-[160px]">{successor.name}</span> ↗
+              </a>
+            ) : (
+              <span title={`This item is replaced by ${successor.name}`}
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-300 text-[10px] font-semibold">
+                ↑ Newer version: <span className="truncate max-w-[160px]">{successor.name}</span>
+              </span>
+            )
           )}
           {/* Owner-only line margin (Dolibarr-style): est. GP at the current
               moving-average landed cost. Rendered only when the cost exists —

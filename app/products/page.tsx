@@ -29,6 +29,8 @@ interface Comp {
   brand: string | null; category: string | null; unit: string | null;
   norm_value: number | null; selling_price_idr: number | null;
   datasheet_url: string | null; warranty: string | null; updated_at: string | null;
+  warranty_value: number | null; warranty_unit: string | null;
+  perf_warranty_value: number | null; perf_warranty_unit: string | null;
 }
 interface Tier { tier_id: string; tier_code: string; name: string; default_discount_pct: number; sort_order: number; is_active: boolean; }
 interface Override { component_id: string; tier_id: string; override_price_idr: number | null; override_discount_pct: number | null; }
@@ -46,7 +48,25 @@ import { useListLayout } from '@/hooks/useListLayout';
 import { useListDefaults } from '@/hooks/useListDefaults';
 import DateRangeFilter from '@/components/ui/DateRangeFilter';
 import { inRange, type DateRange } from '@/lib/dateRange';
+import { successorMap } from '@/lib/successors';
+import { WARRANTY_UNITS, fmtWarranty, warrantyLabel } from '@/lib/warranty';
 // The product's customer-facing name: our internal description, never the supplier's model/SKU.
+/** Amber "newer version" tag — shown wherever a superseded item appears. */
+function SupersededTag({ succId, comps, canHub }: { succId?: string; comps: { component_id: string; internal_description: string | null; supplier_model: string }[]; canHub: boolean }) {
+  if (!succId) return null;
+  const succ = comps.find((c) => c.component_id === succId);
+  const label = succ ? descOf(succ) : 'newer item';
+  const cls = 'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-300 text-[10px] font-semibold flex-shrink-0';
+  return canHub ? (
+    <a href={`/items/${succId}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+      title={`This item is replaced by ${label} — open the newer item`} className={`${cls} hover:bg-amber-500/20 transition-colors`}>
+      ↑ Newer version ↗
+    </a>
+  ) : (
+    <span title={`This item is replaced by ${label}`} className={cls}>↑ Newer version</span>
+  );
+}
+
 const descOf = (c: { internal_description: string | null; supplier_model: string }) =>
   (c.internal_description && c.internal_description.trim()) || c.supplier_model || '(no description)';
 
@@ -118,6 +138,8 @@ function ProductsInner() {
   const [layout, setLayout] = useListLayout('products');
   const compact = layout === 'compact';
   const [toast, setToast] = useState<string | null>(null);
+  // component_id -> id of the item that replaces it (8.0 successor links)
+  const [successors, setSuccessors] = useState<Map<string, string>>(new Map());
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2200); };
 
   useEffect(() => { document.title = 'Products — ICAPROC'; }, []);
@@ -134,7 +156,7 @@ function ProductsInner() {
       let all: Comp[] = [];
       let from = 0;
       for (;;) {
-        const cols = `component_id, supplier_model, internal_description, category, unit, norm_value, selling_price_idr, datasheet_url, warranty, updated_at${canViewBrand ? ', brand' : ''}`;
+        const cols = `component_id, supplier_model, internal_description, category, unit, norm_value, selling_price_idr, datasheet_url, warranty, warranty_value, warranty_unit, perf_warranty_value, perf_warranty_unit, updated_at${canViewBrand ? ', brand' : ''}`;
         const { data: page } = await supabase.from('3.0_components')
           .select(cols)
           .order('supplier_model').range(from, from + PAGE - 1);
@@ -145,7 +167,7 @@ function ProductsInner() {
       }
       return all;
     };
-    const [allComps, tierRes, ovRes, balRes, sqRes, sqiRes, poRes, poiRes, piiRes, custRes] = await Promise.all([
+    const [allComps, tierRes, ovRes, balRes, sqRes, sqiRes, poRes, poiRes, piiRes, custRes, linkRes] = await Promise.all([
       fetchAllComponents(),
       supabase.from('21.0_price_tiers').select('tier_id, tier_code, name, default_discount_pct, sort_order, is_active').order('sort_order'),
       supabase.from('21.1_item_tier_prices').select('component_id, tier_id, override_price_idr, override_discount_pct'),
@@ -156,6 +178,7 @@ function ProductsInner() {
       supabase.from('5.1_purchase_line_items').select('po_id, component_id, quantity'),
       supabase.from('4.1_price_quote_line_items').select('quote_id, component_id').limit(8000),
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name'),
+      supabase.from('8.0_component_links').select('component_id_a, component_id_b, link_type').eq('link_type', 'successor'),
     ]);
     setComps(allComps);
     setTiers((tierRes.data as Tier[]) ?? []);
@@ -166,6 +189,7 @@ function ProductsInner() {
     const phys: Record<string, number> = {};
     for (const [cid, e] of rollUpByComponent((balRes.data as BalanceRow[]) ?? [])) phys[cid] = e.qty;
     setPhysical(phys);
+    setSuccessors(successorMap(linkRes.error ? [] : ((linkRes.data as any[]) ?? [])));
 
     const custName = new Map(((custRes.data as { customer_id: string; display_name: string; legal_name: string }[]) ?? [])
       .map((c) => [c.customer_id, c.display_name || c.legal_name || '']));
@@ -339,7 +363,7 @@ function ProductsInner() {
 
   const hasFilters = !!(search.trim() || filterCategory || filterBrand || stockOnly);
 
-  async function saveMeta(componentId: string, patch: { warranty?: string; datasheet_url?: string }) {
+  async function saveMeta(componentId: string, patch: Partial<Pick<Comp, 'warranty' | 'datasheet_url' | 'warranty_value' | 'warranty_unit' | 'perf_warranty_value' | 'perf_warranty_unit'>>) {
     const { error } = await supabase.from('3.0_components').update(patch).eq('component_id', componentId);
     if (error) { flash(`Failed: ${error.message}`); return; }
     setComps((cs) => cs.map((c) => (c.component_id === componentId ? { ...c, ...patch } : c)));
@@ -363,7 +387,7 @@ function ProductsInner() {
       r.c.component_id, descOf(r.c),
       ...(canViewBrand ? [r.c.supplier_model ?? '', r.c.brand ?? ''] : []),
       r.c.category ?? '', r.c.unit ?? '', r.c.norm_value ?? '',
-      r.c.selling_price_idr ?? '', r.c.warranty ?? '',
+      r.c.selling_price_idr ?? '', warrantyLabel(r.c) ?? '',
       r.live, r.phys, r.inc,
     ]);
     downloadCsv(`products-${new Date().toISOString().slice(0, 10)}`, headers, data);
@@ -565,6 +589,7 @@ function ProductsInner() {
                     <td className="px-4 py-2 sticky left-0 z-10 bg-inherit">
                       <span className="flex items-center gap-1.5">
                         <span className="text-sm text-slate-100 font-medium truncate max-w-[320px]">{descOf(r.c)}</span>
+                        <SupersededTag succId={successors.get(r.c.component_id)} comps={comps} canHub={canHub} />
                         {r.activity > 0 && <span className="px-1 py-0.5 rounded bg-slate-800 text-[9px] text-slate-500 tabular-nums flex-shrink-0" title={`${r.activity} POs / quotes / orders`}>{r.activity}</span>}
                         {canHub && (
                           <Link href={`/items/${r.c.component_id}`} onClick={(e) => e.stopPropagation()}
@@ -596,7 +621,12 @@ function ProductsInner() {
                     {canViewBrand && <td className="px-3 py-2 text-xs text-slate-400 whitespace-nowrap">{r.c.brand || '—'}</td>}
                     <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{r.c.category ? humanize(r.c.category) : '—'}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400">{r.c.norm_value != null && Number(r.c.norm_value) !== 0 ? Number(r.c.norm_value).toLocaleString('en-US') : '—'}</td>
-                    <td className="px-3 py-2 text-xs text-slate-400 whitespace-nowrap">{r.c.warranty || <span className="text-slate-700">—</span>}</td>
+                    <td className="px-3 py-2 text-xs text-slate-400 whitespace-nowrap">
+                      {warrantyLabel(r.c) || <span className="text-slate-700">—</span>}
+                      {fmtWarranty(r.c.perf_warranty_value, r.c.perf_warranty_unit) && (
+                        <span className="text-slate-600" title="Performance warranty — PV output guarantee"> · perf {fmtWarranty(r.c.perf_warranty_value, r.c.perf_warranty_unit)}</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-center">
                       {r.c.datasheet_url ? (
                         <a href={r.c.datasheet_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
@@ -691,7 +721,8 @@ function ProductsInner() {
                         </span>
                       ) : null;
                     })}
-                    {!compact && r.c.warranty && <span className="px-2 py-1 rounded-lg bg-slate-800/60 text-[11px] text-slate-400">Warranty {r.c.warranty}</span>}
+                    {!compact && warrantyLabel(r.c) && <span className="px-2 py-1 rounded-lg bg-slate-800/60 text-[11px] text-slate-400">Warranty {warrantyLabel(r.c)}{fmtWarranty(r.c.perf_warranty_value, r.c.perf_warranty_unit) ? ` · perf ${fmtWarranty(r.c.perf_warranty_value, r.c.perf_warranty_unit)}` : ''}</span>}
+                    <SupersededTag succId={successors.get(r.c.component_id)} comps={comps} canHub={canHub} />
                   </div>
                 </button>
                 {open && (
@@ -802,15 +833,31 @@ function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEdi
   orders: DocRef[];
   deliveries: DocRef[];
   canEditMeta: boolean;
-  onSaveMeta: (patch: { warranty?: string; datasheet_url?: string }) => void;
+  onSaveMeta: (patch: Partial<Pick<Comp, 'warranty' | 'datasheet_url' | 'warranty_value' | 'warranty_unit' | 'perf_warranty_value' | 'perf_warranty_unit'>>) => void;
   onPrice: (c: Comp, price: number, tierName?: string, tierKey?: string) => void;
   multi: boolean;
   pickedAt: (c: Comp, tierKey?: string) => boolean;
   canHub: boolean;
 }) {
   const { c, rsv } = row;
-  const [warranty, setWarranty] = useState(c.warranty ?? '');
+  // Structured warranty (After Sales runs its clocks on these): value + unit,
+  // product and performance each. Saved on blur / unit change.
+  const [wv, setWv] = useState(c.warranty_value != null ? String(c.warranty_value) : '');
+  const [wu, setWu] = useState(c.warranty_unit ?? 'years');
+  const [pv, setPv] = useState(c.perf_warranty_value != null ? String(c.perf_warranty_value) : '');
+  const [pu, setPu] = useState(c.perf_warranty_unit ?? 'years');
   const [sheet, setSheet] = useState(c.datasheet_url ?? '');
+  const saveWarranty = (patch?: { wu?: string; pu?: string }) => {
+    const num = (s: string) => { const n = parseFloat(s); return isFinite(n) && n > 0 ? n : null; };
+    const next = {
+      warranty_value: num(wv), warranty_unit: patch?.wu ?? wu,
+      perf_warranty_value: num(pv), perf_warranty_unit: patch?.pu ?? pu,
+    };
+    if (next.warranty_value !== (c.warranty_value ?? null) || next.warranty_unit !== (c.warranty_unit ?? 'years')
+      || next.perf_warranty_value !== (c.perf_warranty_value ?? null) || next.perf_warranty_unit !== (c.perf_warranty_unit ?? 'years')) {
+      onSaveMeta(next);
+    }
+  };
 
   return (
     <div className="space-y-3 pt-1">
@@ -861,14 +908,39 @@ function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEdi
       {/* Warranty + datasheet */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div>
-          <label className="block text-[10px] font-medium text-slate-500 mb-0.5">Warranty</label>
+          <label className="block text-[10px] font-medium text-slate-500 mb-0.5">
+            Warranty <span className="text-slate-600 normal-case">— product (claimable) · performance (PV output guarantee)</span>
+          </label>
           {canEditMeta ? (
-            <input value={warranty} onChange={(e) => setWarranty(e.target.value)}
-              onBlur={() => { if (warranty.trim() !== (c.warranty ?? '')) onSaveMeta({ warranty: warranty.trim() }); }}
-              placeholder="e.g. 12 years product / 30 years performance"
-              className={dInp} />
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              {([
+                { tag: 'Product', v: wv, setV: setWv, u: wu, setU: setWu, key: 'wu' as const, tip: 'Product warranty — the claimable period After Sales judges by' },
+                { tag: 'Performance', v: pv, setV: setPv, u: pu, setU: setPu, key: 'pu' as const, tip: 'Performance warranty — PV output guarantee, informational' },
+              ]).map(({ tag, v, setV, u, setU, key, tip }) => (
+                <span key={tag} className="flex items-center gap-1.5" title={tip}>
+                  <span className="text-[10px] text-slate-500 w-[4.6rem]">{tag}</span>
+                  <input value={v} inputMode="decimal" onChange={(e) => setV(e.target.value)}
+                    onBlur={() => saveWarranty()} placeholder="—"
+                    className={`${dInp} !w-16 text-right tabular-nums`} />
+                  <select value={u} onChange={(e) => { setU(e.target.value); saveWarranty({ [key]: e.target.value }); }}
+                    className={`${dInp} !w-auto cursor-pointer`}>
+                    {WARRANTY_UNITS.map((x) => <option key={x.value} value={x.value} className="bg-slate-900">{x.label}</option>)}
+                  </select>
+                </span>
+              ))}
+              {!wv && !pv && c.warranty && (
+                <span className="text-[10px] text-slate-600 w-full" title="Free-text warranty from before the structured fields — retype it into the boxes above">
+                  legacy note: {c.warranty}
+                </span>
+              )}
+            </div>
           ) : (
-            <p className="text-xs text-slate-300 py-1.5">{c.warranty || <span className="text-slate-600">—</span>}</p>
+            <p className="text-xs text-slate-300 py-1.5">
+              {warrantyLabel(c) || <span className="text-slate-600">—</span>}
+              {fmtWarranty(c.perf_warranty_value, c.perf_warranty_unit) && (
+                <span className="text-slate-500"> · performance {fmtWarranty(c.perf_warranty_value, c.perf_warranty_unit)}</span>
+              )}
+            </p>
           )}
         </div>
         <div>
