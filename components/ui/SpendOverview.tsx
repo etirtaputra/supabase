@@ -2,6 +2,8 @@
 import React, { useState, useMemo } from 'react';
 import { PRINCIPAL_CATS } from '../../constants/costCategories';
 import type { Component, Supplier, PriceQuote, PurchaseOrder, PurchaseLineItem, POCost, PriceQuoteLineItem } from '../../types/database';
+import { fmtRupiah } from '../../lib/formatters';
+import FitText from './FitText';
 
 const PALETTE = [
   '#818cf8', '#34d399', '#fbbf24', '#60a5fa', '#fb7185',
@@ -11,13 +13,10 @@ const PALETTE = [
 type Period = 'all' | '12m' | '6m' | '3m';
 type TrendPeriod = 'all' | 'ytd' | '1y' | '6m' | '3m' | '1m' | '1w';
 
-const fmtIDR = (n: number): string => {
-  if (n >= 1e9) return `Rp ${(n / 1e9).toFixed(1)}B`;
-  if (n >= 1e6) return `Rp ${(n / 1e6).toFixed(1)}M`;
-  if (n >= 1e3) return `Rp ${(n / 1e3).toFixed(0)}K`;
-  return `Rp ${Math.round(n).toLocaleString()}`;
-};
-const fmtFull = (n: number): string => 'Rp ' + Math.round(n).toLocaleString('en-US');
+// Full digits always (house rule 2026-08-05) — both aliases kept so the many
+// call sites below stay untouched; they now print the same full figure.
+const fmtIDR = (n: number): string => fmtRupiah(n);
+const fmtFull = (n: number): string => fmtRupiah(n);
 const share = (a: number, b: number): string => (b ? ((a / b) * 100).toFixed(1) + '%' : '—');
 
 // ── Donut chart (pure SVG, no library) ───────────────────────────────────────
@@ -391,14 +390,14 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
       {/* KPI strip */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: 'Total Committed', value: fmtIDR(totalCommitted), sub: fmtFull(totalCommitted), accent: 'text-indigo-400' },
+          { label: 'Total Committed', value: fmtIDR(totalCommitted), sub: 'PO value in the period', accent: 'text-indigo-400' },
           { label: 'Total Paid', value: fmtIDR(totalPaid), sub: `${share(totalPaid, totalCommitted)} of committed`, accent: 'text-emerald-400' },
           { label: 'Active Vendors', value: String(activeVendorCount), sub: 'with non-cancelled POs', accent: 'text-blue-400' },
           { label: 'Open POs', value: String(openPOs), sub: 'pending receipt', accent: 'text-amber-400' },
         ].map((k) => (
           <div key={k.label} className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">{k.label}</p>
-            <p className={`text-2xl font-bold tabular-nums ${k.accent}`}>{k.value}</p>
+            <p className={`text-2xl font-bold tabular-nums ${k.accent}`}><FitText text={k.value} /></p>
             <p className="text-[11px] text-slate-600 mt-1 truncate">{k.sub}</p>
           </div>
         ))}
@@ -693,7 +692,6 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
                     </td>
                     <td className="px-3 py-3 text-right">
                       <p className="text-sm font-bold text-white tabular-nums">{fmtIDR(comp.committed)}</p>
-                      <p className="text-[10px] text-slate-600 tabular-nums">{fmtFull(comp.committed)}</p>
                     </td>
                     <td className="px-3 py-3 text-right hidden sm:table-cell">
                       <span className={`tabular-nums ${sortCol === 'poCount' ? 'text-indigo-300 font-semibold' : 'text-slate-300'}`}>{comp.poCount}</span>

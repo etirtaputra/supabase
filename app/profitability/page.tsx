@@ -25,6 +25,7 @@ import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { formatCategory as humanize } from '@/lib/formatCategory';
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
+import FitText from '@/components/ui/FitText';
 import { useSettings } from '@/hooks/useSettings';
 import PositionPanel from '@/components/profitability/PositionPanel';
 
@@ -50,13 +51,6 @@ interface Customer { customer_id: string; display_name: string; legal_name: stri
 interface Invoice { invoice_id: string; quote_id: string; grand_total: number; issued_at: string | null; }
 interface Receipt { invoice_id: string | null; amount: number; payment_date: string | null; }
 
-// Compact rupiah for KPI tiles: 12.4M / 1.2B instead of 11 digits
-const fmtRpShort = (n: number) => {
-  const a = Math.abs(n);
-  if (a >= 1e9) return `Rp ${(n / 1e9).toFixed(1)}B`;
-  if (a >= 1e6) return `Rp ${(n / 1e6).toFixed(1)}M`;
-  return fmtRupiah(n);
-};
 const descOf = (c: Comp) => (c.internal_description && c.internal_description.trim()) || c.supplier_model || '(no description)';
 const daysBetween = (a: string, b: string) => (new Date(a).getTime() - new Date(b).getTime()) / 86400000;
 
@@ -423,11 +417,11 @@ export default function EconomicsPage() {
           <>
             {/* KPI strip */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-              <Kpi label={`Delivered revenue · ${periodLabel}`} value={fmtRpShort(kpi.revenue)} sub={`${periodFacts.length ? `${fmtInt(periodFacts.reduce((s, f) => s + f.qty, 0))} units shipped` : 'no deliveries in period'}`} />
-              <Kpi label={`Realized GP · ${periodLabel}`} value={fmtRpShort(kpi.gp)} tone={kpi.gp < 0 ? 'red' : 'green'}
+              <Kpi label={`Delivered revenue · ${periodLabel}`} value={fmtRupiah(kpi.revenue)} sub={`${periodFacts.length ? `${fmtInt(periodFacts.reduce((s, f) => s + f.qty, 0))} units shipped` : 'no deliveries in period'}`} />
+              <Kpi label={`Realized GP · ${periodLabel}`} value={fmtRupiah(kpi.gp)} tone={kpi.gp < 0 ? 'red' : 'green'}
                 sub={kpi.margin != null ? `${kpi.margin.toFixed(1)}% margin` : '—'} />
-              <Kpi label="Stock value (now)" value={fmtRpShort(ccc.stockValue)} sub={`${fmtRpShort(kpi.inProfitValue)} already in profit · ${kpi.inProfitCount} item${kpi.inProfitCount !== 1 ? 's' : ''}`} />
-              <Kpi label="Slow-moving stock" value={fmtRpShort(kpi.slowValue)} tone={kpi.slowValue > 0 ? 'amber' : 'green'}
+              <Kpi label="Stock value (now)" value={fmtRupiah(ccc.stockValue)} sub={`${fmtRupiah(kpi.inProfitValue)} already in profit · ${kpi.inProfitCount} item${kpi.inProfitCount !== 1 ? 's' : ''}`} />
+              <Kpi label="Slow-moving stock" value={fmtRupiah(kpi.slowValue)} tone={kpi.slowValue > 0 ? 'amber' : 'green'}
                 sub={`${kpi.slowCount} item${kpi.slowCount !== 1 ? 's' : ''} idle > ${SLOW_DAYS}d`} />
             </div>
 
@@ -440,7 +434,7 @@ export default function EconomicsPage() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                 <CccPart label="DIO · inventory" days={ccc.dio} hint="Stock value ÷ daily COGS — days an item sits before it ships" />
                 <CccPart label="DSO · receivables" days={ccc.dso} hint="Invoice issued → paid, value-weighted (paid invoices)"
-                  extra={ccc.arOutstanding > 0 ? `${fmtRpShort(ccc.arOutstanding)} AR still open` : undefined} />
+                  extra={ccc.arOutstanding > 0 ? `${fmtRupiah(ccc.arOutstanding)} AR still open` : undefined} />
                 <CccPart label="DPO · payables" days={ccc.dpo} negate hint="Supplier payment vs goods received — NEGATIVE days mean we prepay imports before arrival, which lengthens the cycle" />
                 <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.06] px-3.5 py-3">
                   <p className="text-[10px] uppercase tracking-wider text-emerald-500/80">CCC · the runway</p>
@@ -527,9 +521,9 @@ export default function EconomicsPage() {
                     <p className="text-sm text-slate-100 font-medium truncate">{descOf(r.c)}</p>
                     <div className="flex flex-wrap gap-1.5 mt-1.5 text-[11px]">
                       {r.revenue > 0 && (
-                        <span className={`px-2 py-1 rounded-lg bg-slate-800/80 tabular-nums font-semibold ${r.gp < 0 ? 'text-red-300' : 'text-emerald-300'}`}>GP {fmtRpShort(r.gp)}{r.margin != null ? ` · ${r.margin.toFixed(0)}%` : ''}</span>
+                        <span className={`px-2 py-1 rounded-lg bg-slate-800/80 tabular-nums font-semibold ${r.gp < 0 ? 'text-red-300' : 'text-emerald-300'}`}>GP {fmtRupiah(r.gp)}{r.margin != null ? ` · ${r.margin.toFixed(0)}%` : ''}</span>
                       )}
-                      {r.stockValue > 0 && <span className="px-2 py-1 rounded-lg bg-slate-800/60 text-slate-300 tabular-nums">stock {fmtRpShort(r.stockValue)}</span>}
+                      {r.stockValue > 0 && <span className="px-2 py-1 rounded-lg bg-slate-800/60 text-slate-300 tabular-nums">stock {fmtRupiah(r.stockValue)}</span>}
                       {r.dio != null && <span className="px-2 py-1 rounded-lg bg-slate-800/60 text-slate-400 tabular-nums">DIO {Math.round(r.dio)}d</span>}
                       {r.inProfit && <span className="px-2 py-1 rounded-lg bg-emerald-500/10 text-emerald-300">✓ in profit</span>}
                       {r.slow && <span className="px-2 py-1 rounded-lg bg-amber-500/10 text-amber-300">slow</span>}
@@ -587,7 +581,7 @@ function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: 
   return (
     <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl px-4 py-3">
       <p className="text-[10px] uppercase tracking-wider text-slate-600 truncate" title={label}>{label}</p>
-      <p className={`text-xl font-bold tabular-nums mt-0.5 ${cls}`}>{value}</p>
+      <p className={`text-xl font-bold tabular-nums mt-0.5 ${cls}`}><FitText text={value} /></p>
       {sub && <p className="text-[10px] text-slate-500 mt-0.5 truncate" title={sub}>{sub}</p>}
     </div>
   );
@@ -640,8 +634,8 @@ function PartyPanel({ title, rows, emptyNote, linkBase }: { title: string; rows:
                 <p className="text-[10px] text-slate-600 truncate">{r.orders.size} order{r.orders.size !== 1 ? 's' : ''}{r.sub ? ` · ${r.sub}` : ''}</p>
               </div>
               <div className="text-right flex-shrink-0">
-                <p className={`text-xs font-bold tabular-nums ${r.gp < 0 ? 'text-red-400' : 'text-emerald-300'}`}>{fmtRpShort(r.gp)}</p>
-                <p className="text-[10px] text-slate-600 tabular-nums">{fmtRpShort(r.revenue)}{r.margin != null ? ` · ${r.margin.toFixed(0)}%` : ''}</p>
+                <p className={`text-xs font-bold tabular-nums ${r.gp < 0 ? 'text-red-400' : 'text-emerald-300'}`}>{fmtRupiah(r.gp)}</p>
+                <p className="text-[10px] text-slate-600 tabular-nums">{fmtRupiah(r.revenue)}{r.margin != null ? ` · ${r.margin.toFixed(0)}%` : ''}</p>
               </div>
             </div>
           ))}

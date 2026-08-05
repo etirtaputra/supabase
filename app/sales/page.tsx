@@ -402,7 +402,17 @@ export default function SalesListPage() {
                         {(q.revision ?? 0) > 0 && <span className="ml-1 text-[9px] font-bold text-sky-400">R{q.revision}</span>}
                         {q.case_id && <span className="ml-1 px-1 py-0.5 rounded text-[9px] font-bold bg-orange-500/15 text-orange-300 align-middle" title="After-sales quote — repair / replacement for a service case">SVC</span>}
                       </span>
-                      <span className={`text-sm text-slate-100 truncate ${compact ? 'flex-1 min-w-[6rem]' : ''}`}>{c?.display_name || c?.legal_name || <span className="text-slate-600">No customer</span>}</span>
+                      {/* Customer name links to their profile (new tab) — the
+                          row click still expands the preview around it. */}
+                      <span className={`text-sm text-slate-100 truncate ${compact ? 'flex-1 min-w-[6rem]' : ''}`}>
+                        {c ? (
+                          <a href={`/customers?open=${encodeURIComponent(q.customer_id!)}`} target="_blank" rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()} title="Open customer profile in a new tab"
+                            className="hover:text-emerald-300 hover:underline underline-offset-2 decoration-emerald-500/50 transition-colors">
+                            {c.display_name || c.legal_name}
+                          </a>
+                        ) : <span className="text-slate-600">No customer</span>}
+                      </span>
                       {/* Column 1 of the pair: WHERE IS THE ORDER. A half-
                           shipped order says so — "Partly Delivered" is derived
                           from its DOs (the stored status only becomes

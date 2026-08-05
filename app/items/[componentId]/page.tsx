@@ -30,7 +30,8 @@ import BrandMenu from '@/components/ui/BrandMenu';
 import SpecRenderer from '@/components/ui/SpecRenderer';
 import { PositionDetail } from '@/components/profitability/PositionPanel';
 import { formatCategory as humanize } from '@/lib/formatCategory';
-import { fmtDay, fmtInt, fmtIdr, fmtCcy, fmtRupiah, fmtRupiahShort } from '@/lib/formatters';
+import { fmtDay, fmtInt, fmtIdr, fmtCcy, fmtRupiah } from '@/lib/formatters';
+import FitText from '@/components/ui/FitText';
 import { useSettings } from '@/hooks/useSettings';
 import { COMMITTED_STATUSES as COMMITTED } from '@/lib/salesStatus';
 import { fetchDeliveredByQuoteComp } from '@/lib/reservedStock';
@@ -368,7 +369,7 @@ export default function ItemHubPage() {
                   {canBuy && (
                     <HeadStat label="Avg landed cost" tone="text-sky-300"
                       value={avgCost > 0 ? fmtIdr(avgCost) : '—'}
-                      sub={physical !== 0 ? `stock value ${fmtRupiahShort(physical * avgCost)}` : 'no stock on hand'} />
+                      sub={physical !== 0 ? `stock value ${fmtRupiah(physical * avgCost)}` : 'no stock on hand'} />
                   )}
                 </div>
               </div>
@@ -496,11 +497,11 @@ function OverviewTab({ comp, physical, reserved, live, incoming, avgCost, canBuy
           tone={idleDays != null && idleDays > slowDays ? 'text-amber-300' : undefined} />
         {gpPct != null ? (
           <Kpi label="GP% at current price" value={`${gpPct.toFixed(1)}%`} tone={gpPct < 0 ? 'text-red-400' : 'text-emerald-300'}
-            sub={`net ${fmtRupiahShort(net)} vs cost ${fmtRupiahShort(avgCost)}`} />
+            sub={`net ${fmtRupiah(net)} vs cost ${fmtRupiah(avgCost)}`} />
         ) : canSell ? (
-          <Kpi label="Sell price (net)" value={net > 0 ? fmtRupiahShort(net) : '—'} tone="text-emerald-300" sub="Tier-1, excl. PPN" />
+          <Kpi label="Sell price (net)" value={net > 0 ? fmtRupiah(net) : '—'} tone="text-emerald-300" sub="Tier-1, excl. PPN" />
         ) : (
-          <Kpi label="Landed cost (TUC)" value={tucRes ? fmtRupiahShort(tucRes.tuc) : avgCost > 0 ? fmtRupiahShort(avgCost) : '—'} tone="text-sky-300"
+          <Kpi label="Landed cost (TUC)" value={tucRes ? fmtRupiah(tucRes.tuc) : avgCost > 0 ? fmtRupiah(avgCost) : '—'} tone="text-sky-300"
             sub={tucRes ? `from ${tucRes.poCount} settled PO${tucRes.poCount !== 1 ? 's' : ''}` : 'moving average'} />
         )}
         <Kpi label="Incoming" value={incoming > 0 ? fmtInt(incoming) : '0'} tone={incoming > 0 ? 'text-sky-300' : undefined}
@@ -530,7 +531,7 @@ function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: 
   return (
     <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl px-4 py-3">
       <p className="text-[10px] uppercase tracking-wider text-slate-600 truncate" title={label}>{label}</p>
-      <p className={`text-xl font-bold tabular-nums mt-0.5 ${tone ?? 'text-slate-100'}`}>{value}</p>
+      <p className={`text-xl font-bold tabular-nums mt-0.5 ${tone ?? 'text-slate-100'}`}><FitText text={value} /></p>
       {sub && <p className="text-[10px] text-slate-500 mt-0.5 truncate" title={sub}>{sub}</p>}
     </div>
   );
@@ -559,7 +560,7 @@ function BuyTab({ compUnit, tucRes, fx, myPoLines, incoming, leadTimes, forensic
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
         <Kpi label="Landed cost (TUC)" value={tucRes ? fmtIdr(tucRes.tuc) : '—'} tone="text-sky-300"
           sub={tucRes ? `headline = max(latest, weighted avg)` : 'no settled PO yet'} />
-        <Kpi label="Latest · weighted avg" value={tucRes ? `${fmtRupiahShort(tucRes.latestTuc)} · ${fmtRupiahShort(tucRes.avgTuc)}` : '—'}
+        <Kpi label="Latest · weighted avg" value={tucRes ? `${fmtRupiah(tucRes.latestTuc)} · ${fmtRupiah(tucRes.avgTuc)}` : '—'}
           sub={tucRes ? `latest settled PO ${fmtDay(tucRes.latestPoDate)}` : `from ${poCount} PO${poCount !== 1 ? 's' : ''}`} />
         <Kpi label="Bought all-time" value={boughtQty > 0 ? `${fmtInt(boughtQty)}${compUnit ? ` ${compUnit}` : ''}` : '—'}
           sub={incoming > 0 ? `${poCount} PO${poCount !== 1 ? 's' : ''} · ${fmtInt(incoming)} incoming` : `${poCount} purchase order${poCount !== 1 ? 's' : ''}`} />
@@ -680,7 +681,7 @@ function SellTab({ comp, activeTiers, chain, avgCost, canFloor, soldLines, custN
                     <p className="text-[10px] text-slate-600">{c.orders.size} order{c.orders.size !== 1 ? 's' : ''} · last {fmtDay(c.last)}</p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="text-xs font-bold tabular-nums text-emerald-300">{fmtRupiahShort(c.value)}</p>
+                    <p className="text-xs font-bold tabular-nums text-emerald-300">{fmtRupiah(c.value)}</p>
                     <p className="text-[10px] text-slate-600 tabular-nums">{fmtInt(c.qty)}{comp.unit ? ` ${comp.unit}` : ''}</p>
                   </div>
                 </div>
@@ -764,7 +765,7 @@ function StockTab({ balances, warehouses, movements, physical, reserved, live, u
                   <span className="text-slate-300 flex-1 truncate">{warehouseLabel(warehouses, b.location)}</span>
                   <span className={`tabular-nums font-semibold ${qty < 0 ? 'text-red-400' : 'text-slate-100'}`}>{fmtInt(qty)}{unit ? ` ${unit}` : ''}</span>
                   <span className="tabular-nums text-slate-500 w-28 text-right">@ {avg > 0 ? fmtInt(avg) : '—'}</span>
-                  <span className="tabular-nums text-slate-300 w-28 text-right" title={fmtRupiah(qty * avg)}>{qty * avg !== 0 ? fmtRupiahShort(qty * avg) : '—'}</span>
+                  <span className="tabular-nums text-slate-300 w-28 text-right" title={fmtRupiah(qty * avg)}>{qty * avg !== 0 ? fmtRupiah(qty * avg) : '—'}</span>
                 </div>
               );
             })}
@@ -1004,13 +1005,13 @@ function EconomicsTab({ componentId, comp, movements, saleItems, salesDocs, cust
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-        <Kpi label="Realized GP · all time" value={facts.length ? fmtRupiahShort(totals.gp) : '—'}
+        <Kpi label="Realized GP · all time" value={facts.length ? fmtRupiah(totals.gp) : '—'}
           tone={totals.gp < 0 ? 'text-red-400' : 'text-emerald-300'}
           sub={totals.margin != null ? `${totals.margin.toFixed(1)}% margin${totals.est ? ' · ~ est. COGS' : ''}` : 'no deliveries yet'} />
-        <Kpi label="Delivered revenue" value={facts.length ? fmtRupiahShort(totals.revenue) : '—'}
+        <Kpi label="Delivered revenue" value={facts.length ? fmtRupiah(totals.revenue) : '—'}
           sub={facts.length ? `${fmtInt(totals.qty)}${comp.unit ? ` ${comp.unit}` : ''} shipped` : 'GP realizes on delivery'} />
         <Kpi label="Turns (365d)" value={totals.turns != null ? `${totals.turns.toFixed(1)}×` : '—'}
-          sub={totals.stockValue > 0 ? `stock value ${fmtRupiahShort(totals.stockValue)}` : 'nothing held'} />
+          sub={totals.stockValue > 0 ? `stock value ${fmtRupiah(totals.stockValue)}` : 'nothing held'} />
         <Kpi label="Ageing" value={ageBucket} tone={ageDays != null && ageDays > 365 ? 'text-amber-300' : undefined}
           sub={totals.lastSold ? `last delivered ${fmtDay(totals.lastSold)}` : 'no delivery on record'} />
       </div>
@@ -1029,8 +1030,8 @@ function EconomicsTab({ componentId, comp, movements, saleItems, salesDocs, cust
                   <p className="text-[10px] text-slate-600 tabular-nums">{fmtInt(c.qty)}{comp.unit ? ` ${comp.unit}` : ''} delivered</p>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className={`text-xs font-bold tabular-nums ${c.gp < 0 ? 'text-red-400' : 'text-emerald-300'}`}>{fmtRupiahShort(c.gp)}</p>
-                  <p className="text-[10px] text-slate-600 tabular-nums">{fmtRupiahShort(c.revenue)}{c.revenue > 0 ? ` · ${((c.gp / c.revenue) * 100).toFixed(0)}%` : ''}</p>
+                  <p className={`text-xs font-bold tabular-nums ${c.gp < 0 ? 'text-red-400' : 'text-emerald-300'}`}>{fmtRupiah(c.gp)}</p>
+                  <p className="text-[10px] text-slate-600 tabular-nums">{fmtRupiah(c.revenue)}{c.revenue > 0 ? ` · ${((c.gp / c.revenue) * 100).toFixed(0)}%` : ''}</p>
                 </div>
               </div>
             ))}

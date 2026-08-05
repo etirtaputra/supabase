@@ -13,7 +13,8 @@
  */
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
-import { fmtInt, fmtRupiah, fmtIdrShort, fmtDay } from '@/lib/formatters';
+import { fmtInt, fmtRupiah, fmtIdr, fmtDay } from '@/lib/formatters';
+import FitText from '@/components/ui/FitText';
 import { fetchTradePositions, type PositionRow, type PositionTotals } from '@/lib/tradePosition';
 
 type Chip = 'all' | 'open' | 'recovered' | 'up' | 'down' | 'unmarked';
@@ -70,12 +71,12 @@ export default function PositionPanel() {
       {/* ── Portfolio strip ── */}
       {totals && (
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5">
-          <Tile label="Total purchased" value={fmtIdrShort(totals.poValue)} sub="received, at landed cost" />
-          <Tile label="Total invoiced" value={fmtIdrShort(totals.invValue)} sub="net of PPN" />
-          <Tile label="Open position cost" value={fmtIdrShort(totals.posCost)} sub={`${totals.openCount} item${totals.openCount !== 1 ? 's' : ''} still held`} accent />
-          <Tile label="Position value at mark" value={fmtIdrShort(totals.posValue)} sub={totals.unmarked > 0 ? `${totals.unmarked} item${totals.unmarked !== 1 ? 's' : ''} unpriced — excluded` : 'at net sell price'} />
-          <Tile label="Total P&L" value={fmtIdrShort(totals.pnl)} sub={`${pctOf(totals.roiPct)} on capital deployed`} tone={totals.pnl} />
-          <Tile label="In transit" value={fmtIdrShort(totals.inTransitValue)} sub="ordered, not yet received" />
+          <Tile label="Total purchased" value={fmtIdr(totals.poValue)} sub="received, at landed cost" />
+          <Tile label="Total invoiced" value={fmtIdr(totals.invValue)} sub="net of PPN" />
+          <Tile label="Open position cost" value={fmtIdr(totals.posCost)} sub={`${totals.openCount} item${totals.openCount !== 1 ? 's' : ''} still held`} accent />
+          <Tile label="Position value at mark" value={fmtIdr(totals.posValue)} sub={totals.unmarked > 0 ? `${totals.unmarked} item${totals.unmarked !== 1 ? 's' : ''} unpriced — excluded` : 'at net sell price'} />
+          <Tile label="Total P&L" value={fmtIdr(totals.pnl)} sub={`${pctOf(totals.roiPct)} on capital deployed`} tone={totals.pnl} />
+          <Tile label="In transit" value={fmtIdr(totals.inTransitValue)} sub="ordered, not yet received" />
         </div>
       )}
 
@@ -112,7 +113,7 @@ export default function PositionPanel() {
         <>
           {/* ── Desktop: compact rows, click to expand ── */}
           <div className="hidden md:block bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-x-auto">
-            <table className="w-full min-w-[1120px]">
+            <table className="w-full min-w-[1400px]">
               <thead>
                 <tr className="border-b border-slate-800 text-[10px] uppercase tracking-widest text-slate-500">
                   <th className="text-left px-3 py-2.5 font-semibold">Item</th>
@@ -139,20 +140,20 @@ export default function PositionPanel() {
                           <p className="text-[10px] text-slate-600 truncate">{[r.brand, r.category].filter(Boolean).join(' · ') || '—'}</p>
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400">{fmtInt(r.poQty)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400">{r.avgPoPrice != null ? fmtIdrShort(r.avgPoPrice) : '—'}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400">{r.avgPoPrice != null ? fmtIdr(r.avgPoPrice) : '—'}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400">{r.invQty > 0 ? fmtInt(r.invQty) : <span className="text-slate-700">—</span>}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400">{r.avgInvPrice != null ? fmtIdrShort(r.avgInvPrice) : <span className="text-slate-700">—</span>}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400">{r.avgInvPrice != null ? fmtIdr(r.avgInvPrice) : <span className="text-slate-700">—</span>}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-200 font-semibold">{fmtInt(r.posQty)}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-xs font-bold">
                           {r.recovered
                             ? <span className="text-emerald-300">Recovered</span>
                             : r.avgPosCost != null
-                              ? <span className="text-amber-300">{fmtIdrShort(r.avgPosCost)}</span>
+                              ? <span className="text-amber-300">{fmtIdr(r.avgPosCost)}</span>
                               : <span className="text-slate-700">—</span>}
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400">{r.mark != null ? fmtIdrShort(r.mark) : <span className="text-slate-700">—</span>}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400">{r.mark != null ? fmtIdr(r.mark) : <span className="text-slate-700">—</span>}</td>
                         <td className={`px-3 py-2 text-right tabular-nums text-xs font-bold ${toneOf(r.pnl)}`}>
-                          {r.pnl != null ? fmtIdrShort(r.pnl) : '—'}
+                          {r.pnl != null ? fmtIdr(r.pnl) : '—'}
                           {r.roiPct != null && <span className="block text-[10px] font-normal opacity-70">{pctOf(r.roiPct)}</span>}
                         </td>
                         <td className="pr-3 text-slate-600">
@@ -189,8 +190,8 @@ export default function PositionPanel() {
                       <span className="px-2 py-1 rounded-lg bg-slate-800/60 text-slate-400 tabular-nums">{fmtInt(r.posQty)} held</span>
                       {r.recovered
                         ? <span className="px-2 py-1 rounded-lg bg-emerald-500/15 text-emerald-300 font-bold">Recovered</span>
-                        : r.avgPosCost != null && <span className="px-2 py-1 rounded-lg bg-amber-500/15 text-amber-300 font-bold tabular-nums">B/E {fmtIdrShort(r.avgPosCost)}</span>}
-                      {r.pnl != null && <span className={`px-2 py-1 rounded-lg bg-slate-800/60 tabular-nums font-bold ${toneOf(r.pnl)}`}>{fmtIdrShort(r.pnl)} {r.roiPct != null && `· ${pctOf(r.roiPct)}`}</span>}
+                        : r.avgPosCost != null && <span className="px-2 py-1 rounded-lg bg-amber-500/15 text-amber-300 font-bold tabular-nums">B/E {fmtIdr(r.avgPosCost)}</span>}
+                      {r.pnl != null && <span className={`px-2 py-1 rounded-lg bg-slate-800/60 tabular-nums font-bold ${toneOf(r.pnl)}`}>{fmtIdr(r.pnl)} {r.roiPct != null && `· ${pctOf(r.roiPct)}`}</span>}
                     </div>
                   </button>
                   {open && <div className="px-3.5 pb-3.5"><PositionDetail r={r} /></div>}
@@ -295,7 +296,7 @@ function Tile({ label, value, sub, tone, accent }: {
   return (
     <div className={`rounded-xl border px-3.5 py-3 ${accent ? 'border-amber-500/30 bg-amber-500/[0.06]' : 'border-slate-800 bg-slate-900/40'}`}>
       <p className="text-[10px] uppercase tracking-wider text-slate-600 truncate" title={label}>{label}</p>
-      <p className={`text-lg font-bold tabular-nums mt-0.5 ${color}`}>{value}</p>
+      <p className={`text-lg font-bold tabular-nums mt-0.5 ${color}`}><FitText text={value} /></p>
       {sub && <p className="text-[10px] text-slate-500 mt-0.5 truncate" title={sub}>{sub}</p>}
     </div>
   );

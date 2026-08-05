@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-05T22:38:00Z',
+    title: 'Full rupiah everywhere · GP on every Sales Order (owner) · customer links on the Sales list',
+    details: [
+      'Money always shows FULL digits now — no more “Rp 2,0M” or “IDR 21,55B” anywhere: Dashboard, Analytics (Items, Profitability, Position), Spend & Cash, Stock, Banks, Invoices. Where a full figure is wider than its tile the digits shrink to fit instead of wrapping or truncating, so phones show the same complete number.',
+      'Owner-only, Dolibarr-style margins on the sales document: every line linked to a costed catalog item shows its est. GP and margin % (at the current moving-average landed cost), and the totals card adds Est. COGS + Est. gross profit for the whole order. Lines without a landed cost are excluded and counted, so a partial estimate says so. Other roles see nothing — the cost column is not even fetched for them.',
+      'Sales Orders list: the customer name is now a link — opens that customer’s profile in a new tab; clicking anywhere else on the row still expands the preview.',
+      'Fix on the way: the sales editor’s live-stock figure summed only one warehouse per item; it now sums all warehouses, matching /stock.',
+    ],
+  },
+  {
     at: '2026-08-05T04:02:00Z',
     title: 'My Spotlight — personal search settings · who’s online, live',
     details: [

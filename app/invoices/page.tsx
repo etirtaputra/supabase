@@ -12,7 +12,8 @@ import { useRouter } from 'next/navigation';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { displayDocNumber } from '@/lib/salesStatus';
-import { fmtDay, fmtInt, fmtIdrShort as fmtIdr } from '@/lib/formatters';
+import { fmtDay, fmtInt, fmtIdr } from '@/lib/formatters';
+import FitText from '@/components/ui/FitText';
 import DateRangeFilter from '@/components/ui/DateRangeFilter';
 import LayoutToggle from '@/components/ui/LayoutToggle';
 import { useListLayout } from '@/hooks/useListLayout';
@@ -156,7 +157,7 @@ export default function InvoicesPage() {
           ].map(({ label, value, cls }) => (
             <div key={label} className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-3.5">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-1">{label}</p>
-              <p className={`text-lg md:text-xl font-extrabold tabular-nums ${cls}`}>{loading ? '—' : fmtIdr(value)}</p>
+              <p className={`text-lg md:text-xl font-extrabold tabular-nums ${cls}`}><FitText text={loading ? '—' : fmtIdr(value)} /></p>
             </div>
           ))}
         </div>

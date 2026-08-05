@@ -718,6 +718,19 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   user's language. That is now part of definition-of-done alongside the
   CommandPalette entity rule.
 
+- **Full-digit money + order margins (2026-08-05, owner's rule)**: money always
+  shows FULL digits — the compact fmtCompact/fmtIdrShort/fmtRupiahShort helpers
+  are DELETED from `lib/formatters.ts` (never re-add a shortener); oversized
+  figures shrink via `components/ui/FitText.tsx` (font auto-fits its tile,
+  digits never wrap or truncate). The sales editor gained owner-only
+  (canViewEconomics) Dolibarr-style margins: per-line est. GP chip + order-level
+  Est. COGS / Est. GP in the totals card, at the current quantity-weighted
+  moving-average landed cost from 30.1 (`avg_cost_idr` fetched ONLY for owners —
+  the network-tab leak rule); custom lines without cost are excluded and
+  counted. Sales list customer names deep-link to `/customers?open=` (new tab).
+  Fixed with it: the editor's physical-stock map assigned instead of summing
+  across warehouses.
+
 **Next up (in order):**
 0. Dashboard slice 2: a position strip above the queue — Cash / Owed to us /
    We owe / CCC — then month-in-motion comparisons and an AI next-best-step card.

@@ -123,31 +123,11 @@ export const fmtRupiah = (n: number): string =>
  */
 export const fmtRp = (n: number): string => fmtRupiah(n);
 
-/**
- * Compact figure for KPI tiles: "2.20B" / "12.4M" / "1,234". Negative or small
- * values fall through to the full number.
- */
-export const fmtCompact = (n: number): string => {
-  const s = getSettings();
-  if (n >= 1e9) return formatNumber(n / 1e9, s.numberInternal, 2) + 'B';
-  if (n >= 1e6) return formatNumber(n / 1e6, s.numberInternal, 1) + 'M';
-  return fmtInt(n);
-};
-
-/** Compact amount carrying the currency code: "IDR 2.20B". */
-export const fmtIdrShort = (n: number): string => {
-  const s = getSettings();
-  return s.useSymbolEverywhere ? applyCurrency(fmtCompact(n), s.currencyInternal) : `${s.currencyCode} ${fmtCompact(n)}`;
-};
-
-/** Compact rupiah for KPI tiles and dense cells: "Rp 2.2B" / "Rp 12.4M" */
-export const fmtRupiahShort = (n: number): string => {
-  const s = getSettings();
-  const a = Math.abs(n);
-  const unit = a >= 1e9 ? { div: 1e9, suffix: 'B' } : a >= 1e6 ? { div: 1e6, suffix: 'M' } : null;
-  if (!unit) return fmtRupiah(n);
-  return applyCurrency(formatNumber(n / unit.div, s.numberInternal, 1) + unit.suffix, s.currencyInternal);
-};
+// HOUSE RULE (owner, 2026-08-05): money always shows FULL digits — never
+// "Rp 2,0M" / "IDR 21,55B". The old fmtCompact / fmtIdrShort / fmtRupiahShort
+// helpers are deleted, not aliased, so a shortening can't quietly come back.
+// Where a full figure is wider than its tile, wrap it in
+// components/ui/FitText — the font shrinks, the digits stay.
 
 /**
  * Format a currency amount with its code: fmtCcy(1500.5, 'USD') → "USD 1,500.5"

@@ -17,7 +17,7 @@ import Link from 'next/link';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { formatCategory as humanize } from '@/lib/formatCategory';
-import { fmtDay, fmtInt, fmtRupiah, fmtRupiahShort } from '@/lib/formatters';
+import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 import { rollUpByComponent, type BalanceRow } from '@/lib/warehouses';
 import { useListDefaults } from '@/hooks/useListDefaults';
 import ItemCostForensics from '@/components/ui/ItemCostForensics';
@@ -300,7 +300,7 @@ function ItemsInner() {
                       </span>
                       {canSell && <span className="text-right tabular-nums text-xs text-emerald-300/90 whitespace-nowrap">{r.c.selling_price_idr ? fmtRupiah(r.c.selling_price_idr) : <span className="text-slate-700">—</span>}</span>}
                       {canBuy && <span className="text-right tabular-nums text-xs text-slate-400">{r.avg > 0 ? fmtInt(r.avg) : <span className="text-slate-700">—</span>}</span>}
-                      {canBuy && <span className="text-right tabular-nums text-xs text-slate-200" title={r.value !== 0 ? fmtRupiah(r.value) : undefined}>{r.value !== 0 ? fmtRupiahShort(r.value) : <span className="text-slate-700">—</span>}</span>}
+                      {canBuy && <span className="text-right tabular-nums text-xs text-slate-200" title={r.value !== 0 ? fmtRupiah(r.value) : undefined}>{r.value !== 0 ? fmtRupiah(r.value) : <span className="text-slate-700">—</span>}</span>}
                       <span className="text-right tabular-nums text-xs text-slate-500">{r.activity || <span className="text-slate-700">—</span>}</span>
                       <span className="text-right text-[11px] text-slate-500 tabular-nums whitespace-nowrap">{r.lastMove ? fmtDay(r.lastMove) : '—'}</span>
                     </button>
@@ -352,7 +352,7 @@ function ItemsInner() {
                       {r.c.unit && <span className="text-slate-600 font-normal"> {r.c.unit}</span>}
                     </span>
                     {canSell && r.c.selling_price_idr ? <span className="px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-300 tabular-nums">{fmtRupiah(r.c.selling_price_idr)}</span> : null}
-                    {canBuy && r.value !== 0 ? <span className="px-2 py-0.5 rounded-lg bg-slate-800/60 text-slate-400 tabular-nums">{fmtRupiahShort(r.value)}</span> : null}
+                    {canBuy && r.value !== 0 ? <span className="px-2 py-0.5 rounded-lg bg-slate-800/60 text-slate-400 tabular-nums">{fmtRupiah(r.value)}</span> : null}
                     {r.activity > 0 && <span className="px-2 py-0.5 rounded-lg bg-slate-800/60 text-slate-500 tabular-nums">{r.activity} docs</span>}
                   </div>
                 </button>

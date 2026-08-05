@@ -9,14 +9,10 @@ import { useSettings } from '@/hooks/useSettings';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
-import { fmtIdrShort, parseDate } from '@/lib/formatters';
+import { fmtIdr, parseDate } from '@/lib/formatters';
+import FitText from '@/components/ui/FitText';
 import { getSettings } from '@/lib/settings';
 import { fetchActionQueue, fetchActivity, type ActionItem, type ActivityRow } from '@/lib/dashboard';
-
-// ── Formatting ──────────────────────────────────────────────────────────────
-// Shapes live in lib/formatters (settings-driven); only the day+month stamp is
-// local, because no other screen prints a date without its year.
-const fmtIdr = (n: number) => fmtIdrShort(n);
 
 function fmtDate(d?: string | null) {
   const dt = parseDate(d);
@@ -158,7 +154,7 @@ export default function Home() {
           ].map(({ label, value, sub, color, ring }) => (
             <div key={label} className={`bg-slate-900/60 border border-slate-800/80 ring-1 ${ring} rounded-2xl p-4 xl:p-5`}>
               <p className="text-[10px] xl:text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">{label}</p>
-              <p className={`text-2xl xl:text-3xl font-extrabold tabular-nums ${color} leading-none`}>{value}</p>
+              <p className={`text-2xl xl:text-3xl font-extrabold tabular-nums ${color} leading-none`}><FitText text={value} /></p>
               <p className="text-[11px] text-slate-600 mt-1.5">{sub}</p>
             </div>
           ))}

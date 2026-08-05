@@ -118,6 +118,10 @@ export default function SalesQuotePage() {
   const canEdit = !!profile && ROLE_PERMISSIONS[profile.role].canEditSalesDocs;
   // Item hub link only for roles that can open it (Analytics is owner-only)
   const canHub = !!profile && ROLE_PERMISSIONS[profile.role].canViewAnalytics;
+  // GP per order and per line (Dolibarr-style margins) — OWNER ONLY, the same
+  // capability that guards /profitability. Cost columns are not even fetched
+  // for other roles (the /products network-tab leak rule).
+  const canGP = !!profile && ROLE_PERMISSIONS[profile.role].canViewEconomics;
   // What a brand-new quotation starts with (Settings)
   const { defaultPpnPct, defaultCompanyId, defaultSalesTerms, defaultCustomerTier, quoteValidityDays, salesPaymentTermsOptions, salesDeliveryTermsOptions } = useSettings();
 
@@ -132,6 +136,9 @@ export default function SalesQuotePage() {
   const [custContacts, setCustContacts] = useState<CustContact[]>([]);
   const [physical, setPhysical] = useState<Record<string, number>>({});
   const [reserved, setReserved] = useState<Record<string, number>>({});
+  // Owner-only: current moving-average landed cost per component (30.1,
+  // quantity-weighted across warehouses) — the per-line GP basis.
+  const [unitCost, setUnitCost] = useState<Record<string, number>>({});
   // Every sales quote's header + catalog lines, for the unit-price history
   // popover (what did we sell this item for, to whom, when).
   const [histQuotes, setHistQuotes] = useState<{ quote_id: string; status: string; customer_id: string | null; quote_date: string; quote_number: string }[]>([]);
@@ -178,7 +185,7 @@ export default function SalesQuotePage() {
       supabase.from('21.0_price_tiers').select('tier_id, tier_code, default_discount_pct, sort_order, is_active'),
       supabase.from('21.1_item_tier_prices').select('component_id, tier_id, override_price_idr, override_discount_pct'),
       supabase.from('3.0_components').select('component_id, supplier_model, internal_description, unit, selling_price_idr').order('supplier_model').limit(2000),
-      supabase.from('30.1_stock_balances').select('component_id, qty_on_hand'),
+      supabase.from('30.1_stock_balances').select(canGP ? 'component_id, qty_on_hand, avg_cost_idr' : 'component_id, qty_on_hand'),
       supabase.from('22.0_sales_quotes').select('quote_id, status, customer_id, quote_date, quote_number, order_number'),
       supabase.from('22.1_sales_quote_items').select('quote_id, component_id, quantity, is_section, description, unit, unit_price, created_at'),
       supabase.from('22.2_sales_description_library').select('entry_id, description, unit, default_price, section'),
@@ -191,9 +198,31 @@ export default function SalesQuotePage() {
     setOverrides((ovRes.data as Override[]) ?? []);
     setComps((compRes.data as Comp[]) ?? []);
     setCustContacts(contactRes.error ? [] : ((contactRes.data as CustContact[]) ?? []));
+    // 30.1 is keyed (component, warehouse): SUM quantities across warehouses
+    // (assignment instead of += would show only one warehouse's stock), and —
+    // owner only — take the quantity-weighted average landed cost, falling
+    // back to the last known cost when nothing is on hand.
     const phys: Record<string, number> = {};
-    for (const b of (balRes.data as { component_id: string; qty_on_hand: number }[]) ?? []) phys[b.component_id] = Number(b.qty_on_hand) || 0;
+    const costAgg: Record<string, { qty: number; value: number; last: number }> = {};
+    for (const b of (balRes.data as unknown as { component_id: string; qty_on_hand: number; avg_cost_idr?: number | null }[]) ?? []) {
+      const q = Number(b.qty_on_hand) || 0;
+      phys[b.component_id] = (phys[b.component_id] ?? 0) + q;
+      if (canGP) {
+        const avg = Number(b.avg_cost_idr) || 0;
+        const e = (costAgg[b.component_id] ??= { qty: 0, value: 0, last: 0 });
+        if (q > 0 && avg > 0) { e.qty += q; e.value += q * avg; }
+        if (avg > 0) e.last = Math.max(e.last, avg);
+      }
+    }
     setPhysical(phys);
+    if (canGP) {
+      const costs: Record<string, number> = {};
+      for (const [cid, e] of Object.entries(costAgg)) {
+        const v = e.qty > 0 ? e.value / e.qty : e.last;
+        if (v > 0) costs[cid] = v;
+      }
+      setUnitCost(costs);
+    }
 
     // Reserved = qty on committed orders MINUS what their delivered DOs
     // already shipped (partial shipments release their share of the reserve).
@@ -346,7 +375,7 @@ export default function SalesQuotePage() {
       }
     }
     setLoading(false);
-  }, [id, isNew, defaultPpnPct, defaultCompanyId, defaultSalesTerms, quoteValidityDays]);
+  }, [id, isNew, canGP, defaultPpnPct, defaultCompanyId, defaultSalesTerms, quoteValidityDays]);
 
   useEffect(() => { if (canEdit) load(); }, [canEdit, load]);
 
@@ -501,6 +530,25 @@ export default function SalesQuotePage() {
     const ppn = subtotal * (num(editing?.ppn_pct ?? defaultPpnPct) / 100);
     return { subtotal, ppn, grand: subtotal + ppn };
   }, [lines, editing?.ppn_pct, defaultPpnPct]);
+
+  // Owner-only order margin: Σ (price − avg landed cost) × qty over the lines
+  // whose catalog item carries a cost. Custom lines have no cost basis and are
+  // excluded — the note below the figure says how many, so a flattering
+  // "GP" over half the document can never pass silently as the whole story.
+  const gpTotals = useMemo(() => {
+    if (!canGP) return null;
+    let cogs = 0, costedRevenue = 0, costed = 0, items = 0;
+    for (const l of lines) {
+      if (l.is_section) continue;
+      const q = num(l.quantity), p = num(l.unit_price);
+      if (q <= 0 || p <= 0) continue;                    // blank / unfinished line
+      items++;
+      const c = l.component_id ? unitCost[l.component_id] : undefined;
+      if (c != null && c > 0) { cogs += c * q; costedRevenue += p * q; costed++; }
+    }
+    const gp = costedRevenue - cogs;
+    return { cogs, gp, costed, items, margin: costedRevenue > 0 ? (gp / costedRevenue) * 100 : null };
+  }, [canGP, lines, unitCost]);
 
   // ── Draft autosave ─────────────────────────────────────────────────────────
   // A draft someone walks away from should not be lost: 2.5s after the last
@@ -999,6 +1047,7 @@ export default function SalesQuotePage() {
               className={`rounded-xl transition-shadow ${dropKey === l.key ? 'ring-1 ring-violet-500/70' : ''} ${dragKey === l.key ? 'opacity-50' : ''}`}
             >
               <LineCard line={l} comps={comps} extras={sortedExtras} canHub={canHub} available={availableOf(l.component_id)}
+                unitCost={canGP && l.component_id ? unitCost[l.component_id] ?? null : null}
                 linkedName={l.component_id ? compName(compById.get(l.component_id)) : ''}
                 tierOptions={l.component_id ? tierOptionsFor(l.component_id) : []}
                 history={l.component_id ? priceHistoryFor(l.component_id) : []}
@@ -1042,6 +1091,26 @@ export default function SalesQuotePage() {
               <span className="text-xl font-extrabold text-emerald-300 tabular-nums">IDR {fmtInt(totals.grand)}</span>
             </div>
             {cust?.tier && <p className="text-[10px] text-slate-600">Prices auto-filled at the customer’s <span className="text-slate-400">{cust.tier}</span> tier.</p>}
+            {/* Owner-only order margin — same basis as the per-line chips. */}
+            {gpTotals && gpTotals.costed > 0 && (
+              <div className="border-t border-slate-800 pt-2 space-y-1">
+                <div className="flex justify-between text-xs text-slate-500">
+                  <span title="Σ current moving-average landed cost × qty over lines linked to a costed catalog item">Est. COGS · avg landed cost</span>
+                  <span className="tabular-nums">{fmtInt(gpTotals.cogs)}</span>
+                </div>
+                <div className="flex justify-between items-baseline text-xs">
+                  <span className="text-slate-400 font-semibold">Est. gross profit <span className="text-slate-600 font-normal">· owner-only</span></span>
+                  <span className={`tabular-nums font-bold ${gpTotals.gp < 0 ? 'text-red-300' : 'text-emerald-300'}`}>
+                    {fmtInt(gpTotals.gp)}{gpTotals.margin != null ? ` · ${gpTotals.margin.toFixed(1)}%` : ''}
+                  </span>
+                </div>
+                {gpTotals.costed < gpTotals.items && (
+                  <p className="text-[10px] text-amber-400/80">
+                    {gpTotals.items - gpTotals.costed} line{gpTotals.items - gpTotals.costed !== 1 ? 's' : ''} without a landed cost — excluded from the estimate.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -1164,8 +1233,10 @@ const GRIP = (
   <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" /><circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" /><circle cx="9" cy="18" r="1.5" /><circle cx="15" cy="18" r="1.5" /></svg>
 );
 
-function LineCard({ line, comps, extras, available, linkedName, canHub, tierOptions, history, customerTier, leadSuggestion, onPick, onPickExtra, onField, onRemove, onDragStart, onDragEnd }: {
+function LineCard({ line, comps, extras, available, linkedName, canHub, unitCost, tierOptions, history, customerTier, leadSuggestion, onPick, onPickExtra, onField, onRemove, onDragStart, onDragEnd }: {
   line: EditLine; comps: Comp[]; extras: Extra[]; available: number | null; linkedName: string; canHub: boolean;
+  /** Owner-only moving-average landed cost — null hides the GP chip entirely. */
+  unitCost: number | null;
   tierOptions: TierOption[]; history: PriceHistEntry[]; customerTier: string;
   leadSuggestion: { value: string; why: string } | null;
   onPick: (c: Comp) => void; onPickExtra: (x: Extra) => void; onField: (patch: Partial<EditLine>) => void; onRemove: () => void;
@@ -1307,6 +1378,22 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, tierOpti
           ) : (
             <span className="text-[10px] text-slate-600 italic">Custom entry</span>
           )}
+          {/* Owner-only line margin (Dolibarr-style): est. GP at the current
+              moving-average landed cost. Rendered only when the cost exists —
+              other roles never receive `unitCost` at all. */}
+          {unitCost != null && (() => {
+            const price = num(line.unit_price);
+            if (price <= 0 || qty <= 0) return null;
+            const gp = (price - unitCost) * qty;
+            const marginPct = ((price - unitCost) / price) * 100;
+            return (
+              <span className={`inline-flex items-center gap-1 text-[10px] font-semibold tabular-nums border rounded-md px-1.5 py-0.5 ${
+                gp < 0 ? 'text-red-300 bg-red-500/10 border-red-500/30' : 'text-emerald-300 bg-emerald-500/[0.08] border-emerald-500/25'}`}
+                title={`Owner-only — est. gross profit at the current moving-average landed cost of Rp ${fmtInt(unitCost)}/unit:\n(${fmtInt(price)} − ${fmtInt(unitCost)}) × ${fmtInt(qty)} = Rp ${fmtInt(gp)}`}>
+                GP {fmtInt(gp)} · {marginPct.toFixed(1)}%
+              </span>
+            );
+          })()}
           {/* Per-item lead time — same presets as the EPC proposal editor;
               "Custom" flips to free text, ↺ returns to the list. A line the
               stock can't cover must not claim "Ready" (and blank needs a real

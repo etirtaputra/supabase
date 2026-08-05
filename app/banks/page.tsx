@@ -29,7 +29,8 @@ import LayoutToggle from '@/components/ui/LayoutToggle';
 import { useListLayout } from '@/hooks/useListLayout';
 import { ALL_TIME, inRange, isOpenRange, type DateRange } from '@/lib/dateRange';
 import { accountLabel, accountLabelWithCompany, fetchStatement, signedAmount, type BankAccount, type StatementRow } from '@/lib/banks';
-import { fmtDay, fmtInt, fmtRupiah, fmtRupiahShort } from '@/lib/formatters';
+import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
+import FitText from '@/components/ui/FitText';
 
 interface Company { company_id: string; legal_name: string }
 
@@ -255,7 +256,7 @@ export default function BanksPage() {
                         <span className="text-[10px] text-slate-600">{g.list.length} account{g.list.length !== 1 ? 's' : ''}</span>
                         <span className={`text-sm font-bold tabular-nums ${total == null ? 'text-slate-700' : total < 0 ? 'text-rose-300' : 'text-emerald-300'}`}
                           title={total == null ? '' : fmtRupiah(total)}>
-                          {total == null ? '—' : fmtRupiahShort(total)}
+                          {total == null ? '—' : fmtRupiah(total)}
                         </span>
                       </div>
                     </div>
@@ -316,7 +317,7 @@ export default function BanksPage() {
                               </div>
                               <p className={`text-xl font-bold tabular-nums mt-2.5 ${bal == null ? 'text-slate-600' : bal < 0 ? 'text-rose-300' : 'text-emerald-300'}`}
                                 title={bal == null ? '' : fmtRupiah(bal)}>
-                                {bal == null ? '—' : fmtRupiahShort(bal)}
+                                <FitText text={bal == null ? '—' : fmtRupiah(bal)} />
                               </p>
                             </button>
                           );
