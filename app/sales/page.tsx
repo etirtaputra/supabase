@@ -383,8 +383,8 @@ export default function SalesListPage() {
                     <div onClick={() => setExpanded(open ? null : q.quote_id)} aria-expanded={open}
                       role="button" tabIndex={0}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(open ? null : q.quote_id); } }}
-                      className={`w-full min-w-0 text-left grid grid-cols-1 md:grid-cols-[175px_1fr_120px_120px_130px_100px] gap-1 md:gap-3 items-center cursor-pointer transition-colors ${compact ? 'px-3 py-1.5' : 'px-4 py-3'} ${open ? 'bg-slate-800/30' : 'hover:bg-slate-800/40'}`}>
-                      <span className="font-mono text-[11px] flex items-center">
+                      className={`w-full min-w-0 text-left ${compact ? 'flex flex-wrap items-center gap-x-2 gap-y-0.5 md:grid' : 'grid grid-cols-1 gap-1'} md:grid-cols-[175px_1fr_120px_120px_130px_100px] md:gap-3 items-center cursor-pointer transition-colors ${compact ? 'px-3 py-1.5' : 'px-4 py-3'} ${open ? 'bg-slate-800/30' : 'hover:bg-slate-800/40'}`}>
+                      <span className="font-mono text-[11px] flex items-center flex-shrink-0">
                         {isDraft && (
                           <input type="checkbox" checked={selectedDrafts.has(q.quote_id)}
                             onClick={(e) => e.stopPropagation()}
@@ -402,12 +402,12 @@ export default function SalesListPage() {
                         {(q.revision ?? 0) > 0 && <span className="ml-1 text-[9px] font-bold text-sky-400">R{q.revision}</span>}
                         {q.case_id && <span className="ml-1 px-1 py-0.5 rounded text-[9px] font-bold bg-orange-500/15 text-orange-300 align-middle" title="After-sales quote — repair / replacement for a service case">SVC</span>}
                       </span>
-                      <span className="text-sm text-slate-100 truncate">{c?.display_name || c?.legal_name || <span className="text-slate-600">No customer</span>}</span>
+                      <span className={`text-sm text-slate-100 truncate ${compact ? 'flex-1 min-w-[6rem]' : ''}`}>{c?.display_name || c?.legal_name || <span className="text-slate-600">No customer</span>}</span>
                       {/* Column 1 of the pair: WHERE IS THE ORDER. A half-
                           shipped order says so — "Partly Delivered" is derived
                           from its DOs (the stored status only becomes
                           Delivered when every item has left). */}
-                      <span className="flex flex-col gap-1">
+                      <span className={compact ? 'flex items-center flex-shrink-0' : 'flex flex-col gap-1'}>
                         <span className="flex items-center gap-1.5 flex-wrap">
                           {delStateOf(q) === 'partial' ? (
                             <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-teal-500/15 text-teal-300"
@@ -425,9 +425,9 @@ export default function SalesListPage() {
                           Colour carries the state: green paid, amber partial,
                           red = delivered with nothing received. */}
                       {!billed ? (
-                        <span className="text-slate-700 text-[11px]">—</span>
+                        <span className={`text-slate-700 text-[11px] ${compact ? 'hidden md:inline' : ''}`}>—</span>
                       ) : (
-                        <span className="flex items-center gap-1.5"
+                        <span className={`${compact ? 'hidden md:flex' : 'flex'} items-center gap-1.5`}
                           title={`Rp ${fmtInt(rcv)} received of Rp ${fmtInt(total)}${arOpen ? ' — delivered with money still open' : ''}`}>
                           <span className="w-14 h-1.5 bg-slate-800 rounded-full overflow-hidden inline-block flex-shrink-0">
                             <span className={`block h-full rounded-full ${paidFull ? 'bg-emerald-500' : arOpen && rcv <= 0 ? 'bg-red-500/70' : pct > 0 ? 'bg-amber-400' : 'bg-slate-700'}`} style={{ width: `${Math.max(pct, paidFull ? 100 : pct)}%` }} />
@@ -435,9 +435,9 @@ export default function SalesListPage() {
                           <span className={`text-[10px] tabular-nums font-semibold ${paidFull ? 'text-emerald-400' : arOpen && rcv <= 0 ? 'text-red-300' : pct > 0 ? 'text-amber-300' : 'text-slate-600'}`}>{pct.toFixed(0)}%</span>
                         </span>
                       )}
-                      <span className="text-right tabular-nums text-slate-200">{fmtInt(total)}</span>
-                      <span className="text-right text-[11px] text-slate-500 tabular-nums flex items-center justify-end gap-2">
-                        {fmtDay(q.updated_at)}
+                      <span className={`text-right tabular-nums text-slate-200 ${compact ? 'ml-auto flex-shrink-0 font-semibold text-[13px] md:font-normal md:text-sm' : ''}`}>{fmtInt(total)}</span>
+                      <span className={`text-right text-[11px] text-slate-500 tabular-nums flex items-center justify-end gap-2 ${compact ? 'flex-shrink-0' : ''}`}>
+                        <span className={compact ? 'hidden md:inline' : ''}>{fmtDay(q.updated_at)}</span>
                         <svg className={`w-3.5 h-3.5 text-slate-600 transition-transform duration-150 ${open ? 'rotate-180 text-slate-400' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
                       </span>
                     </div>

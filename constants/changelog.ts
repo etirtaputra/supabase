@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-05T01:39:00Z',
+    title: 'Sales Orders: compact really is compact on the phone',
+    details: [
+      'The Compact layout previously only tightened the desktop table — phones still got tall stacked cards. Compact rows are now one line on mobile too: code · customer · status · amount, with the payment bar and date waiting in the expansion. Card layout keeps the roomy stacked view.',
+    ],
+  },
+  {
     at: '2026-08-05T01:26:00Z',
     title: 'Decimal quantities print correctly — 0.5 kg stays 0.5 kg',
     details: [
