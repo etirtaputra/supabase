@@ -70,15 +70,23 @@ function SupersededTag({ succId, comps, canHub }: { succId?: string; comps: { co
 const descOf = (c: { internal_description: string | null; supplier_model: string }) =>
   (c.internal_description && c.internal_description.trim()) || c.supplier_model || '(no description)';
 
-type SortKey = 'traded' | 'activity' | 'updated' | 'price' | 'stock' | 'brand' | 'category' | 'capacity';
+type SortKey = 'traded' | 'activity' | 'updated' | 'price' | 'stock' | 'incoming' | 'name' | 'brand' | 'category' | 'capacity' | 'warranty' | 'sheet';
 const SORT_LABELS: Record<SortKey, string> = {
   traded: 'Most sold (period)', activity: 'Most traded', updated: 'Last updated', price: 'Sell price',
-  stock: 'Live stock', brand: 'Brand', category: 'Category', capacity: 'Capacity',
+  stock: 'Live stock', incoming: 'Incoming', name: 'Name', brand: 'Brand', category: 'Category',
+  capacity: 'Capacity', warranty: 'Warranty', sheet: 'Has datasheet',
 };
 // Text columns default ascending; numeric/recency default descending.
 const DEFAULT_DIR: Record<SortKey, 1 | -1> = {
-  traded: -1, activity: -1, updated: -1, price: -1, stock: -1, brand: 1, category: 1, capacity: -1,
+  traded: -1, activity: -1, updated: -1, price: -1, stock: -1, incoming: -1, name: 1, brand: 1, category: 1, capacity: -1, warranty: -1, sheet: -1,
 };
+
+// Warranty length in days, for sorting: structured value first-class, a
+// legacy free-text note sorts between "some" and "none", nothing → last.
+const UNIT_DAYS: Record<string, number> = { years: 365.25, months: 30.44, days: 1 };
+const wtyDays = (c: Comp): number =>
+  c.warranty_value ? Number(c.warranty_value) * (UNIT_DAYS[c.warranty_unit ?? 'years'] ?? 365.25)
+  : (c.warranty ?? '').trim() ? 0.5 : -1;
 
 interface Row { c: Comp; phys: number; rsv: number; live: number; inc: number; activity: number; sold: number; }
 
@@ -343,9 +351,13 @@ function ProductsInner() {
       else if (key === 'updated') d = (a.c.updated_at || '').localeCompare(b.c.updated_at || '');
       else if (key === 'price') d = (a.c.selling_price_idr ?? -1) - (b.c.selling_price_idr ?? -1);
       else if (key === 'stock') d = a.live - b.live;
+      else if (key === 'incoming') d = a.inc - b.inc;
       else if (key === 'capacity') d = (Number(a.c.norm_value) || 0) - (Number(b.c.norm_value) || 0);
+      else if (key === 'name') d = cmpText(descOf(a.c), descOf(b.c));
       else if (key === 'brand') d = cmpText(a.c.brand, b.c.brand);
       else if (key === 'category') d = cmpText(a.c.category, b.c.category);
+      else if (key === 'warranty') d = wtyDays(a.c) - wtyDays(b.c);
+      else if (key === 'sheet') d = (a.c.datasheet_url ? 1 : 0) - (b.c.datasheet_url ? 1 : 0);
       d *= dir;
       // Stable tie-breaks: activity desc, then recency desc, then name.
       if (d !== 0) return d;
@@ -564,16 +576,17 @@ function ProductsInner() {
             <thead>
               <tr className="border-b border-slate-800 text-[10px] uppercase tracking-widest text-slate-500">
                 {/* Sticky: the item name stays anchored while the numeric
-                    columns scroll horizontally, so a row never loses its label */}
-                <th className="text-left font-semibold px-4 py-2.5 sticky left-0 z-20 bg-chrome">Description</th>
+                    columns scroll horizontally, so a row never loses its label.
+                    Every column sorts — click toggles ▲/▼. */}
+                <Th label="Description" active={sort.key === 'name'} dir={sort.dir} onClick={() => toggleSort('name')} className="px-4 sticky left-0 z-20 bg-chrome" />
                 <Th label="Sell Price" right active={sort.key === 'price'} dir={sort.dir} onClick={() => toggleSort('price')} />
                 <Th label="Stock" right active={sort.key === 'stock'} dir={sort.dir} onClick={() => toggleSort('stock')} hint="Live/Physical" />
-                <th className="text-right font-semibold px-3 py-2.5">Incoming</th>
+                <Th label="Incoming" right active={sort.key === 'incoming'} dir={sort.dir} onClick={() => toggleSort('incoming')} />
                 {canViewBrand && <Th label="Brand" active={sort.key === 'brand'} dir={sort.dir} onClick={() => toggleSort('brand')} />}
                 <Th label="Category" active={sort.key === 'category'} dir={sort.dir} onClick={() => toggleSort('category')} />
                 <Th label="Capacity" right active={sort.key === 'capacity'} dir={sort.dir} onClick={() => toggleSort('capacity')} />
-                <th className="text-left font-semibold px-3 py-2.5">Warranty</th>
-                <th className="text-center font-semibold px-3 py-2.5">Sheet</th>
+                <Th label="Warranty" active={sort.key === 'warranty'} dir={sort.dir} onClick={() => toggleSort('warranty')} hint="by period length" />
+                <Th label="Sheet" center active={sort.key === 'sheet'} dir={sort.dir} onClick={() => toggleSort('sheet')} hint="has datasheet" />
                 <Th label="Updated" right active={sort.key === 'updated'} dir={sort.dir} onClick={() => toggleSort('updated')} />
               </tr>
             </thead>
@@ -803,9 +816,9 @@ function CenterSpinner() {
   return <div className="min-h-screen bg-chrome flex items-center justify-center"><div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" /></div>;
 }
 
-function Th({ label, hint, right, active, dir, onClick }: { label: string; hint?: string; right?: boolean; active: boolean; dir: 1 | -1; onClick: () => void }) {
+function Th({ label, hint, right, center, active, dir, onClick, className }: { label: string; hint?: string; right?: boolean; center?: boolean; active: boolean; dir: 1 | -1; onClick: () => void; className?: string }) {
   return (
-    <th className={`font-semibold px-3 py-2.5 ${right ? 'text-right' : 'text-left'}`}>
+    <th className={`font-semibold py-2.5 ${right ? 'text-right' : center ? 'text-center' : 'text-left'} ${className ?? 'px-3'}`}>
       <button onClick={onClick} className={`inline-flex items-center gap-1 uppercase tracking-widest transition-colors ${active ? 'text-emerald-400' : 'hover:text-slate-300'}`} title={hint}>
         {label}
         <span className="text-[8px]">{active ? (dir === 1 ? '▲' : '▼') : '↕'}</span>

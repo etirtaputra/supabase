@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-06T00:55:00Z',
+    title: 'Products list: every column sorts',
+    details: [
+      'Description, Incoming, Warranty and Sheet join the sortable columns — every header now click-sorts, and a second click flips ascending/descending (▲/▼ shows the direction). Warranty sorts by actual period length (10 years > 18 months > 90 days), items with only a legacy note group after those, no warranty last. Sheet sorts items with a datasheet first.',
+      'The phone layout’s sort dropdown gains the same options, each in both directions.',
+    ],
+  },
+  {
     at: '2026-08-06T00:35:00Z',
     title: 'New Deal on phones: the Items section announces itself',
     details: [
