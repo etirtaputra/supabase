@@ -347,7 +347,9 @@ export default function SalesListPage() {
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(open ? null : q.quote_id); } }}
                       className={`w-full min-w-0 text-left grid grid-cols-1 md:grid-cols-[150px_1fr_120px_120px_130px_100px] gap-1 md:gap-3 items-center cursor-pointer transition-colors ${compact ? 'px-3 py-1.5' : 'px-4 py-3'} ${open ? 'bg-slate-800/30' : 'hover:bg-slate-800/40'}`}>
                       <span className="font-mono text-[11px] flex items-center">
-                        {q.status === 'draft' && (
+                        {/* Every row reserves the slot so the numbers stay in
+                            column; only drafts render the actual checkbox. */}
+                        {q.status === 'draft' ? (
                           <input type="checkbox" checked={selectedDrafts.has(q.quote_id)}
                             onClick={(e) => e.stopPropagation()}
                             onChange={(e) => {
@@ -355,7 +357,9 @@ export default function SalesListPage() {
                               setSelectedDrafts((prev) => { const n = new Set(prev); if (on) n.add(q.quote_id); else n.delete(q.quote_id); return n; });
                             }}
                             title="Select this draft for deletion (only drafts can be deleted)"
-                            className="mr-1.5 accent-red-500 cursor-pointer flex-shrink-0" />
+                            className="mr-1.5 w-3.5 h-3.5 accent-red-500 cursor-pointer flex-shrink-0" />
+                        ) : (
+                          <span aria-hidden className="mr-1.5 w-3.5 flex-shrink-0" />
                         )}
                         <a href={`/sales/${q.quote_id}`} onClick={(e) => e.stopPropagation()} title="Open document"
                           className={`${docNumberCls(q.status)} hover:text-emerald-300 hover:underline underline-offset-2 decoration-emerald-500/50 transition-colors`}>
