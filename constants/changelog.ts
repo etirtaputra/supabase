@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-06T00:15:00Z',
+    title: 'After-sales cases carry a warranty verdict',
+    details: [
+      'Every case now states the answer directly: an “In warranty” / “Out of warranty” / “Partly in warranty” badge on the case row itself (compact and card layouts), computed from the linked items’ structured warranty against the delivery (or invoice) date. The badge carries the tightest clock — e.g. “In warranty · 9.8 years left”.',
+      'The expanded case keeps the per-item detail: each part’s period, start date, and ✓ remaining / ✕ expired with the end date. Items without a structured warranty still show the judge-by-both-clocks note — set the warranty in Products or the Item Editor and the verdict appears.',
+    ],
+  },
+  {
     at: '2026-08-05T23:55:00Z',
     title: 'Stock alerts on the Dashboard · New Deal is phone-friendly · smarter Item Editor filters',
     details: [

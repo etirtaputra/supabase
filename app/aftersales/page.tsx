@@ -77,6 +77,14 @@ const STATUS_BADGE: Record<string, string> = {
 };
 const statusLabel = (s: string) => STATUS_SECTIONS.find((x) => x.key === s)?.label ?? s;
 
+// The warranty verdict chip — the direct answer "is this claim inside the
+// period?", computed from the linked items' structured warranty.
+const WTY_BADGE: Record<'in' | 'out' | 'mixed', { label: string; cls: string }> = {
+  in:    { label: 'In warranty',        cls: 'bg-emerald-500/15 text-emerald-300' },
+  out:   { label: 'Out of warranty',    cls: 'bg-rose-500/15 text-rose-300' },
+  mixed: { label: 'Partly in warranty', cls: 'bg-amber-500/15 text-amber-300' },
+};
+
 interface DraftPart { part_id?: string; component_id: string | null; description: string; action: string; quantity: string; notes: string }
 interface QuoteItem { quote_id: string; description: string; quantity: number; is_section: boolean }
 interface Inv { invoice_id: string; quote_id: string; invoice_number: string; issued_at: string | null; created_at: string }
@@ -167,6 +175,32 @@ export default function AfterSalesPage() {
     const o = id ? orderById.get(id) : null;
     return o ? (displayDocNumber(o) || '—') : '';
   };
+
+  // The case's warranty VERDICT — computable once a linked item carries a
+  // structured warranty. The clock starts when the goods went out (first
+  // delivery, else first invoice); every linked part gets its own run, and
+  // the case's badge summarises: all inside → In warranty, all past → Out of
+  // warranty, some of each → Partly in warranty.
+  const warrantyVerdictFor = useCallback((parts: Part[], invs: Inv[], qdos: DoRow[]) => {
+    const delivered = qdos.filter((d) => d.status === 'delivered').map((d) => d.delivered_at || d.delivery_date).filter(Boolean).sort() as string[];
+    const issued = invs.map((i) => i.issued_at || i.created_at).filter(Boolean).sort() as string[];
+    const start = delivered[0] ?? issued[0] ?? null;
+    if (!start) return null;
+    const runs = parts.flatMap((p) => {
+      const cmp = p.component_id ? compById.get(p.component_id) : null;
+      if (!cmp || !cmp.warranty_value) return [];
+      return [{ p, cmp, run: warrantyRun(start, Number(cmp.warranty_value), (cmp.warranty_unit as WarrantyUnit) || 'years') }];
+    });
+    if (!runs.length) return null;
+    const inCount = runs.filter((r) => !r.run.expired).length;
+    const status: 'in' | 'out' | 'mixed' = inCount === runs.length ? 'in' : inCount === 0 ? 'out' : 'mixed';
+    // The badge carries the tightest clock: the covered part ending soonest,
+    // or (all lapsed) the one that expired most recently.
+    const covered = runs.filter((r) => !r.run.expired).sort((a, b) => a.run.daysLeft - b.run.daysLeft);
+    const lapsed = runs.filter((r) => r.run.expired).sort((a, b) => b.run.daysLeft - a.run.daysLeft);
+    const headline = covered[0] ?? lapsed[0];
+    return { status, runs, start, startKind: delivered[0] ? 'delivery' : 'invoice', headline };
+  }, [compById]);
 
   // Elapsed time since a document date — the number the warranty judgement
   // needs ("13.4 months since the invoice"). Deliberately no verdict: the
@@ -379,6 +413,8 @@ export default function AfterSalesPage() {
                       const invs = c.quote_id ? invoices.filter((i) => i.quote_id === c.quote_id) : [];
                       const qdos = c.quote_id ? dos.filter((d) => d.quote_id === c.quote_id) : [];
                       const svcQuotes = orders.filter((o) => o.case_id === c.case_id);
+                      const wty = warrantyVerdictFor(parts, invs, qdos);
+                      const wtyTitle = wty ? `${WTY_BADGE[wty.status].label} — ${wty.headline.run.label}, running from the ${wty.startKind} date` : undefined;
                       const lbl = 'w-20 flex-shrink-0 text-[9px] font-semibold uppercase tracking-widest text-slate-600';
                       const docLink = 'inline-flex items-center gap-1 font-mono text-[10px] text-slate-400 hover:text-emerald-300 transition-colors';
                       return (
@@ -392,6 +428,7 @@ export default function AfterSalesPage() {
                               <div className="flex items-center gap-2 min-w-0">
                                 <span className="font-semibold text-slate-100 text-[13px] truncate flex-shrink-0 max-w-[30%]">{custName.get(c.customer_id ?? '') || 'No customer'}</span>
                                 <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold whitespace-nowrap flex-shrink-0 ${cat.cls}`}>{cat.label}</span>
+                                {wty && <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold whitespace-nowrap flex-shrink-0 ${WTY_BADGE[wty.status].cls}`} title={wtyTitle}>{WTY_BADGE[wty.status].label}</span>}
                                 <span className="text-[11px] text-slate-400 truncate">{what}</span>
                                 <span className="ml-auto flex items-center gap-3 flex-shrink-0 tabular-nums">
                                   {/* The case's documents, one click away without expanding */}
@@ -414,6 +451,11 @@ export default function AfterSalesPage() {
                                   <span className="font-semibold text-white truncate">{custName.get(c.customer_id ?? '') || 'No customer'}</span>
                                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap flex-shrink-0 ${cat.cls}`}>{cat.label}</span>
                                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap flex-shrink-0 ${STATUS_BADGE[c.status]}`}>{statusLabel(c.status)}</span>
+                                  {wty && (
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap flex-shrink-0 ${WTY_BADGE[wty.status].cls}`} title={wtyTitle}>
+                                      {WTY_BADGE[wty.status].label} · {wty.headline.run.label}
+                                    </span>
+                                  )}
                                   {so && <a href={`/sales/${so.quote_id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="font-mono text-[10px] text-slate-500 hover:text-emerald-300 transition-colors">{displayDocNumber(so)}</a>}
                                 </div>
                                 <p className="text-xs text-slate-400 truncate mb-1">{what}</p>
@@ -466,49 +508,36 @@ export default function AfterSalesPage() {
                                   </span>
                                 ))}
                               </p>
-                              {(invs.length > 0 || qdos.some((d) => d.status === 'delivered')) && (() => {
-                                // The clock starts when the goods went out: the
-                                // first delivery, else the first invoice. Each
-                                // linked part with a structured warranty gets a
-                                // computed verdict-helper; anything else keeps
-                                // the judge-by-both-clocks note.
-                                const delivered = qdos.filter((d) => d.status === 'delivered').map((d) => d.delivered_at || d.delivery_date).filter(Boolean).sort() as string[];
-                                const issued = invs.map((i) => i.issued_at || i.created_at).filter(Boolean).sort() as string[];
-                                const start = delivered[0] ?? issued[0] ?? null;
-                                const startKind = delivered[0] ? 'delivery' : 'invoice';
-                                const runs = !start ? [] : parts.flatMap((p) => {
-                                  const cmp = p.component_id ? compById.get(p.component_id) : null;
-                                  if (!cmp || !cmp.warranty_value) return [];
-                                  return [{ p, cmp, run: warrantyRun(start, Number(cmp.warranty_value), (cmp.warranty_unit as WarrantyUnit) || 'years') }];
-                                });
-                                return (
-                                  <p className="flex items-start gap-2 flex-wrap">
-                                    <span className={`${lbl} mt-0.5`}>Warranty</span>
-                                    {runs.length > 0 ? (
-                                      <span className="flex-1 min-w-0 space-y-0.5">
-                                        {runs.map(({ p, cmp, run }) => (
-                                          <span key={p.part_id} className="flex flex-wrap items-center gap-x-2">
-                                            <span className="text-slate-400 truncate max-w-[260px]">{p.description}</span>
-                                            <span className="text-slate-500">{fmtWarranty(cmp.warranty_value, cmp.warranty_unit)} from {startKind} {fmtDay(start!)}</span>
-                                            <span className={`font-semibold tabular-nums ${run.expired ? 'text-rose-300' : 'text-emerald-300'}`}>
-                                              {run.expired ? '✕' : '✓'} {run.label} · until {fmtDay(run.end.toISOString())}
-                                            </span>
-                                            {fmtWarranty(cmp.perf_warranty_value, cmp.perf_warranty_unit) && (
-                                              <span className="text-slate-600" title="Performance warranty — output guarantee, not a repair claim">
-                                                perf {fmtWarranty(cmp.perf_warranty_value, cmp.perf_warranty_unit)}
-                                              </span>
-                                            )}
+                              {(invs.length > 0 || qdos.some((d) => d.status === 'delivered')) && (
+                                <p className="flex items-start gap-2 flex-wrap">
+                                  <span className={`${lbl} mt-0.5`}>Warranty</span>
+                                  {wty ? (
+                                    <span className="flex-1 min-w-0 space-y-0.5">
+                                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${WTY_BADGE[wty.status].cls}`}>
+                                        {WTY_BADGE[wty.status].label}
+                                      </span>
+                                      {wty.runs.map(({ p, cmp, run }) => (
+                                        <span key={p.part_id} className="flex flex-wrap items-center gap-x-2">
+                                          <span className="text-slate-400 truncate max-w-[260px]">{p.description}</span>
+                                          <span className="text-slate-500">{fmtWarranty(cmp.warranty_value, cmp.warranty_unit)} from {wty.startKind} {fmtDay(wty.start)}</span>
+                                          <span className={`font-semibold tabular-nums ${run.expired ? 'text-rose-300' : 'text-emerald-300'}`}>
+                                            {run.expired ? '✕' : '✓'} {run.label} · until {fmtDay(run.end.toISOString())}
                                           </span>
-                                        ))}
-                                      </span>
-                                    ) : (
-                                      <span className="text-slate-500">
-                                        runs from the invoice and delivery dates above — no structured warranty on the linked items yet; set it in Products or the Item Editor and this line computes itself
-                                      </span>
-                                    )}
-                                  </p>
-                                );
-                              })()}
+                                          {fmtWarranty(cmp.perf_warranty_value, cmp.perf_warranty_unit) && (
+                                            <span className="text-slate-600" title="Performance warranty — output guarantee, not a repair claim">
+                                              perf {fmtWarranty(cmp.perf_warranty_value, cmp.perf_warranty_unit)}
+                                            </span>
+                                          )}
+                                        </span>
+                                      ))}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-500">
+                                      runs from the invoice and delivery dates above — no structured warranty on the linked items yet; set it in Products or the Item Editor and the verdict computes itself
+                                    </span>
+                                  )}
+                                </p>
+                              )}
                               {parts.length > 0 && (
                                 <p className="flex items-start gap-2 flex-wrap">
                                   <span className={`${lbl} mt-0.5`}>Items</span>
