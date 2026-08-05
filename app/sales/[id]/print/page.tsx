@@ -13,7 +13,7 @@ import { displayDocNumber } from '@/lib/salesStatus';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { DEFAULT_SALES_COLS, SALES_COL_KEYS, SALES_COL_LABELS, loadSalesCols, saveSalesCols, type SalesExportCols } from '@/lib/salesExportCols';
-import { fmtRupiahDoc as fmtIdr, fmtIntDoc, fmtDayDoc as fmtDate } from '@/lib/formatters';
+import { fmtRupiahDoc as fmtIdr, fmtIntDoc, fmtQtyDoc, fmtDayDoc as fmtDate } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
 
 interface Quote {
@@ -237,7 +237,7 @@ export default function SalesPrintPage() {
                   <tr className="item-row">
                     <td style={{ color: '#94a3b8' }} className="num">{itemNo.get(l.item_id)}</td>
                     <td>{l.description || '—'}{cols.lead && l.lead_time ? <span className="lead-tag"> · lead time {l.lead_time}</span> : null}</td>
-                    {cols.qty && <td className="num">{fmtIntDoc(Number(l.quantity))}</td>}
+                    {cols.qty && <td className="num">{fmtQtyDoc(Number(l.quantity))}</td>}
                     {cols.unit && <td style={{ color: '#64748b', whiteSpace: 'nowrap' }}>{l.unit}</td>}
                     {cols.price && <td className="num">{fmtIdr(Number(l.unit_price))}</td>}
                     {cols.amount && <td className="num">{fmtIdr(amt)}</td>}

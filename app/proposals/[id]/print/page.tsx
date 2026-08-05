@@ -8,7 +8,7 @@ import { specFileTag, type SystemSpecs } from '@/lib/projectSpec';
 import { useQuotesGate } from '@/hooks/useQuotesGate';
 import { DEFAULT_EXPORT_COLS, EXPORT_COL_KEYS, EXPORT_COL_LABELS, loadExportCols, saveExportCols, type ExportCols } from '@/lib/exportCols';
 import { computeEnergyEconomics, fmtPayback, ECON_DEFAULTS } from '@/lib/energyEconomics';
-import { fmtRupiahDoc as fmtIdr, fmtRupiahDoc2 as fmtIdr2, fmtIntDoc, fmtNumDoc, fmtDayDoc } from '@/lib/formatters';
+import { fmtRupiahDoc as fmtIdr, fmtRupiahDoc2 as fmtIdr2, fmtIntDoc, fmtQtyDoc, fmtNumDoc, fmtDayDoc } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
 
 const fmtDate = (d: string) => fmtDayDoc(d);
@@ -299,7 +299,7 @@ export default function PrintPage() {
                               <tr className="item-row">
                                 <td>{item.description}</td>
                                 {cols.brand && <td style={{ color: '#64748b' }}>{item.brand}</td>}
-                                {cols.qty && <td className="num">{item.quantity != null ? fmtIntDoc(Number(item.quantity)) : ''}</td>}
+                                {cols.qty && <td className="num">{item.quantity != null ? fmtQtyDoc(Number(item.quantity)) : ''}</td>}
                                 {cols.unit && <td style={{ color: '#64748b', whiteSpace: 'nowrap' }}>{item.unit}</td>}
                                 {cols.amount && <td />}
                               </tr>
@@ -311,7 +311,7 @@ export default function PrintPage() {
                               {subItems.map((sub) => (
                                 <tr key={sub.item_id} className="sub-row">
                                   <td colSpan={1 + (cols.brand ? 1 : 0)}>↳ {sub.description}{sub.brand ? ` — ${sub.brand}` : ''}</td>
-                                  {cols.qty && <td className="num">{sub.quantity != null ? fmtIntDoc(Number(sub.quantity)) : ''}</td>}
+                                  {cols.qty && <td className="num">{sub.quantity != null ? fmtQtyDoc(Number(sub.quantity)) : ''}</td>}
                                   {cols.unit && <td style={{ whiteSpace: 'nowrap' }}>{sub.unit}</td>}
                                   {cols.amount && <td />}
                                 </tr>

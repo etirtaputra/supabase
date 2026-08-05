@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-05T01:26:00Z',
+    title: 'Decimal quantities print correctly — 0.5 kg stays 0.5 kg',
+    details: [
+      'Quantities on printed documents were rounded to whole numbers for DISPLAY (0.5 became 1 on the PDF) even though the stored value and all totals used the real 0.5. Fixed on the EPC proposal PDF, the sales quotation/invoice print, and the Surat Jalan: whole numbers stay whole, fractions keep up to 3 decimals.',
+      'Internal screens follow the same rule (customer profile’s most-ordered items, after-sales part counts). Nothing needs re-entering — existing documents already hold the exact figures; reprint and the correct quantity shows.',
+    ],
+  },
+  {
     at: '2026-08-05T00:24:00Z',
     title: 'Drafts get their own section under the Sales Orders list',
     details: [

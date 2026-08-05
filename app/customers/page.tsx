@@ -13,7 +13,7 @@ import BrandMenu from '@/components/ui/BrandMenu';
 import CrmMigrationBanner from '@/components/ui/CrmMigrationBanner';
 import { SALES_STATUS, displayDocNumber, docNumberCls } from '@/lib/salesStatus';
 import { downloadCsv, parseCsv, readFileText } from '@/lib/csv';
-import { fmtDay, fmtDayTime, fmtInt, fmtRupiah } from '@/lib/formatters';
+import { fmtDay, fmtDayTime, fmtInt, fmtQty, fmtRupiah } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
 import LayoutToggle from '@/components/ui/LayoutToggle';
 import { useListLayout } from '@/hooks/useListLayout';
@@ -1165,7 +1165,7 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOp
                   {data.topItems.map((it) => (
                     <div key={it.desc} className="flex items-center gap-3 px-3 py-2 text-xs">
                       <span className="text-slate-300 truncate flex-1">{it.desc}</span>
-                      <span className="text-slate-500 tabular-nums flex-shrink-0">{fmtInt(it.qty)} {it.unit}</span>
+                      <span className="text-slate-500 tabular-nums flex-shrink-0">{fmtQty(it.qty)} {it.unit}</span>
                       <span className="text-slate-200 tabular-nums font-semibold flex-shrink-0 w-28 text-right">{fmtRupiah(it.value)}</span>
                     </div>
                   ))}

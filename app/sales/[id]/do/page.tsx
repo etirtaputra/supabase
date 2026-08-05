@@ -12,7 +12,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { displayDocNumber } from '@/lib/salesStatus';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
-import { fmtDayDoc as fmtDate, fmtIntDoc } from '@/lib/formatters';
+import { fmtDayDoc as fmtDate, fmtIntDoc, fmtQtyDoc } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
 
 interface Quote {
@@ -204,7 +204,7 @@ export default function DeliveryOrderPrintPage() {
                   <tr className="item-row">
                     <td className="num" style={{ color: '#94a3b8' }}>{itemNo.get(l.item_id)}</td>
                     <td>{l.description || '—'}</td>
-                    <td className="num" style={{ fontWeight: 700 }}>{fmtIntDoc(Number(l.quantity))}</td>
+                    <td className="num" style={{ fontWeight: 700 }}>{fmtQtyDoc(Number(l.quantity))}</td>
                     <td style={{ color: '#64748b' }}>{l.unit}</td>
                     <td className="check"><span className="checkbox" /></td>
                   </tr>

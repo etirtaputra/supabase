@@ -29,7 +29,7 @@ import DateRangeFilter from '@/components/ui/DateRangeFilter';
 import { useListLayout } from '@/hooks/useListLayout';
 import { useListDefaults } from '@/hooks/useListDefaults';
 import { inRange, type DateRange } from '@/lib/dateRange';
-import { fmtDay, fmtDayTime, fmtInt } from '@/lib/formatters';
+import { fmtDay, fmtDayTime, fmtInt, fmtQty } from '@/lib/formatters';
 import { SALES_STATUS, displayDocNumber } from '@/lib/salesStatus';
 
 interface Case {
@@ -470,7 +470,7 @@ export default function AfterSalesPage() {
                                 <p className="flex items-start gap-2 flex-wrap">
                                   <span className={`${lbl} mt-0.5`}>Items</span>
                                   <span className="flex-1 min-w-0 text-slate-400">
-                                    {parts.map((p) => `${ACTIONS[p.action] ?? p.action}: ${p.description}${Number(p.quantity) > 1 ? ` ×${fmtInt(Number(p.quantity))}` : ''}`).join(' · ')}
+                                    {parts.map((p) => `${ACTIONS[p.action] ?? p.action}: ${p.description}${Number(p.quantity) !== 1 ? ` ×${fmtQty(Number(p.quantity))}` : ''}`).join(' · ')}
                                   </span>
                                 </p>
                               )}

@@ -91,6 +91,11 @@ export function formatDate(d: string | null | undefined | Date, style: DateStyle
 /** Whole number with thousands separators: "1,234,567" */
 export const fmtInt = (n: number): string => formatNumber(Math.round(n), getSettings().numberInternal, 0);
 
+/** Quantity for internal screens — same rule as fmtQtyDoc: integers clean,
+ *  fractions keep up to 3 decimals (cables in metres, sealant in kg…). */
+export const fmtQty = (n: number): string =>
+  Number.isInteger(n) ? formatNumber(n, getSettings().numberInternal, 0) : formatNumber(n, getSettings().numberInternal, 0, 3);
+
 /**
  * Format a number with fixed decimal places (default 2): "1,234.50"
  */
@@ -183,6 +188,12 @@ export const fmtNumDoc = (n: number, dp = 0): string => formatNumber(n, getSetti
 
 /** Whole document amount: "1,234,567" */
 export const fmtIntDoc = (n: number): string => formatNumber(Math.round(n), getSettings().numberDocument, 0);
+
+/** QUANTITY on a printed document: whole numbers stay whole ("12"), fractional
+ *  quantities keep their decimals ("0.5", "2.25", up to 3 dp) — a 0.5 kg line
+ *  must never print as 1 kg. */
+export const fmtQtyDoc = (n: number): string =>
+  Number.isInteger(n) ? formatNumber(n, getSettings().numberDocument, 0) : formatNumber(n, getSettings().numberDocument, 0, 3);
 
 /** Rupiah on a printed document: "Rp1,234,567" (symbol/position/spacing configurable). */
 export const fmtRupiahDoc = (n: number): string =>
