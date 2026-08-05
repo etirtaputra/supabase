@@ -278,16 +278,27 @@ export default function NewDealForm({
       {/* ── Line items — same card, one save ── */}
       {!itemsLocked && (
         <div className="space-y-1.5 pt-1">
+          {/* Desktop separates the items with column headers; phones get a
+              section title here and an "Item N" header on every card, so the
+              lines never blend into the header fields above. */}
+          <p className="md:hidden text-[10px] font-bold uppercase tracking-wider text-slate-500 px-1 pt-2 border-t border-slate-800/80">Items</p>
           <div className="hidden md:grid grid-cols-[minmax(0,2.2fr)_minmax(0,1.6fr)_70px_110px_84px_100px_24px] gap-2 px-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
             <span>Component</span><span>Supplier description</span>
             <span className="text-right">Qty</span><span className="text-right">Unit price</span>
             <span>Curr</span><span className="text-right">Line total</span><span />
           </div>
-          {lines.map((l) => {
+          {lines.map((l, idx) => {
             const total = (Number(l.quantity) || 0) * (Number(l.unit_price) || 0);
             return (
               <div key={l.key}
                 className="grid grid-cols-6 md:grid-cols-[minmax(0,2.2fr)_minmax(0,1.6fr)_70px_110px_84px_100px_24px] gap-2 items-center bg-slate-950/40 border border-slate-800/60 rounded-xl px-2.5 py-2.5 md:border-0 md:bg-transparent md:px-1 md:py-0">
+                {/* Phones: each card is its own numbered section, ✕ in its header */}
+                <div className="col-span-6 md:hidden flex items-center justify-between -mb-0.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Item {idx + 1}</span>
+                  <button type="button" onClick={() => removeLine(l.key)} tabIndex={-1}
+                    className="text-slate-600 hover:text-red-400 transition-colors text-base leading-none px-1 -mr-1"
+                    title="Remove line">×</button>
+                </div>
                 <div className="col-span-6 md:col-span-1">
                   <RichDropdown options={components} value={l.component_id}
                     config={{ labelKey: 'supplier_model', valueKey: 'component_id', subLabelKey: 'internal_description' }}
@@ -296,8 +307,7 @@ export default function NewDealForm({
                 </div>
                 <input value={l.supplier_description} onChange={(e) => setLine(l.key, { supplier_description: e.target.value })}
                   placeholder="Supplier description" className={`${lineInp} col-span-6 md:col-span-1`} />
-                {/* Phones: Qty · Price · Curr share one row, then the line total
-                    and ✕ share the footer — no orphaned boxes. */}
+                {/* Phones: Qty · Price · Curr share one row */}
                 <input value={l.quantity} onChange={(e) => setLine(l.key, { quantity: e.target.value })}
                   placeholder="Qty" inputMode="decimal" className={`${lineInp} col-span-2 md:col-span-1 text-right tabular-nums`} />
                 <input value={l.unit_price} onChange={(e) => setLine(l.key, { unit_price: e.target.value })}
@@ -307,13 +317,15 @@ export default function NewDealForm({
                   <option value="">Curr</option>
                   {currencies.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
-                <span className="col-span-5 md:col-span-1 text-right text-xs tabular-nums text-slate-300 font-semibold whitespace-nowrap">
+                {/* Line total: labeled footer on phones (hidden while empty),
+                    the usual right column on desktop */}
+                <span className={`col-span-6 md:col-span-1 text-right text-xs tabular-nums text-slate-300 font-semibold whitespace-nowrap ${total > 0 ? '' : 'hidden md:block'}`}>
                   {total > 0
                     ? <><span className="md:hidden text-slate-500 font-normal">Line total </span>{fmtInt(total)}</>
                     : <span className="text-slate-700">—</span>}
                 </span>
                 <button type="button" onClick={() => removeLine(l.key)} tabIndex={-1}
-                  className="col-span-1 text-slate-600 hover:text-red-400 transition-colors text-base leading-none justify-self-end"
+                  className="hidden md:block col-span-1 text-slate-600 hover:text-red-400 transition-colors text-base leading-none justify-self-end"
                   title="Remove line">×</button>
               </div>
             );

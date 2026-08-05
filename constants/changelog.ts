@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-06T00:35:00Z',
+    title: 'New Deal on phones: the Items section announces itself',
+    details: [
+      'On desktop the column headers separate the line items from the header fields; phones had nothing — the first item card blended straight into Document URL. Mobile now gets an “Items” section title above a divider, and every card carries its own “Item 1 / Item 2” header with the remove ✕ up there instead of floating in the footer. The line total appears (labeled) only once the line has an amount.',
+    ],
+  },
+  {
     at: '2026-08-06T00:15:00Z',
     title: 'After-sales cases carry a warranty verdict',
     details: [
