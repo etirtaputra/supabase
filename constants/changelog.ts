@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-04T23:47:00Z',
+    title: 'Sales list: numbers back in column',
+    details: [
+      'Every row now reserves the draft-checkbox slot, so DQ/PQ/SO numbers align whether or not a row is selectable.',
+    ],
+  },
+  {
     at: '2026-08-04T23:40:00Z',
     title: 'Sales Orders: Quoted / Ordered / Delivered totals · stage filter · draft cleanup',
     details: [
