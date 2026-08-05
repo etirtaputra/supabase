@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-05T00:24:00Z',
+    title: 'Drafts get their own section under the Sales Orders list',
+    details: [
+      'The live pipeline (PQ/SO) and unfinished drafts are no longer mixed: drafts sit in their own box below the list, with a Select-All checkbox and the Delete action in its header. The main list loses the checkbox column entirely — clean rows, aligned numbers.',
+      'The Stage filter drops the Draft option (drafts always have their section); it now toggles Quote (PQ) / Order (SO) over the live list. Search and the period range still apply to drafts too.',
+    ],
+  },
+  {
     at: '2026-08-04T23:52:00Z',
     title: 'Sales list: numbers back in column, never wrapping',
     details: [

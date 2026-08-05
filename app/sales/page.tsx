@@ -154,13 +154,7 @@ export default function SalesListPage() {
     return ds.length > 0 ? 'preparing' : 'none';
   };
   const hasArOpen = (q: Quote) => payStateOf(q) === 'outstanding';
-  const filtered = quotes.filter((q) => {
-    if (!inRange(q.quote_date ?? q.updated_at ?? null, range)) return false;
-    if (stageFilter === 'draft' && q.status !== 'draft') return false;
-    if (stageFilter === 'quote' && !['validated', 'sent', 'accepted'].includes(q.status)) return false;
-    if (stageFilter === 'order' && !BILLED.includes(q.status)) return false;
-    if (payFilter !== 'all' && payStateOf(q) !== payFilter) return false;
-    if (delFilter !== 'all' && delStateOf(q) !== delFilter) return false;
+  const matchesSearch = (q: Quote): boolean => {
     const s = search.trim().toLowerCase();
     if (!s) return true;
     const c = q.customer_id ? custById.get(q.customer_id) : undefined;
@@ -168,6 +162,20 @@ export default function SalesListPage() {
       .filter(Boolean).join(' ').toLowerCase().includes(s)) return true;
     // Products on the document count too — find every order that carries an item
     return (linesByQuote[q.quote_id] ?? []).some((l) => !l.is_section && (l.description || '').toLowerCase().includes(s));
+  };
+  // Drafts live in their OWN section below the list — unfinished paperwork
+  // kept out of the live pipeline (and out of the Stage filter).
+  const draftDocs = quotes
+    .filter((q) => q.status === 'draft' && inRange(q.quote_date ?? q.updated_at ?? null, range) && matchesSearch(q))
+    .sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''));
+  const filtered = quotes.filter((q) => {
+    if (q.status === 'draft') return false;
+    if (!inRange(q.quote_date ?? q.updated_at ?? null, range)) return false;
+    if (stageFilter === 'quote' && !['validated', 'sent', 'accepted'].includes(q.status)) return false;
+    if (stageFilter === 'order' && !BILLED.includes(q.status)) return false;
+    if (payFilter !== 'all' && payStateOf(q) !== payFilter) return false;
+    if (delFilter !== 'all' && delStateOf(q) !== delFilter) return false;
+    return matchesSearch(q);
   }).sort((a, b) => {
     if (colSort) {
       const pctOf = (q: Quote) => {
@@ -261,7 +269,6 @@ export default function SalesListPage() {
               title="Filter by lifecycle stage — draft, price quote or confirmed order"
               className={`text-xs bg-slate-900/80 border rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60 ${stageFilter !== 'all' ? 'border-emerald-500/50 text-emerald-300' : 'border-slate-700 text-slate-300'}`}>
               <option value="all">Stage: all</option>
-              <option value="draft">Draft (DQ)</option>
               <option value="quote">Quote (PQ)</option>
               <option value="order">Order (SO)</option>
             </select>
@@ -284,15 +291,6 @@ export default function SalesListPage() {
               <option value="delivered">Delivered</option>
             </select>
             <LayoutToggle value={layout} onChange={setLayout} />
-            {draftsSelected.length > 0 && (
-              <button onClick={deleteArmed ? deleteSelectedDrafts : () => { setDeleteArmed(true); setTimeout(() => setDeleteArmed(false), 4000); }}
-                disabled={deleting}
-                title="Deletes the selected DRAFTS only. Live documents (PQ/SO) cannot be deleted — an SO's invoices and delivery orders must be reverted or cancelled first."
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold whitespace-nowrap transition-colors disabled:opacity-50 ${
-                  deleteArmed ? 'bg-red-600 border-red-500 text-white' : 'border-red-500/40 text-red-300 hover:bg-red-500/10'}`}>
-                {deleting ? 'Deleting…' : deleteArmed ? `Confirm — delete ${draftsSelected.length}` : `Delete ${draftsSelected.length} draft${draftsSelected.length !== 1 ? 's' : ''}`}
-              </button>
-            )}
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500">
             <span><span className="text-slate-300 font-semibold tabular-nums">{filtered.length}</span> doc{filtered.length !== 1 ? 's' : ''}</span>
@@ -320,10 +318,50 @@ export default function SalesListPage() {
           {loading ? (
             <div className="p-4 space-y-1.5">{[...Array(6)].map((_, i) => <div key={i} className="h-12 bg-slate-800/40 rounded-xl animate-pulse" />)}</div>
           ) : filtered.length === 0 ? (
-            <div className="px-4 py-12 text-center text-slate-600 text-sm">{quotes.length === 0 ? 'No sales quotes yet — create your first one.' : 'No matches.'}</div>
+            <div className="px-4 py-12 text-center text-slate-600 text-sm">{quotes.length === 0 ? 'No sales quotes yet — create your first one.' : draftDocs.length > 0 ? 'No live documents in this view — drafts are in their own section below.' : 'No matches.'}</div>
           ) : (
             <div className="divide-y divide-slate-800/60">
-              {filtered.map((q) => {
+              {filtered.map((q) => renderRow(q, false))}
+            </div>
+          )}
+        </div>
+
+        {/* ── Drafts — unfinished quotes, kept out of the live pipeline ── */}
+        {draftDocs.length > 0 && (
+          <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
+            <div className={`flex items-center gap-3 border-b border-slate-800 ${compact ? 'px-3 py-2' : 'px-4 py-2.5'}`}>
+              <input type="checkbox"
+                checked={draftDocs.length > 0 && draftDocs.every((d) => selectedDrafts.has(d.quote_id))}
+                onChange={(e) => setSelectedDrafts(e.target.checked ? new Set(draftDocs.map((d) => d.quote_id)) : new Set())}
+                title="Select all drafts"
+                className="w-3.5 h-3.5 accent-red-500 cursor-pointer flex-shrink-0" />
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Drafts <span className="tabular-nums">({draftDocs.length})</span></span>
+              <span className="text-[10px] text-slate-600 hidden sm:inline">unfinished quotes — not in the totals until validated</span>
+              {draftsSelected.length > 0 && (
+                <button onClick={deleteArmed ? deleteSelectedDrafts : () => { setDeleteArmed(true); setTimeout(() => setDeleteArmed(false), 4000); }}
+                  disabled={deleting}
+                  title="Deletes the selected drafts only. Live documents (PQ/SO) cannot be deleted — an SO's invoices and delivery orders must be reverted or cancelled first."
+                  className={`ml-auto flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-semibold whitespace-nowrap transition-colors disabled:opacity-50 ${
+                    deleteArmed ? 'bg-red-600 border-red-500 text-white' : 'border-red-500/40 text-red-300 hover:bg-red-500/10'}`}>
+                  {deleting ? 'Deleting…' : deleteArmed ? `Confirm — delete ${draftsSelected.length}` : `Delete ${draftsSelected.length}`}
+                </button>
+              )}
+            </div>
+            <div className="divide-y divide-slate-800/60">
+              {draftDocs.map((q) => renderRow(q, true))}
+            </div>
+          </div>
+        )}
+      </main>
+      {toastMsg && (
+        <div className="fixed bottom-6 right-6 z-[110] px-4 py-2.5 bg-slate-800 border border-slate-700 text-white text-sm font-semibold rounded-xl shadow-lg">
+          {toastMsg}
+        </div>
+      )}
+    </div>
+  );
+
+  function renderRow(q: Quote, isDraft: boolean) {
                 const c = q.customer_id ? custById.get(q.customer_id) : undefined;
                 const total = Number(q.grand_total) || 0;
                 const rcv = receivedByQuote[q.quote_id] ?? 0;
@@ -347,19 +385,15 @@ export default function SalesListPage() {
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(open ? null : q.quote_id); } }}
                       className={`w-full min-w-0 text-left grid grid-cols-1 md:grid-cols-[175px_1fr_120px_120px_130px_100px] gap-1 md:gap-3 items-center cursor-pointer transition-colors ${compact ? 'px-3 py-1.5' : 'px-4 py-3'} ${open ? 'bg-slate-800/30' : 'hover:bg-slate-800/40'}`}>
                       <span className="font-mono text-[11px] flex items-center">
-                        {/* Every row reserves the slot so the numbers stay in
-                            column; only drafts render the actual checkbox. */}
-                        {q.status === 'draft' ? (
+                        {isDraft && (
                           <input type="checkbox" checked={selectedDrafts.has(q.quote_id)}
                             onClick={(e) => e.stopPropagation()}
                             onChange={(e) => {
                               const on = e.target.checked;
                               setSelectedDrafts((prev) => { const n = new Set(prev); if (on) n.add(q.quote_id); else n.delete(q.quote_id); return n; });
                             }}
-                            title="Select this draft for deletion (only drafts can be deleted)"
-                            className="mr-1.5 w-3.5 h-3.5 accent-red-500 cursor-pointer flex-shrink-0" />
-                        ) : (
-                          <span aria-hidden className="mr-1.5 w-3.5 flex-shrink-0" />
+                            title="Select this draft for deletion"
+                            className="mr-2 w-3.5 h-3.5 accent-red-500 cursor-pointer flex-shrink-0" />
                         )}
                         <a href={`/sales/${q.quote_id}`} onClick={(e) => e.stopPropagation()} title="Open document"
                           className={`${docNumberCls(q.status)} hover:text-emerald-300 hover:underline underline-offset-2 decoration-emerald-500/50 transition-colors whitespace-nowrap`}>
@@ -505,18 +539,7 @@ export default function SalesListPage() {
                     )}
                   </Fragment>
                 );
-              })}
-            </div>
-          )}
-        </div>
-      </main>
-      {toastMsg && (
-        <div className="fixed bottom-6 right-6 z-[110] px-4 py-2.5 bg-slate-800 border border-slate-700 text-white text-sm font-semibold rounded-xl shadow-lg">
-          {toastMsg}
-        </div>
-      )}
-    </div>
-  );
+  }
 }
 
 function CenterSpinner() {
