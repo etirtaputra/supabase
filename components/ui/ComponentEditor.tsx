@@ -3542,8 +3542,8 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                             { vf: 'warranty_value', uf: 'warranty_unit', tag: 'Wty', tip: 'Product warranty — the claimable period After Sales judges by' },
                             { vf: 'perf_warranty_value', uf: 'perf_warranty_unit', tag: 'Perf', tip: 'Performance warranty — PV output guarantee (informational)' },
                           ] as const).map(({ vf, uf, tag, tip }) => (
-                            <span key={vf} className="flex items-center gap-1 flex-shrink-0" title={tip}>
-                              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-600">{tag}</span>
+                            <span key={vf} className="flex items-center gap-1.5 flex-shrink-0" title={tip}>
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{tag}</span>
                               <input
                                 type="number" min="0" step="any"
                                 data-fld={vf}
@@ -3555,13 +3555,13 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                                   if (v != null && !((getVal(c, uf as any) as string) ?? '')) setField(c, uf as any, 'years');
                                 }}
                                 placeholder="—"
-                                className="w-12 px-1.5 py-0.5 text-[10px] bg-slate-950 border border-slate-700 rounded text-slate-300 text-right tabular-nums placeholder-slate-700 focus:outline-none focus:border-sky-500/50"
+                                className="w-14 px-2 py-1 text-xs bg-slate-950 border border-slate-700 rounded-lg text-slate-200 text-right tabular-nums placeholder-slate-700 focus:outline-none focus:border-sky-500/50"
                               />
                               <select
                                 data-fld={uf}
                                 value={(getVal(c, uf as any) as string) ?? 'years'}
                                 onChange={(e) => setField(c, uf as any, e.target.value)}
-                                className="px-1 py-0.5 text-[10px] bg-slate-950 border border-slate-700 rounded text-slate-400 focus:outline-none focus:border-sky-500/50"
+                                className="px-1.5 py-1 text-xs bg-slate-950 border border-slate-700 rounded-lg text-slate-300 focus:outline-none focus:border-sky-500/50"
                               >
                                 {WARRANTY_UNITS.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                               </select>
@@ -3574,7 +3574,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                             onChange={(e) => setField(c, 'datasheet_url' as any, e.target.value || null)}
                             placeholder="Datasheet URL…"
                             title="Datasheet / file URL (Google Drive, etc.)"
-                            className="w-32 px-1.5 py-0.5 text-[10px] bg-slate-950 border border-slate-700 rounded text-slate-300 placeholder-slate-700 focus:outline-none focus:border-sky-500/50"
+                            className="w-36 px-2 py-1 text-xs bg-slate-950 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-700 focus:outline-none focus:border-sky-500/50"
                           />
                         </>) : c.datasheet_url ? (
                           <a
