@@ -26,7 +26,10 @@ import {
   type MountingInput, type MountType, type Orientation,
 } from '@/lib/systemDesign/mounting';
 import { resolveBom, summarise, type DesignCandidate } from '@/lib/systemDesign/resolve';
+import { mountingSystems, shortlist, RAIL_PROFILE_LABEL, type RailProfile } from '@/lib/systemDesign/mountingSystem';
 import { designRoleOf, type SystemDesign } from '@/lib/systemDesign/types';
+
+const SYSTEM_KEY = 'icaproc.mountingDesigner.system';
 
 /** One finished quote line, in the editor's own shape. */
 export interface DesignedLine {
@@ -74,6 +77,21 @@ export default function MountingDesigner({ open, onClose, priceOf, stockOf, onAp
   const [candidates, setCandidates] = useState<DesignCandidate[]>([]);
   const [panels, setPanels] = useState<PanelOption[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Which mounting family this quote is built from. ICA quotes MIBET MD with
+  // the T-slot rail, so that is the default — remembered per browser, and
+  // stored on the design so a regenerate reproduces the same shortlist.
+  const [series, setSeries] = useState('');
+  const [profile, setProfile] = useState<RailProfile | ''>('t_slot');
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(SYSTEM_KEY);
+      if (raw) { const v = JSON.parse(raw); setSeries(v.series ?? ''); setProfile(v.profile ?? 't_slot'); }
+    } catch {}
+  }, []);
+  useEffect(() => {
+    try { window.localStorage.setItem(SYSTEM_KEY, JSON.stringify({ series, profile })); } catch {}
+  }, [series, profile]);
 
   const [panelKey, setPanelKey] = useState('');
   const [panelCount, setPanelCount] = useState('4');
@@ -142,10 +160,24 @@ export default function MountingDesigner({ open, onClose, priceOf, stockOf, onAp
     mountType, orientation,
   }), [panelCount, numberOfRows, dims.l, dims.w, thickness, railLengthMm, panelSpacing, mountType, orientation]);
 
+  // What this system can actually build — the shortlist the owner asked for
+  const systems = useMemo(() => mountingSystems(candidates, profile || undefined), [candidates, profile]);
+  const chosen = useMemo(() => systems.find((x) => x.series === series) ?? null, [systems, series]);
+  const shortlisted = useMemo(() => shortlist(candidates, series, profile || undefined), [candidates, series, profile]);
+  // Rail lengths come from the shelf, not from a hard-coded pair
+  const railChoices = useMemo(
+    () => (chosen?.railLengths.length ? chosen.railLengths : [...RAIL_LENGTHS_MM]),
+    [chosen]);
+  // Keep the picked rail valid when the system or profile changes under it
+  useEffect(() => {
+    if (railKey === 'custom') return;
+    if (!railChoices.includes(Number(railKey))) setRailKey(String(railChoices[railChoices.length - 1] ?? ''));
+  }, [railChoices]);   // eslint-disable-line react-hooks/exhaustive-deps
+
   const result = useMemo(() => calculateMounting(input), [input]);
   const resolved = useMemo(
-    () => (result.ok ? resolveBom(result.lines, { candidates, priceOf, stockOf }) : []),
-    [result, candidates, priceOf, stockOf]);
+    () => (result.ok ? resolveBom(result.lines, { candidates: shortlisted, priceOf, stockOf }) : []),
+    [result, shortlisted, priceOf, stockOf]);
   const totals = useMemo(() => summarise(resolved), [resolved]);
 
   if (!open || !mounted) return null;
@@ -163,7 +195,7 @@ export default function MountingDesigner({ open, onClose, priceOf, stockOf, onAp
     const design: SystemDesign = {
       engine: 'mounting',
       version: 11,
-      input: { ...input, panelKey, panelLabel: panel?.label ?? '', railKey },
+      input: { ...input, panelKey, panelLabel: panel?.label ?? '', railKey, series, profile },
       warnings: result.warnings,
       generated_at: new Date().toISOString(),
     };
@@ -193,6 +225,41 @@ export default function MountingDesigner({ open, onClose, priceOf, stockOf, onAp
         <div className="grid lg:grid-cols-[minmax(0,340px)_1fr] gap-5">
           {/* ── Inputs ── */}
           <div className="space-y-3">
+            {/* The shortlist: one family, one rail profile. Parts from other
+                systems never enter the bill of materials. */}
+            <div className="rounded-xl border border-sky-500/25 bg-sky-500/[0.04] p-3 space-y-2.5">
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block">
+                  <span className={lbl}>Mounting system</span>
+                  <select className={inp} value={series} onChange={(e) => setSeries(e.target.value)}>
+                    <option value="">Any system</option>
+                    {systems.map((sy) => (
+                      <option key={sy.series} value={sy.series}>{sy.series} ({sy.items})</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className={lbl}>Rail profile</span>
+                  <select className={inp} value={profile} onChange={(e) => setProfile(e.target.value as RailProfile | '')}>
+                    <option value="">Any profile</option>
+                    {(['t_slot', 'symmetric', 'other'] as RailProfile[]).map((p) => (
+                      <option key={p} value={p}>{RAIL_PROFILE_LABEL[p]}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <p className="text-[10px] text-slate-500">
+                {series
+                  ? <>Building from <span className="text-sky-300 font-semibold">{series}</span>
+                      {profile ? <> · <span className="text-sky-300 font-semibold">{RAIL_PROFILE_LABEL[profile]}</span> rail</> : null}
+                      {' — '}{shortlisted.length} parts on the shortlist.
+                      {chosen && chosen.railLengths.length === 0 && profile
+                        ? <span className="text-amber-300"> No {RAIL_PROFILE_LABEL[profile].toLowerCase()} rail in this system.</span>
+                        : null}</>
+                  : 'Every mounting brand is in play — pick a system so a quote cannot mix incompatible parts.'}
+              </p>
+            </div>
+
             <label className="block">
               <span className={lbl}>Panel</span>
               <select className={inp} value={panelKey} onChange={(e) => setPanelKey(e.target.value)}>
@@ -252,7 +319,7 @@ export default function MountingDesigner({ open, onClose, priceOf, stockOf, onAp
               <label className="block">
                 <span className={lbl}>Rail length</span>
                 <select className={inp} value={railKey} onChange={(e) => setRailKey(e.target.value)}>
-                  {RAIL_LENGTHS_MM.map((r) => <option key={r} value={r}>{r} mm</option>)}
+                  {railChoices.map((r) => <option key={r} value={r}>{r} mm</option>)}
                   <option value="custom">Custom…</option>
                 </select>
               </label>

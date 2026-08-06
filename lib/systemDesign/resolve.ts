@@ -41,6 +41,27 @@ export interface ResolveContext {
   stockOf?: (componentId: string) => number | null;
 }
 
+/**
+ * Does a spec value cover a wanted number? Real catalog parts are specified as
+ * FIT RANGES, not single sizes: a "MIBET MD U20 Inter Clamp 35-39" takes any
+ * frame from 35 to 39 mm, and "30/33" is a part sold for either. So:
+ *   "35"       → exactly 35
+ *   "35-39"    → 35 … 39 inclusive
+ *   "30/33"    → 30 or 33 (a list, not a span)
+ *   "30-34/50" → 30 … 34, or 50
+ * Matching these exactly would silently drop the right clamp and quote a
+ * hand-priced line instead — the failure that hides until site.
+ */
+export function specCovers(specValue: unknown, wanted: number): boolean {
+  const raw = typeof specValue === 'number' ? String(specValue) : String(specValue ?? '').trim();
+  if (!raw) return false;
+  return raw.split('/').some((part) => {
+    const span = part.split(/[-–]/).map((s) => specNumber(s.trim())).filter((n): n is number => n !== null);
+    if (span.length >= 2) return wanted >= Math.min(...span) && wanted <= Math.max(...span);
+    return span.length === 1 && span[0] === wanted;
+  });
+}
+
 /** Do a candidate's specs carry this role, and the role's parameter value? */
 function matchesRole(c: DesignCandidate, role: BomRole, param: BomLine['param']): boolean {
   const specs = c.specifications ?? {};
@@ -49,8 +70,7 @@ function matchesRole(c: DesignCandidate, role: BomRole, param: BomLine['param'])
   if (!paramKey) return true;
   if (param === null || param === undefined || param === '') return true;   // engine did not discriminate
   const want = specNumber(param);
-  const got = specNumber(specs[paramKey]);
-  if (want !== null && got !== null) return want === got;
+  if (want !== null) return specCovers(specs[paramKey], want);
   return String(specs[paramKey] ?? '').trim().toLowerCase() === String(param).trim().toLowerCase();
 }
 

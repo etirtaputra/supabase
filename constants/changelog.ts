@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-06T04:45:00Z',
+    title: 'Mounting designer builds from ONE system — MIBET MD, T-slot rail',
+    details: [
+      'New shortlist at the top of the designer: pick the mounting system (MIBET MD, MIBET MA, SOEASY…) and the rail profile (T-slot / Symmetric). Only that family’s parts can enter the bill of materials, so a quote can never mix an MD clamp onto an MA rail. Defaults to MIBET MD + T-slot and remembers your choice; the design saves it, so a regenerate rebuilds from the same shortlist.',
+      'The rail-length dropdown now offers the lengths actually on the shelf for the chosen system — MD T-slot gives 1340 / 2490 / 3650 / 4610 / 4850 / 4900 mm instead of a fixed pair — and warns if the system carries no rail in that profile. The profile filter applies to the splice kit too, since a T-slot rail takes the T-slot splice.',
+      'Fix found while wiring this up: clamps are catalogued as FIT RANGES (“35-39”, “30/33”, “30-34/50”), and the resolver was matching sizes exactly — so a 35 mm panel silently failed to find the MD 35-39 mid clamp and fell back to a hand-priced line. Ranges and either/or sizes are now understood: a dash spans, a slash lists.',
+    ],
+  },
+  {
     at: '2026-08-06T04:10:00Z',
     title: 'Sales quotations can size a system, not just list products',
     details: [
