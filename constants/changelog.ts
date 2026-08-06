@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-06T03:20:00Z',
+    title: 'Surat Dukungan prints on one page, on your letterhead paper',
+    details: [
+      'The letter now leaves a blank band at the top for pre-printed letterhead stock — 30 mm by default, and the print screen lets you pick 20 / 30 / 40 / 50 mm, or “plain paper” to print our own letterhead instead. Your choice is remembered.',
+      'The whole document is tuned to fit a single A4 sheet, signature block included — verified at five materials and three clauses. A longer letter is scaled down automatically rather than spilling onto a second page, and the print screen tells you the fit (“Fits one page · 92%”). If it is too long even at the smallest size, it says so instead of quietly printing two pages.',
+    ],
+  },
+  {
     at: '2026-08-06T02:55:00Z',
     title: 'Hidden items stay out of Surat Dukungan',
     details: [
