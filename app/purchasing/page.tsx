@@ -638,7 +638,7 @@ function MasterInsertPage() {
             ✓ {pdfData.line_items?.length || 0} items
           </span>
           <button type="button" onClick={() => setPdfData(null)}
-            className="text-[11px] text-slate-500 hover:text-slate-300 hover:underline underline-offset-2 transition-colors">
+            className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors">
             Clear
           </button>
         </>

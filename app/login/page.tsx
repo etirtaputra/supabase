@@ -124,7 +124,7 @@ export default function LoginPage() {
 
               <button
                 onClick={() => { setSent(false); setEmail(''); setOtp(''); setError(null); }}
-                className="text-xs text-slate-500 hover:text-slate-300 underline"
+                className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
               >
                 Use a different email
               </button>

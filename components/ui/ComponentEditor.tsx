@@ -426,7 +426,7 @@ function UsageTooltip({ quoteLines, poLines, style, onMouseEnter, onMouseLeave }
             {quoteLines.map((ql, i) => (
               <div key={i} className="grid grid-cols-[1fr_72px_44px_90px] gap-x-2 py-1 border-b border-slate-800/40 last:border-0">
                 {ql.pi_number
-                  ? <a href={dealLookupHref(ql.pi_number)} title="Open in Deal Lookup" className="font-mono text-blue-300 truncate hover:text-blue-200 hover:underline">{ql.pi_number}</a>
+                  ? <a href={dealLookupHref(ql.pi_number)} title="Open in Deal Lookup" className="font-mono text-blue-300 truncate hover:text-blue-200 transition-colors">{ql.pi_number}</a>
                   : <span className="font-mono text-slate-600 truncate">—</span>}
                 <span className="text-slate-400">{fmtD(ql.quote_date)}</span>
                 <span className="text-right text-slate-300">{ql.quantity}</span>
@@ -452,7 +452,7 @@ function UsageTooltip({ quoteLines, poLines, style, onMouseEnter, onMouseLeave }
             {poLines.map((pl, i) => (
               <div key={i} className="grid grid-cols-[1fr_72px_44px_90px] gap-x-2 py-1 border-b border-slate-800/40 last:border-0">
                 {pl.po_number
-                  ? <a href={dealLookupHref(pl.po_number)} title="Open in Deal Lookup" className="font-mono text-emerald-300 truncate hover:text-emerald-200 hover:underline">{pl.po_number}</a>
+                  ? <a href={dealLookupHref(pl.po_number)} title="Open in Deal Lookup" className="font-mono text-emerald-300 truncate hover:text-emerald-200 transition-colors">{pl.po_number}</a>
                   : <span className="font-mono text-slate-600 truncate">—</span>}
                 <span className="text-slate-400">{fmtD(pl.po_date)}</span>
                 <span className="text-right text-slate-300">{pl.quantity}</span>
@@ -3908,7 +3908,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                               {q?.pi_number ? (
                                 <a href={`/purchasing?tab=lookup&q=${encodeURIComponent(q.pi_number as string)}`}
                                   title="Open in Deal Lookup"
-                                  className="block text-xs font-semibold font-mono text-blue-300 truncate hover:text-blue-200 hover:underline">
+                                  className="block text-xs font-semibold font-mono text-blue-300 truncate hover:text-blue-200 transition-colors">
                                   {q.pi_number as string}
                                 </a>
                               ) : (
@@ -3924,7 +3924,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                                   {linkedPos.map((p) => (
                                     <a key={p} href={`/purchasing?tab=lookup&q=${encodeURIComponent(p)}`}
                                       title="Open in Deal Lookup"
-                                      className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 hover:bg-emerald-500/20 hover:underline">{p}</a>
+                                      className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors">{p}</a>
                                   ))}
                                 </div>
                               )}
@@ -4613,7 +4613,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                                   <tr key={i} className="hover:bg-white/[0.02]">
                                     <td className="px-3 py-1.5 font-mono text-blue-300">
                                       {ql.pi_number
-                                        ? <a href={`/purchasing?tab=lookup&q=${encodeURIComponent(ql.pi_number)}`} title="Open in Deal Lookup" className="hover:text-blue-200 hover:underline">{ql.pi_number}</a>
+                                        ? <a href={`/purchasing?tab=lookup&q=${encodeURIComponent(ql.pi_number)}`} title="Open in Deal Lookup" className="hover:text-blue-200 transition-colors">{ql.pi_number}</a>
                                         : '—'}
                                     </td>
                                     <td className="px-3 py-1.5 text-slate-400">{fmtD(ql.quote_date)}</td>
@@ -4651,7 +4651,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                                   <tr key={i} className="hover:bg-white/[0.02]">
                                     <td className="px-3 py-1.5 font-mono text-emerald-300">
                                       {pl.po_number
-                                        ? <a href={`/purchasing?tab=lookup&q=${encodeURIComponent(pl.po_number)}`} title="Open in Deal Lookup" className="hover:text-emerald-200 hover:underline">{pl.po_number}</a>
+                                        ? <a href={`/purchasing?tab=lookup&q=${encodeURIComponent(pl.po_number)}`} title="Open in Deal Lookup" className="hover:text-emerald-200 transition-colors">{pl.po_number}</a>
                                         : '—'}
                                     </td>
                                     <td className="px-3 py-1.5 text-slate-400">{fmtD(pl.po_date)}</td>
@@ -5234,7 +5234,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
                                 {cp.region && <span>Region: <span className="text-slate-400">{cp.region}</span></span>}
                                 {cp.source_name && <span>Source: <span className="text-slate-400">{
                                   cp.source_url
-                                    ? <a href={cp.source_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{cp.source_name}</a>
+                                    ? <a href={cp.source_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 transition-colors">{cp.source_name}</a>
                                     : cp.source_name
                                 }</span></span>}
                               </div>

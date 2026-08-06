@@ -396,7 +396,7 @@ export default function SalesListPage() {
                             className="mr-2 w-3.5 h-3.5 accent-red-500 cursor-pointer flex-shrink-0" />
                         )}
                         <a href={`/sales/${q.quote_id}`} onClick={(e) => e.stopPropagation()} title="Open document"
-                          className={`${docNumberCls(q.status)} hover:text-emerald-300 hover:underline underline-offset-2 decoration-emerald-500/50 transition-colors whitespace-nowrap`}>
+                          className={`${docNumberCls(q.status)} hover:text-emerald-300 transition-colors whitespace-nowrap`}>
                           {displayDocNumber(q)}
                         </a>
                         {(q.revision ?? 0) > 0 && <span className="ml-1 text-[9px] font-bold text-sky-400">R{q.revision}</span>}
@@ -408,7 +408,7 @@ export default function SalesListPage() {
                         {c ? (
                           <a href={`/customers?open=${encodeURIComponent(q.customer_id!)}`} target="_blank" rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()} title="Open customer profile in a new tab"
-                            className="hover:text-emerald-300 hover:underline underline-offset-2 decoration-emerald-500/50 transition-colors">
+                            className="hover:text-emerald-300 transition-colors">
                             {c.display_name || c.legal_name}
                           </a>
                         ) : <span className="text-slate-600">No customer</span>}

@@ -469,7 +469,7 @@ export default function DescriptionLibraryPage() {
     return (
       <div className="min-h-screen bg-canvas flex flex-col items-center justify-center gap-4 text-slate-400 text-sm">
         <p>The Description Library is only available to Owners.</p>
-        <Link href="/proposals" className="text-violet-400 hover:text-violet-300 underline">Back to quotes</Link>
+        <Link href="/proposals" className="text-violet-400 hover:text-violet-300 transition-colors">Back to quotes</Link>
       </div>
     );
   }

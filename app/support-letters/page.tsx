@@ -225,6 +225,69 @@ export default function SupportLettersPage() {
   const unpaidCount = useMemo(() => letters.filter((l) => !l.fee_paid_at && l.status !== 'cancelled' && Number(l.fee_amount) > 0).length, [letters]);
 
   // ── Editor ────────────────────────────────────────────────────────────────
+  /**
+   * Every free-text field remembers what has been typed before. One tender
+   * usually needs a letter for several resellers, so the project, its owner
+   * and that owner's address must never be typed twice — and the material
+   * rows autocomplete from the letters already written.
+   */
+  const suggest = useMemo(() => {
+    const uniq = (vals: (string | null | undefined)[]) =>
+      [...new Set(vals.map((v) => (v ?? '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    const items = [...itemsByLetter.values()].flat();
+    // Newest letter wins when the same project/end user was typed twice
+    const byRecency = [...letters].sort((a, b) => (b.letter_date ?? '').localeCompare(a.letter_date ?? ''));
+    const projectRef = new Map<string, SupportLetter>();
+    const endUserRef = new Map<string, SupportLetter>();
+    for (const l of byRecency) {
+      const p = l.project_name.trim().toLowerCase();
+      const e = l.end_user_name.trim().toLowerCase();
+      if (p && !projectRef.has(p)) projectRef.set(p, l);
+      if (e && !endUserRef.has(e)) endUserRef.set(e, l);
+    }
+    return {
+      projects: uniq(letters.map((l) => l.project_name)),
+      endUsers: uniq(letters.map((l) => l.end_user_name)),
+      endUserAddresses: uniq(letters.map((l) => l.end_user_address)),
+      personNames: uniq([...letters.map((l) => l.supported_person_name), ...contacts.map((c) => c.name)]),
+      personTitles: uniq([...letters.map((l) => l.supported_person_title), ...contacts.map((c) => c.title), 'Direktur']),
+      signatories: uniq(letters.map((l) => l.signatory_name)),
+      signTitles: uniq([...letters.map((l) => l.signatory_title), 'Direktur']),
+      places: uniq([...letters.map((l) => l.place_of_issue), 'Jakarta']),
+      brands: uniq([...letters.map((l) => l.brands), ...comps.map((c) => c.brand)]),
+      itemCategories: uniq(items.map((i) => i.category_label)),
+      itemTypes: uniq(items.map((i) => i.type_text)),
+      itemWarranties: uniq(items.map((i) => i.warranty_text)),
+      projectRef, endUserRef,
+    };
+  }, [letters, itemsByLetter, contacts, comps]);
+
+  /** Typing a project we have backed before brings its tender owner along. */
+  const onProjectChange = (v: string) => {
+    setDraft((d) => {
+      const src = suggest.projectRef.get(v.trim().toLowerCase());
+      if (!src) return { ...d, project_name: v };
+      return {
+        ...d,
+        project_name: v,
+        end_user_name: (d.end_user_name ?? '').trim() || src.end_user_name,
+        end_user_address: (d.end_user_address ?? '').trim() || src.end_user_address,
+      };
+    });
+  };
+
+  /** Same for the addressee: pick one we have written to, get its address. */
+  const onEndUserChange = (v: string) => {
+    setDraft((d) => {
+      const src = suggest.endUserRef.get(v.trim().toLowerCase());
+      return {
+        ...d,
+        end_user_name: v,
+        end_user_address: src && !(d.end_user_address ?? '').trim() ? src.end_user_address : (d.end_user_address ?? ''),
+      };
+    });
+  };
+
   /** The number the next letter will be handed, for the draft header. */
   const nextSeq = useMemo(() => {
     const year = new Date().getFullYear();
@@ -700,17 +763,17 @@ export default function SupportLettersPage() {
               </div>
               <label className="block">
                 <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Their signatory (Nama)</span>
-                <input className={inputCls} value={draft.supported_person_name ?? ''} disabled={!canEdit}
+                <input list="sl-person-names" className={inputCls} value={draft.supported_person_name ?? ''} disabled={!canEdit}
                   placeholder="e.g. Denny Yusni Arman" onChange={(e) => set('supported_person_name', e.target.value)} />
               </label>
               <label className="block">
                 <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Their title (Jabatan)</span>
-                <input className={inputCls} value={draft.supported_person_title ?? ''} disabled={!canEdit}
+                <input list="sl-person-titles" className={inputCls} value={draft.supported_person_title ?? ''} disabled={!canEdit}
                   placeholder="Direktur" onChange={(e) => set('supported_person_title', e.target.value)} />
               </label>
               <label className="block sm:col-span-2">
                 <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Their company + address (as printed)</span>
-                <input className={`${inputCls} mb-2`} value={draft.supported_company_name ?? ''} disabled={!canEdit}
+                <input list="sl-company-names" className={`${inputCls} mb-2`} value={draft.supported_company_name ?? ''} disabled={!canEdit}
                   placeholder="PT …" onChange={(e) => set('supported_company_name', e.target.value)} />
                 <textarea rows={2} className={areaCls} value={draft.supported_company_address ?? ''} disabled={!canEdit}
                   placeholder="Alamat" onChange={(e) => set('supported_company_address', e.target.value)} />
@@ -720,22 +783,21 @@ export default function SupportLettersPage() {
             {/* The tender */}
             <div className="grid sm:grid-cols-2 gap-3 border-t border-slate-800 pt-3">
               <label className="block sm:col-span-2">
-                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Project / Pekerjaan *</span>
-                <input className={inputCls} value={draft.project_name ?? ''} disabled={!canEdit}
+                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">
+                  Project / Pekerjaan * <span className="normal-case tracking-normal text-slate-600">— pick a tender you have backed before and its owner fills itself</span>
+                </span>
+                <input list="sl-projects" className={inputCls} value={draft.project_name ?? ''} disabled={!canEdit}
                   placeholder="e.g. RTWS Package Fabrication and Installation Services Projects Zona 9 (II)"
-                  onChange={(e) => set('project_name', e.target.value)} />
+                  onChange={(e) => onProjectChange(e.target.value)} />
               </label>
               <label className="block">
                 <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Addressed to — end user</span>
                 <input list="sl-endusers" className={inputCls} value={draft.end_user_name ?? ''} disabled={!canEdit}
-                  placeholder="e.g. PT Pertamina Hulu Sanga Sanga" onChange={(e) => set('end_user_name', e.target.value)} />
-                <datalist id="sl-endusers">
-                  {[...new Set(letters.map((l) => l.end_user_name).filter(Boolean))].map((n) => <option key={n} value={n} />)}
-                </datalist>
+                  placeholder="e.g. PT Pertamina Hulu Sanga Sanga" onChange={(e) => onEndUserChange(e.target.value)} />
               </label>
               <label className="block">
                 <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">End-user address</span>
-                <input className={inputCls} value={draft.end_user_address ?? ''} disabled={!canEdit}
+                <input list="sl-enduser-addresses" className={inputCls} value={draft.end_user_address ?? ''} disabled={!canEdit}
                   placeholder="Alamat penerima" onChange={(e) => set('end_user_address', e.target.value)} />
               </label>
             </div>
@@ -760,11 +822,11 @@ export default function SupportLettersPage() {
                           onChange={(v: any) => pickComponent(it.key, v ? String(v) : null)} />
                       </fieldset>
                     </div>
-                    <input className={`${inputCls} col-span-2 sm:col-span-1`} value={it.category_label} disabled={!canEdit}
+                    <input list="sl-item-categories" className={`${inputCls} col-span-2 sm:col-span-1`} value={it.category_label} disabled={!canEdit}
                       placeholder="Solar Modules" onChange={(e) => setItem(it.key, { category_label: e.target.value })} />
-                    <input className={`${inputCls} col-span-2 sm:col-span-1`} value={it.type_text} disabled={!canEdit}
+                    <input list="sl-item-types" className={`${inputCls} col-span-2 sm:col-span-1`} value={it.type_text} disabled={!canEdit}
                       placeholder="ICA Solar ICA200-72M 200Wp Mono" onChange={(e) => setItem(it.key, { type_text: e.target.value })} />
-                    <input className={inputCls} value={it.warranty_text} disabled={!canEdit}
+                    <input list="sl-item-warranties" className={inputCls} value={it.warranty_text} disabled={!canEdit}
                       placeholder="2 Tahun" onChange={(e) => setItem(it.key, { warranty_text: e.target.value })} />
                     {canEdit && (
                       <button onClick={() => setDraftItems((a) => (a.length > 1 ? a.filter((x) => x.key !== it.key) : a))}
@@ -776,7 +838,7 @@ export default function SupportLettersPage() {
               </div>
               <label className="block mt-2.5">
                 <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Brands (Merk) — printed in the opening line</span>
-                <input className={inputCls} value={draft.brands ?? ''} disabled={!canEdit}
+                <input list="sl-brands" className={inputCls} value={draft.brands ?? ''} disabled={!canEdit}
                   placeholder={derivedBrands || 'ICA SOLAR, ICAL, EPEVER'}
                   onChange={(e) => set('brands', e.target.value)} />
                 {!((draft.brands ?? '').trim()) && derivedBrands && (
@@ -802,12 +864,12 @@ export default function SupportLettersPage() {
               </label>
               <label className="block">
                 <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Our signatory</span>
-                <input className={inputCls} value={draft.signatory_name ?? ''} disabled={!canEdit}
+                <input list="sl-signatories" className={inputCls} value={draft.signatory_name ?? ''} disabled={!canEdit}
                   placeholder="e.g. Wendy Yusson Abadi" onChange={(e) => set('signatory_name', e.target.value)} />
               </label>
               <label className="block">
                 <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Signatory title</span>
-                <input className={inputCls} value={draft.signatory_title ?? ''} disabled={!canEdit}
+                <input list="sl-sign-titles" className={inputCls} value={draft.signatory_title ?? ''} disabled={!canEdit}
                   placeholder="Direktur" onChange={(e) => set('signatory_title', e.target.value)} />
               </label>
               <label className="block">
@@ -821,7 +883,7 @@ export default function SupportLettersPage() {
               <label className="block">
                 <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Place · number code</span>
                 <div className="flex gap-2">
-                  <input className={inputCls} value={draft.place_of_issue ?? ''} disabled={!canEdit}
+                  <input list="sl-places" className={inputCls} value={draft.place_of_issue ?? ''} disabled={!canEdit}
                     placeholder="Jakarta" onChange={(e) => set('place_of_issue', e.target.value)} />
                   <input className={`${inputCls} w-24`} value={draft.company_code ?? ''} disabled={!canEdit}
                     title="The letters inside the document number (013-ISL-SD-VII-2026)"
@@ -877,6 +939,23 @@ export default function SupportLettersPage() {
                 </label>
               </div>
             </details>
+
+            {/* Native autocomplete for every field that repeats between
+                letters — the same tender is usually backed for more than one
+                reseller, so nothing worth remembering is typed twice. */}
+            <datalist id="sl-projects">{suggest.projects.map((v) => <option key={v} value={v} />)}</datalist>
+            <datalist id="sl-endusers">{suggest.endUsers.map((v) => <option key={v} value={v} />)}</datalist>
+            <datalist id="sl-enduser-addresses">{suggest.endUserAddresses.map((v) => <option key={v} value={v} />)}</datalist>
+            <datalist id="sl-company-names">{customers.map((c) => <option key={c.customer_id} value={c.legal_name || c.display_name} />)}</datalist>
+            <datalist id="sl-person-names">{suggest.personNames.map((v) => <option key={v} value={v} />)}</datalist>
+            <datalist id="sl-person-titles">{suggest.personTitles.map((v) => <option key={v} value={v} />)}</datalist>
+            <datalist id="sl-signatories">{suggest.signatories.map((v) => <option key={v} value={v} />)}</datalist>
+            <datalist id="sl-sign-titles">{suggest.signTitles.map((v) => <option key={v} value={v} />)}</datalist>
+            <datalist id="sl-places">{suggest.places.map((v) => <option key={v} value={v} />)}</datalist>
+            <datalist id="sl-brands">{suggest.brands.map((v) => <option key={v} value={v} />)}</datalist>
+            <datalist id="sl-item-categories">{suggest.itemCategories.map((v) => <option key={v} value={v} />)}</datalist>
+            <datalist id="sl-item-types">{suggest.itemTypes.map((v) => <option key={v} value={v} />)}</datalist>
+            <datalist id="sl-item-warranties">{suggest.itemWarranties.map((v) => <option key={v} value={v} />)}</datalist>
 
             <div className="flex items-center justify-between gap-3 pt-1">
               {/* Two-step delete, like the merge action on Customers — no

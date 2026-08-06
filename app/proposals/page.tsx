@@ -450,10 +450,10 @@ export default function QuotesListPage() {
               <div className="text-right hidden 2xl:block">
                 <p className="text-[11px] text-slate-400 leading-tight">{gate.profile.email}</p>
                 <div className="flex items-center gap-2 justify-end">
-                  <button onClick={() => { setPwOpen(true); setPw1(''); setPw2(''); setPwMsg(''); }} className="text-[10px] text-slate-600 hover:text-slate-300 underline transition-colors">
+                  <button onClick={() => { setPwOpen(true); setPw1(''); setPw2(''); setPwMsg(''); }} className="text-[10px] text-slate-600 hover:text-slate-300 transition-colors">
                     Set password
                   </button>
-                  <button onClick={() => gate.signOut()} className="text-[10px] text-slate-600 hover:text-slate-300 underline transition-colors">
+                  <button onClick={() => gate.signOut()} className="text-[10px] text-slate-600 hover:text-slate-300 transition-colors">
                     Sign out
                   </button>
                 </div>

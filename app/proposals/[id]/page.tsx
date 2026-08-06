@@ -1990,7 +1990,7 @@ export default function QuoteEditorPage() {
               <> · Last edited by <span className="text-slate-400">{quote.updated_by_email}</span>
                 {quote.updated_at && <> on {fmtDateTime(quote.updated_at)}</>}</>
             )}
-            <button onClick={openActivity} className="ml-2 underline text-slate-500 hover:text-slate-300 transition-colors">
+            <button onClick={openActivity} className="ml-2 text-slate-500 hover:text-slate-300 transition-colors">
               View history
             </button>
           </p>
@@ -2661,7 +2661,7 @@ export default function QuoteEditorPage() {
                                         <button
                                           onClick={unlinkFromPopup}
                                           title="Wrong item? Unlink — the row keeps its current cost but stops following this catalog component"
-                                          className="text-[10px] text-red-400/80 hover:text-red-300 underline flex-shrink-0 transition-colors"
+                                          className="text-[10px] text-red-400/80 hover:text-red-300 flex-shrink-0 transition-colors"
                                         >
                                           Unlink
                                         </button>

@@ -1005,7 +1005,7 @@ function DocList({ title, empty, refs, accent, unit }: { title: string; empty: s
           {refs.map((r, i) => (
             <a key={i} href={`/sales/${r.quote_id}`}
               className="flex items-center gap-2.5 px-2.5 py-1.5 text-[11px] hover:bg-slate-800/40 transition-colors">
-              <span className={`font-mono flex-shrink-0 hover:underline ${accent}`}>{r.number}</span>
+              <span className={`font-mono flex-shrink-0 ${accent}`}>{r.number}</span>
               <span className="text-slate-400 truncate flex-1">{r.customer || '—'}</span>
               <span className="text-slate-300 tabular-nums flex-shrink-0">{fmtInt(r.qty)}{unit ? ` ${unit}` : ''}</span>
               <span className="text-slate-600 tabular-nums flex-shrink-0">{fmtDay(r.date)}</span>

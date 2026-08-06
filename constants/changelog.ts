@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-06T02:35:00Z',
+    title: 'Links light up instead of underlining · Surat Dukungan remembers every field',
+    details: [
+      'One link behaviour app-wide (owner’s call): links brighten on hover, they never underline. The mixed treatment is gone from Sales Orders, Products, the Item hub, Purchasing, Deal Lookup, the Item Editor, Proposals and the sign-in screen — document numbers, customer names and inline links all react the same way now. Printed PDFs keep their own typography.',
+      'Surat Dukungan: every repeated field now autocompletes from the letters already written — project, end user and its address, signatories and titles, place, brands, and the material rows (Nama Barang · Tipe · Garansi). Type a project you have backed before and its tender owner and address fill themselves, so backing several resellers into the same tender is one field of typing.',
+    ],
+  },
+  {
     at: '2026-08-06T02:10:00Z',
     title: 'Fix: the customer search in Surat Dukungan would not accept typing',
     details: [
