@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-06T06:40:00Z',
+    title: 'Spec Readiness — the workbench that unlocks the system calculator',
+    details: [
+      'New screen (Analytics › Spec Readiness, or search “specs”): one row per item, one column per spec the calculator actually needs, and a progress bar per category showing how close each is to being sizeable. Today: charge controllers 46/72, on-grid inverters 8/23, PV modules 5/11, batteries 3/25, inverter-chargers 0/46.',
+      'It proposes rather than asks. Blanks are pre-filled from the ICA calculator’s own database when it knows the model, otherwise read out of the item’s own name — “EPEVER ELS3K-E 3kW/48V” yields 3000 W and a 48 V bus, “DEYE SUN-5K” yields 5000 W. Proposals show dashed blue and explain themselves on hover; nothing is written until you save, because a wrong spec is worse than a missing one.',
+      'Accepting the proposals takes batteries from 3/25 to 14/25 on its own. The rest are blocked by datasheet-only numbers a model name cannot carry (PV max Voc, Voc STC) — so every column has a fill-the-whole-column box: type the value once, apply it to every blank on screen. Those values are usually constant across a product family, which turns the 46 inverter-chargers into about one column of typing.',
+    ],
+  },
+  {
     at: '2026-08-06T05:55:00Z',
     title: 'Mounting designer: only real mounting brands, and fields say who fills them',
     details: [
