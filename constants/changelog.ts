@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-06T05:30:00Z',
+    title: 'Smart Solar BoM v7 sizing engine ported (on-grid, off-grid, hybrid)',
+    details: [
+      'The full system calculator now lives in the app as tested code: on-grid sizes the inverter against the PLN connection and the array by DC/AC ratio; off-grid and hybrid size the inverter from the load table (continuous ×1.25, inductive loads counted at double for surge), the battery bank from the inverter’s bus voltage and the days of autonomy at the right depth of discharge, and the array from daily energy ÷ peak sun hours ÷ system losses. String length and count are validated against the inverter’s real Voc and MPPT limits, and it warns when an array needs more strings than the inverter accepts.',
+      'Verified the same way as the mounting engine: five scenarios were run through the HTML calculator in headless Chromium — including the exact component database it ships with — and its bills of materials are pinned as the expected values. 45 tests green.',
+      'The structure is not re-derived: v7’s mounting block is v11’s, so the system engine calls the mounting engine. One set of rules, one set of tests.',
+      'Not wired to a screen yet — that comes next, and needs the inverter and battery specs filled in first (today 0 of 46 inverter-chargers carry the specs a calculator can size from).',
+    ],
+  },
+  {
     at: '2026-08-06T04:45:00Z',
     title: 'Mounting designer builds from ONE system — MIBET MD, T-slot rail',
     details: [
