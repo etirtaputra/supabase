@@ -23,6 +23,8 @@ import { fetchBankAccounts, fetchAccountCompanies, accountLabelWithCompany, defa
 import Autocomplete from '@/components/ui/Autocomplete';
 import { todayISO } from '@/lib/dateRange';
 import { successorMap } from '@/lib/successors';
+import MountingDesigner, { type DesignedLine } from '@/components/ui/MountingDesigner';
+import type { SystemDesign } from '@/lib/systemDesign/types';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
@@ -39,8 +41,10 @@ interface Quote {
   case_id?: string | null;
 }
 interface CustContact { customer_id: string; name: string; title: string; phone: string; }
-interface DbLine { item_id: string; component_id: string | null; is_section: boolean; description: string; brand: string; note: string; lead_time: string; unit: string; quantity: number; unit_price: number; qty_formula?: string; price_formula?: string; sort_order: number; }
-interface EditLine { key: string; component_id: string | null; is_section: boolean; description: string; brand: string; note: string; lead_time: string; unit: string; quantity: string; unit_price: string; qty_formula: string; price_formula: string; showNote: boolean; }
+interface DbLine { item_id: string; component_id: string | null; is_section: boolean; description: string; brand: string; note: string; lead_time: string; unit: string; quantity: number; unit_price: number; qty_formula?: string; price_formula?: string; sort_order: number; design_role?: string | null; }
+interface EditLine { key: string; component_id: string | null; is_section: boolean; description: string; brand: string; note: string; lead_time: string; unit: string; quantity: string; unit_price: string; qty_formula: string; price_formula: string; showNote: boolean;
+  /** Which System Designer line this is; '' = typed by hand, never regenerated. */
+  design_role: string; }
 interface Customer { customer_id: string; display_name: string; legal_name: string; tier: string; shipping_address?: string; billing_address?: string; }
 interface Company { company_id: string; legal_name: string; }
 interface Tier { tier_id: string; tier_code: string; default_discount_pct: number; sort_order: number; is_active: boolean; }
@@ -87,7 +91,7 @@ const num = (v: unknown): number => {
 // Tier prices follow the markup chain (lib/tierPricing): the item's entered
 // price is the Tier-1 NET; higher tiers mark up from the previous tier.
 
-const blankLine = (): EditLine => ({ key: `new-${Date.now()}-${Math.random()}`, component_id: null, is_section: false, description: '', brand: '', note: '', lead_time: '', unit: '', quantity: '', unit_price: '', qty_formula: '', price_formula: '', showNote: false });
+const blankLine = (): EditLine => ({ key: `new-${Date.now()}-${Math.random()}`, component_id: null, is_section: false, description: '', brand: '', note: '', lead_time: '', unit: '', quantity: '', unit_price: '', qty_formula: '', price_formula: '', showNote: false, design_role: '' });
 /** ISO date + n days → ISO date (calendar arithmetic, timezone-safe at noon). */
 const addDays = (iso: string, days: number): string => {
   const d = new Date(`${iso}T12:00:00`);
@@ -108,6 +112,7 @@ const mapLine = (it: DbLine): EditLine => ({
   description: it.description, brand: it.brand ?? '', note: it.note ?? '', lead_time: it.lead_time ?? '', unit: it.unit,
   quantity: String(it.quantity ?? ''), unit_price: String(it.unit_price ?? ''),
   qty_formula: it.qty_formula ?? '', price_formula: it.price_formula ?? '', showNote: !!(it.note ?? ''),
+  design_role: it.design_role ?? '',
 });
 
 export default function SalesQuotePage() {
@@ -128,6 +133,8 @@ export default function SalesQuotePage() {
 
   const [editing, setEditing] = useState<Quote | null>(null);
   const [lines, setLines] = useState<EditLine[]>([]);
+  // The System Designer run behind the generated lines (22.0.system_design)
+  const [systemDesign, setSystemDesign] = useState<SystemDesign | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [tiers, setTiers] = useState<Tier[]>([]);
@@ -472,6 +479,37 @@ export default function SalesQuotePage() {
   const setHeader = <K extends keyof Quote>(k: K, v: Quote[K]) => setEditing((e) => (e ? { ...e, [k]: v } : e));
   const setLine = (key: string, patch: Partial<EditLine>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   const removeLine = (key: string) => setLines((ls) => ls.filter((l) => l.key !== key));
+  // ── System Designer (mounting) ──────────────────────────────────────────
+  // The engine sizes and prices the structure; the generated lines land in the
+  // editor like any other, stamped with design_role so a REGENERATE replaces
+  // only them. Whatever the salesperson typed is never touched.
+  const [designerOpen, setDesignerOpen] = useState(false);
+  const hasDesignLines = useMemo(() => lines.some((l) => !!l.design_role), [lines]);
+
+  const applyDesign = (designed: DesignedLine[], design: SystemDesign) => {
+    setLines((ls) => {
+      const kept = ls.filter((l) => !l.design_role);
+      const generated: EditLine[] = designed.map((d, i) => ({
+        ...blankLine(),
+        key: `design-${Date.now()}-${i}`,
+        component_id: d.component_id,
+        description: d.description,
+        unit: d.unit,
+        quantity: d.quantity,
+        unit_price: d.unit_price,
+        note: d.note,
+        showNote: !!d.note,
+        design_role: d.design_role,
+      }));
+      // Generated lines sit above the trailing blank the editor always keeps
+      const tailIdx = kept.findIndex((l, i) => i === kept.length - 1 && !l.description.trim() && !l.component_id);
+      if (tailIdx >= 0) return [...kept.slice(0, tailIdx), ...generated, ...kept.slice(tailIdx)];
+      return [...kept, ...generated];
+    });
+    setSystemDesign(design);
+    flash(`Mounting BoM ${hasDesignLines ? 'regenerated' : 'added'} — ${designed.length} lines.`);
+  };
+
   const addItem = () => setLines((ls) => [...ls, blankLine()]);
   const addSection = () => setLines((ls) => [...ls, { ...blankLine(), is_section: true }]);
 
@@ -663,6 +701,7 @@ export default function SalesQuotePage() {
       status: status ?? editing.status, ppn_pct: num(editing.ppn_pct),
       subtotal: totals.subtotal, ppn_amount: totals.ppn, grand_total: totals.grand, notes: editing.notes,
       case_id: editing.case_id ?? null,
+      ...(systemDesign ? { system_design: systemDesign } : {}),
       ...(extra ?? {}),
     };
     let qid = editing.quote_id;
@@ -687,6 +726,7 @@ export default function SalesQuotePage() {
         quantity: l.is_section ? 0 : num(l.quantity), unit_price: l.is_section ? 0 : num(l.unit_price),
         qty_formula: l.is_section ? '' : l.qty_formula.trim(), price_formula: l.is_section ? '' : l.price_formula.trim(),
         line_total: l.is_section ? 0 : num(l.quantity) * num(l.unit_price), sort_order: i,
+        design_role: l.design_role || null,
       }));
       const { error } = await supabase.from('22.1_sales_quote_items').insert(rows);
       if (error) flash(`Lines failed: ${error.message}`);
@@ -1082,6 +1122,11 @@ export default function SalesQuotePage() {
           <div className="flex flex-wrap gap-2 pt-1">
             <button onClick={addItem} className="px-3.5 py-2 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs font-semibold transition-colors">+ Add item</button>
             <button onClick={addSection} className="px-3.5 py-2 rounded-xl bg-slate-800/60 text-slate-300 hover:bg-slate-700 text-xs font-semibold transition-colors">+ Add section</button>
+            <button onClick={() => setDesignerOpen(true)}
+              title="Size the mounting structure from the array — rails, clamps, supports, grounding — priced at this customer's tier"
+              className="px-3.5 py-2 rounded-xl border border-sky-500/40 text-sky-300 hover:bg-sky-500/10 text-xs font-semibold transition-colors">
+              {hasDesignLines ? '⚙ Mounting design ·  regenerate' : '⚙ Design mounting'}
+            </button>
             <span className="text-[11px] text-slate-600 self-center">Pick a catalog product to autofill price, or just type a custom item.</span>
           </div>
         </div>
@@ -1131,6 +1176,17 @@ export default function SalesQuotePage() {
 
       </main>
       {toast && <Toast msg={toast} />}
+
+      {/* The calculator, inside the quote: sized by the engine, priced at the
+          customer's tier, inserted as ordinary editable lines. */}
+      <MountingDesigner
+        open={designerOpen}
+        onClose={() => setDesignerOpen(false)}
+        priceOf={(cid) => priceFor(cid)}
+        stockOf={(cid) => availableOf(cid)}
+        onApply={applyDesign}
+        hasExisting={hasDesignLines}
+      />
     </div>
   );
 }

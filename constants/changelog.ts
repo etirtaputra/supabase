@@ -20,6 +20,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-06T04:10:00Z',
+    title: 'Sales quotations can size a system, not just list products',
+    details: [
+      'New “⚙ Design mounting” button on the quotation: answer the array questions (panel, how many, rows, rail length, gap, roof/ground/flat, portrait/landscape) and the ICA mounting calculator v11 sizes the whole structure — rails, joints, end and mid clamps, supports, grounding clips and lugs.',
+      'The bill of materials arrives as REAL catalog items at THIS customer’s tier price, with live stock per line, before anything is inserted. A 35 mm clamp can only resolve to a 35 mm clamp; anything the catalog cannot serve lands as a clearly flagged free-text line instead of blocking the quote. Items hidden from customer-facing pickers are never offered.',
+      'Panels come from the catalog by name when their specs carry dimensions (the calculator’s five ICA presets remain for modules not yet specced), so the numbers fill themselves.',
+      'The engineering warnings come across too: edge spacing under 25 mm is called structurally risky, a barely-used extra rail is flagged as waste, and asking for more rows than panels adjusts itself and says so.',
+      'Generated lines are tagged, so “regenerate” after changing the array replaces only the calculator’s own lines — anything you typed yourself survives untouched. The design is saved with the quotation, so next month it can still be explained.',
+      'Under the hood: the engine is a line-for-line port of the calculator, and the project now has tests — 22 of them, 8 pinned to values read out of the HTML app itself, so the quote and the calculator can never quietly disagree.',
+    ],
+  },
+  {
     at: '2026-08-06T03:20:00Z',
     title: 'Surat Dukungan prints on one page, on your letterhead paper',
     details: [
