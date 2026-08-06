@@ -9,6 +9,9 @@
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",
+    // systemDesign modules are unit-tested by `node --test`, which needs the
+    // extension in the specifier. noEmit + bundler resolution make this safe.
+    "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "react-jsx",
