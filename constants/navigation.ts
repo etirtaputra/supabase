@@ -104,6 +104,9 @@ export const DESTINATIONS: Destination[] = [
   { href: '/aftersales', label: 'After Sales', group: 'Sell', section: 'sellSide', inNav: true,
     hint: 'Service & warranty cases — repairs, replacements, complaints',
     keywords: 'service warranty klaim garansi rma repair replacement complaint case claim' },
+  { href: '/support-letters', label: 'Support Letters', group: 'Sell', section: 'sellSide', inNav: true,
+    hint: 'Surat Dukungan — our backing for a reseller entering a tender',
+    keywords: 'surat dukungan support letter principal distributor tender lelang project dukungan sd reseller' },
 
   // ── Finance ───────────────────────────────────────────────────────────────
   // Cash work used to be scattered: AR under Sell, AP buried in a Purchasing

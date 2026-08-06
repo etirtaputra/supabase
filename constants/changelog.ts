@@ -20,6 +20,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-06T01:40:00Z',
+    title: 'Surat Dukungan — support letters become a module, not a duplicated file',
+    details: [
+      'New sell-side screen (Sell › Support Letters): write the Surat Dukungan that backs a reseller entering a tender. Pick the customer and the standard clauses, the addressee block, the numbering and the letterhead are already there — no more opening last month’s letter and overtyping the names.',
+      'Everything connects: the supported company comes from Customers (its signatory and address prefill from the CRM contact), the materials come from the item master, and each item’s Garansi is the structured warranty you set in Products or the Item Editor — a letter can no longer promise a warranty the catalog disagrees with. The handling salesperson defaults to the customer’s account manager, and the author is stamped automatically.',
+      'Numbering follows the paper: 013-ISL-SD-VII-2026, restarting each January. The Rp 300.000 administration fee is tracked on the letter — one click marks it received and flips the letter to Issued, and the list can show just the ones still waiting on payment.',
+      'Duplicate turns an existing letter into the next one in a click: same customer, items and clauses, empty project and end user — the only two things that genuinely change.',
+      'The list is the project register: search suggests as you type (number, customer, project, end user), every column sorts both ways, and it filters by status, customer, sales, fee and date. A summary line counts the projects backed and the resellers supported.',
+      'Print → Save as PDF produces the letter itself; a customer’s profile now lists the Surat Dukungan issued to them (replacing the stale “no after-sales module yet” placeholder).',
+    ],
+  },
+  {
     at: '2026-08-06T00:55:00Z',
     title: 'Products list: every column sorts',
     details: [

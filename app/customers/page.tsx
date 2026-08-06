@@ -84,11 +84,14 @@ interface EpcQuote {
 }
 interface InvLite { invoice_id: string; quote_id: string; invoice_number: string; grand_total: number }
 interface DoLite { do_id: string; quote_id: string; do_number: string; status: string }
+/** A Surat Dukungan issued to this customer (Module 28). */
+interface LetterLite { letter_id: string; letter_number: string; letter_date: string; project_name: string; end_user_name: string; status: string; fee_paid_at: string | null }
 interface ProfileData {
   docs: SalesDoc[];
   received: Record<string, number>;
   topItems: { desc: string; qty: number; value: number; unit: string; times: number }[];
   epcQuotes: EpcQuote[];
+  letters: LetterLite[];
   invoicesByQuote: Record<string, InvLite[]>;
   dosByQuote: Record<string, DoLite[]>;
   paidByInvoice: Record<string, number>;
@@ -189,7 +192,7 @@ function CustomersInner() {
     if (profileFor?.customer_id === c.customer_id) { setProfileFor(null); setProfileData(null); return; }
     setProfileFor(c);
     setProfileData(null);
-    const [{ data: docs }, { data: epc }] = await Promise.all([
+    const [{ data: docs }, { data: epc }, letterRes] = await Promise.all([
       supabase.from('22.0_sales_quotes')
         .select('quote_id, quote_number, order_number, invoice_number, do_number, status, grand_total, quote_date, updated_at, revision')
         .eq('customer_id', c.customer_id)
@@ -198,6 +201,10 @@ function CustomersInner() {
         .select('quote_id, quote_number, quote_date, status, project_description, updated_at')
         .eq('customer_id', c.customer_id)
         .order('updated_at', { ascending: false }),
+      supabase.from('28.0_support_letters')
+        .select('letter_id, letter_number, letter_date, project_name, end_user_name, status, fee_paid_at')
+        .eq('customer_id', c.customer_id)
+        .order('letter_date', { ascending: false }),
     ]);
     const list = (docs as SalesDoc[]) ?? [];
     const ids = list.map((d) => d.quote_id);
@@ -234,7 +241,11 @@ function CustomersInner() {
       }
     }
     const topItems = [...agg.values()].sort((a, b) => b.value - a.value).slice(0, 6);
-    setProfileData({ docs: list, received, topItems, epcQuotes: (epc as EpcQuote[]) ?? [], invoicesByQuote, dosByQuote, paidByInvoice });
+    setProfileData({
+      docs: list, received, topItems, epcQuotes: (epc as EpcQuote[]) ?? [],
+      letters: (letterRes.error ? [] : letterRes.data as LetterLite[]) ?? [],
+      invoicesByQuote, dosByQuote, paidByInvoice,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, profileFor]);
 
@@ -1200,10 +1211,40 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOp
               </section>
             )}
 
-            {/* After-sales services — module not built yet, reserved here */}
+            {/* Surat Dukungan — the tenders we are backing this reseller into */}
             <section>
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">After-sales services</h3>
-              <p className="text-xs text-slate-600 italic">No after-sales module yet — service records, warranty claims, and maintenance visits will appear here once that module is built.</p>
+              <div className="flex items-center gap-2 mb-2">
+                <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Support letters</h3>
+                <a href={`/support-letters?q=${encodeURIComponent(customer.display_name || customer.legal_name)}`}
+                  className="ml-auto text-[10px] text-slate-500 hover:text-emerald-300 transition-colors">All →</a>
+              </div>
+              {data.letters.length === 0 ? (
+                <p className="text-xs text-slate-600 italic">
+                  No Surat Dukungan issued to this customer yet.{' '}
+                  <a href="/support-letters" className="text-emerald-500/80 hover:text-emerald-300">Write one →</a>
+                </p>
+              ) : (
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.03] divide-y divide-slate-800/60">
+                  {data.letters.map((l) => (
+                    <a key={l.letter_id} href={`/support-letters/${l.letter_id}/print`} target="_blank" rel="noopener noreferrer"
+                      className="block px-3 py-2.5 hover:bg-slate-800/40 transition-colors">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-[11px] text-emerald-300">{l.letter_number}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                          l.status === 'issued' ? 'bg-emerald-500/20 text-emerald-300'
+                          : l.status === 'cancelled' ? 'bg-red-500/10 text-red-400/90'
+                          : 'bg-slate-700/50 text-slate-300'
+                        }`}>{l.status}</span>
+                        {!l.fee_paid_at && <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/15 text-amber-300">fee unpaid</span>}
+                        <span className="ml-auto text-[10px] text-slate-600 tabular-nums">{fmtDay(l.letter_date)}</span>
+                      </div>
+                      <p className="mt-1 text-[10px] text-slate-500 truncate">
+                        {l.project_name || '—'}{l.end_user_name ? ` · ${l.end_user_name}` : ''}
+                      </p>
+                    </a>
+                  ))}
+                </div>
+              )}
             </section>
           </div>
       )}
