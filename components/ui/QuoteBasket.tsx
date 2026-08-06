@@ -127,7 +127,7 @@ export default function QuoteBasket({
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-sm font-bold text-white">WhatsApp quote</h2>
+            <h2 className="text-sm font-bold text-white">WhatsApp text quote</h2>
             <p className="text-[11px] text-slate-500">{items.length} item{items.length !== 1 ? 's' : ''} · {fmtRupiah(total)} excl. PPN</p>
           </div>
           <button onClick={() => setOpen(false)} className="text-slate-500 hover:text-white text-lg leading-none px-2">×</button>

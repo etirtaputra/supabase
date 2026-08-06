@@ -552,14 +552,16 @@ function ProductsInner() {
               className="text-[11px] text-slate-500 hover:text-white px-2 py-1 transition-colors">Clear ×</button>
           )}
           <span className="text-xs text-slate-600 tabular-nums ml-auto">{rows.length} of {comps.length}</span>
+          {/* "Text quote", not "Quote" — this builds a WhatsApp MESSAGE, it
+              never creates a Sales Quotation document (owner, 2026-08-06). */}
           <button onClick={() => setMulti((m) => !m)}
             title={multi
-              ? 'Tapping a price adds the item to the WhatsApp quote at that price. Tap again to remove, tap another tier to move it.'
-              : 'Collect several products into one WhatsApp message'}
+              ? 'Tapping a price adds the item to the WhatsApp text quote at that price. Tap again to remove, tap another tier to move it. This never creates a Sales Quotation document.'
+              : 'Collect several products into one WhatsApp text message — no Sales Quotation document is created'}
             className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-colors whitespace-nowrap ${
               multi ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800'
             }`}>
-            {multi ? `Quote mode · ${basket.items.length}` : 'Quote mode'}
+            {multi ? `Text quote mode · ${basket.items.length}` : 'Text quote mode'}
           </button>
           <DateRangeFilter value={range} onChange={(r) => { listTouched.current = true; setRange(r); }} label="Order date" />
           <LayoutToggle value={layout} onChange={setLayout} />
@@ -585,8 +587,8 @@ function ProductsInner() {
                 {canViewBrand && <Th label="Brand" active={sort.key === 'brand'} dir={sort.dir} onClick={() => toggleSort('brand')} />}
                 <Th label="Category" active={sort.key === 'category'} dir={sort.dir} onClick={() => toggleSort('category')} />
                 <Th label="Capacity" right active={sort.key === 'capacity'} dir={sort.dir} onClick={() => toggleSort('capacity')} />
-                <Th label="Warranty" active={sort.key === 'warranty'} dir={sort.dir} onClick={() => toggleSort('warranty')} hint="by period length" />
-                <Th label="Sheet" center active={sort.key === 'sheet'} dir={sort.dir} onClick={() => toggleSort('sheet')} hint="has datasheet" />
+                <Th label="Warranty" active={sort.key === 'warranty'} dir={sort.dir} onClick={() => toggleSort('warranty')} tip="Sort by period length — 10 years ranks above 18 months above 90 days" />
+                <Th label="Sheet" center active={sort.key === 'sheet'} dir={sort.dir} onClick={() => toggleSort('sheet')} tip="Sort by whether the item has a datasheet" />
                 <Th label="Updated" right active={sort.key === 'updated'} dir={sort.dir} onClick={() => toggleSort('updated')} />
               </tr>
             </thead>
@@ -816,14 +818,19 @@ function CenterSpinner() {
   return <div className="min-h-screen bg-chrome flex items-center justify-center"><div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" /></div>;
 }
 
-function Th({ label, hint, right, center, active, dir, onClick, className }: { label: string; hint?: string; right?: boolean; center?: boolean; active: boolean; dir: 1 | -1; onClick: () => void; className?: string }) {
+/** A sortable column header. `hint` prints a small second line under the
+ *  label (only where the values genuinely need explaining); `tip` is a
+ *  tooltip-only note. align-top keeps every label on ONE baseline — without
+ *  it, a cell carrying a hint centres its two lines and floats its label
+ *  above the single-line headers beside it. */
+function Th({ label, hint, tip, right, center, active, dir, onClick, className }: { label: string; hint?: string; tip?: string; right?: boolean; center?: boolean; active: boolean; dir: 1 | -1; onClick: () => void; className?: string }) {
   return (
-    <th className={`font-semibold py-2.5 ${right ? 'text-right' : center ? 'text-center' : 'text-left'} ${className ?? 'px-3'}`}>
-      <button onClick={onClick} className={`inline-flex items-center gap-1 uppercase tracking-widest transition-colors ${active ? 'text-emerald-400' : 'hover:text-slate-300'}`} title={hint}>
+    <th className={`font-semibold py-2.5 align-top ${right ? 'text-right' : center ? 'text-center' : 'text-left'} ${className ?? 'px-3'}`}>
+      <button onClick={onClick} className={`inline-flex items-center gap-1 uppercase tracking-widest leading-none transition-colors ${active ? 'text-emerald-400' : 'hover:text-slate-300'}`} title={tip ?? hint}>
         {label}
         <span className="text-[8px]">{active ? (dir === 1 ? '▲' : '▼') : '↕'}</span>
       </button>
-      {hint && <span className="block normal-case tracking-normal text-[9px] text-slate-600 font-normal">{hint}</span>}
+      {hint && <span className="block normal-case tracking-normal text-[9px] text-slate-600 font-normal mt-1 leading-none">{hint}</span>}
     </th>
   );
 }

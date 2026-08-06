@@ -25,6 +25,8 @@ export const CHANGELOG: ChangelogEntry[] = [
     details: [
       'Description, Incoming, Warranty and Sheet join the sortable columns — every header now click-sorts, and a second click flips ascending/descending (▲/▼ shows the direction). Warranty sorts by actual period length (10 years > 18 months > 90 days), items with only a legacy note group after those, no warranty last. Sheet sorts items with a datasheet first.',
       'The phone layout’s sort dropdown gains the same options, each in both directions.',
+      'Header titles all sit on one baseline again: only Stock keeps its “Live/Physical” second line, and the rest of the sorting notes moved into hover tooltips.',
+      '“Quote mode” is now “Text quote mode”, and the panel reads “WhatsApp text quote” — it builds a message to paste into a chat, it never creates a Sales Quotation document. The tooltips say so too.',
     ],
   },
   {
