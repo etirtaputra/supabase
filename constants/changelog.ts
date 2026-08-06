@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-06T02:55:00Z',
+    title: 'Hidden items stay out of Surat Dukungan',
+    details: [
+      'An item set to Cost Basis → Hidden is already kept out of the Project Quote picker; it is now kept out of support letters the same way. Hidden items no longer appear in the letter’s catalog search (41 items today), and a brand disappears from the Merk suggestions once every item carrying it is hidden — COLAN, ICA and VOLTRONIC drop off, while ICA SOLAR and SOLARMAN stay because they still have visible items. A brand line reused from an older letter is dropped too if one of its brands has been hidden since.',
+      'The rule now lives in one place and both screens read it, so hiding an item takes effect everywhere at once. Letters already issued are untouched — their item text is a snapshot of what was signed.',
+    ],
+  },
+  {
     at: '2026-08-06T02:35:00Z',
     title: 'Links light up instead of underlining · Surat Dukungan remembers every field',
     details: [

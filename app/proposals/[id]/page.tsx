@@ -24,6 +24,7 @@ import { PROJECT_TYPES, composeDescription, specFileTag, isSolarType, type Proje
 import { SECTION_GROUPS, STANDARD_SECTIONS, QUOTE_UNITS, type SectionGroup, type ProjectQuote, type QuoteSection, type QuoteItem } from '@/types/quotes';
 import type { Component } from '@/types/database';
 import { fmtDayTime, fmtRupiah, fmtRupiahDoc, fmtIntDoc } from '@/lib/formatters';
+import { isHiddenItem } from '@/lib/itemVisibility';
 import { useSettings } from '@/hooks/useSettings';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -1032,8 +1033,8 @@ export default function QuoteEditorPage() {
         // Items whose cost is "Hidden" for Project Quotes are treated as not
         // part of the PV catalog — keep unrelated/sensitive lines (UPS,
         // Stabilizer, …) out of the Project Quote autocomplete entirely.
-        const mode = c.quote_cost_mode ?? (c.show_tuc_in_quotes === false ? 'hidden' : 'buffered');
-        if (mode === 'hidden') return false;
+        // Same rule as Support Letters — one definition, in lib/itemVisibility.
+        if (isHiddenItem(c)) return false;
         return (
           c.internal_description?.toLowerCase().includes(q) ||
           c.supplier_model?.toLowerCase().includes(q) ||

@@ -30,6 +30,7 @@ import { useListLayout } from '@/hooks/useListLayout';
 import { inRange, todayISO, type DateRange } from '@/lib/dateRange';
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 import { formatCategory as humanize } from '@/lib/formatCategory';
+import { isHiddenItem, visibleBrands } from '@/lib/itemVisibility';
 import {
   LETTER_STATUS, DEFAULT_LETTER_FEE, DEFAULT_STATEMENTS, DEFAULT_VALIDITY_NOTE,
   DEFAULT_CLOSING_NOTE, brandsOf, warrantyTextID, previewLetterNumber,
@@ -45,6 +46,8 @@ interface Comp {
   component_id: string; supplier_model: string; internal_description: string | null;
   brand: string | null; category: string | null;
   warranty: string | null; warranty_value: number | null; warranty_unit: string | null;
+  /** Cost Basis → Hidden keeps an item out of customer-facing pickers. */
+  quote_cost_mode: string | null; show_tuc_in_quotes: boolean | null;
 }
 interface Profile { id: string; email: string; display_name: string | null }
 interface Company { company_id: string; legal_name: string }
@@ -125,7 +128,7 @@ export default function SupportLettersPage() {
       supabase.from('28.1_support_letter_items').select('*').order('sort_order'),
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name, billing_address, account_manager_id').order('display_name'),
       supabase.from('20.1_customer_contacts').select('customer_id, name, title, is_primary'),
-      supabase.from('3.0_components').select('component_id, supplier_model, internal_description, brand, category, warranty, warranty_value, warranty_unit').order('internal_description').limit(5000),
+      supabase.from('3.0_components').select('component_id, supplier_model, internal_description, brand, category, warranty, warranty_value, warranty_unit, quote_cost_mode, show_tuc_in_quotes').order('internal_description').limit(5000),
       supabase.from('user_profiles').select('id, email, display_name').in('role', ['owner', 'sales', 'sell_admin']),
       supabase.from('1.0_companies').select('company_id, legal_name'),
     ]);
@@ -153,11 +156,15 @@ export default function SupportLettersPage() {
     name: c.display_name || c.legal_name || '(unnamed)',
     sub: c.legal_name && c.legal_name !== c.display_name ? c.legal_name : '',
   })), [customers]);
-  const compOptions = useMemo(() => comps.map((c) => ({
+  // Items set to Cost Basis → Hidden are not part of the customer-facing
+  // catalog: they stay out of the picker here exactly as they stay out of the
+  // Project Quote picker.
+  const quotableComps = useMemo(() => comps.filter((c) => !isHiddenItem(c)), [comps]);
+  const compOptions = useMemo(() => quotableComps.map((c) => ({
     component_id: c.component_id,
     label: (c.internal_description ?? '').trim() || c.supplier_model || '(no description)',
     sub: [c.brand, c.supplier_model].filter(Boolean).join(' · '),
-  })), [comps]);
+  })), [quotableComps]);
   const repName = useCallback((id: string | null) => {
     const p = id ? profiles.find((x) => x.id === id) : null;
     return p ? (p.display_name || p.email.split('@')[0]) : '';
@@ -231,6 +238,13 @@ export default function SupportLettersPage() {
    * and that owner's address must never be typed twice — and the material
    * rows autocomplete from the letters already written.
    */
+  /** Brands whose every item is Hidden — they may not appear on a letter. */
+  const hiddenBrandSet = useMemo(() => {
+    const visible = new Set(visibleBrands(comps).map((b) => b.toLowerCase()));
+    const all = new Set(comps.map((c) => (c.brand ?? '').trim().toLowerCase()).filter(Boolean));
+    return new Set([...all].filter((b) => !visible.has(b)));
+  }, [comps]);
+
   const suggest = useMemo(() => {
     const uniq = (vals: (string | null | undefined)[]) =>
       [...new Set(vals.map((v) => (v ?? '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
@@ -254,13 +268,20 @@ export default function SupportLettersPage() {
       signatories: uniq(letters.map((l) => l.signatory_name)),
       signTitles: uniq([...letters.map((l) => l.signatory_title), 'Direktur']),
       places: uniq([...letters.map((l) => l.place_of_issue), 'Jakarta']),
-      brands: uniq([...letters.map((l) => l.brands), ...comps.map((c) => c.brand)]),
+      // A brand only stays on offer while at least one item carrying it is
+      // visible. Whole brand lines reused from earlier letters are dropped as
+      // soon as one of their brands has been hidden since.
+      brands: uniq([
+        ...letters.map((l) => l.brands).filter((line) =>
+          !(line ?? '').split(',').some((b) => hiddenBrandSet.has(b.trim().toLowerCase()))),
+        ...visibleBrands(comps),
+      ]),
       itemCategories: uniq(items.map((i) => i.category_label)),
       itemTypes: uniq(items.map((i) => i.type_text)),
       itemWarranties: uniq(items.map((i) => i.warranty_text)),
       projectRef, endUserRef,
     };
-  }, [letters, itemsByLetter, contacts, comps]);
+  }, [letters, itemsByLetter, contacts, comps, hiddenBrandSet]);
 
   /** Typing a project we have backed before brings its tender owner along. */
   const onProjectChange = (v: string) => {
