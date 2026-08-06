@@ -11,6 +11,9 @@ import RichDropdown from '../ui/RichDropdown';
 import Autocomplete from '../ui/Autocomplete';
 import type { FieldConfig } from '../../types/forms';
 
+/** Shared empty list — see the rich-select branch below. */
+const EMPTY_OPTIONS: any[] = [];
+
 interface FieldRendererProps {
   field: FieldConfig;
   value: any;
@@ -47,8 +50,10 @@ export default function FieldRenderer({
       </label>
 
       {field.type === 'rich-select' ? (
+        /* A fresh [] every render would change the options identity and reset
+           RichDropdown's search box mid-keystroke — share one instance. */
         <RichDropdown
-          options={(field.options || []) as any[]}
+          options={(field.options || EMPTY_OPTIONS) as any[]}
 	  value={value}
           config={field.config}
           onChange={(val: any) => onChange(field.name, val)}

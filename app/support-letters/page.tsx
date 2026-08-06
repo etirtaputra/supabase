@@ -101,6 +101,7 @@ export default function SupportLettersPage() {
   const [draft, setDraft] = useState<Partial<SupportLetter>>({});
   const [draftItems, setDraftItems] = useState<DraftItem[]>([]);
   const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
@@ -143,6 +144,20 @@ export default function SupportLettersPage() {
 
   const custById = useMemo(() => new Map(customers.map((c) => [c.customer_id, c])), [customers]);
   const compById = useMemo(() => new Map(comps.map((c) => [c.component_id, c])), [comps]);
+
+  // RichDropdown keeps `options` in an effect dependency and resets its search
+  // box when that array changes identity — so these MUST be memoised, or every
+  // keystroke rebuilds the array and wipes what was just typed.
+  const customerOptions = useMemo(() => customers.map((c) => ({
+    customer_id: c.customer_id,
+    name: c.display_name || c.legal_name || '(unnamed)',
+    sub: c.legal_name && c.legal_name !== c.display_name ? c.legal_name : '',
+  })), [customers]);
+  const compOptions = useMemo(() => comps.map((c) => ({
+    component_id: c.component_id,
+    label: (c.internal_description ?? '').trim() || c.supplier_model || '(no description)',
+    sub: [c.brand, c.supplier_model].filter(Boolean).join(' · '),
+  })), [comps]);
   const repName = useCallback((id: string | null) => {
     const p = id ? profiles.find((x) => x.id === id) : null;
     return p ? (p.display_name || p.email.split('@')[0]) : '';
@@ -210,8 +225,18 @@ export default function SupportLettersPage() {
   const unpaidCount = useMemo(() => letters.filter((l) => !l.fee_paid_at && l.status !== 'cancelled' && Number(l.fee_amount) > 0).length, [letters]);
 
   // ── Editor ────────────────────────────────────────────────────────────────
+  /** The number the next letter will be handed, for the draft header. */
+  const nextSeq = useMemo(() => {
+    const year = new Date().getFullYear();
+    const seqs = letters
+      .filter((l) => (l.letter_date ?? '').slice(0, 4) === String(year))
+      .map((l) => parseInt((l.letter_number.match(/^(\d+)-/) ?? [])[1] ?? '0', 10) || 0);
+    return (seqs.length ? Math.max(...seqs) : 0) + 1;
+  }, [letters]);
+
   /** New letter, or a copy of one — the duplicate path admin actually uses. */
   const openEditor = (l: SupportLetter | 'new', copyFrom?: SupportLetter) => {
+    setConfirmDelete(false);
     const src = copyFrom ?? (l !== 'new' ? l : null);
     if (l === 'new') {
       setDraft({
@@ -223,7 +248,7 @@ export default function SupportLettersPage() {
         supported_company_address: src?.supported_company_address ?? '',
         // A duplicate is taken for a DIFFERENT tender — the project and its
         // owner are exactly what must be retyped, so they start empty.
-        project_name: '', end_user_name: src ? '' : '', end_user_address: '',
+        project_name: '', end_user_name: '', end_user_address: '',
         company_id: src?.company_id ?? companies[0]?.company_id ?? null,
         company_code: src?.company_code ?? 'ISL',
         signatory_name: src?.signatory_name ?? '',
@@ -257,16 +282,19 @@ export default function SupportLettersPage() {
 
   const set = <K extends keyof SupportLetter>(k: K, v: SupportLetter[K]) => setDraft((d) => ({ ...d, [k]: v }));
 
-  /** Picking the customer fills everything CRM already knows about them. */
+  /** Picking the customer fills everything CRM already knows about them.
+   *  Clearing only drops the link: the printed snapshot fields stay, because
+   *  the combobox also reports null the moment someone types over a pick. */
   const pickCustomer = (id: string | null) => {
     setDraft((d) => {
-      const c = id ? custById.get(id) : null;
-      const primary = id ? (contacts.find((x) => x.customer_id === id && x.is_primary) ?? contacts.find((x) => x.customer_id === id)) : null;
+      if (!id) return { ...d, customer_id: null };
+      const c = custById.get(id);
+      const primary = contacts.find((x) => x.customer_id === id && x.is_primary) ?? contacts.find((x) => x.customer_id === id);
       return {
         ...d,
         customer_id: id,
-        supported_company_name: c ? (c.legal_name || c.display_name) : '',
-        supported_company_address: c?.billing_address || '',
+        supported_company_name: c ? (c.legal_name || c.display_name) : d.supported_company_name || '',
+        supported_company_address: c?.billing_address || d.supported_company_address || '',
         supported_person_name: primary?.name || d.supported_person_name || '',
         supported_person_title: primary?.title || d.supported_person_title || 'Direktur',
         // Their account manager is the obvious owner of this letter
@@ -338,8 +366,15 @@ export default function SupportLettersPage() {
         const { error } = await supabase.from('28.0_support_letters').update(row).eq('letter_id', letterId);
         if (error) throw error;
       } else {
-        const { data, error } = await supabase.from('28.0_support_letters').insert(row).select('letter_id, letter_number').single();
-        if (error) throw error;
+        // Two admins saving at the same second can both be handed the same
+        // sequence number; the unique index catches it, and a retry gets the
+        // next one. Nobody should ever see that as an error.
+        let data: unknown = null;
+        for (let attempt = 0; attempt < 3 && !data; attempt++) {
+          const res = await supabase.from('28.0_support_letters').insert(row).select('letter_id, letter_number').single();
+          if (!res.error) { data = res.data; break; }
+          if (res.error.code !== '23505' || attempt === 2) throw res.error;
+        }
         letterId = (data as { letter_id: string }).letter_id;
       }
       // Items are replaced wholesale — same rule as after-sales parts
@@ -638,7 +673,7 @@ export default function SupportLettersPage() {
                 </h3>
                 <p className="text-[10px] text-slate-600 mt-0.5">
                   {editing === 'new'
-                    ? `Number assigned on save — ${previewLetterNumber(draft.letter_date || todayISO(), draft.company_code || 'ISL')} style`
+                    ? `Number assigned on save — next is ${previewLetterNumber(draft.letter_date || todayISO(), draft.company_code || 'ISL', nextSeq)}`
                     : `created by ${editing.created_by_email || '—'} · ${fmtDay(editing.created_at)}`}
                 </p>
               </div>
@@ -649,17 +684,20 @@ export default function SupportLettersPage() {
 
             {/* Who we support */}
             <div className="grid sm:grid-cols-2 gap-3">
-              <label className="block sm:col-span-2">
+              {/* A combobox is not a single control — a <label> wrapper would
+                  forward its clicks and fight the dropdown, so caption + widget
+                  sit in a plain block. */}
+              <div className="block sm:col-span-2">
                 <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Customer we support *</span>
                 <fieldset disabled={!canEdit} className={!canEdit ? 'opacity-60 pointer-events-none' : ''}>
                   <RichDropdown
-                    options={customers.map((c) => ({ customer_id: c.customer_id, name: c.display_name || c.legal_name, sub: c.legal_name }))}
-                    value={draft.customer_id ?? ''}
+                    options={customerOptions}
+                    value={draft.customer_id ?? null}
                     placeholder="Search customer…"
                     config={{ labelKey: 'name', valueKey: 'customer_id', subLabelKey: 'sub' }}
                     onChange={(v: any) => pickCustomer(v ? String(v) : null)} />
                 </fieldset>
-              </label>
+              </div>
               <label className="block">
                 <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Their signatory (Nama)</span>
                 <input className={inputCls} value={draft.supported_person_name ?? ''} disabled={!canEdit}
@@ -716,8 +754,8 @@ export default function SupportLettersPage() {
                   <div key={it.key} className="grid grid-cols-2 sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1.1fr)_minmax(0,1.4fr)_110px_24px] gap-2 items-center bg-slate-950/40 sm:bg-transparent border sm:border-0 border-slate-800/60 rounded-xl px-2 py-2 sm:px-0 sm:py-0">
                     <div className="col-span-2 sm:col-span-1">
                       <fieldset disabled={!canEdit} className={!canEdit ? 'opacity-60 pointer-events-none' : ''}>
-                        <RichDropdown options={comps} value={it.component_id}
-                          config={{ labelKey: 'internal_description', valueKey: 'component_id', subLabelKey: 'supplier_model' }}
+                        <RichDropdown options={compOptions} value={it.component_id}
+                          config={{ labelKey: 'label', valueKey: 'component_id', subLabelKey: 'sub' }}
                           placeholder="Search catalog…"
                           onChange={(v: any) => pickComponent(it.key, v ? String(v) : null)} />
                       </fieldset>
@@ -791,8 +829,10 @@ export default function SupportLettersPage() {
                 </div>
               </label>
               <label className="block">
-                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Administration fee</span>
-                <input className={inputCls} inputMode="numeric" value={String(draft.fee_amount ?? '')} disabled={!canEdit}
+                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Administration fee (Rp)</span>
+                <input className={`${inputCls} tabular-nums`} inputMode="numeric" disabled={!canEdit}
+                  value={Number(draft.fee_amount) ? fmtInt(Number(draft.fee_amount)) : ''}
+                  placeholder={fmtInt(DEFAULT_LETTER_FEE)}
                   onChange={(e) => set('fee_amount', Number(e.target.value.replace(/[^\d]/g, '')) || 0)} />
               </label>
               <label className="block">
@@ -839,9 +879,21 @@ export default function SupportLettersPage() {
             </details>
 
             <div className="flex items-center justify-between gap-3 pt-1">
+              {/* Two-step delete, like the merge action on Customers — no
+                  browser confirm() dialogs in this app. */}
               {canEdit && editing !== 'new' ? (
-                <button onClick={() => { if (confirm('Delete this support letter?')) { remove(editing); setEditing(null); } }}
-                  className="text-[11px] text-slate-600 hover:text-red-400 transition-colors">Delete</button>
+                confirmDelete ? (
+                  <span className="flex items-center gap-2 text-[11px]">
+                    <span className="text-red-400">Delete {editing.letter_number || 'this letter'}?</span>
+                    <button onClick={() => { remove(editing); setEditing(null); }}
+                      className="px-2 py-1 rounded-md bg-red-600 hover:bg-red-500 text-white font-bold transition-colors">Yes</button>
+                    <button onClick={() => setConfirmDelete(false)}
+                      className="px-2 py-1 rounded-md border border-slate-700 text-slate-400 hover:text-white transition-colors">No</button>
+                  </span>
+                ) : (
+                  <button onClick={() => setConfirmDelete(true)}
+                    className="text-[11px] text-slate-600 hover:text-red-400 transition-colors">Delete</button>
+                )
               ) : <span />}
               <div className="flex gap-3">
                 {editing !== 'new' && (

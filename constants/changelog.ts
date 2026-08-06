@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-06T02:10:00Z',
+    title: 'Fix: the customer search in Surat Dukungan would not accept typing',
+    details: [
+      'The customer and catalog pickers in the New Surat Dukungan form ignored what you typed — the list opened but every keystroke was wiped. The search box resets whenever its option list is rebuilt, and the form was rebuilding that list on each keystroke. Both pickers now hold a stable list, so typing filters normally. The same hardening went into the shared form renderer so no other picker can develop the fault.',
+      'Same pass: clearing the customer no longer erases the company name and address already typed on the letter; the draft header shows the exact number the letter will get (“next is 002-ISL-SD-VIII-2026”); the fee field shows grouped digits; two admins saving at the same moment can no longer collide on a number; and Delete is a two-step button rather than a browser pop-up.',
+    ],
+  },
+  {
     at: '2026-08-06T01:40:00Z',
     title: 'Surat Dukungan — support letters become a module, not a duplicated file',
     details: [
