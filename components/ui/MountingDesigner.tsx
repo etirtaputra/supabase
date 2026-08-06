@@ -16,7 +16,7 @@
  * quote editor, which owns saving (and stamps `design_role` so REGENERATE can
  * replace only these lines and never a hand-typed one).
  */
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { createSupabaseClient } from '@/lib/supabase';
 import { fmtInt, fmtRupiah } from '@/lib/formatters';
@@ -83,10 +83,16 @@ export default function MountingDesigner({ open, onClose, priceOf, stockOf, onAp
   // stored on the design so a regenerate reproduces the same shortlist.
   const [series, setSeries] = useState('');
   const [profile, setProfile] = useState<RailProfile | ''>('t_slot');
+  // A stored choice always wins — including a deliberate "Any system".
+  const storedChoice = useRef(false);
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(SYSTEM_KEY);
-      if (raw) { const v = JSON.parse(raw); setSeries(v.series ?? ''); setProfile(v.profile ?? 't_slot'); }
+      if (raw) {
+        const v = JSON.parse(raw);
+        storedChoice.current = true;
+        setSeries(v.series ?? ''); setProfile(v.profile ?? 't_slot');
+      }
     } catch {}
   }, []);
   useEffect(() => {
@@ -112,9 +118,13 @@ export default function MountingDesigner({ open, onClose, priceOf, stockOf, onAp
     setLoading(true);
     const { data } = await supabase.from('3.0_components')
       .select('component_id, supplier_model, internal_description, category, unit, specifications, quote_cost_mode, show_tuc_in_quotes')
-      .in('category', ['mounting', 'accessories', 'pv_module']).limit(2000);
+      .in('category', ['mounting', 'pv_module']).limit(2000);
     const rows = (data as DesignCandidate[]) ?? [];
-    setCandidates(rows.filter((c) => c.category === 'mounting' || c.category === 'accessories'));
+    // Structure only: every role this engine emits (rail, joint, clamps,
+    // supports, grounding) is catalogued under `mounting`. Cable and MC4 are
+    // balance-of-system and belong to the full system engine, not here — and
+    // listing their brands as "mounting systems" was plainly wrong.
+    setCandidates(rows.filter((c) => c.category === 'mounting'));
 
     const fromCatalog: PanelOption[] = rows
       .filter((c) => c.category === 'pv_module')
@@ -164,6 +174,13 @@ export default function MountingDesigner({ open, onClose, priceOf, stockOf, onAp
   const systems = useMemo(() => mountingSystems(candidates, profile || undefined), [candidates, profile]);
   const chosen = useMemo(() => systems.find((x) => x.series === series) ?? null, [systems, series]);
   const shortlisted = useMemo(() => shortlist(candidates, series, profile || undefined), [candidates, series, profile]);
+  // First run on this browser: start on the family ICA actually quotes (MD),
+  // rather than "any system" with every brand in play.
+  useEffect(() => {
+    if (storedChoice.current || series || !systems.length) return;
+    const preferred = systems.find((x) => /\bMD\b/.test(x.series)) ?? systems[0];
+    if (preferred) setSeries(preferred.series);
+  }, [systems]);   // eslint-disable-line react-hooks/exhaustive-deps
   // Rail lengths come from the shelf, not from a hard-coded pair
   const railChoices = useMemo(
     () => (chosen?.railLengths.length ? chosen.railLengths : [...RAIL_LENGTHS_MM]),
@@ -203,8 +220,16 @@ export default function MountingDesigner({ open, onClose, priceOf, stockOf, onAp
     onClose();
   };
 
-  const inp = 'w-full h-9 px-3 rounded-lg bg-slate-900 border border-slate-700 focus:border-emerald-500/60 outline-none text-white text-sm transition-colors';
+  // Three field states, three looks (owner, 2026-08-06):
+  //  · YOURS to fill      — solid, brighter border, white text
+  //  · needs filling      — amber, because the design cannot run without it
+  //  · not yours          — dashed and muted: it came from the catalog or the
+  //                         engine worked it out, so typing is not the job
+  const inp = 'w-full h-9 px-3 rounded-lg bg-slate-950 border border-slate-600 focus:border-emerald-500 outline-none text-white text-sm transition-colors';
+  const inpNeeded = 'w-full h-9 px-3 rounded-lg bg-amber-500/[0.07] border border-amber-500/60 focus:border-amber-400 outline-none text-white text-sm transition-colors placeholder:text-amber-200/40';
+  const inpAuto = 'w-full h-9 px-3 rounded-lg bg-slate-900/40 border border-dashed border-slate-700 text-slate-400 text-sm outline-none';
   const lbl = 'block text-[10px] uppercase tracking-widest text-slate-500 mb-1';
+  const lblAuto = 'block text-[10px] uppercase tracking-widest text-slate-600 mb-1';
 
   return createPortal(
     <div className="fixed inset-0 z-[130] flex items-end sm:items-center justify-center">
@@ -262,7 +287,7 @@ export default function MountingDesigner({ open, onClose, priceOf, stockOf, onAp
 
             <label className="block">
               <span className={lbl}>Panel</span>
-              <select className={inp} value={panelKey} onChange={(e) => setPanelKey(e.target.value)}>
+              <select className={panelKey ? inp : inpNeeded} value={panelKey} onChange={(e) => setPanelKey(e.target.value)}>
                 <option value="">— type the dimensions —</option>
                 {panels.some((p) => p.source === 'catalog') && (
                   <optgroup label="From the catalog">
@@ -280,22 +305,24 @@ export default function MountingDesigner({ open, onClose, priceOf, stockOf, onAp
 
             {/* Dimensions: read-only when the panel supplies them */}
             <div className="grid grid-cols-3 gap-2">
-              <label className="block">
-                <span className={lbl}>Length mm</span>
-                <input className={inp} inputMode="numeric" value={panel?.lengthMm || dimL}
-                  disabled={!!panel?.lengthMm} onChange={(e) => setDimL(e.target.value)} />
-              </label>
-              <label className="block">
-                <span className={lbl}>Width mm</span>
-                <input className={inp} inputMode="numeric" value={panel?.widthMm || dimW}
-                  disabled={!!panel?.widthMm} onChange={(e) => setDimW(e.target.value)} />
-              </label>
-              <label className="block">
-                <span className={lbl}>Frame mm</span>
-                <input className={inp} inputMode="numeric" value={panel?.thicknessMm || dimT}
-                  disabled={!!panel?.thicknessMm} onChange={(e) => setDimT(e.target.value)}
-                  title="Frame thickness — this is the clamp size" />
-              </label>
+              {([
+                { key: 'l', label: 'Length mm', fromPanel: panel?.lengthMm, value: dimL, set: setDimL, tip: 'Module long side' },
+                { key: 'w', label: 'Width mm', fromPanel: panel?.widthMm, value: dimW, set: setDimW, tip: 'Module short side' },
+                { key: 't', label: 'Frame mm', fromPanel: panel?.thicknessMm, value: dimT, set: setDimT, tip: 'Frame thickness — this is the clamp size' },
+              ] as const).map((f) => {
+                const auto = !!f.fromPanel;
+                const missing = !auto && !Number(f.value);
+                return (
+                  <label key={f.key} className="block">
+                    <span className={auto ? lblAuto : lbl}>{f.label}{auto ? ' ·  auto' : ''}</span>
+                    <input className={auto ? inpAuto : missing ? inpNeeded : inp}
+                      inputMode="numeric" value={auto ? f.fromPanel : f.value}
+                      disabled={auto} placeholder={missing ? 'needed' : ''}
+                      title={auto ? 'From the catalog item' : f.tip}
+                      onChange={(e) => f.set(e.target.value)} />
+                  </label>
+                );
+              })}
             </div>
 
             <div className="grid grid-cols-3 gap-2">
@@ -307,12 +334,12 @@ export default function MountingDesigner({ open, onClose, priceOf, stockOf, onAp
                 <span className={lbl}>Rows</span>
                 <input className={inp} inputMode="numeric" value={numberOfRows} onChange={(e) => setNumberOfRows(e.target.value)} />
               </label>
-              <label className="block">
-                <span className={lbl}>Per row</span>
-                <div className="h-9 px-3 rounded-lg bg-slate-950 border border-dashed border-slate-700 text-slate-300 text-sm flex items-center tabular-nums">
+              <div className="block" title="Worked out from panels ÷ rows">
+                <span className={lblAuto}>Per row ·  auto</span>
+                <div className="h-9 px-3 rounded-lg bg-slate-900/40 border border-dashed border-slate-700 text-slate-400 text-sm flex items-center tabular-nums">
                   {result.panelsPerRow || '—'}
                 </div>
-              </label>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
@@ -326,7 +353,8 @@ export default function MountingDesigner({ open, onClose, priceOf, stockOf, onAp
               <label className="block">
                 <span className={lbl}>{railKey === 'custom' ? 'Rail mm' : 'Panel gap mm'}</span>
                 {railKey === 'custom'
-                  ? <input className={inp} inputMode="numeric" value={railCustom} onChange={(e) => setRailCustom(e.target.value)} />
+                  ? <input className={Number(railCustom) ? inp : inpNeeded} inputMode="numeric" value={railCustom}
+                      placeholder="needed" onChange={(e) => setRailCustom(e.target.value)} />
                   : <input className={inp} inputMode="numeric" value={panelSpacing} onChange={(e) => setPanelSpacing(e.target.value)} />}
               </label>
             </div>

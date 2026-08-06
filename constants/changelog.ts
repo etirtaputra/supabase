@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-06T05:55:00Z',
+    title: 'Mounting designer: only real mounting brands, and fields say who fills them',
+    details: [
+      'The mounting system list was drawing on every category the designer had loaded, so cable and connector brands (JEMBO, JJLAPP) appeared as “mounting systems”. It now builds from the Mounting category alone — every part this calculator sizes (rail, splice, clamps, supports, grounding) is catalogued there. Cable and MC4 are balance-of-system and belong to the full system calculator, not this one.',
+      'First time you open it, the designer now starts on the MIBET MD family rather than “Any system”; your own choice still wins and is remembered.',
+      'Fields now say who is responsible for them: white with a solid border = yours to fill; amber = still needed before anything can be sized (panel, dimensions, a custom rail length); dashed and dimmed with an “auto” label = filled from the catalog item or worked out by the engine (panels per row), so nobody wastes time typing into them.',
+    ],
+  },
+  {
     at: '2026-08-06T05:30:00Z',
     title: 'Smart Solar BoM v7 sizing engine ported (on-grid, off-grid, hybrid)',
     details: [

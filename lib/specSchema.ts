@@ -138,6 +138,8 @@ export const CATEGORY_SPEC_REQUIREMENTS: Partial<Record<ProductCategory, string[
   solar_charge_controller: ['controller_type', 'rated_charge_current_a', 'pv_max_voc_v', 'system_voltage_v'],
   mounting: ['bom_role'],
   accessories: ['bom_role'],
+  // Cables live in their own category but serve a BoM role like any other part
+  pv_cable: ['bom_role'],
 };
 
 /**
