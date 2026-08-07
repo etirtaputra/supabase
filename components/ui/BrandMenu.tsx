@@ -37,7 +37,7 @@ type Section = NavSection;
 // canManagePricing). Configuration screens (Settings, Pricing) are NOT modules:
 // they sit in the Admin group at the bottom of the menu, out of the daily list.
 const GROUP_TITLE: Record<string, string | null> = {
-  Home: null, Purchasing: 'Purchasing', Sell: 'Sell', Finance: 'Finance', Analytics: 'Analytics', Projects: 'Projects',
+  Home: null, Purchasing: 'Purchasing', Sales: 'Sales', Finance: 'Finance', Analytics: 'Analytics', Projects: 'Projects',
 };
 
 interface AppGroup { title: string | null; section: Section; apps: { href: string; label: string; cap?: keyof RolePermissions }[] }

@@ -89,32 +89,32 @@ export const DESTINATIONS: Destination[] = [
     hint: 'The procure-to-pay workspace',
     keywords: 'procurement buying purchase' },
 
-  // ── Sell ──────────────────────────────────────────────────────────────────
-  { href: '/customers', label: 'Customers', group: 'Sell', section: 'sellSide', inNav: true,
+  // ── Sales (owner's wording 2026-08-07; the section gate stays `sellSide`) ──
+  { href: '/customers', label: 'Customers', group: 'Sales', section: 'sellSide', inNav: true,
     hint: 'CRM — customers, contacts, account managers',
     keywords: 'crm clients contacts buyers' },
-  { href: '/products', label: 'Products', group: 'Sell', section: 'sellSide', inNav: true,
+  { href: '/products', label: 'Products', group: 'Sales', section: 'sellSide', inNav: true,
     hint: 'What we sell, with tier prices and live stock',
     keywords: 'catalogue catalog items selling price tier' },
-  { href: '/sales', label: 'Sales Orders', group: 'Sell', section: 'sellSide', inNav: true,
+  { href: '/sales', label: 'Sales Orders', group: 'Sales', section: 'sellSide', inNav: true,
     hint: 'Quotations → orders → invoices → delivery (DQ → PQ → SO)',
     keywords: 'sales quotation dq pq sq so price quote order penawaran' },
-  { href: '/sales/new', label: 'New Quotation', group: 'Sell', section: 'sellSide', cap: 'canEditSalesDocs', inNav: false,
+  { href: '/sales/new', label: 'New Quotation', group: 'Sales', section: 'sellSide', cap: 'canEditSalesDocs', inNav: false,
     hint: 'Start a new sales quotation',
     keywords: 'new quote create sq penawaran baru sales' },
-  { href: '/sales/library', label: 'Sales · Description Library', group: 'Sell', section: 'sellSide', cap: 'canEditSalesDocs', inNav: false,
+  { href: '/sales/library', label: 'Sales · Description Library', group: 'Sales', section: 'sellSide', cap: 'canEditSalesDocs', inNav: false,
     hint: 'Curated line texts that feed the item picker',
     keywords: 'library descriptions text' },
-  { href: '/invoices', label: 'Invoices', group: 'Sell', section: 'sellSide', inNav: true,
+  { href: '/invoices', label: 'Invoices', group: 'Sales', section: 'sellSide', inNav: true,
     hint: 'Accounts receivable — issued, received, outstanding',
     keywords: 'ar receivable billing tagihan' },
-  { href: '/delivery', label: 'Delivery', group: 'Sell', section: 'sellSide', inNav: true,
+  { href: '/delivery', label: 'Delivery', group: 'Sales', section: 'sellSide', inNav: true,
     hint: 'Delivery orders and Surat Jalan',
     keywords: 'do surat jalan shipping dispatch' },
-  { href: '/aftersales', label: 'After Sales', group: 'Sell', section: 'sellSide', inNav: true,
+  { href: '/aftersales', label: 'After Sales', group: 'Sales', section: 'sellSide', inNav: true,
     hint: 'Service & warranty cases — repairs, replacements, complaints',
     keywords: 'service warranty klaim garansi rma repair replacement complaint case claim' },
-  { href: '/support-letters', label: 'Support Letters', group: 'Sell', section: 'sellSide', inNav: true,
+  { href: '/support-letters', label: 'Support Letters', group: 'Sales', section: 'sellSide', inNav: true,
     hint: 'Surat Dukungan — our backing for a reseller entering a tender',
     keywords: 'surat dukungan support letter principal distributor tender lelang project dukungan sd reseller' },
 
@@ -209,7 +209,7 @@ export const destinationsFor = (perms: RolePermissions | null): Destination[] =>
  * money they move, then what it earned, then the separate EPC product line.
  * Admin is appended by the menu itself, below the daily modules.
  */
-export const NAV_GROUP_ORDER = ['Home', 'Purchasing', 'Sell', 'Finance', 'Analytics', 'Projects'] as const;
+export const NAV_GROUP_ORDER = ['Home', 'Purchasing', 'Sales', 'Finance', 'Analytics', 'Projects'] as const;
 
 /**
  * The groups the owner may reorder (Settings › Menu). Home is pinned first —
@@ -217,8 +217,15 @@ export const NAV_GROUP_ORDER = ['Home', 'Purchasing', 'Sell', 'Finance', 'Analyt
  * not a daily module), so neither is in play. The default order is the one
  * above, minus those two fixed ends.
  */
-export const MENU_ORDERABLE_GROUPS = ['Purchasing', 'Sell', 'Finance', 'Analytics', 'Projects'] as const;
+export const MENU_ORDERABLE_GROUPS = ['Purchasing', 'Sales', 'Finance', 'Analytics', 'Projects'] as const;
 export const DEFAULT_MENU_ORDER: string[] = [...MENU_ORDERABLE_GROUPS];
+
+/**
+ * Old group names a saved preference might still carry, mapped to today's.
+ * Keeps a renamed group in the owner's chosen position instead of dropping it
+ * to the end. (Sell → Sales, 2026-08-07.)
+ */
+const GROUP_ALIASES: Record<string, string> = { Sell: 'Sales' };
 
 /**
  * The daily group order to actually render, given the owner's stored
@@ -232,7 +239,8 @@ export function orderedNavGroups(stored: string[] | null | undefined): string[] 
   const orderable = new Set<string>(MENU_ORDERABLE_GROUPS);
   const seen = new Set<string>();
   const ranked: string[] = [];
-  for (const g of stored ?? []) {
+  for (const raw of stored ?? []) {
+    const g = GROUP_ALIASES[raw] ?? raw;
     if (orderable.has(g) && !seen.has(g)) { ranked.push(g); seen.add(g); }
   }
   for (const g of MENU_ORDERABLE_GROUPS) if (!seen.has(g)) ranked.push(g);

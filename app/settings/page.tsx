@@ -753,21 +753,58 @@ function MoveArrows({ onUp, onDown, upDisabled, downDisabled, label, small }: {
   );
 }
 
+/** The drag grip — six dots, the universal "pick me up and drag" affordance. */
+function Grip({ className = '' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 10 16" fill="currentColor" aria-hidden="true">
+      <circle cx="2" cy="2" r="1.3" /><circle cx="8" cy="2" r="1.3" />
+      <circle cx="2" cy="8" r="1.3" /><circle cx="8" cy="8" r="1.3" />
+      <circle cx="2" cy="14" r="1.3" /><circle cx="8" cy="14" r="1.3" />
+    </svg>
+  );
+}
+
 /**
  * The order the daily menu groups appear in, AND the order of the entries
  * within each group. Home is pinned first (it is the wordmark's Dashboard) and
  * Admin last (configuration), so only the domain groups in between move.
- * Expand a group to reorder its entries. The nav reflects both the moment you
- * save.
+ *
+ * Reorder by DRAGGING — the whole row is a drag handle, dropped where the
+ * pointer sits (top half = before, bottom half = after), so any position is
+ * reachable. The arrows do the same for touch and keyboard, where native drag
+ * isn't available. Open a group to reorder its entries. Native HTML5 DnD, the
+ * same mechanism the sales editor uses — no library.
  */
 function MenuOrderTab({ draft, set }: { draft: AppSettings; set: <K extends keyof AppSettings>(k: K, v: AppSettings[K]) => void }) {
   // orderedNavGroups leads with Home; the reorderable rows are what follows.
   const order = orderedNavGroups(draft.menuOrder).filter((g) => g !== 'Home');
   const [openGroup, setOpenGroup] = useState<string | null>(null);
 
+  // Drag state: a group being dragged, or an entry (scoped to its group).
+  const [dragG, setDragG] = useState<string | null>(null);
+  const [overG, setOverG] = useState<string | null>(null);
+  const [dragItem, setDragItem] = useState<{ group: string; href: string } | null>(null);
+  const [overItem, setOverItem] = useState<string | null>(null);
+  const endDrag = () => { setDragG(null); setOverG(null); setDragItem(null); setOverItem(null); };
+
   // A group's entries as they'll appear, honouring the stored sub-order.
   const shippedItems = (g: string) => DESTINATIONS.filter((d) => d.group === g && d.inNav);
   const itemsOf = (g: string) => orderedGroupItems(shippedItems(g), draft.menuItemOrder[g]);
+
+  // Move `from` next to `to`, before or after by where the pointer landed.
+  const reorder = (list: string[], from: string, to: string, after: boolean): string[] => {
+    if (from === to) return list;
+    const out = list.filter((x) => x !== from);
+    let idx = out.indexOf(to);
+    if (idx < 0) return list;
+    if (after) idx += 1;
+    out.splice(idx, 0, from);
+    return out;
+  };
+  const dropIsAfter = (e: React.DragEvent) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    return e.clientY > r.top + r.height / 2;
+  };
 
   const moveGroup = (i: number, dir: -1 | 1) => {
     const j = i + dir;
@@ -803,7 +840,8 @@ function MenuOrderTab({ draft, set }: { draft: AppSettings; set: <K extends keyo
         </div>
         <p className="text-[11px] text-slate-500 leading-snug">
           The order the groups — and the entries inside each — appear across the menu: the wordmark dropdown, the desktop
-          bar and the phone’s More sheet. Use the arrows to move a group; open a group to reorder its entries.
+          bar and the phone’s More sheet. <span className="text-slate-400 font-semibold">Drag a row</span> to move it
+          (the arrows do the same on touch); open a group to reorder its entries.
           <span className="text-slate-400 font-semibold"> Home</span> always leads and
           <span className="text-slate-400 font-semibold"> Admin</span> (Pricing, Settings, Import &amp; Export) always
           sits last, so neither moves. A role still only sees what it may open.
@@ -816,10 +854,21 @@ function MenuOrderTab({ draft, set }: { draft: AppSettings; set: <K extends keyo
             const canExpand = items.length > 1;
             return (
               <li key={g} className="bg-slate-950/50 border border-slate-800 rounded-xl overflow-hidden">
-                <div className="flex items-center gap-3 px-3 py-2.5">
-                  <span className="text-[11px] font-bold tabular-nums text-slate-600 w-4 text-center">{i + 1}</span>
+                {/* Group header — a drag handle for the whole row (the sub-list
+                    below is NOT part of it, so entry drags never conflict). */}
+                <div
+                  draggable
+                  onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDragG(g); }}
+                  onDragOver={(e) => { if (dragG && dragG !== g) { e.preventDefault(); setOverG(g); } }}
+                  onDragLeave={() => setOverG((o) => (o === g ? null : o))}
+                  onDrop={(e) => { e.preventDefault(); if (dragG) set('menuOrder', reorder(order, dragG, g, dropIsAfter(e))); endDrag(); }}
+                  onDragEnd={endDrag}
+                  className={`flex items-center gap-2 px-3 py-2.5 cursor-grab active:cursor-grabbing transition-shadow ${
+                    overG === g ? 'ring-2 ring-emerald-500/60' : ''} ${dragG === g ? 'opacity-40' : ''}`}>
+                  <Grip className="w-2.5 h-4 text-slate-600 flex-shrink-0" />
+                  <span className="text-[11px] font-bold tabular-nums text-slate-600 w-4 text-center flex-shrink-0">{i + 1}</span>
                   <button onClick={() => canExpand && setOpenGroup(isOpen ? null : g)} disabled={!canExpand}
-                    className="min-w-0 flex-1 flex items-center gap-2 text-left disabled:cursor-default">
+                    className="min-w-0 flex-1 flex items-center gap-2 text-left disabled:cursor-grab">
                     <span className="min-w-0">
                       <span className="block text-sm font-semibold text-white">{g}</span>
                       {items.length > 0 && <span className="block text-[11px] text-slate-500 truncate">{items.map((d) => d.label).join(' · ')}</span>}
@@ -833,13 +882,29 @@ function MenuOrderTab({ draft, set }: { draft: AppSettings; set: <K extends keyo
                 </div>
                 {isOpen && canExpand && (
                   <ol className="border-t border-slate-800/70 bg-slate-950/40 px-3 py-2 space-y-1">
-                    {items.map((d, k) => (
-                      <li key={d.href} className="flex items-center gap-3 pl-5 pr-1 py-1.5">
-                        <span className="min-w-0 flex-1 text-[13px] text-slate-300 truncate">{d.label}</span>
-                        <MoveArrows small label={d.label} onUp={() => moveItem(g, k, -1)} onDown={() => moveItem(g, k, 1)}
-                          upDisabled={k === 0} downDisabled={k === items.length - 1} />
-                      </li>
-                    ))}
+                    {items.map((d, k) => {
+                      const dragging = dragItem?.group === g && dragItem.href === d.href;
+                      return (
+                        <li key={d.href}
+                          draggable
+                          onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDragItem({ group: g, href: d.href }); }}
+                          onDragOver={(e) => { if (dragItem?.group === g && dragItem.href !== d.href) { e.preventDefault(); setOverItem(d.href); } }}
+                          onDragLeave={() => setOverItem((o) => (o === d.href ? null : o))}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            if (dragItem?.group === g) set('menuItemOrder', { ...draft.menuItemOrder, [g]: reorder(items.map((x) => x.href), dragItem.href, d.href, dropIsAfter(e)) });
+                            endDrag();
+                          }}
+                          onDragEnd={endDrag}
+                          className={`flex items-center gap-2 pl-3 pr-1 py-1.5 rounded-lg cursor-grab active:cursor-grabbing transition-shadow ${
+                            overItem === d.href ? 'ring-2 ring-emerald-500/50' : ''} ${dragging ? 'opacity-40' : ''}`}>
+                          <Grip className="w-2.5 h-4 text-slate-700 flex-shrink-0" />
+                          <span className="min-w-0 flex-1 text-[13px] text-slate-300 truncate">{d.label}</span>
+                          <MoveArrows small label={d.label} onUp={() => moveItem(g, k, -1)} onDown={() => moveItem(g, k, 1)}
+                            upDisabled={k === 0} downDisabled={k === items.length - 1} />
+                        </li>
+                      );
+                    })}
                   </ol>
                 )}
               </li>

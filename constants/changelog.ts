@@ -21,10 +21,11 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     at: '2026-08-07T08:00:00Z',
-    title: 'Menu order now covers the entries inside each group, and Finance stands on its own',
+    title: 'Drag to reorder the menu — groups and the entries inside each — and Finance stands on its own',
     details: [
-      'Finance is its own section again in the wordmark dropdown and the phone’s More sheet — it had lost its heading and looked like the tail of Sell. Its heading is back, so it reads as a standalone group.',
-      'Settings › Menu now goes a level deeper: open a group to reorder the entries inside it — e.g. put Payments above New Deal in Purchasing, or Sales Orders first in Sell — with the same arrows. Group order and entry order both land across the whole menu the moment you save, and Reset to default clears both. As before, a saved order can never hide a module: an entry added in a later release keeps its shipped place automatically.',
+      'The Sell menu group is now named Sales.',
+      'Finance is its own section again in the wordmark dropdown and the phone’s More sheet — it had lost its heading and looked like the tail of Sales. Its heading is back, so it reads as a standalone group.',
+      'Settings › Menu is now drag-and-drop: grab a group and drop it where you want, and open a group to drag the entries inside it — e.g. put Payments above New Deal in Purchasing, or Sales Orders first in Sales. Drop above or below a row to land exactly there. The arrows still work for touch and keyboard. Group order and entry order both land across the whole menu the moment you save, and Reset to default clears both. As before, a saved order can never hide a module: an entry added in a later release keeps its shipped place automatically.',
     ],
   },
   {
