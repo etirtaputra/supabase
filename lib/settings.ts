@@ -165,6 +165,13 @@ export interface AppSettings {
    * by `orderedNavGroups`, so this can never hide a real module.
    */
   menuOrder: string[];
+  /**
+   * The order of entries WITHIN a group, keyed by group name → the entries'
+   * `href`s in order. A group absent here keeps its shipped order.
+   * `orderedGroupItems` reconciles stale/partial lists, so this can never
+   * hide a module either.
+   */
+  menuItemOrder: Record<string, string[]>;
 }
 
 /**
@@ -234,6 +241,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   documentFooterNote: '',
 
   menuOrder: DEFAULT_MENU_ORDER,
+  menuItemOrder: {},
 };
 
 /** Indonesian punctuation, one click — "1.234.567,89". */
@@ -269,6 +277,15 @@ function publish(next: AppSettings) {
 const str = (v: unknown, fb: string): string => (typeof v === 'string' ? v : fb);
 const strList = (v: unknown, fb: string[]): string[] =>
   (Array.isArray(v) ? v.map((x) => String(x)).filter((s) => s.trim()) : fb);
+/** A map of string → string[], for per-group menu ordering. Non-arrays dropped. */
+const strListMap = (v: unknown, fb: Record<string, string[]>): Record<string, string[]> => {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return fb;
+  const out: Record<string, string[]> = {};
+  for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+    if (Array.isArray(val)) out[k] = val.map((x) => String(x)).filter((s) => s.trim());
+  }
+  return out;
+};
 const bool = (v: unknown, fb: boolean): boolean => (typeof v === 'boolean' ? v : fb);
 const numOr = (v: unknown, fb: number): number => {
   const n = typeof v === 'number' ? v : Number(v);
@@ -371,6 +388,7 @@ export function coerceSettings(raw: Record<string, unknown>): AppSettings {
     // Stored as free strings; `orderedNavGroups` reconciles them against the
     // real groups at render, so a stale or partial list is never a problem.
     menuOrder:          pick('menuOrder',          (v) => strList(v, d.menuOrder), d.menuOrder),
+    menuItemOrder:      pick('menuItemOrder',      (v) => strListMap(v, d.menuItemOrder), d.menuItemOrder),
   };
 }
 

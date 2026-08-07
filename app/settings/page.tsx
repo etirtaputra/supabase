@@ -31,7 +31,7 @@ import {
 import { applyCurrency, formatDate, formatNumber } from '@/lib/formatters';
 import { fetchWarehouses, type Warehouse } from '@/lib/warehouses';
 import { LIST_SPECS } from '@/constants/listDefaults';
-import { orderedNavGroups, DEFAULT_MENU_ORDER, DESTINATIONS } from '@/constants/navigation';
+import { orderedNavGroups, orderedGroupItems, DEFAULT_MENU_ORDER, DESTINATIONS } from '@/constants/navigation';
 import { PRESET_LABELS, type RangePreset } from '@/lib/dateRange';
 import { accountLabel, type BankAccount } from '@/lib/banks';
 import { THEMES, previewTheme, endThemePreview } from '@/lib/theme';
@@ -735,64 +735,113 @@ function DefaultsTab({ draft, set, flash }: {
 
 // ── Menu order ────────────────────────────────────────────────────────────
 
+/** A small up/down arrow pair, disabled at the ends. */
+function MoveArrows({ onUp, onDown, upDisabled, downDisabled, label, small }: {
+  onUp: () => void; onDown: () => void; upDisabled: boolean; downDisabled: boolean; label: string; small?: boolean;
+}) {
+  const cls = `${small ? 'w-6 h-6' : 'w-7 h-7'} flex items-center justify-center rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent transition-colors`;
+  const icon = small ? 'w-3 h-3' : 'w-3.5 h-3.5';
+  return (
+    <div className="flex items-center gap-1 flex-shrink-0">
+      <button onClick={onUp} disabled={upDisabled} aria-label={`Move ${label} up`} className={cls}>
+        <svg className={icon} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" /></svg>
+      </button>
+      <button onClick={onDown} disabled={downDisabled} aria-label={`Move ${label} down`} className={cls}>
+        <svg className={icon} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+      </button>
+    </div>
+  );
+}
+
 /**
- * The order the daily menu groups appear in. Home is pinned first (it is the
- * wordmark's Dashboard) and Admin last (configuration), so only the domain
- * groups in between move. Reorder with the arrows; the nav reflects it the
- * moment you save.
+ * The order the daily menu groups appear in, AND the order of the entries
+ * within each group. Home is pinned first (it is the wordmark's Dashboard) and
+ * Admin last (configuration), so only the domain groups in between move.
+ * Expand a group to reorder its entries. The nav reflects both the moment you
+ * save.
  */
 function MenuOrderTab({ draft, set }: { draft: AppSettings; set: <K extends keyof AppSettings>(k: K, v: AppSettings[K]) => void }) {
   // orderedNavGroups leads with Home; the reorderable rows are what follows.
   const order = orderedNavGroups(draft.menuOrder).filter((g) => g !== 'Home');
-  const modulesOf = (g: string) =>
-    DESTINATIONS.filter((d) => d.group === g && d.inNav).map((d) => d.label);
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
 
-  const move = (i: number, dir: -1 | 1) => {
+  // A group's entries as they'll appear, honouring the stored sub-order.
+  const shippedItems = (g: string) => DESTINATIONS.filter((d) => d.group === g && d.inNav);
+  const itemsOf = (g: string) => orderedGroupItems(shippedItems(g), draft.menuItemOrder[g]);
+
+  const moveGroup = (i: number, dir: -1 | 1) => {
     const j = i + dir;
     if (j < 0 || j >= order.length) return;
     const next = [...order];
     [next[i], next[j]] = [next[j], next[i]];
     set('menuOrder', next);
   };
-  const isDefault = JSON.stringify(order) === JSON.stringify(DEFAULT_MENU_ORDER);
+  const moveItem = (g: string, i: number, dir: -1 | 1) => {
+    const items = itemsOf(g);
+    const j = i + dir;
+    if (j < 0 || j >= items.length) return;
+    const hrefs = items.map((d) => d.href);
+    [hrefs[i], hrefs[j]] = [hrefs[j], hrefs[i]];
+    set('menuItemOrder', { ...draft.menuItemOrder, [g]: hrefs });
+  };
+
+  const groupsDefault = JSON.stringify(order) === JSON.stringify(DEFAULT_MENU_ORDER);
+  const itemsDefault = order.every((g) =>
+    JSON.stringify(itemsOf(g).map((d) => d.href)) === JSON.stringify(shippedItems(g).map((d) => d.href)));
+  const isDefault = groupsDefault && itemsDefault;
+  const resetAll = () => { set('menuOrder', [...DEFAULT_MENU_ORDER]); set('menuItemOrder', {}); };
 
   return (
     <div className="max-w-2xl space-y-4">
       <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 space-y-3.5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">Menu order</p>
-          <button onClick={() => set('menuOrder', [...DEFAULT_MENU_ORDER])} disabled={isDefault}
+          <button onClick={resetAll} disabled={isDefault}
             className="text-[11px] font-semibold text-slate-400 hover:text-white disabled:text-slate-700 disabled:hover:text-slate-700 transition-colors">
             Reset to default
           </button>
         </div>
         <p className="text-[11px] text-slate-500 leading-snug">
-          The order these groups appear in across the menu — the wordmark dropdown, the desktop bar and the phone’s
-          More sheet. <span className="text-slate-400 font-semibold">Home</span> always leads and
+          The order the groups — and the entries inside each — appear across the menu: the wordmark dropdown, the desktop
+          bar and the phone’s More sheet. Use the arrows to move a group; open a group to reorder its entries.
+          <span className="text-slate-400 font-semibold"> Home</span> always leads and
           <span className="text-slate-400 font-semibold"> Admin</span> (Pricing, Settings, Import &amp; Export) always
-          sits last, so neither moves. A role still only sees the groups it may open.
+          sits last, so neither moves. A role still only sees what it may open.
         </p>
 
         <ol className="space-y-1.5">
           {order.map((g, i) => {
-            const mods = modulesOf(g);
+            const items = itemsOf(g);
+            const isOpen = openGroup === g;
+            const canExpand = items.length > 1;
             return (
-              <li key={g} className="flex items-center gap-3 bg-slate-950/50 border border-slate-800 rounded-xl px-3 py-2.5">
-                <span className="text-[11px] font-bold tabular-nums text-slate-600 w-4 text-center">{i + 1}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-white">{g}</p>
-                  {mods.length > 0 && <p className="text-[11px] text-slate-500 truncate">{mods.join(' · ')}</p>}
-                </div>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <button onClick={() => move(i, -1)} disabled={i === 0} aria-label={`Move ${g} up`}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent transition-colors">
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" /></svg>
+              <li key={g} className="bg-slate-950/50 border border-slate-800 rounded-xl overflow-hidden">
+                <div className="flex items-center gap-3 px-3 py-2.5">
+                  <span className="text-[11px] font-bold tabular-nums text-slate-600 w-4 text-center">{i + 1}</span>
+                  <button onClick={() => canExpand && setOpenGroup(isOpen ? null : g)} disabled={!canExpand}
+                    className="min-w-0 flex-1 flex items-center gap-2 text-left disabled:cursor-default">
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-white">{g}</span>
+                      {items.length > 0 && <span className="block text-[11px] text-slate-500 truncate">{items.map((d) => d.label).join(' · ')}</span>}
+                    </span>
+                    {canExpand && (
+                      <svg className={`w-3.5 h-3.5 flex-shrink-0 text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                    )}
                   </button>
-                  <button onClick={() => move(i, 1)} disabled={i === order.length - 1} aria-label={`Move ${g} down`}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent transition-colors">
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-                  </button>
+                  <MoveArrows label={g} onUp={() => moveGroup(i, -1)} onDown={() => moveGroup(i, 1)}
+                    upDisabled={i === 0} downDisabled={i === order.length - 1} />
                 </div>
+                {isOpen && canExpand && (
+                  <ol className="border-t border-slate-800/70 bg-slate-950/40 px-3 py-2 space-y-1">
+                    {items.map((d, k) => (
+                      <li key={d.href} className="flex items-center gap-3 pl-5 pr-1 py-1.5">
+                        <span className="min-w-0 flex-1 text-[13px] text-slate-300 truncate">{d.label}</span>
+                        <MoveArrows small label={d.label} onUp={() => moveItem(g, k, -1)} onDown={() => moveItem(g, k, 1)}
+                          upDisabled={k === 0} downDisabled={k === items.length - 1} />
+                      </li>
+                    ))}
+                  </ol>
+                )}
               </li>
             );
           })}

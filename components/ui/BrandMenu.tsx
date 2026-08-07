@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom';
 import { useAuth } from '@/hooks/useAuth';
 import OnlineUsers from './OnlineUsers';
 import { ROLE_PERMISSIONS, type RolePermissions } from '@/constants/roles';
-import { DESTINATIONS, orderedNavGroups, sectionAllowed, type NavSection } from '@/constants/navigation';
+import { DESTINATIONS, orderedNavGroups, orderedGroupItems, sectionAllowed, type NavSection } from '@/constants/navigation';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useSettings } from '@/hooks/useSettings';
 import { useTheme } from '@/hooks/useTheme';
@@ -43,23 +43,25 @@ const GROUP_TITLE: Record<string, string | null> = {
 interface AppGroup { title: string | null; section: Section; apps: { href: string; label: string; cap?: keyof RolePermissions }[] }
 
 /**
- * The nav groups in the order to render them. `menuOrder` (Settings › Menu,
- * owner-configurable) decides the daily groups; Home always leads. Built per
- * render so a reorder lands without a reload.
+ * The nav groups in the order to render them, and each group's entries in the
+ * owner's order. `menuOrder` decides the daily groups (Home always leads);
+ * `menuItemOrder` decides the entries within a group. Both come from Settings ›
+ * Menu, and both are built per render so a reorder lands without a reload.
  */
-const buildAppGroups = (menuOrder: string[] | null | undefined): AppGroup[] =>
+const buildAppGroups = (
+  menuOrder: string[] | null | undefined,
+  menuItemOrder: Record<string, string[]> | null | undefined,
+): AppGroup[] =>
   orderedNavGroups(menuOrder)
     .map((g) => ({
       title: GROUP_TITLE[g] ?? null,
       section: (DESTINATIONS.find((d) => d.group === g)?.section ?? null) as Section,
-      apps: DESTINATIONS.filter((d) => d.group === g && d.inNav)
-        .map((d) => ({ href: d.href, label: d.label, cap: d.cap })),
+      apps: orderedGroupItems(
+        DESTINATIONS.filter((d) => d.group === g && d.inNav).map((d) => ({ href: d.href, label: d.label, cap: d.cap })),
+        menuItemOrder?.[g],
+      ),
     }))
     .filter((g) => g.apps.length > 0);
-
-/** A single-app group whose only entry already carries the group's name needs
- *  no header repeating it (Finance › Finance) — the entry stands alone. */
-const groupNamesItself = (g: AppGroup): boolean => g.apps.length === 1 && g.apps[0].label === g.title;
 
 // Preferred order for the mobile bottom bar's primary slots
 // Matched on PATH, so an entry that carries a tab query still counts.
@@ -193,8 +195,8 @@ export default function BrandMenu({
   // Show only the flows this role can access (Dashboard always). While the
   // profile loads, show everything to avoid a nav flash.
   const perms = profile ? ROLE_PERMISSIONS[profile.role] : null;
-  const { menuOrder } = useSettings();
-  const groups = buildAppGroups(menuOrder)
+  const { menuOrder, menuItemOrder } = useSettings();
+  const groups = buildAppGroups(menuOrder, menuItemOrder)
     .map((g) => ({ ...g, apps: g.apps.filter((a) => !a.cap || !perms || !!perms[a.cap]) }))
     .filter((g) => g.apps.length && sectionAllowed(perms, g.section));
   const allLinks = groups.flatMap((g) => g.apps.map((a) => ({ ...a, section: g.section })));
@@ -230,7 +232,7 @@ export default function BrandMenu({
     <>
       {groups.map((group, gi) => (
         <div key={gi} className={gi > 0 ? 'mt-0.5 pt-0.5 border-t border-slate-800/70' : ''}>
-          {group.title && !groupNamesItself(group) && <p className={`px-2.5 pt-1 pb-0.5 text-[9px] uppercase tracking-widest ${accentOf(group.section, group.title).label}`}>{group.title}</p>}
+          {group.title && <p className={`px-2.5 pt-1 pb-0.5 text-[9px] uppercase tracking-widest ${accentOf(group.section, group.title).label}`}>{group.title}</p>}
           {group.apps.map((a) => {
             const active = isActive(a.href);
             const acc = accentOf(group.section, group.title);

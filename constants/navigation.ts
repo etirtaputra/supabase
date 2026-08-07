@@ -238,3 +238,22 @@ export function orderedNavGroups(stored: string[] | null | undefined): string[] 
   for (const g of MENU_ORDERABLE_GROUPS) if (!seen.has(g)) ranked.push(g);
   return ['Home', ...ranked];
 }
+
+/**
+ * Order a group's entries by the owner's stored preference (Settings › Menu),
+ * keyed by `href`. Same reconciliation as the group order: a stored href no
+ * longer in the group is dropped, and an entry the stored list never mentions
+ * (a module added after the preference was saved) keeps its shipped position
+ * at the end — so a saved sub-order can never hide a module either.
+ */
+export function orderedGroupItems<T extends { href: string }>(items: T[], stored: string[] | null | undefined): T[] {
+  const byHref = new Map(items.map((i) => [i.href, i]));
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const h of stored ?? []) {
+    const it = byHref.get(h);
+    if (it && !seen.has(h)) { out.push(it); seen.add(h); }
+  }
+  for (const it of items) if (!seen.has(it.href)) out.push(it);
+  return out;
+}
