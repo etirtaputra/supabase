@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-07T05:30:00Z',
+    title: 'Design the whole solar system inside the sales quotation',
+    details: [
+      'New “⚡ Design system” on the sales quote, next to the mounting designer: a three-step wizard — context (on-grid / off-grid / hybrid, the panel, the roof), then the PLN connection or the load table, then review. It runs the same Smart Solar BoM v7 engine the golden tests pin to the standalone calculator.',
+      'On-grid: pick the PLN capacity (1300 VA – 53 kVA or custom) and the DC/AC ratio — the engine takes the largest inverter that fits the connection and sizes the array. Off-grid/hybrid: type the loads (watts, hours, qty; motors count double for surge) — the engine sizes the inverter with its 1.25× margin, the battery bank from autonomy and chemistry (DoD 80% lithium / 50% lead-acid), and the array from the sun hours.',
+      'The review shows everything before anything lands: the picked inverter, battery bank (strings × series, usable kWh) and array, every structure and balance-of-system line resolved to real catalog items at this customer’s tier, live stock, string-limit and rail warnings, and the system total. Only calculator-ready, visible items are ever offered.',
+      'Applying inserts ordinary editable lines stamped with a design role, so Regenerate replaces exactly what the engine created and never a hand-typed line. The wizard’s answers are stored on the quote and come back on reopen — regenerate means “same questions, current catalog”, not “start over”.',
+    ],
+  },
+  {
     at: '2026-08-07T03:30:00Z',
     title: 'Spec proposals read battery names properly — and 76 items got their specs filled',
     details: [

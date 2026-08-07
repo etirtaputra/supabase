@@ -24,6 +24,7 @@ import Autocomplete from '@/components/ui/Autocomplete';
 import { todayISO } from '@/lib/dateRange';
 import { successorMap } from '@/lib/successors';
 import MountingDesigner, { type DesignedLine } from '@/components/ui/MountingDesigner';
+import SystemDesigner from '@/components/ui/SystemDesigner';
 import type { SystemDesign } from '@/lib/systemDesign/types';
 
 interface Quote {
@@ -364,6 +365,9 @@ export default function SalesQuotePage() {
       const loadedLines = [...((iRes.data as DbLine[]) ?? []).map(mapLine), blankLine()];
       setEditing(loadedQ);
       setLines(loadedLines);
+      // The stored designer run comes back with the quote, so REGENERATE
+      // reopens on the same answers even after a reload.
+      setSystemDesign(((loadedQ as unknown as { system_design?: SystemDesign | null }).system_design) ?? null);
       // What the DB just returned IS the saved state — stamp it as such, so
       // dirty can never stick after a save + reload from normalization
       // differences between typed values and their stored round-trip.
@@ -484,6 +488,7 @@ export default function SalesQuotePage() {
   // editor like any other, stamped with design_role so a REGENERATE replaces
   // only them. Whatever the salesperson typed is never touched.
   const [designerOpen, setDesignerOpen] = useState(false);
+  const [systemDesignerOpen, setSystemDesignerOpen] = useState(false);
   const hasDesignLines = useMemo(() => lines.some((l) => !!l.design_role), [lines]);
 
   const applyDesign = (designed: DesignedLine[], design: SystemDesign) => {
@@ -507,7 +512,7 @@ export default function SalesQuotePage() {
       return [...kept, ...generated];
     });
     setSystemDesign(design);
-    flash(`Mounting BoM ${hasDesignLines ? 'regenerated' : 'added'} — ${designed.length} lines.`);
+    flash(`${design.engine === 'system' ? 'System' : 'Mounting'} BoM ${hasDesignLines ? 'regenerated' : 'added'} — ${designed.length} lines.`);
   };
 
   const addItem = () => setLines((ls) => [...ls, blankLine()]);
@@ -1122,10 +1127,15 @@ export default function SalesQuotePage() {
           <div className="flex flex-wrap gap-2 pt-1">
             <button onClick={addItem} className="px-3.5 py-2 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs font-semibold transition-colors">+ Add item</button>
             <button onClick={addSection} className="px-3.5 py-2 rounded-xl bg-slate-800/60 text-slate-300 hover:bg-slate-700 text-xs font-semibold transition-colors">+ Add section</button>
+            <button onClick={() => setSystemDesignerOpen(true)}
+              title="Size the whole system — inverter, battery bank, array, structure and balance of system — from the PLN connection or the load table, priced at this customer's tier"
+              className="px-3.5 py-2 rounded-xl border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 text-xs font-semibold transition-colors">
+              {systemDesign?.engine === 'system' && hasDesignLines ? '⚡ System design ·  regenerate' : '⚡ Design system'}
+            </button>
             <button onClick={() => setDesignerOpen(true)}
               title="Size the mounting structure from the array — rails, clamps, supports, grounding — priced at this customer's tier"
               className="px-3.5 py-2 rounded-xl border border-sky-500/40 text-sky-300 hover:bg-sky-500/10 text-xs font-semibold transition-colors">
-              {hasDesignLines ? '⚙ Mounting design ·  regenerate' : '⚙ Design mounting'}
+              {systemDesign?.engine !== 'system' && hasDesignLines ? '⚙ Mounting design ·  regenerate' : '⚙ Design mounting'}
             </button>
             <span className="text-[11px] text-slate-600 self-center">Pick a catalog product to autofill price, or just type a custom item.</span>
           </div>
@@ -1186,6 +1196,17 @@ export default function SalesQuotePage() {
         stockOf={(cid) => availableOf(cid)}
         onApply={applyDesign}
         hasExisting={hasDesignLines}
+      />
+      {/* The full-system wizard: PLN or loads in, a complete priced BoM out —
+          same engine the golden tests pin to the standalone calculator. */}
+      <SystemDesigner
+        open={systemDesignerOpen}
+        onClose={() => setSystemDesignerOpen(false)}
+        priceOf={(cid) => priceFor(cid)}
+        stockOf={(cid) => availableOf(cid)}
+        onApply={applyDesign}
+        hasExisting={hasDesignLines}
+        initial={systemDesign}
       />
     </div>
   );
