@@ -75,7 +75,8 @@ function ratedWattsFrom(text: string): { w: number; why: string } | null {
 
 /** "3kW/48V", "VM 1K-24", "ELS15K 15kW/48V" → the battery bus. */
 function batteryBusFrom(text: string): { v: number; why: string } | null {
-  const slash = text.match(/\/\s*(\d{2,3})\s*V\b/i);
+  // Only real bus voltages count — "220/380V" on a PCS is AC, not a battery.
+  const slash = text.match(/\/\s*(12|24|48|96|192|384)\s*V\b/i);
   if (slash) return { v: parseInt(slash[1], 10), why: `"${slash[0].trim()}" — the bus after the rating` };
   const bare = text.match(/\b(12|24|48|96|192|384)\s*V\b/i);
   if (bare) return { v: parseInt(bare[1], 10), why: `"${bare[0]}" in the name` };
@@ -84,7 +85,16 @@ function batteryBusFrom(text: string): { v: number; why: string } | null {
   return null;
 }
 
-const isThreePhase = (text: string) => /three[-\s]?phase|3[-\s]?phase|3L\+N|\bTT\b|\bDT\b/i.test(text);
+const isThreePhase = (text: string) => /three[-\s]?phase|3[-\s]?phase|3L\+N|\b3P\b|\bTT\b|\bDT\b/i.test(text);
+
+/**
+ * LiFePO4 packs are named by cell math (12.8 / 25.6 / 51.2 V) but the
+ * calculator sizes by BUS CLASS — an inverter's 48 V bus takes the 51.2 V
+ * pack as one series unit. Energy stays honest: it is derived from the
+ * voltage the name actually states, before this mapping.
+ */
+const BUS_CLASS: Record<string, number> = { '12.8': 12, '25.6': 24, '51.2': 48 };
+const BARE_VOLTAGES = new Set([2, 6, 12, 24, 48, 12.8, 25.6, 51.2]);
 
 function fromName(category: string, text: string): Suggestions {
   const out: Suggestions = {};
@@ -100,22 +110,46 @@ function fromName(category: string, text: string): Suggestions {
   if (category === 'on_grid_inverter') {
     const w = ratedWattsFrom(text);
     if (w) put('rated_output_power_kw', Math.round((w.w / 1000) * 100) / 100, w.why);
-    put('nominal_ac_voltage_vac', isThreePhase(text) ? '400 3L+N' : '230 L-N',
-      isThreePhase(text) ? 'the name says three-phase' : 'single-phase unless the name says otherwise');
+    // Phase: read it from the name when stated; otherwise only the sizes that
+    // settle it themselves get a default — small units are single-phase,
+    // 20 kW+ units are only made three-phase. 8–20 kW unmarked stays open.
+    if (isThreePhase(text)) put('nominal_ac_voltage_vac', '400 3L+N', 'the name says three-phase');
+    else if (w && w.w >= 20000) put('nominal_ac_voltage_vac', '400 3L+N', `${w.w / 1000} kW grid-tie units are only made three-phase`);
+    else if (!w || w.w <= 8000) put('nominal_ac_voltage_vac', '230 L-N', 'single-phase unless the name says otherwise');
   }
 
   if (category === 'batteries') {
-    const v = text.match(/\b(2|6|12|24|48)\s*V\b/i);
-    if (v) put('nominal_voltage_v', parseInt(v[1], 10), `"${v[0]}" in the name`);
-    const ah = text.match(/(\d{2,5})\s*Ah\b/i);
-    if (ah) put('rated_capacity_ah', parseInt(ah[1], 10), `"${ah[0]}" in the name`);
-    if (/lifepo4|lfp|lithium/i.test(text)) put('battery_type', 'LiFePO4', 'the name says lithium');
+    // The written voltage, before any bus-class mapping — energy math uses this.
+    let rawV: number | null = null;
+    let rawVWhy = '';
+    // "51.2V/314Ah", "409.6V100Ah", "48V 74Ah" — a voltage glued to a capacity
+    // is trusted at any value; the pair only reads one way.
+    const pair = text.match(/(?<![\d.])(\d{1,3}(?:[.,]\d{1,2})?)\s*V\s*\/?\s*(\d{1,4}(?:[.,]\d{1,2})?)\s*Ah\b/i);
+    if (pair) {
+      rawV = parseFloat(pair[1].replace(',', '.'));
+      rawVWhy = `"${pair[0].trim()}" in the name`;
+      put('rated_capacity_ah', parseFloat(pair[2].replace(',', '.')), rawVWhy);
+    } else {
+      const v = text.match(/(?<![\d.])(\d{1,3}(?:\.\d{1,2})?)\s*V\b/i);
+      const n = v ? parseFloat(v[1]) : null;
+      if (v && n !== null && BARE_VOLTAGES.has(n)) { rawV = n; rawVWhy = `"${v[0].trim()}" in the name`; }
+      const ah = text.match(/(?<![\d.])(\d{1,4}(?:[.,]\d{1,2})?)\s*Ah\b/i);
+      if (ah) put('rated_capacity_ah', parseFloat(ah[1].replace(',', '.')), `"${ah[0].trim()}" in the name`);
+    }
+    if (rawV !== null) {
+      const cls = BUS_CLASS[String(rawV)];
+      if (cls) put('nominal_voltage_v', cls, `${rawV} V LiFePO4 is the ${cls} V bus class — the calculator sizes by bus`);
+      else put('nominal_voltage_v', rawV, rawVWhy);
+    }
+    if (/lifepo4|lfp|lithium/i.test(text) || (rawV !== null && BUS_CLASS[String(rawV)]))
+      put('battery_type', 'LiFePO4', /lifepo4|lfp|lithium/i.test(text) ? 'the name says lithium' : 'a cell-math voltage means LiFePO4');
     else if (/lead|vrla|agm|\bgel\b|deep\s*cycle/i.test(text)) put('battery_type', 'Lead-Acid', 'the name says lead-acid');
-    // Energy follows from V × Ah — normalizeSpecs derives it, but showing it
-    // lets a human sanity-check the pair that produced it.
-    const vv = out.nominal_voltage_v ? Number(out.nominal_voltage_v.value) : null;
+    // Energy: an explicit kWh in the name beats V × Ah; either way the true
+    // written voltage is used, never the bus class.
+    const kwh = text.match(/(?<![\d.])(\d+(?:[.,]\d+)?)\s*kWh/i);
     const aa = out.rated_capacity_ah ? Number(out.rated_capacity_ah.value) : null;
-    if (vv && aa) put('energy_wh', vv * aa, `${vv} V × ${aa} Ah`);
+    if (kwh) put('energy_wh', Math.round(parseFloat(kwh[1].replace(',', '.')) * 1000), `"${kwh[0].trim()}" in the name`);
+    else if (rawV && aa) put('energy_wh', Math.round(rawV * aa * 100) / 100, `${rawV} V × ${aa} Ah`);
   }
 
   if (category === 'pv_module') {

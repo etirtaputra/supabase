@@ -73,6 +73,44 @@ test('a battery the calculator does not know is still read from its name', () =>
   assert.equal(v(s, 'energy_wh'), 48 * 74);
 });
 
+test('a 51.2 V LiFePO4 rack battery is the 48 V bus class, with true energy', () => {
+  const s = suggestSpecs('batteries', 'EPEVER LR51205A LiFePO4 51.2V/205Ah, IP21 rack-mounted, with LCD display', {});
+  assert.equal(v(s, 'nominal_voltage_v'), 48, 'sized by bus class, not cell math');
+  assert.equal(v(s, 'rated_capacity_ah'), 205);
+  assert.equal(v(s, 'energy_wh'), Math.round(51.2 * 205 * 100) / 100, 'energy from the written 51.2 V');
+  assert.equal(v(s, 'battery_type'), 'LiFePO4');
+});
+
+test('kWh in the name is the energy, and 25.6 V maps to the 24 V class', () => {
+  const s = suggestSpecs('batteries', 'EPEVER LFP2.56KWH25.6V-P65H1', {});
+  assert.equal(v(s, 'nominal_voltage_v'), 24);
+  assert.equal(v(s, 'energy_wh'), 2560, 'the stated 2.56 kWh, not a derivation');
+  assert.equal(v(s, 'battery_type'), 'LiFePO4', 'LFP prefix reads as lithium');
+});
+
+test('comma-decimal amp-hours parse ("12V/7,2Ah")', () => {
+  const s = suggestSpecs('batteries', 'ICAL IP1272 12V/7,2Ah', {});
+  assert.equal(v(s, 'nominal_voltage_v'), 12);
+  assert.equal(v(s, 'rated_capacity_ah'), 7.2);
+  assert.equal(v(s, 'energy_wh'), Math.round(12 * 7.2 * 100) / 100);
+});
+
+test('a high-voltage pack glued to its capacity is read verbatim', () => {
+  const s = suggestSpecs('batteries', 'VISION Revo TP160 LFP-409.6V100Ah 128S2P', {});
+  assert.equal(v(s, 'nominal_voltage_v'), 409.6, 'no bus class for HV packs — recorded as written');
+  assert.equal(v(s, 'rated_capacity_ah'), 100);
+  assert.equal(v(s, 'battery_type'), 'LiFePO4');
+});
+
+test('on-grid: 20 kW+ defaults three-phase, mid-size unmarked stays open', () => {
+  const big = suggestSpecs('on_grid_inverter', 'ICA SOLAR SNV-GT6032TM 60kW 3xMPPT', {});
+  assert.equal(v(big, 'nominal_ac_voltage_vac'), '400 3L+N', 'nobody makes a 60 kW single-phase');
+  const mid = suggestSpecs('on_grid_inverter', 'ICA SOLAR SNV-GT1032DM 10kW 2xMPPT', {});
+  assert.equal(v(mid, 'nominal_ac_voltage_vac'), undefined, '10 kW could be either — no guess');
+  const marked = suggestSpecs('on_grid_inverter', 'ICA SOLAR SNV-GH30081 30kW 3P', {});
+  assert.equal(v(marked, 'nominal_ac_voltage_vac'), '400 3L+N', '"3P" reads as three-phase');
+});
+
 test('PV modules: watt-peak and the dimension string', () => {
   const s = suggestSpecs('pv_module', 'ICA SOLAR ICA550-72HMI 550Wp Mono 2278x1134x35mm', {});
   assert.equal(v(s, 'power_stc_w'), 550);
@@ -86,6 +124,13 @@ test('a spec already on the item is never suggested over', () => {
   const s = suggestSpecs('inverter_charger', 'EPEVER ELS3K-E 3kW/48V', { rated_output_power_w: 3200 });
   assert.equal(s.rated_output_power_w, undefined, 'the stored 3200 W stands');
   assert.equal(v(s, 'battery_nominal_voltage_vdc'), 48, 'the missing one is still offered');
+});
+
+test('an AC voltage after a slash is not read as the battery bus', () => {
+  const s = suggestSpecs('inverter_charger',
+    'DEYE PCS SUN-100K-PCS01HP3 Battery Input 630-1000Vdc, Max Charge/Discharge 175A, 220/380V, 230/400V, 50Hz/60Hz, IP65', {});
+  assert.equal(v(s, 'rated_output_power_w'), 100000);
+  assert.equal(v(s, 'battery_nominal_voltage_vdc'), undefined, '"220/380V" is AC — no bus claim');
 });
 
 test('a name with nothing to read yields nothing — no invented numbers', () => {

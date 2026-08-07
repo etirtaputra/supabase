@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-07T03:30:00Z',
+    title: 'Spec proposals read battery names properly — and 76 items got their specs filled',
+    details: [
+      'The Spec Readiness proposals now understand how batteries are actually named: “51.2V/314Ah” reads as the 48 V bus class (the calculator sizes by bus, so a 51.2 V pack now fits a 48 V inverter instead of being skipped), “LFP2.56KWH” fills the energy directly, and “12V/7,2Ah” with a comma-decimal parses too. Energy always comes from the voltage as written, so a 51.2 V × 205 Ah rack is 10.5 kWh, not 9.8.',
+      'Grid-tie phase guessing got honest: 20 kW+ units default to three-phase (nobody makes them single-phase), “3P” in a name is recognised, and mid-size unmarked units (8–20 kW) get no guess at all rather than a wrong one. An AC voltage like “220/380V” on a PCS is no longer misread as a battery bus.',
+      'With the smarter reader, the standing proposals were accepted across the catalog: 76 items now carry specs straight from their names and the ICA calculator database. Batteries jump from 3/25 to 19/25 calculator-ready, inverter-chargers from 0 to 5/46. What remains is blocked on datasheet-only numbers (PV max Voc and the like) — the per-column bulk fill on Spec Readiness is built for exactly those.',
+    ],
+  },
+  {
     at: '2026-08-07T01:10:00Z',
     title: 'The Buy menu is now PURCHASING, and its workspaces are listed by name',
     details: [
