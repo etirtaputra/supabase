@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-07T07:00:00Z',
+    title: 'The Finance menu is just “Finance”, and you can set the menu order',
+    details: [
+      'The Finance group held a single entry that read “Finance Banks” on the desktop bar — it now reads simply “Finance” everywhere (it still opens the bank accounts and cash position; searching “banks” still finds it).',
+      'New Settings › Menu: put the daily menu groups — Purchasing, Sell, Finance, Analytics, Projects — into the order you want, with up/down arrows and a Reset to default. Home always leads and Admin (Pricing, Settings, Import & Export) always sits last, so neither moves. The change lands across the wordmark dropdown, the desktop bar and the phone’s More sheet the moment you save; each role still only sees the groups it may open.',
+    ],
+  },
+  {
     at: '2026-08-07T05:30:00Z',
     title: 'Design the whole solar system inside the sales quotation',
     details: [

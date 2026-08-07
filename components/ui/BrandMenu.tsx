@@ -6,8 +6,9 @@ import { createPortal } from 'react-dom';
 import { useAuth } from '@/hooks/useAuth';
 import OnlineUsers from './OnlineUsers';
 import { ROLE_PERMISSIONS, type RolePermissions } from '@/constants/roles';
-import { DESTINATIONS, NAV_GROUP_ORDER, sectionAllowed, type NavSection } from '@/constants/navigation';
+import { DESTINATIONS, orderedNavGroups, sectionAllowed, type NavSection } from '@/constants/navigation';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
+import { useSettings } from '@/hooks/useSettings';
 import { useTheme } from '@/hooks/useTheme';
 import { THEMES } from '@/lib/theme';
 import { fmtDayTime } from '@/lib/formatters';
@@ -39,8 +40,15 @@ const GROUP_TITLE: Record<string, string | null> = {
   Home: null, Purchasing: 'Purchasing', Sell: 'Sell', Finance: 'Finance', Analytics: 'Analytics', Projects: 'Projects',
 };
 
-const APP_GROUPS: { title: string | null; section: Section; apps: { href: string; label: string; cap?: keyof RolePermissions }[] }[] =
-  NAV_GROUP_ORDER
+interface AppGroup { title: string | null; section: Section; apps: { href: string; label: string; cap?: keyof RolePermissions }[] }
+
+/**
+ * The nav groups in the order to render them. `menuOrder` (Settings › Menu,
+ * owner-configurable) decides the daily groups; Home always leads. Built per
+ * render so a reorder lands without a reload.
+ */
+const buildAppGroups = (menuOrder: string[] | null | undefined): AppGroup[] =>
+  orderedNavGroups(menuOrder)
     .map((g) => ({
       title: GROUP_TITLE[g] ?? null,
       section: (DESTINATIONS.find((d) => d.group === g)?.section ?? null) as Section,
@@ -48,6 +56,10 @@ const APP_GROUPS: { title: string | null; section: Section; apps: { href: string
         .map((d) => ({ href: d.href, label: d.label, cap: d.cap })),
     }))
     .filter((g) => g.apps.length > 0);
+
+/** A single-app group whose only entry already carries the group's name needs
+ *  no header repeating it (Finance › Finance) — the entry stands alone. */
+const groupNamesItself = (g: AppGroup): boolean => g.apps.length === 1 && g.apps[0].label === g.title;
 
 // Preferred order for the mobile bottom bar's primary slots
 // Matched on PATH, so an entry that carries a tab query still counts.
@@ -181,7 +193,8 @@ export default function BrandMenu({
   // Show only the flows this role can access (Dashboard always). While the
   // profile loads, show everything to avoid a nav flash.
   const perms = profile ? ROLE_PERMISSIONS[profile.role] : null;
-  const groups = APP_GROUPS
+  const { menuOrder } = useSettings();
+  const groups = buildAppGroups(menuOrder)
     .map((g) => ({ ...g, apps: g.apps.filter((a) => !a.cap || !perms || !!perms[a.cap]) }))
     .filter((g) => g.apps.length && sectionAllowed(perms, g.section));
   const allLinks = groups.flatMap((g) => g.apps.map((a) => ({ ...a, section: g.section })));
@@ -217,7 +230,7 @@ export default function BrandMenu({
     <>
       {groups.map((group, gi) => (
         <div key={gi} className={gi > 0 ? 'mt-0.5 pt-0.5 border-t border-slate-800/70' : ''}>
-          {group.title && <p className={`px-2.5 pt-1 pb-0.5 text-[9px] uppercase tracking-widest ${accentOf(group.section, group.title).label}`}>{group.title}</p>}
+          {group.title && !groupNamesItself(group) && <p className={`px-2.5 pt-1 pb-0.5 text-[9px] uppercase tracking-widest ${accentOf(group.section, group.title).label}`}>{group.title}</p>}
           {group.apps.map((a) => {
             const active = isActive(a.href);
             const acc = accentOf(group.section, group.title);
@@ -386,7 +399,9 @@ export default function BrandMenu({
           // Standalone modules don't need a one-item dropdown
           if (group.apps.length === 1) {
             const a = group.apps[0];
-            const label = group.title ? `${GROUP_SHORT[group.title] ?? group.title} ${a.label}` : a.label;
+            // A group whose entry already carries its name shows it once
+            // ("Finance"); otherwise the group prefixes ("EPC Proposals").
+            const label = group.title && a.label !== group.title ? `${GROUP_SHORT[group.title] ?? group.title} ${a.label}` : a.label;
             return (
               <Link key={gi} href={a.href}
                 className={`px-3 py-1.5 rounded-lg text-[13px] font-medium whitespace-nowrap transition-colors ${

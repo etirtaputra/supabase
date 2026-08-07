@@ -27,6 +27,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { RangePreset } from './dateRange';
 import { DEFAULT_LIST_DEFAULTS } from '@/constants/listDefaults';
+import { DEFAULT_MENU_ORDER } from '@/constants/navigation';
 
 export const SETTINGS_TABLE = '40.0_settings';
 
@@ -155,6 +156,15 @@ export interface AppSettings {
   companyTaxId: string;
   companyBankDetails: string;
   documentFooterNote: string;
+
+  // ── Navigation ────────────────────────────────────────────────────────────
+  /**
+   * The order the daily menu groups appear in (Settings › Menu). Group names
+   * as in constants/navigation.ts — Home is always first and Admin always
+   * last, so neither is stored here. Unknown or missing names are reconciled
+   * by `orderedNavGroups`, so this can never hide a real module.
+   */
+  menuOrder: string[];
 }
 
 /**
@@ -222,6 +232,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   companyTaxId:       '',
   companyBankDetails: '',
   documentFooterNote: '',
+
+  menuOrder: DEFAULT_MENU_ORDER,
 };
 
 /** Indonesian punctuation, one click — "1.234.567,89". */
@@ -355,6 +367,10 @@ export function coerceSettings(raw: Record<string, unknown>): AppSettings {
     companyTaxId:       pick('companyTaxId',       (v) => str(v, d.companyTaxId), d.companyTaxId),
     companyBankDetails: pick('companyBankDetails', (v) => str(v, d.companyBankDetails), d.companyBankDetails),
     documentFooterNote: pick('documentFooterNote', (v) => str(v, d.documentFooterNote), d.documentFooterNote),
+
+    // Stored as free strings; `orderedNavGroups` reconciles them against the
+    // real groups at render, so a stale or partial list is never a problem.
+    menuOrder:          pick('menuOrder',          (v) => strList(v, d.menuOrder), d.menuOrder),
   };
 }
 

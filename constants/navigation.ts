@@ -123,9 +123,12 @@ export const DESTINATIONS: Destination[] = [
   // tab, banks in a group of one. Payables moves here — the money side of a
   // PO is a treasury job, not a procurement one. (Renamed Money → Finance
   // 2026-07-30, owner's wording.)
-  { href: '/banks', label: 'Banks', group: 'Finance', section: null, cap: 'canViewBanks', inNav: true,
+  // The group holds one entry, so it names itself "Finance" rather than
+  // "Finance Banks" (owner, 2026-08-07). "banks" stays a keyword so Spotlight
+  // muscle memory still lands here.
+  { href: '/banks', label: 'Finance', group: 'Finance', section: null, cap: 'canViewBanks', inNav: true,
     hint: 'Bank accounts, statements and cash position',
-    keywords: 'bank account cash balance statement rekening money' },
+    keywords: 'bank banks account cash balance statement rekening money finance treasury' },
 
   // ── Analytics — OWNER ONLY (canViewAnalytics, decided 2026-07-30) ─────────
   // Two analytics screens plus the Item hub. The names say which question
@@ -207,3 +210,31 @@ export const destinationsFor = (perms: RolePermissions | null): Destination[] =>
  * Admin is appended by the menu itself, below the daily modules.
  */
 export const NAV_GROUP_ORDER = ['Home', 'Purchasing', 'Sell', 'Finance', 'Analytics', 'Projects'] as const;
+
+/**
+ * The groups the owner may reorder (Settings › Menu). Home is pinned first —
+ * it IS the wordmark's Dashboard — and Admin is pinned last (configuration,
+ * not a daily module), so neither is in play. The default order is the one
+ * above, minus those two fixed ends.
+ */
+export const MENU_ORDERABLE_GROUPS = ['Purchasing', 'Sell', 'Finance', 'Analytics', 'Projects'] as const;
+export const DEFAULT_MENU_ORDER: string[] = [...MENU_ORDERABLE_GROUPS];
+
+/**
+ * The daily group order to actually render, given the owner's stored
+ * preference. Robust by construction: a stored name that is no longer a group
+ * is dropped, and a real group the stored list never mentions (a module added
+ * after the preference was saved) is appended, so nothing the code ships can
+ * silently vanish from the menu. Home always leads; Admin is appended by the
+ * menu itself, so it is not part of this list.
+ */
+export function orderedNavGroups(stored: string[] | null | undefined): string[] {
+  const orderable = new Set<string>(MENU_ORDERABLE_GROUPS);
+  const seen = new Set<string>();
+  const ranked: string[] = [];
+  for (const g of stored ?? []) {
+    if (orderable.has(g) && !seen.has(g)) { ranked.push(g); seen.add(g); }
+  }
+  for (const g of MENU_ORDERABLE_GROUPS) if (!seen.has(g)) ranked.push(g);
+  return ['Home', ...ranked];
+}

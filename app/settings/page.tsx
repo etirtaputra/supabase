@@ -31,6 +31,7 @@ import {
 import { applyCurrency, formatDate, formatNumber } from '@/lib/formatters';
 import { fetchWarehouses, type Warehouse } from '@/lib/warehouses';
 import { LIST_SPECS } from '@/constants/listDefaults';
+import { orderedNavGroups, DEFAULT_MENU_ORDER, DESTINATIONS } from '@/constants/navigation';
 import { PRESET_LABELS, type RangePreset } from '@/lib/dateRange';
 import { accountLabel, type BankAccount } from '@/lib/banks';
 import { THEMES, previewTheme, endThemePreview } from '@/lib/theme';
@@ -38,9 +39,9 @@ import Autocomplete from '@/components/ui/Autocomplete';
 import { fmtRupiah } from '@/lib/formatters';
 import Link from 'next/link';
 
-type Tab = 'format' | 'appearance' | 'lists' | 'pricing' | 'defaults' | 'terms' | 'company' | 'banks' | 'users';
+type Tab = 'format' | 'appearance' | 'menu' | 'lists' | 'pricing' | 'defaults' | 'terms' | 'company' | 'banks' | 'users';
 const TABS: [Tab, string][] = [
-  ['format', 'Formatting'], ['appearance', 'Appearance'], ['lists', 'Lists'], ['pricing', 'Pricing'],
+  ['format', 'Formatting'], ['appearance', 'Appearance'], ['menu', 'Menu'], ['lists', 'Lists'], ['pricing', 'Pricing'],
   ['defaults', 'Defaults'], ['terms', 'Terms'], ['company', 'Company'], ['banks', 'Banks'], ['users', 'Users'],
 ];
 
@@ -195,6 +196,7 @@ export default function SettingsPage() {
 
         {tab === 'format'   && <FormatTab draft={draft} set={set} />}
         {tab === 'appearance' && <AppearanceTab draft={draft} set={set} />}
+        {tab === 'menu'     && <MenuOrderTab draft={draft} set={set} />}
         {tab === 'lists'    && <ListsTab draft={draft} set={set} />}
         {tab === 'pricing'  && <PricingTab draft={draft} set={set} />}
         {tab === 'defaults' && <DefaultsTab draft={draft} set={set} flash={flash} />}
@@ -726,6 +728,75 @@ function DefaultsTab({ draft, set, flash }: {
         <Link href="/stock" className="inline-block text-[11px] font-semibold text-sky-300 hover:text-sky-200 transition-colors">
           Open Stock →
         </Link>
+      </div>
+    </div>
+  );
+}
+
+// ── Menu order ────────────────────────────────────────────────────────────
+
+/**
+ * The order the daily menu groups appear in. Home is pinned first (it is the
+ * wordmark's Dashboard) and Admin last (configuration), so only the domain
+ * groups in between move. Reorder with the arrows; the nav reflects it the
+ * moment you save.
+ */
+function MenuOrderTab({ draft, set }: { draft: AppSettings; set: <K extends keyof AppSettings>(k: K, v: AppSettings[K]) => void }) {
+  // orderedNavGroups leads with Home; the reorderable rows are what follows.
+  const order = orderedNavGroups(draft.menuOrder).filter((g) => g !== 'Home');
+  const modulesOf = (g: string) =>
+    DESTINATIONS.filter((d) => d.group === g && d.inNav).map((d) => d.label);
+
+  const move = (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= order.length) return;
+    const next = [...order];
+    [next[i], next[j]] = [next[j], next[i]];
+    set('menuOrder', next);
+  };
+  const isDefault = JSON.stringify(order) === JSON.stringify(DEFAULT_MENU_ORDER);
+
+  return (
+    <div className="max-w-2xl space-y-4">
+      <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 space-y-3.5">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">Menu order</p>
+          <button onClick={() => set('menuOrder', [...DEFAULT_MENU_ORDER])} disabled={isDefault}
+            className="text-[11px] font-semibold text-slate-400 hover:text-white disabled:text-slate-700 disabled:hover:text-slate-700 transition-colors">
+            Reset to default
+          </button>
+        </div>
+        <p className="text-[11px] text-slate-500 leading-snug">
+          The order these groups appear in across the menu — the wordmark dropdown, the desktop bar and the phone’s
+          More sheet. <span className="text-slate-400 font-semibold">Home</span> always leads and
+          <span className="text-slate-400 font-semibold"> Admin</span> (Pricing, Settings, Import &amp; Export) always
+          sits last, so neither moves. A role still only sees the groups it may open.
+        </p>
+
+        <ol className="space-y-1.5">
+          {order.map((g, i) => {
+            const mods = modulesOf(g);
+            return (
+              <li key={g} className="flex items-center gap-3 bg-slate-950/50 border border-slate-800 rounded-xl px-3 py-2.5">
+                <span className="text-[11px] font-bold tabular-nums text-slate-600 w-4 text-center">{i + 1}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-white">{g}</p>
+                  {mods.length > 0 && <p className="text-[11px] text-slate-500 truncate">{mods.join(' · ')}</p>}
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button onClick={() => move(i, -1)} disabled={i === 0} aria-label={`Move ${g} up`}
+                    className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent transition-colors">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" /></svg>
+                  </button>
+                  <button onClick={() => move(i, 1)} disabled={i === order.length - 1} aria-label={`Move ${g} down`}
+                    className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent transition-colors">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
       </div>
     </div>
   );
