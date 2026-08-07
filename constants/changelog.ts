@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-07T01:10:00Z',
+    title: 'The Buy menu is now PURCHASING, and its workspaces are listed by name',
+    details: [
+      'The menu group “Buy” is renamed Purchasing, and its five workspaces now appear directly instead of hiding behind one entry: Item Editor, New Deal, Payments, Deal Lookup and Market Intel — each opens straight on its own tab. Suppliers, Stock and Receive Goods stay in the group.',
+      'Payments moves here from Finance rather than appearing twice; Finance keeps Banks. The menu highlight now follows the tab you are actually on, and the phone’s bottom bar still finds Purchasing.',
+    ],
+  },
+  {
     at: '2026-08-06T06:40:00Z',
     title: 'Spec Readiness — the workbench that unlocks the system calculator',
     details: [

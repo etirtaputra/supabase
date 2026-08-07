@@ -18,7 +18,7 @@ import CommandPalette from './CommandPalette';
  *  • The wordmark opens the full menu (it is a button, not a link) — Dashboard
  *    is the first entry inside it.
  *  • Desktop (lg+): the wordmark plus compact grouped dropdowns — Dashboard
- *    and single-app groups stay direct links; Buy/Sell open on hover or click
+ *    and single-app groups stay direct links; Purchasing/Sell open on hover
  *    and show their modules. The group you're inside keeps its domain color
  *    and shows the current module name, so the bar never overflows. The caret
  *    keeps the full menu (all groups + admin + sign-out) for narrow widths.
@@ -36,7 +36,7 @@ type Section = NavSection;
 // canManagePricing). Configuration screens (Settings, Pricing) are NOT modules:
 // they sit in the Admin group at the bottom of the menu, out of the daily list.
 const GROUP_TITLE: Record<string, string | null> = {
-  Home: null, Buy: 'Buy', Sell: 'Sell', Finance: 'Finance', Analytics: 'Analytics', Projects: 'Projects',
+  Home: null, Purchasing: 'Purchasing', Sell: 'Sell', Finance: 'Finance', Analytics: 'Analytics', Projects: 'Projects',
 };
 
 const APP_GROUPS: { title: string | null; section: Section; apps: { href: string; label: string; cap?: keyof RolePermissions }[] }[] =
@@ -50,6 +50,7 @@ const APP_GROUPS: { title: string | null; section: Section; apps: { href: string
     .filter((g) => g.apps.length > 0);
 
 // Preferred order for the mobile bottom bar's primary slots
+// Matched on PATH, so an entry that carries a tab query still counts.
 const MOBILE_PRIORITY = ['/sales', '/products', '/purchasing', '/proposals', '/customers', '/stock', '/suppliers', '/invoices', '/delivery', '/spend-cash', '/banks'];
 
 // Domain color language, used everywhere a module appears: buy-side is SKY
@@ -140,8 +141,27 @@ export default function BrandMenu({
   const [mounted, setMounted] = useState(false);                 // portal target exists
   useEffect(() => { setMounted(true); }, []);
 
-  const isActive = (href: string) =>
-    href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(href + '/');
+  /**
+   * Menu entries may carry a query (`/purchasing?tab=lookup`), but `pathname`
+   * never does. Compare the PATH, and — when the entry names a tab — the tab
+   * too, so only the workspace you are actually in lights up. The query is
+   * read at render time rather than through useSearchParams, which would
+   * force a Suspense boundary onto every page that renders the nav.
+   */
+  const pathOf = (href: string) => href.split('?')[0];
+  const isActive = (href: string) => {
+    if (href === '/') return pathname === '/';
+    const path = pathOf(href);
+    const pathHit = pathname === path || pathname.startsWith(path + '/');
+    if (!pathHit) return false;
+    const q = href.includes('?') ? href.slice(href.indexOf('?') + 1) : '';
+    if (!q) return true;
+    const current = typeof window === 'undefined' ? '' : window.location.search.replace(/^\?/, '');
+    const want = new URLSearchParams(q).get('tab');
+    const have = new URLSearchParams(current).get('tab');
+    // The bare page opens its first tab, so "no tab in the URL" IS that tab
+    return want === have || (!have && want === 'catalog');
+  };
 
   /**
    * Spotlight lives in the nav bar, so it is impossible for a page to ship
@@ -170,7 +190,7 @@ export default function BrandMenu({
 
   // Mobile bottom bar: Home + the role's three primary modules + More
   const primary = MOBILE_PRIORITY
-    .map((href) => allLinks.find((l) => l.href === href))
+    .map((href) => allLinks.find((l) => l.href === href) ?? allLinks.find((l) => l.href.split('?')[0] === href))
     .filter((l): l is { href: string; label: string; section: Section } => !!l)
     .slice(0, 3);
 

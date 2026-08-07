@@ -50,34 +50,44 @@ export const DESTINATIONS: Destination[] = [
     hint: 'The update log — what changed, and when',
     keywords: 'changelog updates news release log history version' },
 
-  // ── Buy ───────────────────────────────────────────────────────────────────
-  // `/purchasing` is labelled PURCHASING: the screen is the procure-to-pay
-  // workspace (supplier quotes → POs → payments), not an item list. Products
-  // is the item list people mean when they say "catalog", so the old name is
-  // kept as a search keyword rather than as a label competing with it.
-  { href: '/purchasing', label: 'Purchasing', group: 'Buy', section: 'buySide', inNav: true,
-    hint: 'Supplier quotes, purchase orders and the component master',
-    keywords: 'catalog components parts items procurement buying pi po' },
-  { href: '/purchasing?tab=lookup', label: 'Deal Lookup', group: 'Buy', section: 'buySide', inNav: false,
-    hint: 'Every PI → PO → payment as one deal',
-    keywords: 'deals pi po payments history search catalog' },
+  // ── Purchasing (owner's naming, 2026-08-07) ──────────────────────────────
+  // The group is PURCHASING, not "Buy", and its five workspaces are listed
+  // one by one rather than hidden behind a single entry: the tabs are where
+  // the work actually happens, so the menu names them.
+  { href: '/purchasing?tab=catalog', label: 'Item Editor', group: 'Purchasing', section: 'buySide', inNav: true,
+    hint: 'The component master — models, prices, specs, links',
+    keywords: 'catalog components parts items master editor sku spec' },
   // Supplier Quotes + Purchase Orders merged into ONE entry form (2026-08-04):
   // record a PI, or PI + PO in one save, or raise the PO for a stored quote.
   // Old names stay as keywords so Spotlight muscle memory keeps working.
-  { href: '/purchasing?tab=quoting', label: 'New Deal', group: 'Buy', section: 'buySide', inNav: false,
+  { href: '/purchasing?tab=quoting', label: 'New Deal', group: 'Purchasing', section: 'buySide', inNav: true,
     hint: 'Record a supplier quote / PI — alone or straight to its PO',
     keywords: 'pi proforma quote entry new catalog supplier quotes po purchase order raise deal' },
-  { href: '/suppliers', label: 'Suppliers', group: 'Buy', section: 'buySide', inNav: true,
+  { href: '/purchasing?tab=financials', label: 'Payments', group: 'Purchasing', section: 'buySide', cap: 'canViewBankFees', inNav: true,
+    hint: 'Record supplier payments, bank fees and landed costs',
+    keywords: 'payment batch remittance costs fees ap payable financials money supplier' },
+  { href: '/purchasing?tab=lookup', label: 'Deal Lookup', group: 'Purchasing', section: 'buySide', inNav: true,
+    hint: 'Every PI → PO → payment as one deal',
+    keywords: 'deals pi po payments history search catalog' },
+  { href: '/purchasing?tab=market-intel', label: 'Market Intel', group: 'Purchasing', section: 'buySide', inNav: true,
+    hint: 'Competitor prices and what the market is charging',
+    keywords: 'competitor market price intel benchmark rival' },
+  { href: '/suppliers', label: 'Suppliers', group: 'Purchasing', section: 'buySide', inNav: true,
     hint: 'Vendor profiles, purchase volume, outstanding payables',
     keywords: 'vendors payables' },
-  { href: '/stock', label: 'Stock', group: 'Buy', section: 'buySide', inNav: true,
+  { href: '/stock', label: 'Stock', group: 'Purchasing', section: 'buySide', inNav: true,
     hint: 'On-hand per warehouse, moving-average cost, shortages',
     keywords: 'inventory warehouse gudang on hand balance' },
   // Promoted out of hiding: booking goods in is a daily warehouse job and the
   // moment landed cost enters the system — it should not be search-only.
-  { href: '/stock/receive', label: 'Receive Goods', group: 'Buy', section: 'buySide', cap: 'canManageStock', inNav: true,
+  { href: '/stock/receive', label: 'Receive Goods', group: 'Purchasing', section: 'buySide', cap: 'canManageStock', inNav: true,
     hint: 'Book goods in against a purchase order (GRN)',
     keywords: 'grn goods receipt receiving inbound terima barang' },
+  // The bare /purchasing URL still resolves (it opens the Item Editor tab) —
+  // search-only so the menu is not saying the same thing twice.
+  { href: '/purchasing', label: 'Purchasing', group: 'Purchasing', section: 'buySide', inNav: false,
+    hint: 'The procure-to-pay workspace',
+    keywords: 'procurement buying purchase' },
 
   // ── Sell ──────────────────────────────────────────────────────────────────
   { href: '/customers', label: 'Customers', group: 'Sell', section: 'sellSide', inNav: true,
@@ -116,9 +126,6 @@ export const DESTINATIONS: Destination[] = [
   { href: '/banks', label: 'Banks', group: 'Finance', section: null, cap: 'canViewBanks', inNav: true,
     hint: 'Bank accounts, statements and cash position',
     keywords: 'bank account cash balance statement rekening money' },
-  { href: '/purchasing?tab=financials', label: 'Supplier Payments', group: 'Finance', section: 'buySide', cap: 'canViewBankFees', inNav: true,
-    hint: 'Record supplier payments, bank fees and landed costs',
-    keywords: 'payment batch remittance costs fees ap payable catalog financials money' },
 
   // ── Analytics — OWNER ONLY (canViewAnalytics, decided 2026-07-30) ─────────
   // Two analytics screens plus the Item hub. The names say which question
@@ -199,4 +206,4 @@ export const destinationsFor = (perms: RolePermissions | null): Destination[] =>
  * money they move, then what it earned, then the separate EPC product line.
  * Admin is appended by the menu itself, below the daily modules.
  */
-export const NAV_GROUP_ORDER = ['Home', 'Buy', 'Sell', 'Finance', 'Analytics', 'Projects'] as const;
+export const NAV_GROUP_ORDER = ['Home', 'Purchasing', 'Sell', 'Finance', 'Analytics', 'Projects'] as const;
