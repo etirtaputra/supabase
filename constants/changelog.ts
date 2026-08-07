@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-07T10:00:00Z',
+    title: 'Sort the Suppliers list by any column',
+    details: [
+      'Every Suppliers column header now sorts — Code, Supplier, Quotes / POs, Purchased and Outstanding. Click a header to sort by it, click again to flip ascending/descending; the arrow shows which is active. The list still opens on the biggest spender, as before.',
+    ],
+  },
+  {
     at: '2026-08-07T09:00:00Z',
     title: 'The Chinese-yuan currency is now CNY everywhere, not RMB',
     details: [

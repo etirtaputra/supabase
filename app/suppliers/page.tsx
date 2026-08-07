@@ -29,6 +29,11 @@ interface SupplierStats {
   outstandingIdr: number; // Σ max(0, po total − paid) per PO
 }
 
+// Every column sorts, asc/desc. The default direction is the one that answers
+// the column's obvious question first — biggest spender, most owed, most POs.
+type SortKey = 'code' | 'name' | 'activity' | 'purchased' | 'outstanding';
+const DEFAULT_DIR: Record<SortKey, 1 | -1> = { code: 1, name: 1, activity: -1, purchased: -1, outstanding: -1 };
+
 export default function SuppliersPage() {
   const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
@@ -39,6 +44,11 @@ export default function SuppliersPage() {
   const [layout, setLayout] = useListLayout('suppliers');
   const compact = layout === 'compact';
   const [profileFor, setProfileFor] = useState<Supplier | null>(null);
+  // Opens on the biggest spender (the page's long-standing default); a click
+  // on any header re-sorts, a second click flips the direction.
+  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'purchased', dir: -1 });
+  const toggleSort = (key: SortKey) =>
+    setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: DEFAULT_DIR[key] }));
 
   useEffect(() => { document.title = 'Suppliers — ICAPROC'; }, []);
   useEffect(() => {
@@ -95,10 +105,23 @@ export default function SuppliersPage() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const list = [...data.suppliers].sort((a, b) => (statsBySupplier.get(b.supplier_id)?.purchasedIdr ?? 0) - (statsBySupplier.get(a.supplier_id)?.purchasedIdr ?? 0));
-    if (!q) return list;
-    return list.filter((s) => [s.supplier_name, s.supplier_code, s.location].filter(Boolean).join(' ').toLowerCase().includes(q));
-  }, [data.suppliers, search, statsBySupplier]);
+    const matched = q
+      ? data.suppliers.filter((s) => [s.supplier_name, s.supplier_code, s.location].filter(Boolean).join(' ').toLowerCase().includes(q))
+      : [...data.suppliers];
+    const st = (id: string) => statsBySupplier.get(id);
+    const cmp: Record<SortKey, (a: Supplier, b: Supplier) => number> = {
+      code: (a, b) => (a.supplier_code || '').localeCompare(b.supplier_code || ''),
+      name: (a, b) => (a.supplier_name || '').localeCompare(b.supplier_name || ''),
+      // "Quotes / POs": rank by POs placed, then quotes received.
+      activity: (a, b) =>
+        ((st(a.supplier_id)?.pos.length ?? 0) - (st(b.supplier_id)?.pos.length ?? 0))
+        || ((st(a.supplier_id)?.quotes.length ?? 0) - (st(b.supplier_id)?.quotes.length ?? 0)),
+      purchased: (a, b) => (st(a.supplier_id)?.purchasedIdr ?? 0) - (st(b.supplier_id)?.purchasedIdr ?? 0),
+      outstanding: (a, b) => (st(a.supplier_id)?.outstandingIdr ?? 0) - (st(b.supplier_id)?.outstandingIdr ?? 0),
+    };
+    // Stable tie-break on name so equal rows never jitter between renders.
+    return matched.sort((a, b) => cmp[sort.key](a, b) * sort.dir || (a.supplier_name || '').localeCompare(b.supplier_name || ''));
+  }, [data.suppliers, search, statsBySupplier, sort]);
 
   if (authLoading || !profile) return <CenterSpinner />;
   if (!canView) return <CenterSpinner />;
@@ -125,7 +148,12 @@ export default function SuppliersPage() {
 
         <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
           <div className={`hidden md:grid grid-cols-[130px_minmax(0,1fr)_120px_60px_150px_150px] gap-3 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500 ${compact ? 'px-3 py-1.5' : 'px-4 py-2.5'}`}>
-            <span>Code</span><span>Supplier</span><span className="text-right">Quotes / POs</span><span /><span className="text-right">Purchased</span><span className="text-right">Outstanding</span>
+            <Head label="Code" active={sort.key === 'code'} dir={sort.dir} onClick={() => toggleSort('code')} />
+            <Head label="Supplier" active={sort.key === 'name'} dir={sort.dir} onClick={() => toggleSort('name')} />
+            <Head label="Quotes / POs" right active={sort.key === 'activity'} dir={sort.dir} onClick={() => toggleSort('activity')} />
+            <span />
+            <Head label="Purchased" right active={sort.key === 'purchased'} dir={sort.dir} onClick={() => toggleSort('purchased')} />
+            <Head label="Outstanding" right active={sort.key === 'outstanding'} dir={sort.dir} onClick={() => toggleSort('outstanding')} />
           </div>
           {loading ? (
             <div className="p-4 space-y-1.5">{[...Array(6)].map((_, i) => <div key={i} className="h-12 bg-slate-800/40 rounded-xl animate-pulse" />)}</div>
@@ -181,6 +209,18 @@ export default function SuppliersPage() {
 
 function CenterSpinner() {
   return <div className="min-h-screen bg-chrome flex items-center justify-center"><div className="w-6 h-6 border-2 border-sky-500/30 border-t-sky-500 rounded-full animate-spin" /></div>;
+}
+
+/** A sortable grid-column header — click to sort, click again to flip. The
+ *  arrow shows the state: ▲ ascending, ▼ descending, ↕ available but inactive. */
+function Head({ label, right, active, dir, onClick }: { label: string; right?: boolean; active: boolean; dir: 1 | -1; onClick: () => void }) {
+  return (
+    <button onClick={onClick}
+      className={`inline-flex items-center gap-1 uppercase tracking-widest leading-none transition-colors ${right ? 'justify-self-end' : 'justify-self-start'} ${active ? 'text-sky-300' : 'hover:text-slate-300'}`}>
+      {label}
+      <span className="text-[8px]">{active ? (dir === 1 ? '▲' : '▼') : '↕'}</span>
+    </button>
+  );
 }
 
 // ── Supplier profile drawer ─────────────────────────────────────────────────
