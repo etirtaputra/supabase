@@ -41,8 +41,8 @@ const BRAND_COLORS = [
 ];
 function brandColor(brand: string, idx: number) { return BRAND_COLORS[idx % BRAND_COLORS.length]; }
 
-// Rough USD→IDR and RMB→IDR for normalizing to IDR
-const FX: Record<string, number> = { USD: 16000, RMB: 2200, IDR: 1 };
+// Rough USD→IDR and CNY→IDR for normalizing to IDR
+const FX: Record<string, number> = { USD: 16000, CNY: 2200, IDR: 1 };
 function toIdr(amount: number, currency: string) { return amount * (FX[currency] ?? 16000); }
 
 function median(vals: number[]): number {

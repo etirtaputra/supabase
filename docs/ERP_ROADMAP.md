@@ -375,18 +375,18 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   buttons had been overflowing the row and printing on top of the wordmark.
 
 - **FX on quote-only costs (FIX 2026-07-27)**: `computeTUC` converted supplier
-  price-quote lines at a **hard-coded** `{ USD: 16000, RMB: 2200 }`. A quote
+  price-quote lines at a **hard-coded** `{ USD: 16000, CNY: 2200 }`. A quote
   line carries no exchange rate of its own, so any item with a PI but no
   settled PO — every new import — was costed at that constant. Against the
   realized rates the business actually pays (newest settled: **USD 16,900**,
-  **RMB 2,327**) that understated cost by **5.3% / 5.5%**, which almost exactly
+  **CNY 2,327**) that understated cost by **5.3% / 5.5%**, which almost exactly
   cancelled the 5% EPC Cost Basis buffer: the safety margin was buying nothing.
   `fxFromHistory(pos, settledRates)` now builds the map, ranked by **DATE**
   with source only as a tie-break. The first attempt ranked settled rates
   first and was itself 3 months stale: settlement lags ordering by months
   (`deriveExchangeRates` only counts POs with a principal payment), so
   "newest settled" was April's **16,900** while the business was already
-  ordering at **18,025** (PIO-013, 7 Jul) and RMB **2,658** (PIO-014, 9 Jul).
+  ordering at **18,025** (PIO-013, 7 Jul) and CNY **2,658** (PIO-014, 9 Jul).
   Pricing today's quotes off last quarter's rupiah is the whole error, so a
   rate COMMITTED to on a live PO now outranks an older rate actually paid.
   Draft and Replaced POs are excluded — a Draft is a scratchpad. Both the EPC

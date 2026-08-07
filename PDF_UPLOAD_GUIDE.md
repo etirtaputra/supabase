@@ -47,7 +47,7 @@ You'll see a **preview** of the extracted data:
 - Supplier Name (editable)
 - Quote/PI/PO Number (editable)
 - Date (editable)
-- Currency (dropdown: USD, RMB, IDR)
+- Currency (dropdown: USD, CNY, IDR)
 - Total Value (editable)
 
 **Line Items Table:**
@@ -105,7 +105,7 @@ The system will:
 - **Auto-detects** document type (quote vs PI vs PO)
 - **Extracts all line items** - no manual typing needed
 - **Recognizes brands** (EPEVER, JEMBO, SUPREME, etc.)
-- **Handles multiple currencies** (USD, RMB, IDR)
+- **Handles multiple currencies** (USD, CNY, IDR)
 
 ### ✅ Intelligent Matching
 - **Supplier matching** - Finds existing suppliers by name (fuzzy match)

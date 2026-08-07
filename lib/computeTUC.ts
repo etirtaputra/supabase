@@ -24,7 +24,7 @@ import { TAX_CATS, BALANCE_CATS } from '../constants/costCategories';
  * silently understates the cost of every quote-only import, and a cost that is
  * quietly 6% low is worse than no cost at all.
  */
-const FX_LAST_RESORT: Record<string, number> = { USD: 16000, RMB: 2200, IDR: 1 };
+const FX_LAST_RESORT: Record<string, number> = { USD: 16000, CNY: 2200, IDR: 1 };
 
 /** POs whose rate is real evidence. A Draft is a scratchpad; a Replaced PO is history. */
 const FX_PO_STATUSES = new Set(['Confirmed', 'Partially Received', 'Fully Received']);

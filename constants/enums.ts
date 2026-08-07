@@ -4,7 +4,7 @@
  */
 
 export const ENUMS = {
-  currency: ['USD', 'RMB', 'IDR'] as const,
+  currency: ['USD', 'CNY', 'IDR'] as const,
 
   product_category: [
     'accessories',

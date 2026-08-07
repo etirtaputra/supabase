@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-07T09:00:00Z',
+    title: 'The Chinese-yuan currency is now CNY everywhere, not RMB',
+    details: [
+      'Every place that named the Chinese yuan “RMB” now uses the ISO code “CNY” — the currency dropdown on quotes, POs and bank accounts, the market-rate strip, competitor-price handling and the cost calculators. Existing quotes, POs, line items and exchange-rate history were migrated in place, so nothing needs re-entering; the numbers are unchanged, only the code.',
+      'A nice side effect: supplier quotes priced in yuan now share the exact code (CNY) with the live market-rate feed, so the reference rate lines up instead of sitting under two different names.',
+      'PDF import still reads supplier documents that write “RMB” or “¥” and records them as CNY.',
+    ],
+  },
+  {
     at: '2026-08-07T08:00:00Z',
     title: 'Drag to reorder the menu — groups and the entries inside each — and Finance stands on its own',
     details: [
@@ -762,7 +771,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     at: '2026-08-01T09:30:00Z',
     title: 'Live market FX rates · tidier headers · Positioning Map readable',
     details: [
-      'Exchange Rates now opens with live market rates (USD / RMB / EUR → IDR) with an “Updated” stamp — fetched automatically and refreshed hourly, next to the supplier implied rates.',
+      'Exchange Rates now opens with live market rates (USD / CNY / EUR → IDR) with an “Updated” stamp — fetched automatically and refreshed hourly, next to the supplier implied rates.',
       'Supplier rate history defaults to a compact one-line view; the detailed cards are one tap away.',
       'Headers no longer repeat your email + Sign out next to the clock — the account lives in the ICAPROC menu.',
       'Positioning Map: the price axis switches to a log scale when one outlier would flatten everything, axis labels are back to a sane count, and point labels no longer overlap.',

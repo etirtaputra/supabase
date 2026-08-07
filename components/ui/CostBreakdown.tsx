@@ -42,7 +42,7 @@ interface Row {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-const FX: Record<string, number> = { USD: 16000, RMB: 2200, IDR: 1 };
+const FX: Record<string, number> = { USD: 16000, CNY: 2200, IDR: 1 };
 const TAX_SET = new Set(['local_vat', 'local_income_tax', 'local_import_tax']);
 const ZERO: Split = { product: 0, bank: 0, landed: 0, tax: 0 };
 

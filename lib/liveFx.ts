@@ -1,5 +1,5 @@
 /**
- * Live market FX — USD / CNY (RMB) / EUR → IDR, from open.er-api.com (free,
+ * Live market FX — USD / CNY / EUR → IDR, from open.er-api.com (free,
  * keyless; the upstream refreshes daily). Fetched from the BROWSER — the app
  * has no FX backend — cached in localStorage so the tab paints instantly on
  * revisit, and re-fetched automatically once the cache is over an hour old.
@@ -22,7 +22,6 @@ export interface LiveFxSnapshot {
 const CACHE_KEY = 'icaproc_live_fx';
 const MAX_AGE_MS = 60 * 60 * 1000;
 
-/** CNY is displayed as RMB to match how supplier quotes name it. */
 export const LIVE_FX_CURRENCIES = ['USD', 'CNY', 'EUR'] as const;
 
 function readCache(): LiveFxSnapshot | null {

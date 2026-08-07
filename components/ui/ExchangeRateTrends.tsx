@@ -111,7 +111,7 @@ export default function ExchangeRateTrends({ rates, suppliers }: ExchangeRateTre
               const v = live.rates[c];
               return v ? (
                 <span key={c} className="text-xs text-slate-400">
-                  {c === 'CNY' ? 'RMB' : c}{' '}
+                  {c}{' '}
                   <span className="font-bold tabular-nums text-sky-300">{Math.round(v).toLocaleString('en-US')}</span>
                 </span>
               ) : null;

@@ -227,7 +227,7 @@ import { TableSkeleton, FormSkeleton } from './components/ui/LoadingSkeleton';
   itemFields={[
     { name: 'component_id', label: 'Component', type: 'rich-select', options: components, ... },
     { name: 'quantity', label: 'Qty', type: 'number', req: true },
-    { name: 'currency', label: 'Curr', type: 'select', options: ['USD', 'RMB'] }
+    { name: 'currency', label: 'Curr', type: 'select', options: ['USD', 'CNY'] }
   ]}
   stickyFields={['currency']}  // These fields don't reset after adding item
   onSubmit={(items) => console.log(items)}

@@ -56,7 +56,7 @@ Return a JSON object with this EXACT structure:
   "pi_date": "YYYY-MM-DD format",
   "po_number": "PO number if this is a purchase order",
   "po_date": "YYYY-MM-DD format",
-  "currency": "USD" | "RMB" | "IDR",
+  "currency": "USD" | "CNY" | "IDR",
   "total_value": 12345.67,
   "payment_terms": "payment terms if mentioned",
   "lead_time_days": 30,
@@ -75,7 +75,7 @@ IMPORTANT:
 - Extract ALL line items, even if there are many
 - If a field is not present, omit it or use null
 - Ensure dates are in YYYY-MM-DD format
-- Currency should be one of: USD, RMB, or IDR
+- Currency should be one of: USD, CNY, or IDR — normalise Chinese yuan written as "RMB" or "¥" to "CNY"
 - For descriptions, preserve the original text from the document
 - If you see brand names like EPEVER, JEMBO, SUPREME, etc., include them in the brand field
 - Calculate total_value as the sum of all line items

@@ -1063,7 +1063,7 @@ export default function ComponentEditor({ components, brandSuggestions, quoteIte
     if (!competitorPrices?.length) return map;
     const byComp = new Map<string, typeof competitorPrices>();
     competitorPrices.forEach((cp) => {
-      if (!cp.component_id || cp.unit_price <= 0 || cp.currency === 'RMB') return;
+      if (!cp.component_id || cp.unit_price <= 0 || cp.currency === 'CNY') return;
       if (!byComp.has(cp.component_id)) byComp.set(cp.component_id, []);
       byComp.get(cp.component_id)!.push(cp);
     });

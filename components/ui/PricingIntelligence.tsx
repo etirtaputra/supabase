@@ -73,7 +73,7 @@ interface MarketStats {
   weightedAvgIdr: number | null;
   avgWpIdr: number | null;
   count: number;
-  rmbSkipped: number;
+  cnySkipped: number;
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -399,10 +399,10 @@ export default function PricingIntelligence({
     if (filteredCompPrices.length === 0 || !xrUsd) return null;
 
     const xr = xrUsd;
-    const rmbSkipped = filteredCompPrices.filter((p) => p.currency === 'RMB').length;
+    const cnySkipped = filteredCompPrices.filter((p) => p.currency === 'CNY').length;
 
     const normalized: NormalizedCompPrice[] = filteredCompPrices
-      .filter((p) => p.unit_price > 0 && p.currency !== 'RMB')
+      .filter((p) => p.unit_price > 0 && p.currency !== 'CNY')
       .map((p) => ({
         ...p,
         idrPrice: p.currency === 'IDR' ? p.unit_price : p.unit_price * xr,
@@ -427,7 +427,7 @@ export default function PricingIntelligence({
       ? withWp.reduce((s, p) => s + p.idrPrice / p.capacity_w!, 0) / withWp.length
       : null;
 
-    return { minIdr, maxIdr, weightedAvgIdr, avgWpIdr, count: normalized.length, rmbSkipped };
+    return { minIdr, maxIdr, weightedAvgIdr, avgWpIdr, count: normalized.length, cnySkipped };
   }, [filteredCompPrices, xrUsd]);
 
   // ── Simulator effective exchange rate (manual override or PO-derived) ──
@@ -633,9 +633,9 @@ export default function PricingIntelligence({
                 value={market?.weightedAvgIdr ? fmtIdr(market.weightedAvgIdr) : '—'}
                 sub={
                   market
-                    ? `${market.count} data point${market.count !== 1 ? 's' : ''}${market.rmbSkipped > 0 ? ` · ${market.rmbSkipped} RMB skipped` : ''} · range ${fmtIdr(market.minIdr)}–${fmtIdr(market.maxIdr)}`
+                    ? `${market.count} data point${market.count !== 1 ? 's' : ''}${market.cnySkipped > 0 ? ` · ${market.cnySkipped} CNY skipped` : ''} · range ${fmtIdr(market.minIdr)}–${fmtIdr(market.maxIdr)}`
                     : filteredCompPrices.length > 0
-                      ? 'All entries are RMB (not supported yet)'
+                      ? 'All entries are CNY (not supported yet)'
                       : 'No competitor prices in this period'
                 }
                 accent={market ? 'text-amber-300' : 'text-slate-600'}
@@ -939,7 +939,7 @@ export default function PricingIntelligence({
                             {p.currency === 'USD' && idrPrice !== null && (
                               <span className="text-slate-400">{fmtIdr(idrPrice)}</span>
                             )}
-                            {p.currency === 'RMB' && (
+                            {p.currency === 'CNY' && (
                               <span className="text-slate-600 text-[11px]">not converted</span>
                             )}
                             {((p.currency === 'IDR' && usdEquiv === null) || (p.currency === 'USD' && idrPrice === null)) && (
