@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-07T11:30:00Z',
+    title: 'Item Score — one 0–100 number for “what to keep buying”',
+    details: [
+      'Profitability now scores every item 0–100, GuruFocus-style: each item is ranked against others in its OWN category on six factors — sales-volume share, gross margin, momentum (demand growth), lead time (shorter is better), position (is the trade already in profit) and consistency (repeat sales, cost stability, still-current model). The blend lands in a band — Core, Solid, Watch or Reduce — with a plain suggested action next to it (“keep stocked — reorder on the point”, “reduce / clear — free the cash”). A superseded item is never told to restock.',
+      'The Score column sorts like the rest; hover any score to see the six factor scores and the action behind it. Two new filters — Core buys and Clear / reduce — turn the table straight into a shortlist. Every input is already measured (margin and position from delivered GP, lead time from PO→receipt, momentum from the last two 90-day windows, cost stability from receipt costs, successor from item links).',
+      'How much each factor counts is yours to set in Settings › Defaults — the weights need not add to 100, and the share each carries is shown as you type.',
+      'This is the first of the item-economics decision aids; “how much to buy” (order quantity from demand variability) and “when to buy” (reorder timing, FX and price momentum) build on it next.',
+    ],
+  },
+  {
     at: '2026-08-07T10:00:00Z',
     title: 'Sort the Suppliers list by any column',
     details: [

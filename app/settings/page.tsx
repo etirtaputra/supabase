@@ -32,6 +32,7 @@ import { applyCurrency, formatDate, formatNumber } from '@/lib/formatters';
 import { fetchWarehouses, type Warehouse } from '@/lib/warehouses';
 import { LIST_SPECS } from '@/constants/listDefaults';
 import { orderedNavGroups, orderedGroupItems, DEFAULT_MENU_ORDER, DESTINATIONS } from '@/constants/navigation';
+import { ITEM_SCORE_FACTORS, DEFAULT_ITEM_SCORE_WEIGHTS, type ItemScoreWeights } from '@/lib/itemScore';
 import { PRESET_LABELS, type RangePreset } from '@/lib/dateRange';
 import { accountLabel, type BankAccount } from '@/lib/banks';
 import { THEMES, previewTheme, endThemePreview } from '@/lib/theme';
@@ -728,6 +729,40 @@ function DefaultsTab({ draft, set, flash }: {
         <Link href="/stock" className="inline-block text-[11px] font-semibold text-sky-300 hover:text-sky-200 transition-colors">
           Open Stock →
         </Link>
+      </div>
+
+      {/* Item Score weights — how the Profitability dashboard ranks items. */}
+      <div className="lg:col-span-2 bg-slate-900/50 border border-slate-800 rounded-2xl p-4 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">Item Score weights</p>
+          <button onClick={() => set('itemScoreWeights', { ...DEFAULT_ITEM_SCORE_WEIGHTS })}
+            disabled={JSON.stringify(draft.itemScoreWeights) === JSON.stringify(DEFAULT_ITEM_SCORE_WEIGHTS)}
+            className="text-[11px] font-semibold text-slate-400 hover:text-white disabled:text-slate-700 disabled:hover:text-slate-700 transition-colors">
+            Reset to default
+          </button>
+        </div>
+        <p className="text-[11px] text-slate-500 leading-snug">
+          How much each factor counts toward an item’s 0–100 score on Profitability. The weights need not add up to 100 —
+          the score normalises them, so the share each one actually carries is shown beside it.
+        </p>
+        {(() => {
+          const w = draft.itemScoreWeights;
+          const total = ITEM_SCORE_FACTORS.reduce((s, f) => s + (Number(w[f.key as keyof ItemScoreWeights]) || 0), 0);
+          return (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {ITEM_SCORE_FACTORS.map((f) => {
+                const val = Number(w[f.key as keyof ItemScoreWeights]) || 0;
+                const share = total > 0 ? Math.round((val / total) * 100) : 0;
+                return (
+                  <Field key={f.key} label={`${f.label} · ${share}%`} hint={f.hint}>
+                    <input type="number" min={0} step="1" className={inputCls} value={val}
+                      onChange={(e) => set('itemScoreWeights', { ...w, [f.key]: Math.max(0, Number(e.target.value) || 0) })} />
+                  </Field>
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

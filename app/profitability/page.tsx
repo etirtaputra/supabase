@@ -28,6 +28,7 @@ import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 import FitText from '@/components/ui/FitText';
 import { useSettings } from '@/hooks/useSettings';
 import PositionPanel from '@/components/profitability/PositionPanel';
+import { computeItemScores, ITEM_SCORE_FACTORS, type ItemScoreInput, type ItemScoreResult, type ScoreBand } from '@/lib/itemScore';
 
 /**
  * Two questions, two tabs. "Profitability" measures the FLOW — what shipped in
@@ -68,8 +69,8 @@ interface ItemRow {
 }
 interface PartyRow { id: string; name: string; sub: string; revenue: number; gp: number; margin: number | null; orders: Set<string>; }
 
-type Chip = 'all' | 'sold' | 'inprofit' | 'slow' | 'negative';
-type SortKey = 'gp' | 'revenue' | 'margin' | 'stockValue' | 'dio' | 'soldQty';
+type Chip = 'all' | 'sold' | 'inprofit' | 'slow' | 'negative' | 'core' | 'reduce';
+type SortKey = 'score' | 'gp' | 'revenue' | 'margin' | 'stockValue' | 'dio' | 'soldQty';
 
 export default function EconomicsPage() {
   const supabase = createSupabaseClient();
@@ -92,8 +93,12 @@ export default function EconomicsPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [poReceived, setPoReceived] = useState<Map<string, string>>(new Map());
+  const [poDate, setPoDate] = useState<Map<string, string>>(new Map());
+  const [poComps, setPoComps] = useState<{ po_id: string; component_id: string }[]>([]);
+  const [supersededSet, setSupersededSet] = useState<Set<string>>(new Set());
   const [poPayments, setPoPayments] = useState<{ po_id: string; amount_idr: number; payment_date: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  const weights = useSettings().itemScoreWeights;
 
   const [tab, setTab] = useState<Tab>('flow');
   const [period, setPeriod] = useState<Period>(economicsPeriod);
@@ -125,7 +130,7 @@ export default function EconomicsPage() {
       }
       return all;
     };
-    const [allComps, balRes, movRes, doRes, doiRes, ordRes, soiRes, custRes, userRes, invRes, rcptRes, poRes, costRes] = await Promise.all([
+    const [allComps, balRes, movRes, doRes, doiRes, ordRes, soiRes, custRes, userRes, invRes, rcptRes, poRes, costRes, poiRes, linkRes] = await Promise.all([
       fetchAllComponents(),
       supabase.from('30.1_stock_balances').select('component_id, qty_on_hand, avg_cost_idr'),
       supabase.from('30.0_stock_movements').select('component_id, direction, quantity, unit_cost_idr, source_type, source_id, moved_at').limit(20000),
@@ -137,8 +142,10 @@ export default function EconomicsPage() {
       supabase.from('user_profiles').select('id, display_name, email'),
       supabase.from('25.0_sales_invoices').select('invoice_id, quote_id, grand_total, issued_at'),
       supabase.from('26.0_customer_receipts').select('invoice_id, amount, payment_date'),
-      supabase.from('5.0_purchases').select('po_id, actual_received_date'),
+      supabase.from('5.0_purchases').select('po_id, po_date, actual_received_date'),
       supabase.from('6.0_po_costs').select('po_id, amount, payment_date, exchange_rate, currency'),
+      supabase.from('5.1_purchase_line_items').select('po_id, component_id'),
+      supabase.from('8.0_component_links').select('component_id_a, component_id_b, link_type'),
     ]);
     setComps(allComps);
     const bm = new Map<string, { qty: number; avg: number }>();
@@ -158,10 +165,20 @@ export default function EconomicsPage() {
     setInvoices((invRes.data as Invoice[]) ?? []);
     setReceipts((rcptRes.data as Receipt[]) ?? []);
     const pr = new Map<string, string>();
-    for (const p of (poRes.data as { po_id: unknown; actual_received_date: string | null }[]) ?? []) {
+    const pd = new Map<string, string>();
+    for (const p of (poRes.data as { po_id: unknown; po_date: string | null; actual_received_date: string | null }[]) ?? []) {
       if (p.actual_received_date) pr.set(String(p.po_id), p.actual_received_date); // po_id is UUID live — always String()
+      if (p.po_date) pd.set(String(p.po_id), p.po_date);
     }
     setPoReceived(pr);
+    setPoDate(pd);
+    setPoComps((((poiRes.data as { po_id: unknown; component_id: string | null }[]) ?? [])
+      .filter((r) => r.component_id).map((r) => ({ po_id: String(r.po_id), component_id: r.component_id! }))));
+    const sup = new Set<string>();
+    for (const l of (linkRes.data as { component_id_a: string; component_id_b: string; link_type: string }[]) ?? []) {
+      if (l.link_type === 'successor' && l.component_id_a) sup.add(String(l.component_id_a));
+    }
+    setSupersededSet(sup);
     setPoPayments((((costRes.data as { po_id: unknown; amount: number | null; payment_date: string | null; exchange_rate: number | null; currency: string | null }[]) ?? [])
       .filter((c) => c.payment_date && (Number(c.amount) || 0) > 0)
       .map((c) => ({
@@ -283,6 +300,81 @@ export default function EconomicsPage() {
     return rows;
   }, [comps, bals, periodFacts, facts, periodDays, nowIso, SLOW_DAYS]);
 
+  // ── Item Score inputs ────────────────────────────────────────────────────
+  // Measured lead time per item: avg PO → goods-receipt days across the POs that
+  // actually carried it, with the catalog-wide average as the fallback.
+  const leadByComp = useMemo(() => {
+    const agg = new Map<string, { sum: number; n: number }>();
+    let gSum = 0, gN = 0;
+    for (const pc of poComps) {
+      const rec = poReceived.get(pc.po_id), ord = poDate.get(pc.po_id);
+      if (!rec || !ord) continue;
+      const d = daysBetween(rec, ord);
+      if (!(d >= 0)) continue;
+      const e = agg.get(pc.component_id) ?? { sum: 0, n: 0 };
+      e.sum += d; e.n += 1; agg.set(pc.component_id, e);
+      gSum += d; gN += 1;
+    }
+    const globalAvg = gN > 0 ? gSum / gN : null;
+    return (id: string): number | null => {
+      const e = agg.get(id);
+      return e && e.n > 0 ? e.sum / e.n : globalAvg;
+    };
+  }, [poComps, poReceived, poDate]);
+
+  // Purchase-cost stability per item: coefficient of variation of landed
+  // receipt costs (null under two receipts — too few to call it un/stable).
+  const covByComp = useMemo(() => {
+    const vals = new Map<string, number[]>();
+    for (const m of moves) {
+      if (m.direction !== 'in' || !m.component_id) continue;
+      const c = Number(m.unit_cost_idr) || 0;
+      if (c <= 0) continue;
+      (vals.get(m.component_id) ?? vals.set(m.component_id, []).get(m.component_id)!).push(c);
+    }
+    const out = new Map<string, number | null>();
+    for (const [id, a] of vals) {
+      if (a.length < 2) { out.set(id, null); continue; }
+      const mean = a.reduce((s, x) => s + x, 0) / a.length;
+      if (mean <= 0) { out.set(id, null); continue; }
+      const variance = a.reduce((s, x) => s + (x - mean) ** 2, 0) / a.length;
+      out.set(id, Math.sqrt(variance) / mean);
+    }
+    return out;
+  }, [moves]);
+
+  // Demand windows (recent 90d vs prior 90d) and repeat-sale frequency, from
+  // the all-time delivered facts.
+  const demand = useMemo(() => {
+    const d90 = new Date(Date.now() - 90 * 86400000).toISOString();
+    const d180 = new Date(Date.now() - 180 * 86400000).toISOString();
+    const rec = new Map<string, number>(), pri = new Map<string, number>(), events = new Map<string, number>();
+    for (const f of facts) {
+      events.set(f.component_id, (events.get(f.component_id) ?? 0) + 1);
+      if (!f.date) continue;
+      if (f.date >= d90) rec.set(f.component_id, (rec.get(f.component_id) ?? 0) + f.qty);
+      else if (f.date >= d180) pri.set(f.component_id, (pri.get(f.component_id) ?? 0) + f.qty);
+    }
+    return { rec, pri, events };
+  }, [facts]);
+
+  const scoreMap = useMemo(() => {
+    const inputs: ItemScoreInput[] = itemRows.map((r) => ({
+      id: r.c.component_id,
+      category: r.c.category,
+      revenue: r.revenue,
+      marginPct: r.margin,
+      demandRecent: demand.rec.get(r.c.component_id) ?? 0,
+      demandPrior: demand.pri.get(r.c.component_id) ?? 0,
+      leadDays: leadByComp(r.c.component_id),
+      recoveryRatio: r.stockValue > 0 ? r.gpAllTime / r.stockValue : null,
+      superseded: supersededSet.has(r.c.component_id),
+      saleEvents: demand.events.get(r.c.component_id) ?? 0,
+      costCoV: covByComp.get(r.c.component_id) ?? null,
+    }));
+    return computeItemScores(inputs, weights);
+  }, [itemRows, demand, leadByComp, covByComp, supersededSet, weights]);
+
   // ── Customer / rep rollup ──────────────────────────────────────────────────
   const custRows: PartyRow[] = useMemo(() => rollupParty(periodFacts, (f) => f.customer_id, (id) => {
     const c = customers.get(id);
@@ -356,15 +448,17 @@ export default function EconomicsPage() {
     else if (chip === 'inprofit') rows = rows.filter((r) => r.inProfit);
     else if (chip === 'slow') rows = rows.filter((r) => r.slow);
     else if (chip === 'negative') rows = rows.filter((r) => r.revenue > 0 && r.gp < 0);
+    else if (chip === 'core') rows = rows.filter((r) => scoreMap.get(r.c.component_id)?.band === 'core');
+    else if (chip === 'reduce') rows = rows.filter((r) => scoreMap.get(r.c.component_id)?.band === 'reduce');
     if (q) rows = rows.filter((r) => [descOf(r.c), r.c.category].filter(Boolean).join(' ').toLowerCase().includes(q));
     const { key, dir } = sort;
+    const valOf = (r: ItemRow): number =>
+      key === 'score' ? (scoreMap.get(r.c.component_id)?.score ?? -Infinity) : (r[key] ?? (key === 'dio' ? Infinity : -Infinity)) as number;
     return [...rows].sort((a, b) => {
-      const va = a[key] ?? (key === 'dio' ? Infinity : -Infinity);
-      const vb = b[key] ?? (key === 'dio' ? Infinity : -Infinity);
-      const d = (Number(va) - Number(vb)) * dir;
+      const d = (valOf(a) - valOf(b)) * dir;
       return d !== 0 ? d : b.stockValue - a.stockValue;
     });
-  }, [itemRows, chip, search, sort]);
+  }, [itemRows, chip, search, sort, scoreMap]);
 
   const toggleSort = (key: SortKey) => setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: -1 }));
 
@@ -454,7 +548,7 @@ export default function EconomicsPage() {
                   <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search item or category…"
                     className="w-full pl-10 pr-4 h-10 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors" />
                 </div>
-                {([['all', `All (${itemRows.length})`], ['sold', 'Sold in period'], ['inprofit', `In profit (${kpi.inProfitCount})`], ['slow', `Slow movers (${kpi.slowCount})`], ['negative', 'Negative GP']] as [Chip, string][]).map(([k, label]) => (
+                {([['all', `All (${itemRows.length})`], ['core', `Core buys (${itemRows.filter((r) => scoreMap.get(r.c.component_id)?.band === 'core').length})`], ['reduce', `Clear / reduce (${itemRows.filter((r) => scoreMap.get(r.c.component_id)?.band === 'reduce').length})`], ['sold', 'Sold in period'], ['inprofit', `In profit (${kpi.inProfitCount})`], ['slow', `Slow movers (${kpi.slowCount})`], ['negative', 'Negative GP']] as [Chip, string][]).map(([k, label]) => (
                   <button key={k} onClick={() => setChip(k)}
                     className={`text-[11px] px-2.5 py-1.5 rounded-lg border transition-colors whitespace-nowrap ${chip === k ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 font-bold' : 'border-slate-700/80 text-slate-500 hover:text-slate-300'}`}>
                     {label}
@@ -468,6 +562,7 @@ export default function EconomicsPage() {
                   <thead>
                     <tr className="border-b border-slate-800 text-[10px] uppercase tracking-widest text-slate-500">
                       <th className="text-left font-semibold px-4 py-2.5">Item</th>
+                      <SortTh label="Score" k="score" sort={sort} onClick={toggleSort} hint="0–100" />
                       <SortTh label="Sold" k="soldQty" sort={sort} onClick={toggleSort} />
                       <SortTh label="Revenue" k="revenue" sort={sort} onClick={toggleSort} />
                       <SortTh label="GP" k="gp" sort={sort} onClick={toggleSort} />
@@ -481,7 +576,7 @@ export default function EconomicsPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-800/60">
                     {visibleRows.length === 0 ? (
-                      <tr><td colSpan={10} className="px-4 py-12 text-center text-slate-600">No items match — deliveries feed this table (mark DOs delivered to see GP).</td></tr>
+                      <tr><td colSpan={11} className="px-4 py-12 text-center text-slate-600">No items match — deliveries feed this table (mark DOs delivered to see GP).</td></tr>
                     ) : visibleRows.map((r) => (
                       <tr key={r.c.component_id} className="hover:bg-slate-800/20 transition-colors">
                         <td className="px-4 py-2">
@@ -489,6 +584,7 @@ export default function EconomicsPage() {
                             className="text-sm text-slate-100 truncate max-w-[300px] block hover:text-emerald-300 transition-colors">{descOf(r.c)}</Link>
                           <p className="text-[10px] text-slate-600">{r.c.category ? humanize(r.c.category) : '—'}</p>
                         </td>
+                        <td className="px-3 py-2"><ScoreCell res={scoreMap.get(r.c.component_id)} /></td>
                         <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-300">{r.soldQty ? `${fmtInt(r.soldQty)}${r.c.unit ? ` ${r.c.unit}` : ''}` : <span className="text-slate-700">—</span>}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-300 whitespace-nowrap">{r.revenue ? fmtRupiah(r.revenue) : <span className="text-slate-700">—</span>}</td>
                         <td className={`px-3 py-2 text-right tabular-nums text-sm font-semibold whitespace-nowrap ${r.revenue === 0 ? 'text-slate-700' : r.gp < 0 ? 'text-red-400' : 'text-emerald-300'}`}>
@@ -518,7 +614,10 @@ export default function EconomicsPage() {
                   <p className="px-4 py-10 text-center text-slate-600 text-sm">No items match.</p>
                 ) : visibleRows.slice(0, 60).map((r) => (
                   <div key={r.c.component_id} className="bg-slate-900/40 border border-slate-800/80 rounded-xl px-3.5 py-3">
-                    <p className="text-sm text-slate-100 font-medium truncate">{descOf(r.c)}</p>
+                    <div className="flex items-center gap-2">
+                      <ScoreCell res={scoreMap.get(r.c.component_id)} />
+                      <p className="text-sm text-slate-100 font-medium truncate flex-1">{descOf(r.c)}</p>
+                    </div>
                     <div className="flex flex-wrap gap-1.5 mt-1.5 text-[11px]">
                       {r.revenue > 0 && (
                         <span className={`px-2 py-1 rounded-lg bg-slate-800/80 tabular-nums font-semibold ${r.gp < 0 ? 'text-red-300' : 'text-emerald-300'}`}>GP {fmtRupiah(r.gp)}{r.margin != null ? ` · ${r.margin.toFixed(0)}%` : ''}</span>
@@ -540,6 +639,8 @@ export default function EconomicsPage() {
             </div>
 
             <p className="text-[10px] text-slate-600 max-w-4xl">
+              Score (0–100) ranks each item against its category on six factors — sales-volume share, GP margin, momentum, lead time, position and consistency
+              (weights in <Link href="/settings?tab=defaults" className="text-emerald-500/80 hover:text-emerald-300">Settings › Defaults</Link>); hover a score for the breakdown and the suggested action.{' '}
               Basis: revenue = delivered DO lines at their Sales Order price (excl. PPN); COGS = the stock ledger&apos;s moving-average landed cost stamped at delivery
               (~ = legacy delivery estimated at current avg). GP is realized on delivery, not on invoice. DIO uses the period&apos;s daily COGS; items never delivered show no DIO.
               Internal only. Pricing floors live in <Link href="/pricing" className="text-emerald-500/80 hover:text-emerald-300">Pricing</Link>; per-item ledger in <Link href="/stock" className="text-emerald-500/80 hover:text-emerald-300">Stock</Link>.
@@ -613,6 +714,27 @@ function SortTh({ label, k, sort, onClick, hint }: { label: string; k: SortKey; 
 function Badge({ tone, title, children }: { tone: 'emerald' | 'amber' | 'slate'; title?: string; children: React.ReactNode }) {
   const cls = tone === 'emerald' ? 'bg-emerald-500/10 text-emerald-300' : tone === 'amber' ? 'bg-amber-500/10 text-amber-300' : 'bg-slate-800 text-slate-500';
   return <span title={title} className={`px-1.5 py-0.5 rounded text-[9px] font-semibold ${cls}`}>{children}</span>;
+}
+
+const BAND_STYLE: Record<ScoreBand, { chip: string; label: string }> = {
+  core:   { chip: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30', label: 'Core' },
+  solid:  { chip: 'bg-sky-500/15 text-sky-300 border-sky-500/30', label: 'Solid' },
+  watch:  { chip: 'bg-amber-500/15 text-amber-300 border-amber-500/30', label: 'Watch' },
+  reduce: { chip: 'bg-rose-500/15 text-rose-300 border-rose-500/30', label: 'Reduce' },
+};
+
+/** The score as a band-coloured chip; hover shows the action and the six
+ *  factor scores, so the number is always explainable. */
+function ScoreCell({ res }: { res?: ItemScoreResult }) {
+  if (!res) return <span className="text-slate-700 text-xs">—</span>;
+  const st = BAND_STYLE[res.band];
+  const tip = `${res.action}\n\n${ITEM_SCORE_FACTORS.map((f) => `${f.label}: ${Math.round(res.factors[f.key])}`).join('  ·  ')}`;
+  return (
+    <span title={tip} className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border tabular-nums text-xs font-bold cursor-help ${st.chip}`}>
+      {Math.round(res.score)}
+      <span className="text-[9px] font-semibold uppercase tracking-wide opacity-80">{st.label}</span>
+    </span>
+  );
 }
 
 function PartyPanel({ title, rows, emptyNote, linkBase }: { title: string; rows: PartyRow[]; emptyNote: string; linkBase?: string }) {

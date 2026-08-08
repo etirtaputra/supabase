@@ -28,6 +28,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { RangePreset } from './dateRange';
 import { DEFAULT_LIST_DEFAULTS } from '@/constants/listDefaults';
 import { DEFAULT_MENU_ORDER } from '@/constants/navigation';
+import { DEFAULT_ITEM_SCORE_WEIGHTS, type ItemScoreWeights } from './itemScore';
 
 export const SETTINGS_TABLE = '40.0_settings';
 
@@ -172,6 +173,15 @@ export interface AppSettings {
    * hide a module either.
    */
   menuItemOrder: Record<string, string[]>;
+
+  // ── Item Economics ────────────────────────────────────────────────────────
+  /**
+   * Weights behind the Item Score on the Profitability dashboard — how much
+   * each of the six factors counts. They need not sum to 100; the score
+   * normalises them. Owner-tuned, because which factor matters most is a
+   * business call, not a fixed rule.
+   */
+  itemScoreWeights: ItemScoreWeights;
 }
 
 /**
@@ -242,6 +252,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
   menuOrder: DEFAULT_MENU_ORDER,
   menuItemOrder: {},
+
+  itemScoreWeights: DEFAULT_ITEM_SCORE_WEIGHTS,
 };
 
 /** Indonesian punctuation, one click — "1.234.567,89". */
@@ -389,8 +401,20 @@ export function coerceSettings(raw: Record<string, unknown>): AppSettings {
     // real groups at render, so a stale or partial list is never a problem.
     menuOrder:          pick('menuOrder',          (v) => strList(v, d.menuOrder), d.menuOrder),
     menuItemOrder:      pick('menuItemOrder',      (v) => strListMap(v, d.menuItemOrder), d.menuItemOrder),
+    itemScoreWeights:   pick('itemScoreWeights',   (v) => scoreWeights(v, d.itemScoreWeights), d.itemScoreWeights),
   };
 }
+
+/** Coerce the six item-score weights — each a non-negative number. */
+const scoreWeights = (v: unknown, fb: ItemScoreWeights): ItemScoreWeights => {
+  if (!v || typeof v !== 'object') return fb;
+  const o = v as Partial<Record<keyof ItemScoreWeights, unknown>>;
+  const one = (k: keyof ItemScoreWeights) => Math.max(0, numOr(o[k], fb[k]));
+  return {
+    volume: one('volume'), margin: one('margin'), momentum: one('momentum'),
+    leadTime: one('leadTime'), position: one('position'), consistency: one('consistency'),
+  };
+};
 
 // ── Loading / saving ────────────────────────────────────────────────────────
 
