@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-07T12:30:00Z',
+    title: 'The Item Score now shows on the Items list too',
+    details: [
+      'The Item Score wasn’t only meant for the Profitability screen — it now has its own column on Items (Analytics › Items), right after the name. Sort by it (or pick “Item Score” in the sort menu) to put the best items to keep buying at the top; hover a chip for the seven factor scores and the suggested action.',
+      'It’s the same score, same engine and same basis as Profitability — computed across the whole catalog so the category ranking is identical on both screens.',
+    ],
+  },
+  {
     at: '2026-08-07T12:00:00Z',
     title: 'Item Score gains a seventh factor: cash cycle',
     details: [

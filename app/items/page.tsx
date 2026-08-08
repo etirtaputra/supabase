@@ -23,6 +23,8 @@ import { useListDefaults } from '@/hooks/useListDefaults';
 import ItemCostForensics from '@/components/ui/ItemCostForensics';
 import { computeTUCMap, fxFromHistory } from '@/lib/computeTUC';
 import { deriveExchangeRates } from '@/lib/exchangeRates';
+import { useItemScores } from '@/hooks/useItemScores';
+import { ITEM_SCORE_FACTORS, type ItemScoreResult, type ScoreBand } from '@/lib/itemScore';
 import type { PriceQuote, PriceQuoteLineItem, PurchaseOrder, PurchaseLineItem, POCost, ComponentLink } from '@/types/database';
 
 interface Comp {
@@ -34,11 +36,31 @@ interface Row { c: Comp; qty: number; avg: number; value: number; activity: numb
 
 const descOf = (c: Comp) => (c.internal_description && c.internal_description.trim()) || c.supplier_model || '(no description)';
 
-type SortKey = 'activity' | 'stock' | 'value' | 'name' | 'moved';
+type SortKey = 'score' | 'activity' | 'stock' | 'value' | 'name' | 'moved';
 const SORT_LABELS: Record<SortKey, string> = {
-  activity: 'Most traded', stock: 'On hand', value: 'Stock value', name: 'Name', moved: 'Last movement',
+  score: 'Item Score', activity: 'Most traded', stock: 'On hand', value: 'Stock value', name: 'Name', moved: 'Last movement',
 };
-const DEFAULT_DIR: Record<SortKey, 1 | -1> = { activity: -1, stock: -1, value: -1, name: 1, moved: -1 };
+const DEFAULT_DIR: Record<SortKey, 1 | -1> = { score: -1, activity: -1, stock: -1, value: -1, name: 1, moved: -1 };
+
+const BAND_STYLE: Record<ScoreBand, { chip: string; label: string }> = {
+  core:   { chip: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30', label: 'Core' },
+  solid:  { chip: 'bg-sky-500/15 text-sky-300 border-sky-500/30', label: 'Solid' },
+  watch:  { chip: 'bg-amber-500/15 text-amber-300 border-amber-500/30', label: 'Watch' },
+  reduce: { chip: 'bg-rose-500/15 text-rose-300 border-rose-500/30', label: 'Reduce' },
+};
+
+/** The Item Score as a band-coloured chip; hover shows the action + factors. */
+function ScoreChip({ res }: { res?: ItemScoreResult }) {
+  if (!res) return <span className="text-slate-700 text-xs">—</span>;
+  const st = BAND_STYLE[res.band];
+  const tip = `${res.action}\n\n${ITEM_SCORE_FACTORS.map((f) => `${f.label}: ${Math.round(res.factors[f.key])}`).join('  ·  ')}`;
+  return (
+    <span title={tip} className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg border tabular-nums text-xs font-bold cursor-help ${st.chip}`}>
+      {Math.round(res.score)}
+      <span className="text-[9px] font-semibold uppercase tracking-wide opacity-80">{st.label}</span>
+    </span>
+  );
+}
 
 export default function ItemsPage() {
   return (
@@ -168,6 +190,9 @@ function ItemsInner() {
   // row's forensics reads these, so the numbers match Cost Lookup exactly.
   const tucMap = useMemo(() => computeTUCMap(pos, poItems, poCosts), [pos, poItems, poCosts]);
   const fx = useMemo(() => fxFromHistory(pos, deriveExchangeRates(pos, poItems, poCosts, quotes)), [pos, poItems, poCosts, quotes]);
+  // The Item Score, ranked across the whole catalog (owner-only). Same engine
+  // and basis as the Profitability dashboard.
+  const { scores } = useItemScores(supabase, canOpen);
 
   const rows: Row[] = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -192,7 +217,8 @@ function ItemsInner() {
     const { key, dir } = sort;
     list.sort((a, b) => {
       let d = 0;
-      if (key === 'activity') d = a.activity - b.activity;
+      if (key === 'score') d = (scores.get(a.c.component_id)?.score ?? -1) - (scores.get(b.c.component_id)?.score ?? -1);
+      else if (key === 'activity') d = a.activity - b.activity;
       else if (key === 'stock') d = a.qty - b.qty;
       else if (key === 'value') d = a.value - b.value;
       else if (key === 'moved') d = (a.lastMove ?? '').localeCompare(b.lastMove ?? '');
@@ -202,7 +228,7 @@ function ItemsInner() {
       return (b.activity - a.activity) || descOf(a.c).localeCompare(descOf(b.c));
     });
     return list;
-  }, [comps, stock, activity, lastMove, search, filterCategory, stockOnly, sort]);
+  }, [comps, stock, activity, lastMove, search, filterCategory, stockOnly, sort, scores]);
 
   const toggleSort = (key: SortKey) => {
     listTouched.current = true;
@@ -214,7 +240,7 @@ function ItemsInner() {
     return <div className="min-h-screen bg-chrome flex items-center justify-center"><div className="w-6 h-6 border-2 border-slate-500/30 border-t-slate-300 rounded-full animate-spin" /></div>;
   }
 
-  const cols = `1fr 120px 110px${canSell ? ' 130px' : ''}${canBuy ? ' 120px 130px' : ''} 90px 110px`;
+  const cols = `1fr 96px 120px 110px${canSell ? ' 130px' : ''}${canBuy ? ' 120px 130px' : ''} 90px 110px`;
 
   return (
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
@@ -256,6 +282,7 @@ function ItemsInner() {
         <div className="hidden md:block bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
           <div className="grid gap-3 px-4 py-2.5 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500" style={{ gridTemplateColumns: cols }}>
             <button onClick={() => toggleSort('name')} className="text-left hover:text-slate-300 transition-colors uppercase tracking-widest">Item{arrow('name')}</button>
+            <button onClick={() => toggleSort('score')} className="text-left hover:text-slate-300 transition-colors uppercase tracking-widest" title="Item Score — 0–100, higher is a better item to keep buying (hover a chip for the breakdown)">Score{arrow('score')}</button>
             <span>Category</span>
             <button onClick={() => toggleSort('stock')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest">On hand{arrow('stock')}</button>
             {canSell && <span className="text-right">Sell price</span>}
@@ -294,6 +321,7 @@ function ItemsInner() {
                           </span>
                         )}
                       </span>
+                      <span onClick={(e) => e.stopPropagation()}><ScoreChip res={scores.get(r.c.component_id)} /></span>
                       <span className="text-[11px] text-slate-500 truncate">{r.c.category ? humanize(r.c.category) : '—'}</span>
                       <span className={`text-right tabular-nums font-semibold ${r.qty < 0 ? 'text-red-400' : r.qty === 0 ? 'text-slate-600' : 'text-slate-100'}`}>
                         {fmtInt(r.qty)}{r.c.unit && <span className="text-[10px] text-slate-600 font-normal"> {r.c.unit}</span>}
@@ -347,6 +375,7 @@ function ItemsInner() {
                     {[canBrand ? r.c.brand : null, r.c.category ? humanize(r.c.category) : null].filter(Boolean).join(' · ') || '—'}
                   </p>
                   <div className="flex flex-wrap gap-1.5 mt-1.5 text-[11px]">
+                    <ScoreChip res={scores.get(r.c.component_id)} />
                     <span className="px-2 py-0.5 rounded-lg bg-slate-800/80 tabular-nums font-semibold">
                       <span className={r.qty < 0 ? 'text-red-300' : r.qty === 0 ? 'text-slate-500' : 'text-slate-100'}>{fmtInt(r.qty)}</span>
                       {r.c.unit && <span className="text-slate-600 font-normal"> {r.c.unit}</span>}
