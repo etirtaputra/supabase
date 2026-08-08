@@ -371,6 +371,7 @@ export default function EconomicsPage() {
       superseded: supersededSet.has(r.c.component_id),
       saleEvents: demand.events.get(r.c.component_id) ?? 0,
       costCoV: covByComp.get(r.c.component_id) ?? null,
+      dioDays: r.dio,
     }));
     return computeItemScores(inputs, weights);
   }, [itemRows, demand, leadByComp, covByComp, supersededSet, weights]);

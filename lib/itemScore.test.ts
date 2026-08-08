@@ -11,7 +11,7 @@ import {
 /** A baseline item; override only what a test cares about. */
 const item = (over: Partial<ItemScoreInput> & { id: string }): ItemScoreInput => ({
   category: 'cat', revenue: 1000, marginPct: 20, demandRecent: 10, demandPrior: 10,
-  leadDays: 30, recoveryRatio: 0.5, superseded: false, saleEvents: 5, costCoV: 0.1, ...over,
+  leadDays: 30, recoveryRatio: 0.5, superseded: false, saleEvents: 5, costCoV: 0.1, dioDays: 45, ...over,
 });
 
 /** A field of near-identical peers so a category can rank on its own (≥8). */
@@ -34,6 +34,12 @@ test('shorter lead time scores HIGHER (the inversion holds)', () => {
   const items = [...peers(8), item({ id: 'fast', leadDays: 7 }), item({ id: 'slow', leadDays: 120 })];
   const s = computeItemScores(items);
   assert.ok(s.get('fast')!.factors.leadTime > s.get('slow')!.factors.leadTime);
+});
+
+test('a faster cash cycle (lower DIO) scores higher', () => {
+  const items = [...peers(8), item({ id: 'fast', dioDays: 10 }), item({ id: 'slow', dioDays: 200 })];
+  const s = computeItemScores(items);
+  assert.ok(s.get('fast')!.factors.cashCycle > s.get('slow')!.factors.cashCycle);
 });
 
 test('growing demand beats shrinking demand on momentum', () => {
@@ -86,7 +92,7 @@ test('every score is within 0–100 and carries an action', () => {
 });
 
 test('zero weights fall back to the defaults instead of dividing by zero', () => {
-  const zero = { volume: 0, margin: 0, momentum: 0, leadTime: 0, position: 0, consistency: 0 };
+  const zero = { volume: 0, margin: 0, momentum: 0, leadTime: 0, position: 0, consistency: 0, cashCycle: 0 };
   const s = computeItemScores([...peers(8), item({ id: 'x', revenue: 9_000_000 })], zero);
   assert.ok(Number.isFinite(s.get('x')!.score));
 });
@@ -97,8 +103,8 @@ test('re-weighting changes the ranking — margin-only vs volume-only disagree',
     item({ id: 'fatThinSeller', revenue: 100, marginPct: 60 }),
     item({ id: 'bigThinMargin', revenue: 5_000_000, marginPct: 2 }),
   ];
-  const marginOnly = computeItemScores(items, { ...DEFAULT_ITEM_SCORE_WEIGHTS, volume: 0, momentum: 0, leadTime: 0, position: 0, consistency: 0, margin: 100 });
-  const volumeOnly = computeItemScores(items, { ...DEFAULT_ITEM_SCORE_WEIGHTS, margin: 0, momentum: 0, leadTime: 0, position: 0, consistency: 0, volume: 100 });
+  const marginOnly = computeItemScores(items, { ...DEFAULT_ITEM_SCORE_WEIGHTS, volume: 0, momentum: 0, leadTime: 0, position: 0, consistency: 0, cashCycle: 0, margin: 100 });
+  const volumeOnly = computeItemScores(items, { ...DEFAULT_ITEM_SCORE_WEIGHTS, margin: 0, momentum: 0, leadTime: 0, position: 0, consistency: 0, cashCycle: 0, volume: 100 });
   assert.ok(marginOnly.get('fatThinSeller')!.score > marginOnly.get('bigThinMargin')!.score);
   assert.ok(volumeOnly.get('bigThinMargin')!.score > volumeOnly.get('fatThinSeller')!.score);
 });

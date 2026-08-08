@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-07T12:00:00Z',
+    title: 'Item Score gains a seventh factor: cash cycle',
+    details: [
+      'The Item Score now also weighs how fast each item turns its cash — its days inventory outstanding (stock value ÷ daily COGS). An item that sits on the shelf for months ranks below one that cycles in weeks, so the score leans toward what keeps the cash conversion cycle short. (The inventory leg is the part of the cycle an item actually drives; DSO and DPO are customer- and supplier-level and stay on the company CCC strip.)',
+      'Its weight is set alongside the others in Settings › Defaults, defaulting to 15.',
+    ],
+  },
+  {
     at: '2026-08-07T11:30:00Z',
     title: 'Item Score — one 0–100 number for “what to keep buying”',
     details: [

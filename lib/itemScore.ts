@@ -18,7 +18,7 @@
  * action so the screen proposes a next step instead of only a number.
  */
 
-/** The six factor weights (need not sum to 100 — they are normalised). */
+/** The factor weights (need not sum to 100 — they are normalised). */
 export interface ItemScoreWeights {
   volume: number;       // sales-volume contribution vs the whole book
   margin: number;       // gross profit margin
@@ -26,10 +26,11 @@ export interface ItemScoreWeights {
   leadTime: number;     // supplier speed (shorter is better)
   position: number;     // is the trade already whole (in profit)?
   consistency: number;  // a dependable staple vs a one-off / EOL model
+  cashCycle: number;    // days inventory outstanding — cash locked as stock
 }
 
 export const DEFAULT_ITEM_SCORE_WEIGHTS: ItemScoreWeights = {
-  volume: 20, margin: 20, momentum: 15, leadTime: 15, position: 15, consistency: 15,
+  volume: 18, margin: 18, momentum: 13, leadTime: 12, position: 12, consistency: 12, cashCycle: 15,
 };
 
 /** Everything the score needs about one item — all measured elsewhere. */
@@ -54,12 +55,15 @@ export interface ItemScoreInput {
   saleEvents: number;
   /** Coefficient of variation of purchase unit cost; null under 2 buys. */
   costCoV: number | null;
+  /** Days inventory outstanding (stock value ÷ daily COGS). Shorter = cash
+   *  cycles faster. null when nothing is held or nothing shipped to measure it. */
+  dioDays: number | null;
 }
 
 export type ScoreBand = 'core' | 'solid' | 'watch' | 'reduce';
 
 export interface ItemFactorScores {
-  volume: number; margin: number; momentum: number; leadTime: number; position: number; consistency: number;
+  volume: number; margin: number; momentum: number; leadTime: number; position: number; consistency: number; cashCycle: number;
 }
 
 export interface ItemScoreResult {
@@ -196,13 +200,15 @@ export function computeItemScores(
   const volume = rankFactor(items, (it) => it.revenue > 0 ? it.revenue : null);
   const margin = rankFactor(items, (it) => it.marginPct);
   const momentum = rankFactor(items, growthOf);
-  // Lead time: shorter is better, so rank the NEGATED days.
+  // Lead time and cash cycle: shorter is better, so rank the NEGATED days.
   const leadTime = rankFactor(items, (it) => it.leadDays === null ? null : -it.leadDays);
+  const cashCycle = rankFactor(items, (it) => it.dioDays === null ? null : -it.dioDays);
   const consistency = consistencyScores(items);
 
-  const wsum = weights.volume + weights.margin + weights.momentum + weights.leadTime + weights.position + weights.consistency;
+  const sumW = (x: ItemScoreWeights) => x.volume + x.margin + x.momentum + x.leadTime + x.position + x.consistency + x.cashCycle;
+  const wsum = sumW(weights);
   const w = wsum > 0 ? weights : DEFAULT_ITEM_SCORE_WEIGHTS;
-  const wtot = wsum > 0 ? wsum : (DEFAULT_ITEM_SCORE_WEIGHTS.volume + DEFAULT_ITEM_SCORE_WEIGHTS.margin + DEFAULT_ITEM_SCORE_WEIGHTS.momentum + DEFAULT_ITEM_SCORE_WEIGHTS.leadTime + DEFAULT_ITEM_SCORE_WEIGHTS.position + DEFAULT_ITEM_SCORE_WEIGHTS.consistency);
+  const wtot = wsum > 0 ? wsum : sumW(DEFAULT_ITEM_SCORE_WEIGHTS);
 
   const out = new Map<string, ItemScoreResult>();
   for (const it of items) {
@@ -213,6 +219,7 @@ export function computeItemScores(
       leadTime: leadTime.get(it.id) ?? NEUTRAL,
       position: positionScore(it),
       consistency: consistency.get(it.id) ?? NEUTRAL,
+      cashCycle: cashCycle.get(it.id) ?? NEUTRAL,
     };
     const score = clamp((
       factors.volume * w.volume +
@@ -220,7 +227,8 @@ export function computeItemScores(
       factors.momentum * w.momentum +
       factors.leadTime * w.leadTime +
       factors.position * w.position +
-      factors.consistency * w.consistency
+      factors.consistency * w.consistency +
+      factors.cashCycle * w.cashCycle
     ) / wtot);
     const band = bandOf(score);
     out.set(it.id, { id: it.id, score, factors, band, action: actionOf(band, it.superseded), superseded: it.superseded });
@@ -236,4 +244,5 @@ export const ITEM_SCORE_FACTORS: { key: keyof ItemFactorScores; label: string; h
   { key: 'leadTime',    label: 'Lead time',   hint: 'Supplier speed — shorter ranks higher' },
   { key: 'position',    label: 'Position',    hint: 'Is the trade already in profit' },
   { key: 'consistency', label: 'Consistency', hint: 'Repeat sales, cost stability, still current' },
+  { key: 'cashCycle',   label: 'Cash cycle',  hint: 'Days inventory outstanding — cash locked as stock, shorter ranks higher' },
 ];

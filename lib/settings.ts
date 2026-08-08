@@ -413,6 +413,7 @@ const scoreWeights = (v: unknown, fb: ItemScoreWeights): ItemScoreWeights => {
   return {
     volume: one('volume'), margin: one('margin'), momentum: one('momentum'),
     leadTime: one('leadTime'), position: one('position'), consistency: one('consistency'),
+    cashCycle: one('cashCycle'),
   };
 };
 
