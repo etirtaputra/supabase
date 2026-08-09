@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-07T13:00:00Z',
+    title: 'Sort items by volume and what’s trending',
+    details: [
+      'The Items list now has a “Vol · 90d” column — each item’s sales value over the last 90 days, the item equivalent of 24-hour volume on an exchange, with a green/red arrow for demand growth vs the prior 90 days (and a “new” tag for a first sale). Click the header to rank items by recent volume, high to low.',
+      'The sort menu adds two views: “Volume · 90d (high)” for the biggest movers, and “Trending (rising volume)” which floats items that are both selling well AND accelerating — the closest thing to an exchange’s trending board. Both read off the same sales data as the Item Score.',
+    ],
+  },
+  {
     at: '2026-08-07T12:30:00Z',
     title: 'The Item Score now shows on the Items list too',
     details: [

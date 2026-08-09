@@ -20,6 +20,16 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { computeItemScores, type ItemScoreInput, type ItemScoreResult } from '@/lib/itemScore';
 import { useSettings } from './useSettings';
 
+/** Trading-activity numbers per item, for a Binance-style "volume / trending"
+ *  sort — recent sales value, units, and demand momentum. */
+export interface ItemMetrics {
+  revenue90d: number;          // sales value in the last 90 days (the "volume")
+  units90d: number;            // units shipped in the last 90 days
+  momentumPct: number | null;  // demand growth vs the prior 90 days; null = no baseline
+  /** A single sortable "trending" number: rising volume ranks highest. */
+  trend: number;
+}
+
 const daysBetween = (a: string, b: string) => (new Date(a).getTime() - new Date(b).getTime()) / 86400000;
 
 interface Raw {
@@ -35,7 +45,7 @@ interface Raw {
   superseded: Set<string>;
 }
 
-export function useItemScores(supabase: SupabaseClient, enabled: boolean): { scores: Map<string, ItemScoreResult>; loading: boolean } {
+export function useItemScores(supabase: SupabaseClient, enabled: boolean): { scores: Map<string, ItemScoreResult>; metrics: Map<string, ItemMetrics>; loading: boolean } {
   const weights = useSettings().itemScoreWeights;
   const [raw, setRaw] = useState<Raw | null>(null);
   const [loading, setLoading] = useState(true);
@@ -97,8 +107,8 @@ export function useItemScores(supabase: SupabaseClient, enabled: boolean): { sco
 
   useEffect(() => { if (enabled) load(); }, [enabled, load]);
 
-  const scores = useMemo(() => {
-    if (!raw) return new Map<string, ItemScoreResult>();
+  const { scores, metrics } = useMemo(() => {
+    if (!raw) return { scores: new Map<string, ItemScoreResult>(), metrics: new Map<string, ItemMetrics>() };
 
     // Delivered facts: one per delivered DO × component — revenue at SO price,
     // COGS from the ledger's net out cost (fallback to current avg).
@@ -135,6 +145,7 @@ export function useItemScores(supabase: SupabaseClient, enabled: boolean): { sco
     // Per-item rollups.
     const rev = new Map<string, number>(), cogsAll = new Map<string, number>(), gpAll = new Map<string, number>();
     const recent = new Map<string, number>(), prior = new Map<string, number>(), events = new Map<string, number>();
+    const rev90 = new Map<string, number>();
     let firstDate = '';
     const d90 = new Date(Date.now() - 90 * 86400000).toISOString();
     const d180 = new Date(Date.now() - 180 * 86400000).toISOString();
@@ -145,8 +156,10 @@ export function useItemScores(supabase: SupabaseClient, enabled: boolean): { sco
       events.set(f.component_id, (events.get(f.component_id) ?? 0) + 1);
       if (f.date) {
         if (!firstDate || f.date < firstDate) firstDate = f.date;
-        if (f.date >= d90) recent.set(f.component_id, (recent.get(f.component_id) ?? 0) + f.qty);
-        else if (f.date >= d180) prior.set(f.component_id, (prior.get(f.component_id) ?? 0) + f.qty);
+        if (f.date >= d90) {
+          recent.set(f.component_id, (recent.get(f.component_id) ?? 0) + f.qty);
+          rev90.set(f.component_id, (rev90.get(f.component_id) ?? 0) + f.revenue);
+        } else if (f.date >= d180) prior.set(f.component_id, (prior.get(f.component_id) ?? 0) + f.qty);
       }
     }
     const spanDays = firstDate ? Math.max(30, Math.ceil(daysBetween(new Date().toISOString(), firstDate))) : 365;
@@ -198,8 +211,21 @@ export function useItemScores(supabase: SupabaseClient, enabled: boolean): { sco
         dioDays: stockValue > 0 && cogsPeriod > 0 ? stockValue / (cogsPeriod / spanDays) : null,
       };
     });
-    return computeItemScores(inputs, weights);
+
+    // Trading metrics for the volume / trending sort.
+    const metrics = new Map<string, ItemMetrics>();
+    for (const c of raw.comps) {
+      const r90 = rev90.get(c.component_id) ?? 0;
+      const u90 = recent.get(c.component_id) ?? 0;
+      const u0 = prior.get(c.component_id) ?? 0;
+      const momentumPct = u0 > 0 ? ((u90 - u0) / u0) * 100 : null;
+      // Trending = recent volume amplified by whether it's rising. A first
+      // sale with no baseline gets a modest lift; a dead item sinks below zero.
+      const factor = momentumPct === null ? (u90 > 0 ? 1.5 : 0) : 1 + Math.max(-1, Math.min(3, momentumPct / 100));
+      metrics.set(c.component_id, { revenue90d: r90, units90d: u90, momentumPct, trend: r90 * factor });
+    }
+    return { scores: computeItemScores(inputs, weights), metrics };
   }, [raw, weights]);
 
-  return { scores, loading };
+  return { scores, metrics, loading };
 }

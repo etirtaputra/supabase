@@ -23,7 +23,7 @@ import { useListDefaults } from '@/hooks/useListDefaults';
 import ItemCostForensics from '@/components/ui/ItemCostForensics';
 import { computeTUCMap, fxFromHistory } from '@/lib/computeTUC';
 import { deriveExchangeRates } from '@/lib/exchangeRates';
-import { useItemScores } from '@/hooks/useItemScores';
+import { useItemScores, type ItemMetrics } from '@/hooks/useItemScores';
 import { ITEM_SCORE_FACTORS, type ItemScoreResult, type ScoreBand } from '@/lib/itemScore';
 import type { PriceQuote, PriceQuoteLineItem, PurchaseOrder, PurchaseLineItem, POCost, ComponentLink } from '@/types/database';
 
@@ -36,11 +36,12 @@ interface Row { c: Comp; qty: number; avg: number; value: number; activity: numb
 
 const descOf = (c: Comp) => (c.internal_description && c.internal_description.trim()) || c.supplier_model || '(no description)';
 
-type SortKey = 'score' | 'activity' | 'stock' | 'value' | 'name' | 'moved';
+type SortKey = 'score' | 'volume' | 'trend' | 'activity' | 'stock' | 'value' | 'name' | 'moved';
 const SORT_LABELS: Record<SortKey, string> = {
-  score: 'Item Score', activity: 'Most traded', stock: 'On hand', value: 'Stock value', name: 'Name', moved: 'Last movement',
+  score: 'Item Score', volume: 'Volume · 90d (high)', trend: 'Trending (rising volume)',
+  activity: 'Most traded', stock: 'On hand', value: 'Stock value', name: 'Name', moved: 'Last movement',
 };
-const DEFAULT_DIR: Record<SortKey, 1 | -1> = { score: -1, activity: -1, stock: -1, value: -1, name: 1, moved: -1 };
+const DEFAULT_DIR: Record<SortKey, 1 | -1> = { score: -1, volume: -1, trend: -1, activity: -1, stock: -1, value: -1, name: 1, moved: -1 };
 
 const BAND_STYLE: Record<ScoreBand, { chip: string; label: string }> = {
   core:   { chip: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30', label: 'Core' },
@@ -48,6 +49,19 @@ const BAND_STYLE: Record<ScoreBand, { chip: string; label: string }> = {
   watch:  { chip: 'bg-amber-500/15 text-amber-300 border-amber-500/30', label: 'Watch' },
   reduce: { chip: 'bg-rose-500/15 text-rose-300 border-rose-500/30', label: 'Reduce' },
 };
+
+/** Recent sales value (the "volume") with a momentum arrow — Binance-style. */
+function VolCell({ m }: { m?: ItemMetrics }) {
+  if (!m || m.revenue90d <= 0) return <span className="text-slate-700">—</span>;
+  return (
+    <span className="whitespace-nowrap" title="Sales value in the last 90 days, and demand growth vs the prior 90 days">
+      <span className="text-slate-200">{fmtRupiah(m.revenue90d)}</span>
+      {m.momentumPct != null
+        ? <span className={`ml-1 text-[10px] ${m.momentumPct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{m.momentumPct >= 0 ? '▲' : '▼'}{Math.abs(Math.round(m.momentumPct))}%</span>
+        : m.units90d > 0 ? <span className="ml-1 text-[10px] text-sky-400">new</span> : null}
+    </span>
+  );
+}
 
 /** The Item Score as a band-coloured chip; hover shows the action + factors. */
 function ScoreChip({ res }: { res?: ItemScoreResult }) {
@@ -192,7 +206,7 @@ function ItemsInner() {
   const fx = useMemo(() => fxFromHistory(pos, deriveExchangeRates(pos, poItems, poCosts, quotes)), [pos, poItems, poCosts, quotes]);
   // The Item Score, ranked across the whole catalog (owner-only). Same engine
   // and basis as the Profitability dashboard.
-  const { scores } = useItemScores(supabase, canOpen);
+  const { scores, metrics } = useItemScores(supabase, canOpen);
 
   const rows: Row[] = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -218,6 +232,8 @@ function ItemsInner() {
     list.sort((a, b) => {
       let d = 0;
       if (key === 'score') d = (scores.get(a.c.component_id)?.score ?? -1) - (scores.get(b.c.component_id)?.score ?? -1);
+      else if (key === 'volume') d = (metrics.get(a.c.component_id)?.revenue90d ?? -1) - (metrics.get(b.c.component_id)?.revenue90d ?? -1);
+      else if (key === 'trend') d = (metrics.get(a.c.component_id)?.trend ?? -1) - (metrics.get(b.c.component_id)?.trend ?? -1);
       else if (key === 'activity') d = a.activity - b.activity;
       else if (key === 'stock') d = a.qty - b.qty;
       else if (key === 'value') d = a.value - b.value;
@@ -228,7 +244,7 @@ function ItemsInner() {
       return (b.activity - a.activity) || descOf(a.c).localeCompare(descOf(b.c));
     });
     return list;
-  }, [comps, stock, activity, lastMove, search, filterCategory, stockOnly, sort, scores]);
+  }, [comps, stock, activity, lastMove, search, filterCategory, stockOnly, sort, scores, metrics]);
 
   const toggleSort = (key: SortKey) => {
     listTouched.current = true;
@@ -240,7 +256,7 @@ function ItemsInner() {
     return <div className="min-h-screen bg-chrome flex items-center justify-center"><div className="w-6 h-6 border-2 border-slate-500/30 border-t-slate-300 rounded-full animate-spin" /></div>;
   }
 
-  const cols = `1fr 96px 120px 110px${canSell ? ' 130px' : ''}${canBuy ? ' 120px 130px' : ''} 90px 110px`;
+  const cols = `1fr 96px 120px 110px${canSell ? ' 130px' : ''}${canBuy ? ' 120px 130px' : ''} 130px 90px 110px`;
 
   return (
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
@@ -288,6 +304,7 @@ function ItemsInner() {
             {canSell && <span className="text-right">Sell price</span>}
             {canBuy && <span className="text-right">Avg cost</span>}
             {canBuy && <button onClick={() => toggleSort('value')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest">Value{arrow('value')}</button>}
+            <button onClick={() => toggleSort('volume')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest" title="Sales value in the last 90 days — the item's recent trading volume; click to sort high→low">Vol · 90d{arrow('volume')}</button>
             <button onClick={() => toggleSort('activity')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest" title="Distinct supplier quotes + POs + sales quotes">Traded{arrow('activity')}</button>
             <button onClick={() => toggleSort('moved')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest">Last move{arrow('moved')}</button>
           </div>
@@ -329,6 +346,7 @@ function ItemsInner() {
                       {canSell && <span className="text-right tabular-nums text-xs text-emerald-300/90 whitespace-nowrap">{r.c.selling_price_idr ? fmtRupiah(r.c.selling_price_idr) : <span className="text-slate-700">—</span>}</span>}
                       {canBuy && <span className="text-right tabular-nums text-xs text-slate-400">{r.avg > 0 ? fmtInt(r.avg) : <span className="text-slate-700">—</span>}</span>}
                       {canBuy && <span className="text-right tabular-nums text-xs text-slate-200" title={r.value !== 0 ? fmtRupiah(r.value) : undefined}>{r.value !== 0 ? fmtRupiah(r.value) : <span className="text-slate-700">—</span>}</span>}
+                      <span className="text-right tabular-nums text-xs"><VolCell m={metrics.get(r.c.component_id)} /></span>
                       <span className="text-right tabular-nums text-xs text-slate-500">{r.activity || <span className="text-slate-700">—</span>}</span>
                       <span className="text-right text-[11px] text-slate-500 tabular-nums whitespace-nowrap">{r.lastMove ? fmtDay(r.lastMove) : '—'}</span>
                     </button>
@@ -382,6 +400,9 @@ function ItemsInner() {
                     </span>
                     {canSell && r.c.selling_price_idr ? <span className="px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-300 tabular-nums">{fmtRupiah(r.c.selling_price_idr)}</span> : null}
                     {canBuy && r.value !== 0 ? <span className="px-2 py-0.5 rounded-lg bg-slate-800/60 text-slate-400 tabular-nums">{fmtRupiah(r.value)}</span> : null}
+                    {(metrics.get(r.c.component_id)?.revenue90d ?? 0) > 0 && (
+                      <span className="px-2 py-0.5 rounded-lg bg-slate-800/60 tabular-nums"><VolCell m={metrics.get(r.c.component_id)} /></span>
+                    )}
                     {r.activity > 0 && <span className="px-2 py-0.5 rounded-lg bg-slate-800/60 text-slate-500 tabular-nums">{r.activity} docs</span>}
                   </div>
                 </button>
