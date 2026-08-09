@@ -144,7 +144,8 @@ export default function BrandMenu({
   wordmarkClass = 'text-xl font-bold',
   subtitle,
   mobileNav = true,
-}: { wordmarkClass?: string; subtitle?: string; mobileNav?: boolean }) {
+  showStatus = true,
+}: { wordmarkClass?: string; subtitle?: string; mobileNav?: boolean; showStatus?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const { profile, signOut } = useAuth();
@@ -469,10 +470,12 @@ export default function BrandMenu({
       </div>
 
       {/* Live date + time — fixed in the header at every width; on phones it
-          right-aligns beside the wordmark, on desktop after the search. */}
-      <HeaderClock />
+          right-aligns beside the wordmark, on desktop after the search. A page
+          that shows its own status stamp (e.g. Spend & Cash's "Updated…")
+          hides these to avoid two clocks colliding in a cramped header. */}
+      {showStatus && <HeaderClock />}
       {/* Who else is in the system right now, and on which screen */}
-      <OnlineUsers />
+      {showStatus && <OnlineUsers />}
 
       {/* ── Mobile: fixed bottom tab bar (thumb reach) + More sheet.
              Portaled to <body>: page headers use backdrop-blur, which WebKit

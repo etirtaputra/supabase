@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-07T17:20:00Z',
+    title: 'Spend & Cash header no longer overlaps on the phone',
+    details: [
+      'The Spend & Cash page shows its own “Updated …” stamp, so the global clock and online-users dot were doubling up and colliding with the Refresh button on a narrow screen. Those two are now hidden on this page, leaving the header clean.',
+    ],
+  },
+  {
     at: '2026-08-07T17:00:00Z',
     title: 'Pricing intelligence — the right price, and a score for how close you are',
     details: [
