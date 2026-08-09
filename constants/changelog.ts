@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-07T17:00:00Z',
+    title: 'Pricing intelligence — the right price, and a score for how close you are',
+    details: [
+      'The pricing lookup (Spend & Cash) now proposes an ideal sell price and scores your current one 0–100. It’s not cost-plus: the ideal is settled between the FX-adjusted cost floor, the competitor band from Market Intel, your target margin, and demand — so the number reflects whether the market says you’re too dear or too cheap, not just whether you’re above cost.',
+      'The pricing score gates the way it should: below cost scores near zero, below the margin floor is capped low, dearer than every competitor reads “overpriced”, cheaper than the cheapest reads “underpriced” (money left on the table), and sitting at target margin inside the market band reads “well priced”. Each verdict says why.',
+      'Two levers you asked for: an FX-risk % that raises the floor toward what the NEXT restock will cost (so a weakening rupiah lifts the price ahead of the cost), and a demand setting (strong/normal/weak) that positions you high or low in the market band. When even the floor sits above the whole market, it’s flagged “uncompetitive” — a supply-cost problem to renegotiate, not a discount to give.',
+    ],
+  },
+  {
     at: '2026-08-07T16:00:00Z',
     title: 'Capital allocation — where the cash earns most, and where it must not go',
     details: [

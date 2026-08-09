@@ -26,7 +26,13 @@ import type {
 
 import { PRINCIPAL_CATS, BANK_FEE_CATS, TAX_CATS, BALANCE_CATS } from '@/constants/costCategories';
 import { fmtDay, fmtIdr, fmtNum } from '@/lib/formatters';
+import { computePricing, PRICING_VERDICT_LABEL, type DemandLevel, type PricingVerdict } from '@/lib/pricing';
 import DealLink from './DealLink';
+
+const PRICING_VERDICT_COLOR: Record<PricingVerdict, string> = {
+  'below-cost': 'text-rose-300', 'below-floor': 'text-rose-300', uncompetitive: 'text-rose-300',
+  underpriced: 'text-sky-300', overpriced: 'text-amber-300', 'well-priced': 'text-emerald-300',
+};
 
 const CONFIDENCE_WEIGHT: Record<string, number> = { high: 1.0, medium: 0.6, low: 0.3 };
 
@@ -235,6 +241,8 @@ export default function PricingIntelligence({
   const [simXrStr,       setSimXrStr]       = useState('');
   const [targetMarginPct, setTargetMarginPct] = useState('');
   const [minMarginPct,   setMinMarginPct]   = useState('15');
+  const [fxRiskPct,      setFxRiskPct]      = useState('0');
+  const [demand,         setDemand]         = useState<DemandLevel>('normal');
   const [recencyDays,    setRecencyDays]    = useState<number | null>(90);
   const [tierShowIdr,    setTierShowIdr]    = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -478,6 +486,24 @@ export default function PricingIntelligence({
   const marketAvgUsd = market?.weightedAvgIdr && xrUsd ? market.weightedAvgIdr / xrUsd : null;
   const hasData = selected && (compPrices.length > 0 || tucIdr !== null);
 
+  // The ideal price + a score for how close the current one is (lib/pricing).
+  const pricing = useMemo(() => {
+    if (!selected || !tucIdr) return null;
+    const band = market
+      ? { low: market.minIdr, mid: market.weightedAvgIdr ?? (market.minIdr + market.maxIdr) / 2, high: market.maxIdr, count: market.count }
+      : null;
+    return computePricing({
+      landedCost: tucIdr,
+      currentPrice: Number(selected.selling_price_idr) || null,
+      marginFloorPct: parseFloat(minMarginPct) || 15,
+      targetMarginPct: parseFloat(targetMarginPct) || 30,
+      fxRiskPct: parseFloat(fxRiskPct) || 0,
+      market: band,
+      demand,
+      roundingStep: 1000,
+    });
+  }, [selected, tucIdr, market, minMarginPct, targetMarginPct, fxRiskPct, demand]);
+
   return (
     <div className="space-y-8">
       {/* ── Component search ── */}
@@ -647,6 +673,59 @@ export default function PricingIntelligence({
               />
             </div>
           </div>
+
+          {/* ── Ideal price & pricing score ── */}
+          {pricing && (
+            <div className="bg-navy border border-slate-800/80 rounded-2xl p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <div>
+                  <h3 className="text-sm font-bold text-white">Ideal price &amp; pricing score</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Cost floor (FX-adjusted) · market band · target margin · demand.</p>
+                </div>
+                <div className="flex items-center gap-2.5 flex-wrap text-xs text-slate-400">
+                  <label className="flex items-center gap-1.5"><span className="font-semibold">Target</span>
+                    <input type="number" min="0" max="95" value={targetMarginPct} placeholder="30" onChange={(e) => setTargetMarginPct(e.target.value)}
+                      className="w-14 px-2 py-1 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-sky-500/30" />%</label>
+                  <label className="flex items-center gap-1.5" title="Extra margin buffer for goods bought in a currency that has moved against the rupiah — raises the floor ahead of the next restock">
+                    <span className="font-semibold">FX&nbsp;risk</span>
+                    <input type="number" min="0" max="50" value={fxRiskPct} onChange={(e) => setFxRiskPct(e.target.value)}
+                      className="w-12 px-2 py-1 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-sky-500/30" />%</label>
+                  <select value={demand} onChange={(e) => setDemand(e.target.value as DemandLevel)}
+                    className="px-2 py-1 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 focus:outline-none">
+                    <option value="strong">Strong demand</option>
+                    <option value="normal">Normal demand</option>
+                    <option value="weak">Weak · clear</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="bg-slate-900/50 border border-emerald-500/20 rounded-xl px-3.5 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-600">Ideal price</p>
+                  <p className="text-lg font-extrabold text-emerald-300 tabular-nums mt-0.5">{fmtIdr(pricing.ideal)}</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">{pricing.idealMarginPct.toFixed(0)}% margin{pricing.hasMarket ? '' : ' · cost-plus, no market'}</p>
+                </div>
+                <div className="bg-slate-900/50 border border-slate-800 rounded-xl px-3.5 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-600">Your price</p>
+                  <p className="text-lg font-bold text-slate-200 tabular-nums mt-0.5">{selected.selling_price_idr ? fmtIdr(Number(selected.selling_price_idr)) : '—'}</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    {pricing.currentMarginPct != null ? `${pricing.currentMarginPct.toFixed(0)}% margin` : 'no price set'}
+                    {pricing.gapPct != null && Math.abs(pricing.gapPct) >= 1 ? ` · ${pricing.gapPct > 0 ? '+' : ''}${pricing.gapPct.toFixed(0)}% to ideal` : ''}
+                  </p>
+                </div>
+                <div className="bg-slate-900/50 border border-slate-800 rounded-xl px-3.5 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-600">Pricing score</p>
+                  <p className={`text-lg font-extrabold tabular-nums mt-0.5 ${pricing.verdict ? PRICING_VERDICT_COLOR[pricing.verdict] : 'text-slate-600'}`}>{pricing.score ?? '—'}</p>
+                  <p className={`text-[10px] mt-0.5 font-semibold ${pricing.verdict ? PRICING_VERDICT_COLOR[pricing.verdict] : 'text-slate-500'}`}>{pricing.verdict ? PRICING_VERDICT_LABEL[pricing.verdict] : '—'}</p>
+                </div>
+                <div className="bg-slate-900/50 border border-slate-800 rounded-xl px-3.5 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-600">Floor · Market band</p>
+                  <p className="text-sm font-bold text-slate-300 tabular-nums mt-0.5">{fmtIdr(pricing.floor)}<span className="text-slate-600 text-[10px] font-normal"> floor</span></p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">{pricing.band ? `${fmtIdr(pricing.band.low)}–${fmtIdr(pricing.band.high)} · ${pricing.band.count} pts` : 'no competitor prices'}</p>
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-slate-400 leading-snug">{pricing.reason}</p>
+            </div>
+          )}
 
           {/* ── Price band + tiers ── */}
           {tucIdr && xrUsd && tiers ? (
