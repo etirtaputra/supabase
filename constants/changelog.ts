@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-07T16:00:00Z',
+    title: 'Capital allocation — where the cash earns most, and where it must not go',
+    details: [
+      'Profitability now answers the real question: where should the company’s cash go for the most return, and — the point in a slow market — where should it NOT go. Each item gets a capital verdict: Deploy (put cash here), Hold, Trim (don’t add, let it run down), or Divest (free the frozen cash). The verdict is gated downside-first — below cost, dead stock, obsolete or weak-return items are pulled back before any item is deployed, because a trap that happens to score well is still a trap.',
+      'The headline number is GMROI — return on cash: gross margin per rupiah of stock per year (shown as “2.3×”). It’s the one figure that compares “bang for cash” across any item; sort the new Capital column by it. A summary strip totals the cash working vs the cash frozen in items you shouldn’t allocate to, and “Deploy” / “⚑ Don’t allocate” filters give you each shortlist in a click.',
+      'A Defensive mode toggle switches to slow-market thinking: it raises the return bar (a staple must clear a higher GMROI and actually be due to reorder before new cash goes in) and widens the traps (weak-return held stock becomes cash to pull back) — deploy less, protect more.',
+    ],
+  },
+  {
     at: '2026-08-07T15:00:00Z',
     title: 'A “Buy now” board on Profitability — quality meets timing',
     details: [

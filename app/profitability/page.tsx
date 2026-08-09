@@ -31,6 +31,7 @@ import PositionPanel from '@/components/profitability/PositionPanel';
 import { ITEM_SCORE_FACTORS, type ItemScoreResult, type ScoreBand } from '@/lib/itemScore';
 import { useItemScores } from '@/hooks/useItemScores';
 import { fetchReorderAlerts, type ReorderAlert } from '@/lib/reorder';
+import { capitalCall, summariseCapital, VERDICT_LABEL, type CapitalVerdict, type CapitalCall } from '@/lib/capital';
 
 /**
  * Two questions, two tabs. "Profitability" measures the FLOW — what shipped in
@@ -71,13 +72,8 @@ interface ItemRow {
 }
 interface PartyRow { id: string; name: string; sub: string; revenue: number; gp: number; margin: number | null; orders: Set<string>; }
 
-type Chip = 'all' | 'buynow' | 'sold' | 'inprofit' | 'slow' | 'negative' | 'core' | 'reduce';
-type SortKey = 'score' | 'gpDio' | 'gp' | 'revenue' | 'margin' | 'stockValue' | 'dio' | 'soldQty';
-
-/** GP per day of cash locked = period GP ÷ DIO — profit per day the item's
- *  cash sits as stock. The truest "is this worth restocking" number; null when
- *  the item holds no stock (no cash locked to divide by). */
-const gpPerDioDay = (r: ItemRow): number | null => (r.dio != null && r.dio > 0 ? r.gp / r.dio : null);
+type Chip = 'all' | 'deploy' | 'divest' | 'buynow' | 'sold' | 'inprofit' | 'slow' | 'negative' | 'core' | 'reduce';
+type SortKey = 'score' | 'gmroi' | 'gp' | 'revenue' | 'margin' | 'stockValue' | 'dio' | 'soldQty';
 
 export default function EconomicsPage() {
   const supabase = createSupabaseClient();
@@ -117,6 +113,8 @@ export default function EconomicsPage() {
   const [period, setPeriod] = useState<Period>(economicsPeriod);
   const [chip, setChip] = useState<Chip>('all');
   const [search, setSearch] = useState('');
+  // Slow-market mode: deploy less, protect more (Item Score § capital).
+  const [defensive, setDefensive] = useState(false);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'gp', dir: -1 });
 
   useEffect(() => { document.title = 'Profitability — ICAPROC'; }, []);
@@ -366,6 +364,30 @@ export default function EconomicsPage() {
     };
   }, [periodFacts, itemRows]);
 
+  // ── Capital allocation: GMROI (return on cash) + the deploy/divest verdict ──
+  const gmroiOf = useCallback((r: ItemRow): number | null =>
+    r.stockValue > 0 && r.dio != null ? (r.gp / periodDays * 365) / r.stockValue : null, [periodDays]);
+  const capital = useMemo(() => {
+    const calls = itemRows.map((r) => {
+      const sc = scoreMap.get(r.c.component_id);
+      const c = capitalCall({
+        band: sc?.band ?? 'watch',
+        superseded: sc?.superseded ?? false,
+        marginPct: r.margin,
+        soldRecently: !!r.lastSold && daysBetween(nowIso, r.lastSold) <= 90,
+        slow: r.slow,
+        dueToReorder: reorderMap.has(r.c.component_id),
+        stockValue: r.stockValue,
+        gmroi: gmroiOf(r),
+      }, defensive);
+      return { r, call: c };
+    });
+    return {
+      byId: new Map(calls.map((x) => [x.r.c.component_id, x.call])),
+      summary: summariseCapital(calls.map((x) => ({ call: x.call, stockValue: x.r.stockValue }))),
+    };
+  }, [itemRows, scoreMap, reorderMap, defensive, gmroiOf, nowIso]);
+
   // ── Table filter/sort ──────────────────────────────────────────────────────
   const visibleRows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -376,6 +398,8 @@ export default function EconomicsPage() {
     else if (chip === 'negative') rows = rows.filter((r) => r.revenue > 0 && r.gp < 0);
     else if (chip === 'core') rows = rows.filter((r) => scoreMap.get(r.c.component_id)?.band === 'core');
     else if (chip === 'reduce') rows = rows.filter((r) => scoreMap.get(r.c.component_id)?.band === 'reduce');
+    else if (chip === 'deploy') rows = rows.filter((r) => capital.byId.get(r.c.component_id)?.verdict === 'deploy');
+    else if (chip === 'divest') rows = rows.filter((r) => capital.byId.get(r.c.component_id)?.verdict === 'divest');
     // The buy board: a good item (Core/Solid) that is also due to reorder now.
     else if (chip === 'buynow') rows = rows.filter((r) => {
       const b = scoreMap.get(r.c.component_id)?.band;
@@ -385,13 +409,13 @@ export default function EconomicsPage() {
     const { key, dir } = sort;
     const valOf = (r: ItemRow): number =>
       key === 'score' ? (scoreMap.get(r.c.component_id)?.score ?? -Infinity)
-      : key === 'gpDio' ? (gpPerDioDay(r) ?? -Infinity)
+      : key === 'gmroi' ? (gmroiOf(r) ?? -Infinity)
       : (r[key] ?? (key === 'dio' ? Infinity : -Infinity)) as number;
     return [...rows].sort((a, b) => {
       const d = (valOf(a) - valOf(b)) * dir;
       return d !== 0 ? d : b.stockValue - a.stockValue;
     });
-  }, [itemRows, chip, search, sort, scoreMap, reorderMap]);
+  }, [itemRows, chip, search, sort, scoreMap, reorderMap, capital, gmroiOf]);
 
   const toggleSort = (key: SortKey) => setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: -1 }));
 
@@ -473,6 +497,29 @@ export default function EconomicsPage() {
               </div>
             </div>
 
+            {/* Capital allocation — where the cash should go, and (the point in
+                a slow market) where it should NOT. */}
+            <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl px-4 sm:px-5 py-3.5">
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+                <div className="flex items-center gap-2.5">
+                  <h2 className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Capital allocation</h2>
+                  <button onClick={() => setDefensive((d) => !d)}
+                    title="Slow-market mode: raise the return bar and pull cash back from weaker stock — deploy less, protect more"
+                    className={`text-[11px] px-2.5 py-1 rounded-lg border font-semibold transition-colors ${defensive ? 'bg-amber-500/15 border-amber-500/50 text-amber-300' : 'border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800'}`}>
+                    {defensive ? '🛡 Defensive mode · on' : 'Defensive mode · off'}
+                  </button>
+                </div>
+                <span className="text-xs text-slate-400">Deploy <b className="text-emerald-300 tabular-nums">{capital.summary.deploy}</b></span>
+                <span className="text-xs text-slate-400">Trim <b className="text-amber-300 tabular-nums">{capital.summary.trim}</b></span>
+                <span className="text-xs text-slate-400">Divest <b className="text-rose-300 tabular-nums">{capital.summary.divest}</b></span>
+                <span className="text-xs text-slate-400 sm:ml-auto">
+                  Cash frozen — <span className="text-rose-300">don&apos;t allocate</span>{' '}
+                  <b className="text-rose-300 tabular-nums">{fmtRupiah(capital.summary.frozenCash)}</b>
+                </span>
+                <span className="text-xs text-slate-500">Working <b className="text-slate-300 tabular-nums">{fmtRupiah(capital.summary.workingCash)}</b></span>
+              </div>
+            </div>
+
             {/* Item table */}
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
@@ -481,7 +528,7 @@ export default function EconomicsPage() {
                   <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search item or category…"
                     className="w-full pl-10 pr-4 h-10 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors" />
                 </div>
-                {([['all', `All (${itemRows.length})`], ['buynow', `⚡ Buy now (${itemRows.filter((r) => { const b = scoreMap.get(r.c.component_id)?.band; return (b === 'core' || b === 'solid') && reorderMap.has(r.c.component_id); }).length})`], ['core', `Core buys (${itemRows.filter((r) => scoreMap.get(r.c.component_id)?.band === 'core').length})`], ['reduce', `Clear / reduce (${itemRows.filter((r) => scoreMap.get(r.c.component_id)?.band === 'reduce').length})`], ['sold', 'Sold in period'], ['inprofit', `In profit (${kpi.inProfitCount})`], ['slow', `Slow movers (${kpi.slowCount})`], ['negative', 'Negative GP']] as [Chip, string][]).map(([k, label]) => (
+                {([['all', `All (${itemRows.length})`], ['deploy', `Deploy (${capital.summary.deploy})`], ['divest', `⚑ Don’t allocate (${capital.summary.divest})`], ['buynow', `⚡ Buy now (${itemRows.filter((r) => { const b = scoreMap.get(r.c.component_id)?.band; return (b === 'core' || b === 'solid') && reorderMap.has(r.c.component_id); }).length})`], ['reduce', `Clear / reduce (${itemRows.filter((r) => scoreMap.get(r.c.component_id)?.band === 'reduce').length})`], ['sold', 'Sold in period'], ['inprofit', `In profit (${kpi.inProfitCount})`], ['slow', `Slow movers (${kpi.slowCount})`], ['negative', 'Negative GP']] as [Chip, string][]).map(([k, label]) => (
                   <button key={k} onClick={() => setChip(k)}
                     className={`text-[11px] px-2.5 py-1.5 rounded-lg border transition-colors whitespace-nowrap ${chip === k ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 font-bold' : 'border-slate-700/80 text-slate-500 hover:text-slate-300'}`}>
                     {label}
@@ -503,7 +550,7 @@ export default function EconomicsPage() {
                       <th className="text-right font-semibold px-3 py-2.5">On hand</th>
                       <SortTh label="Stock value" k="stockValue" sort={sort} onClick={toggleSort} />
                       <SortTh label="DIO" k="dio" sort={sort} onClick={toggleSort} hint="days" />
-                      <SortTh label="GP / locked day" k="gpDio" sort={sort} onClick={toggleSort} hint="GP ÷ DIO" />
+                      <SortTh label="Capital" k="gmroi" sort={sort} onClick={toggleSort} hint="return on cash" />
                       <th className="text-right font-semibold px-3 py-2.5">Last sold</th>
                       <th className="text-left font-semibold px-3 py-2.5">Flags</th>
                     </tr>
@@ -528,7 +575,7 @@ export default function EconomicsPage() {
                         <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-300">{r.onHand ? `${fmtInt(r.onHand)}${r.c.unit ? ` ${r.c.unit}` : ''}` : <span className="text-slate-700">0</span>}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-300 whitespace-nowrap">{r.stockValue ? fmtRupiah(r.stockValue) : <span className="text-slate-700">—</span>}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400">{r.dio != null ? `${Math.round(r.dio)}d` : <span className="text-slate-700">—</span>}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-xs whitespace-nowrap" title="Profit per day the item's cash sits as stock (GP ÷ DIO)">{(() => { const v = gpPerDioDay(r); return v != null ? <span className={v < 0 ? 'text-red-400' : 'text-sky-300'}>{fmtRupiah(Math.round(v))}<span className="text-slate-600">/d</span></span> : <span className="text-slate-700">—</span>; })()}</td>
+                        <td className="px-3 py-2 text-right whitespace-nowrap"><CapitalCell call={capital.byId.get(r.c.component_id)} gmroi={gmroiOf(r)} /></td>
                         <td className="px-3 py-2 text-right text-[11px] text-slate-500 tabular-nums whitespace-nowrap">{r.lastSold ? fmtDay(r.lastSold) : <span className="text-slate-700">never</span>}</td>
                         <td className="px-3 py-2 whitespace-nowrap">
                           <span className="inline-flex gap-1">
@@ -661,6 +708,26 @@ const BAND_STYLE: Record<ScoreBand, { chip: string; label: string }> = {
   watch:  { chip: 'bg-amber-500/15 text-amber-300 border-amber-500/30', label: 'Watch' },
   reduce: { chip: 'bg-rose-500/15 text-rose-300 border-rose-500/30', label: 'Reduce' },
 };
+
+const VERDICT_STYLE: Record<CapitalVerdict, string> = {
+  deploy: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+  hold:   'bg-slate-700/40 text-slate-400 border-slate-600/40',
+  trim:   'bg-amber-500/15 text-amber-300 border-amber-500/30',
+  divest: 'bg-rose-500/15 text-rose-300 border-rose-500/30',
+};
+
+/** The capital verdict (Deploy / Hold / Trim / Divest) with GMROI — return on
+ *  the cash the item locks up. Hover explains the call. */
+function CapitalCell({ call, gmroi }: { call?: CapitalCall; gmroi: number | null }) {
+  if (!call) return <span className="text-slate-700 text-xs">—</span>;
+  return (
+    <span title={`${call.reason}${gmroi != null ? `\n\nReturn on cash (GMROI): ${gmroi.toFixed(1)}× — gross margin per rupiah of stock per year` : ''}`}
+      className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-bold cursor-help ${VERDICT_STYLE[call.verdict]}`}>
+      {VERDICT_LABEL[call.verdict]}
+      {gmroi != null && <span className="text-[10px] font-semibold opacity-80 tabular-nums">{gmroi.toFixed(1)}×</span>}
+    </span>
+  );
+}
 
 /** The score as a band-coloured chip; hover shows the action and the six
  *  factor scores, so the number is always explainable. */
