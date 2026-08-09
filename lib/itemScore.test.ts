@@ -10,8 +10,8 @@ import {
 
 /** A baseline item; override only what a test cares about. */
 const item = (over: Partial<ItemScoreInput> & { id: string }): ItemScoreInput => ({
-  category: 'cat', revenue: 1000, marginPct: 20, demandRecent: 10, demandPrior: 10,
-  leadDays: 30, recoveryRatio: 0.5, superseded: false, saleEvents: 5, costCoV: 0.1, dioDays: 45, ...over,
+  category: 'cat', revenue: 1000, marginPct: 20, salesRecent: 1000, salesBaseline: 1000,
+  leadDays: 30, leadSamples: 5, recoveryRatio: 0.5, superseded: false, saleEvents: 5, costCoV: 0.1, dioDays: 45, ...over,
 });
 
 /** A field of near-identical peers so a category can rank on its own (≥8). */
@@ -42,8 +42,8 @@ test('a faster cash cycle (lower DIO) scores higher', () => {
   assert.ok(s.get('fast')!.factors.cashCycle > s.get('slow')!.factors.cashCycle);
 });
 
-test('growing demand beats shrinking demand on momentum', () => {
-  const items = [...peers(8), item({ id: 'up', demandRecent: 30, demandPrior: 10 }), item({ id: 'down', demandRecent: 2, demandPrior: 20 })];
+test('growing sales beat shrinking sales on momentum (value vs baseline)', () => {
+  const items = [...peers(8), item({ id: 'up', salesRecent: 30, salesBaseline: 10 }), item({ id: 'down', salesRecent: 2, salesBaseline: 20 })];
   const s = computeItemScores(items);
   assert.ok(s.get('up')!.factors.momentum > s.get('down')!.factors.momentum);
 });
@@ -74,13 +74,45 @@ test('steady purchase cost beats volatile cost on consistency', () => {
 });
 
 test('an all-round strong item lands in a higher band than an all-round weak one', () => {
-  const strong = item({ id: 'strong', revenue: 5_000_000, marginPct: 40, demandRecent: 40, demandPrior: 10, leadDays: 7, recoveryRatio: 1.5, saleEvents: 30, costCoV: 0.02, superseded: false });
-  const weak = item({ id: 'weak', revenue: 10, marginPct: 1, demandRecent: 0, demandPrior: 20, leadDays: 150, recoveryRatio: 0, saleEvents: 1, costCoV: 0.6, superseded: true });
+  const strong = item({ id: 'strong', revenue: 5_000_000, marginPct: 40, salesRecent: 40_000, salesBaseline: 10_000, leadDays: 7, leadSamples: 6, recoveryRatio: 1.5, saleEvents: 30, costCoV: 0.02, dioDays: 10, superseded: false });
+  // Confidently weak: enough sales/POs that shrinkage can't rescue it.
+  const weak = item({ id: 'weak', revenue: 10, marginPct: 1, salesRecent: 0, salesBaseline: 20_000, leadDays: 150, leadSamples: 6, recoveryRatio: 0, saleEvents: 20, costCoV: 0.6, dioDays: 400, superseded: true });
   const s = computeItemScores([...peers(8), strong, weak]);
   assert.ok(s.get('strong')!.score > s.get('weak')!.score);
   assert.ok(s.get('strong')!.score >= 60);
   assert.ok(s.get('weak')!.score < 40);
   assert.equal(s.get('weak')!.band, 'reduce');
+});
+
+test('shrinkage: a thin-history item is pulled toward neutral, a proven one is not', () => {
+  // Both have a bottom-tier raw margin; only the evidence behind it differs.
+  const items = [
+    ...peers(8, () => ({ marginPct: 25 })),
+    item({ id: 'thin', marginPct: 1, saleEvents: 0 }),
+    item({ id: 'proven', marginPct: 1, saleEvents: 60 }),
+  ];
+  const s = computeItemScores(items);
+  // The thin item's weak margin is discounted (closer to 50) — we're not sure.
+  assert.ok(s.get('thin')!.factors.margin > s.get('proven')!.factors.margin);
+  assert.ok(s.get('thin')!.factors.margin > 40);       // pulled toward neutral
+  assert.ok(s.get('proven')!.factors.margin < 30);     // trusted low
+});
+
+test('lowData and confidence reflect the sale count', () => {
+  const s = computeItemScores([item({ id: 'one', saleEvents: 1 }), item({ id: 'many', saleEvents: 40 })]);
+  assert.equal(s.get('one')!.lowData, true);
+  assert.equal(s.get('many')!.lowData, false);
+  assert.ok(s.get('many')!.confidence > s.get('one')!.confidence);
+  assert.ok(s.get('one')!.confidence >= 0 && s.get('many')!.confidence <= 1);
+});
+
+test('a smoothed baseline tempers a single lumpy quarter', () => {
+  // Same recent sales; one item's baseline is a steady typical quarter, the
+  // other's baseline is near zero (so recent looks like a huge fake surge).
+  const steady = item({ id: 'steady', salesRecent: 1000, salesBaseline: 1000, saleEvents: 20 });
+  const spike = item({ id: 'spike', salesRecent: 1000, salesBaseline: 20, saleEvents: 20 });
+  const s = computeItemScores([...peers(8), steady, spike]);
+  assert.ok(s.get('spike')!.factors.momentum > s.get('steady')!.factors.momentum);
 });
 
 test('every score is within 0–100 and carries an action', () => {

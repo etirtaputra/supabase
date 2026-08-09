@@ -67,11 +67,13 @@ function VolCell({ m }: { m?: ItemMetrics }) {
 function ScoreChip({ res }: { res?: ItemScoreResult }) {
   if (!res) return <span className="text-slate-700 text-xs">—</span>;
   const st = BAND_STYLE[res.band];
-  const tip = `${res.action}\n\n${ITEM_SCORE_FACTORS.map((f) => `${f.label}: ${Math.round(res.factors[f.key])}`).join('  ·  ')}`;
+  const tip = `${res.action}\n\n${ITEM_SCORE_FACTORS.map((f) => `${f.label}: ${Math.round(res.factors[f.key])}`).join('  ·  ')}`
+    + (res.lowData ? '\n\nThin sales history — score pulled toward neutral' : '');
   return (
-    <span title={tip} className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg border tabular-nums text-xs font-bold cursor-help ${st.chip}`}>
+    <span title={tip} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border tabular-nums text-xs font-bold cursor-help ${st.chip}`}>
       {Math.round(res.score)}
       <span className="text-[9px] font-semibold uppercase tracking-wide opacity-80">{st.label}</span>
+      {res.lowData && <span className="text-[10px] opacity-50" title="thin data">~</span>}
     </span>
   );
 }

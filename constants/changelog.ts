@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-07T14:00:00Z',
+    title: 'Item Score is steadier: smoothed momentum and confidence for thin data',
+    details: [
+      'Momentum now reads sales VALUE against the item’s TYPICAL 90 days (a smoothed average of the prior nine months), instead of unit count against the single prior quarter — so one lumpy B2B order no longer reads as a 300% surge or crash.',
+      'Thin histories are handled honestly: an item with only a sale or two has its sales-driven factors pulled toward neutral (we shouldn’t sound confident about a fluke), and its chip carries a small “~” marker — hover shows “thin sales history”. As real sales accumulate the score firms up on its own.',
+      'Both screens (Items and Profitability) now compute the score through one shared engine, so a given item always reads the same score on both.',
+    ],
+  },
+  {
     at: '2026-08-07T13:00:00Z',
     title: 'Sort items by volume and what’s trending',
     details: [

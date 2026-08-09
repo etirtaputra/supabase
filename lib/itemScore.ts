@@ -41,11 +41,15 @@ export interface ItemScoreInput {
   revenue: number;
   /** Realised GP margin %, or null when nothing sold in the period. */
   marginPct: number | null;
-  /** Units shipped in the last 90 days, and in the 90 before that. */
-  demandRecent: number;
-  demandPrior: number;
+  /** Sales VALUE in the last 90 days, and the item's TYPICAL 90-day value —
+   *  a smoothed baseline (avg 90d over the prior window), not the single
+   *  prior quarter, so one lumpy B2B order doesn't read as a swing. */
+  salesRecent: number;
+  salesBaseline: number;
   /** Measured PO → goods-receipt days, or null when never received. */
   leadDays: number | null;
+  /** How many received POs the lead time was measured from — its confidence. */
+  leadSamples: number;
   /** All-time realised GP ÷ value still on the shelf. ≥1 = trade whole.
    *  null when nothing is held (a pure-flow item carries no open position). */
   recoveryRatio: number | null;
@@ -73,11 +77,20 @@ export interface ItemScoreResult {
   band: ScoreBand;
   action: string;              // the proposed next step
   superseded: boolean;
+  /** 0–1: how much evidence stands behind the score. A thin history is pulled
+   *  toward neutral, so a one-sale item can't masquerade as a confident buy. */
+  confidence: number;
+  lowData: boolean;
 }
 
 const MIN_PEERS = 8;           // below this a category can't rank on its own
 const NEUTRAL = 50;            // an unknown factor neither helps nor hurts
+// Confidence half-lives: this many observations count as much as the prior.
+const K_SALES = 3;             // sale events for the sales-derived factors
+const K_LEAD = 2;              // received POs for the lead-time factor
 const clamp = (n: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, n));
+/** Pull a raw factor toward neutral by confidence c∈[0,1] (0 → all the way). */
+const shrink = (raw: number, c: number) => NEUTRAL + (raw - NEUTRAL) * clamp(c, 0, 1);
 
 /**
  * Percentile of `v` within a sorted ascending distribution — the share of the
@@ -130,13 +143,16 @@ function rankFactor(
   return out;
 }
 
-/** Demand growth, recent vs prior 90-day window. A first sale reads as strong
- *  positive; a stall to zero as strong negative; no demand at all as flat. */
+/** Demand growth: recent 90-day sales VALUE vs the item's typical 90-day value
+ *  (a smoothed baseline). Value, not unit count, and a smoothed baseline, not
+ *  the single prior quarter — so a lumpy B2B order can't fake a swing. A first
+ *  sale reads as strong positive; a stall to zero as strong negative; no sales
+ *  at all as flat. */
 function growthOf(it: ItemScoreInput): number | null {
-  const { demandRecent: r, demandPrior: p } = it;
-  if (r === 0 && p === 0) return null;         // dormant — momentum can't judge it
-  if (p === 0) return r > 0 ? 2 : 0;           // brand-new demand, capped
-  return clamp((r - p) / p, -1, 3);            // -100%..+300%
+  const r = it.salesRecent, b = it.salesBaseline;
+  if (r === 0 && b === 0) return null;         // dormant — momentum can't judge it
+  if (b === 0) return r > 0 ? 2 : 0;           // brand-new demand, capped
+  return clamp((r - b) / b, -1, 3);            // -100%..+300%
 }
 
 /** The position factor, absolute: a whole trade is full marks, a deep unpaid
@@ -212,14 +228,22 @@ export function computeItemScores(
 
   const out = new Map<string, ItemScoreResult>();
   for (const it of items) {
+    // Confidence from the evidence each factor actually rests on: the
+    // sales-derived factors (margin, momentum, cash cycle) from how many times
+    // the item has sold; lead time from how many POs measured it. Thin
+    // evidence pulls the factor toward neutral rather than trusting a fluke.
+    const salesC = it.saleEvents / (it.saleEvents + K_SALES);
+    const leadC = it.leadSamples / (it.leadSamples + K_LEAD);
     const factors: ItemFactorScores = {
+      // Volume, position and consistency stand on their own evidence (size,
+      // capital at risk, repeat count), so they are not shrunk.
       volume: volume.get(it.id) ?? NEUTRAL,
-      margin: margin.get(it.id) ?? NEUTRAL,
-      momentum: momentum.get(it.id) ?? NEUTRAL,
-      leadTime: leadTime.get(it.id) ?? NEUTRAL,
+      margin: shrink(margin.get(it.id) ?? NEUTRAL, salesC),
+      momentum: shrink(momentum.get(it.id) ?? NEUTRAL, salesC),
+      leadTime: shrink(leadTime.get(it.id) ?? NEUTRAL, leadC),
       position: positionScore(it),
       consistency: consistency.get(it.id) ?? NEUTRAL,
-      cashCycle: cashCycle.get(it.id) ?? NEUTRAL,
+      cashCycle: shrink(cashCycle.get(it.id) ?? NEUTRAL, salesC),
     };
     const score = clamp((
       factors.volume * w.volume +
@@ -231,7 +255,10 @@ export function computeItemScores(
       factors.cashCycle * w.cashCycle
     ) / wtot);
     const band = bandOf(score);
-    out.set(it.id, { id: it.id, score, factors, band, action: actionOf(band, it.superseded), superseded: it.superseded });
+    out.set(it.id, {
+      id: it.id, score, factors, band, action: actionOf(band, it.superseded), superseded: it.superseded,
+      confidence: salesC, lowData: it.saleEvents < 2,
+    });
   }
   return out;
 }
@@ -240,7 +267,7 @@ export function computeItemScores(
 export const ITEM_SCORE_FACTORS: { key: keyof ItemFactorScores; label: string; hint: string }[] = [
   { key: 'volume',      label: 'Volume',      hint: 'Share of sales vs the whole book' },
   { key: 'margin',      label: 'Margin',      hint: 'Gross profit margin vs peers' },
-  { key: 'momentum',    label: 'Momentum',    hint: 'Demand growth, recent vs prior 90 days' },
+  { key: 'momentum',    label: 'Momentum',    hint: 'Sales growth vs the item’s typical 90 days (value, smoothed)' },
   { key: 'leadTime',    label: 'Lead time',   hint: 'Supplier speed — shorter ranks higher' },
   { key: 'position',    label: 'Position',    hint: 'Is the trade already in profit' },
   { key: 'consistency', label: 'Consistency', hint: 'Repeat sales, cost stability, still current' },

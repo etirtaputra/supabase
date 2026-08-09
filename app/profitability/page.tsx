@@ -28,7 +28,8 @@ import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 import FitText from '@/components/ui/FitText';
 import { useSettings } from '@/hooks/useSettings';
 import PositionPanel from '@/components/profitability/PositionPanel';
-import { computeItemScores, ITEM_SCORE_FACTORS, type ItemScoreInput, type ItemScoreResult, type ScoreBand } from '@/lib/itemScore';
+import { ITEM_SCORE_FACTORS, type ItemScoreResult, type ScoreBand } from '@/lib/itemScore';
+import { useItemScores } from '@/hooks/useItemScores';
 
 /**
  * Two questions, two tabs. "Profitability" measures the FLOW — what shipped in
@@ -93,12 +94,11 @@ export default function EconomicsPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [poReceived, setPoReceived] = useState<Map<string, string>>(new Map());
-  const [poDate, setPoDate] = useState<Map<string, string>>(new Map());
-  const [poComps, setPoComps] = useState<{ po_id: string; component_id: string }[]>([]);
-  const [supersededSet, setSupersededSet] = useState<Set<string>>(new Set());
   const [poPayments, setPoPayments] = useState<{ po_id: string; amount_idr: number; payment_date: string }[]>([]);
   const [loading, setLoading] = useState(true);
-  const weights = useSettings().itemScoreWeights;
+  // The Item Score is computed by the shared hook (same engine and basis as the
+  // Items list), so the two screens can never disagree on a score.
+  const { scores: scoreMap } = useItemScores(supabase, canView);
 
   const [tab, setTab] = useState<Tab>('flow');
   const [period, setPeriod] = useState<Period>(economicsPeriod);
@@ -130,7 +130,7 @@ export default function EconomicsPage() {
       }
       return all;
     };
-    const [allComps, balRes, movRes, doRes, doiRes, ordRes, soiRes, custRes, userRes, invRes, rcptRes, poRes, costRes, poiRes, linkRes] = await Promise.all([
+    const [allComps, balRes, movRes, doRes, doiRes, ordRes, soiRes, custRes, userRes, invRes, rcptRes, poRes, costRes] = await Promise.all([
       fetchAllComponents(),
       supabase.from('30.1_stock_balances').select('component_id, qty_on_hand, avg_cost_idr'),
       supabase.from('30.0_stock_movements').select('component_id, direction, quantity, unit_cost_idr, source_type, source_id, moved_at').limit(20000),
@@ -142,10 +142,8 @@ export default function EconomicsPage() {
       supabase.from('user_profiles').select('id, display_name, email'),
       supabase.from('25.0_sales_invoices').select('invoice_id, quote_id, grand_total, issued_at'),
       supabase.from('26.0_customer_receipts').select('invoice_id, amount, payment_date'),
-      supabase.from('5.0_purchases').select('po_id, po_date, actual_received_date'),
+      supabase.from('5.0_purchases').select('po_id, actual_received_date'),
       supabase.from('6.0_po_costs').select('po_id, amount, payment_date, exchange_rate, currency'),
-      supabase.from('5.1_purchase_line_items').select('po_id, component_id'),
-      supabase.from('8.0_component_links').select('component_id_a, component_id_b, link_type'),
     ]);
     setComps(allComps);
     const bm = new Map<string, { qty: number; avg: number }>();
@@ -165,20 +163,10 @@ export default function EconomicsPage() {
     setInvoices((invRes.data as Invoice[]) ?? []);
     setReceipts((rcptRes.data as Receipt[]) ?? []);
     const pr = new Map<string, string>();
-    const pd = new Map<string, string>();
-    for (const p of (poRes.data as { po_id: unknown; po_date: string | null; actual_received_date: string | null }[]) ?? []) {
+    for (const p of (poRes.data as { po_id: unknown; actual_received_date: string | null }[]) ?? []) {
       if (p.actual_received_date) pr.set(String(p.po_id), p.actual_received_date); // po_id is UUID live — always String()
-      if (p.po_date) pd.set(String(p.po_id), p.po_date);
     }
     setPoReceived(pr);
-    setPoDate(pd);
-    setPoComps((((poiRes.data as { po_id: unknown; component_id: string | null }[]) ?? [])
-      .filter((r) => r.component_id).map((r) => ({ po_id: String(r.po_id), component_id: r.component_id! }))));
-    const sup = new Set<string>();
-    for (const l of (linkRes.data as { component_id_a: string; component_id_b: string; link_type: string }[]) ?? []) {
-      if (l.link_type === 'successor' && l.component_id_a) sup.add(String(l.component_id_a));
-    }
-    setSupersededSet(sup);
     setPoPayments((((costRes.data as { po_id: unknown; amount: number | null; payment_date: string | null; exchange_rate: number | null; currency: string | null }[]) ?? [])
       .filter((c) => c.payment_date && (Number(c.amount) || 0) > 0)
       .map((c) => ({
@@ -299,82 +287,6 @@ export default function EconomicsPage() {
     }
     return rows;
   }, [comps, bals, periodFacts, facts, periodDays, nowIso, SLOW_DAYS]);
-
-  // ── Item Score inputs ────────────────────────────────────────────────────
-  // Measured lead time per item: avg PO → goods-receipt days across the POs that
-  // actually carried it, with the catalog-wide average as the fallback.
-  const leadByComp = useMemo(() => {
-    const agg = new Map<string, { sum: number; n: number }>();
-    let gSum = 0, gN = 0;
-    for (const pc of poComps) {
-      const rec = poReceived.get(pc.po_id), ord = poDate.get(pc.po_id);
-      if (!rec || !ord) continue;
-      const d = daysBetween(rec, ord);
-      if (!(d >= 0)) continue;
-      const e = agg.get(pc.component_id) ?? { sum: 0, n: 0 };
-      e.sum += d; e.n += 1; agg.set(pc.component_id, e);
-      gSum += d; gN += 1;
-    }
-    const globalAvg = gN > 0 ? gSum / gN : null;
-    return (id: string): number | null => {
-      const e = agg.get(id);
-      return e && e.n > 0 ? e.sum / e.n : globalAvg;
-    };
-  }, [poComps, poReceived, poDate]);
-
-  // Purchase-cost stability per item: coefficient of variation of landed
-  // receipt costs (null under two receipts — too few to call it un/stable).
-  const covByComp = useMemo(() => {
-    const vals = new Map<string, number[]>();
-    for (const m of moves) {
-      if (m.direction !== 'in' || !m.component_id) continue;
-      const c = Number(m.unit_cost_idr) || 0;
-      if (c <= 0) continue;
-      (vals.get(m.component_id) ?? vals.set(m.component_id, []).get(m.component_id)!).push(c);
-    }
-    const out = new Map<string, number | null>();
-    for (const [id, a] of vals) {
-      if (a.length < 2) { out.set(id, null); continue; }
-      const mean = a.reduce((s, x) => s + x, 0) / a.length;
-      if (mean <= 0) { out.set(id, null); continue; }
-      const variance = a.reduce((s, x) => s + (x - mean) ** 2, 0) / a.length;
-      out.set(id, Math.sqrt(variance) / mean);
-    }
-    return out;
-  }, [moves]);
-
-  // Demand windows (recent 90d vs prior 90d) and repeat-sale frequency, from
-  // the all-time delivered facts.
-  const demand = useMemo(() => {
-    const d90 = new Date(Date.now() - 90 * 86400000).toISOString();
-    const d180 = new Date(Date.now() - 180 * 86400000).toISOString();
-    const rec = new Map<string, number>(), pri = new Map<string, number>(), events = new Map<string, number>();
-    for (const f of facts) {
-      events.set(f.component_id, (events.get(f.component_id) ?? 0) + 1);
-      if (!f.date) continue;
-      if (f.date >= d90) rec.set(f.component_id, (rec.get(f.component_id) ?? 0) + f.qty);
-      else if (f.date >= d180) pri.set(f.component_id, (pri.get(f.component_id) ?? 0) + f.qty);
-    }
-    return { rec, pri, events };
-  }, [facts]);
-
-  const scoreMap = useMemo(() => {
-    const inputs: ItemScoreInput[] = itemRows.map((r) => ({
-      id: r.c.component_id,
-      category: r.c.category,
-      revenue: r.revenue,
-      marginPct: r.margin,
-      demandRecent: demand.rec.get(r.c.component_id) ?? 0,
-      demandPrior: demand.pri.get(r.c.component_id) ?? 0,
-      leadDays: leadByComp(r.c.component_id),
-      recoveryRatio: r.stockValue > 0 ? r.gpAllTime / r.stockValue : null,
-      superseded: supersededSet.has(r.c.component_id),
-      saleEvents: demand.events.get(r.c.component_id) ?? 0,
-      costCoV: covByComp.get(r.c.component_id) ?? null,
-      dioDays: r.dio,
-    }));
-    return computeItemScores(inputs, weights);
-  }, [itemRows, demand, leadByComp, covByComp, supersededSet, weights]);
 
   // ── Customer / rep rollup ──────────────────────────────────────────────────
   const custRows: PartyRow[] = useMemo(() => rollupParty(periodFacts, (f) => f.customer_id, (id) => {
@@ -729,11 +641,13 @@ const BAND_STYLE: Record<ScoreBand, { chip: string; label: string }> = {
 function ScoreCell({ res }: { res?: ItemScoreResult }) {
   if (!res) return <span className="text-slate-700 text-xs">—</span>;
   const st = BAND_STYLE[res.band];
-  const tip = `${res.action}\n\n${ITEM_SCORE_FACTORS.map((f) => `${f.label}: ${Math.round(res.factors[f.key])}`).join('  ·  ')}`;
+  const tip = `${res.action}\n\n${ITEM_SCORE_FACTORS.map((f) => `${f.label}: ${Math.round(res.factors[f.key])}`).join('  ·  ')}`
+    + (res.lowData ? '\n\nThin sales history — score pulled toward neutral' : '');
   return (
-    <span title={tip} className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border tabular-nums text-xs font-bold cursor-help ${st.chip}`}>
+    <span title={tip} className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border tabular-nums text-xs font-bold cursor-help ${st.chip}`}>
       {Math.round(res.score)}
       <span className="text-[9px] font-semibold uppercase tracking-wide opacity-80">{st.label}</span>
+      {res.lowData && <span className="text-[10px] opacity-50" title="thin data">~</span>}
     </span>
   );
 }

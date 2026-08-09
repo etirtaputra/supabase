@@ -145,10 +145,13 @@ export function useItemScores(supabase: SupabaseClient, enabled: boolean): { sco
     // Per-item rollups.
     const rev = new Map<string, number>(), cogsAll = new Map<string, number>(), gpAll = new Map<string, number>();
     const recent = new Map<string, number>(), prior = new Map<string, number>(), events = new Map<string, number>();
-    const rev90 = new Map<string, number>();
+    const rev90 = new Map<string, number>(), revBaselineWin = new Map<string, number>();
     let firstDate = '';
     const d90 = new Date(Date.now() - 90 * 86400000).toISOString();
     const d180 = new Date(Date.now() - 180 * 86400000).toISOString();
+    // The baseline window is the 270 days BEFORE the recent quarter — three
+    // 90-day periods, averaged, so a single lumpy order doesn't set the bar.
+    const d360 = new Date(Date.now() - 360 * 86400000).toISOString();
     for (const f of facts) {
       rev.set(f.component_id, (rev.get(f.component_id) ?? 0) + f.revenue);
       cogsAll.set(f.component_id, (cogsAll.get(f.component_id) ?? 0) + f.cogs);
@@ -159,7 +162,10 @@ export function useItemScores(supabase: SupabaseClient, enabled: boolean): { sco
         if (f.date >= d90) {
           recent.set(f.component_id, (recent.get(f.component_id) ?? 0) + f.qty);
           rev90.set(f.component_id, (rev90.get(f.component_id) ?? 0) + f.revenue);
-        } else if (f.date >= d180) prior.set(f.component_id, (prior.get(f.component_id) ?? 0) + f.qty);
+        } else {
+          if (f.date >= d180) prior.set(f.component_id, (prior.get(f.component_id) ?? 0) + f.qty);
+          if (f.date >= d360) revBaselineWin.set(f.component_id, (revBaselineWin.get(f.component_id) ?? 0) + f.revenue);
+        }
       }
     }
     const spanDays = firstDate ? Math.max(30, Math.ceil(daysBetween(new Date().toISOString(), firstDate))) : 365;
@@ -201,9 +207,10 @@ export function useItemScores(supabase: SupabaseClient, enabled: boolean): { sco
         category: c.category,
         revenue,
         marginPct: revenue > 0 ? ((revenue - cogsPeriod) / revenue) * 100 : null,
-        demandRecent: recent.get(c.component_id) ?? 0,
-        demandPrior: prior.get(c.component_id) ?? 0,
+        salesRecent: rev90.get(c.component_id) ?? 0,
+        salesBaseline: (revBaselineWin.get(c.component_id) ?? 0) / 3,
         leadDays: lead && lead.n > 0 ? lead.sum / lead.n : leadGlobal,
+        leadSamples: lead?.n ?? 0,
         recoveryRatio: stockValue > 0 ? (gpAll.get(c.component_id) ?? 0) / stockValue : null,
         superseded: raw.superseded.has(c.component_id),
         saleEvents: events.get(c.component_id) ?? 0,
