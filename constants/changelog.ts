@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-07T14:30:00Z',
+    title: 'Item Score: honest bands, plus profit-per-day-of-cash',
+    details: [
+      'A top band now means good in ABSOLUTE terms, not just “best of a weak category”. Two reality checks override the rank: an item selling below cost can’t be Core or Solid (its action says “fix pricing before buying more”), and stock that hasn’t moved recently can’t be Core (“clear before restocking”).',
+      'Profitability adds a “GP / locked day” column — gross profit ÷ DIO, i.e. the profit each item earns per day its cash sits as stock. It’s the single truest “is this worth restocking” number; sort by it to see which items work your cash hardest.',
+    ],
+  },
+  {
     at: '2026-08-07T14:00:00Z',
     title: 'Item Score is steadier: smoothed momentum and confidence for thin data',
     details: [

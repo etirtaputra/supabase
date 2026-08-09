@@ -197,12 +197,36 @@ const BAND_ACTION: Record<ScoreBand, string> = {
   reduce: 'Reduce / clear — free the cash',
 };
 
-function actionOf(band: ScoreBand, superseded: boolean): string {
+function actionOf(band: ScoreBand, superseded: boolean, warning: string | null): string {
+  if (warning) return warning;
   const base = BAND_ACTION[band];
   // A superseded item should not be restocked however well it still scores —
   // buy only to clear the pipeline, and switch demand to its successor.
   if (superseded) return band === 'reduce' ? base : 'Superseded — sell through, don’t restock';
   return base;
+}
+
+const ORDER: ScoreBand[] = ['reduce', 'watch', 'solid', 'core'];
+const capBand = (b: ScoreBand, ceiling: ScoreBand): ScoreBand =>
+  ORDER.indexOf(b) > ORDER.indexOf(ceiling) ? ceiling : b;
+
+/**
+ * Absolute reality checks on top of the relative rank — so a top band means
+ * good in absolute terms, not merely "best of a weak category". Each returns a
+ * band ceiling and, when it fires, the action that should override the generic
+ * one. The rank still orders items; these only stop a misleading badge.
+ */
+function guardrails(it: ItemScoreInput): { ceiling: ScoreBand; warning: string | null } {
+  // Selling below cost is never a "keep buying" — whatever the rank says.
+  if (it.marginPct != null && it.marginPct < 0) {
+    return { ceiling: 'watch', warning: 'Selling below cost — fix pricing before buying more' };
+  }
+  // Holding stock that hasn't moved in the recent window isn't a core buy —
+  // it's a clearance question, no matter how it sold historically.
+  if (it.salesRecent === 0 && it.saleEvents > 0 && (it.dioDays ?? 0) > 0) {
+    return { ceiling: 'watch', warning: 'Stalled — held stock, no recent sales; clear before restocking' };
+  }
+  return { ceiling: 'core', warning: null };
 }
 
 /**
@@ -254,9 +278,10 @@ export function computeItemScores(
       factors.consistency * w.consistency +
       factors.cashCycle * w.cashCycle
     ) / wtot);
-    const band = bandOf(score);
+    const { ceiling, warning } = guardrails(it);
+    const band = capBand(bandOf(score), ceiling);
     out.set(it.id, {
-      id: it.id, score, factors, band, action: actionOf(band, it.superseded), superseded: it.superseded,
+      id: it.id, score, factors, band, action: actionOf(band, it.superseded, warning), superseded: it.superseded,
       confidence: salesC, lowData: it.saleEvents < 2,
     });
   }

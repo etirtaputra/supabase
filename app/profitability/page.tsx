@@ -71,7 +71,12 @@ interface ItemRow {
 interface PartyRow { id: string; name: string; sub: string; revenue: number; gp: number; margin: number | null; orders: Set<string>; }
 
 type Chip = 'all' | 'sold' | 'inprofit' | 'slow' | 'negative' | 'core' | 'reduce';
-type SortKey = 'score' | 'gp' | 'revenue' | 'margin' | 'stockValue' | 'dio' | 'soldQty';
+type SortKey = 'score' | 'gpDio' | 'gp' | 'revenue' | 'margin' | 'stockValue' | 'dio' | 'soldQty';
+
+/** GP per day of cash locked = period GP ÷ DIO — profit per day the item's
+ *  cash sits as stock. The truest "is this worth restocking" number; null when
+ *  the item holds no stock (no cash locked to divide by). */
+const gpPerDioDay = (r: ItemRow): number | null => (r.dio != null && r.dio > 0 ? r.gp / r.dio : null);
 
 export default function EconomicsPage() {
   const supabase = createSupabaseClient();
@@ -366,7 +371,9 @@ export default function EconomicsPage() {
     if (q) rows = rows.filter((r) => [descOf(r.c), r.c.category].filter(Boolean).join(' ').toLowerCase().includes(q));
     const { key, dir } = sort;
     const valOf = (r: ItemRow): number =>
-      key === 'score' ? (scoreMap.get(r.c.component_id)?.score ?? -Infinity) : (r[key] ?? (key === 'dio' ? Infinity : -Infinity)) as number;
+      key === 'score' ? (scoreMap.get(r.c.component_id)?.score ?? -Infinity)
+      : key === 'gpDio' ? (gpPerDioDay(r) ?? -Infinity)
+      : (r[key] ?? (key === 'dio' ? Infinity : -Infinity)) as number;
     return [...rows].sort((a, b) => {
       const d = (valOf(a) - valOf(b)) * dir;
       return d !== 0 ? d : b.stockValue - a.stockValue;
@@ -483,13 +490,14 @@ export default function EconomicsPage() {
                       <th className="text-right font-semibold px-3 py-2.5">On hand</th>
                       <SortTh label="Stock value" k="stockValue" sort={sort} onClick={toggleSort} />
                       <SortTh label="DIO" k="dio" sort={sort} onClick={toggleSort} hint="days" />
+                      <SortTh label="GP / locked day" k="gpDio" sort={sort} onClick={toggleSort} hint="GP ÷ DIO" />
                       <th className="text-right font-semibold px-3 py-2.5">Last sold</th>
                       <th className="text-left font-semibold px-3 py-2.5">Flags</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60">
                     {visibleRows.length === 0 ? (
-                      <tr><td colSpan={11} className="px-4 py-12 text-center text-slate-600">No items match — deliveries feed this table (mark DOs delivered to see GP).</td></tr>
+                      <tr><td colSpan={12} className="px-4 py-12 text-center text-slate-600">No items match — deliveries feed this table (mark DOs delivered to see GP).</td></tr>
                     ) : visibleRows.map((r) => (
                       <tr key={r.c.component_id} className="hover:bg-slate-800/20 transition-colors">
                         <td className="px-4 py-2">
@@ -507,6 +515,7 @@ export default function EconomicsPage() {
                         <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-300">{r.onHand ? `${fmtInt(r.onHand)}${r.c.unit ? ` ${r.c.unit}` : ''}` : <span className="text-slate-700">0</span>}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-300 whitespace-nowrap">{r.stockValue ? fmtRupiah(r.stockValue) : <span className="text-slate-700">—</span>}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400">{r.dio != null ? `${Math.round(r.dio)}d` : <span className="text-slate-700">—</span>}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-xs whitespace-nowrap" title="Profit per day the item's cash sits as stock (GP ÷ DIO)">{(() => { const v = gpPerDioDay(r); return v != null ? <span className={v < 0 ? 'text-red-400' : 'text-sky-300'}>{fmtRupiah(Math.round(v))}<span className="text-slate-600">/d</span></span> : <span className="text-slate-700">—</span>; })()}</td>
                         <td className="px-3 py-2 text-right text-[11px] text-slate-500 tabular-nums whitespace-nowrap">{r.lastSold ? fmtDay(r.lastSold) : <span className="text-slate-700">never</span>}</td>
                         <td className="px-3 py-2 whitespace-nowrap">
                           <span className="inline-flex gap-1">

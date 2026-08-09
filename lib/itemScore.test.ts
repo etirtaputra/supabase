@@ -115,6 +115,21 @@ test('a smoothed baseline tempers a single lumpy quarter', () => {
   assert.ok(s.get('spike')!.factors.momentum > s.get('steady')!.factors.momentum);
 });
 
+test('an item selling below cost is never Core/Solid, whatever its rank', () => {
+  const great = { revenue: 5_000_000, salesRecent: 50_000, salesBaseline: 10_000, leadDays: 7, leadSamples: 8, recoveryRatio: 1.5, saleEvents: 40, costCoV: 0.02, dioDays: 10 };
+  const s = computeItemScores([...peers(8), item({ id: 'loss', marginPct: -12, ...great })]);
+  const r = s.get('loss')!;
+  assert.ok(r.band === 'watch' || r.band === 'reduce', `band was ${r.band}`);
+  assert.match(r.action, /below cost|pricing/i);
+});
+
+test('stalled stock (no recent sales but holding) can’t be Core', () => {
+  const s = computeItemScores([...peers(8), item({ id: 'stalled', marginPct: 25, salesRecent: 0, saleEvents: 15, dioDays: 300, revenue: 4_000_000 })]);
+  const r = s.get('stalled')!;
+  assert.notEqual(r.band, 'core');
+  assert.match(r.action, /stalled|clear/i);
+});
+
 test('every score is within 0–100 and carries an action', () => {
   const s = computeItemScores(peers(12, (i) => ({ revenue: i * 100, leadDays: i * 10, marginPct: i * 3 })));
   for (const r of s.values()) {
