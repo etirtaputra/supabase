@@ -731,9 +731,32 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   Fixed with it: the editor's physical-stock map assigned instead of summing
   across warehouses.
 
+- **Dashboard slice 2 — position strip + month-in-motion + AI next step
+  (SHIPPED 2026-08-09)**: the dashboard opens with the POSITION —
+  `lib/position.ts` (pure computations + one capability-gated fetch pass;
+  16 tests in `lib/position.test.ts`): **Cash** (per-account
+  opening + Σin − Σout, /banks' exact rule incl. FX conversion at the
+  payment's recorded rate; foreign-currency accounts listed beside the IDR
+  total, never silently converted), **Owed to us** (Σ per-invoice
+  outstanding via invoice-tagged receipts, overdue slice per
+  `arOverdueDays`), **We owe** (the queue's unpaid-PO rule across ALL
+  active POs — replaces the old "Outstanding" KPI tile, whose `rate||1`
+  fallback mis-valued unrated foreign POs; Draft/Replaced/Cancelled and
+  unrated POs are excluded and the exclusion is shown), and **CCC** on a
+  fixed 90-day basis (DIO from 30.1 value ÷ delivery-out COGS from 30.0;
+  DSO paid-invoice value-weighted; DPO vs `actual_received_date` —
+  /profitability's math). Tiles gate per capability (canViewBanks /
+  sellSide / buySide / canViewEconomics) and each fails alone.
+  **Month in motion** compares MTD to the SAME day-span of last month
+  (Aug 9 vs Jul 1–9; a longer span caps at the shorter month's end):
+  invoiced / collected / paid out, delta %. **Next best step** card:
+  `/api/next-step` (same Bearer-auth pattern as /api/ask, claude-haiku)
+  receives ONLY the role-visible summary the page already renders and
+  returns one proposed step + its economic consequence; cached per
+  day+role in localStorage with manual refresh. AI-first posture:
+  it proposes, the human decides — stated on the card.
+
 **Next up (in order):**
-0. Dashboard slice 2: a position strip above the queue — Cash / Owed to us /
-   We owe / CCC — then month-in-motion comparisons and an AI next-best-step card.
 1. Bank follow-ons: tag the historical payments/receipts through the
    "untagged movements" panel on /banks so every statement is complete; then
    consider a cash-position tile on the dashboard and bank-account filtering

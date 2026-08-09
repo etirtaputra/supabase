@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-09T12:00:00Z',
+    title: 'Dashboard: the company position at a glance, and an AI next-best-step',
+    details: [
+      'The dashboard now opens with the position strip — the four numbers that ARE the business: Cash (what the bank accounts hold, by the same math as the /banks statements), Owed to us (every open customer invoice, with the overdue slice called out), We owe (unpaid across active POs, with “goods already received” called out — this replaces the old Outstanding KPI tile; draft/cancelled POs and POs with no recorded exchange rate are excluded rather than mis-valued), and CCC — the runway (DIO + DSO − DPO on a 90-day basis, same rule as Profitability). Each tile appears only for roles that can see its module.',
+      '“Month in motion” compares this month so far against the SAME days of last month — on the 9th you compare to the 9th, never to a whole month — for what was invoiced, collected, and paid out, with the swing in percent.',
+      'A “Next best step” card asks the AI what it would do next, given the position, the month’s motion and the action queue — one proposed step and its economic consequence, refreshed once a day (or on demand with ↻). It reads only the numbers this page already shows for your role, and it proposes — you decide.',
+    ],
+  },
+  {
     at: '2026-08-07T18:00:00Z',
     title: 'Menu reorganised — a Catalog section, and Insights for the numbers',
     details: [
