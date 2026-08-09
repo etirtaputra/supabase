@@ -30,6 +30,7 @@ import { useSettings } from '@/hooks/useSettings';
 import PositionPanel from '@/components/profitability/PositionPanel';
 import { ITEM_SCORE_FACTORS, type ItemScoreResult, type ScoreBand } from '@/lib/itemScore';
 import { useItemScores } from '@/hooks/useItemScores';
+import { fetchReorderAlerts, type ReorderAlert } from '@/lib/reorder';
 
 /**
  * Two questions, two tabs. "Profitability" measures the FLOW — what shipped in
@@ -70,7 +71,7 @@ interface ItemRow {
 }
 interface PartyRow { id: string; name: string; sub: string; revenue: number; gp: number; margin: number | null; orders: Set<string>; }
 
-type Chip = 'all' | 'sold' | 'inprofit' | 'slow' | 'negative' | 'core' | 'reduce';
+type Chip = 'all' | 'buynow' | 'sold' | 'inprofit' | 'slow' | 'negative' | 'core' | 'reduce';
 type SortKey = 'score' | 'gpDio' | 'gp' | 'revenue' | 'margin' | 'stockValue' | 'dio' | 'soldQty';
 
 /** GP per day of cash locked = period GP ÷ DIO — profit per day the item's
@@ -104,6 +105,13 @@ export default function EconomicsPage() {
   // The Item Score is computed by the shared hook (same engine and basis as the
   // Items list), so the two screens can never disagree on a score.
   const { scores: scoreMap } = useItemScores(supabase, canView);
+  // The reorder signal — the "when to buy" axis, paired with the score's "what
+  // to buy". Same engine as the Dashboard's Stock alerts and the /stock panel.
+  const [reorderMap, setReorderMap] = useState<Map<string, ReorderAlert>>(new Map());
+  useEffect(() => {
+    if (!canView) return;
+    fetchReorderAlerts(supabase).then((alerts) => setReorderMap(new Map(alerts.map((a) => [a.component_id, a]))));
+  }, [canView]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   const [tab, setTab] = useState<Tab>('flow');
   const [period, setPeriod] = useState<Period>(economicsPeriod);
@@ -368,6 +376,11 @@ export default function EconomicsPage() {
     else if (chip === 'negative') rows = rows.filter((r) => r.revenue > 0 && r.gp < 0);
     else if (chip === 'core') rows = rows.filter((r) => scoreMap.get(r.c.component_id)?.band === 'core');
     else if (chip === 'reduce') rows = rows.filter((r) => scoreMap.get(r.c.component_id)?.band === 'reduce');
+    // The buy board: a good item (Core/Solid) that is also due to reorder now.
+    else if (chip === 'buynow') rows = rows.filter((r) => {
+      const b = scoreMap.get(r.c.component_id)?.band;
+      return (b === 'core' || b === 'solid') && reorderMap.has(r.c.component_id);
+    });
     if (q) rows = rows.filter((r) => [descOf(r.c), r.c.category].filter(Boolean).join(' ').toLowerCase().includes(q));
     const { key, dir } = sort;
     const valOf = (r: ItemRow): number =>
@@ -378,7 +391,7 @@ export default function EconomicsPage() {
       const d = (valOf(a) - valOf(b)) * dir;
       return d !== 0 ? d : b.stockValue - a.stockValue;
     });
-  }, [itemRows, chip, search, sort, scoreMap]);
+  }, [itemRows, chip, search, sort, scoreMap, reorderMap]);
 
   const toggleSort = (key: SortKey) => setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: -1 }));
 
@@ -468,7 +481,7 @@ export default function EconomicsPage() {
                   <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search item or category…"
                     className="w-full pl-10 pr-4 h-10 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors" />
                 </div>
-                {([['all', `All (${itemRows.length})`], ['core', `Core buys (${itemRows.filter((r) => scoreMap.get(r.c.component_id)?.band === 'core').length})`], ['reduce', `Clear / reduce (${itemRows.filter((r) => scoreMap.get(r.c.component_id)?.band === 'reduce').length})`], ['sold', 'Sold in period'], ['inprofit', `In profit (${kpi.inProfitCount})`], ['slow', `Slow movers (${kpi.slowCount})`], ['negative', 'Negative GP']] as [Chip, string][]).map(([k, label]) => (
+                {([['all', `All (${itemRows.length})`], ['buynow', `⚡ Buy now (${itemRows.filter((r) => { const b = scoreMap.get(r.c.component_id)?.band; return (b === 'core' || b === 'solid') && reorderMap.has(r.c.component_id); }).length})`], ['core', `Core buys (${itemRows.filter((r) => scoreMap.get(r.c.component_id)?.band === 'core').length})`], ['reduce', `Clear / reduce (${itemRows.filter((r) => scoreMap.get(r.c.component_id)?.band === 'reduce').length})`], ['sold', 'Sold in period'], ['inprofit', `In profit (${kpi.inProfitCount})`], ['slow', `Slow movers (${kpi.slowCount})`], ['negative', 'Negative GP']] as [Chip, string][]).map(([k, label]) => (
                   <button key={k} onClick={() => setChip(k)}
                     className={`text-[11px] px-2.5 py-1.5 rounded-lg border transition-colors whitespace-nowrap ${chip === k ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 font-bold' : 'border-slate-700/80 text-slate-500 hover:text-slate-300'}`}>
                     {label}
@@ -519,6 +532,10 @@ export default function EconomicsPage() {
                         <td className="px-3 py-2 text-right text-[11px] text-slate-500 tabular-nums whitespace-nowrap">{r.lastSold ? fmtDay(r.lastSold) : <span className="text-slate-700">never</span>}</td>
                         <td className="px-3 py-2 whitespace-nowrap">
                           <span className="inline-flex gap-1">
+                            {(() => { const a = reorderMap.get(r.c.component_id); if (!a) return null;
+                              return a.urgent
+                                ? <Badge tone="rose" title={`Stock-out projected in ~${Math.round(a.coverDays)}d — a PO raised today may land late. Suggested order ${fmtInt(a.suggestedQty)}${r.c.unit ? ` ${r.c.unit}` : ''}`}>● order now</Badge>
+                                : <Badge tone="amber" title={`Below reorder point — ~${Math.round(a.coverDays)}d cover left. Suggested order ${fmtInt(a.suggestedQty)}${r.c.unit ? ` ${r.c.unit}` : ''}`}>reorder</Badge>; })()}
                             {r.inProfit && <Badge tone="emerald" title={`All-time GP ${fmtRupiah(r.gpAllTime)} ≥ stock value — the remaining stock is already paid for`}>✓ in profit</Badge>}
                             {r.slow && <Badge tone="amber" title={`No delivery in ${SLOW_DAYS}+ days with stock on hand`}>slow</Badge>}
                             {r.cogsEstimated && <Badge tone="slate" title="Some deliveries predate the ledger — COGS estimated at current avg cost">~ est. COGS</Badge>}
@@ -633,8 +650,8 @@ function SortTh({ label, k, sort, onClick, hint }: { label: string; k: SortKey; 
   );
 }
 
-function Badge({ tone, title, children }: { tone: 'emerald' | 'amber' | 'slate'; title?: string; children: React.ReactNode }) {
-  const cls = tone === 'emerald' ? 'bg-emerald-500/10 text-emerald-300' : tone === 'amber' ? 'bg-amber-500/10 text-amber-300' : 'bg-slate-800 text-slate-500';
+function Badge({ tone, title, children }: { tone: 'emerald' | 'amber' | 'slate' | 'rose'; title?: string; children: React.ReactNode }) {
+  const cls = tone === 'emerald' ? 'bg-emerald-500/10 text-emerald-300' : tone === 'amber' ? 'bg-amber-500/10 text-amber-300' : tone === 'rose' ? 'bg-rose-500/15 text-rose-300' : 'bg-slate-800 text-slate-500';
   return <span title={title} className={`px-1.5 py-0.5 rounded text-[9px] font-semibold ${cls}`}>{children}</span>;
 }
 

@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-07T15:00:00Z',
+    title: 'A “Buy now” board on Profitability — quality meets timing',
+    details: [
+      'The Item Score says WHAT is worth buying; the reorder engine says WHEN. Profitability now shows both together: each item that’s due for restock carries a badge — amber “reorder” (below its reorder point) or red “● order now” (a stock-out is projected before a PO raised today would even land) — with the suggested order quantity and days of cover on hover.',
+      'A new “⚡ Buy now” filter combines the two axes into a shortlist: the items that are BOTH a good trade (Core or Solid) AND due to reorder right now. That’s the “what / how much / when to buy” question answered in one click. Same reorder engine as the Dashboard’s Stock alerts.',
+    ],
+  },
+  {
     at: '2026-08-07T14:30:00Z',
     title: 'Item Score: honest bands, plus profit-per-day-of-cash',
     details: [
