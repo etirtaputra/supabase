@@ -37,10 +37,12 @@ type Section = NavSection;
 // canManagePricing). Configuration screens (Settings, Pricing) are NOT modules:
 // they sit in the Admin group at the bottom of the menu, out of the daily list.
 const GROUP_TITLE: Record<string, string | null> = {
-  Home: null, Purchasing: 'Purchasing', Sales: 'Sales', Finance: 'Finance', Analytics: 'Analytics', Projects: 'Projects',
+  Home: null, Purchasing: 'Purchasing', Sales: 'Sales', Catalog: 'Catalog',
+  Finance: 'Finance', Insights: 'Insights', Projects: 'Projects',
+  Analytics: 'Insights',   // legacy alias, in case a stored order still says it
 };
 
-interface AppGroup { title: string | null; section: Section; apps: { href: string; label: string; cap?: keyof RolePermissions }[] }
+interface AppGroup { title: string | null; section: Section; apps: { href: string; label: string; cap?: keyof RolePermissions; section: Section }[] }
 
 /**
  * The nav groups in the order to render them, and each group's entries in the
@@ -57,7 +59,7 @@ const buildAppGroups = (
       title: GROUP_TITLE[g] ?? null,
       section: (DESTINATIONS.find((d) => d.group === g)?.section ?? null) as Section,
       apps: orderedGroupItems(
-        DESTINATIONS.filter((d) => d.group === g && d.inNav).map((d) => ({ href: d.href, label: d.label, cap: d.cap })),
+        DESTINATIONS.filter((d) => d.group === g && d.inNav).map((d) => ({ href: d.href, label: d.label, cap: d.cap, section: d.section })),
         menuItemOrder?.[g],
       ),
     }))
@@ -84,7 +86,7 @@ const ACCENT: Record<string, { active: string; dot: string; label: string; tab: 
  * instead of inheriting whichever domain happens to be listed first —
  * colouring them sky or emerald would claim a side they don't have.
  */
-const GROUP_NEUTRAL = new Set(['Finance', 'Analytics']);
+const GROUP_NEUTRAL = new Set(['Finance', 'Analytics', 'Insights', 'Catalog']);
 const accentOf = (section: Section, groupTitle?: string | null) =>
   ACCENT[groupTitle && GROUP_NEUTRAL.has(groupTitle) ? 'home' : (section ?? 'home')];
 const GROUP_SHORT: Record<string, string> = { Projects: 'EPC' };
@@ -197,10 +199,13 @@ export default function BrandMenu({
   // profile loads, show everything to avoid a nav flash.
   const perms = profile ? ROLE_PERMISSIONS[profile.role] : null;
   const { menuOrder, menuItemOrder } = useSettings();
+  // Gate each ENTRY by its own flow + capability, not the group's — a mixed
+  // group like Catalog (buy-side Item Editor, sell-side Products) must show a
+  // buyer its parts and a seller theirs, and appear for either.
   const groups = buildAppGroups(menuOrder, menuItemOrder)
-    .map((g) => ({ ...g, apps: g.apps.filter((a) => !a.cap || !perms || !!perms[a.cap]) }))
-    .filter((g) => g.apps.length && sectionAllowed(perms, g.section));
-  const allLinks = groups.flatMap((g) => g.apps.map((a) => ({ ...a, section: g.section })));
+    .map((g) => ({ ...g, apps: g.apps.filter((a) => (!a.cap || !perms || !!perms[a.cap]) && sectionAllowed(perms, a.section)) }))
+    .filter((g) => g.apps.length > 0);
+  const allLinks = groups.flatMap((g) => g.apps.map((a) => ({ href: a.href, label: a.label, section: a.section })));
   // Configuration entries, same source, shown under Admin
   const adminLinks = DESTINATIONS.filter((d) => d.group === 'Admin' && d.inNav && (!perms || !d.cap || !!perms[d.cap]));
 

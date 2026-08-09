@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-07T18:00:00Z',
+    title: 'Menu reorganised — a Catalog section, and Insights for the numbers',
+    details: [
+      'Everything about the items you trade now lives in one place — a new Catalog group: Item Editor, Products, the Item Hub, Market Intel and Pricing. The item is the pivot of the whole business, so its screens are no longer scattered between Purchasing, Sales and Analytics.',
+      'Analytics is renamed Insights and holds the decision dashboards — Profitability (GP, capital allocation) and Spend & Cash (cash cycle, FX, pricing intelligence). Purchasing is now the clean buy flow (deals, payments, suppliers, stock, receiving); Sales is the clean sell flow (customers, orders, invoices, delivery, after-sales, support letters).',
+      'Finance keeps its own top-level menu, for one-tap access to bank accounts and transactions. Pages and links are unchanged — nothing moved, only where they sit in the menu — and you can still reorder any of it in Settings › Menu.',
+    ],
+  },
+  {
     at: '2026-08-07T17:20:00Z',
     title: 'Spend & Cash header no longer overlaps on the phone',
     details: [
