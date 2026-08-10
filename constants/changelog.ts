@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-10T19:00:00Z',
+    title: 'New Deal — tidier Quote + PO layout, more formulas, more carried forward',
+    details: [
+      'Freight Cost (and Exch Rate) now accept “=” formulas, like Qty and Unit Price.',
+      'A Freight Cost typed on a quote is carried forward — it survives switching to Quote + PO, and when you raise the PO from a stored quote its freight, lead time and document folder all prefill, so you re-enter nothing.',
+      'The Quote + PO form was misaligned because a few labels ran onto two lines and pushed their inputs out of row. Labels are now single-line (the full text is on hover), and the PO’s own violet fields are grouped together at the end — so the form reads “the deal, then what the PO adds”.',
+      'Document URL is renamed Document Folder — it’s the link to the deal’s folder, not a single file.',
+      'On phones the form stays neat: the header fields stack one per line, each item is its own numbered card, and the amount fields bring up the numeric keypad.',
+    ],
+  },
+  {
     at: '2026-08-10T17:30:00Z',
     title: 'New Deal: a Freight Cost field, formulas in Qty & Price, and Item Editor back in Purchasing',
     details: [

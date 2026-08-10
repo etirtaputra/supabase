@@ -332,6 +332,11 @@ function MasterInsertPage() {
     return {
       supplier_id: q.supplier_id, company_id: q.company_id, quote_date: q.quote_date,
       pi_number: q.pi_number, currency: q.currency, total_value: q.total_value,
+      // Bring forward everything the stored quote already knows, so raising its
+      // PO re-enters nothing: freight, lead time and the document folder too.
+      freight_charges_intl: (q as any).freight_charges_intl ?? undefined,
+      estimated_lead_time_days: (q as any).estimated_lead_time_days ?? undefined,
+      document_url: q.document_url ?? undefined,
       po_date: new Date().toISOString().split('T')[0],
     };
   }, [pendingStoredQuote, data.quotes]);
@@ -877,7 +882,7 @@ function MasterInsertPage() {
                         // Quote + PO only: process the PO for a quote stored earlier —
                         // no separate PO form, no re-entry.
                         ...(withPo ? [
-                          { name: 'existing_quote_id', label: 'Stored Quote (raise its PO — empty = new PI)', type: 'select' as const, options: options.quotes, default: pendingStoredQuote || undefined },
+                          { name: 'existing_quote_id', label: 'Stored Quote', hint: 'Raise the PO for a quote saved earlier — empty = a brand-new PI', type: 'select' as const, options: options.quotes, default: pendingStoredQuote || undefined },
                         ] : []),
                         { name: 'supplier_id', label: 'Supplier', type: 'rich-select', options: data.suppliers, config: { labelKey: 'supplier_name', valueKey: 'supplier_id', subLabelKey: 'location' }, req: true, default: storedDefaults?.supplier_id ?? pdfDefaults.supplier_id },
                         { name: 'company_id', label: 'Addressed To', type: 'select', options: options.companies, req: true, default: storedDefaults?.company_id ?? pdfDefaults.company_id },
@@ -888,26 +893,27 @@ function MasterInsertPage() {
                         // Freight is SHARED (owner, 2026-08-10): the supplier quotes it
                         // and the PO pays it, so it belongs to a Quote-only PI as much as
                         // to a Quote + PO. Stored on 4.0; carried onto the PO when raised.
-                        { name: 'freight_charges_intl', label: 'Freight Cost', type: 'number', default: (pdfData as any)?.freight_charges_intl },
+                        { name: 'freight_charges_intl', label: 'Freight Cost', type: 'number', formula: true, hint: 'Supplier-quoted freight — accepts = formulas; carried onto the PO', default: (pdfData as any)?.freight_charges_intl },
                         // Quote-only stores an OPEN price quote; Quote + PO goes
                         // straight from PI to PO, so the quote lands as Accepted
                         // automatically and the Status field disappears entirely.
                         ...(withPo ? [] : [
                           { name: 'status', label: 'Status', type: 'select' as const, options: ENUMS.price_quotes_status, default: 'Open' },
                         ]),
-                        // Quote + PO mode — only what the PO adds; everything else
-                        // is shared. Violet border = belongs to the PO.
+                        { name: 'estimated_lead_time_days', label: 'Lead Time', type: 'select', options: ENUMS.lead_time, default: pdfData?.lead_time_days },
+                        { name: 'replaces_quote_id', label: 'Replaces', type: 'select', options: options.quotes },
+                        { name: 'document_url', label: 'Document Folder', hint: 'Link to the deal’s document folder (e.g. Google Drive)', type: 'text', placeholder: 'https://drive.google.com/…' },
+                        // Quote + PO mode — the PO's OWN fields, kept together as
+                        // one violet block at the END so the form reads "the deal,
+                        // then what the PO adds". Violet border = belongs to the PO.
                         ...(withPo ? [
                           { name: 'po_number', label: 'PO #', type: 'text' as const, req: true, suggestions: suggestions.poNumbers, default: pdfData?.po_number, accent: true },
-                          { name: 'po_date', label: 'PO Date (empty = same as PI date)', type: 'date' as const, default: storedDefaults?.po_date, accent: true },
-                          { name: 'exchange_rate', label: 'Exch Rate (est. — auto if empty, IDR ignores)', type: 'number' as const, accent: true },
+                          { name: 'po_date', label: 'PO Date', hint: 'Empty = same as the PI date', type: 'date' as const, default: storedDefaults?.po_date, accent: true },
+                          { name: 'exchange_rate', label: 'Exch Rate', hint: 'Estimated — auto-filled from payment history if empty; IDR ignores it', type: 'number' as const, formula: true, accent: true },
                           { name: 'incoterms', label: 'Incoterms', type: 'text' as const, suggestions: ['FOB', 'EXW', 'CIF', 'DDP', ...suggestions.incoterms], accent: true },
                           { name: 'method_of_shipment', label: 'Ship Via', type: 'select' as const, options: ENUMS.method_of_shipment, accent: true },
                           { name: 'payment_terms', label: 'PO Terms', type: 'text' as const, suggestions: suggestions.paymentTerms, default: settings.defaultPoPaymentTerms, accent: true },
                         ] : []),
-                        { name: 'estimated_lead_time_days', label: 'Lead Time', type: 'select', options: ENUMS.lead_time, default: pdfData?.lead_time_days },
-                        { name: 'replaces_quote_id', label: 'Replaces', type: 'select', options: options.quotes },
-                        { name: 'document_url', label: 'Document URL', type: 'text', placeholder: 'https://drive.google.com/…' },
                       ]}
                       onSubmit={submitDeal}
                       loading={loading}

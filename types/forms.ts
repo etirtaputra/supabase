@@ -36,6 +36,12 @@ export interface FieldConfig {
   /** Violet border + label: marks fields belonging to a secondary document
       (e.g. the PO fields on the combined quote form). */
   accent?: boolean;
+  /** A numeric field that accepts Excel-style "=" formulas, evaluated on blur
+      (shared evalCell). Renders as a text input so "=" can be typed. */
+  formula?: boolean;
+  /** One-line explanation shown as a hover tooltip, so the LABEL can stay
+      short (and single-line, which keeps the grid rows aligned). */
+  hint?: string;
 }
 
 // Form props for SimpleForm

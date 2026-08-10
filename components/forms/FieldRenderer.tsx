@@ -9,6 +9,7 @@
 import React, { useId } from 'react';
 import RichDropdown from '../ui/RichDropdown';
 import Autocomplete from '../ui/Autocomplete';
+import { evalCell } from '@/lib/formula';
 import type { FieldConfig } from '../../types/forms';
 
 /** Shared empty list — see the rich-select branch below. */
@@ -38,14 +39,18 @@ export default function FieldRenderer({
       ? 'border-violet-500/50 focus:border-violet-400 focus:ring-violet-500/20'
       : 'border-slate-700 focus:border-emerald-500 focus:ring-emerald-500/20'}`;
 
-  const labelClasses = `block text-[10px] font-bold mb-1 ml-0.5 transition-colors uppercase tracking-wider ${
+  // truncate keeps every label to ONE line, so a long label can never push its
+  // input below its row-mates — the grid stays aligned. The full label + hint
+  // live in the tooltip.
+  const labelClasses = `block text-[10px] font-bold mb-1 ml-0.5 transition-colors uppercase tracking-wider truncate ${
     field.accent
       ? 'text-violet-300/80 group-focus-within:text-violet-300'
       : 'text-slate-400 group-focus-within:text-emerald-400'}`;
+  const labelTitle = [field.label, field.hint].filter(Boolean).join(' — ');
 
   return (
     <div className="relative w-full group">
-      <label htmlFor={datalistId} className={labelClasses}>
+      <label htmlFor={datalistId} className={labelClasses} title={labelTitle}>
         {field.label} {field.req && <span className="text-emerald-500">*</span>}
       </label>
 
@@ -106,6 +111,22 @@ export default function FieldRenderer({
           disabled={disabled}
           required={field.req}
         />
+      ) : field.formula ? (
+        /* Numeric field that accepts "=" formulas — text input so "=" can be
+           typed, evaluated on blur (shared evalCell), same as the item rows. */
+        <input
+          id={datalistId}
+          type="text"
+          inputMode="decimal"
+          className={baseInputClasses}
+          value={value ?? ''}
+          onChange={(e) => onChange(field.name, e.target.value)}
+          onBlur={(e) => { const v = evalCell(e.target.value); if (v !== e.target.value) onChange(field.name, v); }}
+          placeholder={field.placeholder}
+          title={field.hint || 'Type = for a formula, e.g. =60765+1200'}
+          required={field.req}
+          disabled={disabled}
+        />
       ) : (
         <input
           id={datalistId}
@@ -114,6 +135,7 @@ export default function FieldRenderer({
           value={value || ''}
           onChange={(e) => onChange(field.name, e.target.value)}
           placeholder={field.placeholder}
+          title={field.hint}
           required={field.req}
           disabled={disabled}
         />

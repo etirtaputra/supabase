@@ -313,11 +313,11 @@ export default function NewDealForm({
                     the shared evalCell — same behaviour as the sales editor. */}
                 <input value={l.quantity} onChange={(e) => setLine(l.key, { quantity: e.target.value })}
                   onBlur={(e) => { const v = evalCell(e.target.value); if (v !== e.target.value) setLine(l.key, { quantity: v }); }}
-                  title="Type = for a formula, e.g. =500+40" placeholder="Qty" inputMode="text"
+                  title="Type = for a formula, e.g. =500+40" placeholder="Qty" inputMode="decimal"
                   className={`${lineInp} col-span-2 md:col-span-1 text-right tabular-nums`} />
                 <input value={l.unit_price} onChange={(e) => setLine(l.key, { unit_price: e.target.value })}
                   onBlur={(e) => { const v = evalCell(e.target.value); if (v !== e.target.value) setLine(l.key, { unit_price: v }); }}
-                  title="Type = for a formula, e.g. =20.45*0.98" placeholder="Price" inputMode="text"
+                  title="Type = for a formula, e.g. =20.45*0.98" placeholder="Price" inputMode="decimal"
                   className={`${lineInp} col-span-2 md:col-span-1 text-right tabular-nums`} />
                 <select value={l.currency || header.currency || ''} onChange={(e) => setLine(l.key, { currency: e.target.value })}
                   title="Line currency" className={`${lineInp} col-span-2 md:col-span-1 appearance-none`}>
