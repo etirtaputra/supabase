@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-10T09:00:00Z',
+    title: 'Every page is searchable now — and a tidier dashboard',
+    details: [
+      'Spotlight (⌘I) now finds every screen in the app. A few that had no menu tile — the AI assistant (“Ask”), and the Menu, Lists and Terms tabs in Settings — were reachable by URL but not by search; they’re indexed now, so typing “ask”, “menu order”, “lists” or “terms” lands you there. As always, search only ever offers a door your role can actually open.',
+      'On the dashboard, the “Next best step” card and “Month in motion” were cramped in a side rail next to a short action queue, leaving an awkward gap. The queue now runs full width with those two balanced in a row beneath it — nothing floats in half-empty space.',
+    ],
+  },
+  {
     at: '2026-08-09T12:00:00Z',
     title: 'Dashboard: the company position at a glance, and an AI next-best-step',
     details: [

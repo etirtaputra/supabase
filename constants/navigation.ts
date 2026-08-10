@@ -148,6 +148,12 @@ export const DESTINATIONS: Destination[] = [
   { href: '/items/specs', label: 'Spec Readiness', group: 'Catalog', section: 'trading', cap: 'canViewAnalytics', inNav: false,
     hint: 'What the system calculators can size from — fill the missing specs',
     keywords: 'specs specifications calculator ready designer sizing missing data quality bom' },
+  // The buy-side AI assistant — answers questions over suppliers, costs, POs
+  // and quotes. Search-only: it has no menu tile today, so Spotlight is how it
+  // is reached. Gate matches the page (buySide, redirects otherwise).
+  { href: '/ask', label: 'Ask ICAPROC', group: 'Insights', section: 'buySide', inNav: false,
+    hint: 'Ask the AI about suppliers, costs, POs and quotes',
+    keywords: 'ask ai assistant question chat query natural language help answer bot' },
 
   // ── Projects ──────────────────────────────────────────────────────────────
   { href: '/proposals', label: 'Proposals', group: 'Projects', section: 'projects', inNav: true,
@@ -176,12 +182,21 @@ export const DESTINATIONS: Destination[] = [
   { href: '/settings?tab=appearance', label: 'Settings · Appearance', group: 'Admin', section: null, cap: 'canManageUsers', inNav: false,
     hint: 'The default skin — dark, dim, light or paper',
     keywords: 'theme skin colour color dark light dim paper mode default appearance' },
+  { href: '/settings?tab=menu', label: 'Settings · Menu', group: 'Admin', section: null, cap: 'canManageUsers', inNav: false,
+    hint: 'Reorder the navigation — groups and the entries inside them',
+    keywords: 'menu order reorder nav navigation arrange rearrange groups entries sidebar' },
+  { href: '/settings?tab=lists', label: 'Settings · Lists', group: 'Admin', section: null, cap: 'canManageUsers', inNav: false,
+    hint: 'How each list opens — its default order and the period it covers',
+    keywords: 'lists list default sort order period opening layout compact card' },
   { href: '/settings?tab=pricing', label: 'Settings · Pricing', group: 'Admin', section: null, cap: 'canManageUsers', inNav: false,
     hint: 'Rounding step, default markup, margin floor, customer tier',
     keywords: 'rounding markup tier floor default' },
   { href: '/settings?tab=defaults', label: 'Settings · Defaults', group: 'Admin', section: null, cap: 'canManageUsers', inNav: false,
     hint: 'PPN, payment terms, warehouse, thresholds',
     keywords: 'ppn vat tax terms warehouse slow mover drift' },
+  { href: '/settings?tab=terms', label: 'Settings · Terms', group: 'Admin', section: null, cap: 'canManageUsers', inNav: false,
+    hint: 'Sales payment and delivery term options',
+    keywords: 'terms payment delivery conditions sales options library' },
   { href: '/settings?tab=company', label: 'Settings · Company', group: 'Admin', section: null, cap: 'canManageUsers', inNav: false,
     hint: 'Letterhead, bank details and document footer',
     keywords: 'letterhead address npwp footer' },

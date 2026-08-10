@@ -150,18 +150,21 @@ export default function Home() {
                cash cycles — read before the queue asks for anything ── */}
         {perms && <PositionStrip data={position} perms={perms} />}
 
-        {/* ── Needs you today + the AI's read of it + month in motion ── */}
-        {perms && (perms.sellSide || perms.buySide || perms.canViewBanks) ? (
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-            <div className="xl:col-span-2"><ActionQueue items={queue} atStake={atStake} /></div>
-            <div className="space-y-5">
-              <NextStepCard position={position} queue={queue} role={profile?.role ?? ''} />
-              <MonthMotion rows={position === null ? null : position.motion} />
-            </div>
+        {/* ── Needs you today — the queue leads, at full width ── */}
+        <ActionQueue items={queue} atStake={atStake} />
+
+        {/* ── The AI's read of that queue, and the month's trend beside it.
+               Kept as a two-up row so neither card floats in a half-empty
+               rail next to a short queue. Bank-only roles have no motion, so
+               the advisor takes the full width there. ── */}
+        {perms && (perms.sellSide || perms.buySide) ? (
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-stretch">
+            <NextStepCard position={position} queue={queue} role={profile?.role ?? ''} />
+            <MonthMotion rows={position === null ? null : position.motion} />
           </div>
-        ) : (
-          <ActionQueue items={queue} atStake={atStake} />
-        )}
+        ) : perms?.canViewBanks ? (
+          <NextStepCard position={position} queue={queue} role={profile?.role ?? ''} />
+        ) : null}
 
         {/* ── KPI row (buy-side economics — hidden from sell-side-only roles) ── */}
         {perms?.buySide && (
