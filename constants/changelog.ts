@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-10T13:00:00Z',
+    title: 'The item screens now hang together — one center, four lenses',
+    details: [
+      'The Catalog menu now shows its structure: the Item Hub leads under “The item · 360°”, then Master (Item Editor), Selling (Products) and Pricing (Market Intel, Pricing) as light sub-headers. Same doors, same permissions per entry — the menu just explains why each exists.',
+      'The Hub gained a lens bar right under its tabs — “This item elsewhere”: Edit in Item Editor (new — you could see a wrong spec but had no door to fix it), Products, Stock, Deal Lookup and Profitability, each landing pre-filtered on the item you were reading. Item Editor and Profitability now accept those pre-filled links.',
+      'Spend & Cash closes the ring: item names in the price-drift and top-items tables now open that item’s hub page.',
+      'Spotlight: pressing → on a Customer now expands their latest sales documents (with line previews), exactly as → on a supplier expands its PI/POs. Enter opens the document.',
+      'Settings › Users: the permission table’s module names caught up with the menu renames (Purchasing, Finance, Insights). Labels only — nobody’s access changed.',
+    ],
+  },
+  {
     at: '2026-08-10T09:00:00Z',
     title: 'Every page is searchable now — and a tidier dashboard',
     details: [

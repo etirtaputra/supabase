@@ -409,6 +409,19 @@ export default function ItemHubPage() {
               ))}
             </div>
 
+            {/* ── The lens bar: THIS item, in every other screen that knows it.
+                   The hub is the center; these are the doors back out — each
+                   item-anchored and gated exactly like its target screen.
+                   (Moved up from the page bottom, where nobody found it.) ── */}
+            <div className="flex flex-wrap items-center gap-2 text-[11px] -mt-2">
+              <span className="text-[9px] uppercase tracking-widest text-slate-600">This item elsewhere</span>
+              {canBuy && <Link href={`/purchasing?tab=catalog&q=${encodeURIComponent(comp.supplier_model || descOf(comp))}`} className="px-2.5 py-1 rounded-lg border border-slate-800 text-slate-500 hover:text-sky-300 hover:border-sky-500/40 transition-colors">✎ Edit in Item Editor</Link>}
+              {canSell && <Link href={`/products?q=${encodeURIComponent(descOf(comp))}`} className="px-2.5 py-1 rounded-lg border border-slate-800 text-slate-500 hover:text-emerald-300 hover:border-emerald-500/40 transition-colors">Products →</Link>}
+              {canBuy && <Link href="/stock" className="px-2.5 py-1 rounded-lg border border-slate-800 text-slate-500 hover:text-sky-300 hover:border-sky-500/40 transition-colors">Stock →</Link>}
+              {canBuy && <Link href={`/purchasing?tab=lookup&q=${encodeURIComponent(comp.supplier_model || descOf(comp))}`} className="px-2.5 py-1 rounded-lg border border-slate-800 text-slate-500 hover:text-sky-300 hover:border-sky-500/40 transition-colors">Deal Lookup →</Link>}
+              {canEcon && <Link href={`/profitability?q=${encodeURIComponent(descOf(comp))}`} className="px-2.5 py-1 rounded-lg border border-slate-800 text-slate-500 hover:text-amber-300 hover:border-amber-500/40 transition-colors">Profitability →</Link>}
+            </div>
+
             {tab === 'overview' && (
               <OverviewTab comp={comp} physical={physical} reserved={reserved} live={live} incoming={incoming}
                 avgCost={avgCost} canBuy={canBuy} canSell={canSell} canFloor={canFloor}
@@ -442,13 +455,6 @@ export default function ItemHubPage() {
                 physical={physical} avgCost={avgCost} />
             )}
 
-            {/* Every figure ties to its source screen — the doors are one click away */}
-            <div className="flex flex-wrap gap-2 pt-1 text-[11px]">
-              {canSell && <Link href={`/products?q=${encodeURIComponent(descOf(comp))}`} className="px-2.5 py-1 rounded-lg border border-slate-800 text-slate-500 hover:text-emerald-300 hover:border-emerald-500/40 transition-colors">Open in Products →</Link>}
-              {canBuy && <Link href="/stock" className="px-2.5 py-1 rounded-lg border border-slate-800 text-slate-500 hover:text-sky-300 hover:border-sky-500/40 transition-colors">Open in Stock →</Link>}
-              {canBuy && <Link href={`/purchasing?tab=lookup&q=${encodeURIComponent(comp.supplier_model || descOf(comp))}`} className="px-2.5 py-1 rounded-lg border border-slate-800 text-slate-500 hover:text-sky-300 hover:border-sky-500/40 transition-colors">Deal Lookup →</Link>}
-              {canEcon && <Link href="/profitability" className="px-2.5 py-1 rounded-lg border border-slate-800 text-slate-500 hover:text-amber-300 hover:border-amber-500/40 transition-colors">Profitability →</Link>}
-            </div>
           </>
         )}
       </main>

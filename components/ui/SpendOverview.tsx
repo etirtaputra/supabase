@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useMemo } from 'react';
+import Link from 'next/link';
 import { PRINCIPAL_CATS } from '../../constants/costCategories';
 import type { Component, Supplier, PriceQuote, PurchaseOrder, PurchaseLineItem, POCost, PriceQuoteLineItem } from '../../types/database';
 import { fmtRupiah } from '../../lib/formatters';
@@ -582,7 +583,9 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
                           <div key={item.id} className="px-4 py-2.5 flex items-center gap-3">
                             <span className="text-[10px] text-slate-700 font-mono w-3 flex-shrink-0">{rank + 1}</span>
                             <div className="flex-1 min-w-0">
-                              <p className="text-[11px] font-mono text-slate-300 truncate">{item.model}</p>
+                              {/* Spend & Cash is owner-only (canViewAnalytics), which is exactly the hub's gate */}
+                              <Link href={`/items?q=${encodeURIComponent(item.model ?? '')}&open=${encodeURIComponent(item.id)}`}
+                                className="text-[11px] font-mono text-slate-300 truncate block hover:text-sky-300 transition-colors" title="Open in the Item hub">{item.model}</Link>
                               <p className="text-[10px] text-slate-600 tabular-nums mt-0.5">
                                 {fmtPrice(item.refPrice, item.currency)}
                                 <span className="mx-1">→</span>
@@ -677,7 +680,8 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
                   <tr key={comp.id} className="border-b border-slate-800/40 hover:bg-slate-800/25 transition-colors">
                     <td className="pl-4 pr-2 py-3 text-slate-600 font-mono text-[11px] tabular-nums">{i + 1}</td>
                     <td className="px-3 py-3 min-w-[200px]">
-                      <p className="font-mono text-[11px] text-slate-200 leading-tight truncate max-w-[220px]">{comp.model}</p>
+                      <Link href={`/items?q=${encodeURIComponent(comp.model ?? '')}&open=${encodeURIComponent(comp.id)}`}
+                        className="font-mono text-[11px] text-slate-200 leading-tight truncate max-w-[220px] block hover:text-sky-300 transition-colors" title="Open in the Item hub">{comp.model}</Link>
                       <p className="text-[10px] text-slate-500 truncate max-w-[220px] mt-0.5">{comp.description}</p>
                       {vendorName && <p className="text-[10px] text-indigo-400/70 truncate max-w-[220px] mt-0.5">{vendorName}</p>}
                       <div className="mt-1.5 h-0.5 bg-slate-800 rounded-full overflow-hidden max-w-[180px]">

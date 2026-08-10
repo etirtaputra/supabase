@@ -16,10 +16,10 @@
  *    suppliers BEFORE goods arrive (import prepayment), which lengthens CCC.
  */
 'use client';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
@@ -75,9 +75,20 @@ interface PartyRow { id: string; name: string; sub: string; revenue: number; gp:
 type Chip = 'all' | 'deploy' | 'divest' | 'buynow' | 'sold' | 'inprofit' | 'slow' | 'negative' | 'core' | 'reduce';
 type SortKey = 'score' | 'gmroi' | 'gp' | 'revenue' | 'margin' | 'stockValue' | 'dio' | 'soldQty';
 
+// Suspense wrapper: useSearchParams (?q= item-anchored links from the Item
+// hub) requires it, same pattern as /products.
 export default function EconomicsPage() {
+  return (
+    <Suspense fallback={null}>
+      <EconomicsInner />
+    </Suspense>
+  );
+}
+
+function EconomicsInner() {
   const supabase = createSupabaseClient();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, profile, loading: authLoading } = useAuth();
   // "Nothing sold in N days with stock on hand" — N is Settings › Defaults
   const { slowMoverDays: SLOW_DAYS, economicsPeriod } = useSettings();
@@ -112,7 +123,7 @@ export default function EconomicsPage() {
   const [tab, setTab] = useState<Tab>('flow');
   const [period, setPeriod] = useState<Period>(economicsPeriod);
   const [chip, setChip] = useState<Chip>('all');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(searchParams.get('q') ?? '');
   // Slow-market mode: deploy less, protect more (Item Score § capital).
   const [defensive, setDefensive] = useState(false);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'gp', dir: -1 });

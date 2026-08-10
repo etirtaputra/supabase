@@ -41,7 +41,7 @@ import { SALES_STATUS } from '@/lib/salesStatus';
 interface DealLine { name: string; qty: number; price: number; ccy: string }
 
 interface DealRef {
-  kind: 'pi' | 'po';
+  kind: 'pi' | 'po' | 'sales';   // 'sales' = a customer's sell-side documents
   number: string;
   altNumber?: string;      // the paired PI/PO number when the two were merged
   date: string;
@@ -488,6 +488,28 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
       if (!n) continue;
       const a = childNumsByQuote.get(k); if (a) a.push(n); else childNumsByQuote.set(k, [n]);
     }
+    // ── Per-customer drill: → on a customer expands their latest documents,
+    // exactly as → on a supplier expands its PI/POs. Same finalize rule
+    // (newest first, deduped, top 10); Enter opens the document itself.
+    const byCustomer = new Map<string, DealRef[]>();
+    for (const d of (salesDocs.data ?? [])) {
+      const cid = d.customer_id as string | null;
+      if (!cid) continue;
+      const id = d.quote_id as string;
+      push(byCustomer, cid, {
+        kind: 'sales',
+        number: (d.invoice_number as string) || (d.order_number as string) || (d.quote_number as string) || '(draft)',
+        date: String(d.updated_at ?? d.quote_date ?? '').slice(0, 10),
+        extra: [
+          SALES_STATUS[d.status as string]?.label ?? (d.status as string),
+          Number(d.grand_total) > 0 ? `Rp ${Math.round(Number(d.grand_total)).toLocaleString('en-US')}` : '',
+        ].filter(Boolean).join(' · '),
+        href: `/sales/${id}`,
+        lines: salesLinesBy.get(id),
+      });
+    }
+    finalize(byCustomer);
+
     const salesItemsList: Item[] = (salesDocs.data ?? []).map((d) => ({
       kind: 'sales' as const,
       id: d.quote_id as string,
@@ -617,6 +639,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
         title: (c.display_name as string) || (c.legal_name as string) || '(no name)',
         sub: [(c.customer_code as string), (c.tier as string), (c.is_active === false ? 'Inactive' : 'Customer')].filter(Boolean).join(' · '),
         href: `/customers?open=${encodeURIComponent(c.customer_id as string)}`,
+        drill: byCustomer.get(c.customer_id as string) ?? [],
       })),
       ...quoteItemsList,
       ...salesItemsList,
@@ -863,7 +886,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
               {r.drill && r.drill.length > 0 ? (
                 <button
                   onClick={() => { setIndex(i); drillInto(r); }}
-                  title="Show latest quotes & POs (→)"
+                  title={r.kind === 'customer' ? 'Show latest sales documents (→)' : 'Show latest quotes & POs (→)'}
                   className="px-3 flex items-center text-slate-600 hover:text-white transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
@@ -948,7 +971,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
             onBlur={() => setFocused(false)}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onInputKeyDown}
-            placeholder={drill ? 'Enter opens Deal Lookup' : 'Search anything…'}
+            placeholder={drill ? 'Enter opens the highlighted document' : 'Search anything…'}
             // text-base (16px) on phones stops iOS from auto-zooming on focus.
             // min-w-0 lets the field shrink so the placeholder clips instead of
             // overflowing the pill on narrow screens.
@@ -1005,7 +1028,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
             readOnly={!!drill}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onInputKeyDown}
-            placeholder={drill ? 'Enter opens Deal Lookup' : 'Search anything…'}
+            placeholder={drill ? 'Enter opens the highlighted document' : 'Search anything…'}
             className="flex-1 min-w-0 bg-transparent outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-600"
           />
           <kbd className="text-[10px] text-slate-600 border border-slate-700 rounded px-1.5 py-0.5">Esc</kbd>

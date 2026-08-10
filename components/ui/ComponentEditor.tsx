@@ -46,6 +46,8 @@ interface ComponentHistoryEntry {
 interface ComponentEditorProps {
   components: Component[];
   brandSuggestions: string[];
+  /** Pre-filled search (?q= deep links — the Item hub's "Edit" door). */
+  initialSearch?: string;
   quoteItems?: PriceQuoteLineItem[];
   quotes?: PriceQuote[];
   pos?: PurchaseOrder[];
@@ -662,9 +664,9 @@ const linkMetaFor = (link: any, inspectId: string | null): { label: string; colo
 // --- Main Component Editor ---
 const EMPTY_ADD = { supplier_model: '', internal_description: '', brand: '', category: '', unit: '', specifications: '', datasheet_url: '', norm_value: '' };
 
-export default function ComponentEditor({ components, brandSuggestions, quoteItems = [], quotes = [], pos = [], poItems = [], poCosts = [], componentHistory, competitorPrices, onSave, onAdd, onAddSupplier, onDelete, onSaveLineItem, onDeleteLineItem, onDeleteCompetitorPrice, onUpdateCompetitorPrice, componentLinks, onAddComponentLink, onDeleteComponentLink }: ComponentEditorProps) {
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
+export default function ComponentEditor({ components, brandSuggestions, initialSearch = '', quoteItems = [], quotes = [], pos = [], poItems = [], poCosts = [], componentHistory, competitorPrices, onSave, onAdd, onAddSupplier, onDelete, onSaveLineItem, onDeleteLineItem, onDeleteCompetitorPrice, onUpdateCompetitorPrice, componentLinks, onAddComponentLink, onDeleteComponentLink }: ComponentEditorProps) {
+  const [searchInput, setSearchInput] = useState(initialSearch);
+  const [search, setSearch] = useState(initialSearch);
   const [filterBrand, setFilterBrand] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterPI, setFilterPI] = useState('');

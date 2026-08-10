@@ -39,6 +39,12 @@ export interface Destination {
   keywords?: string;
   /** In the menu, or search-only (deep links, tabs). */
   inNav?: boolean;
+  /**
+   * Light sub-header INSIDE a group's menu list (Catalog: 360° · Master ·
+   * Selling · Pricing). Rendered when it differs from the entry above, so the
+   * menu itself teaches the group's structure. Display-only — never gates.
+   */
+  subgroup?: string;
 }
 
 export const DESTINATIONS: Destination[] = [
@@ -51,12 +57,11 @@ export const DESTINATIONS: Destination[] = [
     keywords: 'changelog updates news release log history version' },
 
   // ── Purchasing (owner's naming, 2026-08-07) ──────────────────────────────
-  // The group is PURCHASING, not "Buy", and its five workspaces are listed
-  // one by one rather than hidden behind a single entry: the tabs are where
-  // the work actually happens, so the menu names them.
-  { href: '/purchasing?tab=catalog', label: 'Item Editor', group: 'Catalog', section: 'buySide', inNav: true,
-    hint: 'The component master — models, prices, specs, links',
-    keywords: 'catalog components parts items master editor sku spec' },
+  // The group is PURCHASING, not "Buy", and its workspaces are listed one by
+  // one rather than hidden behind a single entry: the tabs are where the work
+  // actually happens, so the menu names them. (The item screens — Editor,
+  // Market Intel — live in the Catalog block below, with the rest of the
+  // item lenses.)
   // Supplier Quotes + Purchase Orders merged into ONE entry form (2026-08-04):
   // record a PI, or PI + PO in one save, or raise the PO for a stored quote.
   // Old names stay as keywords so Spotlight muscle memory keeps working.
@@ -69,9 +74,6 @@ export const DESTINATIONS: Destination[] = [
   { href: '/purchasing?tab=lookup', label: 'Deal Lookup', group: 'Purchasing', section: 'buySide', inNav: true,
     hint: 'Every PI → PO → payment as one deal',
     keywords: 'deals pi po payments history search catalog' },
-  { href: '/purchasing?tab=market-intel', label: 'Market Intel', group: 'Catalog', section: 'buySide', inNav: true,
-    hint: 'Competitor prices and what the market is charging',
-    keywords: 'competitor market price intel benchmark rival' },
   { href: '/suppliers', label: 'Suppliers', group: 'Purchasing', section: 'buySide', inNav: true,
     hint: 'Vendor profiles, purchase volume, outstanding payables',
     keywords: 'vendors payables' },
@@ -93,9 +95,6 @@ export const DESTINATIONS: Destination[] = [
   { href: '/customers', label: 'Customers', group: 'Sales', section: 'sellSide', inNav: true,
     hint: 'CRM — customers, contacts, account managers',
     keywords: 'crm clients contacts buyers' },
-  { href: '/products', label: 'Products', group: 'Catalog', section: 'sellSide', inNav: true,
-    hint: 'What we sell, with tier prices and live stock',
-    keywords: 'catalogue catalog items selling price tier' },
   { href: '/sales', label: 'Sales Orders', group: 'Sales', section: 'sellSide', inNav: true,
     hint: 'Quotations → orders → invoices → delivery (DQ → PQ → SO)',
     keywords: 'sales quotation dq pq sq so price quote order penawaran' },
@@ -140,14 +139,30 @@ export const DESTINATIONS: Destination[] = [
   { href: '/profitability', label: 'Profitability', group: 'Insights', section: 'sellSide', cap: 'canViewEconomics', inNav: true,
     hint: 'GP per item / customer / rep, capital allocation, cash cycle',
     keywords: 'economics margin profit gp ccc dio dso dpo turnover position capital allocation gmroi' },
-  // The Item hub (Module 29): one page per stock item — the item is the pivot,
-  // so it lives with the Catalog, not buried in the reports.
-  { href: '/items', label: 'Item Hub', group: 'Catalog', section: 'trading', cap: 'canViewAnalytics', inNav: true,
+  // ── Catalog — the item, and its lenses (consolidated 2026-08-10) ─────────
+  // One conceptual group in one block: the HUB leads (the 360° page — the
+  // pivot of the whole system), then each lens under a light sub-header the
+  // menu renders: Master (maintain the record), Selling (quote it), Pricing
+  // (what the market charges, what we charge). Sub-headers are display only;
+  // every entry keeps its own section/capability gate.
+  { href: '/items', label: 'Item Hub', group: 'Catalog', subgroup: 'The item · 360°', section: 'trading', cap: 'canViewAnalytics', inNav: true,
     hint: 'Everything about one item — buy, sell, stock, specs, profit, score',
     keywords: 'item hub component sku part product barang produk master 360 items' },
-  { href: '/items/specs', label: 'Spec Readiness', group: 'Catalog', section: 'trading', cap: 'canViewAnalytics', inNav: false,
+  { href: '/items/specs', label: 'Spec Readiness', group: 'Catalog', subgroup: 'The item · 360°', section: 'trading', cap: 'canViewAnalytics', inNav: false,
     hint: 'What the system calculators can size from — fill the missing specs',
     keywords: 'specs specifications calculator ready designer sizing missing data quality bom' },
+  { href: '/purchasing?tab=catalog', label: 'Item Editor', group: 'Catalog', subgroup: 'Master', section: 'buySide', inNav: true,
+    hint: 'The component master — models, prices, specs, links',
+    keywords: 'catalog components parts items master editor sku spec' },
+  { href: '/products', label: 'Products', group: 'Catalog', subgroup: 'Selling', section: 'sellSide', inNav: true,
+    hint: 'What we sell, with tier prices and live stock',
+    keywords: 'catalogue catalog items selling price tier' },
+  { href: '/purchasing?tab=market-intel', label: 'Market Intel', group: 'Catalog', subgroup: 'Pricing', section: 'buySide', inNav: true,
+    hint: 'Competitor prices and what the market is charging',
+    keywords: 'competitor market price intel benchmark rival' },
+  { href: '/pricing', label: 'Pricing', group: 'Catalog', subgroup: 'Pricing', section: null, cap: 'canManagePricing', inNav: true,
+    hint: 'Price tiers, margin floor audit, per-item overrides',
+    keywords: 'tiers markup discount floor margin pricing' },
   // The buy-side AI assistant — answers questions over suppliers, costs, POs
   // and quotes. Search-only: it has no menu tile today, so Spotlight is how it
   // is reached. Gate matches the page (buySide, redirects otherwise).
@@ -167,12 +182,6 @@ export const DESTINATIONS: Destination[] = [
     keywords: 'merge duplicates cleanup directory' },
 
   // ── Admin / configuration ────────────────────────────────────────────────
-  // Pricing joins the Catalog (2026-08-07): tiers, floors and overrides are
-  // about the ITEMS we sell, so they sit with the item master and the market
-  // intel rather than off in Admin.
-  { href: '/pricing', label: 'Pricing', group: 'Catalog', section: null, cap: 'canManagePricing', inNav: true,
-    hint: 'Price tiers, margin floor audit, per-item overrides',
-    keywords: 'tiers markup discount floor margin pricing' },
   { href: '/settings', label: 'Settings', group: 'Admin', section: null, cap: 'canManageUsers', inNav: true,
     hint: 'Formatting, defaults, company, banks and users',
     keywords: 'preferences configuration admin setup' },

@@ -772,6 +772,7 @@ function MasterInsertPage() {
                     </div>
                   ) : null}
                   <ComponentEditor
+                    initialSearch={initialLookupQ}
                     components={data.components}
                     brandSuggestions={suggestions.brands}
                     quoteItems={data.quoteItems}

@@ -157,11 +157,11 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
 export type PermissionKey = Exclude<keyof RolePermissions, 'tabs'>;
 export const PERMISSION_MATRIX: { group: string; rows: { key: PermissionKey; label: string }[] }[] = [
   { group: 'Modules', rows: [
-    { key: 'buySide',          label: 'Buy side — Catalog, Suppliers, Stock, Insights' },
+    { key: 'buySide',          label: 'Buy side — Purchasing (deals, payments, lookup), Item Editor, Suppliers, Stock' },
     { key: 'sellSide',         label: 'Sell side — Customers, Products, Sales, Invoices, Delivery, After Sales' },
     { key: 'projects',         label: 'EPC Proposals' },
-    { key: 'canViewBanks',     label: 'Banks — accounts & statements' },
-    { key: 'canViewAnalytics', label: 'Analytics — Spend & Cash, Items, Profitability' },
+    { key: 'canViewBanks',     label: 'Finance — bank accounts & statements' },
+    { key: 'canViewAnalytics', label: 'Insights — Spend & Cash, Item Hub, Profitability' },
     { key: 'canViewEconomics', label: 'Economics — item GP, landed cost, cash cycle' },
   ]},
   { group: 'Can edit', rows: [
