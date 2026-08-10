@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-10T16:00:00Z',
+    title: 'Cleaner menu dropdowns — labels, no icons',
+    details: [
+      'The desktop menu dropdowns showed a small icon beside each entry, and items without their own icon fell back to a generic “home” glyph (so Item Editor and Market Intel both looked like Home). The dropdowns are now plain labels, matching the phone menu. The bottom tab bar on phones keeps its icons — those are how you tell the tabs apart at a glance.',
+    ],
+  },
+  {
     at: '2026-08-10T15:00:00Z',
     title: 'Products: item names use the space a wide monitor gives them',
     details: [

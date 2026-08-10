@@ -445,7 +445,6 @@ export default function BrandMenu({
                           className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-colors ${
                             active ? acc.active : 'text-slate-300 hover:bg-white/10 hover:text-white'
                           }`}>
-                          <svg className="w-4 h-4 flex-shrink-0 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">{NAV_ICONS[a.href] ?? NAV_ICONS['/']}</svg>
                           {a.label}
                           {active && <span className={`ml-auto w-1.5 h-1.5 rounded-full ${acc.dot}`} />}
                         </Link>
