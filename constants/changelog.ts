@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-10T15:00:00Z',
+    title: 'Products: item names use the space a wide monitor gives them',
+    details: [
+      'On the Products list, the description column was capped at a fixed width, so a long item name got cut with “…” even on a big screen with empty space to spare. It now grows with the monitor — the full description shows whenever it fits, and only shortens when the row genuinely runs out of room.',
+    ],
+  },
+  {
     at: '2026-08-10T13:00:00Z',
     title: 'The item screens now hang together — one center, its lenses',
     details: [

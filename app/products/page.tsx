@@ -603,7 +603,11 @@ function ProductsInner() {
                     className={`cursor-pointer transition-colors ${expanded === r.c.component_id ? 'bg-raised' : 'bg-chrome hover:bg-rail'}`}>
                     <td className="px-4 py-2 sticky left-0 z-10 bg-inherit">
                       <span className="flex items-center gap-1.5">
-                        <span className="text-sm text-slate-100 font-medium truncate max-w-[320px]">{descOf(r.c)}</span>
+                        {/* Grow the name with the viewport — a wide monitor
+                            shows the whole description; it only truncates when
+                            the row would otherwise overflow. Floor keeps mid
+                            screens sane, ceiling stops an absurd column on 4K. */}
+                        <span className="text-sm text-slate-100 font-medium truncate max-w-[clamp(20rem,42vw,64rem)]">{descOf(r.c)}</span>
                         <SupersededTag succId={successors.get(r.c.component_id)} comps={comps} canHub={canHub} />
                         {r.activity > 0 && <span className="px-1 py-0.5 rounded bg-slate-800 text-[9px] text-slate-500 tabular-nums flex-shrink-0" title={`${r.activity} POs / quotes / orders`}>{r.activity}</span>}
                         {canHub && (
