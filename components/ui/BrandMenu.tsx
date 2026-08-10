@@ -42,7 +42,7 @@ const GROUP_TITLE: Record<string, string | null> = {
   Analytics: 'Insights',   // legacy alias, in case a stored order still says it
 };
 
-interface AppGroup { title: string | null; section: Section; apps: { href: string; label: string; cap?: keyof RolePermissions; section: Section; subgroup?: string }[] }
+interface AppGroup { title: string | null; section: Section; apps: { href: string; label: string; cap?: keyof RolePermissions; section: Section }[] }
 
 /**
  * The nav groups in the order to render them, and each group's entries in the
@@ -59,7 +59,7 @@ const buildAppGroups = (
       title: GROUP_TITLE[g] ?? null,
       section: (DESTINATIONS.find((d) => d.group === g)?.section ?? null) as Section,
       apps: orderedGroupItems(
-        DESTINATIONS.filter((d) => d.group === g && d.inNav).map((d) => ({ href: d.href, label: d.label, cap: d.cap, section: d.section, subgroup: d.subgroup })),
+        DESTINATIONS.filter((d) => d.group === g && d.inNav).map((d) => ({ href: d.href, label: d.label, cap: d.cap, section: d.section })),
         menuItemOrder?.[g],
       ),
     }))
@@ -239,26 +239,21 @@ export default function BrandMenu({
       {groups.map((group, gi) => (
         <div key={gi} className={gi > 0 ? 'mt-0.5 pt-0.5 border-t border-slate-800/70' : ''}>
           {group.title && <p className={`px-2.5 pt-1 pb-0.5 text-[9px] uppercase tracking-widest ${accentOf(group.section, group.title).label}`}>{group.title}</p>}
-          {group.apps.map((a, ai) => {
+          {group.apps.map((a) => {
             const active = isActive(a.href);
             const acc = accentOf(group.section, group.title);
-            // Sub-header when this entry starts a new subgroup (Catalog's
-            // 360° · Master · Selling · Pricing). Display only — never gates.
-            const sub = a.subgroup && a.subgroup !== group.apps[ai - 1]?.subgroup ? a.subgroup : null;
             return (
-              <div key={a.href}>
-                {sub && <p className="px-2.5 pt-1 pb-0 text-[8px] uppercase tracking-widest text-slate-600">{sub}</p>}
-                <Link
-                  href={a.href}
-                  onClick={() => { setOpen(false); setMoreOpen(false); }}
-                  className={`flex items-center justify-between px-2.5 py-1 rounded-lg text-[13px] leading-5 transition-colors ${
-                    active ? acc.active : 'text-slate-300 hover:bg-white/10 hover:text-white'
-                  }`}
-                >
-                  {a.label}
-                  {active && <span className={`w-1.5 h-1.5 rounded-full ${acc.dot}`} />}
-                </Link>
-              </div>
+              <Link
+                key={a.href}
+                href={a.href}
+                onClick={() => { setOpen(false); setMoreOpen(false); }}
+                className={`flex items-center justify-between px-2.5 py-1 rounded-lg text-[13px] leading-5 transition-colors ${
+                  active ? acc.active : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                {a.label}
+                {active && <span className={`w-1.5 h-1.5 rounded-full ${acc.dot}`} />}
+              </Link>
             );
           })}
         </div>
@@ -443,13 +438,10 @@ export default function BrandMenu({
                 <div className="absolute left-0 top-full pt-1.5 z-50">
                   <div className="w-48 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-1.5">
                     {group.title && <p className={`px-2.5 pt-1 pb-1 text-[9px] uppercase tracking-widest ${acc.label}`}>{group.title}</p>}
-                    {group.apps.map((a, ai) => {
+                    {group.apps.map((a) => {
                       const active = isActive(a.href);
-                      const sub = a.subgroup && a.subgroup !== group.apps[ai - 1]?.subgroup ? a.subgroup : null;
                       return (
-                        <div key={a.href}>
-                        {sub && <p className={`px-2.5 pb-0.5 text-[8px] uppercase tracking-widest text-slate-600 ${ai > 0 ? 'border-t border-slate-800/60 mt-1 pt-1.5' : 'pt-0.5'}`}>{sub}</p>}
-                        <Link href={a.href} onClick={() => setDeskOpen(null)}
+                        <Link key={a.href} href={a.href} onClick={() => setDeskOpen(null)}
                           className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-colors ${
                             active ? acc.active : 'text-slate-300 hover:bg-white/10 hover:text-white'
                           }`}>
@@ -457,7 +449,6 @@ export default function BrandMenu({
                           {a.label}
                           {active && <span className={`ml-auto w-1.5 h-1.5 rounded-full ${acc.dot}`} />}
                         </Link>
-                        </div>
                       );
                     })}
                   </div>

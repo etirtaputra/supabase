@@ -39,12 +39,6 @@ export interface Destination {
   keywords?: string;
   /** In the menu, or search-only (deep links, tabs). */
   inNav?: boolean;
-  /**
-   * Light sub-header INSIDE a group's menu list (Catalog: 360° · Master ·
-   * Selling · Pricing). Rendered when it differs from the entry above, so the
-   * menu itself teaches the group's structure. Display-only — never gates.
-   */
-  subgroup?: string;
 }
 
 export const DESTINATIONS: Destination[] = [
@@ -95,6 +89,12 @@ export const DESTINATIONS: Destination[] = [
   { href: '/customers', label: 'Customers', group: 'Sales', section: 'sellSide', inNav: true,
     hint: 'CRM — customers, contacts, account managers',
     keywords: 'crm clients contacts buyers' },
+  // Products lives with Sales — it is the list the sales team quotes from, in
+  // their own words (internal description, tier price, live stock; never a
+  // brand or supplier model). The item's OTHER lenses sit in Catalog.
+  { href: '/products', label: 'Products', group: 'Sales', section: 'sellSide', inNav: true,
+    hint: 'What we sell, with tier prices and live stock',
+    keywords: 'catalogue catalog items selling price tier products' },
   { href: '/sales', label: 'Sales Orders', group: 'Sales', section: 'sellSide', inNav: true,
     hint: 'Quotations → orders → invoices → delivery (DQ → PQ → SO)',
     keywords: 'sales quotation dq pq sq so price quote order penawaran' },
@@ -139,28 +139,24 @@ export const DESTINATIONS: Destination[] = [
   { href: '/profitability', label: 'Profitability', group: 'Insights', section: 'sellSide', cap: 'canViewEconomics', inNav: true,
     hint: 'GP per item / customer / rep, capital allocation, cash cycle',
     keywords: 'economics margin profit gp ccc dio dso dpo turnover position capital allocation gmroi' },
-  // ── Catalog — the item, and its lenses (consolidated 2026-08-10) ─────────
-  // One conceptual group in one block: the HUB leads (the 360° page — the
-  // pivot of the whole system), then each lens under a light sub-header the
-  // menu renders: Master (maintain the record), Selling (quote it), Pricing
-  // (what the market charges, what we charge). Sub-headers are display only;
-  // every entry keeps its own section/capability gate.
-  { href: '/items', label: 'Item Hub', group: 'Catalog', subgroup: 'The item · 360°', section: 'trading', cap: 'canViewAnalytics', inNav: true,
+  // ── Catalog — the item and its back-office lenses (consolidated 2026-08-10) ─
+  // The Item Hub (the 360° page — the pivot of the whole system) leads, then
+  // the record itself, the market, and our price ladder. The sell team's
+  // Products list lives in Sales, where they reach for it; Catalog is the
+  // back-office view of the same item. Every entry keeps its own gate.
+  { href: '/items', label: 'Item Hub', group: 'Catalog', section: 'trading', cap: 'canViewAnalytics', inNav: true,
     hint: 'Everything about one item — buy, sell, stock, specs, profit, score',
     keywords: 'item hub component sku part product barang produk master 360 items' },
-  { href: '/items/specs', label: 'Spec Readiness', group: 'Catalog', subgroup: 'The item · 360°', section: 'trading', cap: 'canViewAnalytics', inNav: false,
+  { href: '/items/specs', label: 'Spec Readiness', group: 'Catalog', section: 'trading', cap: 'canViewAnalytics', inNav: false,
     hint: 'What the system calculators can size from — fill the missing specs',
     keywords: 'specs specifications calculator ready designer sizing missing data quality bom' },
-  { href: '/purchasing?tab=catalog', label: 'Item Editor', group: 'Catalog', subgroup: 'Master', section: 'buySide', inNav: true,
+  { href: '/purchasing?tab=catalog', label: 'Item Editor', group: 'Catalog', section: 'buySide', inNav: true,
     hint: 'The component master — models, prices, specs, links',
     keywords: 'catalog components parts items master editor sku spec' },
-  { href: '/products', label: 'Products', group: 'Catalog', subgroup: 'Selling', section: 'sellSide', inNav: true,
-    hint: 'What we sell, with tier prices and live stock',
-    keywords: 'catalogue catalog items selling price tier' },
-  { href: '/purchasing?tab=market-intel', label: 'Market Intel', group: 'Catalog', subgroup: 'Pricing', section: 'buySide', inNav: true,
+  { href: '/purchasing?tab=market-intel', label: 'Market Intel', group: 'Catalog', section: 'buySide', inNav: true,
     hint: 'Competitor prices and what the market is charging',
     keywords: 'competitor market price intel benchmark rival' },
-  { href: '/pricing', label: 'Pricing', group: 'Catalog', subgroup: 'Pricing', section: null, cap: 'canManagePricing', inNav: true,
+  { href: '/pricing', label: 'Pricing', group: 'Catalog', section: null, cap: 'canManagePricing', inNav: true,
     hint: 'Price tiers, margin floor audit, per-item overrides',
     keywords: 'tiers markup discount floor margin pricing' },
   // The buy-side AI assistant — answers questions over suppliers, costs, POs
