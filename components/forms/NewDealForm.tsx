@@ -25,6 +25,7 @@ import FieldRenderer from './FieldRenderer';
 import RichDropdown from '../ui/RichDropdown';
 import { Spinner } from '../ui/LoadingSkeleton';
 import { fmtInt } from '@/lib/formatters';
+import { evalCell } from '@/lib/formula';
 import type { FieldConfig } from '../../types/forms';
 
 export interface DealLine {
@@ -307,11 +308,17 @@ export default function NewDealForm({
                 </div>
                 <input value={l.supplier_description} onChange={(e) => setLine(l.key, { supplier_description: e.target.value })}
                   placeholder="Supplier description" className={`${lineInp} col-span-6 md:col-span-1`} />
-                {/* Phones: Qty · Price · Curr share one row */}
+                {/* Phones: Qty · Price · Curr share one row. Both accept
+                    Excel-style "=" formulas ("=12*100"), evaluated on blur by
+                    the shared evalCell — same behaviour as the sales editor. */}
                 <input value={l.quantity} onChange={(e) => setLine(l.key, { quantity: e.target.value })}
-                  placeholder="Qty" inputMode="decimal" className={`${lineInp} col-span-2 md:col-span-1 text-right tabular-nums`} />
+                  onBlur={(e) => { const v = evalCell(e.target.value); if (v !== e.target.value) setLine(l.key, { quantity: v }); }}
+                  title="Type = for a formula, e.g. =500+40" placeholder="Qty" inputMode="text"
+                  className={`${lineInp} col-span-2 md:col-span-1 text-right tabular-nums`} />
                 <input value={l.unit_price} onChange={(e) => setLine(l.key, { unit_price: e.target.value })}
-                  placeholder="Price" inputMode="decimal" className={`${lineInp} col-span-2 md:col-span-1 text-right tabular-nums`} />
+                  onBlur={(e) => { const v = evalCell(e.target.value); if (v !== e.target.value) setLine(l.key, { unit_price: v }); }}
+                  title="Type = for a formula, e.g. =20.45*0.98" placeholder="Price" inputMode="text"
+                  className={`${lineInp} col-span-2 md:col-span-1 text-right tabular-nums`} />
                 <select value={l.currency || header.currency || ''} onChange={(e) => setLine(l.key, { currency: e.target.value })}
                   title="Line currency" className={`${lineInp} col-span-2 md:col-span-1 appearance-none`}>
                   <option value="">Curr</option>

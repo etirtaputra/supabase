@@ -98,6 +98,8 @@ export interface PriceQuote extends BaseEntity {
   estimated_lead_time_days?: LeadTime;
   replaces_quote_id?: number;
   document_url?: string | null;
+  /** Supplier-quoted international freight — carried onto the PO when raised. */
+  freight_charges_intl?: number | null;
 }
 
 // 4.1 Price Quote Line Items

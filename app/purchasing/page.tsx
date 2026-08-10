@@ -347,6 +347,10 @@ function MasterInsertPage() {
     const { po_number, po_date, exchange_rate, existing_quote_id,
             incoterms, method_of_shipment, freight_charges_intl, payment_terms: poTerms,
             ...quote } = d;
+    // Freight is shared: it stays ON the quote (4.0 now has the column) and is
+    // also written to the PO when one is raised. Normalise to a number or null.
+    const freightVal = freight_charges_intl === '' || freight_charges_intl == null ? null : Number(freight_charges_intl);
+    quote.freight_charges_intl = freightVal;
     const lineRows = items.map((l) => ({
       component_id: l.component_id, supplier_description: l.supplier_description || null,
       quantity: Number(l.quantity), unit_price: Number(l.unit_price) || 0,
@@ -398,7 +402,7 @@ function MasterInsertPage() {
       total_value: quote.total_value, status: 'Confirmed',
       incoterms: incoterms || null,
       method_of_shipment: method_of_shipment || null,
-      freight_charges_intl: freight_charges_intl || null,
+      freight_charges_intl: freightVal,
       payment_terms: poTerms || settings.defaultPoPaymentTerms || null,
       document_url: quote.document_url || null,
     });
@@ -881,6 +885,10 @@ function MasterInsertPage() {
                         { name: 'pi_number', label: 'Quote Ref', type: 'text', suggestions: suggestions.quoteNumbers, default: storedDefaults?.pi_number || pdfData?.quote_number || pdfData?.pi_number },
                         { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true, default: storedDefaults?.currency ?? pdfData?.currency },
                         { name: 'total_value', label: 'Total Value', type: 'number', default: storedDefaults?.total_value ?? pdfData?.total_value },
+                        // Freight is SHARED (owner, 2026-08-10): the supplier quotes it
+                        // and the PO pays it, so it belongs to a Quote-only PI as much as
+                        // to a Quote + PO. Stored on 4.0; carried onto the PO when raised.
+                        { name: 'freight_charges_intl', label: 'Freight Cost', type: 'number', default: (pdfData as any)?.freight_charges_intl },
                         // Quote-only stores an OPEN price quote; Quote + PO goes
                         // straight from PI to PO, so the quote lands as Accepted
                         // automatically and the Status field disappears entirely.
@@ -895,7 +903,6 @@ function MasterInsertPage() {
                           { name: 'exchange_rate', label: 'Exch Rate (est. — auto if empty, IDR ignores)', type: 'number' as const, accent: true },
                           { name: 'incoterms', label: 'Incoterms', type: 'text' as const, suggestions: ['FOB', 'EXW', 'CIF', 'DDP', ...suggestions.incoterms], accent: true },
                           { name: 'method_of_shipment', label: 'Ship Via', type: 'select' as const, options: ENUMS.method_of_shipment, accent: true },
-                          { name: 'freight_charges_intl', label: 'Freight', type: 'number' as const, accent: true },
                           { name: 'payment_terms', label: 'PO Terms', type: 'text' as const, suggestions: suggestions.paymentTerms, default: settings.defaultPoPaymentTerms, accent: true },
                         ] : []),
                         { name: 'estimated_lead_time_days', label: 'Lead Time', type: 'select', options: ENUMS.lead_time, default: pdfData?.lead_time_days },

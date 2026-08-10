@@ -56,6 +56,12 @@ export const DESTINATIONS: Destination[] = [
   // actually happens, so the menu names them. (The item screens — Editor,
   // Market Intel — live in the Catalog block below, with the rest of the
   // item lenses.)
+  // Item Editor leads Purchasing (owner's call, 2026-08-10): the component
+  // master sits beside New Deal, the two buy-side entry points, which is where
+  // the buyer expects it — more intuitive than filed under Catalog.
+  { href: '/purchasing?tab=catalog', label: 'Item Editor', group: 'Purchasing', section: 'buySide', inNav: true,
+    hint: 'The component master — models, prices, specs, links',
+    keywords: 'catalog components parts items master editor sku spec' },
   // Supplier Quotes + Purchase Orders merged into ONE entry form (2026-08-04):
   // record a PI, or PI + PO in one save, or raise the PO for a stored quote.
   // Old names stay as keywords so Spotlight muscle memory keeps working.
@@ -150,9 +156,6 @@ export const DESTINATIONS: Destination[] = [
   { href: '/items/specs', label: 'Spec Readiness', group: 'Catalog', section: 'trading', cap: 'canViewAnalytics', inNav: false,
     hint: 'What the system calculators can size from — fill the missing specs',
     keywords: 'specs specifications calculator ready designer sizing missing data quality bom' },
-  { href: '/purchasing?tab=catalog', label: 'Item Editor', group: 'Catalog', section: 'buySide', inNav: true,
-    hint: 'The component master — models, prices, specs, links',
-    keywords: 'catalog components parts items master editor sku spec' },
   { href: '/purchasing?tab=market-intel', label: 'Market Intel', group: 'Catalog', section: 'buySide', inNav: true,
     hint: 'Competitor prices and what the market is charging',
     keywords: 'competitor market price intel benchmark rival' },

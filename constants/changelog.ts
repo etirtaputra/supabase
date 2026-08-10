@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-10T17:30:00Z',
+    title: 'New Deal: a Freight Cost field, formulas in Qty & Price, and Item Editor back in Purchasing',
+    details: [
+      'New Deal now has a Freight Cost field in BOTH modes — Quote only and Quote + PO. The supplier quotes freight and the PO pays it, so it belongs on the quote itself; when you raise the PO, the freight carries across automatically.',
+      'Qty and Unit Price on each line now accept Excel-style formulas: type “=1200*0.98” or “=500+40” and it evaluates when you leave the field — the same behaviour the sales quote editor already has.',
+      'Item Editor is back in the Purchasing menu, next to New Deal — the two buy-side entry points sit together, which is where buyers look for it. The Item Hub, Market Intel and Pricing stay under Catalog.',
+    ],
+  },
+  {
     at: '2026-08-10T16:00:00Z',
     title: 'Cleaner menu dropdowns — labels, no icons',
     details: [
