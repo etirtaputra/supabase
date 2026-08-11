@@ -92,6 +92,10 @@ interface Props {
   poCosts:          POCost[];
   competitorPrices: CompetitorPrice[];
   isLoading:        boolean;
+  /** Pre-select this component on mount (the Item hub's Pricing tab). */
+  initialComponentId?: string;
+  /** Hide the component search — the host page IS the item (the Item hub). */
+  lockComponent?: boolean;
 }
 
 // ─── Stat card ────────────────────────────────────────────────────────────────
@@ -232,9 +236,20 @@ function hl(text: string | null | undefined, q: string): React.ReactNode {
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function PricingIntelligence({
   components, poItems, pos, quoteItems, quotes, poCosts, competitorPrices, isLoading,
+  initialComponentId, lockComponent = false,
 }: Props) {
   const [query,          setQuery]          = useState('');
   const [selected,       setSelected]       = useState<Component | null>(null);
+
+  // Item-hub mode: the page already IS one item — pin it (and re-pin if the
+  // components list arrives after mount).
+  useEffect(() => {
+    if (!initialComponentId) return;
+    if (selected?.component_id === initialComponentId) return;
+    const c = components.find((x) => String(x.component_id) === String(initialComponentId));
+    if (c) setSelected(c);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialComponentId, components]);
   const [showDrop,       setShowDrop]       = useState(false);
   const { history, push: pushHistory, clear: clearHistory } = useSearchHistory('pricing-lookup-history');
   const [simPriceIdr,    setSimPriceIdr]    = useState('');
@@ -506,8 +521,8 @@ export default function PricingIntelligence({
 
   return (
     <div className="space-y-8">
-      {/* ── Component search ── */}
-      <div ref={containerRef} className="relative z-20 max-w-3xl">
+      {/* ── Component search (hidden in item-hub mode — the page IS the item) ── */}
+      <div ref={containerRef} className={`relative z-20 max-w-3xl ${lockComponent ? 'hidden' : ''}`}>
         <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-widest">
           Select Component
         </label>
@@ -616,11 +631,15 @@ export default function PricingIntelligence({
 
       {/* ── Empty state ── */}
       {!selected && (
-        <div className="bg-slate-900/40 border border-slate-800/60 rounded-2xl p-10 text-center">
-          <p className="text-2xl mb-3">📊</p>
-          <p className="text-slate-400 text-sm font-medium">Search for a component to see pricing intelligence</p>
-          <p className="text-slate-600 text-xs mt-1">Shows TUC, competitor market data, margin tiers, and sell price simulator</p>
-        </div>
+        lockComponent ? (
+          <div className="p-6"><div className="h-24 bg-slate-800/40 rounded-2xl animate-pulse" /></div>
+        ) : (
+          <div className="bg-slate-900/40 border border-slate-800/60 rounded-2xl p-10 text-center">
+            <p className="text-2xl mb-3">📊</p>
+            <p className="text-slate-400 text-sm font-medium">Search for a component to see pricing intelligence</p>
+            <p className="text-slate-600 text-xs mt-1">Shows TUC, competitor market data, margin tiers, and sell price simulator</p>
+          </div>
+        )
       )}
 
       {selected && !hasData && (

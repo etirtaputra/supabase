@@ -139,9 +139,10 @@ export const DESTINATIONS: Destination[] = [
   // Two analytics screens plus the Item hub. The names say which question
   // each answers: what did we SPEND, what does an ITEM look like end-to-end,
   // and what did we EARN.
+  // Pricing Intelligence moved to the Item hub's Pricing tab (2026-08-11).
   { href: '/spend-cash', label: 'Spend & Cash', group: 'Insights', section: 'buySide', cap: 'canViewAnalytics', inNav: true,
-    hint: 'Spend analytics, cash cycle, exchange rates, pricing intelligence',
-    keywords: 'insights analytics reports spend forex fx tuc cash cycle pricing' },
+    hint: 'Spend analytics, cash cycle, exchange rates',
+    keywords: 'insights analytics reports spend forex fx tuc cash cycle' },
   { href: '/profitability', label: 'Profitability', group: 'Insights', section: 'sellSide', cap: 'canViewEconomics', inNav: true,
     hint: 'GP per item / customer / rep, capital allocation, cash cycle',
     keywords: 'economics margin profit gp ccc dio dso dpo turnover position capital allocation gmroi' },

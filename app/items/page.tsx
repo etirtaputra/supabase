@@ -327,11 +327,13 @@ function ItemsInner() {
                       style={{ gridTemplateColumns: cols }}>
                       <span className="min-w-0">
                         <span className="flex items-center gap-1.5">
-                          <span className="text-slate-100 font-medium truncate">{descOf(r.c)}</span>
+                          {/* The NAME is the door to the item's hub page (owner's
+                              call — clearer than a separate ↗ icon); the rest of
+                              the row still expands the forensics in place. */}
                           <Link href={`/items/${r.c.component_id}`} onClick={(e) => e.stopPropagation()}
-                            title="Open the item hub — buy, sell, stock, specs on one page"
-                            className="p-1 -m-0.5 text-slate-600 hover:text-emerald-300 transition-colors flex-shrink-0">
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                            title="Open this item's hub — purchases, sales, pricing, FX, cash cycle, stock, specs"
+                            className="text-slate-100 font-medium truncate hover:text-emerald-300 hover:underline underline-offset-2 transition-colors">
+                            {descOf(r.c)}
                           </Link>
                         </span>
                         {canBrand && (r.c.supplier_model || r.c.brand) && (

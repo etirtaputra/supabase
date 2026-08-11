@@ -45,7 +45,9 @@ import { deriveExchangeRates } from '@/lib/exchangeRates';
 import { fetchTradePositions, type PositionRow } from '@/lib/tradePosition';
 import { specReadiness, normalizeSpecs } from '@/lib/specSchema';
 import ItemCostForensics, { type CompLite } from '@/components/ui/ItemCostForensics';
-import type { PurchaseOrder, PurchaseLineItem, POCost, PriceQuote, PriceQuoteLineItem, ComponentLink } from '@/types/database';
+import PricingIntelligence from '@/components/ui/PricingIntelligence';
+import POCashCycle from '@/components/ui/POCashCycle';
+import type { PurchaseOrder, PurchaseLineItem, POCost, PriceQuote, PriceQuoteLineItem, ComponentLink, CompetitorPrice } from '@/types/database';
 import { successorIdOf } from '@/lib/successors';
 import { fmtWarranty, warrantyLabel } from '@/lib/warranty';
 
@@ -85,7 +87,7 @@ const daysSince = (iso: string | null | undefined): number | null => {
   return isNaN(t) ? null : Math.max(0, Math.floor((Date.now() - t) / 86_400_000));
 };
 
-type TabKey = 'overview' | 'buy' | 'sell' | 'stock' | 'specs' | 'economics';
+type TabKey = 'overview' | 'buy' | 'sell' | 'pricing' | 'fx' | 'cashcycle' | 'stock' | 'specs' | 'economics';
 
 export default function ItemHubPage() {
   const supabase = createSupabaseClient();
@@ -135,6 +137,7 @@ export default function ItemHubPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [componentLinks, setComponentLinks] = useState<ComponentLink[]>([]);
   const [linkedComps, setLinkedComps] = useState<CompLite[]>([]);
+  const [competitorPrices, setCompetitorPrices] = useState<CompetitorPrice[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -178,7 +181,7 @@ export default function ItemHubPage() {
       // line of each PO to compute the line share, and the FX map ranks the
       // newest evidence across the whole business — exactly what /purchasing and
       // /proposals feed the same engines.
-      const [poRes, poiRes, costRes, pqRes, pqiRes, supRes, linkRes] = await Promise.all([
+      const [poRes, poiRes, costRes, pqRes, pqiRes, supRes, linkRes, compPriceRes] = await Promise.all([
         supabase.from('5.0_purchases').select('po_id, po_number, po_date, status, currency, exchange_rate, total_value, quote_id, supplier_id, pi_number, actual_received_date, estimated_delivery_date'),
         supabase.from('5.1_purchase_line_items').select('po_line_item_id, po_id, component_id, quantity, unit_cost, currency').limit(8000),
         supabase.from('6.0_po_costs').select('cost_id, po_id, cost_category, amount, currency, exchange_rate, payment_date, notes'),
@@ -188,6 +191,8 @@ export default function ItemHubPage() {
         supabase.from('4.1_price_quote_line_items').select('quote_line_id, quote_id, component_id, quantity, unit_price, currency').limit(8000),
         supabase.from('2.0_suppliers').select('supplier_id, supplier_name'),
         supabase.from('8.0_component_links').select('*').or(`component_id_a.eq.${componentId},component_id_b.eq.${componentId}`),
+        // The Pricing tab's market band (same data Market Intel maintains)
+        supabase.from('7.0_competitor_prices').select('*'),
       ]);
       setPos((poRes.data ?? []) as unknown as PurchaseOrder[]);
       setPoItems((poiRes.data ?? []) as unknown as PurchaseLineItem[]);
@@ -195,6 +200,7 @@ export default function ItemHubPage() {
       setQuotes((pqRes.data ?? []) as unknown as PriceQuote[]);
       setQuoteLines((pqiRes.data ?? []) as unknown as PriceQuoteLineItem[]);
       setSuppliers((supRes.data ?? []) as Supplier[]);
+      setCompetitorPrices((compPriceRes.data ?? []) as unknown as CompetitorPrice[]);
       const links = (linkRes.data ?? []) as unknown as ComponentLink[];
       setComponentLinks(links);
       // Names for the linked/comparable chips — only the ids the links touch
@@ -256,6 +262,20 @@ export default function ItemHubPage() {
   const incoming = useMemo(
     () => myPoLines.reduce((s, { item, po }) => s + (INCOMING_PO_STATUSES.has(po.status ?? '') ? Number(item.quantity) || 0 : 0), 0),
     [myPoLines]);
+
+  // ── This item's PO slice — feeds the Exchange Rate and Cash Cycle tabs.
+  // Same rows the whole page already fetched, just narrowed to POs that carry
+  // this component, so both tabs show exactly this item's money history.
+  const myPoIds = useMemo(() => new Set(myPoLines.map(({ po }) => String(po.po_id))), [myPoLines]);
+  const myPos = useMemo(() => pos.filter((p) => myPoIds.has(String(p.po_id))), [pos, myPoIds]);
+  const myCosts = useMemo(() => poCosts.filter((c) => myPoIds.has(String(c.po_id))), [poCosts, myPoIds]);
+  const myLines = useMemo(() => poItems.filter((i) => i.component_id === componentId), [poItems, componentId]);
+  // Payment-implied FX per PO — the SAME engine Spend & Cash's Exchange Rates
+  // uses (deriveExchangeRates): IDR principal settled ÷ the PO's foreign value.
+  const myFxRows = useMemo(
+    () => deriveExchangeRates(myPos, myLines, myCosts, quotes)
+      .sort((a, b) => (b.payment_date ?? '').localeCompare(a.payment_date ?? '')),
+    [myPos, myLines, myCosts, quotes]);
 
   // Measured lead time: PO date → actual goods receipt, per received PO
   const leadTimes = useMemo(() => {
@@ -321,10 +341,17 @@ export default function ItemHubPage() {
     );
   }
 
+  // Renamed 2026-08-11 (owner's wording): Buy → Purchases, Sell → Sales; and
+  // three lenses absorbed from Spend & Cash, pinned to THIS item: Pricing
+  // (the pricing-intelligence engine), Exchange Rate (payment-implied FX on
+  // this item's POs), Cash Cycle (paid → received → sold, this item only).
   const tabs: { key: TabKey; label: string; show: boolean; accent: string }[] = [
     { key: 'overview', label: 'Overview', show: true, accent: 'border-slate-300 text-slate-100' },
-    { key: 'buy', label: 'Buy', show: canBuy, accent: 'border-sky-400 text-sky-300' },
-    { key: 'sell', label: 'Sell', show: canSell, accent: 'border-emerald-400 text-emerald-300' },
+    { key: 'buy', label: 'Purchases', show: canBuy, accent: 'border-sky-400 text-sky-300' },
+    { key: 'sell', label: 'Sales', show: canSell, accent: 'border-emerald-400 text-emerald-300' },
+    { key: 'pricing', label: 'Pricing', show: canBuy, accent: 'border-violet-400 text-violet-300' },
+    { key: 'fx', label: 'Exchange Rate', show: canBuy, accent: 'border-sky-400 text-sky-300' },
+    { key: 'cashcycle', label: 'Cash Cycle', show: canBuy, accent: 'border-amber-400 text-amber-300' },
     { key: 'stock', label: 'Stock', show: canBuy, accent: 'border-sky-400 text-sky-300' },
     { key: 'specs', label: 'Specs', show: true, accent: 'border-slate-300 text-slate-100' },
     { key: 'economics', label: 'Economics', show: canEcon, accent: 'border-amber-400 text-amber-300' },
@@ -441,6 +468,27 @@ export default function ItemHubPage() {
             {tab === 'sell' && canSell && (
               <SellTab comp={comp} activeTiers={activeTiers} chain={chain} avgCost={avgCost} canFloor={canFloor}
                 soldLines={soldLines} custNames={custNames} reserved={reserved} />
+            )}
+            {/* ── Pricing — the Spend & Cash pricing-intelligence engine, pinned
+                   to THIS item (its search is hidden; the page is the item). ── */}
+            {tab === 'pricing' && canBuy && (
+              <PricingIntelligence
+                components={[comp as any]}
+                poItems={poItems} pos={pos} quoteItems={quoteLines} quotes={quotes} poCosts={poCosts}
+                competitorPrices={competitorPrices} isLoading={loading}
+                initialComponentId={componentId} lockComponent />
+            )}
+            {/* ── Exchange Rate — what THIS item's foreign POs actually cost in
+                   rupiah: IDR principal paid ÷ the PO's foreign nominal
+                   (deriveExchangeRates — the same engine as Spend & Cash). ── */}
+            {tab === 'fx' && canBuy && (
+              <FxTab rows={myFxRows} pos={myPos} suppliers={suppliers} />
+            )}
+            {/* ── Cash Cycle — money out → goods in → sold, for THIS item only
+                   (the same POCashCycle engine, narrowed to its POs). ── */}
+            {tab === 'cashcycle' && canBuy && (
+              <POCashCycle pos={myPos} poItems={myLines} poCosts={myCosts}
+                components={[comp as any]} quotes={quotes} suppliers={suppliers as any} isLoading={loading} />
             )}
             {tab === 'stock' && canBuy && (
               <StockTab balances={balances} warehouses={warehouses} movements={movements}
@@ -606,6 +654,101 @@ function BuyTab({ compUnit, tucRes, fx, myPoLines, incoming, leadTimes, forensic
       <p className="text-[10px] text-slate-600">
         TUC = the canonical True Unit Cost engine (settled POs only; taxes excluded) — identical to Purchasing&apos;s Last Price and Cost Lookup.
         Foreign quotes convert at the newest FX evidence ({Object.entries(fx).map(([c, r]) => `${c} ${fmtInt(r.rate)}`).join(' · ') || 'none yet'}); amber = older than {FX_STALE_DAYS} days.
+      </p>
+    </div>
+  );
+}
+
+// ── Exchange Rate tab ────────────────────────────────────────────────────────
+// What this item's foreign-currency POs actually cost in rupiah. Each row is a
+// PO's payment-implied rate from deriveExchangeRates (Spend & Cash's engine):
+// realized = IDR principal settled ÷ the PO's foreign nominal, once the PO is
+// essentially settled; until then the PO's typed estimate stands in, labeled.
+function FxTab({ rows, pos, suppliers }: {
+  rows: { po_id: string; supplier_id: string; currency: string; quoted_amount_foreign: number; paid_amount_idr: number; implied_rate: number; payment_date: string }[];
+  pos: PurchaseOrder[];
+  suppliers: Supplier[];
+}) {
+  const poById = useMemo(() => new Map(pos.map((p) => [String(p.po_id), p])), [pos]);
+  const supName = useMemo(() => new Map(suppliers.map((s) => [s.supplier_id, s.supplier_name])), [suppliers]);
+  // "PO estimate" rows are constructed as quoted × typed rate — detectable
+  // without re-deriving: the paid figure equals the estimate to the rupiah.
+  const isEstimate = (r: typeof rows[number]) => {
+    const est = Number(poById.get(String(r.po_id))?.exchange_rate) || 0;
+    return est > 0 && Math.abs(r.paid_amount_idr - r.quoted_amount_foreign * est) < 1 && Math.abs(r.implied_rate - est) < 0.01;
+  };
+  // Latest rate per currency leads — that is "the rate this item last cost us"
+  const latest = useMemo(() => {
+    const seen = new Map<string, typeof rows[number]>();
+    for (const r of rows) if (!seen.has(r.currency)) seen.set(r.currency, r);
+    return [...seen.values()];
+  }, [rows]);
+
+  if (!rows.length) {
+    return (
+      <div className="bg-slate-900/40 border border-slate-800/60 rounded-2xl p-10 text-center">
+        <p className="text-slate-400 text-sm font-medium">No foreign-currency purchases for this item</p>
+        <p className="text-slate-600 text-xs mt-1">IDR deals carry no exchange rate — this tab fills in once the item is bought in USD, CNY or another currency.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {latest.map((r) => (
+          <div key={r.currency} className="bg-slate-900/60 border border-slate-800 ring-1 ring-sky-500/15 rounded-2xl p-4">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Last {r.currency} rate on this item</p>
+            <p className="text-2xl font-extrabold tabular-nums text-sky-300 leading-none">{fmtInt(r.implied_rate)}</p>
+            <p className="text-[11px] text-slate-500 mt-1.5">
+              {isEstimate(r) ? 'PO estimate — not yet settled' : 'realized from payments'} · {fmtDay(r.payment_date)}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-x-auto">
+        <table className="w-full min-w-[640px] text-xs">
+          <thead>
+            <tr className="border-b border-slate-800 text-[10px] uppercase tracking-widest text-slate-500">
+              <th className="text-left font-semibold px-4 py-2.5">Paid</th>
+              <th className="text-left font-semibold px-3 py-2.5">PO</th>
+              <th className="text-left font-semibold px-3 py-2.5">Supplier</th>
+              <th className="text-right font-semibold px-3 py-2.5">Foreign nominal</th>
+              <th className="text-right font-semibold px-3 py-2.5">Paid (IDR)</th>
+              <th className="text-right font-semibold px-3 py-2.5" title="IDR paid ÷ foreign nominal — the rate this deal actually implied">Implied rate</th>
+              <th className="text-left font-semibold px-3 py-2.5">Basis</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800/60">
+            {rows.map((r) => {
+              const po = poById.get(String(r.po_id));
+              const est = isEstimate(r);
+              return (
+                <tr key={r.po_id} className="hover:bg-white/[0.03] transition-colors">
+                  <td className="px-4 py-2.5 tabular-nums text-slate-400 whitespace-nowrap">{fmtDay(r.payment_date)}</td>
+                  <td className="px-3 py-2.5">
+                    <Link href={`/purchasing?tab=lookup&q=${encodeURIComponent(po?.po_number || String(r.po_id))}`}
+                      className="font-mono text-sky-300 hover:text-sky-200 transition-colors">{po?.po_number || `PO ${r.po_id}`}</Link>
+                  </td>
+                  <td className="px-3 py-2.5 text-slate-400 truncate max-w-[180px]">{supName.get(r.supplier_id) || '—'}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-slate-200 whitespace-nowrap">{r.currency} {fmtInt(r.quoted_amount_foreign)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-slate-200 whitespace-nowrap">{fmtIdr(r.paid_amount_idr)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums font-bold text-sky-300">{fmtInt(r.implied_rate)}</td>
+                  <td className="px-3 py-2.5">
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${est ? 'bg-slate-800 text-slate-400' : 'bg-emerald-500/10 text-emerald-300'}`}
+                      title={est ? 'The PO is not yet settled — this is the rate typed on the PO' : 'IDR principal actually paid ÷ the PO’s foreign value'}>
+                      {est ? 'estimate' : 'realized'}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-[10px] text-slate-600 px-1">
+        Principal payments only — bank fees, VAT, income tax and local delivery never enter the FX math (they are rupiah costs of their own).
       </p>
     </div>
   );

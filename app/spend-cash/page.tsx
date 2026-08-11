@@ -12,7 +12,6 @@ import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 import MobileNotice from '@/components/ui/MobileNotice';
 import POCashCycle from '@/components/ui/POCashCycle';
-import PricingIntelligence from '@/components/ui/PricingIntelligence';
 import ExchangeRateTrends from '@/components/ui/ExchangeRateTrends';
 import SpendOverview from '@/components/ui/SpendOverview';
 import CategoryPositioningMap from '@/components/ui/CategoryPositioningMap';
@@ -23,12 +22,16 @@ import { deriveExchangeRates } from '@/lib/exchangeRates';
 // 'lookup' (Product Cost Lookup) retired 2026-08-01 — its forensic layer lives
 // in Analytics › Items now (components/ui/ProductCostLookup.tsx kept on disk
 // until the owner is ready to delete it for good).
-type TabId = 'spend' | 'pricing' | 'cash' | 'xrates' | 'positioning' | 'costs';
+// 'pricing' (Pricing Intelligence) retired here 2026-08-11 — it lives on the
+// Item hub's Pricing tab now, pinned to the item being viewed (the component
+// is reused there, not copied). Old ?tab=pricing links fall back to Spend
+// Overview via the TABS guard below. Cash Cycle and Exchange Rates stay: they
+// are the PORTFOLIO views; the hub carries each item's own slice.
+type TabId = 'spend' | 'cash' | 'xrates' | 'positioning' | 'costs';
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'spend',       label: 'Spend Overview'  },
   { id: 'costs',       label: 'Cost Breakdown'  },
-  { id: 'pricing',     label: 'Pricing'         },
   { id: 'cash',        label: 'Cash Cycle'      },
   { id: 'xrates',      label: 'Exchange Rates'  },
   { id: 'positioning', label: 'Positioning Map' },
@@ -39,11 +42,6 @@ const TAB_ICONS: Record<TabId, React.ReactNode> = {
     <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
       <path strokeLinecap="round" strokeLinejoin="round" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
-    </svg>
-  ),
-  pricing: (
-    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
     </svg>
   ),
   cash: (
@@ -146,7 +144,7 @@ export default function DatabaseViewPage() {
         {/* ── Sticky header + tab bar ── */}
         <div className="sticky top-0 z-50 bg-canvas/90 backdrop-blur-xl border-b border-white/[0.07]">
           <header className="px-3 sm:px-4 md:px-6 xl:px-8 pt-4 xl:pt-5 pb-2 max-w-[1800px] 2xl:max-w-[2460px] mx-auto flex items-start justify-between flex-wrap gap-4">
-            <BrandMenu wordmarkClass="text-lg md:text-xl xl:text-2xl font-bold" subtitle="Spend & Cash · TUC · Pricing · Cash Cycle" showStatus={false} />
+            <BrandMenu wordmarkClass="text-lg md:text-xl xl:text-2xl font-bold" subtitle="Spend & Cash · TUC · Cash Cycle" showStatus={false} />
             {/* Refresh control. No account block here — the ICAPROC menu
                 already shows the signed-in user + Sign out; repeating them
                 next to the clock made the header read as clutter. */}
@@ -214,25 +212,7 @@ export default function DatabaseViewPage() {
             />
           </div>
 
-          {/* Pricing Intelligence */}
-          <div className={activeTab !== 'pricing' ? 'hidden' : 'space-y-6'}>
-            <div className="mb-6">
-              <h2 className="text-base md:text-lg font-semibold text-white tracking-tight">Pricing Intelligence</h2>
-              <p className="text-slate-500 text-[11px] mt-1 max-w-2xl">
-                Connect True Unit Cost with market / competitor prices to set margin-aware sell prices. Gross margin = (Sell − TUC) / Sell.
-              </p>
-            </div>
-            <PricingIntelligence
-              components={data.components}
-              poItems={data.poItems}
-              pos={data.pos}
-              quoteItems={data.quoteItems}
-              quotes={data.quotes}
-              poCosts={data.poCosts}
-              competitorPrices={data.competitorPrices}
-              isLoading={loading}
-            />
-          </div>
+          {/* Pricing Intelligence retired here 2026-08-11 — see the TabId note */}
 
           {/* Cash Cycle */}
           <div className={activeTab !== 'cash' ? 'hidden' : 'space-y-6'}>

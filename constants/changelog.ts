@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-11T08:00:00Z',
+    title: 'Item Hub: Pricing, Exchange Rate and Cash Cycle move in — one item, every lens',
+    details: [
+      'The Item Hub gained three tabs, each pinned to the item you are viewing: Pricing (the pricing-intelligence engine that lived in Spend & Cash — ideal price, pricing score, competitor band, sell-price simulator — no more searching for the item, the page IS the item), Exchange Rate (what this item’s foreign POs actually cost in rupiah: the foreign nominal vs the IDR principal paid, the implied rate per deal, realized vs estimate, newest first), and Cash Cycle (money out → goods in → sold, for this item’s POs only).',
+      'Tabs renamed to plain words: Purchases (was Buy) and Sales (was Sell).',
+      'In the Items list, clicking the item’s NAME now opens its hub page — no more hunting for the little ↗ symbol. Clicking anywhere else on the row still expands the cost forensics in place.',
+      'Spend & Cash: the Pricing tab retired (it lives on the hub now); Cash Cycle and Exchange Rates stay as the portfolio-wide views. Old pricing links fall back to Spend Overview.',
+    ],
+  },
+  {
     at: '2026-08-10T19:00:00Z',
     title: 'New Deal — tidier Quote + PO layout, more formulas, more carried forward',
     details: [
