@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-11T10:00:00Z',
+    title: 'Spend & Cash slims down; “Pricing” becomes “Pricing Tiers”',
+    details: [
+      'With Pricing, Cash Cycle and Exchange Rates now living on the Item Hub, their tabs are gone from Spend & Cash entirely — the page keeps what is genuinely portfolio-wide: Spend Overview, Cost Breakdown and the Positioning Map. Old links to the removed tabs land on Spend Overview.',
+      'The Catalog menu entry “Pricing” is renamed “Pricing Tiers” — the page manages the tier ladder, floors and overrides; per-item pricing intelligence is the Item Hub’s Pricing tab. Searching “pricing”, “cash cycle”, “exchange rate” or “fx” in Spotlight now points at the right doors.',
+    ],
+  },
+  {
     at: '2026-08-11T08:00:00Z',
     title: 'Item Hub: Pricing, Exchange Rate and Cash Cycle move in — one item, every lens',
     details: [

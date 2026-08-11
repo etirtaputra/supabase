@@ -139,10 +139,11 @@ export const DESTINATIONS: Destination[] = [
   // Two analytics screens plus the Item hub. The names say which question
   // each answers: what did we SPEND, what does an ITEM look like end-to-end,
   // and what did we EARN.
-  // Pricing Intelligence moved to the Item hub's Pricing tab (2026-08-11).
+  // Pricing Intelligence, Cash Cycle and Exchange Rates moved to the Item
+  // hub's per-item tabs (2026-08-11) — their keywords moved with them.
   { href: '/spend-cash', label: 'Spend & Cash', group: 'Insights', section: 'buySide', cap: 'canViewAnalytics', inNav: true,
-    hint: 'Spend analytics, cash cycle, exchange rates',
-    keywords: 'insights analytics reports spend forex fx tuc cash cycle' },
+    hint: 'Spend analytics, cost breakdown, positioning map',
+    keywords: 'insights analytics reports spend tuc costs positioning' },
   { href: '/profitability', label: 'Profitability', group: 'Insights', section: 'sellSide', cap: 'canViewEconomics', inNav: true,
     hint: 'GP per item / customer / rep, capital allocation, cash cycle',
     keywords: 'economics margin profit gp ccc dio dso dpo turnover position capital allocation gmroi' },
@@ -152,17 +153,19 @@ export const DESTINATIONS: Destination[] = [
   // Products list lives in Sales, where they reach for it; Catalog is the
   // back-office view of the same item. Every entry keeps its own gate.
   { href: '/items', label: 'Item Hub', group: 'Catalog', section: 'trading', cap: 'canViewAnalytics', inNav: true,
-    hint: 'Everything about one item — buy, sell, stock, specs, profit, score',
-    keywords: 'item hub component sku part product barang produk master 360 items' },
+    hint: 'Everything about one item — purchases, sales, pricing, FX, cash cycle, stock, specs',
+    keywords: 'item hub component sku part product barang produk master 360 items pricing intelligence cash cycle exchange rate fx forex' },
   { href: '/items/specs', label: 'Spec Readiness', group: 'Catalog', section: 'trading', cap: 'canViewAnalytics', inNav: false,
     hint: 'What the system calculators can size from — fill the missing specs',
     keywords: 'specs specifications calculator ready designer sizing missing data quality bom' },
   { href: '/purchasing?tab=market-intel', label: 'Market Intel', group: 'Catalog', section: 'buySide', inNav: true,
     hint: 'Competitor prices and what the market is charging',
     keywords: 'competitor market price intel benchmark rival' },
-  { href: '/pricing', label: 'Pricing', group: 'Catalog', section: null, cap: 'canManagePricing', inNav: true,
+  // "Pricing Tiers", not bare "Pricing" (owner, 2026-08-11): the page manages
+  // the TIER LADDER; the per-item pricing intelligence lives on the Item hub.
+  { href: '/pricing', label: 'Pricing Tiers', group: 'Catalog', section: null, cap: 'canManagePricing', inNav: true,
     hint: 'Price tiers, margin floor audit, per-item overrides',
-    keywords: 'tiers markup discount floor margin pricing' },
+    keywords: 'tiers markup discount floor margin pricing tier' },
   // The buy-side AI assistant — answers questions over suppliers, costs, POs
   // and quotes. Search-only: it has no menu tile today, so Spotlight is how it
   // is reached. Gate matches the page (buySide, redirects otherwise).

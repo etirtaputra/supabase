@@ -11,29 +11,25 @@ import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import BrandMenu from '@/components/ui/BrandMenu';
 import MobileNotice from '@/components/ui/MobileNotice';
-import POCashCycle from '@/components/ui/POCashCycle';
-import ExchangeRateTrends from '@/components/ui/ExchangeRateTrends';
 import SpendOverview from '@/components/ui/SpendOverview';
 import CategoryPositioningMap from '@/components/ui/CategoryPositioningMap';
 import CostBreakdown from '@/components/ui/CostBreakdown';
 import { ToastProvider } from '@/hooks/useToast';
-import { deriveExchangeRates } from '@/lib/exchangeRates';
 
 // 'lookup' (Product Cost Lookup) retired 2026-08-01 — its forensic layer lives
 // in Analytics › Items now (components/ui/ProductCostLookup.tsx kept on disk
 // until the owner is ready to delete it for good).
-// 'pricing' (Pricing Intelligence) retired here 2026-08-11 — it lives on the
-// Item hub's Pricing tab now, pinned to the item being viewed (the component
-// is reused there, not copied). Old ?tab=pricing links fall back to Spend
-// Overview via the TABS guard below. Cash Cycle and Exchange Rates stay: they
-// are the PORTFOLIO views; the hub carries each item's own slice.
-type TabId = 'spend' | 'cash' | 'xrates' | 'positioning' | 'costs';
+// 'pricing', 'cash' and 'xrates' (Pricing Intelligence, Cash Cycle, Exchange
+// Rates) retired here 2026-08-11 (owner's call) — all three live on the Item
+// hub now as per-item tabs (the components are reused there, not copied;
+// POCashCycle + PricingIntelligence render on the hub, the hub's FxTab uses
+// the same deriveExchangeRates engine). Old ?tab= deep links fall back to
+// Spend Overview via the TABS guard below.
+type TabId = 'spend' | 'positioning' | 'costs';
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'spend',       label: 'Spend Overview'  },
   { id: 'costs',       label: 'Cost Breakdown'  },
-  { id: 'cash',        label: 'Cash Cycle'      },
-  { id: 'xrates',      label: 'Exchange Rates'  },
   { id: 'positioning', label: 'Positioning Map' },
 ];
 
@@ -42,16 +38,6 @@ const TAB_ICONS: Record<TabId, React.ReactNode> = {
     <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
       <path strokeLinecap="round" strokeLinejoin="round" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
-    </svg>
-  ),
-  cash: (
-    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-    </svg>
-  ),
-  xrates: (
-    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   ),
   positioning: (
@@ -110,12 +96,6 @@ export default function DatabaseViewPage() {
     if (tab && TABS.some((t) => t.id === tab)) setActiveTab(tab as TabId);
   }, []);
 
-  // Derive exchange rates on-the-fly from PO payments — always up-to-date
-  const exchangeRates = useMemo(
-    () => deriveExchangeRates(data.pos, data.poItems, data.poCosts, data.quotes),
-    [data.pos, data.poItems, data.poCosts, data.quotes],
-  );
-
   const minutesStale = lastFetched ? Math.floor((now.getTime() - lastFetched.getTime()) / 60_000) : null;
   const isStale = minutesStale !== null && minutesStale >= 30;
 
@@ -144,7 +124,7 @@ export default function DatabaseViewPage() {
         {/* ── Sticky header + tab bar ── */}
         <div className="sticky top-0 z-50 bg-canvas/90 backdrop-blur-xl border-b border-white/[0.07]">
           <header className="px-3 sm:px-4 md:px-6 xl:px-8 pt-4 xl:pt-5 pb-2 max-w-[1800px] 2xl:max-w-[2460px] mx-auto flex items-start justify-between flex-wrap gap-4">
-            <BrandMenu wordmarkClass="text-lg md:text-xl xl:text-2xl font-bold" subtitle="Spend & Cash · TUC · Cash Cycle" showStatus={false} />
+            <BrandMenu wordmarkClass="text-lg md:text-xl xl:text-2xl font-bold" subtitle="Spend & Cash · Spend · Costs · Positioning" showStatus={false} />
             {/* Refresh control. No account block here — the ICAPROC menu
                 already shows the signed-in user + Sign out; repeating them
                 next to the clock made the header read as clutter. */}
@@ -212,43 +192,9 @@ export default function DatabaseViewPage() {
             />
           </div>
 
-          {/* Pricing Intelligence retired here 2026-08-11 — see the TabId note */}
-
-          {/* Cash Cycle */}
-          <div className={activeTab !== 'cash' ? 'hidden' : 'space-y-6'}>
-            <div className="mb-6">
-              <h2 className="text-base md:text-lg font-semibold text-white tracking-tight">Cash Conversion Cycle</h2>
-              <p className="text-slate-500 text-[11px] mt-1 max-w-2xl">
-                Per-product reorder cycles: time between consecutive balance-settled POs for the same item.
-                Shows how long a batch lasts before you need to reorder.
-                Only products with ≥2 fully-paid POs are shown.
-              </p>
-            </div>
-            <POCashCycle
-              pos={data.pos}
-              poItems={data.poItems}
-              poCosts={data.poCosts}
-              components={data.components}
-              quotes={data.quotes}
-              suppliers={data.suppliers}
-              isLoading={loading}
-            />
-          </div>
-
-          {/* Exchange Rate Trends */}
-          <div className={activeTab !== 'xrates' ? 'hidden' : 'space-y-6'}>
-            <div className="mb-6">
-              <h2 className="text-base md:text-lg font-semibold text-white tracking-tight">Currency Exchange Rates</h2>
-              <p className="text-slate-500 text-[11px] mt-1 max-w-2xl">
-                Historical FX rates realized from procurement: implied rate = total payments in IDR ÷ quoted amount in foreign currency.
-                Shows trends by supplier and currency to inform future PO pricing.
-              </p>
-            </div>
-            <ExchangeRateTrends
-              rates={exchangeRates}
-              suppliers={data.suppliers}
-            />
-          </div>
+          {/* Pricing Intelligence, Cash Cycle and Exchange Rates retired here
+              2026-08-11 — all three live on the Item hub now, pinned to the
+              item being viewed. See the TabId note. */}
 
           {/* Positioning Map */}
           <div className={activeTab !== 'positioning' ? 'hidden' : 'space-y-6'}>
