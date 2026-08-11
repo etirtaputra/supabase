@@ -205,6 +205,10 @@ export default function Home() {
                 ...(perms?.buySide ? [
                   { href: '/purchasing?tab=quoting',    label: 'New Deal — PI / PO',        accent: 'blue' },
                   { href: '/purchasing?tab=financials', label: 'Log Payment',                accent: 'rose' },
+                  { href: '/purchasing?tab=lookup',     label: 'Deal Lookup',                accent: 'blue' },
+                ] : []),
+                ...(perms?.canManageStock ? [
+                  { href: '/stock/receive',             label: 'Receive Goods',              accent: 'blue' },
                 ] : []),
                 ...(perms?.projects ? [
                   { href: '/proposals',              label: 'New EPC Proposal',          accent: 'violet' },

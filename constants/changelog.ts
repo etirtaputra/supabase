@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-11T13:00:00Z',
+    title: 'Receiving goods flows end-to-end — prompts, tags, cost history',
+    details: [
+      'Deal Lookup: marking a PO Fully (or Partially) Received now prompts the next step — “Receive goods →”, one click into the Receive page with that PO pre-selected. The status records the fact; receiving is what writes the stock and its landed cost, and now the path between the two is one tap.',
+      'Products: items whose goods receipt landed in the last 14 days carry a tag — “New” (first stock ever, a brand-new product, emerald) or “New stock” (fresh arrival of a known item, blue) — and a “Just arrived” filter shows only them. Hover a tag for the arrival date.',
+      'Receive Goods: the pre-filled Landed Cost/Unit now has a small clock button showing this item’s previous landed costs (date, PO, cost — from earlier booked receipts, newest first). Click one to use it, so today’s entry can be sanity-checked against history in place.',
+      'Ways back: the Receive Goods page has a “Deal Lookup →” button in its header (carrying the selected PO), and the Dashboard quick actions gained Deal Lookup and Receive Goods.',
+    ],
+  },
+  {
     at: '2026-08-11T10:00:00Z',
     title: 'Spend & Cash slims down; “Pricing” becomes “Pricing Tiers”',
     details: [

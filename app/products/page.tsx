@@ -50,6 +50,34 @@ import DateRangeFilter from '@/components/ui/DateRangeFilter';
 import { inRange, type DateRange } from '@/lib/dateRange';
 import { successorMap } from '@/lib/successors';
 import { WARRANTY_UNITS, fmtWarranty, warrantyLabel } from '@/lib/warranty';
+// "Just arrived" window: a goods receipt in the last N days makes stock NEW.
+// The item's FIRST-ever receipt inside the window = a brand-new product.
+const NEW_ARRIVAL_DAYS = 14;
+const arrivalCutoffIso = () => {
+  const d = new Date(); d.setDate(d.getDate() - NEW_ARRIVAL_DAYS);
+  return d.toISOString().slice(0, 10);
+};
+/** 'new' = first stock ever, just landed · 'restock' = fresh stock of a known item. */
+function arrivalTagOf(a: { first: string; last: string } | undefined): 'new' | 'restock' | null {
+  const cutoff = arrivalCutoffIso();
+  if (!a || a.last < cutoff) return null;
+  return a.first >= cutoff ? 'new' : 'restock';
+}
+function ArrivalTag({ a }: { a: { first: string; last: string } | undefined }) {
+  const tag = arrivalTagOf(a);
+  if (!tag) return null;
+  return (
+    <span
+      title={tag === 'new' ? `New product — first stock arrived ${a!.first}` : `New stock — arrived ${a!.last}`}
+      className={`flex-shrink-0 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wide ring-1 ${
+        tag === 'new'
+          ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/30'
+          : 'bg-sky-500/15 text-sky-300 ring-sky-500/30'}`}>
+      {tag === 'new' ? 'New' : 'New stock'}
+    </span>
+  );
+}
+
 // The product's customer-facing name: our internal description, never the supplier's model/SKU.
 /** Amber "newer version" tag — shown wherever a superseded item appears. */
 function SupersededTag({ succId, comps, canHub }: { succId?: string; comps: { component_id: string; internal_description: string | null; supplier_model: string }[]; canHub: boolean }) {
@@ -131,6 +159,10 @@ function ProductsInner() {
   const [filterCategory, setFilterCategory] = useState('');
   const [filterBrand, setFilterBrand] = useState('');
   const [stockOnly, setStockOnly] = useState(false);
+  const [justArrived, setJustArrived] = useState(false);
+  // First/last goods-receipt date per item (30.0 ledger, GRN in-movements) —
+  // powers the "New" / "New stock" tags and the Just-arrived filter.
+  const [arrivals, setArrivals] = useState<Record<string, { first: string; last: string }>>({});
   const listDefaults = useListDefaults('products');
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'traded', dir: -1 });
   const [range, setRange] = useState<DateRange>(listDefaults.range);
@@ -175,7 +207,7 @@ function ProductsInner() {
       }
       return all;
     };
-    const [allComps, tierRes, ovRes, balRes, sqRes, sqiRes, poRes, poiRes, piiRes, custRes, linkRes] = await Promise.all([
+    const [allComps, tierRes, ovRes, balRes, sqRes, sqiRes, poRes, poiRes, piiRes, custRes, linkRes, arrRes] = await Promise.all([
       fetchAllComponents(),
       supabase.from('21.0_price_tiers').select('tier_id, tier_code, name, default_discount_pct, sort_order, is_active').order('sort_order'),
       supabase.from('21.1_item_tier_prices').select('component_id, tier_id, override_price_idr, override_discount_pct'),
@@ -187,7 +219,19 @@ function ProductsInner() {
       supabase.from('4.1_price_quote_line_items').select('quote_id, component_id').limit(8000),
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name'),
       supabase.from('8.0_component_links').select('component_id_a, component_id_b, link_type').eq('link_type', 'successor'),
+      // Goods-receipt dates only (no costs — the /products network-tab rule) —
+      // first receipt = the product is NEW; recent receipt = stock just arrived.
+      supabase.from('30.0_stock_movements').select('component_id, moved_at').eq('direction', 'in').eq('source_type', 'receipt'),
     ]);
+    const arr: Record<string, { first: string; last: string }> = {};
+    for (const m of (arrRes.data ?? []) as { component_id: string; moved_at: string | null }[]) {
+      const d = (m.moved_at ?? '').slice(0, 10);
+      if (!d || !m.component_id) continue;
+      const e = arr[m.component_id];
+      if (!e) arr[m.component_id] = { first: d, last: d };
+      else { if (d < e.first) e.first = d; if (d > e.last) e.last = d; }
+    }
+    setArrivals(arr);
     setComps(allComps);
     setTiers((tierRes.data as Tier[]) ?? []);
     setOverrides((ovRes.data as Override[]) ?? []);
@@ -328,6 +372,7 @@ function ProductsInner() {
 
   const rows: Row[] = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const cutoff = arrivalCutoffIso();
     const list = comps
       .map((c) => {
         const phys = physical[c.component_id] ?? 0;
@@ -338,6 +383,7 @@ function ProductsInner() {
         if (filterCategory && c.category !== filterCategory) return false;
         if (filterBrand && c.brand !== filterBrand) return false;
         if (stockOnly && phys <= 0 && inc <= 0) return false;
+        if (justArrived && (arrivals[c.component_id]?.last ?? '') < cutoff) return false;
         if (!q) return true;
         return [c.supplier_model, c.internal_description, c.brand, c.category, c.warranty].filter(Boolean).join(' ').toLowerCase().includes(q);
       });
@@ -366,14 +412,14 @@ function ProductsInner() {
         || (a.c.supplier_model || '').localeCompare(b.c.supplier_model || '');
     });
     return list;
-  }, [comps, physical, reserved, incoming, activityByComp, soldInRange, search, filterCategory, filterBrand, stockOnly, sort]);
+  }, [comps, physical, reserved, incoming, activityByComp, soldInRange, search, filterCategory, filterBrand, stockOnly, justArrived, arrivals, sort]);
 
   const toggleSort = (key: SortKey) => {
     listTouched.current = true;
     setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: DEFAULT_DIR[key] }));
   };
 
-  const hasFilters = !!(search.trim() || filterCategory || filterBrand || stockOnly);
+  const hasFilters = !!(search.trim() || filterCategory || filterBrand || stockOnly || justArrived);
 
   async function saveMeta(componentId: string, patch: Partial<Pick<Comp, 'warranty' | 'datasheet_url' | 'warranty_value' | 'warranty_unit' | 'perf_warranty_value' | 'perf_warranty_unit'>>) {
     const { error } = await supabase.from('3.0_components').update(patch).eq('component_id', componentId);
@@ -547,8 +593,13 @@ function ProductsInner() {
             <input type="checkbox" checked={stockOnly} onChange={(e) => setStockOnly(e.target.checked)} className="accent-emerald-500 w-4 h-4" />
             In stock / incoming
           </label>
+          <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none whitespace-nowrap"
+            title={`Items whose goods receipt landed in the last ${NEW_ARRIVAL_DAYS} days — new products and fresh stock`}>
+            <input type="checkbox" checked={justArrived} onChange={(e) => setJustArrived(e.target.checked)} className="accent-sky-500 w-4 h-4" />
+            Just arrived
+          </label>
           {hasFilters && (
-            <button onClick={() => { setSearch(''); setFilterCategory(''); setFilterBrand(''); setStockOnly(false); }}
+            <button onClick={() => { setSearch(''); setFilterCategory(''); setFilterBrand(''); setStockOnly(false); setJustArrived(false); }}
               className="text-[11px] text-slate-500 hover:text-white px-2 py-1 transition-colors">Clear ×</button>
           )}
           <span className="text-xs text-slate-600 tabular-nums ml-auto">{rows.length} of {comps.length}</span>
@@ -608,6 +659,7 @@ function ProductsInner() {
                             the row would otherwise overflow. Floor keeps mid
                             screens sane, ceiling stops an absurd column on 4K. */}
                         <span className="text-sm text-slate-100 font-medium truncate max-w-[clamp(20rem,42vw,64rem)]">{descOf(r.c)}</span>
+                        <ArrivalTag a={arrivals[r.c.component_id]} />
                         <SupersededTag succId={successors.get(r.c.component_id)} comps={comps} canHub={canHub} />
                         {r.activity > 0 && <span className="px-1 py-0.5 rounded bg-slate-800 text-[9px] text-slate-500 tabular-nums flex-shrink-0" title={`${r.activity} POs / quotes / orders`}>{r.activity}</span>}
                         {canHub && (
@@ -688,7 +740,10 @@ function ProductsInner() {
                 <button onClick={() => setExpanded(open ? null : r.c.component_id)} className={`w-full text-left ${compact ? 'px-3 py-2' : 'px-3.5 py-3'}`}>
                   <div className="flex items-start gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm text-slate-100 font-medium truncate">{descOf(r.c)}</p>
+                      <p className="text-sm text-slate-100 font-medium truncate flex items-center gap-1.5">
+                        <span className="truncate">{descOf(r.c)}</span>
+                        <ArrivalTag a={arrivals[r.c.component_id]} />
+                      </p>
                       {!compact && (
                         <p className="text-[11px] text-slate-500 truncate">
                           {[r.c.brand, r.c.category ? humanize(r.c.category) : '', r.c.norm_value ? Number(r.c.norm_value).toLocaleString('en-US') : ''].filter(Boolean).join(' · ') || '—'}

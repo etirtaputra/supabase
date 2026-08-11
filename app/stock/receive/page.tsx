@@ -76,18 +76,32 @@ function ReceivePage() {
     if (profile && !ROLE_PERMISSIONS[profile.role].canManageStock) router.replace('/unauthorized');
   }, [authLoading, user, profile, router]);
 
+  // Per-component landed-cost history — every prior receipt's booked cost,
+  // newest first, so the prefilled figure can be checked against what this
+  // item actually landed at before (and picked from, one click).
+  const [costHistory, setCostHistory] = useState<Map<string, { date: string; cost: number; sourceId: string }[]>>(new Map());
+
   const loadReceived = useCallback(async () => {
     const { data: moves, error } = await supabase.from('30.0_stock_movements')
-      .select('component_id, quantity, source_id')
+      .select('component_id, quantity, source_id, unit_cost_idr, moved_at')
       .eq('source_type', 'receipt').eq('direction', 'in');
     if (error) { setSchemaMissing(true); setLedgerLoaded(true); return; }
     const m = new Map<string, number>();
-    for (const r of (moves ?? []) as { component_id: string; quantity: number; source_id: string }[]) {
+    const hist = new Map<string, { date: string; cost: number; sourceId: string }[]>();
+    for (const r of (moves ?? []) as { component_id: string; quantity: number; source_id: string; unit_cost_idr: number | null; moved_at: string | null }[]) {
       if (!r.source_id) continue;
       const k = `${r.source_id}·${r.component_id}`;
       m.set(k, (m.get(k) ?? 0) + (Number(r.quantity) || 0));
+      const cost = Number(r.unit_cost_idr) || 0;
+      if (cost > 0) {
+        const arr = hist.get(r.component_id) ?? [];
+        arr.push({ date: (r.moved_at ?? '').slice(0, 10), cost, sourceId: String(r.source_id) });
+        hist.set(r.component_id, arr);
+      }
     }
+    for (const arr of hist.values()) arr.sort((a, b) => b.date.localeCompare(a.date));
     setReceivedMap(m);
+    setCostHistory(hist);
     setLedgerLoaded(true);
   }, [supabase]);
   useEffect(() => { if (user) loadReceived(); }, [user, loadReceived]);
@@ -194,6 +208,11 @@ function ReceivePage() {
   const setLine = (i: number, patch: Partial<RecLine>) =>
     setLines((ls) => ls.map((l, j) => (j === i ? { ...l, ...patch } : l)));
 
+  // Landed-cost history popover — which line has it open
+  const [histOpen, setHistOpen] = useState<number | null>(null);
+  useEffect(() => { setHistOpen(null); }, [poId]);
+  const poNumById = useMemo(() => new Map(data.pos.map((p) => [String(p.po_id), p.po_number || ''])), [data.pos]);
+
   const receiveNowTotal = lines.reduce((s, l) => s + numOf(l.qty), 0);
   const receiveValue = lines.reduce((s, l) => s + numOf(l.qty) * numOf(l.cost), 0);
 
@@ -255,12 +274,20 @@ function ReceivePage() {
               <p className="text-[11px] text-slate-500">Goods receipt → stock in at landed cost</p>
             </div>
           </div>
-          {selected && (
-            <button onClick={() => { setPoId(''); router.replace('/stock/receive'); }}
-              className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-semibold whitespace-nowrap transition-colors">
-              Change PO
-            </button>
-          )}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* The way back to where this flow usually starts — the deal itself */}
+            <Link href={`/purchasing?tab=lookup${selected?.po_number ? `&q=${encodeURIComponent(selected.po_number)}` : ''}`}
+              className="px-3 py-1.5 rounded-xl border border-slate-700 text-slate-400 hover:text-sky-300 hover:border-sky-500/40 text-xs font-semibold whitespace-nowrap transition-colors"
+              title="Back to Deal Lookup — the PI → PO → payment record">
+              Deal Lookup →
+            </Link>
+            {selected && (
+              <button onClick={() => { setPoId(''); router.replace('/stock/receive'); }}
+                className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-semibold whitespace-nowrap transition-colors">
+                Change PO
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -387,9 +414,38 @@ function ReceivePage() {
                             <input value={l.qty} inputMode="decimal" onChange={(e) => setLine(i, { qty: e.target.value })}
                               className={`${inp} text-right ${over ? 'border-amber-500/60' : ''}`} placeholder="0" />
                           </span>
-                          <span className="flex md:block gap-2">
-                            <input value={l.cost} inputMode="decimal" onChange={(e) => setLine(i, { cost: e.target.value })}
-                              className={`${inp} text-right`} placeholder="IDR/unit" title="Landed unit cost (IDR) — feeds the moving average" />
+                          <span className="flex md:block gap-2 relative">
+                            <span className="relative block w-full">
+                              <input value={l.cost} inputMode="decimal" onChange={(e) => setLine(i, { cost: e.target.value })}
+                                className={`${inp} text-right ${costHistory.get(l.componentId)?.length ? 'pr-7' : ''}`}
+                                placeholder="IDR/unit" title="Landed unit cost (IDR) — feeds the moving average" />
+                              {/* Previous landed costs for THIS item — from the
+                                  ledger's earlier receipts. Click one to use it. */}
+                              {(costHistory.get(l.componentId)?.length ?? 0) > 0 && (
+                                <button type="button" onClick={() => setHistOpen((o) => (o === i ? null : i))}
+                                  title="Previous landed costs for this item"
+                                  className={`absolute right-1.5 top-1/2 -translate-y-1/2 px-0.5 transition-colors ${histOpen === i ? 'text-sky-300' : 'text-slate-600 hover:text-sky-300'}`}>
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                </button>
+                              )}
+                            </span>
+                            {histOpen === i && (
+                              <div className="absolute right-0 top-full mt-1 z-40 w-64 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden">
+                                <p className="px-3 pt-2 pb-1 text-[9px] font-bold uppercase tracking-widest text-slate-500">Previous landed costs</p>
+                                <div className="max-h-48 overflow-y-auto divide-y divide-slate-800/60">
+                                  {costHistory.get(l.componentId)!.slice(0, 6).map((h, hi) => (
+                                    <button key={hi} type="button"
+                                      onClick={() => { setLine(i, { cost: String(Math.round(h.cost)) }); setHistOpen(null); }}
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-slate-800/60 transition-colors">
+                                      <span className="text-[10px] text-slate-500 tabular-nums flex-shrink-0">{fmtDay(h.date)}</span>
+                                      <span className="text-[10px] text-slate-600 truncate flex-1">{poNumById.get(h.sourceId) ? `PO ${poNumById.get(h.sourceId)}` : ''}</span>
+                                      <span className="text-xs font-semibold tabular-nums text-sky-300 flex-shrink-0">{fmtRupiah(h.cost)}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                                <p className="px-3 py-1.5 text-[9px] text-slate-600 border-t border-slate-800">Click to use — booked receipts, newest first</p>
+                              </div>
+                            )}
                           </span>
                           <span className="block text-right tabular-nums text-slate-200 font-medium">{numOf(l.qty) > 0 ? fmtRupiah(numOf(l.qty) * numOf(l.cost)) : '—'}</span>
                         </div>

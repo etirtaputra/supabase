@@ -353,6 +353,10 @@ export default function DealLookupTab({
   const [markingPaid, setMarkingPaid]         = useState<string | null>(null);
   // Intercept "Fully Received" to capture received date before saving
   const [pendingReceived, setPendingReceived] = useState<{ poId: string; date: string } | null>(null);
+  // After a PO is marked (Partially/Fully) Received, prompt the next obvious
+  // step: book the goods into stock — one click, PO pre-selected. Marking the
+  // status records the FACT; receiving writes the on-hand and landed cost.
+  const [receivePrompt, setReceivePrompt] = useState<string | null>(null);
   const [editingReceivedId, setEditingReceivedId] = useState<string | null>(null);
   const [editingReceivedDate, setEditingReceivedDate] = useState('');
   const [editingPoSupplier, setEditingPoSupplier] = useState<string | null>(null);
@@ -1188,7 +1192,10 @@ export default function DealLookupTab({
                                 return;
                               }
                               setUpdatingPo(pKey);
-                              try { await onPoStatusChange(pKey, newStatus); } finally { setUpdatingPo(null); }
+                              try {
+                                await onPoStatusChange(pKey, newStatus);
+                                if (newStatus === 'Partially Received') setReceivePrompt(pKey);
+                              } finally { setUpdatingPo(null); }
                             }}
                             className={`flex-1 text-[11px] font-semibold rounded-lg px-2 py-1 border bg-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 cursor-pointer disabled:opacity-60 ${poBadge(po.status)}`}
                           >
@@ -1223,11 +1230,30 @@ export default function DealLookupTab({
                                     await onPoStatusChange(pKey, 'Fully Received');
                                     if (onUpdatePo) await onUpdatePo(pKey, { actual_received_date: pendingReceived.date });
                                     setPendingReceived(null);
+                                    setReceivePrompt(pKey);
                                   } finally { setUpdatingPo(null); }
                                 }}
                                 className="flex-1 py-1.5 text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-all disabled:opacity-40"
                               >{updatingPo === pKey ? 'Saving…' : 'Confirm'}</button>
                             </div>
+                          </div>
+                        )}
+
+                        {/* The next obvious step, one click away: the status
+                            records the FACT of arrival; RECEIVING writes the
+                            stock and its landed cost. PO pre-selected. */}
+                        {receivePrompt === pKey && (
+                          <div className="rounded-xl border border-sky-500/30 bg-sky-500/5 px-3 py-2.5 flex items-center gap-2.5" onClick={(e) => e.stopPropagation()}>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[11px] font-semibold text-sky-300">Goods marked received — now book them into stock</p>
+                              <p className="text-[10px] text-slate-500 mt-0.5">Receiving writes on-hand and landed cost; until then this PO isn’t in the warehouse.</p>
+                            </div>
+                            <a href={`/stock/receive?po=${encodeURIComponent(pKey)}`}
+                              className="flex-shrink-0 px-2.5 py-1.5 rounded-lg bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30 hover:bg-sky-500/25 text-[11px] font-bold transition-colors whitespace-nowrap">
+                              Receive goods →
+                            </a>
+                            <button onClick={() => setReceivePrompt(null)} title="Dismiss"
+                              className="flex-shrink-0 text-slate-600 hover:text-slate-300 transition-colors text-sm leading-none">×</button>
                           </div>
                         )}
                       </div>
