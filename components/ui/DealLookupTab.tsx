@@ -1903,11 +1903,23 @@ export default function DealLookupTab({
               const shownPos = (activePos.length ? activePos : g.pos).map((p) => p.po_number).filter(Boolean) as string[];
               const quoteName = g.piNumber ?? (g.quotes[0] ? `Q#${g.quotes[0].quote_id}` : null);
               if (shownPos.length > 0) {
+                // Each PO is its OWN chip, so two POs off one quote read as two
+                // separate orders — not a single fused "A · B" label. When the
+                // deal carries several, a count leads and the first few show.
+                const visible = shownPos.slice(0, 3);
                 return (
                   <>
-                    <span className="text-xs font-semibold text-white truncate max-w-[200px] sm:max-w-[320px]" title={shownPos.join(' · ')}>{shownPos.join(' · ')}</span>
+                    {shownPos.length > 1 && (
+                      <span className="text-[11px] font-semibold text-slate-400 flex-shrink-0">{shownPos.length} POs</span>
+                    )}
+                    {visible.map((n) => (
+                      <span key={n} className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-white/10 text-white text-[11px] font-mono font-semibold leading-none flex-shrink-0">{n}</span>
+                    ))}
+                    {shownPos.length > visible.length && (
+                      <span className="text-[11px] text-slate-500 flex-shrink-0">+{shownPos.length - visible.length}</span>
+                    )}
                     <CopyBtn text={shownPos.join(', ')} />
-                    {quoteName && <span className="text-[11px] text-slate-500 truncate max-w-[140px] sm:max-w-[280px]" title={quoteName}>{quoteName}</span>}
+                    {quoteName && <span className="text-[11px] text-slate-500 truncate max-w-[140px] sm:max-w-[260px]" title={`Quote source: ${quoteName}`}>{quoteName}</span>}
                   </>
                 );
               }

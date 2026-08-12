@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-12T14:00:00Z',
+    title: 'Deal Lookup: two POs off one quote read as two separate POs',
+    details: [
+      'When a single quote is ordered across several POs, the deal title now shows each PO as its own chip (e.g. “2 POs · EB.42277 · EB.42278”) with the quote name following — so they read clearly as two separate purchase orders sharing one quote source, not one fused label. The deal is still grouped by its quote, and the individual PO cards inside are unchanged.',
+    ],
+  },
+  {
     at: '2026-08-12T13:00:00Z',
     title: 'Deal Lookup: PO number leads the title; splitting a quote into POs is no longer a “mismatch”',
     details: [
