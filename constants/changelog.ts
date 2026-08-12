@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-12T08:00:00Z',
+    title: 'Item Hub tabs scroll sideways only on phones',
+    details: [
+      'The Item Hub tab row (Overview · Purchases · Sales · …) used to rubber-band up and down on touch. It now scrolls horizontally only, and the header stats sit in a tidy two-column grid on phones.',
+    ],
+  },
+  {
     at: '2026-08-11T16:00:00Z',
     title: 'New Deal (Quote + PO): the stored-quote items are fully editable again',
     details: [

@@ -405,8 +405,9 @@ export default function ItemHubPage() {
                     )}
                   </div>
                 </div>
-                {/* The two prices that matter + live stock */}
-                <div className="flex flex-wrap gap-2.5 flex-shrink-0">
+                {/* The two prices that matter + live stock. On phones a tidy
+                    2-col grid (full width); natural widths from sm up. */}
+                <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2.5 flex-shrink-0">
                   <HeadStat label="Live / Physical" value={<><span className={live < 0 ? 'text-red-400' : live === 0 ? 'text-slate-500' : 'text-emerald-300'}>{fmtInt(live)}</span><span className="text-slate-600">/{fmtInt(physical)}</span>{comp.unit ? <span className="text-[10px] text-slate-600 font-normal"> {comp.unit}</span> : null}</>}
                     sub={reserved > 0 ? `${fmtInt(reserved)} reserved on orders` : 'nothing reserved'} />
                   {canSell && (
@@ -425,8 +426,13 @@ export default function ItemHubPage() {
 
             {/* ── Tabs — no scroll-snap (it eats the left gutter on phones) ── */}
             {/* scrollbar-none: without it the overflow container paints a
-                permanent scrollbar gutter beside the tabs on desktop */}
-            <div className="flex items-center gap-1 border-b border-slate-800/80 overflow-x-auto scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0">
+                permanent scrollbar gutter beside the tabs on desktop.
+                overflow-y-hidden is REQUIRED: overflow-x-auto alone leaves
+                overflow-y computed to `auto`, so the strip rubber-bands
+                vertically on touch — the tabs must scroll horizontally only.
+                overscroll-x-contain stops the horizontal fling from triggering
+                the browser's back-swipe. */}
+            <div className="flex items-center gap-1 border-b border-slate-800/80 overflow-x-auto overflow-y-hidden overscroll-x-contain scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0">
               {tabs.filter((t) => t.show).map((t) => (
                 <button key={t.key} onClick={() => setTab(t.key)}
                   className={`text-xs font-semibold px-3.5 py-2.5 border-b-2 -mb-px whitespace-nowrap transition-colors ${
