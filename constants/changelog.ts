@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-12T10:00:00Z',
+    title: 'New Deal: drag to reorder the line items',
+    details: [
+      'On the New Deal form (Quote only and Quote + PO), each line now has a drag handle — grab it and drop a line where you want it. On phones, ▲▼ buttons on each item card move it up or down. The order you set is the order that lands on the quote and the PO.',
+    ],
+  },
+  {
     at: '2026-08-12T08:00:00Z',
     title: 'Item Hub tabs scroll sideways only on phones',
     details: [

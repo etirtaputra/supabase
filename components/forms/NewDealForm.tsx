@@ -192,6 +192,38 @@ export default function NewDealForm({
     });
   };
 
+  // ── Reorder line items: drag the grip on desktop, ▲▼ on touch. Only rows
+  // with content move; the always-empty trailing row stays put at the end. ──
+  const [dragKey, setDragKey] = useState<string | null>(null);
+  const [overKey, setOverKey] = useState<string | null>(null);
+
+  const reorder = (fromKey: string, toKey: string) => {
+    if (!fromKey || fromKey === toKey) return;
+    setLines((prev) => {
+      const from = prev.findIndex((l) => l.key === fromKey);
+      const to = prev.findIndex((l) => l.key === toKey);
+      if (from < 0 || to < 0 || !hasContent(prev[from]) || !hasContent(prev[to])) return prev;
+      const arr = [...prev];
+      const [moved] = arr.splice(from, 1);
+      arr.splice(arr.findIndex((l) => l.key === toKey), 0, moved);   // insert before the drop target
+      persist(header, arr);
+      return arr;
+    });
+  };
+
+  const nudge = (key: string, dir: -1 | 1) => {
+    setLines((prev) => {
+      const i = prev.findIndex((l) => l.key === key);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= prev.length) return prev;
+      if (!hasContent(prev[i]) || !hasContent(prev[j])) return prev;   // never move the trailing blank
+      const arr = [...prev];
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+      persist(header, arr);
+      return arr;
+    });
+  };
+
   const pickComponent = (key: string, componentId: string | null) => {
     const comp = componentId ? compById.get(String(componentId)) : null;
     setLine(key, {
@@ -283,22 +315,43 @@ export default function NewDealForm({
               same "Items" title desktop and mobile; phones additionally give
               each card an "Item N" header since they have no column row. */}
           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1 pt-2 border-t border-slate-800/80">Items</p>
-          <div className="hidden md:grid grid-cols-[minmax(0,2.2fr)_minmax(0,1.6fr)_70px_110px_84px_100px_24px] gap-2 px-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-            <span>Component</span><span>Supplier description</span>
+          <div className="hidden md:grid grid-cols-[18px_minmax(0,2.2fr)_minmax(0,1.6fr)_70px_110px_84px_100px_24px] gap-2 px-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            <span /><span>Component</span><span>Supplier description</span>
             <span className="text-right">Qty</span><span className="text-right">Unit price</span>
             <span>Curr</span><span className="text-right">Line total</span><span />
           </div>
           {lines.map((l, idx) => {
             const total = (Number(l.quantity) || 0) * (Number(l.unit_price) || 0);
+            const movable = hasContent(l);
             return (
-              <div key={l.key}
-                className="grid grid-cols-6 md:grid-cols-[minmax(0,2.2fr)_minmax(0,1.6fr)_70px_110px_84px_100px_24px] gap-2 items-center bg-slate-950/40 border border-slate-800/60 rounded-xl px-2.5 py-2.5 md:border-0 md:bg-transparent md:px-1 md:py-0">
-                {/* Phones: each card is its own numbered section, ✕ in its header */}
+              <div key={l.key} data-row
+                onDragOver={(e) => { if (dragKey && movable && l.key !== dragKey) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (overKey !== l.key) setOverKey(l.key); } }}
+                onDrop={(e) => { if (!dragKey) return; e.preventDefault(); reorder(dragKey, l.key); setDragKey(null); setOverKey(null); }}
+                className={`grid grid-cols-6 md:grid-cols-[18px_minmax(0,2.2fr)_minmax(0,1.6fr)_70px_110px_84px_100px_24px] gap-2 items-center bg-slate-950/40 border rounded-xl px-2.5 py-2.5 md:bg-transparent md:px-1 md:py-0.5 transition-colors ${
+                  overKey === l.key ? 'border-violet-500/60 md:border-transparent md:ring-1 md:ring-violet-500/50 md:rounded-md' : 'border-slate-800/60 md:border-0'
+                } ${dragKey === l.key ? 'opacity-40' : ''}`}>
+                {/* Drag handle (desktop) — grip; reorders on drop. Blank row: no grip. */}
+                <button type="button" tabIndex={-1} draggable={movable}
+                  onDragStart={(e) => { if (!movable) return; setDragKey(l.key); e.dataTransfer.effectAllowed = 'move'; const row = (e.currentTarget.closest('[data-row]') as HTMLElement | null); if (row) e.dataTransfer.setDragImage(row, 24, 16); }}
+                  onDragEnd={() => { setDragKey(null); setOverKey(null); }}
+                  title={movable ? 'Drag to reorder' : undefined}
+                  className={`hidden md:flex items-center justify-center col-span-1 ${movable ? 'text-slate-600 hover:text-slate-300 cursor-grab active:cursor-grabbing' : 'opacity-0 pointer-events-none'}`}>
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="1.6"/><circle cx="15" cy="5" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="19" r="1.6"/><circle cx="15" cy="19" r="1.6"/></svg>
+                </button>
+                {/* Phones: each card is its own numbered section; ▲▼ reorder + ✕ */}
                 <div className="col-span-6 md:hidden flex items-center justify-between -mb-0.5">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Item {idx + 1}</span>
-                  <button type="button" onClick={() => removeLine(l.key)} tabIndex={-1}
-                    className="text-slate-600 hover:text-red-400 transition-colors text-base leading-none px-1 -mr-1"
-                    title="Remove line">×</button>
+                  <div className="flex items-center gap-0.5">
+                    {movable && <>
+                      <button type="button" onClick={() => nudge(l.key, -1)} tabIndex={-1} title="Move up"
+                        className="text-slate-600 hover:text-slate-200 transition-colors text-xs leading-none px-1.5 py-0.5">▲</button>
+                      <button type="button" onClick={() => nudge(l.key, 1)} tabIndex={-1} title="Move down"
+                        className="text-slate-600 hover:text-slate-200 transition-colors text-xs leading-none px-1.5 py-0.5">▼</button>
+                    </>}
+                    <button type="button" onClick={() => removeLine(l.key)} tabIndex={-1}
+                      className="text-slate-600 hover:text-red-400 transition-colors text-base leading-none px-1 -mr-1"
+                      title="Remove line">×</button>
+                  </div>
                 </div>
                 <div className="col-span-6 md:col-span-1">
                   <RichDropdown options={components} value={l.component_id}
