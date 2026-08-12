@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-11T16:00:00Z',
+    title: 'New Deal (Quote + PO): the stored-quote items are fully editable again',
+    details: [
+      'When you raise a PO from a stored quote, its line items now open in the SAME full editor as a fresh deal — each row is the component picker showing the supplier model SKU (and description), and you can change items, edit the description, add new lines, adjust qty / cost, or remove a line. The old read-only “items going onto the PO” list (checkbox + qty + cost only) is gone.',
+      'The PO gets exactly what the editor shows on save; the stored quote’s own line items are still never rewritten.',
+    ],
+  },
+  {
     at: '2026-08-11T13:00:00Z',
     title: 'Receiving goods flows end-to-end — prompts, tags, cost history',
     details: [

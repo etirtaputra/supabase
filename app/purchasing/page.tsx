@@ -285,16 +285,12 @@ function MasterInsertPage() {
     setWithPo(combo);
     try { localStorage.setItem('purchasing:quote-mode', combo ? 'combo' : 'quote'); } catch {}
   };
-  // Mirrors the form's Stored Quote selection so the page can SHOW the items
-  // that will carry onto the PO before anything is saved.
+  // Mirrors the form's Stored Quote selection so the page can seed the line
+  // editor with the items that will carry onto the PO.
   const [storedQuoteSel, setStoredQuoteSel] = useState('');
   // Set by "Raise its PO →" / Deal Lookup's "+ Create PO": preselects the
   // stored quote in the form and prefills the shared header via defaults.
   const [pendingStoredQuote, setPendingStoredQuote] = useState('');
-  // The stored quote's lines, EDITABLE before the PO exists: untick, change
-  // qty or cost — the PO gets exactly what this list shows. The quote itself
-  // is history and is never rewritten.
-  const [carriedItems, setCarriedItems] = useState<{ component_id: any; label: string; supplier_description: string | null; quantity: string; unit_cost: string; currency: string; include: boolean }[]>([]);
   const startPoForQuote = (quoteId: string) => {
     if (activeTab !== 'quoting') handleTabChange('quoting');   // clears banners first
     setQuoteMode(true);
@@ -307,20 +303,23 @@ function MasterInsertPage() {
       : null);
   };
 
-  useEffect(() => {
-    if (!storedQuoteSel) { setCarriedItems([]); return; }
+  // A stored quote's lines become SEED rows for the form's own line editor —
+  // so raising its PO shows the full editor (component picker with the
+  // supplier model SKU, editable description, add/remove rows), not a
+  // read-only list. The PO gets whatever the editor shows on save; the stored
+  // quote's own line items are never rewritten.
+  const storedQuoteLineSeeds = useMemo<DealLine[] | null>(() => {
+    if (!storedQuoteSel) return null;
     const its = data.quoteItems.filter((qi) => String(qi.quote_id) === String(storedQuoteSel));
-    setCarriedItems(its.map((qi) => {
-      const comp = data.components.find((c) => String(c.component_id) === String(qi.component_id));
-      return {
-        component_id: qi.component_id,
-        label: qi.supplier_description || comp?.supplier_model || comp?.internal_description || '—',
-        supplier_description: qi.supplier_description ?? null,
-        quantity: String(qi.quantity ?? ''), unit_cost: String(qi.unit_price ?? ''),
-        currency: qi.currency, include: true,
-      };
+    if (!its.length) return null;
+    return its.map((qi) => ({
+      ...blankDealLine(qi.currency || ''),
+      component_id: qi.component_id ?? null,
+      supplier_description: qi.supplier_description ?? '',
+      quantity: String(qi.quantity ?? ''),
+      unit_price: String(qi.unit_price ?? ''),
+      currency: qi.currency ?? '',
     }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storedQuoteSel, data.quoteItems]);
 
   // Shared header values of the pending stored quote — SimpleForm fills them
@@ -374,17 +373,13 @@ function MasterInsertPage() {
     let copiedItems: any[] = [];
     if (existing_quote_id) {
       // Quote entered earlier, PO processed today — the stored quote IS the
-      // header. No re-entry: accept it, raise the PO, carry its items across
-      // exactly as the carried-items panel shows. Only PO # and date were typed.
+      // header. No re-entry: accept it and raise the PO with whatever the line
+      // editor now shows (seeded from the quote, freely edited). Only the
+      // stored quote's OWN 4.1 rows are left untouched — it stays history.
       q = data.quotes.find((x) => String(x.quote_id) === String(existing_quote_id));
       if (!q) { showToast('Stored quote not found — refresh and retry.', 'error'); return false; }
       await supabase.from('4.0_price_quotes').update({ status: 'Accepted' }).eq('quote_id', q.quote_id);
-      copiedItems = carriedItems
-        .filter((ci) => ci.include && Number(ci.quantity) > 0)
-        .map((ci) => ({
-          component_id: ci.component_id, supplier_description: ci.supplier_description,
-          quantity: Number(ci.quantity), unit_price: Number(ci.unit_cost) || 0, currency: ci.currency,
-        }));
+      copiedItems = lineRows.filter((r) => Number(r.quantity) > 0);
     } else {
       const qRows = await handleInsert('4.0_price_quotes', quote);
       q = qRows?.[0];
@@ -847,8 +842,7 @@ function MasterInsertPage() {
                       withPo={withPo}
                       components={data.components}
                       currencies={ENUMS.currency}
-                      itemsLocked={withPo && !!storedQuoteSel}
-                      seedLines={pdfLineSeeds}
+                      seedLines={storedQuoteSel ? storedQuoteLineSeeds : pdfLineSeeds}
                       headerAction={pdfHeaderAction('Upload Quote/PI PDF', 'One upload prefills the whole form — header AND line items, components auto-matched.')}
                       onFieldChange={(name, value) => {
                         const o: Record<string, any> = {};
@@ -918,40 +912,10 @@ function MasterInsertPage() {
                       onSubmit={submitDeal}
                       loading={loading}
                     />
-                    {/* The stored quote's lines, visible BEFORE saving — these are
-                        what lands on the PO. Parity with the old PO form's
-                        "Import Quote Items", minus the extra click. */}
                     {withPo && storedQuoteSel && (
-                      <div className="bg-slate-900/40 border border-violet-500/25 rounded-2xl p-4">
-                        <p className="text-[11px] font-bold uppercase tracking-wider text-violet-300/80 mb-2">
-                          Items going onto the PO ({carriedItems.filter((ci) => ci.include).length}/{carriedItems.length})
-                        </p>
-                        {carriedItems.length === 0 ? (
-                          <p className="text-xs text-slate-600 italic">The stored quote has no line items yet — add them in Step 2 and they will land on both documents.</p>
-                        ) : (
-                          <div className="divide-y divide-slate-800/60 rounded-lg border border-slate-800 bg-slate-950/50">
-                            {carriedItems.map((ci, i) => (
-                              <div key={i} className={`flex items-center gap-2.5 px-3 py-1.5 text-[11px] ${ci.include ? '' : 'opacity-40'}`}>
-                                <button type="button" title={ci.include ? 'Exclude from the PO' : 'Include on the PO'}
-                                  onClick={() => setCarriedItems((arr) => arr.map((x, j) => j === i ? { ...x, include: !x.include } : x))}
-                                  className={`w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border transition-colors ${ci.include ? 'bg-violet-600 border-violet-500' : 'border-slate-600'}`}>
-                                  {ci.include && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
-                                </button>
-                                <span className="text-slate-300 truncate flex-1">{ci.label}</span>
-                                <input type="number" min={0} value={ci.quantity} disabled={!ci.include} title="Quantity on the PO"
-                                  onChange={(e) => setCarriedItems((arr) => arr.map((x, j) => j === i ? { ...x, quantity: e.target.value } : x))}
-                                  className="w-16 px-1.5 py-1 rounded bg-slate-950 border border-slate-700 text-right tabular-nums text-white focus:outline-none focus:border-violet-500 disabled:cursor-not-allowed" />
-                                <span className="text-slate-600">×</span>
-                                <input type="number" min={0} value={ci.unit_cost} disabled={!ci.include} title="Unit cost on the PO"
-                                  onChange={(e) => setCarriedItems((arr) => arr.map((x, j) => j === i ? { ...x, unit_cost: e.target.value } : x))}
-                                  className="w-24 px-1.5 py-1 rounded bg-slate-950 border border-slate-700 text-right tabular-nums text-white focus:outline-none focus:border-violet-500 disabled:cursor-not-allowed" />
-                                <span className="text-slate-500 w-8 flex-shrink-0">{ci.currency}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        <p className="text-[10px] text-slate-600 mt-2">Untick a line or adjust qty / cost — the PO gets exactly what is shown here when you save. The stored quote itself is never changed.</p>
-                      </div>
+                      <p className="text-[11px] text-violet-300/70">
+                        These lines are seeded from the stored quote — edit qty / cost, change or add items, remove what you don’t want. The PO gets exactly what the editor shows on save; the stored quote itself is never changed.
+                      </p>
                     )}
                     <p className="text-[11px] text-slate-600">
                       Need to change lines on a document that is already saved? Amend them in{' '}
