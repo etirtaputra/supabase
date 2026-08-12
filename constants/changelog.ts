@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-12T15:00:00Z',
+    title: 'Deal Lookup line items: each section names its PO',
+    details: [
+      'When a quote is split across POs, each Line Items table now carries a header naming its PO (number, date, status, “1 of 2 POs on this quote”), so you can see which items went on which PO.',
+      'A line that belongs to another PO of the same deal now reads “on EB.42278” (dimmed) instead of the misleading “← quote only” — it isn’t missing, it’s just on the other PO. The “+ PO” add button now appears only for items genuinely not ordered on any PO.',
+    ],
+  },
+  {
     at: '2026-08-12T14:00:00Z',
     title: 'Deal Lookup: two POs off one quote read as two separate POs',
     details: [

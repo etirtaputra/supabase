@@ -1562,9 +1562,30 @@ export default function DealLookupTab({
               rows.push({ cid: pi.component_id ?? null, p: pi });
             });
 
+            // Which OTHER active PO of this deal carries a given component —
+            // so a line that is on a sibling PO reads "on EB.42278" instead of
+            // the misleading "quote only" (it IS ordered, just on another PO).
+            const siblingPos = g.pos.filter((p) => String(p.po_id) !== String(po.po_id) && p.status !== 'Cancelled' && p.status !== 'Replaced');
+            const compOnSibling = (cid: string | null): string | null => {
+              if (!cid) return null;
+              for (const sp of siblingPos) {
+                if (poItems.some((i) => String(i.po_id) === String(sp.po_id) && i.component_id === cid)) return sp.po_number || `PO ${sp.po_id}`;
+              }
+              return null;
+            };
+
             return (
               <div key={`cmp-${qt.quote_id}-${po.po_id}`} className="mt-4 pt-3 border-t border-slate-700/40">
-                <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-2">Line Items</p>
+                {/* Each PO's line items sit in their OWN clearly-labelled
+                    section, so a quote split across POs shows which items went
+                    on which PO. */}
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Line Items</span>
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-white/10 text-white text-[11px] font-mono font-semibold leading-none">{po.po_number || `PO ${po.po_id}`}</span>
+                  {po.po_date && <span className="text-[10px] text-slate-500 tabular-nums">{fmtDate(po.po_date)}</span>}
+                  {po.status && <span className={`text-[10px] font-medium ${poColor(po.status)}`}>{po.status}</span>}
+                  {g.pos.length > 1 && <span className="text-[10px] text-slate-600">· 1 of {g.pos.length} POs on this quote</span>}
+                </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs border-collapse">
                     <thead>
@@ -1583,6 +1604,9 @@ export default function DealLookupTab({
                         const priceDiff = !!(row.q && row.p && Number(row.q.unit_price) !== Number(row.p.unit_cost));
                         const onlyQ = !!(row.q && !row.p);
                         const onlyP = !!(!row.q && row.p);
+                        // A "quote only" line that is actually on ANOTHER PO of
+                        // this deal isn't missing — it belongs to that PO.
+                        const onSibling = onlyQ ? compOnSibling(row.cid) : null;
                         const pricePct = priceDiff && row.q && row.p && Number(row.q.unit_price) > 0
                           ? ((Number(row.p.unit_cost) - Number(row.q.unit_price)) / Number(row.q.unit_price)) * 100 : null;
 
@@ -1602,6 +1626,7 @@ export default function DealLookupTab({
                             key={idx}
                             className={`border-b border-slate-800/40 last:border-0 group ${
                               activeEdit ? 'bg-blue-500/5' :
+                              onSibling ? 'opacity-45' :                     // ordered on another PO — dim, not flagged
                               onlyQ ? 'bg-sky-500/5' : onlyP ? 'bg-emerald-500/5' :
                               (qtyDiff || priceDiff) ? 'bg-amber-500/5' : ''
                             }`}
@@ -1634,9 +1659,13 @@ export default function DealLookupTab({
                                     </p>
                                   )}
                                   {(onlyQ || onlyP) && !activeEdit && (
-                                    <span className={`text-[10px] font-semibold ${onlyQ ? 'text-sky-400' : 'text-emerald-400'}`}>
-                                      {onlyQ ? '← quote only' : '→ PO only'}
-                                    </span>
+                                    onSibling ? (
+                                      <span className="text-[10px] font-semibold text-slate-500">on {onSibling}</span>
+                                    ) : (
+                                      <span className={`text-[10px] font-semibold ${onlyQ ? 'text-sky-400' : 'text-emerald-400'}`}>
+                                        {onlyQ ? '← quote only' : '→ PO only'}
+                                      </span>
+                                    )
                                   )}
                                   {activeEdit && (
                                     <button
@@ -1823,8 +1852,9 @@ export default function DealLookupTab({
                                       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                                     </button>
                                   )}
-                                  {/* Add to PO — for onlyQ rows */}
-                                  {onlyQ && onAddPoLineItem && !activeEdit && (
+                                  {/* Add to PO — only for GENUINELY unordered quote
+                                      rows (not ones already on a sibling PO) */}
+                                  {onlyQ && !onSibling && onAddPoLineItem && !activeEdit && (
                                     <button
                                       title="Add this item to PO"
                                       className="opacity-0 group-hover:opacity-100 flex-shrink-0 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded transition-all"
