@@ -274,6 +274,58 @@ function detectMismatches(
   return out;
 }
 
+// ── Group-level mismatch: the quote vs the UNION of its POs ───────────────────
+// A quote is often split into several POs (order part now, part later, or by
+// container). Checking each PO against the WHOLE quote falsely flags every
+// split, because each PO is "missing" the other PO's lines. Aggregate instead:
+// sum PO quantities across all active POs, then a mismatch is only a genuine
+// discrepancy — a component on a PO that was never quoted, MORE ordered than
+// quoted, or the same component quoted twice. Ordering LESS than quoted
+// (a partial / not-yet-complete order) is normal and never flagged.
+function detectGroupMismatches(
+  g: DealGroup,
+  quoteItems: PriceQuoteLineItem[],
+  poItems: PurchaseLineItem[],
+  components: Component[],
+): MismatchItem[] {
+  const activePos = g.pos.filter((p) => p.status !== 'Cancelled' && p.status !== 'Replaced');
+  const liveQuotes = g.quotes.filter((q) => !['Replaced', 'Rejected', 'Expired'].includes(q.status ?? ''));
+  if (liveQuotes.length === 0 || activePos.length === 0) return [];   // need both sides to compare
+
+  const compName = (cid: string) => {
+    const c = components.find((x) => x.component_id === cid);
+    return c?.supplier_model ?? c?.internal_description ?? '(unknown)';
+  };
+  const quoteIds = new Set(liveQuotes.map((q) => String(q.quote_id)));
+  const poIds = new Set(activePos.map((p) => String(p.po_id)));
+  const qItems = quoteItems.filter((i) => quoteIds.has(String(i.quote_id)) && i.component_id);
+  const pItems = poItems.filter((i) => poIds.has(String(i.po_id)) && i.component_id);
+
+  const qQty = new Map<string, number>();
+  for (const i of qItems) qQty.set(i.component_id!, (qQty.get(i.component_id!) ?? 0) + Number(i.quantity));
+  const pQty = new Map<string, number>();
+  for (const i of pItems) pQty.set(i.component_id!, (pQty.get(i.component_id!) ?? 0) + Number(i.quantity));
+
+  // Duplicate = a component on 2+ lines within a SINGLE quote.
+  const dup = new Set<string>();
+  for (const q of liveQuotes) {
+    const per = new Map<string, number>();
+    for (const i of qItems) if (String(i.quote_id) === String(q.quote_id)) per.set(i.component_id!, (per.get(i.component_id!) ?? 0) + 1);
+    for (const [cid, n] of per) if (n > 1) dup.add(cid);
+  }
+
+  const out: MismatchItem[] = [];
+  for (const cid of dup) out.push({ type: 'duplicate_in_quote', componentId: cid, componentName: compName(cid), detail: 'On more than one line in a quote — possible wrong component association' });
+  qQty.forEach((qty, cid) => {
+    const p = pQty.get(cid);
+    if (p !== undefined && p > qty + 1e-6) out.push({ type: 'qty_diff', componentId: cid, componentName: compName(cid), detail: `POs total ${p} — more than the quoted ${qty}` });
+  });
+  pQty.forEach((qty, cid) => {
+    if (!qQty.has(cid)) out.push({ type: 'only_in_po', componentId: cid, componentName: compName(cid), detail: `PO qty ${qty} — not on the linked quote` });
+  });
+  return out;
+}
+
 // ── Deal stage (module-level so useMemos can reference it) ────────────────────
 
 function dealStage(g: DealGroup): 'quote' | 'active' | 'received' | 'completed' | 'superseded' {
@@ -452,29 +504,17 @@ export default function DealLookupTab({
   }, [allGroups]);
 
   // ── Groups with quote↔PO mismatches ──────────────────────────────────────
-  // Skips: replaced/cancelled POs, replaced/rejected/expired quotes,
-  //        POs whose mismatch has been individually acknowledged.
-  const SUPERSEDED_PO_STATUSES     = new Set(['Replaced', 'Cancelled']);
-  const SUPERSEDED_QUOTE_STATUSES  = new Set(['Replaced', 'Rejected', 'Expired']);
+  // Group-level: the quote vs the UNION of all its active POs, so a quote
+  // legitimately split across several POs is not flagged (see
+  // detectGroupMismatches). Dismissed deals are skipped.
   const mismatchGroupIds = useMemo(() => {
     const ids = new Set<string>();
     allGroups.forEach((g) => {
       if (acknowledgedDealMismatches.has(g.key)) return; // dismissed by user
-      for (const po of g.pos) {
-        if (!po.quote_id) continue;
-        if (SUPERSEDED_PO_STATUSES.has(po.status ?? '')) continue;
-        const linkedQuote = g.quotes.find((q) => String(q.quote_id) === String(po.quote_id));
-        if (linkedQuote && SUPERSEDED_QUOTE_STATUSES.has(linkedQuote.status ?? '')) continue;
-        if (acknowledgedMismatches.has(String(po.po_id))) continue;
-        if (detectMismatches(po.quote_id, po.po_id, quoteItems, poItems, components).length > 0) {
-          ids.add(g.key);
-          break;
-        }
-      }
+      if (detectGroupMismatches(g, quoteItems, poItems, components).length > 0) ids.add(g.key);
     });
     return ids;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allGroups, quoteItems, poItems, components, acknowledgedMismatches, acknowledgedDealMismatches]);
+  }, [allGroups, quoteItems, poItems, components, acknowledgedDealMismatches]);
 
   // ── All-mode filtered list (respects stageFilter + filterMismatch) ────────
   const filtered = useMemo(() => {
@@ -1854,11 +1894,30 @@ export default function DealLookupTab({
               </span>
             )}
 
-            {/* PI number or fallback + copy */}
-            <span className="text-xs font-semibold text-white">
-              {g.piNumber ?? (g.quotes[0] ? `Q#${g.quotes[0].quote_id}` : `PO#${g.pos[0]?.po_number ?? g.key}`)}
-            </span>
-            <CopyBtn text={g.piNumber ?? g.pos[0]?.po_number ?? g.key} />
+            {/* Title: once a deal reaches PO, the PO NUMBER leads (that is what
+                the warehouse and finance quote back); the quote name follows,
+                dimmer. Quote-only deals lead with the quote name (there is no
+                PO yet — the "Create PO" button sits at the end of the row). */}
+            {(() => {
+              const activePos = g.pos.filter((p) => p.status !== 'Replaced' && p.status !== 'Cancelled');
+              const shownPos = (activePos.length ? activePos : g.pos).map((p) => p.po_number).filter(Boolean) as string[];
+              const quoteName = g.piNumber ?? (g.quotes[0] ? `Q#${g.quotes[0].quote_id}` : null);
+              if (shownPos.length > 0) {
+                return (
+                  <>
+                    <span className="text-xs font-semibold text-white truncate max-w-[200px] sm:max-w-[320px]" title={shownPos.join(' · ')}>{shownPos.join(' · ')}</span>
+                    <CopyBtn text={shownPos.join(', ')} />
+                    {quoteName && <span className="text-[11px] text-slate-500 truncate max-w-[140px] sm:max-w-[280px]" title={quoteName}>{quoteName}</span>}
+                  </>
+                );
+              }
+              return (
+                <>
+                  <span className="text-xs font-semibold text-white truncate max-w-[240px] sm:max-w-[360px]" title={quoteName ?? undefined}>{quoteName ?? `PO#${g.key}`}</span>
+                  <CopyBtn text={quoteName ?? g.key} />
+                </>
+              );
+            })()}
 
             {/* Quote status — inline text, no pill */}
             {g.quoteStatus && (

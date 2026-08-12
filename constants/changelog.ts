@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-12T13:00:00Z',
+    title: 'Deal Lookup: PO number leads the title; splitting a quote into POs is no longer a “mismatch”',
+    details: [
+      'Once a deal reaches a PO, the deal title now leads with the PO number(s) — what the warehouse and finance quote back — with the quote name following in a dimmer tone. Quote-only deals (no PO yet) still lead with the quote name and keep their “+ Create PO” button.',
+      'The “⚠ Mismatch” warning was firing whenever one quote was ordered across several POs, because each PO was checked against the whole quote and looked “incomplete”. It now compares the quote against ALL of its POs together — a quote split into two POs that add up is correct, not a mismatch. It still flags real problems: a component on a PO that was never quoted, more ordered than quoted, or a component duplicated on a quote. Ordering only part of a quote (a partial or in-progress order) is normal and no longer warns.',
+    ],
+  },
+  {
     at: '2026-08-12T10:00:00Z',
     title: 'New Deal: drag to reorder the line items',
     details: [
