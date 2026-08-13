@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-14T00:15:00Z',
+    title: 'Fix: Settings › Layout now actually changes the lists',
+    details: [
+      'Changing the house default to Card did nothing on lists whose Compact/Card toggle had ever been clicked — each click silently pinned that list on that device forever (even clicking the option that was already active), and nothing could un-pin it.',
+      'A per-list flip now lasts until the house default is next changed: flip Sales to Card and it stays Card on your device, but when the owner changes Settings › Layout, every list follows the new default again. Picking the option that matches the house default simply un-pins the list.',
+      'Old permanent pins are cleared automatically the first time each list is opened — no action needed; your Card default now applies everywhere.',
+    ],
+  },
+  {
     at: '2026-08-13T23:15:00Z',
     title: 'Item Editor: filter items by vendor / supplier',
     details: [

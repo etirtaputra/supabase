@@ -462,7 +462,8 @@ function ListsTab({ draft, set }: { draft: AppSettings; set: <K extends keyof Ap
           <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Layout</p>
           <p className="text-[11px] text-slate-500 mt-1 leading-snug">
             How every list opens — Sales, Customers, Invoices, Delivery, Banks, Proposals, Deal Lookup.
-            Anyone can flip a single list without changing this; that choice is remembered on their device only.
+            Anyone can flip a single list without changing this; that choice is remembered on their device only,
+            and it lasts until this default is next changed — changing it here applies everywhere again.
           </p>
         </div>
         <div className="grid sm:grid-cols-2 gap-3 max-w-2xl">
