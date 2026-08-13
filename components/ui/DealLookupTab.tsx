@@ -351,6 +351,9 @@ interface Props {
   onQuoteStatusChange?: (quoteId: string, status: string) => Promise<void>;
   onPoStatusChange?: (poId: string, status: string) => Promise<void>;
   onUpdatePo?: (poId: string, changes: Partial<PurchaseOrder>) => Promise<void>;
+  /** Update a quote header. `pi_number` cascades to its POs; `replaces_quote_id`
+   *  also marks the target quote Replaced. The page owns that logic. */
+  onUpdateQuote?: (quoteId: string, changes: Record<string, any>) => Promise<void>;
   onMarkFullyPaid?: (poId: string, amount: number, currency: string) => Promise<void>;
   onCreatePO?: (quoteId: string) => void;
   /** Load this PO into the New Deal form to amend, split, or supersede it. */
@@ -376,7 +379,7 @@ interface Props {
 export default function DealLookupTab({
   quotes, quoteItems, pos, poItems, poCosts,
   suppliers, companies, components,
-  onQuoteStatusChange, onPoStatusChange, onUpdatePo, onMarkFullyPaid, onCreatePO, onRevisePo, onDeletePo, onDeleteDeal,
+  onQuoteStatusChange, onPoStatusChange, onUpdatePo, onUpdateQuote, onMarkFullyPaid, onCreatePO, onRevisePo, onDeletePo, onDeleteDeal,
   onUpdateQuoteItem, onUpdatePoItem,
   onUpdateQuoteLineItem, onUpdatePoLineItem,
   onAddPoLineItem, onAddQuoteLineItem,
@@ -424,6 +427,12 @@ export default function DealLookupTab({
   const [editingReceivedDate, setEditingReceivedDate] = useState('');
   const [editingPoSupplier, setEditingPoSupplier] = useState<string | null>(null);
   const [editingPoCompany, setEditingPoCompany]   = useState<string | null>(null);
+  // Inline rename (PO number / PI number) and "this quote replaces that one".
+  const [editingPoNumber, setEditingPoNumber]     = useState<string | null>(null);
+  const [editingPi, setEditingPi]                 = useState<string | null>(null);
+  const [editingQuoteReplaces, setEditingQuoteReplaces] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft]             = useState('');
+  const [renameBusy, setRenameBusy]               = useState(false);
   const [acknowledgedMismatches, setAcknowledgedMismatches] = useState<Set<string>>(new Set());
   const acknowledgeMismatch = (key: string) => setAcknowledgedMismatches((prev) => new Set([...prev, key]));
   const [acknowledgedDealMismatches, setAcknowledgedDealMismatches] = useState<Set<string>>(() => {
@@ -669,19 +678,41 @@ export default function DealLookupTab({
                 const items = quoteItems.filter((i) => String(i.quote_id) === qKey);
                 const sup   = suppliers.find((s) => s.supplier_id === qt.supplier_id);
                 const co    = companies.find((c) => c.company_id === qt.company_id);
+                // Quote replacement lineage (mirrors the PO cards).
+                const qReplacesId  = (qt as any).replaces_quote_id;
+                const qRevisionOf  = qReplacesId ? quotes.find((x) => String(x.quote_id) === String(qReplacesId)) : null;
+                const qSupersededBy = quotes.filter((x) => String((x as any).replaces_quote_id ?? '') === qKey);
+                const qLabel = (q: any) => q.pi_number || `Q#${q.quote_id}`;
                 return (
                   <div key={qKey} className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-2">
                     {/* Quote meta */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-1.5 text-xs">
                       {/* The PI number IS the quote's reference — copyable here
                           so it can be pasted into an email without retyping. */}
-                      {qt.pi_number && (
+                      {(qt.pi_number || onUpdateQuote) && (
                         <div>
                           <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">PI #</p>
-                          <p className="text-slate-300 mt-0.5 inline-flex items-center gap-1">
-                            <span className="font-mono">{qt.pi_number}</span>
-                            <CopyBtn text={qt.pi_number} />
-                          </p>
+                          {editingPi === qKey ? (
+                            <div className="flex items-center gap-1 mt-0.5" onClick={(e) => e.stopPropagation()}>
+                              <input autoFocus value={renameDraft} onChange={(e) => setRenameDraft(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === 'Escape') setEditingPi(null); if (e.key === 'Enter') (e.currentTarget.nextElementSibling as HTMLButtonElement)?.click(); }}
+                                placeholder="PI / quote reference" className="w-40 text-xs rounded px-1.5 py-0.5 bg-slate-900 border border-sky-500/40 text-white focus:outline-none" />
+                              <button disabled={renameBusy} title="Save — also renames the PI on this deal's POs"
+                                onClick={async (e) => { e.stopPropagation(); const v = renameDraft.trim(); if (v !== (qt.pi_number ?? '') && onUpdateQuote) { setRenameBusy(true); try { await onUpdateQuote(qKey, { pi_number: v || null }); } finally { setRenameBusy(false); } } setEditingPi(null); }}
+                                className="text-emerald-400 hover:text-emerald-300 disabled:opacity-40 p-0.5"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg></button>
+                              <button onClick={(e) => { e.stopPropagation(); setEditingPi(null); }} className="text-slate-500 hover:text-slate-300 p-0.5"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+                            </div>
+                          ) : (
+                            <p className="text-slate-300 mt-0.5 inline-flex items-center gap-1">
+                              {onUpdateQuote ? (
+                                <button onClick={(e) => { e.stopPropagation(); setRenameDraft(qt.pi_number ?? ''); setEditingPi(qKey); }}
+                                  className="font-mono hover:text-sky-300 transition-colors text-left" title="Click to rename this PI / quote reference (updates its POs too)">
+                                  {qt.pi_number || <span className="text-slate-600 italic font-sans">Set PI #…</span>}
+                                </button>
+                              ) : <span className="font-mono">{qt.pi_number}</span>}
+                              {qt.pi_number && <CopyBtn text={qt.pi_number} />}
+                            </p>
+                          )}
                         </div>
                       )}
                       {[
@@ -698,6 +729,38 @@ export default function DealLookupTab({
                         </div>
                       ) : null)}
                     </div>
+
+                    {/* Replacement lineage + one-click "this quote replaces that one" */}
+                    {(qRevisionOf || qSupersededBy.length > 0 || onUpdateQuote) && (
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]" onClick={(e) => e.stopPropagation()}>
+                        {editingQuoteReplaces === qKey && onUpdateQuote ? (
+                          <span className="inline-flex items-center gap-1">
+                            <span className="text-slate-500">Replaces</span>
+                            <select autoFocus defaultValue={qReplacesId ?? ''} disabled={renameBusy}
+                              onChange={async (e) => { const val = e.target.value || null; setRenameBusy(true); try { await onUpdateQuote(qKey, { replaces_quote_id: val }); } finally { setRenameBusy(false); setEditingQuoteReplaces(null); } }}
+                              className="text-[11px] rounded px-1.5 py-0.5 bg-slate-900 border border-sky-500/40 text-white focus:outline-none max-w-[220px]">
+                              <option value="">— replaces nothing —</option>
+                              {quotes.filter((x) => String(x.quote_id) !== qKey).map((x) => (
+                                <option key={x.quote_id} value={x.quote_id}>{qLabel(x)}{x.quote_date ? ` · ${x.quote_date}` : ''}</option>
+                              ))}
+                            </select>
+                            <button onClick={(e) => { e.stopPropagation(); setEditingQuoteReplaces(null); }} className="text-slate-500 hover:text-slate-300">✕</button>
+                          </span>
+                        ) : (
+                          <>
+                            {qRevisionOf && <span className="text-slate-500">↩ Revision of <span className="text-slate-300 font-medium">{qLabel(qRevisionOf)}</span></span>}
+                            {qSupersededBy.length > 0 && <span className="text-amber-400/90">⤷ Replaced by <span className="font-medium">{qSupersededBy.map(qLabel).join(', ')}</span></span>}
+                            {onUpdateQuote && (
+                              <button onClick={(e) => { e.stopPropagation(); setEditingQuoteReplaces(qKey); }}
+                                className="text-slate-500 hover:text-sky-300 underline underline-offset-2"
+                                title="Mark this quote as replacing an earlier one — the old quote is set to Replaced and linked">
+                                {qRevisionOf ? 'change' : '+ mark as replacing a quote'}
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
 
                     {/* Quote document link */}
                     {qt.document_url && (
@@ -957,13 +1020,30 @@ export default function DealLookupTab({
                   <div key={pKey} className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-2">
                     {/* PO meta */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-1.5 text-xs">
-                      {po.po_number && (
+                      {(po.po_number || onUpdatePo) && (
                         <div key="PO #">
                           <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">PO #</p>
-                          <div className="flex items-center gap-1 mt-0.5">
-                            <p className="text-slate-300">{po.po_number}</p>
-                            <CopyBtn text={po.po_number} />
-                          </div>
+                          {editingPoNumber === pKey ? (
+                            <div className="flex items-center gap-1 mt-0.5" onClick={(e) => e.stopPropagation()}>
+                              <input autoFocus value={renameDraft} onChange={(e) => setRenameDraft(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === 'Escape') setEditingPoNumber(null); if (e.key === 'Enter') (e.currentTarget.nextElementSibling as HTMLButtonElement)?.click(); }}
+                                placeholder="PO number" className="w-28 text-xs rounded px-1.5 py-0.5 bg-slate-900 border border-sky-500/40 text-white focus:outline-none" />
+                              <button disabled={renameBusy} title="Save"
+                                onClick={async (e) => { e.stopPropagation(); const v = renameDraft.trim(); if (v && v !== po.po_number && onUpdatePo) { setRenameBusy(true); try { await onUpdatePo(pKey, { po_number: v }); } finally { setRenameBusy(false); } } setEditingPoNumber(null); }}
+                                className="text-emerald-400 hover:text-emerald-300 disabled:opacity-40 p-0.5"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg></button>
+                              <button onClick={(e) => { e.stopPropagation(); setEditingPoNumber(null); }} className="text-slate-500 hover:text-slate-300 p-0.5"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1 mt-0.5">
+                              {onUpdatePo ? (
+                                <button onClick={(e) => { e.stopPropagation(); setRenameDraft(po.po_number ?? ''); setEditingPoNumber(pKey); }}
+                                  className="text-slate-300 hover:text-sky-300 transition-colors text-left" title="Click to rename the PO number">
+                                  {po.po_number || <span className="text-slate-600 italic">Set PO #…</span>}
+                                </button>
+                              ) : <p className="text-slate-300">{po.po_number}</p>}
+                              {po.po_number && <CopyBtn text={po.po_number} />}
+                            </div>
+                          )}
                         </div>
                       )}
                       {(revisionOf || supersededBy.length > 0) && (

@@ -150,7 +150,47 @@ function MasterInsertPage() {
   };
 
   const handleUpdatePo = async (poId: string, changes: Record<string, any>) => {
+    // PO number is UNIQUE — catch a clash with a friendly message before Postgres does.
+    if (changes.po_number != null) {
+      const taken = data.pos.some((p) => String(p.po_id) !== String(poId) && (p.po_number ?? '').trim() === String(changes.po_number).trim());
+      if (taken) { showToast(`PO number "${changes.po_number}" is already used by another PO.`, 'error'); throw new Error('duplicate po_number'); }
+    }
     const { error } = await supabase.from('5.0_purchases').update(changes).eq('po_id', poId);
+    if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
+    if (changes.po_number != null) showToast(`Renamed to ${changes.po_number}.`, 'success');
+    refetch();
+  };
+
+  // Quote header edits from Deal Lookup. Renaming the PI cascades to the deal's
+  // POs (they carry a denormalized pi_number, and the deal groups by it, so they
+  // must move together). Linking a replacement also marks the old quote Replaced.
+  const handleUpdateQuote = async (quoteId: string, changes: Record<string, any>) => {
+    if ('replaces_quote_id' in changes) {
+      const target = changes.replaces_quote_id || null;
+      if (target && String(target) === String(quoteId)) { showToast('A quote cannot replace itself.', 'error'); throw new Error('self-replace'); }
+      const { error } = await supabase.from('4.0_price_quotes').update({ replaces_quote_id: target }).eq('quote_id', quoteId);
+      if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
+      if (target) {
+        await supabase.from('4.0_price_quotes').update({ status: 'Replaced' }).eq('quote_id', target);
+        const oldPi = data.quotes.find((q) => String(q.quote_id) === String(target))?.pi_number;
+        showToast(oldPi ? `Linked — ${oldPi} marked Replaced.` : 'Replacement linked.', 'success');
+      } else {
+        showToast('Replacement link cleared.', 'success');
+      }
+      refetch();
+      return;
+    }
+    if ('pi_number' in changes) {
+      const pi = changes.pi_number || null;
+      const { error } = await supabase.from('4.0_price_quotes').update({ pi_number: pi }).eq('quote_id', quoteId);
+      if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
+      // Keep the deal coherent: the POs raised from this quote carry the same PI.
+      await supabase.from('5.0_purchases').update({ pi_number: pi }).eq('quote_id', quoteId);
+      showToast(pi ? `PI renamed to ${pi}.` : 'PI reference cleared.', 'success');
+      refetch();
+      return;
+    }
+    const { error } = await supabase.from('4.0_price_quotes').update(changes).eq('quote_id', quoteId);
     if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
     refetch();
   };
@@ -1503,6 +1543,7 @@ function MasterInsertPage() {
                   onQuoteStatusChange={handleQuoteStatusChange}
                   onPoStatusChange={handleStatusChange}
                   onUpdatePo={handleUpdatePo}
+                  onUpdateQuote={handleUpdateQuote}
                   onMarkFullyPaid={handleMarkFullyPaid}
                   onCreatePO={(quoteId) => startPoForQuote(quoteId)}
                   onRevisePo={(poId) => startRevisionForPo(poId)}

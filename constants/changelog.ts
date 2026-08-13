@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-13T22:30:00Z',
+    title: 'Rename PO / PI numbers and link quote revisions in Deal Lookup',
+    details: [
+      'Click a PO number in Deal Lookup to rename it in place (guarded against clashing with an existing PO number).',
+      'Click a PI / quote reference to rename it — and it updates the POs raised from that quote too, so the deal stays grouped under the new reference.',
+      'Quotes now show their revision lineage like POs do (“↩ Revision of …” / “⤷ Replaced by …”), and a “+ mark as replacing a quote” link lets you point a quote at the one it supersedes right from Deal Lookup — the old quote is set to Replaced and linked, no need to open the New Deal form.',
+    ],
+  },
+  {
     at: '2026-08-13T21:30:00Z',
     title: 'Delete redundant deals and POs from Deal Lookup',
     details: [
