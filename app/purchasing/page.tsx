@@ -1037,6 +1037,7 @@ function MasterInsertPage() {
                     quotes={data.quotes}
                     pos={data.pos}
                     poItems={data.poItems}
+                    suppliers={data.suppliers}
                     poCosts={data.poCosts}
                     componentHistory={data.componentHistory}
                     competitorPrices={data.competitorPrices}

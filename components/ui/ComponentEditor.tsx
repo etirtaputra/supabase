@@ -52,6 +52,8 @@ interface ComponentEditorProps {
   quotes?: PriceQuote[];
   pos?: PurchaseOrder[];
   poItems?: PurchaseLineItem[];
+  /** For the vendor/supplier filter — resolves each item's quotes/POs to a name. */
+  suppliers?: { supplier_id: string; supplier_name?: string; supplier_code?: string }[];
   onSave: (updates: { component_id: string; changes: Partial<Component> }[]) => Promise<void>;
   onAdd?: (fields: Omit<Component, 'component_id' | 'created_at' | 'updated_at'>) => Promise<void>;
   onAddSupplier?: () => void;
@@ -664,13 +666,14 @@ const linkMetaFor = (link: any, inspectId: string | null): { label: string; colo
 // --- Main Component Editor ---
 const EMPTY_ADD = { supplier_model: '', internal_description: '', brand: '', category: '', unit: '', specifications: '', datasheet_url: '', norm_value: '' };
 
-export default function ComponentEditor({ components, brandSuggestions, initialSearch = '', quoteItems = [], quotes = [], pos = [], poItems = [], poCosts = [], componentHistory, competitorPrices, onSave, onAdd, onAddSupplier, onDelete, onSaveLineItem, onDeleteLineItem, onDeleteCompetitorPrice, onUpdateCompetitorPrice, componentLinks, onAddComponentLink, onDeleteComponentLink }: ComponentEditorProps) {
+export default function ComponentEditor({ components, brandSuggestions, initialSearch = '', quoteItems = [], quotes = [], pos = [], poItems = [], suppliers = [], poCosts = [], componentHistory, competitorPrices, onSave, onAdd, onAddSupplier, onDelete, onSaveLineItem, onDeleteLineItem, onDeleteCompetitorPrice, onUpdateCompetitorPrice, componentLinks, onAddComponentLink, onDeleteComponentLink }: ComponentEditorProps) {
   const [searchInput, setSearchInput] = useState(initialSearch);
   const [search, setSearch] = useState(initialSearch);
   const [filterBrand, setFilterBrand] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterPI, setFilterPI] = useState('');
   const [filterPO, setFilterPO] = useState('');
+  const [filterSupplier, setFilterSupplier] = useState('');
   const [filterUnused, setFilterUnused] = useState(false);
   const [filterReorder, setFilterReorder] = useState(false);   // at/below reorder point
   const [filterDuplicates, setFilterDuplicates] = useState(false);
@@ -723,6 +726,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
         if (f.filterCategory) setFilterCategory(f.filterCategory);
         if (f.filterPI) setFilterPI(f.filterPI);
         if (f.filterPO) setFilterPO(f.filterPO);
+        if (f.filterSupplier) setFilterSupplier(f.filterSupplier);
         if (f.filterUnused) setFilterUnused(f.filterUnused);
         if (f.filterReorder) setFilterReorder(f.filterReorder);
         if (f.filterDuplicates) setFilterDuplicates(f.filterDuplicates);
@@ -742,10 +746,10 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
   useEffect(() => {
     try {
       localStorage.setItem('componentEditor_filters', JSON.stringify({
-        searchInput, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterReorder, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs, filterHasLeadTime, filterHasCashCycle, filterLowMargin, marginThreshold, filterBelowMarket,
+        searchInput, filterBrand, filterCategory, filterPI, filterPO, filterSupplier, filterUnused, filterReorder, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs, filterHasLeadTime, filterHasCashCycle, filterLowMargin, marginThreshold, filterBelowMarket,
       }));
     } catch {}
-  }, [searchInput, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterReorder, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs, filterHasLeadTime, filterHasCashCycle, filterLowMargin, marginThreshold, filterBelowMarket]);
+  }, [searchInput, filterBrand, filterCategory, filterPI, filterPO, filterSupplier, filterUnused, filterReorder, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs, filterHasLeadTime, filterHasCashCycle, filterLowMargin, marginThreshold, filterBelowMarket]);
 
   // ── Persist column visibility ─────────────────────────────────────────────
   useEffect(() => {
@@ -938,6 +942,38 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
     });
     return map;
   }, [quoteItems, quotes, pos]);
+
+  // Which vendors each item is linked to — via the supplier quotes that list it
+  // AND the POs that ordered it. Most POs carry no supplier of their own (it
+  // lives on the linked quote), so resolve that the way the deal pickers do.
+  const supplierNameById = useMemo(
+    () => new Map((suppliers ?? []).map((s) => [String(s.supplier_id), (s.supplier_name || s.supplier_code || '').trim()])),
+    [suppliers]);
+  const supplierNamesByComponent = useMemo(() => {
+    const quoteSupplier = new Map<number, string>();
+    quotes.forEach((q) => { const n = supplierNameById.get(String(q.supplier_id)); if (n) quoteSupplier.set(q.quote_id, n); });
+    const poSupplier = new Map<number, string>();
+    pos.forEach((po) => {
+      const direct = (po as any).supplier_id ? supplierNameById.get(String((po as any).supplier_id)) : '';
+      const viaQuote = po.quote_id != null ? quoteSupplier.get(po.quote_id) : '';
+      const n = direct || viaQuote;
+      if (n) poSupplier.set(po.po_id, n);
+    });
+    const m = new Map<string, Set<string>>();
+    const add = (cid: string | null | undefined, name: string | undefined) => {
+      if (!cid || !name) return;
+      if (!m.has(String(cid))) m.set(String(cid), new Set());
+      m.get(String(cid))!.add(name);
+    };
+    quoteItems.forEach((it) => add(it.component_id, quoteSupplier.get(it.quote_id)));
+    poItems.forEach((it) => add(it.component_id, poSupplier.get(it.po_id)));
+    return m;
+  }, [quotes, pos, quoteItems, poItems, supplierNameById]);
+  const uniqueSuppliers = useMemo(() => {
+    const s = new Set<string>();
+    supplierNamesByComponent.forEach((set) => set.forEach((n) => s.add(n)));
+    return [...s].sort((a, b) => a.localeCompare(b));
+  }, [supplierNamesByComponent]);
 
   // ── Tooltip quote lines + last quoted price (single pass over quoteItems) ───
   const { quoteLinesByComponent, lastQuoteByComponent, sparklineLinesByComponent } = useMemo(() => {
@@ -1193,6 +1229,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
     if (filterCategory) result = result.filter((c) => c.category === filterCategory);
     if (filterPI) result = result.filter((c) => usageMap.get(String(c.component_id))?.piNumbers.includes(filterPI));
     if (filterPO) result = result.filter((c) => usageMap.get(String(c.component_id))?.poNumbers.includes(filterPO));
+    if (filterSupplier) result = result.filter((c) => supplierNamesByComponent.get(String(c.component_id))?.has(filterSupplier));
     if (filterUnused) result = result.filter((c) =>
       !usageMap.has(String(c.component_id)) &&
       !lastPoByComponent.has(c.component_id) &&
@@ -1262,7 +1299,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
       const bv = ((b[sortCol as keyof Component] as string) || '').toLowerCase();
       return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
     });
-  }, [components, search, filterBrand, filterCategory, filterPI, filterPO, filterUnused, filterReorder, filterDuplicates, filterHasIntel, filterTucHidden, optimistic, filterLinked, filterHasSpecs, filterHasLeadTime, filterHasCashCycle, filterLowMargin, marginThreshold, filterBelowMarket, sortCol, sortDir, usageMap, duplicateModels, intelComponentIds, linkedComponentIds, compIdsWithLeadTime, compIdsWithCashCycle, sparklineLinesByComponent, marginByComponent, marketAvgIdrByComponent, lastPoByComponent, externalUsedIds, reorderById]);
+  }, [components, search, filterBrand, filterCategory, filterPI, filterPO, filterSupplier, filterUnused, filterReorder, filterDuplicates, filterHasIntel, filterTucHidden, optimistic, filterLinked, filterHasSpecs, filterHasLeadTime, filterHasCashCycle, filterLowMargin, marginThreshold, filterBelowMarket, sortCol, sortDir, usageMap, supplierNamesByComponent, duplicateModels, intelComponentIds, linkedComponentIds, compIdsWithLeadTime, compIdsWithCashCycle, sparklineLinesByComponent, marginByComponent, marketAvgIdrByComponent, lastPoByComponent, externalUsedIds, reorderById]);
 
   const toggleSort = (col: SortCol) => {
     if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -1530,7 +1567,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
 
   const clearAllFilters = () => {
     setSearchInput(''); setSearch('');
-    setFilterBrand(''); setFilterCategory(''); setFilterPI(''); setFilterPO('');
+    setFilterBrand(''); setFilterCategory(''); setFilterPI(''); setFilterPO(''); setFilterSupplier('');
     setFilterUnused(false); setFilterReorder(false); setFilterDuplicates(false); setFilterHasIntel(false); setFilterLinked(false); setFilterHasSpecs(false);
     setFilterLowMargin(false); setFilterBelowMarket(false);
   };
@@ -2473,6 +2510,10 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
           <div className="flex gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             {/* Brand filter */}
             <FilterCombobox options={uniqueBrands} value={filterBrand} onChange={setFilterBrand} placeholder="All Brands" minWidth={140} className="min-w-[140px] flex-shrink-0" />
+            {/* Vendor / supplier filter — items quoted or ordered from a vendor */}
+            {uniqueSuppliers.length > 0 && (
+              <FilterCombobox options={uniqueSuppliers} value={filterSupplier} onChange={setFilterSupplier} placeholder="All Suppliers" minWidth={160} className="min-w-[160px] flex-shrink-0" />
+            )}
             {/* Category filter */}
             <FilterCombobox options={ENUMS.product_category} value={filterCategory} onChange={setFilterCategory} placeholder="All Categories" minWidth={180} className="min-w-[160px] flex-shrink-0" />
             {/* PI filter */}
@@ -2863,13 +2904,14 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
       </div>
 
       {/* Active filter chips */}
-      {(search || filterBrand || filterCategory || filterPI || filterPO || filterUnused || filterDuplicates || filterHasIntel || filterLinked || filterHasSpecs || filterHasLeadTime || filterHasCashCycle || filterLowMargin || filterBelowMarket) && (
+      {(search || filterBrand || filterCategory || filterPI || filterPO || filterSupplier || filterUnused || filterDuplicates || filterHasIntel || filterLinked || filterHasSpecs || filterHasLeadTime || filterHasCashCycle || filterLowMargin || filterBelowMarket) && (
         <div className="px-4 md:px-5 py-2.5 border-b border-slate-800/60 flex flex-wrap items-center gap-1.5 bg-slate-950/30">
           {search && <ActiveChip label="Search" value={search} onClear={() => { setSearchInput(''); setSearch(''); }} />}
           {filterBrand && <ActiveChip label="Brand" value={filterBrand} onClear={() => setFilterBrand('')} />}
           {filterCategory && <ActiveChip label="Category" value={filterCategory} onClear={() => setFilterCategory('')} />}
           {filterPI && <ActiveChip label="PI" value={filterPI} onClear={() => setFilterPI('')} />}
           {filterPO && <ActiveChip label="PO" value={filterPO} onClear={() => setFilterPO('')} />}
+          {filterSupplier && <ActiveChip label="Supplier" value={filterSupplier} onClear={() => setFilterSupplier('')} />}
           {filterUnused && <ActiveChip label="Unused only" onClear={() => setFilterUnused(false)} />}
           {filterDuplicates && <ActiveChip label="Duplicates only" onClear={() => setFilterDuplicates(false)} />}
           {filterHasIntel && <ActiveChip label="Has market intel" onClear={() => setFilterHasIntel(false)} />}

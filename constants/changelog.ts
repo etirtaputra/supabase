@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-13T23:15:00Z',
+    title: 'Item Editor: filter items by vendor / supplier',
+    details: [
+      'Item Editor gained an “All Suppliers” filter beside Brand — it narrows the list to the items a vendor has quoted or that were ordered from them. Because most POs carry their vendor on the linked quote, the filter resolves it there, so PO-only history counts too. The choice is remembered and shows as a clearable chip like the other filters.',
+    ],
+  },
+  {
     at: '2026-08-13T22:30:00Z',
     title: 'Rename PO / PI numbers and link quote revisions in Deal Lookup',
     details: [
