@@ -179,6 +179,23 @@ function MasterInsertPage() {
         const piPart   = p.pi_number ? `${p.pi_number} · ` : '';
         return { val: p.po_id, txt: `${code}${piPart}${p.po_number} - ${p.po_date}${value}` };
       }),
+      // Searchable source list for "revise a stored PO" — real orders only
+      // (drafts/cancelled excluded, replaced kept so a split's 2nd leg can find
+      // its origin), latest first, each carrying vendor + value like the quote
+      // picker does.
+      posReplace: [...data.pos]
+        .filter((p) => p.status !== 'Draft' && p.status !== 'Cancelled')
+        .sort((a, b) => String(b.po_date || '').localeCompare(String(a.po_date || '')))
+        .map((p) => {
+          const supplier = p.supplier_id ? data.suppliers.find((s) => s.supplier_id === p.supplier_id) : null;
+          const vendor   = supplier?.supplier_name ? `${supplier.supplier_name} · ` : '';
+          const value    = p.total_value ? ` · ${p.currency || 'IDR'} ${Number(p.total_value).toLocaleString()}` : '';
+          return {
+            po_id: p.po_id,
+            _label: `${p.po_number}${p.status === 'Replaced' ? ' (replaced)' : ''}`,
+            _sub: `${vendor}${p.po_date || ''}${value}`,
+          };
+        }),
     }),
     [data]
   );
@@ -283,11 +300,21 @@ function MasterInsertPage() {
   }, []);
   const setQuoteMode = (combo: boolean) => {
     setWithPo(combo);
+    // Revising a PO only exists in Quote + PO mode — leaving it drops the context
+    // so a quote-only deal never seeds from (or tries to replace) a PO.
+    if (!combo) { setStoredPoSel(''); setPoNumberChanged(false); setNewPoMode('split'); }
     try { localStorage.setItem('purchasing:quote-mode', combo ? 'combo' : 'quote'); } catch {}
   };
   // Mirrors the form's Stored Quote selection so the page can seed the line
   // editor with the items that will carry onto the PO.
   const [storedQuoteSel, setStoredQuoteSel] = useState('');
+  // Mirrors the form's Stored PO selection (revise an existing PO). When set,
+  // the line editor is seeded from that PO's items and Save revises it instead
+  // of raising a fresh one. `poNumberChanged` toggles the amend-vs-new-PO copy;
+  // `newPoMode` decides what happens to the original when the number changes.
+  const [storedPoSel, setStoredPoSel] = useState('');
+  const [poNumberChanged, setPoNumberChanged] = useState(false);
+  const [newPoMode, setNewPoMode] = useState<'split' | 'supersede'>('split');
   // Set by "Raise its PO →" / Deal Lookup's "+ Create PO": preselects the
   // stored quote in the form and prefills the shared header via defaults.
   const [pendingStoredQuote, setPendingStoredQuote] = useState('');
@@ -322,6 +349,22 @@ function MasterInsertPage() {
     }));
   }, [storedQuoteSel, data.quoteItems]);
 
+  // A stored PO's own 5.1 lines seed the editor when revising it — same shape,
+  // reading unit_cost (the PO's cost) into the editor's unit_price cell.
+  const storedPoLineSeeds = useMemo<DealLine[] | null>(() => {
+    if (!storedPoSel) return null;
+    const its = data.poItems.filter((pi) => String(pi.po_id) === String(storedPoSel));
+    if (!its.length) return null;
+    return its.map((pi) => ({
+      ...blankDealLine(pi.currency || ''),
+      component_id: pi.component_id ?? null,
+      supplier_description: pi.supplier_description ?? '',
+      quantity: String(pi.quantity ?? ''),
+      unit_price: String(pi.unit_cost ?? ''),
+      currency: pi.currency ?? '',
+    }));
+  }, [storedPoSel, data.poItems]);
+
   // Shared header values of the pending stored quote — SimpleForm fills them
   // into empty fields as defaults, so the whole header arrives pre-typed.
   const storedDefaults = useMemo(() => {
@@ -348,7 +391,7 @@ function MasterInsertPage() {
   const submitDeal = async (d: any, items: DealLine[]): Promise<boolean> => {
     // PO-only keys may linger in the shared draft after a mode switch — a
     // quote-only save must never try to write them into 4.0.
-    const { po_number, po_date, exchange_rate, existing_quote_id,
+    const { po_number, po_date, exchange_rate, existing_quote_id, existing_po_id,
             incoterms, method_of_shipment, freight_charges_intl, payment_terms: poTerms,
             ...quote } = d;
     // Freight is shared: it stays ON the quote (4.0 now has the column) and is
@@ -365,6 +408,80 @@ function MasterInsertPage() {
       const q0 = qRows?.[0];
       if (!q0) return false;
       if (lineRows.length) await handleInsert('4.1_price_quote_line_items', lineRows.map((r) => ({ ...r, quote_id: q0.quote_id })));
+      return true;
+    }
+
+    // ── Revise a stored PO ────────────────────────────────────────────────────
+    // Loaded from the Stored PO picker: keep the number to AMEND in place (the
+    // po_number UNIQUE constraint means a same-number revision cannot be a new
+    // row); change the number to create a new PO, either SPLITting lines off
+    // (the original survives, both share the PI) or SUPERSEDING it (the original
+    // is marked Replaced and linked). No quote is created — the PO keeps the
+    // source's quote link, so the deal stays in one group.
+    if (existing_po_id) {
+      const src = data.pos.find((p) => String(p.po_id) === String(existing_po_id));
+      if (!src) { showToast('Source PO not found — refresh and retry.', 'error'); return false; }
+      const poLineRows = items
+        .filter((l) => Number(l.quantity) > 0)
+        .map((l) => ({
+          component_id: l.component_id, supplier_description: l.supplier_description || null,
+          quantity: Number(l.quantity), unit_cost: Number(l.unit_price) || 0,
+          currency: l.currency || quote.currency,
+        }));
+      const totalVal = quote.total_value === '' || quote.total_value == null ? null : Number(quote.total_value);
+      const rate = quote.currency === 'IDR' ? null : (Number(exchange_rate) || Number((src as any).exchange_rate) || null);
+      const header = {
+        currency: quote.currency, exchange_rate: rate, total_value: totalVal,
+        po_date: po_date || src.po_date, incoterms: incoterms || null,
+        method_of_shipment: method_of_shipment || null, freight_charges_intl: freightVal,
+        payment_terms: poTerms || null, document_url: quote.document_url || null,
+      };
+      const sameNumber = String(po_number).trim() === String(src.po_number).trim();
+
+      if (sameNumber) {
+        // Amend in place: update the header and replace the line items wholesale.
+        setLoading(true);
+        const { error: upErr } = await supabase.from('5.0_purchases').update(header).eq('po_id', src.po_id);
+        if (upErr) { setLoading(false); showToast(`Error: ${upErr.message}`, 'error'); return false; }
+        await supabase.from('5.1_purchase_line_items').delete().eq('po_id', src.po_id);
+        if (poLineRows.length) {
+          const { error: liErr } = await supabase.from('5.1_purchase_line_items')
+            .insert(poLineRows.map((r) => ({ ...r, po_id: src.po_id })));
+          if (liErr) { setLoading(false); showToast(`Error: ${liErr.message}`, 'error'); return false; }
+        }
+        setLoading(false);
+        refetch();
+        setStoredPoSel(''); setPoNumberChanged(false);
+        setLastSaved({ message: `${src.po_number} amended — ${poLineRows.length} item${poLineRows.length !== 1 ? 's' : ''} now on the PO.`, cta: 'Open in Deal Lookup →', nextTab: 'lookup', poId: String(src.po_id) });
+        return true;
+      }
+
+      // New number → a new PO. Split keeps the original; supersede replaces it.
+      const supersede = newPoMode === 'supersede';
+      const poRows = await handleInsert('5.0_purchases', {
+        quote_id: src.quote_id,
+        supplier_id: quote.supplier_id ?? src.supplier_id, company_id: quote.company_id ?? src.company_id,
+        pi_number: quote.pi_number ?? src.pi_number, pi_date: quote.quote_date ?? src.pi_date, pi_status: 'Accepted',
+        po_number, status: 'Confirmed', ...header,
+        payment_terms: poTerms || settings.defaultPoPaymentTerms || null,
+        replaces_po_id: supersede ? src.po_id : null,
+      });
+      if (!poRows?.[0]) return false;
+      const newPoId = String(poRows[0].po_id);
+      if (poLineRows.length) {
+        await handleInsert('5.1_purchase_line_items', poLineRows.map((r) => ({ ...r, po_id: newPoId })));
+      }
+      if (supersede) {
+        await supabase.from('5.0_purchases').update({ status: 'Replaced' }).eq('po_id', src.po_id);
+        refetch();
+      }
+      setStoredPoSel(''); setPoNumberChanged(false); setNewPoMode('split');
+      setLastSaved({
+        message: supersede
+          ? `${po_number} created — ${src.po_number} marked Replaced and linked.`
+          : `${po_number} created under the same PI — ${src.po_number} left unchanged.`,
+        cta: 'Log payment →', nextTab: 'financials', poId: newPoId,
+      });
       return true;
     }
     // Straight from PI to PO: ordering against the quote IS accepting it
@@ -837,12 +954,53 @@ function MasterInsertPage() {
                     </div>
                   )}
                   <div className="max-w-[1150px] space-y-4">
+                    {withPo && storedPoSel && (() => {
+                      const src = data.pos.find((p) => String(p.po_id) === String(storedPoSel));
+                      if (!src) return null;
+                      const sup = src.supplier_id ? data.suppliers.find((s) => s.supplier_id === src.supplier_id) : null;
+                      const worth = src.total_value ? ` · ${src.currency || 'IDR'} ${Number(src.total_value).toLocaleString()}` : '';
+                      return (
+                        <div className="px-4 py-3 bg-violet-500/[0.07] border border-violet-500/30 rounded-xl space-y-2.5">
+                          <div className="flex items-start gap-2 text-xs">
+                            <span className="text-violet-300 flex-shrink-0 mt-0.5">✎</span>
+                            <span className="text-slate-300 leading-relaxed">
+                              Revising <span className="font-semibold text-violet-200">{src.po_number}</span>
+                              <span className="text-slate-500">{sup?.supplier_name ? ` · ${sup.supplier_name}` : ''}{worth}</span>
+                              {' '}— its {data.poItems.filter((pi) => String(pi.po_id) === String(src.po_id)).length} line item{data.poItems.filter((pi) => String(pi.po_id) === String(src.po_id)).length !== 1 ? 's are' : ' is'} loaded below.
+                              <button type="button" onClick={() => { setStoredPoSel(''); setPoNumberChanged(false); }}
+                                className="ml-2 text-slate-500 hover:text-slate-300 underline underline-offset-2">clear</button>
+                            </span>
+                          </div>
+                          {!poNumberChanged ? (
+                            <p className="text-[11px] text-slate-500 pl-5">
+                              Keeping the number — <span className="text-slate-300">Save amends {src.po_number} in place</span>, replacing its line items. Its payments and goods receipts stay attached. Change the PO # below to move items into a new PO instead.
+                            </p>
+                          ) : (
+                            <div className="pl-5 space-y-1.5">
+                              <div className="inline-flex rounded-lg border border-slate-700 overflow-hidden text-[11px] font-semibold">
+                                {(['split', 'supersede'] as const).map((m) => (
+                                  <button key={m} type="button" onClick={() => setNewPoMode(m)}
+                                    className={`px-3 py-1.5 transition-colors ${newPoMode === m ? 'bg-violet-600 text-white' : 'bg-slate-900/60 text-slate-400 hover:text-slate-200'}`}>
+                                    {m === 'split' ? 'Split off' : 'Supersede'}
+                                  </button>
+                                ))}
+                              </div>
+                              <p className="text-[11px] text-slate-500">
+                                {newPoMode === 'split'
+                                  ? <>New PO under the same PI — <span className="text-slate-300">{src.po_number} is left as-is</span> (use this to peel some lines into a fresh PO).</>
+                                  : <>Full reissue — <span className="text-amber-300">{src.po_number} is marked Replaced</span> and linked to the new PO.</>}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                     <NewDealForm
                       title={withPo ? 'New Deal — Quote + PO' : 'New Deal — Supplier Quote'}
                       withPo={withPo}
                       components={data.components}
                       currencies={ENUMS.currency}
-                      seedLines={storedQuoteSel ? storedQuoteLineSeeds : pdfLineSeeds}
+                      seedLines={storedPoSel ? storedPoLineSeeds : storedQuoteSel ? storedQuoteLineSeeds : pdfLineSeeds}
                       headerAction={pdfHeaderAction('Upload Quote/PI PDF', 'One upload prefills the whole form — header AND line items, components auto-matched.')}
                       onFieldChange={(name, value) => {
                         const o: Record<string, any> = {};
@@ -852,6 +1010,10 @@ function MasterInsertPage() {
                         if (name === 'existing_quote_id') {
                           setStoredQuoteSel(value ? String(value) : '');
                           if (value) {
+                            // Quote and PO sources are mutually exclusive — picking a
+                            // stored quote clears any revise-a-PO context.
+                            setStoredPoSel(''); setPoNumberChanged(false);
+                            o.existing_po_id = '';
                             const src = data.quotes.find((x) => String(x.quote_id) === String(value));
                             if (src) {
                               o.supplier_id = src.supplier_id;
@@ -870,6 +1032,41 @@ function MasterInsertPage() {
                             setDupWarning(null);
                           }
                         }
+                        // Revise a stored PO: load its whole header + lines. Keep the
+                        // number to amend in place; change it to split/supersede.
+                        if (name === 'existing_po_id') {
+                          setStoredPoSel(value ? String(value) : '');
+                          setPoNumberChanged(false);
+                          setNewPoMode('split');
+                          if (value) {
+                            setStoredQuoteSel('');
+                            o.existing_quote_id = '';
+                            const src = data.pos.find((p) => String(p.po_id) === String(value));
+                            if (src) {
+                              o.supplier_id = src.supplier_id;
+                              o.company_id = src.company_id;
+                              o.currency = src.currency;
+                              o.quote_date = src.pi_date || undefined;
+                              o.pi_number = src.pi_number || '';
+                              o.total_value = '';                 // recomputed from the edited lines
+                              o.po_number = src.po_number || '';
+                              o.po_date = src.po_date || '';
+                              o.exchange_rate = src.exchange_rate ?? '';
+                              o.incoterms = src.incoterms ?? '';
+                              o.method_of_shipment = src.method_of_shipment ?? '';
+                              o.payment_terms = src.payment_terms ?? '';
+                              o.freight_charges_intl = src.freight_charges_intl ?? '';
+                              o.document_url = src.document_url ?? '';
+                            }
+                            setDupWarning(null);
+                          }
+                        }
+                        // Track whether the PO number now differs from the source —
+                        // drives the amend-vs-new-PO copy and the Split/Supersede pick.
+                        if (name === 'po_number' && storedPoSel) {
+                          const src = data.pos.find((p) => String(p.po_id) === String(storedPoSel));
+                          setPoNumberChanged(!!src && String(value).trim() !== String(src.po_number).trim());
+                        }
                         return o;
                       }}
                       headerFields={[
@@ -877,6 +1074,7 @@ function MasterInsertPage() {
                         // no separate PO form, no re-entry.
                         ...(withPo ? [
                           { name: 'existing_quote_id', label: 'Stored Quote', hint: 'Raise the PO for a quote saved earlier — empty = a brand-new PI', type: 'select' as const, options: options.quotes, default: pendingStoredQuote || undefined },
+                          { name: 'existing_po_id', label: 'Stored PO', hint: 'Revise an existing PO — loads its items; keep the number to amend in place, change it to split/supersede', type: 'rich-select' as const, options: options.posReplace, config: { labelKey: '_label', valueKey: 'po_id', subLabelKey: '_sub' } },
                         ] : []),
                         { name: 'supplier_id', label: 'Supplier', type: 'rich-select', options: data.suppliers, config: { labelKey: 'supplier_name', valueKey: 'supplier_id', subLabelKey: 'location' }, req: true, default: storedDefaults?.supplier_id ?? pdfDefaults.supplier_id },
                         { name: 'company_id', label: 'Addressed To', type: 'select', options: options.companies, req: true, default: storedDefaults?.company_id ?? pdfDefaults.company_id },
@@ -915,6 +1113,11 @@ function MasterInsertPage() {
                     {withPo && storedQuoteSel && (
                       <p className="text-[11px] text-violet-300/70">
                         These lines are seeded from the stored quote — edit qty / cost, change or add items, remove what you don’t want. The PO gets exactly what the editor shows on save; the stored quote itself is never changed.
+                      </p>
+                    )}
+                    {withPo && storedPoSel && (
+                      <p className="text-[11px] text-violet-300/70">
+                        These lines are the stored PO’s own items — edit, remove or add. On save the PO gets exactly what the editor shows: amended in place if you keep the number, or moved onto the new PO number if you change it.
                       </p>
                     )}
                     <p className="text-[11px] text-slate-600">

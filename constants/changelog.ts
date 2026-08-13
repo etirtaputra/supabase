@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-13T18:00:00Z',
+    title: 'Revise a stored PO — amend, split, or supersede',
+    details: [
+      'New Deal (Quote + PO) gained a searchable “Stored PO” picker beside “Stored Quote”, sorted newest first and showing each PO’s vendor and value. Picking one loads its whole header AND its line items into the editor — no more re-typing a PO to change it.',
+      'Keep the PO number and Save amends that PO in place — its line items are replaced with what the editor shows, and its payments and goods receipts stay attached. This is how you drop or change lines on an existing PO (e.g. trimming EB.42278 down to the items that stay).',
+      'Change the PO number and a choice appears: “Split off” creates a new PO under the same PI while the original is left unchanged (for moving some lines into a fresh PO, e.g. PIO-2026013) — both stay in the same deal group; or “Supersede”, which creates the new PO and marks the original Replaced, linked to its successor.',
+      'Deal Lookup now shows the lineage on each PO card: “↩ Revision of …” on a successor and “⤷ Replaced by …” on the one it replaced, so a superseded order is never a dead end.',
+    ],
+  },
+  {
     at: '2026-08-13T16:00:00Z',
     title: 'In-transit goods: what’s on the water, and what’s late',
     details: [

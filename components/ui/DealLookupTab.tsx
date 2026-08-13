@@ -902,6 +902,13 @@ export default function DealLookupTab({
                   .sort((a, b) => (a.payment_date! < b.payment_date! ? -1 : 1))[0];
                 const ltPayment = ltRecDate && ltFirstPay?.payment_date ? ltDiff(ltFirstPay.payment_date) : null;
 
+                // Replacement lineage: this PO may revise an earlier one, or have
+                // been superseded by later one(s). Successors share the PI, so both
+                // ends of the link live in this same group.
+                const replacesId = (po as any).replaces_po_id;
+                const revisionOf = replacesId ? g.pos.find((p) => String(p.po_id) === String(replacesId)) : null;
+                const supersededBy = g.pos.filter((p) => String((p as any).replaces_po_id ?? '') === String(po.po_id));
+
                 return (
                   <div key={pKey} className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-2">
                     {/* PO meta */}
@@ -913,6 +920,20 @@ export default function DealLookupTab({
                             <p className="text-slate-300">{po.po_number}</p>
                             <CopyBtn text={po.po_number} />
                           </div>
+                        </div>
+                      )}
+                      {(revisionOf || supersededBy.length > 0) && (
+                        <div key="lineage" className="col-span-2 sm:col-span-4 -mt-0.5">
+                          {revisionOf && (
+                            <p className="text-[11px] text-slate-500">
+                              ↩ Revision of <span className="text-slate-300 font-medium">{revisionOf.po_number}</span>
+                            </p>
+                          )}
+                          {supersededBy.length > 0 && (
+                            <p className="text-[11px] text-amber-400/90">
+                              ⤷ Replaced by <span className="font-medium">{supersededBy.map((p) => p.po_number).filter(Boolean).join(', ')}</span>
+                            </p>
+                          )}
                         </div>
                       )}
                       {[
