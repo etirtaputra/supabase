@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-13T11:00:00Z',
+    title: 'Deal Lookup line items: numbers finally line up straight',
+    details: [
+      'The edit / delete / add buttons that used to sit inside the price cells were pushing the numbers left by different amounts per row (a quote-only row got an extra button, so its price landed further left than a matched row). Those actions now live in their own column at the right of each row, revealed on hover — so the Q Qty, Q Price, PO Qty and PO Price columns are perfectly aligned in every row.',
+    ],
+  },
+  {
     at: '2026-08-13T09:00:00Z',
     title: 'Deal Lookup: line-item columns line up, PI/PO cards are tighter',
     details: [
