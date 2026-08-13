@@ -162,6 +162,49 @@ function MasterInsertPage() {
     refetch();
   };
 
+  // ── Hard-delete (owner asked to clear redundant/historical deals) ──────────
+  // Only records with no payments and no goods received may go — the money and
+  // stock ledger must stay auditable, so paid/received POs steer to Cancel. The
+  // guard is RE-CHECKED here against live data, never trusted from the UI.
+  // FKs cascade (5.1/6.0/9.0 for a PO, 4.1 for a quote), so we only delete the
+  // header — but replaces_* is a self-ref CASCADE, so inbound links are severed
+  // first or deleting an original would drag its successor down with it.
+  const poDeletableLive = async (poId: string): Promise<string | null> => {
+    const po = data.pos.find((p) => String(p.po_id) === String(poId));
+    if (po && ['Fully Received', 'Partially Received'].includes(po.status ?? ''))
+      return `${po.po_number || 'This PO'} has received goods — cancel it instead of deleting.`;
+    const { count } = await supabase.from('6.0_po_costs').select('cost_id', { count: 'exact', head: true }).eq('po_id', poId);
+    if ((count ?? 0) > 0) return `${po?.po_number || 'This PO'} has payments recorded — cancel it instead of deleting.`;
+    return null;
+  };
+  const deletePoRow = async (poId: string): Promise<boolean> => {
+    await supabase.from('5.0_purchases').update({ replaces_po_id: null }).eq('replaces_po_id', poId);
+    const { error } = await supabase.from('5.0_purchases').delete().eq('po_id', poId);
+    if (error) { showToast(`Error deleting PO: ${error.message}`, 'error'); return false; }
+    return true;
+  };
+  const handleDeletePo = async (poId: string) => {
+    const blocked = await poDeletableLive(poId);
+    if (blocked) { showToast(blocked, 'error'); return; }
+    const po = data.pos.find((p) => String(p.po_id) === String(poId));
+    if (await deletePoRow(poId)) { showToast(`PO ${po?.po_number || ''} deleted.`.trim(), 'success'); refetch(); }
+  };
+  const handleDeleteDeal = async (quoteIds: string[], poIds: string[]) => {
+    // Re-verify every PO before destroying anything — one blocker stops it all
+    for (const poId of poIds) {
+      const blocked = await poDeletableLive(poId);
+      if (blocked) { showToast(blocked.replace('cancel it instead of deleting', 'cancel the deal instead'), 'error'); return; }
+    }
+    for (const poId of poIds) { if (!(await deletePoRow(poId))) return; }
+    for (const qId of quoteIds) {
+      await supabase.from('4.0_price_quotes').update({ replaces_quote_id: null }).eq('replaces_quote_id', qId);
+      const { error } = await supabase.from('4.0_price_quotes').delete().eq('quote_id', qId);
+      if (error) { showToast(`Error deleting quote: ${error.message}`, 'error'); return; }
+    }
+    showToast('Deal deleted.', 'success');
+    refetch();
+  };
+
   const options = useMemo(
     () => ({
       companies: data.companies.map((c) => ({ val: c.company_id, txt: c.legal_name })),
@@ -1463,6 +1506,8 @@ function MasterInsertPage() {
                   onMarkFullyPaid={handleMarkFullyPaid}
                   onCreatePO={(quoteId) => startPoForQuote(quoteId)}
                   onRevisePo={(poId) => startRevisionForPo(poId)}
+                  onDeletePo={perms?.buySide ? handleDeletePo : undefined}
+                  onDeleteDeal={perms?.buySide ? handleDeleteDeal : undefined}
                   onUpdateQuoteItem={handleUpdateQuoteItem}
                   onUpdatePoItem={handleUpdatePoItem}
                   onUpdateQuoteLineItem={handleUpdateQuoteLineItem}

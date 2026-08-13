@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-13T21:30:00Z',
+    title: 'Delete redundant deals and POs from Deal Lookup',
+    details: [
+      'Deal Lookup can now delete the clutter: each PO card has a “Delete” action, and every deal has a “Delete deal” that removes the PI/quote and all its POs together. Both take a two-step confirm.',
+      'Safety first: only records with NO payments and NO goods received can be deleted (drafts, replaced, unpaid). Anything paid or received shows “🔒 Paid / received — cancel instead”, because that money and stock history has to stay auditable. The guard is re-checked against the live database at delete time, not just in the screen.',
+      'Deleting a PO removes its line items, and deleting a deal removes the quote’s items too (the database cascades those). A superseded PO’s successor is never dragged along by the delete.',
+    ],
+  },
+  {
     at: '2026-08-13T20:00:00Z',
     title: 'PO revision, round two — Revise button, richer picker, Replaces PO',
     details: [

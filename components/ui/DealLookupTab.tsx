@@ -355,6 +355,11 @@ interface Props {
   onCreatePO?: (quoteId: string) => void;
   /** Load this PO into the New Deal form to amend, split, or supersede it. */
   onRevisePo?: (poId: string) => void;
+  /** Hard-delete a single PO (+ its line items). Only offered when the PO has
+   *  no payments and no goods received — the page re-verifies before deleting. */
+  onDeletePo?: (poId: string) => Promise<void>;
+  /** Hard-delete a whole deal — every quote and PO in the group. Same guard. */
+  onDeleteDeal?: (quoteIds: string[], poIds: string[]) => Promise<void>;
   onUpdateQuoteItem?: (quoteLineId: number, componentId: string) => Promise<void>;
   onUpdatePoItem?: (poItemId: number, componentId: string) => Promise<void>;
   onUpdateQuoteLineItem?: (id: number, updates: { component_id?: string; quantity?: number; unit_price?: number }) => Promise<void>;
@@ -371,7 +376,7 @@ interface Props {
 export default function DealLookupTab({
   quotes, quoteItems, pos, poItems, poCosts,
   suppliers, companies, components,
-  onQuoteStatusChange, onPoStatusChange, onUpdatePo, onMarkFullyPaid, onCreatePO, onRevisePo,
+  onQuoteStatusChange, onPoStatusChange, onUpdatePo, onMarkFullyPaid, onCreatePO, onRevisePo, onDeletePo, onDeleteDeal,
   onUpdateQuoteItem, onUpdatePoItem,
   onUpdateQuoteLineItem, onUpdatePoLineItem,
   onAddPoLineItem, onAddQuoteLineItem,
@@ -404,6 +409,10 @@ export default function DealLookupTab({
   const [selectedCompId, setSelectedCompId]   = useState<string | null>(null);
   const [updatingQuote, setUpdatingQuote]     = useState<string | null>(null);
   const [updatingPo, setUpdatingPo]           = useState<string | null>(null);
+  // Two-step delete confirm: first click arms it (key = `po:<id>` or `deal:<key>`),
+  // second click destroys. `busyDelete` guards against a double-fire mid-request.
+  const [confirmDelete, setConfirmDelete]     = useState<string | null>(null);
+  const [busyDelete, setBusyDelete]           = useState(false);
   const [markingPaid, setMarkingPaid]         = useState<string | null>(null);
   // Intercept "Fully Received" to capture received date before saving
   const [pendingReceived, setPendingReceived] = useState<{ poId: string; date: string } | null>(null);
@@ -609,8 +618,41 @@ export default function DealLookupTab({
 
     const hasBoth = g.quotes.length > 0 && g.pos.length > 0;
 
+    // A record is safe to hard-delete only with no payments and no goods
+    // received; received POs carry that state in their status. The whole deal
+    // is deletable when every PO is (a quote-only deal has none to block it).
+    const poDeletable = (p: PurchaseOrder) =>
+      !['Fully Received', 'Partially Received'].includes(p.status ?? '') &&
+      !gPoCosts.some((c) => String(c.po_id) === String(p.po_id));
+    const dealDeletable = g.pos.every(poDeletable);
+    const dealKey = `deal:${g.key}`;
+    const dealArmed = confirmDelete === dealKey;
+
     return (
       <div className="mt-3 pt-3 border-t border-slate-700/40">
+        {onDeleteDeal && (g.quotes.length > 0 || g.pos.length > 0) && (
+          <div className="flex justify-end mb-2" onClick={(e) => e.stopPropagation()}>
+            {!dealDeletable ? (
+              <span className="text-[10px] text-slate-600" title="A PO here has payments or received goods — cancel it instead of deleting the deal">
+                🔒 Paid / received — cancel instead of deleting
+              </span>
+            ) : dealArmed ? (
+              <span className="inline-flex items-center gap-1.5 text-[11px]">
+                <span className="text-red-300">Delete this whole deal — {g.quotes.length} quote{g.quotes.length !== 1 ? 's' : ''} + {g.pos.length} PO{g.pos.length !== 1 ? 's' : ''}? Cannot be undone.</span>
+                <button type="button" disabled={busyDelete}
+                  onClick={async () => { setBusyDelete(true); try { await onDeleteDeal(g.quotes.map((q) => String(q.quote_id)), g.pos.map((p) => String(p.po_id))); } finally { setBusyDelete(false); setConfirmDelete(null); } }}
+                  className="font-bold text-white bg-red-600 hover:bg-red-500 px-2 py-1 rounded-lg disabled:opacity-50">{busyDelete ? 'Deleting…' : 'Yes, delete'}</button>
+                <button type="button" onClick={() => setConfirmDelete(null)} className="text-slate-400 hover:text-slate-200 px-1.5 py-1">Cancel</button>
+              </span>
+            ) : (
+              <button type="button" onClick={() => setConfirmDelete(dealKey)}
+                className="text-[11px] font-semibold text-red-300/80 hover:text-red-300 px-2 py-1 rounded-lg border border-red-500/25 hover:border-red-500/40 hover:bg-red-500/10 transition-colors"
+                title="Permanently delete this deal — every quote and PO in it">
+                Delete deal
+              </button>
+            )}
+          </div>
+        )}
         {/* Quote + PO sit side-by-side only on wide screens; on phones/tablets
             they stack so the dense fields aren't crushed into half-width columns */}
         <div className={hasBoth ? 'grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-3 items-start' : 'space-y-5'}>
@@ -1271,6 +1313,23 @@ export default function DealLookupTab({
                               title="Load this PO into New Deal — amend it, split lines into a new PO, or supersede it">
                               Revise →
                             </button>
+                          )}
+                          {onDeletePo && poDeletable(po) && (
+                            confirmDelete === `po:${pKey}` ? (
+                              <span className="inline-flex items-center gap-1.5 text-[11px]" onClick={(e) => e.stopPropagation()}>
+                                <span className="text-red-300">Delete {po.po_number || 'this PO'}?</span>
+                                <button type="button" disabled={busyDelete}
+                                  onClick={async () => { setBusyDelete(true); try { await onDeletePo(String(po.po_id)); } finally { setBusyDelete(false); setConfirmDelete(null); } }}
+                                  className="font-bold text-white bg-red-600 hover:bg-red-500 px-2 py-1 rounded-lg disabled:opacity-50">{busyDelete ? 'Deleting…' : 'Yes, delete'}</button>
+                                <button type="button" onClick={(e) => { e.stopPropagation(); setConfirmDelete(null); }} className="text-slate-400 hover:text-slate-200 px-1.5 py-1">Cancel</button>
+                              </span>
+                            ) : (
+                              <button type="button" onClick={(e) => { e.stopPropagation(); setConfirmDelete(`po:${pKey}`); }}
+                                className="text-[11px] font-semibold text-red-300/80 hover:text-red-300 px-2 py-1 rounded-lg border border-red-500/25 hover:border-red-500/40 hover:bg-red-500/10 transition-colors whitespace-nowrap"
+                                title="Permanently delete this PO and its line items">
+                                Delete
+                              </button>
+                            )
                           )}
                         </div>
 
