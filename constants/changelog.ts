@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-13T20:00:00Z',
+    title: 'PO revision, round two — Revise button, richer picker, Replaces PO',
+    details: [
+      'Deal Lookup: every live PO card now has a “Revise →” button that opens New Deal with that PO already loaded (header + items) — no need to find it again in the picker.',
+      'The “Stored PO” picker now shows and searches by vendor, PO date, value and the PI/deal reference, not just the PO number — most POs carry their vendor on the linked quote, which the picker now resolves. Newest first, with a stable tiebreak.',
+      'The PO section gained its own “Replaces PO” field (and the shared one is now clearly labelled “Replaces Quote”). Picking a PO here marks it Replaced and links it to the new PO — the declarative counterpart to loading it via Stored PO.',
+    ],
+  },
+  {
     at: '2026-08-13T18:00:00Z',
     title: 'Revise a stored PO — amend, split, or supersede',
     details: [

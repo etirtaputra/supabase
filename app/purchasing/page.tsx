@@ -181,19 +181,28 @@ function MasterInsertPage() {
       }),
       // Searchable source list for "revise a stored PO" — real orders only
       // (drafts/cancelled excluded, replaced kept so a split's 2nd leg can find
-      // its origin), latest first, each carrying vendor + value like the quote
-      // picker does.
+      // its origin), newest first. Most POs carry no supplier_id of their own
+      // (the vendor lives on the linked quote), so resolve it the way the deal
+      // pickers do. Everything a person might search by — vendor, PI/deal ref,
+      // value — goes in the sub-label, because RichDropdown searches label + sub.
       posReplace: [...data.pos]
         .filter((p) => p.status !== 'Draft' && p.status !== 'Cancelled')
-        .sort((a, b) => String(b.po_date || '').localeCompare(String(a.po_date || '')))
+        .sort((a, b) =>
+          String(b.po_date || '').localeCompare(String(a.po_date || '')) ||
+          String(b.po_number || '').localeCompare(String(a.po_number || '')))
         .map((p) => {
-          const supplier = p.supplier_id ? data.suppliers.find((s) => s.supplier_id === p.supplier_id) : null;
-          const vendor   = supplier?.supplier_name ? `${supplier.supplier_name} · ` : '';
-          const value    = p.total_value ? ` · ${p.currency || 'IDR'} ${Number(p.total_value).toLocaleString()}` : '';
+          const quote    = p.quote_id ? data.quotes.find((q) => String(q.quote_id) === String(p.quote_id)) : null;
+          const supplier = (p.supplier_id && data.suppliers.find((s) => s.supplier_id === p.supplier_id))
+                        || (quote && data.suppliers.find((s) => s.supplier_id === quote.supplier_id)) || null;
+          const vendor   = supplier?.supplier_name || '';
+          const value    = p.total_value ? `${p.currency || 'IDR'} ${Number(p.total_value).toLocaleString()}` : '';
+          const tag      = p.status === 'Replaced' ? ' · replaced' : p.status === 'Fully Received' ? ' · received' : '';
           return {
             po_id: p.po_id,
-            _label: `${p.po_number}${p.status === 'Replaced' ? ' (replaced)' : ''}`,
-            _sub: `${vendor}${p.po_date || ''}${value}`,
+            _label: `${p.po_number || '(no number)'}${tag}`,
+            // vendor · date · value first (what shows once truncated), the PI/deal
+            // ref last so it stays searchable without dominating the line.
+            _sub: [vendor, p.po_date, value, p.pi_number].filter(Boolean).join(' · '),
           };
         }),
     }),
@@ -318,16 +327,31 @@ function MasterInsertPage() {
   // Set by "Raise its PO →" / Deal Lookup's "+ Create PO": preselects the
   // stored quote in the form and prefills the shared header via defaults.
   const [pendingStoredQuote, setPendingStoredQuote] = useState('');
+  // Set by Deal Lookup's "Revise →": preselects the stored PO in the form and
+  // prefills the whole header via defaults, exactly like the stored-quote path.
+  const [pendingStoredPo, setPendingStoredPo] = useState('');
   const startPoForQuote = (quoteId: string) => {
     if (activeTab !== 'quoting') handleTabChange('quoting');   // clears banners first
     setQuoteMode(true);
     setPendingStoredQuote(quoteId);
     setStoredQuoteSel(quoteId);
+    setPendingStoredPo(''); setStoredPoSel(''); setPoNumberChanged(false);   // quote ≠ PO revise
     setLastSaved(null);
     const existingPO = data.pos.find((p) => p.quote_id && String(p.quote_id) === String(quoteId));
     setDupWarning(existingPO
       ? `⚠️ This quote is already linked to PO ${existingPO.po_number}${existingPO.pi_number ? ` / ${existingPO.pi_number}` : ''} (${existingPO.po_date}). Creating another PO may be a duplicate.`
       : null);
+  };
+  const startRevisionForPo = (poId: string) => {
+    if (activeTab !== 'quoting') handleTabChange('quoting');
+    setQuoteMode(true);
+    setPendingStoredPo(poId);
+    setStoredPoSel(poId);
+    setPoNumberChanged(false);
+    setNewPoMode('split');
+    setPendingStoredQuote(''); setStoredQuoteSel('');   // PO revise ≠ raise-from-quote
+    setDupWarning(null);
+    setLastSaved(null);
   };
 
   // A stored quote's lines become SEED rows for the form's own line editor —
@@ -383,6 +407,25 @@ function MasterInsertPage() {
     };
   }, [pendingStoredQuote, data.quotes]);
 
+  // Same idea for "Revise →" from Deal Lookup: the stored PO's whole header fills
+  // the empty fields. total_value is deliberately omitted so the edited lines
+  // recompute it; po_number defaults to the source so keeping it means amend.
+  const storedPoDefaults = useMemo(() => {
+    if (!pendingStoredPo) return null;
+    const p = data.pos.find((x) => String(x.po_id) === String(pendingStoredPo));
+    if (!p) return null;
+    return {
+      supplier_id: p.supplier_id ?? undefined, company_id: p.company_id ?? undefined,
+      currency: p.currency ?? undefined, quote_date: p.pi_date ?? undefined,
+      pi_number: p.pi_number ?? undefined, po_number: p.po_number ?? undefined,
+      po_date: p.po_date ?? undefined, exchange_rate: (p as any).exchange_rate ?? undefined,
+      incoterms: p.incoterms ?? undefined, method_of_shipment: p.method_of_shipment ?? undefined,
+      payment_terms: (p as any).payment_terms ?? undefined,
+      freight_charges_intl: (p as any).freight_charges_intl ?? undefined,
+      document_url: p.document_url ?? undefined,
+    };
+  }, [pendingStoredPo, data.pos]);
+
   // ── The single-form save: header + items together, one click ─────────────
   // Quote-only writes 4.0 + 4.1. Quote + PO also writes 5.0 + 5.1 with the
   // same lines (quote price → PO cost). The stored-quote path accepts the old
@@ -391,7 +434,7 @@ function MasterInsertPage() {
   const submitDeal = async (d: any, items: DealLine[]): Promise<boolean> => {
     // PO-only keys may linger in the shared draft after a mode switch — a
     // quote-only save must never try to write them into 4.0.
-    const { po_number, po_date, exchange_rate, existing_quote_id, existing_po_id,
+    const { po_number, po_date, exchange_rate, existing_quote_id, existing_po_id, replaces_po_id,
             incoterms, method_of_shipment, freight_charges_intl, payment_terms: poTerms,
             ...quote } = d;
     // Freight is shared: it stays ON the quote (4.0 now has the column) and is
@@ -451,7 +494,7 @@ function MasterInsertPage() {
         }
         setLoading(false);
         refetch();
-        setStoredPoSel(''); setPoNumberChanged(false);
+        setStoredPoSel(''); setPendingStoredPo(''); setPoNumberChanged(false);
         setLastSaved({ message: `${src.po_number} amended — ${poLineRows.length} item${poLineRows.length !== 1 ? 's' : ''} now on the PO.`, cta: 'Open in Deal Lookup →', nextTab: 'lookup', poId: String(src.po_id) });
         return true;
       }
@@ -475,7 +518,7 @@ function MasterInsertPage() {
         await supabase.from('5.0_purchases').update({ status: 'Replaced' }).eq('po_id', src.po_id);
         refetch();
       }
-      setStoredPoSel(''); setPoNumberChanged(false); setNewPoMode('split');
+      setStoredPoSel(''); setPendingStoredPo(''); setPoNumberChanged(false); setNewPoMode('split');
       setLastSaved({
         message: supersede
           ? `${po_number} created — ${src.po_number} marked Replaced and linked.`
@@ -522,6 +565,8 @@ function MasterInsertPage() {
       freight_charges_intl: freightVal,
       payment_terms: poTerms || settings.defaultPoPaymentTerms || null,
       document_url: quote.document_url || null,
+      // "Replaces PO" field: this fresh PO supersedes an older one.
+      replaces_po_id: replaces_po_id || null,
     });
     if (!poRows?.[0]) return false;
     const poId = String(poRows[0].po_id);
@@ -531,11 +576,20 @@ function MasterInsertPage() {
         quantity: qi.quantity, unit_cost: qi.unit_price, currency: qi.currency,
       })));
     }
+    // Marking the superseded PO Replaced is what makes the link a real hand-off,
+    // not just a note — Deal Lookup then shows the lineage on both cards.
+    let replacedNote = '';
+    if (replaces_po_id) {
+      const old = data.pos.find((p) => String(p.po_id) === String(replaces_po_id));
+      await supabase.from('5.0_purchases').update({ status: 'Replaced' }).eq('po_id', replaces_po_id);
+      refetch();
+      if (old?.po_number) replacedNote = ` — ${old.po_number} marked Replaced`;
+    }
     setStoredQuoteSel('');
     setPendingStoredQuote('');
     setLastSaved(existing_quote_id
-      ? { message: `PO ${po_number} raised from the stored quote — ${copiedItems.length} item${copiedItems.length !== 1 ? 's' : ''} carried across.`, cta: 'Log payment →', nextTab: 'financials', poId }
-      : { message: `Quote + PO ${po_number} saved — the ${copiedItems.length ? `${copiedItems.length} item${copiedItems.length !== 1 ? 's' : ''} went` : 'items go'} onto both documents.`, cta: 'Log payment →', nextTab: 'financials', poId });
+      ? { message: `PO ${po_number} raised from the stored quote — ${copiedItems.length} item${copiedItems.length !== 1 ? 's' : ''} carried across${replacedNote}.`, cta: 'Log payment →', nextTab: 'financials', poId }
+      : { message: `Quote + PO ${po_number} saved — the ${copiedItems.length ? `${copiedItems.length} item${copiedItems.length !== 1 ? 's' : ''} went` : 'items go'} onto both documents${replacedNote}.`, cta: 'Log payment →', nextTab: 'financials', poId });
     return true;
   };
 
@@ -1012,7 +1066,7 @@ function MasterInsertPage() {
                           if (value) {
                             // Quote and PO sources are mutually exclusive — picking a
                             // stored quote clears any revise-a-PO context.
-                            setStoredPoSel(''); setPoNumberChanged(false);
+                            setStoredPoSel(''); setPendingStoredPo(''); setPoNumberChanged(false);
                             o.existing_po_id = '';
                             const src = data.quotes.find((x) => String(x.quote_id) === String(value));
                             if (src) {
@@ -1038,9 +1092,11 @@ function MasterInsertPage() {
                           setStoredPoSel(value ? String(value) : '');
                           setPoNumberChanged(false);
                           setNewPoMode('split');
+                          if (!value) setPendingStoredPo('');   // cleared the picker
                           if (value) {
-                            setStoredQuoteSel('');
+                            setStoredQuoteSel(''); setPendingStoredQuote('');
                             o.existing_quote_id = '';
+                            o.replaces_po_id = '';   // Split/Supersede toggle handles this instead
                             const src = data.pos.find((p) => String(p.po_id) === String(value));
                             if (src) {
                               o.supplier_id = src.supplier_id;
@@ -1074,18 +1130,18 @@ function MasterInsertPage() {
                         // no separate PO form, no re-entry.
                         ...(withPo ? [
                           { name: 'existing_quote_id', label: 'Stored Quote', hint: 'Raise the PO for a quote saved earlier — empty = a brand-new PI', type: 'select' as const, options: options.quotes, default: pendingStoredQuote || undefined },
-                          { name: 'existing_po_id', label: 'Stored PO', hint: 'Revise an existing PO — loads its items; keep the number to amend in place, change it to split/supersede', type: 'rich-select' as const, options: options.posReplace, config: { labelKey: '_label', valueKey: 'po_id', subLabelKey: '_sub' } },
+                          { name: 'existing_po_id', label: 'Stored PO', hint: 'Revise an existing PO — loads its items; keep the number to amend in place, change it to split/supersede', type: 'rich-select' as const, options: options.posReplace, config: { labelKey: '_label', valueKey: 'po_id', subLabelKey: '_sub' }, default: pendingStoredPo || undefined },
                         ] : []),
-                        { name: 'supplier_id', label: 'Supplier', type: 'rich-select', options: data.suppliers, config: { labelKey: 'supplier_name', valueKey: 'supplier_id', subLabelKey: 'location' }, req: true, default: storedDefaults?.supplier_id ?? pdfDefaults.supplier_id },
-                        { name: 'company_id', label: 'Addressed To', type: 'select', options: options.companies, req: true, default: storedDefaults?.company_id ?? pdfDefaults.company_id },
-                        { name: 'quote_date', label: 'Date', type: 'date', req: true, default: storedDefaults?.quote_date || pdfData?.quote_date || pdfData?.pi_date || new Date().toISOString().split('T')[0] },
-                        { name: 'pi_number', label: 'Quote Ref', type: 'text', suggestions: suggestions.quoteNumbers, default: storedDefaults?.pi_number || pdfData?.quote_number || pdfData?.pi_number },
-                        { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true, default: storedDefaults?.currency ?? pdfData?.currency },
+                        { name: 'supplier_id', label: 'Supplier', type: 'rich-select', options: data.suppliers, config: { labelKey: 'supplier_name', valueKey: 'supplier_id', subLabelKey: 'location' }, req: true, default: storedPoDefaults?.supplier_id ?? storedDefaults?.supplier_id ?? pdfDefaults.supplier_id },
+                        { name: 'company_id', label: 'Addressed To', type: 'select', options: options.companies, req: true, default: storedPoDefaults?.company_id ?? storedDefaults?.company_id ?? pdfDefaults.company_id },
+                        { name: 'quote_date', label: 'Date', type: 'date', req: true, default: storedPoDefaults?.quote_date || storedDefaults?.quote_date || pdfData?.quote_date || pdfData?.pi_date || new Date().toISOString().split('T')[0] },
+                        { name: 'pi_number', label: 'Quote Ref', type: 'text', suggestions: suggestions.quoteNumbers, default: storedPoDefaults?.pi_number || storedDefaults?.pi_number || pdfData?.quote_number || pdfData?.pi_number },
+                        { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true, default: storedPoDefaults?.currency ?? storedDefaults?.currency ?? pdfData?.currency },
                         { name: 'total_value', label: 'Total Value', type: 'number', default: storedDefaults?.total_value ?? pdfData?.total_value },
                         // Freight is SHARED (owner, 2026-08-10): the supplier quotes it
                         // and the PO pays it, so it belongs to a Quote-only PI as much as
                         // to a Quote + PO. Stored on 4.0; carried onto the PO when raised.
-                        { name: 'freight_charges_intl', label: 'Freight Cost', type: 'number', formula: true, hint: 'Supplier-quoted freight — accepts = formulas; carried onto the PO', default: (pdfData as any)?.freight_charges_intl },
+                        { name: 'freight_charges_intl', label: 'Freight Cost', type: 'number', formula: true, hint: 'Supplier-quoted freight — accepts = formulas; carried onto the PO', default: storedPoDefaults?.freight_charges_intl ?? (pdfData as any)?.freight_charges_intl },
                         // Quote-only stores an OPEN price quote; Quote + PO goes
                         // straight from PI to PO, so the quote lands as Accepted
                         // automatically and the Status field disappears entirely.
@@ -1093,18 +1149,21 @@ function MasterInsertPage() {
                           { name: 'status', label: 'Status', type: 'select' as const, options: ENUMS.price_quotes_status, default: 'Open' },
                         ]),
                         { name: 'estimated_lead_time_days', label: 'Lead Time', type: 'select', options: ENUMS.lead_time, default: pdfData?.lead_time_days },
-                        { name: 'replaces_quote_id', label: 'Replaces', type: 'select', options: options.quotes },
-                        { name: 'document_url', label: 'Document Folder', hint: 'Link to the deal’s document folder (e.g. Google Drive)', type: 'text', placeholder: 'https://drive.google.com/…' },
+                        { name: 'replaces_quote_id', label: 'Replaces Quote', hint: 'This quote supersedes an earlier one', type: 'select', options: options.quotes },
+                        { name: 'document_url', label: 'Document Folder', hint: 'Link to the deal’s document folder (e.g. Google Drive)', type: 'text', placeholder: 'https://drive.google.com/…', default: storedPoDefaults?.document_url },
                         // Quote + PO mode — the PO's OWN fields, kept together as
                         // one violet block at the END so the form reads "the deal,
                         // then what the PO adds". Violet border = belongs to the PO.
                         ...(withPo ? [
-                          { name: 'po_number', label: 'PO #', type: 'text' as const, req: true, suggestions: suggestions.poNumbers, default: pdfData?.po_number, accent: true },
-                          { name: 'po_date', label: 'PO Date', hint: 'Empty = same as the PI date', type: 'date' as const, default: storedDefaults?.po_date, accent: true },
-                          { name: 'exchange_rate', label: 'Exch Rate', hint: 'Estimated — auto-filled from payment history if empty; IDR ignores it', type: 'number' as const, formula: true, accent: true },
-                          { name: 'incoterms', label: 'Incoterms', type: 'text' as const, suggestions: ['FOB', 'EXW', 'CIF', 'DDP', ...suggestions.incoterms], accent: true },
-                          { name: 'method_of_shipment', label: 'Ship Via', type: 'select' as const, options: ENUMS.method_of_shipment, accent: true },
-                          { name: 'payment_terms', label: 'PO Terms', type: 'text' as const, suggestions: suggestions.paymentTerms, default: settings.defaultPoPaymentTerms, accent: true },
+                          { name: 'po_number', label: 'PO #', type: 'text' as const, req: true, suggestions: suggestions.poNumbers, default: storedPoDefaults?.po_number ?? pdfData?.po_number, accent: true },
+                          { name: 'po_date', label: 'PO Date', hint: 'Empty = same as the PI date', type: 'date' as const, default: storedPoDefaults?.po_date ?? storedDefaults?.po_date, accent: true },
+                          { name: 'exchange_rate', label: 'Exch Rate', hint: 'Estimated — auto-filled from payment history if empty; IDR ignores it', type: 'number' as const, formula: true, default: storedPoDefaults?.exchange_rate, accent: true },
+                          { name: 'incoterms', label: 'Incoterms', type: 'text' as const, suggestions: ['FOB', 'EXW', 'CIF', 'DDP', ...suggestions.incoterms], default: storedPoDefaults?.incoterms, accent: true },
+                          { name: 'method_of_shipment', label: 'Ship Via', type: 'select' as const, options: ENUMS.method_of_shipment, default: storedPoDefaults?.method_of_shipment, accent: true },
+                          { name: 'payment_terms', label: 'PO Terms', type: 'text' as const, suggestions: suggestions.paymentTerms, default: storedPoDefaults?.payment_terms ?? settings.defaultPoPaymentTerms, accent: true },
+                          // The PO's own replacement link — supersede an older PO
+                          // without loading it (Stored PO above does load-and-edit).
+                          { name: 'replaces_po_id', label: 'Replaces PO', hint: 'This PO supersedes an older one — the old PO is marked Replaced and linked. (Use Stored PO above to also load its items.)', type: 'rich-select' as const, options: options.posReplace, config: { labelKey: '_label', valueKey: 'po_id', subLabelKey: '_sub' }, accent: true },
                         ] : []),
                       ]}
                       onSubmit={submitDeal}
@@ -1403,6 +1462,7 @@ function MasterInsertPage() {
                   onUpdatePo={handleUpdatePo}
                   onMarkFullyPaid={handleMarkFullyPaid}
                   onCreatePO={(quoteId) => startPoForQuote(quoteId)}
+                  onRevisePo={(poId) => startRevisionForPo(poId)}
                   onUpdateQuoteItem={handleUpdateQuoteItem}
                   onUpdatePoItem={handleUpdatePoItem}
                   onUpdateQuoteLineItem={handleUpdateQuoteLineItem}

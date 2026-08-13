@@ -353,6 +353,8 @@ interface Props {
   onUpdatePo?: (poId: string, changes: Partial<PurchaseOrder>) => Promise<void>;
   onMarkFullyPaid?: (poId: string, amount: number, currency: string) => Promise<void>;
   onCreatePO?: (quoteId: string) => void;
+  /** Load this PO into the New Deal form to amend, split, or supersede it. */
+  onRevisePo?: (poId: string) => void;
   onUpdateQuoteItem?: (quoteLineId: number, componentId: string) => Promise<void>;
   onUpdatePoItem?: (poItemId: number, componentId: string) => Promise<void>;
   onUpdateQuoteLineItem?: (id: number, updates: { component_id?: string; quantity?: number; unit_price?: number }) => Promise<void>;
@@ -369,7 +371,7 @@ interface Props {
 export default function DealLookupTab({
   quotes, quoteItems, pos, poItems, poCosts,
   suppliers, companies, components,
-  onQuoteStatusChange, onPoStatusChange, onUpdatePo, onMarkFullyPaid, onCreatePO,
+  onQuoteStatusChange, onPoStatusChange, onUpdatePo, onMarkFullyPaid, onCreatePO, onRevisePo,
   onUpdateQuoteItem, onUpdatePoItem,
   onUpdateQuoteLineItem, onUpdatePoLineItem,
   onAddPoLineItem, onAddQuoteLineItem,
@@ -903,11 +905,11 @@ export default function DealLookupTab({
                 const ltPayment = ltRecDate && ltFirstPay?.payment_date ? ltDiff(ltFirstPay.payment_date) : null;
 
                 // Replacement lineage: this PO may revise an earlier one, or have
-                // been superseded by later one(s). Successors share the PI, so both
-                // ends of the link live in this same group.
+                // been superseded by later one(s). Resolve across ALL POs (not just
+                // this group) so a supersede that changed the PI still links.
                 const replacesId = (po as any).replaces_po_id;
-                const revisionOf = replacesId ? g.pos.find((p) => String(p.po_id) === String(replacesId)) : null;
-                const supersededBy = g.pos.filter((p) => String((p as any).replaces_po_id ?? '') === String(po.po_id));
+                const revisionOf = replacesId ? pos.find((p) => String(p.po_id) === String(replacesId)) : null;
+                const supersededBy = pos.filter((p) => String((p as any).replaces_po_id ?? '') === String(po.po_id));
 
                 return (
                   <div key={pKey} className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-2">
@@ -1263,6 +1265,13 @@ export default function DealLookupTab({
                             ))}
                           </select>
                           {updatingPo === pKey && <span className="text-[10px] text-slate-500 animate-pulse">saving…</span>}
+                          {onRevisePo && po.po_number && po.status !== 'Cancelled' && po.status !== 'Replaced' && (
+                            <button type="button" onClick={(e) => { e.stopPropagation(); onRevisePo(String(po.po_id)); }}
+                              className="text-[11px] font-semibold text-violet-300 hover:text-violet-200 px-2 py-1 rounded-lg border border-violet-500/30 hover:border-violet-500/50 hover:bg-violet-500/10 transition-colors whitespace-nowrap"
+                              title="Load this PO into New Deal — amend it, split lines into a new PO, or supersede it">
+                              Revise →
+                            </button>
+                          )}
                         </div>
 
                         {/* Received date picker — shown when intercepting "Fully Received" for this PO */}
