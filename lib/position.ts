@@ -19,6 +19,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 // Relative imports keep this lib runnable under `node --test` (no @/ alias there)
 import type { RolePermissions } from '../constants/roles';
 import { PRINCIPAL_CATS } from '../constants/costCategories.ts';
+import { computeInTransit, type InTransitSummary, type OpenPo, type ReceivedPo, type PoCost } from './inTransit.ts';
 
 // ── Row shapes (only the columns the math reads) ─────────────────────────────
 export interface AccountRow { bank_account_id: string; currency: string; opening_balance: number; is_active: boolean }
@@ -249,6 +250,8 @@ export interface PositionData {
   cash?: CashPosition;
   ar?: ArPosition;
   ap?: ApPosition;
+  /** Goods on the water — paid/ordered, not yet received (sits beside "we owe"). */
+  inTransit?: InTransitSummary;
   ccc?: CccPosition;
   motion: MotionRow[];
 }
@@ -293,7 +296,7 @@ export async function fetchPosition(
     needInvoices ? supabase.from('25.0_sales_invoices').select('invoice_id, grand_total, issued_at') : Promise.resolve({ data: null, error: null }),
     needReceipts ? supabase.from('26.0_customer_receipts').select('invoice_id, amount, payment_date, bank_account_id') : Promise.resolve({ data: null, error: null }),
     needCosts ? supabase.from('6.0_po_costs').select('po_id, cost_category, amount, currency, exchange_rate, payment_date, bank_account_id') : Promise.resolve({ data: null, error: null }),
-    needPos ? supabase.from('5.0_purchases').select('po_id, status, total_value, currency, exchange_rate, actual_received_date') : Promise.resolve({ data: null, error: null }),
+    needPos ? supabase.from('5.0_purchases').select('po_id, po_number, status, total_value, currency, exchange_rate, actual_received_date, po_date, estimated_delivery_date, supplier_id') : Promise.resolve({ data: null, error: null }),
     perms.canViewEconomics ? supabase.from('30.1_stock_balances').select('qty_on_hand, avg_cost_idr') : Promise.resolve({ data: null, error: null }),
     perms.canViewEconomics
       ? supabase.from('30.0_stock_movements').select('quantity, unit_cost_idr, moved_at')
@@ -319,6 +322,9 @@ export async function fetchPosition(
   }
   if (perms.buySide && pos && costs) {
     out.ap = computeAp(pos, costs);
+    out.inTransit = computeInTransit(
+      pos as unknown as OpenPo[], costs as unknown as PoCost[], pos as unknown as ReceivedPo[], nowIso,
+    );
   }
   if (perms.canViewEconomics && balRes.data && moveRes.data && invoices && receipts && costs && pos) {
     out.ccc = computeCcc({

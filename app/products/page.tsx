@@ -36,11 +36,9 @@ interface Tier { tier_id: string; tier_code: string; name: string; default_disco
 interface Override { component_id: string; tier_id: string; override_price_idr: number | null; override_discount_pct: number | null; }
 interface DocRef { number: string; customer: string; qty: number; date: string; quote_id: string; }
 
-// PO statuses that mean "ordered, on the way, not yet arrived".
-const INCOMING_PO_STATUSES = new Set(['Sent', 'Confirmed', 'Partially Received']);
-
 import { formatCategory as humanize } from '@/lib/formatCategory';
-import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
+import { fmtDay, fmtDate, fmtInt, fmtRupiah } from '@/lib/formatters';
+import { INCOMING_PO_STATUSES, itemArrivals, type ItemArrival, type OpenPo, type ReceivedPo } from '@/lib/inTransit';
 import LayoutToggle from '@/components/ui/LayoutToggle';
 import QuoteBasket, { useQuoteBasket } from '@/components/ui/QuoteBasket';
 import { buildQuoteMessage, shareOrCopy } from '@/lib/whatsappQuote';
@@ -116,7 +114,7 @@ const wtyDays = (c: Comp): number =>
   c.warranty_value ? Number(c.warranty_value) * (UNIT_DAYS[c.warranty_unit ?? 'years'] ?? 365.25)
   : (c.warranty ?? '').trim() ? 0.5 : -1;
 
-interface Row { c: Comp; phys: number; rsv: number; live: number; inc: number; activity: number; sold: number; }
+interface Row { c: Comp; phys: number; rsv: number; live: number; inc: number; eta: ItemArrival | null; activity: number; sold: number; }
 
 // Suspense wrapper: useSearchParams (?q= deep links from Spotlight) requires it
 export default function ProductsPage() {
@@ -147,6 +145,7 @@ function ProductsInner() {
   const [physical, setPhysical] = useState<Record<string, number>>({});
   const [reserved, setReserved] = useState<Record<string, number>>({});
   const [incoming, setIncoming] = useState<Record<string, number>>({});
+  const [etaByComp, setEtaByComp] = useState<Record<string, ItemArrival>>({});
   const [activityByComp, setActivityByComp] = useState<Record<string, number>>({});
   // One row per committed sale line — quantity and the date it was ordered, so
   // "most sold" can be asked of any period rather than only all time.
@@ -214,7 +213,7 @@ function ProductsInner() {
       supabase.from('30.1_stock_balances').select('component_id, location, qty_on_hand'),
       supabase.from('22.0_sales_quotes').select('quote_id, status, order_number, do_number, ordered_at, delivered_at, updated_at, customer_id'),
       supabase.from('22.1_sales_quote_items').select('quote_id, component_id, quantity, is_section'),
-      supabase.from('5.0_purchases').select('po_id, status'),
+      supabase.from('5.0_purchases').select('po_id, status, po_date, estimated_delivery_date, supplier_id, actual_received_date'),
       supabase.from('5.1_purchase_line_items').select('po_id, component_id, quantity'),
       supabase.from('4.1_price_quote_line_items').select('quote_id, component_id').limit(8000),
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name'),
@@ -299,6 +298,15 @@ function ProductsInner() {
     }
     setIncoming(inc);
 
+    // Expected arrival (ETA, else PO date + measured lead) per item on open POs
+    const purchases = (poRes.data ?? []) as unknown as OpenPo[];
+    const openLines = ((poiRes.data as { po_id: number; component_id: string | null }[]) ?? [])
+      .map((li) => ({ po_id: li.po_id, component_id: li.component_id }));
+    const etaMap = itemArrivals(openLines, purchases, purchases as unknown as ReceivedPo[], new Date().toISOString());
+    const etaObj: Record<string, ItemArrival> = {};
+    for (const [k, v] of etaMap) etaObj[k] = v;
+    setEtaByComp(etaObj);
+
     const piSets: Record<string, Set<string>> = {};
     for (const li of (piiRes.data as { quote_id: number; component_id: string | null }[]) ?? []) {
       if (li.component_id) (piSets[li.component_id] ??= new Set()).add(String(li.quote_id));
@@ -377,7 +385,7 @@ function ProductsInner() {
       .map((c) => {
         const phys = physical[c.component_id] ?? 0;
         const rsv = reserved[c.component_id] ?? 0;
-        return { c, phys, rsv, live: phys - rsv, inc: incoming[c.component_id] ?? 0, activity: activityByComp[c.component_id] ?? 0, sold: soldInRange[c.component_id] ?? 0 };
+        return { c, phys, rsv, live: phys - rsv, inc: incoming[c.component_id] ?? 0, eta: etaByComp[c.component_id] ?? null, activity: activityByComp[c.component_id] ?? 0, sold: soldInRange[c.component_id] ?? 0 };
       })
       .filter(({ c, phys, inc }) => {
         if (filterCategory && c.category !== filterCategory) return false;
@@ -412,7 +420,7 @@ function ProductsInner() {
         || (a.c.supplier_model || '').localeCompare(b.c.supplier_model || '');
     });
     return list;
-  }, [comps, physical, reserved, incoming, activityByComp, soldInRange, search, filterCategory, filterBrand, stockOnly, justArrived, arrivals, sort]);
+  }, [comps, physical, reserved, incoming, etaByComp, activityByComp, soldInRange, search, filterCategory, filterBrand, stockOnly, justArrived, arrivals, sort]);
 
   const toggleSort = (key: SortKey) => {
     listTouched.current = true;
@@ -771,6 +779,17 @@ function ProductsInner() {
                       {r.c.unit && <span className="text-slate-600 font-normal"> {r.c.unit}</span>}
                     </span>
                     {r.inc > 0 && <span className="px-2 py-1 rounded-lg bg-sky-500/10 text-sky-300 text-[11px] tabular-nums">+{fmtInt(r.inc)} incoming</span>}
+                    {r.eta?.nearest && (r.eta.overdue ? (
+                      <span className="px-2 py-1 rounded-lg bg-amber-500/15 text-amber-300 text-[11px] tabular-nums"
+                        title={`Expected ${fmtDate(r.eta.nearest)} · ${r.eta.source === 'lead' ? 'estimated from measured lead time' : 'supplier ETA'} · past due, not yet received`}>
+                        ⚠ {Math.max(1, Math.round((Date.now() - Date.parse(`${r.eta.nearest}T00:00:00Z`)) / 86_400_000))}d late
+                      </span>
+                    ) : (
+                      <span className="px-2 py-1 rounded-lg bg-slate-800/60 text-slate-400 text-[11px]"
+                        title={r.eta.source === 'lead' ? 'Estimated from this supplier’s measured lead time' : 'Supplier ETA'}>
+                        ETA {fmtDate(r.eta.nearest)}
+                      </span>
+                    ))}
                     {r.c.selling_price_idr ? (
                       <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); onPrice(r.c, r.c.selling_price_idr!); }}
                         title={multi ? 'Tap to add at this price' : 'Tap to copy this price for WhatsApp'}

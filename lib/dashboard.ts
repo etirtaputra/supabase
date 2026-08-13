@@ -17,6 +17,7 @@ import { fetchDeliveredByQuoteComp } from './reservedStock';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 import { todayISO } from './dateRange';
 import { fetchReorderAlerts } from './reorder';
+import { computeInTransit, type OpenPo, type ReceivedPo, type PoCost } from './inTransit';
 
 export type ActionDomain = 'sell' | 'buy' | 'cash';
 
@@ -176,7 +177,7 @@ export async function fetchActionQueue(
   // ── Buy side: received but unpaid ────────────────────────────────────────
   if (perms.buySide) {
     const [poRes, costRes] = await Promise.all([
-      supabase.from('5.0_purchases').select('po_id, po_number, status, total_value, currency, exchange_rate'),
+      supabase.from('5.0_purchases').select('po_id, po_number, status, total_value, currency, exchange_rate, po_date, estimated_delivery_date, supplier_id, actual_received_date'),
       supabase.from('6.0_po_costs').select('po_id, cost_category, amount, currency, exchange_rate'),
     ]);
     if (!poRes.error && !costRes.error) {
@@ -202,6 +203,25 @@ export async function fetchActionQueue(
           title: `${n} received PO${n !== 1 ? 's' : ''} still unpaid`,
           detail: 'goods are in the warehouse; the supplier is waiting',
           amount: owed, count: n, href: '/purchasing?tab=lookup',
+        });
+      }
+
+      // ── POs overdue: ordered (often prepaid), past their expected arrival ───
+      // Expected = the stamped ETA, else PO date + this supplier's measured lead
+      // time. Money already out the door and late is money to chase — ranked by
+      // the paid capital at stake, or the PO value when nothing is paid yet.
+      const it = computeInTransit(
+        (poRes.data ?? []) as OpenPo[],
+        (costRes.data ?? []) as PoCost[],
+        (poRes.data ?? []) as ReceivedPo[],
+        todayISO(),
+      );
+      if (it.overdueCount > 0) {
+        items.push({
+          key: 'po-overdue', domain: 'buy', tone: 'urgent',
+          title: `${it.overdueCount} PO${it.overdueCount !== 1 ? 's' : ''} overdue`,
+          detail: `${it.overduePaidIdr > 0 ? 'paid for, ' : ''}past expected arrival — oldest ${it.maxDaysLate} day${it.maxDaysLate !== 1 ? 's' : ''} late; chase the supplier`,
+          amount: it.overduePaidIdr || it.overdueValueIdr, count: it.overdueCount, href: '/purchasing?tab=lookup',
         });
       }
     }

@@ -30,7 +30,8 @@ import BrandMenu from '@/components/ui/BrandMenu';
 import SpecRenderer from '@/components/ui/SpecRenderer';
 import { PositionDetail } from '@/components/profitability/PositionPanel';
 import { formatCategory as humanize } from '@/lib/formatCategory';
-import { fmtDay, fmtInt, fmtIdr, fmtCcy, fmtRupiah } from '@/lib/formatters';
+import { fmtDay, fmtDate, fmtInt, fmtIdr, fmtCcy, fmtRupiah } from '@/lib/formatters';
+import { INCOMING_PO_STATUSES, itemArrivals, type ItemArrival, type OpenPo, type ReceivedPo } from '@/lib/inTransit';
 import FitText from '@/components/ui/FitText';
 import { useSettings } from '@/hooks/useSettings';
 import { COMMITTED_STATUSES as COMMITTED } from '@/lib/salesStatus';
@@ -51,9 +52,6 @@ import type { PurchaseOrder, PurchaseLineItem, POCost, PriceQuote, PriceQuoteLin
 import { successorIdOf } from '@/lib/successors';
 import { fmtWarranty, warrantyLabel } from '@/lib/warranty';
 
-// PO statuses that mean "ordered, on the way, not yet fully arrived" — the
-// same set Products uses for its Incoming column.
-const INCOMING_PO_STATUSES = new Set(['Sent', 'Confirmed', 'Partially Received']);
 
 interface Comp {
   component_id: string; supplier_model: string; internal_description: string | null;
@@ -263,6 +261,13 @@ export default function ItemHubPage() {
     () => myPoLines.reduce((s, { item, po }) => s + (INCOMING_PO_STATUSES.has(po.status ?? '') ? Number(item.quantity) || 0 : 0), 0),
     [myPoLines]);
 
+  // When those incoming units should land — ETA if the PO carries one, else PO
+  // date + this supplier's measured lead time (all POs feed the lead average).
+  const arrival = useMemo<ItemArrival | null>(() => {
+    const lines = myPoLines.map(({ item }) => ({ po_id: item.po_id, component_id: componentId }));
+    return itemArrivals(lines, pos as unknown as OpenPo[], pos as unknown as ReceivedPo[], new Date().toISOString()).get(componentId) ?? null;
+  }, [myPoLines, pos, componentId]);
+
   // ── This item's PO slice — feeds the Exchange Rate and Cash Cycle tabs.
   // Same rows the whole page already fetched, just narrowed to POs that carry
   // this component, so both tabs show exactly this item's money history.
@@ -456,7 +461,7 @@ export default function ItemHubPage() {
             </div>
 
             {tab === 'overview' && (
-              <OverviewTab comp={comp} physical={physical} reserved={reserved} live={live} incoming={incoming}
+              <OverviewTab comp={comp} physical={physical} reserved={reserved} live={live} incoming={incoming} arrival={arrival}
                 avgCost={avgCost} canBuy={canBuy} canSell={canSell} canFloor={canFloor}
                 monthlySoldRate={monthlySoldRate} lastMove={lastMove} lastOut={lastOut} slowDays={SLOW_DAYS}
                 chain={chain} activeTiers={activeTiers} tucRes={tucRes} />
@@ -538,9 +543,9 @@ function HeadStat({ label, value, sub, tone }: { label: string; value: React.Rea
 }
 
 // ── Overview ─────────────────────────────────────────────────────────────────
-function OverviewTab({ comp, physical, reserved, live, incoming, avgCost, canBuy, canSell, canFloor,
+function OverviewTab({ comp, physical, reserved, live, incoming, arrival, avgCost, canBuy, canSell, canFloor,
   monthlySoldRate, lastMove, lastOut, slowDays, chain, activeTiers, tucRes }: {
-  comp: Comp; physical: number; reserved: number; live: number; incoming: number; avgCost: number;
+  comp: Comp; physical: number; reserved: number; live: number; incoming: number; arrival: ItemArrival | null; avgCost: number;
   canBuy: boolean; canSell: boolean; canFloor: boolean;
   monthlySoldRate: number; lastMove: Movement | null; lastOut: Movement | null; slowDays: number;
   chain: Map<string, { price: number | null }>; activeTiers: Tier[]; tucRes: TUCResult | null;
@@ -568,7 +573,10 @@ function OverviewTab({ comp, physical, reserved, live, incoming, avgCost, canBuy
     signals.push({ tone: 'amber', text: `Slow mover — ${outIdleDays == null ? 'never shipped' : `no stock-out in ${fmtInt(outIdleDays)} days`} with stock on hand (threshold ${slowDays}d).` });
   }
   if (canSell && !comp.selling_price_idr) signals.push({ tone: 'amber', text: 'No sell price set — the item cannot be quoted or marked.' });
-  if (incoming > 0) signals.push({ tone: 'sky', text: `${fmtInt(incoming)}${comp.unit ? ` ${comp.unit}` : ''} incoming on open purchase orders.` });
+  if (incoming > 0) {
+    const eta = arrival?.nearest ? ` Nearest expected ${fmtDate(arrival.nearest)}${arrival.source === 'lead' ? ' (est. from lead time)' : ''}.` : '';
+    signals.push({ tone: arrival?.overdue ? 'amber' : 'sky', text: `${fmtInt(incoming)}${comp.unit ? ` ${comp.unit}` : ''} incoming on open purchase orders.${arrival?.overdue ? ' A shipment is past its expected arrival — chase the supplier.' : eta}` });
+  }
 
   return (
     <div className="space-y-4">
@@ -587,8 +595,10 @@ function OverviewTab({ comp, physical, reserved, live, incoming, avgCost, canBuy
           <Kpi label="Landed cost (TUC)" value={tucRes ? fmtRupiah(tucRes.tuc) : avgCost > 0 ? fmtRupiah(avgCost) : '—'} tone="text-sky-300"
             sub={tucRes ? `from ${tucRes.poCount} settled PO${tucRes.poCount !== 1 ? 's' : ''}` : 'moving average'} />
         )}
-        <Kpi label="Incoming" value={incoming > 0 ? fmtInt(incoming) : '0'} tone={incoming > 0 ? 'text-sky-300' : undefined}
-          sub="on POs not yet fully received" />
+        <Kpi label="Incoming" value={incoming > 0 ? fmtInt(incoming) : '0'} tone={incoming > 0 ? (arrival?.overdue ? 'text-amber-300' : 'text-sky-300') : undefined}
+          sub={incoming > 0 && arrival?.nearest
+            ? (arrival.overdue ? 'past expected arrival' : `ETA ${fmtDate(arrival.nearest)}${arrival.source === 'lead' ? ' · est.' : ''}`)
+            : 'on POs not yet fully received'} />
       </div>
 
       <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl px-4 py-3.5">

@@ -22,7 +22,8 @@ import { fetchWarehouses, warehouseLabel, type Warehouse } from '@/lib/warehouse
 import { COMMITTED_STATUSES as COMMITTED } from '@/lib/salesStatus';
 import { fetchDeliveredByQuoteComp } from '@/lib/reservedStock';
 import { fetchReorderAlerts, type ReorderAlert } from '@/lib/reorder';
-import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
+import { fmtDay, fmtInt, fmtIdr, fmtRupiah } from '@/lib/formatters';
+import { fetchInTransit, type InTransitSummary } from '@/lib/inTransit';
 import FitText from '@/components/ui/FitText';
 
 /** An order line still waiting on stock — what the shortage is FOR. */
@@ -55,6 +56,7 @@ export default function StockPage() {
   const [filterWh, setFilterWh] = useState('');          // '' = all warehouses
   const [shortages, setShortages] = useState<Shortage[]>([]);
   const [reorders, setReorders] = useState<ReorderAlert[]>([]);
+  const [inTransit, setInTransit] = useState<InTransitSummary | null>(null);
   const [transfer, setTransfer] = useState<{ c: Comp; from: string; available: number } | null>(null);
   const [toast, setToast] = useState('');
   const [loading, setLoading] = useState(true);
@@ -92,6 +94,8 @@ export default function StockPage() {
     };
     // Reorder alerts fetch their own tables — independent, never blocks the page
     fetchReorderAlerts(supabase).then(setReorders).catch(() => setReorders([]));
+    // Goods on the water — paid/ordered, not yet received — read the same way
+    fetchInTransit(supabase).then(setInTransit).catch(() => setInTransit(null));
     const [allComps, balRes, movRes, whs, sqRes, sqiRes, custRes, deliveredMap] = await Promise.all([
       fetchAllComponents(),
       supabase.from('30.1_stock_balances').select('component_id, location, qty_on_hand, avg_cost_idr, updated_at'),
@@ -287,6 +291,34 @@ export default function StockPage() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* In transit — goods ordered/paid, not yet in the warehouse. The count
+            is every open PO; "on the water" is the cash already paid against
+            them (often prepaid imports). Overdue = past expected arrival. */}
+        {inTransit && inTransit.count > 0 && (
+          <div className="bg-sky-500/[0.05] border border-sky-500/25 rounded-2xl px-4 py-3 flex flex-wrap items-baseline gap-x-4 gap-y-1.5">
+            <h2 className="text-[11px] font-bold uppercase tracking-widest text-sky-300">
+              🚢 In transit — {inTransit.count} open PO{inTransit.count !== 1 ? 's' : ''}
+            </h2>
+            {inTransit.paidIdr > 0 && (
+              <span className="text-[11px] tabular-nums text-slate-300">
+                <span className="text-slate-500">on the water </span>{fmtIdr(inTransit.paidIdr)}
+              </span>
+            )}
+            {inTransit.overdueCount > 0 && (
+              <span className="text-[11px] tabular-nums text-amber-300 font-semibold"
+                title={`Oldest ${inTransit.maxDaysLate} day${inTransit.maxDaysLate !== 1 ? 's' : ''} past expected arrival`}>
+                ⚠ {inTransit.overdueCount} overdue
+              </span>
+            )}
+            {inTransit.excludedNoRate > 0 && (
+              <span className="text-[10px] text-slate-500">· {inTransit.excludedNoRate} unrated excl.</span>
+            )}
+            <Link href="/purchasing?tab=lookup"
+              className="ml-auto text-[10px] px-2 py-0.5 rounded-lg bg-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors whitespace-nowrap"
+              title="Open Deal Lookup to review open purchase orders">POs ↗</Link>
           </div>
         )}
 

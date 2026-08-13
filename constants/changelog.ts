@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-13T16:00:00Z',
+    title: 'In-transit goods: what’s on the water, and what’s late',
+    details: [
+      'Every open purchase order (ordered, not yet fully received) now has an expected arrival date — its stamped ETA when it has one, otherwise its PO date plus the supplier’s own measured lead time (average PO→goods-receipt days, falling back to the business-wide average, then 30 days).',
+      'Products: each item with incoming stock shows when it should land — a muted “ETA 20 Aug” chip beside the “+N incoming” tag, or an amber “⚠ 5d late” chip when a shipment is past due and still not received.',
+      'Dashboard: the “We owe” tile now carries a second line — “Rp X on the water” — the cash already paid out on goods not yet in the warehouse (the prepaid-import money that makes our payment cycle run ahead of delivery), with an overdue count when shipments are late.',
+      'Dashboard action queue: a new “N POs overdue” signal for orders past their expected arrival, ranked by the money at stake, linking straight to Deal Lookup to chase the supplier.',
+      'Item hub: the Incoming figure and its Overview signal now show the nearest expected arrival, turning amber when a shipment is overdue.',
+    ],
+  },
+  {
     at: '2026-08-13T11:00:00Z',
     title: 'Deal Lookup line items: numbers finally line up straight',
     details: [

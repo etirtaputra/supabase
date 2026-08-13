@@ -436,13 +436,27 @@ function PositionStrip({ data, perms }: { data: PositionData | null; perms: Role
   }
   if (perms.buySide) {
     const ap = data?.ap;
+    const it = data?.inTransit;
+    // Cash already gone on goods not yet in the warehouse — often prepaid imports,
+    // which is exactly what pushes DPO negative. Shown beside "we owe", never in it.
+    const transit = it && it.paidIdr > 0 ? (
+      <span className="block text-slate-500 mt-0.5">
+        {fmtIdr(it.paidIdr)} on the water
+        {it.overdueCount > 0 && <span className="text-amber-400"> · {it.overdueCount} overdue</span>}
+      </span>
+    ) : null;
     tiles.push({
       key: 'ap', label: 'We owe', color: 'text-sky-300', ring: 'ring-sky-500/20',
       value: dashOr(!!ap, () => fmtIdr(ap!.outstanding)),
-      sub: !ap ? (loading ? 'unpaid across active POs' : 'unavailable right now') : ap.openCount === 0 ? 'every active PO is paid' : (
-        <>{ap.openCount} PO{ap.openCount !== 1 ? 's' : ''}
-          {ap.receivedOwed > 0 && <span className="text-amber-400"> · {fmtIdr(ap.receivedOwed)} for goods received</span>}
-          {ap.excludedNoRate > 0 ? ` · ${ap.excludedNoRate} unrated excl.` : ''}</>
+      sub: !ap ? (loading ? 'unpaid across active POs' : 'unavailable right now') : (
+        <>
+          {ap.openCount === 0 ? 'every active PO is paid' : (
+            <>{ap.openCount} PO{ap.openCount !== 1 ? 's' : ''}
+              {ap.receivedOwed > 0 && <span className="text-amber-400"> · {fmtIdr(ap.receivedOwed)} for goods received</span>}
+              {ap.excludedNoRate > 0 ? ` · ${ap.excludedNoRate} unrated excl.` : ''}</>
+          )}
+          {transit}
+        </>
       ),
     });
   }
