@@ -626,9 +626,9 @@ export default function DealLookupTab({
                 const sup   = suppliers.find((s) => s.supplier_id === qt.supplier_id);
                 const co    = companies.find((c) => c.company_id === qt.company_id);
                 return (
-                  <div key={qKey} className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-2.5">
+                  <div key={qKey} className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-2">
                     {/* Quote meta */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-1.5 text-xs">
                       {/* The PI number IS the quote's reference — copyable here
                           so it can be pasted into an email without retyping. */}
                       {qt.pi_number && (
@@ -903,9 +903,9 @@ export default function DealLookupTab({
                 const ltPayment = ltRecDate && ltFirstPay?.payment_date ? ltDiff(ltFirstPay.payment_date) : null;
 
                 return (
-                  <div key={pKey} className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-2.5">
+                  <div key={pKey} className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-2">
                     {/* PO meta */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-1.5 text-xs">
                       {po.po_number && (
                         <div key="PO #">
                           <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">PO #</p>
@@ -1122,29 +1122,27 @@ export default function DealLookupTab({
                             {hasForeignTracking && <span className="text-[10px] font-normal text-slate-500 ml-1">({po.currency})</span>}
                           </span>
                         </div>
-                        <div className="grid grid-cols-3 gap-2">
-                          <div className="bg-white/5 border border-white/10 rounded-lg p-2">
-                            <p className="text-[10px] font-medium text-slate-500 mb-0.5">PO Committed</p>
-                            <p className="text-xs font-bold text-white tabular-nums">{fmtIdr(tIdr)}</p>
+                        {/* Committed · Paid · Outstanding — one dense line
+                            (three bordered boxes were three lines tall). */}
+                        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs bg-white/[0.03] border border-white/10 rounded-lg px-2.5 py-1.5">
+                          <span className="whitespace-nowrap">
+                            <span className="text-[10px] text-slate-500 mr-1">Committed</span>
+                            <span className="font-bold text-white tabular-nums">{fmtIdr(tIdr)}</span>
                             {isObligationMet && hasForeignTracking && paidIdr !== tIdr && (
-                              <p className={`text-[10px] tabular-nums mt-0.5 ${paidIdr < tIdr ? 'text-emerald-400' : 'text-red-400'}`}>
-                                {paidIdr < tIdr ? 'FX gain' : 'FX loss'}
-                              </p>
+                              <span className={`text-[10px] tabular-nums ml-1 ${paidIdr < tIdr ? 'text-emerald-400' : 'text-red-400'}`}>{paidIdr < tIdr ? 'FX gain' : 'FX loss'}</span>
                             )}
-                          </div>
-                          <div className="bg-white/5 border border-white/10 rounded-lg p-2">
-                            <p className="text-[10px] font-medium text-slate-500 mb-0.5">Principal Paid</p>
-                            <p className="text-xs font-bold text-emerald-400 tabular-nums">{fmtIdr(paidIdr)}</p>
+                          </span>
+                          <span className="whitespace-nowrap">
+                            <span className="text-[10px] text-slate-500 mr-1">Paid</span>
+                            <span className="font-bold text-emerald-400 tabular-nums">{fmtIdr(paidIdr)}</span>
                             {totalCashOutExclTaxIdr > paidIdr && (
-                              <p className="text-[10px] text-slate-600 tabular-nums mt-0.5">+{fmtIdr(totalCashOutExclTaxIdr - paidIdr)} fees/landed</p>
+                              <span className="text-[10px] text-slate-600 tabular-nums ml-1">+{fmtIdr(totalCashOutExclTaxIdr - paidIdr)} fees/landed</span>
                             )}
-                          </div>
-                          <div className="bg-white/5 border border-white/10 rounded-lg p-2">
-                            <p className="text-[10px] font-medium text-slate-500 mb-0.5">Outstanding</p>
-                            <p className={`text-xs font-bold tabular-nums ${outIdr > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                              {outIdr > 0 ? fmtIdr(outIdr) : '✓ Settled'}
-                            </p>
-                          </div>
+                          </span>
+                          <span className="whitespace-nowrap ml-auto">
+                            <span className="text-[10px] text-slate-500 mr-1">Outstanding</span>
+                            <span className={`font-bold tabular-nums ${outIdr > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>{outIdr > 0 ? fmtIdr(outIdr) : '✓ Settled'}</span>
+                          </span>
                         </div>
                         {/* Total spend row with cost breakdown */}
                         {totalCashOutIdr > 0 && (() => {
@@ -1587,14 +1585,18 @@ export default function DealLookupTab({
                   {g.pos.length > 1 && <span className="text-[10px] text-slate-600">· 1 of {g.pos.length} POs on this quote</span>}
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-xs border-collapse">
+                  {/* w-full on Component makes it absorb all slack, so on a wide
+                      monitor the four number columns cluster tight on the right
+                      instead of drifting apart; each number column is a fixed
+                      width so Q and PO line up cleanly. */}
+                  <table className="w-full min-w-[560px] max-w-[960px] text-xs border-collapse table-fixed">
                     <thead>
                       <tr className="border-b border-slate-700/40">
-                        <th className="text-left py-1.5 pr-3 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Component</th>
-                        <th className="text-right py-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest text-sky-400/70">Q Qty</th>
-                        <th className="text-right py-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest text-sky-400/70 border-r border-slate-700/50">Q Price</th>
-                        <th className="text-right py-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest text-emerald-400/70">PO Qty</th>
-                        <th className="text-right py-1.5 text-[10px] font-semibold uppercase tracking-widest text-emerald-400/70">PO Price</th>
+                        <th className="w-full text-left py-1.5 pr-3 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Component</th>
+                        <th className="w-24 text-right py-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest text-sky-400/70">Q Qty</th>
+                        <th className="w-28 text-right py-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest text-sky-400/70 border-r border-slate-700/50">Q Price</th>
+                        <th className="w-24 text-right py-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest text-emerald-400/70">PO Qty</th>
+                        <th className="w-28 text-right py-1.5 text-[10px] font-semibold uppercase tracking-widest text-emerald-400/70">PO Price</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1631,8 +1633,8 @@ export default function DealLookupTab({
                               (qtyDiff || priceDiff) ? 'bg-amber-500/5' : ''
                             }`}
                           >
-                            {/* ── Component cell ── */}
-                            <td className="py-2 pr-3 max-w-[240px]">
+                            {/* ── Component cell (column flexes; content truncates) ── */}
+                            <td className="py-2 pr-3">
                               {(lineEditQ || lineEditP || addingP || addingQ) && editingLine?.showCompSearch ? (
                                 <div className="flex items-center gap-1">
                                   <span className={`text-[9px] font-bold flex-shrink-0 ${(lineEditQ || addingQ) ? 'text-sky-400' : 'text-emerald-400'}`}>

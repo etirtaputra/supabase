@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-13T09:00:00Z',
+    title: 'Deal Lookup: line-item columns line up, PI/PO cards are tighter',
+    details: [
+      'The line-items comparison no longer sprawls across a wide monitor — the four number columns (Q Qty · Q Price · PO Qty · PO Price) are fixed-width and cluster neatly beside the component name, so quote and PO figures line up cleanly instead of drifting apart.',
+      'The quote and purchase-order cards are more compact: tighter field spacing, and the Committed / Paid / Outstanding figures now sit on one dense line instead of three stacked boxes — same information, less scrolling.',
+    ],
+  },
+  {
     at: '2026-08-12T15:00:00Z',
     title: 'Deal Lookup line items: each section names its PO',
     details: [
