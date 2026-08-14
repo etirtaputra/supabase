@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-14T03:30:00Z',
+    title: 'Products: priced items by default + PO-number hardening',
+    details: [
+      'The Products list now opens showing only items with a sell price set — the list is for quoting, and an unpriced item cannot be quoted. A new “Priced” checkbox (on by default) brings the rest back when you need them; “Clear ×” returns to the priced view.',
+      'Hardening: PO numbers are no longer even FETCHED for sales roles on Products — they no longer appear in the browser’s network traffic, the same rule already applied to costs and brands. Buy-side roles are unaffected.',
+    ],
+  },
+  {
     at: '2026-08-14T03:00:00Z',
     title: 'Products polish: tidier arrival hover, PO numbers gated, resizable Description',
     details: [

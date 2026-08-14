@@ -160,6 +160,10 @@ function ProductsInner() {
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterBrand, setFilterBrand] = useState('');
+  // Priced only is the DEFAULT view (owner, 2026-08-14): the sales list is for
+  // quoting, and an item with no sell price cannot be quoted. Untick to see the
+  // rest; "Clear ×" returns to the default (priced) view, not to everything.
+  const [pricedOnly, setPricedOnly] = useState(true);
   const [stockOnly, setStockOnly] = useState(false);
   const [justArrived, setJustArrived] = useState(false);
   // First/last goods-receipt date per item (30.0 ledger, GRN in-movements) —
@@ -280,7 +284,10 @@ function ProductsInner() {
       supabase.from('30.1_stock_balances').select('component_id, location, qty_on_hand'),
       supabase.from('22.0_sales_quotes').select('quote_id, status, order_number, do_number, ordered_at, delivered_at, updated_at, customer_id'),
       supabase.from('22.1_sales_quote_items').select('quote_id, component_id, quantity, is_section'),
-      supabase.from('5.0_purchases').select('po_id, po_number, quote_id, status, po_date, estimated_delivery_date, supplier_id, actual_received_date'),
+      // po_number only for buy-side eyes — same network-tab rule as brand/cost:
+      // a column a role may not see is never fetched, not merely not rendered.
+      // (Widened to `string` so supabase-js skips literal-parsing the dynamic select.)
+      supabase.from('5.0_purchases').select(('po_id, quote_id, status, po_date, estimated_delivery_date, supplier_id, actual_received_date' + (canSeePo ? ', po_number' : '')) as string),
       supabase.from('5.1_purchase_line_items').select('po_id, component_id, quantity'),
       supabase.from('4.1_price_quote_line_items').select('quote_id, component_id').limit(8000),
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name'),
@@ -356,7 +363,7 @@ function ProductsInner() {
     setOrdersByComp(top10(orders));
     setDeliveriesByComp(top10(deliveries));
 
-    const poStatus = new Map(((poRes.data as { po_id: number; status: string }[]) ?? []).map((p) => [String(p.po_id), p.status ?? '']));
+    const poStatus = new Map(((poRes.data as unknown as { po_id: number; status: string }[]) ?? []).map((p) => [String(p.po_id), p.status ?? '']));
     const inc: Record<string, number> = {};
     const poSets: Record<string, Set<string>> = {};
     for (const li of (poiRes.data as { po_id: number; component_id: string | null; quantity: number }[]) ?? []) {
@@ -373,7 +380,7 @@ function ProductsInner() {
     const leadByQuote = new Map(((pqRes.data ?? []) as { quote_id: string | number; estimated_lead_time_days: string | null }[])
       .map((q) => [String(q.quote_id), q.estimated_lead_time_days]));
     const statedByPo = new Map<string, string | null>(
-      ((poRes.data ?? []) as { po_id: string | number; quote_id: string | number | null }[])
+      ((poRes.data ?? []) as unknown as { po_id: string | number; quote_id: string | number | null }[])
         .map((p) => [String(p.po_id), p.quote_id != null ? leadByQuote.get(String(p.quote_id)) ?? null : null]));
     const openLines = ((poiRes.data as { po_id: number; component_id: string | null; quantity: number }[]) ?? [])
       .map((li) => ({ po_id: li.po_id, component_id: li.component_id, quantity: Number(li.quantity) || 0 }));
@@ -398,7 +405,7 @@ function ProductsInner() {
     }
     setActivityByComp(act);
     setLoading(false);
-  }, [canViewBrand]);
+  }, [canViewBrand, canSeePo]);
 
   useEffect(() => { if (canView) fetchAll(); }, [canView, fetchAll]);
 
@@ -470,6 +477,7 @@ function ProductsInner() {
       .filter(({ c, phys, inc }) => {
         if (filterCategory && c.category !== filterCategory) return false;
         if (filterBrand && c.brand !== filterBrand) return false;
+        if (pricedOnly && !(Number(c.selling_price_idr) > 0)) return false;
         if (stockOnly && phys <= 0 && inc <= 0) return false;
         if (justArrived && (arrivals[c.component_id]?.last ?? '') < cutoff) return false;
         if (!q) return true;
@@ -500,7 +508,7 @@ function ProductsInner() {
         || (a.c.supplier_model || '').localeCompare(b.c.supplier_model || '');
     });
     return list;
-  }, [comps, physical, reserved, incoming, etaByComp, activityByComp, soldInRange, search, filterCategory, filterBrand, stockOnly, justArrived, arrivals, sort]);
+  }, [comps, physical, reserved, incoming, etaByComp, activityByComp, soldInRange, search, filterCategory, filterBrand, pricedOnly, stockOnly, justArrived, arrivals, sort]);
 
   const toggleSort = (key: SortKey) => {
     listTouched.current = true;
@@ -677,6 +685,11 @@ function ProductsInner() {
               </Fragment>
             ))}
           </select>
+          <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none whitespace-nowrap"
+            title="Only items with a sell price set — the default view; untick to include unpriced items">
+            <input type="checkbox" checked={pricedOnly} onChange={(e) => setPricedOnly(e.target.checked)} className="accent-emerald-500 w-4 h-4" />
+            Priced
+          </label>
           <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none whitespace-nowrap">
             <input type="checkbox" checked={stockOnly} onChange={(e) => setStockOnly(e.target.checked)} className="accent-emerald-500 w-4 h-4" />
             In stock / incoming
@@ -687,7 +700,7 @@ function ProductsInner() {
             Just arrived
           </label>
           {hasFilters && (
-            <button onClick={() => { setSearch(''); setFilterCategory(''); setFilterBrand(''); setStockOnly(false); setJustArrived(false); }}
+            <button onClick={() => { setSearch(''); setFilterCategory(''); setFilterBrand(''); setStockOnly(false); setJustArrived(false); setPricedOnly(true); }}
               className="text-[11px] text-slate-500 hover:text-white px-2 py-1 transition-colors">Clear ×</button>
           )}
           <span className="text-xs text-slate-600 tabular-nums ml-auto">{rows.length} of {comps.length}</span>
