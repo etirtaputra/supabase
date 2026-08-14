@@ -38,7 +38,9 @@ interface DocRef { number: string; customer: string; qty: number; date: string; 
 
 import { formatCategory as humanize } from '@/lib/formatCategory';
 import { fmtDay, fmtDate, fmtInt, fmtRupiah } from '@/lib/formatters';
-import { INCOMING_PO_STATUSES, itemArrivals, type ItemArrival, type OpenPo, type ReceivedPo } from '@/lib/inTransit';
+import { INCOMING_PO_STATUSES, itemArrivals, itemArrivalDetails, type ItemArrival, type ArrivalDetail, type OpenPo, type ReceivedPo } from '@/lib/inTransit';
+import { useSettings } from '@/hooks/useSettings';
+import { PRODUCT_COLS } from '@/constants/productColumns';
 import LayoutToggle from '@/components/ui/LayoutToggle';
 import QuoteBasket, { useQuoteBasket } from '@/components/ui/QuoteBasket';
 import { buildQuoteMessage, shareOrCopy } from '@/lib/whatsappQuote';
@@ -146,6 +148,7 @@ function ProductsInner() {
   const [reserved, setReserved] = useState<Record<string, number>>({});
   const [incoming, setIncoming] = useState<Record<string, number>>({});
   const [etaByComp, setEtaByComp] = useState<Record<string, ItemArrival>>({});
+  const [etaDetails, setEtaDetails] = useState<Record<string, ArrivalDetail[]>>({});
   const [activityByComp, setActivityByComp] = useState<Record<string, number>>({});
   // One row per committed sale line — quantity and the date it was ordered, so
   // "most sold" can be asked of any period rather than only all time.
@@ -176,6 +179,35 @@ function ProductsInner() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [layout, setLayout] = useListLayout('products');
   const compact = layout === 'compact';
+  const settings = useSettings();
+
+  // ── Table columns: owner enforcement + personal choice ────────────────────
+  // The owner's hidden set (Settings › Lists) leaves the table AND the Columns
+  // menu; a personal hide narrows further but can never reveal what the owner
+  // hid. Description is the identity column and is never optional.
+  const [userHiddenCols, setUserHiddenCols] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('products:hiddenCols');
+      if (raw) setUserHiddenCols(new Set((JSON.parse(raw) as string[]).filter((k) => PRODUCT_COLS.some((c) => c.key === k))));
+    } catch {}
+  }, []);
+  const toggleCol = (key: string) => {
+    setUserHiddenCols((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      try { localStorage.setItem('products:hiddenCols', JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  };
+  const [colsOpen, setColsOpen] = useState(false);
+  const enforcedHidden = useMemo(() => new Set(settings.productHiddenColumns), [settings.productHiddenColumns]);
+  const colOffered = useCallback((k: string) =>
+    !enforcedHidden.has(k) && (k !== 'brand' || (!!profile && ROLE_PERMISSIONS[profile.role].canViewBrand)),
+    [enforcedHidden, profile]);
+  const colShown = useCallback((k: string) => colOffered(k) && !userHiddenCols.has(k), [colOffered, userHiddenCols]);
+  const visibleColCount = 1 + PRODUCT_COLS.filter((c) => colShown(c.key)).length;
+
   const [toast, setToast] = useState<string | null>(null);
   // component_id -> id of the item that replaces it (8.0 successor links)
   const [successors, setSuccessors] = useState<Map<string, string>>(new Map());
@@ -206,14 +238,14 @@ function ProductsInner() {
       }
       return all;
     };
-    const [allComps, tierRes, ovRes, balRes, sqRes, sqiRes, poRes, poiRes, piiRes, custRes, linkRes, arrRes] = await Promise.all([
+    const [allComps, tierRes, ovRes, balRes, sqRes, sqiRes, poRes, poiRes, piiRes, custRes, linkRes, arrRes, pqRes] = await Promise.all([
       fetchAllComponents(),
       supabase.from('21.0_price_tiers').select('tier_id, tier_code, name, default_discount_pct, sort_order, is_active').order('sort_order'),
       supabase.from('21.1_item_tier_prices').select('component_id, tier_id, override_price_idr, override_discount_pct'),
       supabase.from('30.1_stock_balances').select('component_id, location, qty_on_hand'),
       supabase.from('22.0_sales_quotes').select('quote_id, status, order_number, do_number, ordered_at, delivered_at, updated_at, customer_id'),
       supabase.from('22.1_sales_quote_items').select('quote_id, component_id, quantity, is_section'),
-      supabase.from('5.0_purchases').select('po_id, status, po_date, estimated_delivery_date, supplier_id, actual_received_date'),
+      supabase.from('5.0_purchases').select('po_id, po_number, quote_id, status, po_date, estimated_delivery_date, supplier_id, actual_received_date'),
       supabase.from('5.1_purchase_line_items').select('po_id, component_id, quantity'),
       supabase.from('4.1_price_quote_line_items').select('quote_id, component_id').limit(8000),
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name'),
@@ -221,6 +253,8 @@ function ProductsInner() {
       // Goods-receipt dates only (no costs — the /products network-tab rule) —
       // first receipt = the product is NEW; recent receipt = stock just arrived.
       supabase.from('30.0_stock_movements').select('component_id, moved_at').eq('direction', 'in').eq('source_type', 'receipt'),
+      // Lead time as STATED on the supplier quote — feeds the Incoming hover
+      supabase.from('4.0_price_quotes').select('quote_id, estimated_lead_time_days'),
     ]);
     const arr: Record<string, { first: string; last: string }> = {};
     for (const m of (arrRes.data ?? []) as { component_id: string; moved_at: string | null }[]) {
@@ -298,14 +332,25 @@ function ProductsInner() {
     }
     setIncoming(inc);
 
-    // Expected arrival (ETA, else PO date + measured lead) per item on open POs
+    // Expected arrival per item on open POs: stamped ETA, else PO date + the
+    // lead time STATED on the PO's supplier quote, else measured history.
     const purchases = (poRes.data ?? []) as unknown as OpenPo[];
-    const openLines = ((poiRes.data as { po_id: number; component_id: string | null }[]) ?? [])
-      .map((li) => ({ po_id: li.po_id, component_id: li.component_id }));
-    const etaMap = itemArrivals(openLines, purchases, purchases as unknown as ReceivedPo[], new Date().toISOString());
+    const leadByQuote = new Map(((pqRes.data ?? []) as { quote_id: string | number; estimated_lead_time_days: string | null }[])
+      .map((q) => [String(q.quote_id), q.estimated_lead_time_days]));
+    const statedByPo = new Map<string, string | null>(
+      ((poRes.data ?? []) as { po_id: string | number; quote_id: string | number | null }[])
+        .map((p) => [String(p.po_id), p.quote_id != null ? leadByQuote.get(String(p.quote_id)) ?? null : null]));
+    const openLines = ((poiRes.data as { po_id: number; component_id: string | null; quantity: number }[]) ?? [])
+      .map((li) => ({ po_id: li.po_id, component_id: li.component_id, quantity: Number(li.quantity) || 0 }));
+    const nowIso = new Date().toISOString();
+    const etaMap = itemArrivals(openLines, purchases, purchases as unknown as ReceivedPo[], nowIso, statedByPo);
     const etaObj: Record<string, ItemArrival> = {};
     for (const [k, v] of etaMap) etaObj[k] = v;
     setEtaByComp(etaObj);
+    const detailMap = itemArrivalDetails(openLines, purchases, purchases as unknown as ReceivedPo[], nowIso, statedByPo);
+    const detailObj: Record<string, ArrivalDetail[]> = {};
+    for (const [k, v] of detailMap) detailObj[k] = v;
+    setEtaDetails(detailObj);
 
     const piSets: Record<string, Set<string>> = {};
     for (const li of (piiRes.data as { quote_id: number; component_id: string | null }[]) ?? []) {
@@ -624,6 +669,34 @@ function ProductsInner() {
           </button>
           <DateRangeFilter value={range} onChange={(r) => { listTouched.current = true; setRange(r); }} label="Order date" />
           <LayoutToggle value={layout} onChange={setLayout} />
+          {/* Column picker (desktop table only). Owner-hidden columns are not
+              offered at all — a personal toggle can never reveal them. */}
+          <div className="relative hidden md:block">
+            <button onClick={() => setColsOpen((v) => !v)}
+              className="px-2.5 py-1.5 rounded-lg border border-slate-800 bg-slate-900/60 text-[11px] font-medium text-slate-400 hover:text-slate-200 transition-colors"
+              title="Choose which columns the table shows">
+              ▦ Columns
+            </button>
+            {colsOpen && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setColsOpen(false)} />
+                <div className="absolute right-0 top-full mt-1 z-40 w-48 rounded-xl border border-slate-700 bg-deep shadow-2xl p-2">
+                  {PRODUCT_COLS.filter((c) => colOffered(c.key)).map((c) => (
+                    <label key={c.key} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer text-xs text-slate-300">
+                      <input type="checkbox" checked={!userHiddenCols.has(c.key)} onChange={() => toggleCol(c.key)}
+                        className="accent-emerald-500" />
+                      {c.label}
+                    </label>
+                  ))}
+                  {settings.productHiddenColumns.length > 0 && (
+                    <p className="px-2 pt-1.5 mt-1 border-t border-slate-800 text-[10px] text-slate-600">
+                      {settings.productHiddenColumns.length} column{settings.productHiddenColumns.length !== 1 ? 's' : ''} hidden for everyone in Settings › Lists.
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         <p className="hidden md:block text-[11px] text-slate-600">
@@ -635,27 +708,31 @@ function ProductsInner() {
         <div className="hidden md:block bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-x-auto">
           <table className={`w-full min-w-[1000px] ${compact ? 'dense-rows' : ''}`}>
             <thead>
-              <tr className="border-b border-slate-800 text-[10px] uppercase tracking-widest text-slate-500">
+              {/* bg-chrome on the ROW, not only the sticky cell — the sticky
+                  Description header needs an opaque background to cover
+                  horizontally-scrolled content, and an opaque patch on a
+                  translucent row read as a different colour (2026-08-14 fix). */}
+              <tr className="border-b border-slate-800 text-[10px] uppercase tracking-widest text-slate-500 bg-chrome">
                 {/* Sticky: the item name stays anchored while the numeric
                     columns scroll horizontally, so a row never loses its label.
                     Every column sorts — click toggles ▲/▼. */}
                 <Th label="Description" active={sort.key === 'name'} dir={sort.dir} onClick={() => toggleSort('name')} className="px-4 sticky left-0 z-20 bg-chrome" />
-                <Th label="Sell Price" right active={sort.key === 'price'} dir={sort.dir} onClick={() => toggleSort('price')} />
-                <Th label="Stock" right active={sort.key === 'stock'} dir={sort.dir} onClick={() => toggleSort('stock')} hint="Live/Physical" />
-                <Th label="Incoming" right active={sort.key === 'incoming'} dir={sort.dir} onClick={() => toggleSort('incoming')} />
-                {canViewBrand && <Th label="Brand" active={sort.key === 'brand'} dir={sort.dir} onClick={() => toggleSort('brand')} />}
-                <Th label="Category" active={sort.key === 'category'} dir={sort.dir} onClick={() => toggleSort('category')} />
-                <Th label="Capacity" right active={sort.key === 'capacity'} dir={sort.dir} onClick={() => toggleSort('capacity')} />
-                <Th label="Warranty" active={sort.key === 'warranty'} dir={sort.dir} onClick={() => toggleSort('warranty')} tip="Sort by period length — 10 years ranks above 18 months above 90 days" />
-                <Th label="Sheet" center active={sort.key === 'sheet'} dir={sort.dir} onClick={() => toggleSort('sheet')} tip="Sort by whether the item has a datasheet" />
-                <Th label="Updated" right active={sort.key === 'updated'} dir={sort.dir} onClick={() => toggleSort('updated')} />
+                {colShown('price') && <Th label="Sell Price" right active={sort.key === 'price'} dir={sort.dir} onClick={() => toggleSort('price')} />}
+                {colShown('stock') && <Th label="Stock" right active={sort.key === 'stock'} dir={sort.dir} onClick={() => toggleSort('stock')} hint="Live/Physical" />}
+                {colShown('incoming') && <Th label="Incoming" right active={sort.key === 'incoming'} dir={sort.dir} onClick={() => toggleSort('incoming')} />}
+                {colShown('brand') && <Th label="Brand" active={sort.key === 'brand'} dir={sort.dir} onClick={() => toggleSort('brand')} />}
+                {colShown('category') && <Th label="Category" active={sort.key === 'category'} dir={sort.dir} onClick={() => toggleSort('category')} />}
+                {colShown('capacity') && <Th label="Capacity" right active={sort.key === 'capacity'} dir={sort.dir} onClick={() => toggleSort('capacity')} />}
+                {colShown('warranty') && <Th label="Warranty" active={sort.key === 'warranty'} dir={sort.dir} onClick={() => toggleSort('warranty')} tip="Sort by period length — 10 years ranks above 18 months above 90 days" />}
+                {colShown('sheet') && <Th label="Sheet" center active={sort.key === 'sheet'} dir={sort.dir} onClick={() => toggleSort('sheet')} tip="Sort by whether the item has a datasheet" />}
+                {colShown('updated') && <Th label="Updated" right active={sort.key === 'updated'} dir={sort.dir} onClick={() => toggleSort('updated')} />}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
               {loading ? (
-                [...Array(8)].map((_, i) => <tr key={i}><td colSpan={10} className="px-4 py-2"><div className="h-9 bg-slate-800/40 rounded-lg animate-pulse" /></td></tr>)
+                [...Array(8)].map((_, i) => <tr key={i}><td colSpan={visibleColCount} className="px-4 py-2"><div className="h-9 bg-slate-800/40 rounded-lg animate-pulse" /></td></tr>)
               ) : rows.length === 0 ? (
-                <tr><td colSpan={10} className="px-4 py-12 text-center text-slate-600 text-sm">No products match.</td></tr>
+                <tr><td colSpan={visibleColCount} className="px-4 py-12 text-center text-slate-600 text-sm">No products match.</td></tr>
               ) : rows.map((r) => (
                 <Fragment key={r.c.component_id}>
                   <tr onClick={() => setExpanded((e) => (e === r.c.component_id ? null : r.c.component_id))}
@@ -679,7 +756,7 @@ function ProductsInner() {
                         )}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-right whitespace-nowrap">
+                    {colShown('price') && <td className="px-3 py-2 text-right whitespace-nowrap">
                       {r.c.selling_price_idr ? (
                         <button onClick={(e) => { e.stopPropagation(); onPrice(r.c, r.c.selling_price_idr!); }}
                           title={multi ? 'Click to add at this price' : 'Click to copy this price (excl. PPN) for WhatsApp'}
@@ -692,33 +769,35 @@ function ProductsInner() {
                       {activeTiers.length > 0 && r.c.selling_price_idr ? (
                         <span className="block text-[10px] text-slate-500 tabular-nums">{activeTiers.length} tier{activeTiers.length > 1 ? 's' : ''} ▾</span>
                       ) : null}
-                    </td>
-                    <td className="px-3 py-2 text-right whitespace-nowrap">
+                    </td>}
+                    {colShown('stock') && <td className="px-3 py-2 text-right whitespace-nowrap">
                       <StockCell live={r.live} phys={r.phys} unit={r.c.unit} />
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-sky-300/80">{r.inc ? fmtInt(r.inc) : <span className="text-slate-700">0</span>}</td>
-                    {canViewBrand && <td className="px-3 py-2 text-xs text-slate-400 whitespace-nowrap">{r.c.brand || '—'}</td>}
-                    <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{r.c.category ? humanize(r.c.category) : '—'}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400">{r.c.norm_value != null && Number(r.c.norm_value) !== 0 ? Number(r.c.norm_value).toLocaleString('en-US') : '—'}</td>
-                    <td className="px-3 py-2 text-xs text-slate-400 whitespace-nowrap">
+                    </td>}
+                    {colShown('incoming') && <td className="px-3 py-2 text-right tabular-nums text-sky-300/80">
+                      {r.inc ? <IncomingCell qty={r.inc} unit={r.c.unit} details={etaDetails[r.c.component_id] ?? []} /> : <span className="text-slate-700">0</span>}
+                    </td>}
+                    {colShown('brand') && <td className="px-3 py-2 text-xs text-slate-400 whitespace-nowrap">{r.c.brand || '—'}</td>}
+                    {colShown('category') && <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{r.c.category ? humanize(r.c.category) : '—'}</td>}
+                    {colShown('capacity') && <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400">{r.c.norm_value != null && Number(r.c.norm_value) !== 0 ? Number(r.c.norm_value).toLocaleString('en-US') : '—'}</td>}
+                    {colShown('warranty') && <td className="px-3 py-2 text-xs text-slate-400 whitespace-nowrap">
                       {warrantyLabel(r.c) || <span className="text-slate-700">—</span>}
                       {fmtWarranty(r.c.perf_warranty_value, r.c.perf_warranty_unit) && (
                         <span className="text-slate-600" title="Performance warranty — PV output guarantee"> · perf {fmtWarranty(r.c.perf_warranty_value, r.c.perf_warranty_unit)}</span>
                       )}
-                    </td>
-                    <td className="px-3 py-2 text-center">
+                    </td>}
+                    {colShown('sheet') && <td className="px-3 py-2 text-center">
                       {r.c.datasheet_url ? (
                         <a href={r.c.datasheet_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
                           title="Open datasheet" className="inline-flex text-sky-400 hover:text-sky-300 transition-colors">
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 010 5.656l-4 4a4 4 0 01-5.656-5.656l1.1-1.1m9.556-3.9l1.1-1.1a4 4 0 10-5.656-5.656l-4 4a4 4 0 000 5.656" /></svg>
                         </a>
                       ) : <span className="text-slate-700">—</span>}
-                    </td>
-                    <td className="px-3 py-2 text-right text-[11px] text-slate-500 tabular-nums whitespace-nowrap">{fmtDay(r.c.updated_at)}</td>
+                    </td>}
+                    {colShown('updated') && <td className="px-3 py-2 text-right text-[11px] text-slate-500 tabular-nums whitespace-nowrap">{fmtDay(r.c.updated_at)}</td>}
                   </tr>
                   {expanded === r.c.component_id && (
                     <tr>
-                      <td colSpan={10} className="px-4 pb-4 pt-1 bg-slate-950/40">
+                      <td colSpan={visibleColCount} className="px-4 pb-4 pt-1 bg-slate-950/40">
                         <ProductDetail row={r} activeTiers={activeTiers} tierPrice={tierPrice} canHub={canHub}
                           orders={ordersByComp[r.c.component_id] ?? []} deliveries={deliveriesByComp[r.c.component_id] ?? []}
                           canEditMeta={canEditMeta} onSaveMeta={(patch) => saveMeta(r.c.component_id, patch)}
@@ -910,6 +989,39 @@ function Th({ label, hint, tip, right, center, active, dir, onClick, className }
       </button>
       {hint && <span className="block normal-case tracking-normal text-[9px] text-slate-600 font-normal mt-1 leading-none">{hint}</span>}
     </th>
+  );
+}
+
+/** The Incoming figure with a hover breakdown: each open PO, its quantity, and
+ *  when it should land — the stamped ETA, else PO date + the lead time stated
+ *  on the supplier quote, else the supplier's measured history. */
+function IncomingCell({ qty, unit, details }: { qty: number; unit: string | null; details: ArrivalDetail[] }) {
+  const srcLabel = (d: ArrivalDetail) =>
+    d.source === 'eta' ? 'supplier ETA'
+    : d.source === 'stated' ? `${fmtDate(d.poDate)} + ${d.leadDays} working day${d.leadDays !== 1 ? 's' : ''} quoted`
+    : d.source === 'lead' ? `${fmtDate(d.poDate)} + ~${d.leadDays}d measured`
+    : 'no date on the PO';
+  return (
+    <span className="relative group/inc inline-block cursor-help">
+      <span className={details.some((d) => d.overdue) ? 'text-amber-300' : undefined}>{fmtInt(qty)}</span>
+      {details.length > 0 && (
+        <span className="pointer-events-none absolute right-0 top-full mt-1 z-30 hidden group-hover/inc:block w-max max-w-[340px] rounded-xl border border-slate-700 bg-deep shadow-2xl p-2.5 text-left">
+          <span className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Expected arrival</span>
+          {details.map((d) => (
+            <span key={`${d.po_id}-${d.expected ?? ''}`} className="block text-[11px] leading-relaxed whitespace-nowrap">
+              <span className="font-mono text-slate-300">{d.po_number || 'PO'}</span>
+              <span className="text-slate-500"> · {fmtInt(d.qty)}{unit ? ` ${unit}` : ''} · </span>
+              {d.expected ? (
+                <span className={d.overdue ? 'text-amber-300 font-semibold' : 'text-sky-300'}>
+                  {fmtDate(d.expected)}{d.overdue ? ' · late' : ''}
+                </span>
+              ) : <span className="text-slate-500">no date</span>}
+              <span className="text-slate-600"> ({srcLabel(d)})</span>
+            </span>
+          ))}
+        </span>
+      )}
+    </span>
   );
 }
 

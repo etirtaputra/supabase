@@ -28,6 +28,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { RangePreset } from './dateRange';
 import { DEFAULT_LIST_DEFAULTS } from '@/constants/listDefaults';
 import { DEFAULT_MENU_ORDER } from '@/constants/navigation';
+import { ENUMS } from '@/constants/enums';
 import { DEFAULT_ITEM_SCORE_WEIGHTS, type ItemScoreWeights } from './itemScore';
 
 export const SETTINGS_TABLE = '40.0_settings';
@@ -142,6 +143,14 @@ export interface AppSettings {
   salesPaymentTermsOptions: string[];
   /** Preset delivery terms offered on the sales quotation. */
   salesDeliveryTermsOptions: string[];
+  /** Lead-time choices offered on the New Deal form (one per entry). */
+  leadTimeOptions: string[];
+  /**
+   * Columns the owner has switched OFF for everyone on /products (Settings ›
+   * Lists). Enforced: they leave the table AND the personal Columns menu, so a
+   * personal toggle can hide more but never reveal what the owner hid.
+   */
+  productHiddenColumns: string[];
   /**
    * How close a PO's IDR principal must sit to its expected value before the
    * realised FX rate is trusted (a shared or part payment would otherwise
@@ -240,6 +249,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
     'Di ambil sendiri.',
     'Di antar.',
   ],
+  leadTimeOptions: [...ENUMS.lead_time],
+  productHiddenColumns: [],
   fxSettledTolerancePct: 5,
 
   companyName:        '',
@@ -388,6 +399,8 @@ export function coerceSettings(raw: Record<string, unknown>): AppSettings {
     quoteValidityDays:     pick('quoteValidityDays',     (v) => Math.max(1, Math.round(numOr(v, d.quoteValidityDays))), d.quoteValidityDays),
     salesPaymentTermsOptions:  pick('salesPaymentTermsOptions',  (v) => strList(v, d.salesPaymentTermsOptions), d.salesPaymentTermsOptions),
     salesDeliveryTermsOptions: pick('salesDeliveryTermsOptions', (v) => strList(v, d.salesDeliveryTermsOptions), d.salesDeliveryTermsOptions),
+    leadTimeOptions:           pick('leadTimeOptions',           (v) => strList(v, d.leadTimeOptions), d.leadTimeOptions),
+    productHiddenColumns:      pick('productHiddenColumns',      (v) => strList(v, d.productHiddenColumns), d.productHiddenColumns),
 
     companyName:        pick('companyName',        (v) => str(v, d.companyName), d.companyName),
     companyAddress:     pick('companyAddress',     (v) => str(v, d.companyAddress), d.companyAddress),

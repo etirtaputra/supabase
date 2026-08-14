@@ -82,16 +82,47 @@ export function measureLead(received: ReceivedPo[]): LeadInfo {
   return { bySupplier, global: all.length ? avg(all) : FALLBACK_LEAD_DAYS };
 }
 
+// ── Stated lead time ("45 working days" on the supplier quote) ───────────────
+/** Parse a lead-time phrase into a number of days + whether they are working days. */
+export function parseLeadDays(text: string | null | undefined): { days: number; working: boolean } | null {
+  if (!text) return null;
+  const m = String(text).match(/(\d+(?:[.,]\d+)?)/);
+  if (!m) return null;
+  const days = Math.round(Number(m[1].replace(',', '.')));
+  if (!(days > 0)) return null;
+  return { days, working: /working|kerja|business/i.test(String(text)) };
+}
+
+/** iso + n working days (Mon–Fri), for stated leads quoted in working days. */
+export function addWorkingDays(iso: string, n: number): string {
+  const d = new Date(day(iso));
+  let left = n;
+  while (left > 0) {
+    d.setUTCDate(d.getUTCDate() + 1);
+    const dow = d.getUTCDay();
+    if (dow !== 0 && dow !== 6) left -= 1;
+  }
+  return d.toISOString().slice(0, 10);
+}
+
 // ── Expected arrival for one PO ──────────────────────────────────────────────
-export type EtaSource = 'eta' | 'lead' | null;
+/** 'eta' = stamped date · 'stated' = PO date + the quote's lead time · 'lead' = measured history. */
+export type EtaSource = 'eta' | 'stated' | 'lead' | null;
 export interface Expected { expected: string | null; source: EtaSource; leadDays: number | null }
 
 export function expectedArrival(
   po: Pick<OpenPo, 'estimated_delivery_date' | 'po_date' | 'supplier_id'>,
   lead: LeadInfo,
+  /** The lead time stated on the PO's supplier quote (e.g. "45 working days"). */
+  statedLead?: string | null,
 ): Expected {
   if (po.estimated_delivery_date) return { expected: po.estimated_delivery_date.slice(0, 10), source: 'eta', leadDays: null };
   if (po.po_date) {
+    const stated = parseLeadDays(statedLead);
+    if (stated) {
+      const expected = stated.working ? addWorkingDays(po.po_date, stated.days) : addDays(po.po_date, stated.days);
+      return { expected, source: 'stated', leadDays: stated.days };
+    }
     const supLead = po.supplier_id ? lead.bySupplier.get(po.supplier_id) : undefined;
     const L = Math.round(supLead ?? lead.global);
     return { expected: addDays(po.po_date, L), source: 'lead', leadDays: L };
@@ -195,13 +226,15 @@ export interface ItemArrival {
 export function itemArrivals(
   openLines: { po_id: string | number; component_id: string | null }[],
   pos: OpenPo[], received: ReceivedPo[], nowIso: string,
+  /** po_id → lead time stated on its supplier quote (optional refinement). */
+  statedByPo?: Map<string, string | null>,
 ): Map<string, ItemArrival> {
   const lead = measureLead(received);
   const today = nowIso.slice(0, 10);
   const exp = new Map<string, { expected: string | null; source: EtaSource; overdue: boolean }>();
   for (const po of pos) {
     if (!INCOMING_PO_STATUSES.has(po.status ?? '')) continue;
-    const { expected, source } = expectedArrival(po, lead);
+    const { expected, source } = expectedArrival(po, lead, statedByPo?.get(String(po.po_id)));
     exp.set(String(po.po_id), { expected, source, overdue: !!expected && dayDiff(today, expected) > 0 });
   }
 
@@ -220,6 +253,46 @@ export function itemArrivals(
       overdue: cur.overdue || e.overdue,
     });
   }
+  return out;
+}
+
+// ── Per-item, per-PO arrival detail — the "when does it land" hover ──────────
+export interface ArrivalDetail {
+  po_id: string;
+  po_number: string | null;
+  qty: number;
+  poDate: string | null;
+  expected: string | null;
+  source: EtaSource;
+  /** The lead used for a 'stated'/'lead' estimate, in the unit it was quoted. */
+  leadDays: number | null;
+  overdue: boolean;
+}
+
+export function itemArrivalDetails(
+  openLines: { po_id: string | number; component_id: string | null; quantity: number }[],
+  pos: OpenPo[], received: ReceivedPo[], nowIso: string,
+  statedByPo?: Map<string, string | null>,
+): Map<string, ArrivalDetail[]> {
+  const lead = measureLead(received);
+  const today = nowIso.slice(0, 10);
+  const poById = new Map(pos.map((p) => [String(p.po_id), p]));
+  const out = new Map<string, ArrivalDetail[]>();
+  for (const li of openLines) {
+    if (!li.component_id) continue;
+    const po = poById.get(String(li.po_id));
+    if (!po || !INCOMING_PO_STATUSES.has(po.status ?? '')) continue;
+    const { expected, source, leadDays } = expectedArrival(po, lead, statedByPo?.get(String(po.po_id)));
+    const rows = out.get(li.component_id) ?? [];
+    rows.push({
+      po_id: String(po.po_id), po_number: po.po_number, qty: Number(li.quantity) || 0,
+      poDate: po.po_date, expected, source, leadDays,
+      overdue: !!expected && dayDiff(today, expected) > 0,
+    });
+    out.set(li.component_id, rows);
+  }
+  // Soonest landing first; undated POs sink to the bottom
+  for (const rows of out.values()) rows.sort((a, b) => (a.expected ?? '9999').localeCompare(b.expected ?? '9999'));
   return out;
 }
 

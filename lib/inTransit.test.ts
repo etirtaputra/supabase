@@ -12,7 +12,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  measureLead, expectedArrival, computeInTransit, itemArrivals, FALLBACK_LEAD_DAYS,
+  measureLead, expectedArrival, computeInTransit, itemArrivals, itemArrivalDetails,
+  parseLeadDays, addWorkingDays, FALLBACK_LEAD_DAYS,
   type OpenPo, type ReceivedPo, type PoCost,
 } from './inTransit.ts';
 
@@ -100,6 +101,57 @@ test('computeInTransit sets aside a PO whose rate was never recorded', () => {
   assert.equal(s.excludedNoRate, 1);
   assert.equal(s.valueIdr, 0);                           // cannot be valued, never taken at face value
   assert.equal(s.pos[0].noRate, true);
+});
+
+test('parseLeadDays reads the number and the working-day flag', () => {
+  assert.deepEqual(parseLeadDays('45 working days'), { days: 45, working: true });
+  assert.deepEqual(parseLeadDays('2 working day'), { days: 2, working: true });
+  assert.deepEqual(parseLeadDays('30 days'), { days: 30, working: false });
+  assert.deepEqual(parseLeadDays('14 hari kerja'), { days: 14, working: true });
+  assert.equal(parseLeadDays('TBD'), null);
+  assert.equal(parseLeadDays(null), null);
+});
+
+test('addWorkingDays skips weekends', () => {
+  // 2026-08-13 is a Thursday: +2 working days = Monday 17 Aug
+  assert.equal(addWorkingDays('2026-08-13', 2), '2026-08-17');
+  assert.equal(addWorkingDays('2026-08-13', 5), '2026-08-20');
+});
+
+test('expectedArrival prefers stated lead over measured, ETA over both', () => {
+  const lead = measureLead([{ supplier_id: 'S1', po_date: '2026-01-01', actual_received_date: '2026-01-15' }]); // 14d measured
+  const stated = expectedArrival({ estimated_delivery_date: null, po_date: '2026-08-03', supplier_id: 'S1' }, lead, '10 days');
+  assert.equal(stated.source, 'stated');
+  assert.equal(stated.expected, '2026-08-13');            // calendar days
+  const workingStated = expectedArrival({ estimated_delivery_date: null, po_date: '2026-08-13', supplier_id: 'S1' }, lead, '2 working days');
+  assert.equal(workingStated.expected, '2026-08-17');     // Thu + 2 working = Mon
+  const eta = expectedArrival({ estimated_delivery_date: '2026-09-01', po_date: '2026-08-03', supplier_id: 'S1' }, lead, '10 days');
+  assert.equal(eta.source, 'eta');                        // a stamped ETA still wins
+  const unparsable = expectedArrival({ estimated_delivery_date: null, po_date: '2026-08-03', supplier_id: 'S1' }, lead, 'TBD');
+  assert.equal(unparsable.source, 'lead');                // falls through to measured
+});
+
+test('itemArrivalDetails lists each open PO with its expected date, soonest first', () => {
+  const pos: OpenPo[] = [
+    po({ po_id: 'P1', po_number: 'EB.1', status: 'Confirmed', estimated_delivery_date: '2026-09-10', po_date: '2026-08-01' }),
+    po({ po_id: 'P2', po_number: 'EB.2', status: 'Confirmed', estimated_delivery_date: null, po_date: '2026-08-01' }),
+    po({ po_id: 'P3', po_number: 'EB.3', status: 'Draft' }),
+  ];
+  const lines = [
+    { po_id: 'P1', component_id: 'X', quantity: 5 },
+    { po_id: 'P2', component_id: 'X', quantity: 7 },
+    { po_id: 'P3', component_id: 'X', quantity: 9 },
+  ];
+  const stated = new Map<string, string | null>([['P2', '5 days']]);
+  const m = itemArrivalDetails(lines, pos, [], NOW, stated);
+  const x = m.get('X')!;
+  assert.equal(x.length, 2);                              // Draft P3 excluded
+  assert.equal(x[0].po_number, 'EB.2');                   // 6 Aug lands before 10 Sep
+  assert.equal(x[0].expected, '2026-08-06');
+  assert.equal(x[0].source, 'stated');
+  assert.equal(x[0].overdue, true);                       // NOW = 13 Aug
+  assert.equal(x[1].po_number, 'EB.1');
+  assert.equal(x[1].source, 'eta');
 });
 
 test('itemArrivals keeps the earliest date and goes overdue if any PO is late', () => {

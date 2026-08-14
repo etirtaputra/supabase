@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-14T02:00:00Z',
+    title: 'Products: pick your columns, owner-enforced visibility, arrival on hover',
+    details: [
+      'The Products table gained a “▦ Columns” menu — tick which columns you want (Sell Price, Stock, Incoming, Brand, Category, Capacity, Warranty, Sheet, Updated). Your choice is remembered on your device; Description always shows.',
+      'Settings › Lists gained “Products columns”: columns the owner switches off there disappear for EVERYONE — they also leave the page’s Columns menu, so a personal toggle can never reveal what the owner hid.',
+      'Hover the Incoming number to see when the goods should land: each open PO with its quantity and expected arrival — the supplier’s stated ETA, or the PO date plus the lead time quoted on the supplier quote (working days skip weekends), or the supplier’s measured history. Late shipments show amber.',
+      'Settings › Terms gained a Lead times editor — add your own options (e.g. “120 working days”) and the New Deal form offers them; the database column was widened from a fixed list to free text to allow it.',
+      'Fixed: the Description column header no longer sits on a different colour tone than the rest of the header row.',
+    ],
+  },
+  {
     at: '2026-08-14T00:15:00Z',
     title: 'Fix: Settings › Layout now actually changes the lists',
     details: [

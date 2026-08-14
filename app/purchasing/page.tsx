@@ -1232,7 +1232,7 @@ function MasterInsertPage() {
                         ...(withPo ? [] : [
                           { name: 'status', label: 'Status', type: 'select' as const, options: ENUMS.price_quotes_status, default: 'Open' },
                         ]),
-                        { name: 'estimated_lead_time_days', label: 'Lead Time', type: 'select', options: ENUMS.lead_time, default: pdfData?.lead_time_days },
+                        { name: 'estimated_lead_time_days', label: 'Lead Time', type: 'select', options: settings.leadTimeOptions, default: pdfData?.lead_time_days },
                         { name: 'replaces_quote_id', label: 'Replaces Quote', hint: 'This quote supersedes an earlier one', type: 'select', options: options.quotes },
                         { name: 'document_url', label: 'Document Folder', hint: 'Link to the deal’s document folder (e.g. Google Drive)', type: 'text', placeholder: 'https://drive.google.com/…', default: storedPoDefaults?.document_url },
                         // Quote + PO mode — the PO's OWN fields, kept together as

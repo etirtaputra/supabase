@@ -31,6 +31,7 @@ import {
 import { applyCurrency, formatDate, formatNumber } from '@/lib/formatters';
 import { fetchWarehouses, type Warehouse } from '@/lib/warehouses';
 import { LIST_SPECS } from '@/constants/listDefaults';
+import { PRODUCT_COLS } from '@/constants/productColumns';
 import { orderedNavGroups, orderedGroupItems, DEFAULT_MENU_ORDER, DESTINATIONS } from '@/constants/navigation';
 import { ITEM_SCORE_FACTORS, DEFAULT_ITEM_SCORE_WEIGHTS, type ItemScoreWeights } from '@/lib/itemScore';
 import { PRESET_LABELS, type RangePreset } from '@/lib/dateRange';
@@ -490,6 +491,37 @@ function ListsTab({ draft, set }: { draft: AppSettings; set: <K extends keyof Ap
               </div>
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* ── Products columns — what everyone sees ─────────────────────────── */}
+      <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 space-y-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Products columns</p>
+          <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+            Columns switched off here disappear from the Products table for EVERYONE — they also leave the
+            page&apos;s own Columns menu, so nobody can turn them back on. A person&apos;s Columns menu can
+            still hide more for themselves. Description always shows; Brand additionally follows the role permission.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 max-w-2xl">
+          {PRODUCT_COLS.map((c) => {
+            const hidden = draft.productHiddenColumns.includes(c.key);
+            return (
+              <button key={c.key}
+                onClick={() => set('productHiddenColumns', hidden
+                  ? draft.productHiddenColumns.filter((k) => k !== c.key)
+                  : [...draft.productHiddenColumns, c.key])}
+                className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
+                  hidden
+                    ? 'border-slate-700 bg-slate-950/60 text-slate-600 line-through'
+                    : 'border-emerald-500/40 bg-emerald-500/[0.07] text-emerald-300'
+                }`}
+                title={hidden ? 'Hidden for everyone — click to show' : 'Visible — click to hide for everyone'}>
+                {c.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -956,7 +988,7 @@ function MenuOrderTab({ draft, set }: { draft: AppSettings; set: <K extends keyo
 
 /** Preset payment & delivery terms the sales quotation offers as choices. */
 function TermsTab({ draft, set }: { draft: AppSettings; set: <K extends keyof AppSettings>(k: K, v: AppSettings[K]) => void }) {
-  const listArea = (k: 'salesPaymentTermsOptions' | 'salesDeliveryTermsOptions', rows: number) => (
+  const listArea = (k: 'salesPaymentTermsOptions' | 'salesDeliveryTermsOptions' | 'leadTimeOptions', rows: number) => (
     <textarea rows={rows} className={`${inputCls} resize-y leading-relaxed`}
       value={draft[k].join('\n')}
       onChange={(e) => set(k, e.target.value.split('\n'))} />
@@ -975,6 +1007,13 @@ function TermsTab({ draft, set }: { draft: AppSettings; set: <K extends keyof Ap
         <Field label="Choices offered on a sales quotation"
           hint="One term per line (Di antar / Di ambil sendiri / …). Prints on the quotation and order confirmation.">
           {listArea('salesDeliveryTermsOptions', 6)}
+        </Field>
+      </div>
+      <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 space-y-3.5">
+        <p className="text-xs font-bold uppercase tracking-widest text-violet-300">Lead times</p>
+        <Field label="Choices offered on the New Deal form (buy side)"
+          hint={'One per line, e.g. "120 working days". Include a number so the Incoming column can project an arrival date from the PO date; "working" makes it skip weekends.'}>
+          {listArea('leadTimeOptions', 12)}
         </Field>
       </div>
     </div>
