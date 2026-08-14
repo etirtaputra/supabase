@@ -721,7 +721,9 @@ export default function DealLookupTab({
                         { label: 'Currency',  value: qt.currency },
                         { label: 'Lead Time', value: qt.estimated_lead_time_days },
                         { label: 'To',        value: co?.legal_name },
-                        { label: 'Total',     value: items.length > 0 ? fmtCcy(items.reduce((s, i) => s + Number(i.quantity) * Number(i.unit_price), 0), qt.currency) : qt.total_value != null ? fmtCcy(Number(qt.total_value), qt.currency) : null },
+                        // Document total first (it may include freight); items sum only
+                        // when no total was stored — same basis as the PO card.
+                        { label: 'Total',     value: qt.total_value != null && Number(qt.total_value) > 0 ? fmtCcy(Number(qt.total_value), qt.currency) : items.length > 0 ? fmtCcy(items.reduce((s, i) => s + Number(i.quantity) * Number(i.unit_price), 0), qt.currency) : null },
                       ].map(({ label, value }) => value ? (
                         <div key={label}>
                           <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">{label}</p>
@@ -1235,14 +1237,25 @@ export default function DealLookupTab({
                       );
                     })()}
 
-                    {/* PO value — computed live from line items so edits reflect immediately */}
+                    {/* PO value. The DOCUMENT total leads (total_value is the committed
+                        obligation — freight included when the supplier bills it); the
+                        items sum is detail, shown when it differs so the same line never
+                        mixes two bases (the 57,980-vs-60,765 mismatch, 2026-08-14). */}
                     {(items.length > 0 || po.total_value) && (() => {
-                      const liveTotal = items.length > 0
-                        ? items.reduce((s, i) => s + Number(i.quantity) * Number(i.unit_cost), 0)
-                        : Number(po.total_value);
+                      const itemsSum = items.reduce((s, i) => s + Number(i.quantity) * Number(i.unit_cost), 0);
+                      const docTotal = Number(po.total_value) || itemsSum;
+                      const freight = Number((po as any).freight_charges_intl) || 0;
+                      const gapIsFreight = freight > 0 && Math.abs(docTotal - (itemsSum + freight)) < 1;
                       return (
                       <div className="flex items-center gap-3 text-xs flex-wrap">
-                        <span className="font-semibold text-white tabular-nums">{fmtCcy(liveTotal, po.currency)}</span>
+                        <span className="font-semibold text-white tabular-nums">{fmtCcy(docTotal, po.currency)}</span>
+                        {items.length > 0 && Math.abs(docTotal - itemsSum) >= 1 && (
+                          <span className="text-slate-600 tabular-nums" title={gapIsFreight ? 'The document total = line items + freight' : 'The document total differs from the line-item sum'}>
+                            {gapIsFreight
+                              ? `items ${fmtCcy(itemsSum, po.currency)} + freight ${fmtCcy(freight, po.currency)}`
+                              : `items ${fmtCcy(itemsSum, po.currency)}`}
+                          </span>
+                        )}
                         {po.currency !== 'IDR' && po.exchange_rate && (
                           <span className="text-slate-500 tabular-nums">
                             @ {Number(po.exchange_rate).toLocaleString()} = {fmtIdr(tIdr)}

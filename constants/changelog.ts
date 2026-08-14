@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-14T07:30:00Z',
+    title: 'Deal Lookup: one basis for a PO’s value',
+    details: [
+      'The PO card’s headline said USD 57.980 while its IDR figure was computed from the 60.765 document total — two bases on one line. The document total now leads everywhere (it is the committed obligation, freight included when the supplier bills it), with the line-item sum shown beside it as detail: “items 57.980 + freight 2.785”. The quote card’s Total follows the same rule.',
+      'Data repair: PIO-2026012’s two line items carried CNY from the old-draft bug fixed earlier today — corrected to USD.',
+    ],
+  },
+  {
     at: '2026-08-14T06:30:00Z',
     title: 'New Deal fixes: stored quote loads clean, lines always seed, totals include freight',
     details: [
