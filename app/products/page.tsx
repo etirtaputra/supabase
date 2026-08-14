@@ -207,6 +207,41 @@ function ProductsInner() {
     [enforcedHidden, profile]);
   const colShown = useCallback((k: string) => colOffered(k) && !userHiddenCols.has(k), [colOffered, userHiddenCols]);
   const visibleColCount = 1 + PRODUCT_COLS.filter((c) => colShown(c.key)).length;
+  // PO numbers are buy-side documents — a sales login gets the dates without them
+  const canSeePo = !!profile && ROLE_PERMISSIONS[profile.role].buySide;
+
+  // ── Description column width: drag the header's edge; double-click resets ──
+  // null = the responsive default (clamp on viewport width). Stored per browser.
+  const [descW, setDescW] = useState<number | null>(null);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('products:descWidth');
+      const n = raw ? Number(raw) : NaN;
+      if (Number.isFinite(n) && n >= 160) setDescW(Math.min(1400, n));
+    } catch {}
+  }, []);
+  const startDescResize = useCallback((e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    const startX = e.clientX;
+    // Starting point: the current effective max-width (stored, or the clamp)
+    const startW = descW ?? Math.min(Math.max(320, window.innerWidth * 0.42), 1024);
+    const move = (ev: MouseEvent) => {
+      const w = Math.min(1400, Math.max(160, Math.round(startW + (ev.clientX - startX))));
+      setDescW(w);
+    };
+    const up = (ev: MouseEvent) => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      const w = Math.min(1400, Math.max(160, Math.round(startW + (ev.clientX - startX))));
+      try { localStorage.setItem('products:descWidth', String(w)); } catch {}
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  }, [descW]);
+  const resetDescWidth = useCallback(() => {
+    setDescW(null);
+    try { localStorage.removeItem('products:descWidth'); } catch {}
+  }, []);
 
   const [toast, setToast] = useState<string | null>(null);
   // component_id -> id of the item that replaces it (8.0 successor links)
@@ -716,7 +751,14 @@ function ProductsInner() {
                 {/* Sticky: the item name stays anchored while the numeric
                     columns scroll horizontally, so a row never loses its label.
                     Every column sorts — click toggles ▲/▼. */}
-                <Th label="Description" active={sort.key === 'name'} dir={sort.dir} onClick={() => toggleSort('name')} className="px-4 sticky left-0 z-20 bg-chrome" />
+                <Th label="Description" active={sort.key === 'name'} dir={sort.dir} onClick={() => toggleSort('name')} className="px-4 sticky left-0 z-20 bg-chrome"
+                  resizer={
+                    <span onMouseDown={startDescResize} onDoubleClick={resetDescWidth}
+                      title="Drag to set the Description width — double-click to reset"
+                      className="absolute right-0 top-0 bottom-0 w-2.5 cursor-col-resize group/rsz flex items-center justify-center select-none">
+                      <span className={`w-px h-4 transition-colors ${descW != null ? 'bg-emerald-500/50' : 'bg-slate-700'} group-hover/rsz:bg-emerald-400`} />
+                    </span>
+                  } />
                 {colShown('price') && <Th label="Sell Price" right active={sort.key === 'price'} dir={sort.dir} onClick={() => toggleSort('price')} />}
                 {colShown('stock') && <Th label="Stock" right active={sort.key === 'stock'} dir={sort.dir} onClick={() => toggleSort('stock')} hint="Live/Physical" />}
                 {colShown('incoming') && <Th label="Incoming" right active={sort.key === 'incoming'} dir={sort.dir} onClick={() => toggleSort('incoming')} />}
@@ -743,7 +785,8 @@ function ProductsInner() {
                             shows the whole description; it only truncates when
                             the row would otherwise overflow. Floor keeps mid
                             screens sane, ceiling stops an absurd column on 4K. */}
-                        <span className="text-sm text-slate-100 font-medium truncate max-w-[clamp(20rem,42vw,64rem)]">{descOf(r.c)}</span>
+                        <span className={`text-sm text-slate-100 font-medium truncate ${descW == null ? 'max-w-[clamp(20rem,42vw,64rem)]' : ''}`}
+                          style={descW != null ? { maxWidth: descW } : undefined}>{descOf(r.c)}</span>
                         <ArrivalTag a={arrivals[r.c.component_id]} />
                         <SupersededTag succId={successors.get(r.c.component_id)} comps={comps} canHub={canHub} />
                         {r.activity > 0 && <span className="px-1 py-0.5 rounded bg-slate-800 text-[9px] text-slate-500 tabular-nums flex-shrink-0" title={`${r.activity} POs / quotes / orders`}>{r.activity}</span>}
@@ -774,7 +817,7 @@ function ProductsInner() {
                       <StockCell live={r.live} phys={r.phys} unit={r.c.unit} />
                     </td>}
                     {colShown('incoming') && <td className="px-3 py-2 text-right tabular-nums text-sky-300/80">
-                      {r.inc ? <IncomingCell qty={r.inc} unit={r.c.unit} details={etaDetails[r.c.component_id] ?? []} /> : <span className="text-slate-700">0</span>}
+                      {r.inc ? <IncomingCell qty={r.inc} unit={r.c.unit} details={etaDetails[r.c.component_id] ?? []} showPo={canSeePo} /> : <span className="text-slate-700">0</span>}
                     </td>}
                     {colShown('brand') && <td className="px-3 py-2 text-xs text-slate-400 whitespace-nowrap">{r.c.brand || '—'}</td>}
                     {colShown('category') && <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{r.c.category ? humanize(r.c.category) : '—'}</td>}
@@ -980,45 +1023,54 @@ function CenterSpinner() {
  *  tooltip-only note. align-top keeps every label on ONE baseline — without
  *  it, a cell carrying a hint centres its two lines and floats its label
  *  above the single-line headers beside it. */
-function Th({ label, hint, tip, right, center, active, dir, onClick, className }: { label: string; hint?: string; tip?: string; right?: boolean; center?: boolean; active: boolean; dir: 1 | -1; onClick: () => void; className?: string }) {
+function Th({ label, hint, tip, right, center, active, dir, onClick, className, resizer }: { label: string; hint?: string; tip?: string; right?: boolean; center?: boolean; active: boolean; dir: 1 | -1; onClick: () => void; className?: string; resizer?: React.ReactNode }) {
   return (
-    <th className={`font-semibold py-2.5 align-top ${right ? 'text-right' : center ? 'text-center' : 'text-left'} ${className ?? 'px-3'}`}>
+    <th className={`font-semibold py-2.5 align-top ${resizer ? 'relative' : ''} ${right ? 'text-right' : center ? 'text-center' : 'text-left'} ${className ?? 'px-3'}`}>
       <button onClick={onClick} className={`inline-flex items-center gap-1 uppercase tracking-widest leading-none transition-colors ${active ? 'text-emerald-400' : 'hover:text-slate-300'}`} title={tip ?? hint}>
         {label}
         <span className="text-[8px]">{active ? (dir === 1 ? '▲' : '▼') : '↕'}</span>
       </button>
       {hint && <span className="block normal-case tracking-normal text-[9px] text-slate-600 font-normal mt-1 leading-none">{hint}</span>}
+      {resizer}
     </th>
   );
 }
 
 /** The Incoming figure with a hover breakdown: each open PO, its quantity, and
  *  when it should land — the stamped ETA, else PO date + the lead time stated
- *  on the supplier quote, else the supplier's measured history. */
-function IncomingCell({ qty, unit, details }: { qty: number; unit: string | null; details: ArrivalDetail[] }) {
+ *  on the supplier quote, else the supplier's measured history.
+ *  `showPo` gates the PO numbers: buy-side eyes only — a sales login sees
+ *  "Shipment 1/2/…" (buy-document numbers are not sell-side data). */
+function IncomingCell({ qty, unit, details, showPo }: { qty: number; unit: string | null; details: ArrivalDetail[]; showPo: boolean }) {
   const srcLabel = (d: ArrivalDetail) =>
     d.source === 'eta' ? 'supplier ETA'
-    : d.source === 'stated' ? `${fmtDate(d.poDate)} + ${d.leadDays} working day${d.leadDays !== 1 ? 's' : ''} quoted`
-    : d.source === 'lead' ? `${fmtDate(d.poDate)} + ~${d.leadDays}d measured`
-    : 'no date on the PO';
+    : d.source === 'stated' ? `ordered ${fmtDate(d.poDate)} + ${d.leadDays} working day${d.leadDays !== 1 ? 's' : ''} quoted lead`
+    : d.source === 'lead' ? `ordered ${fmtDate(d.poDate)} + ~${d.leadDays}d measured lead`
+    : 'order carries no date';
   return (
     <span className="relative group/inc inline-block cursor-help">
       <span className={details.some((d) => d.overdue) ? 'text-amber-300' : undefined}>{fmtInt(qty)}</span>
       {details.length > 0 && (
-        <span className="pointer-events-none absolute right-0 top-full mt-1 z-30 hidden group-hover/inc:block w-max max-w-[340px] rounded-xl border border-slate-700 bg-deep shadow-2xl p-2.5 text-left">
-          <span className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Expected arrival</span>
-          {details.map((d) => (
-            <span key={`${d.po_id}-${d.expected ?? ''}`} className="block text-[11px] leading-relaxed whitespace-nowrap">
-              <span className="font-mono text-slate-300">{d.po_number || 'PO'}</span>
-              <span className="text-slate-500"> · {fmtInt(d.qty)}{unit ? ` ${unit}` : ''} · </span>
-              {d.expected ? (
-                <span className={d.overdue ? 'text-amber-300 font-semibold' : 'text-sky-300'}>
-                  {fmtDate(d.expected)}{d.overdue ? ' · late' : ''}
+        <span className="pointer-events-none absolute right-0 top-full mt-1 z-30 hidden group-hover/inc:block w-[260px] rounded-xl border border-slate-700 bg-deep shadow-2xl p-3 text-left">
+          <span className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Expected arrival</span>
+          <span className="block space-y-2">
+            {details.map((d, i) => (
+              <span key={`${d.po_id}-${i}`} className="block">
+                <span className="flex items-baseline justify-between gap-2">
+                  <span className={`text-[11px] ${showPo ? 'font-mono' : ''} text-slate-300 truncate`}>
+                    {showPo ? (d.po_number || 'PO') : `Shipment ${i + 1}`}
+                    <span className="text-slate-500 font-sans"> · {fmtInt(d.qty)}{unit ? ` ${unit}` : ''}</span>
+                  </span>
+                  {d.expected ? (
+                    <span className={`text-[11px] font-semibold tabular-nums whitespace-nowrap ${d.overdue ? 'text-amber-300' : 'text-sky-300'}`}>
+                      {fmtDate(d.expected)}{d.overdue ? ' · late' : ''}
+                    </span>
+                  ) : <span className="text-[11px] text-slate-500">no date</span>}
                 </span>
-              ) : <span className="text-slate-500">no date</span>}
-              <span className="text-slate-600"> ({srcLabel(d)})</span>
-            </span>
-          ))}
+                <span className="block text-[10px] text-slate-600 leading-snug">{srcLabel(d)}</span>
+              </span>
+            ))}
+          </span>
         </span>
       )}
     </span>

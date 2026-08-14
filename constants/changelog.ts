@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-14T03:00:00Z',
+    title: 'Products polish: tidier arrival hover, PO numbers gated, resizable Description',
+    details: [
+      'The Incoming hover is restructured — each shipment on its own two lines (quantity + date, then how the date was derived) instead of one long run-on line.',
+      'PO numbers in that hover now show only to buy-side roles; a sales login sees “Shipment 1 / 2 / …” with the same dates — purchase documents are not sell-side data.',
+      'The Description column is now resizable: drag the thin handle at the right edge of its header to set the width you like (remembered on your device), double-click it to return to the automatic width.',
+    ],
+  },
+  {
     at: '2026-08-14T02:00:00Z',
     title: 'Products: pick your columns, owner-enforced visibility, arrival on hover',
     details: [
