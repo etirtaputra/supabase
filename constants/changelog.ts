@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-14T08:15:00Z',
+    title: 'Fix: editing a PO’s line items no longer erases the freight in its total',
+    details: [
+      'A database trigger recalculated a PO’s total as the plain sum of its line items on every line edit — so a total that rightly includes freight (like PIO-2026012’s USD 60.765) silently snapped back to items-only (57.980) the moment any line was touched. That is why the corrected total reverted.',
+      'The trigger now keeps the DIFFERENCE between the stored total and the items sum across edits: change a quantity and the total moves by exactly that change, with the freight (or discount) portion intact. POs whose total equals their items sum behave exactly as before.',
+      'PIO-2026012 re-corrected to USD 60.765 and verified to survive a line edit.',
+    ],
+  },
+  {
     at: '2026-08-14T07:30:00Z',
     title: 'Deal Lookup: one basis for a PO’s value',
     details: [
