@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-14T06:30:00Z',
+    title: 'New Deal fixes: stored quote loads clean, lines always seed, totals include freight',
+    details: [
+      '“Create PO” / “Revise →” from Deal Lookup now REPLACES any half-typed draft with the chosen document — header and items. Before, an old draft kept its grip until you clicked Clear draft, and mixing the two risked saving wrong values.',
+      'The seeded line items are now driven by their CONTENT, not by an internal identity that a background refresh could remake — so a selected quote’s items reliably appear, a data refresh mid-edit no longer wipes your rows, and “Clear draft” with a quote selected returns to THAT quote’s items instead of stranding you with empty rows.',
+      'When Total Value is left blank, the auto-filled total is now items PLUS freight — the full obligation to the supplier. (Freight was already carried onto the PO; it just wasn’t counted into an auto-filled total, which is how PIO-2026012 showed USD 57,980 in Payments instead of 60,765 — that PO has been corrected.) A typed total is still taken exactly as typed.',
+    ],
+  },
+  {
     at: '2026-08-14T03:30:00Z',
     title: 'Products: priced items by default + PO-number hardening',
     details: [

@@ -1139,6 +1139,7 @@ function MasterInsertPage() {
                       components={data.components}
                       currencies={ENUMS.currency}
                       seedLines={storedPoSel ? storedPoLineSeeds : storedQuoteSel ? storedQuoteLineSeeds : pdfLineSeeds}
+                      sourceKey={pendingStoredPo ? `po:${pendingStoredPo}` : pendingStoredQuote ? `q:${pendingStoredQuote}` : null}
                       headerAction={pdfHeaderAction('Upload Quote/PI PDF', 'One upload prefills the whole form — header AND line items, components auto-matched.')}
                       onFieldChange={(name, value) => {
                         const o: Record<string, any> = {};

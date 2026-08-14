@@ -62,6 +62,14 @@ interface Props {
   itemsLocked?: boolean;
   /** Rows built from a PDF extraction — replace the current rows when set. */
   seedLines?: DealLine[] | null;
+  /**
+   * Set when the form was ENTERED through an explicit source — Deal Lookup's
+   * "Create PO" (`q:<id>`) or "Revise →" (`po:<id>`). A change wipes any
+   * lingering draft and rebuilds header + lines from the source: the draft
+   * protects organic typing, it must never win over an explicit "work on THIS
+   * document" action (the 2026-08-14 frankendraft bug).
+   */
+  sourceKey?: string | null;
   /** Rendered at the right end of the title row (the PDF-upload button). */
   headerAction?: React.ReactNode;
   /** Return false to keep the draft (a failed insert must not eat the typing). */
@@ -71,7 +79,7 @@ interface Props {
 
 export default function NewDealForm({
   title, withPo, headerFields, onFieldChange, components, currencies,
-  itemsLocked = false, seedLines = null, headerAction, onSubmit, loading,
+  itemsLocked = false, seedLines = null, sourceKey = null, headerAction, onSubmit, loading,
 }: Props) {
   const formId = useId();
 
@@ -149,12 +157,36 @@ export default function NewDealForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [headerFields]);
 
-  // A PDF extraction rebuilds the rows wholesale — it IS the document.
+  // ── Seeds & sources, CONTENT-driven ────────────────────────────────────────
+  // The seeds' array identity changes on every unrelated refetch (the page
+  // memo rebuilds it), and it does NOT change when a same-value re-pick should
+  // re-seed. Keying on a content signature fixes both: rows are replaced when
+  // what they SAY changes, never because a background refresh remade the array.
+  const seedSig = useMemo(() => (seedLines?.length
+    ? JSON.stringify(seedLines.map((l) => [l.component_id, l.supplier_description, l.quantity, l.unit_price, l.currency]))
+    : ''), [seedLines]);
+  const appliedSource = useRef('');
+  const appliedSeedSig = useRef('');
   useEffect(() => {
-    if (!seedLines || seedLines.length === 0) return;
-    setLines([...seedLines, blankDealLine(seedLines[0]?.currency || '')]);
+    const src = sourceKey ?? '';
+    const sourceChanged = appliedSource.current !== src;
+    const seedsChanged = appliedSeedSig.current !== seedSig;
+    if (!sourceChanged && !seedsChanged) return;
+    appliedSource.current = src;
+    appliedSeedSig.current = seedSig;
+    if (src && sourceChanged) {
+      // Entered via an explicit source: the old draft does not apply. Rebuild
+      // the header from the field defaults (which carry the source's values).
+      try { localStorage.removeItem(DRAFT_KEY); } catch {}
+      setHeader(buildDefaults(headerFields));
+      setLines(seedLines?.length ? [...seedLines, blankDealLine(seedLines[0]?.currency || '')] : [blankDealLine()]);
+      return;
+    }
+    // Seeds changed on their own (PDF extraction, quote picked in the form,
+    // or a source's lines arriving late) — replace the rows, keep the header.
+    if (seedLines?.length) setLines([...seedLines, blankDealLine(seedLines[0]?.currency || '')]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seedLines]);
+  }, [sourceKey, seedSig]);
 
   const setHeaderField = (name: string, value: any) => {
     setHeader((prev) => {
@@ -240,7 +272,9 @@ export default function NewDealForm({
       localStorage.removeItem(LEGACY_ITEMS_KEY);
     } catch {}
     setHeader(buildDefaults(headerFields));
-    setLines([blankDealLine()]);
+    // With a source active, "clear" returns to THE SOURCE, not to nothing —
+    // clearing used to strand a selected quote with empty rows.
+    setLines(seedLines?.length ? [...seedLines, blankDealLine(seedLines[0]?.currency || '')] : [blankDealLine()]);
   };
 
   // What the rows are worth, per currency — mixed currencies each get a line.
@@ -268,11 +302,15 @@ export default function NewDealForm({
       return;
     }
     const out = { ...header };
-    // Header total left blank + single-currency items = the items ARE the total.
+    // Header total left blank + single-currency items = the document total is
+    // items PLUS freight — total_value is the full obligation to the supplier,
+    // and auto-filling it without freight is how a PO ends up under-stated in
+    // the payment screens (the PIO-2026012 mismatch). A typed total is taken
+    // as-is: the person copies the document's own grand total.
     if ((out.total_value === undefined || out.total_value === null || out.total_value === '')
         && itemTotals.size === 1 && !itemsLocked) {
       const [ccy, sum] = [...itemTotals.entries()][0];
-      if (!out.currency || ccy === out.currency) out.total_value = sum;
+      if (!out.currency || ccy === out.currency) out.total_value = sum + (Number(out.freight_charges_intl) || 0);
     }
     const ok = await onSubmit(out, itemsLocked ? [] : rows);
     if (ok === false) return;   // failed insert — keep the draft, keep the typing
