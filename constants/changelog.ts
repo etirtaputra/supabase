@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-14T09:30:00Z',
+    title: 'New Deal: Total Value and Incoterms inputs retired — the total is automatic',
+    details: [
+      'The deal’s total is no longer typed: it saves as line items + supplier-billed freight, and the footer now shows exactly what will be stored, live (“Items CNY 134.400 + freight 1.800 — saves as Total CNY 136.200”). A discount is entered as a negative-price line, so it stays visible as a line.',
+      'Raising a PO from a stored quote no longer inherits the quote’s full total — the PO totals from the lines you actually keep in the editor (plus freight), so a partial PO is never over-stated. Revisions compute the same way.',
+      'The Incoterms input is hidden with it (data kept — historical values still show in Deal Lookup; freight context lives on the supplier’s documents).',
+      'Guidance for the two freight cases: freight the SUPPLIER bills (a CIF PI, or a quoted freight line like KSTAR’s CNY 1.800) goes in Freight Cost and lands in the total; freight billed by a third party (forwarder, destination charges) is logged at payment time as a landed cost instead — it is part of landed cost, not of what you owe the supplier.',
+    ],
+  },
+  {
     at: '2026-08-14T08:15:00Z',
     title: 'Fix: editing a PO’s line items no longer erases the freight in its total',
     details: [

@@ -554,7 +554,12 @@ function MasterInsertPage() {
           quantity: Number(l.quantity), unit_cost: Number(l.unit_price) || 0,
           currency: l.currency || quote.currency,
         }));
-      const totalVal = quote.total_value === '' || quote.total_value == null ? null : Number(quote.total_value);
+      // Blank total = compute it: the edited lines + supplier-billed freight
+      // (falling back to the source PO's freight when the field wasn't touched).
+      const freightForTotal = freightVal ?? Number((src as any).freight_charges_intl) ?? 0;
+      const totalVal = quote.total_value === '' || quote.total_value == null
+        ? poLineRows.reduce((s, r) => s + r.quantity * r.unit_cost, 0) + (freightForTotal || 0)
+        : Number(quote.total_value);
       const rate = quote.currency === 'IDR' ? null : (Number(exchange_rate) || Number((src as any).exchange_rate) || null);
       const header = {
         currency: quote.currency, exchange_rate: rate, total_value: totalVal,
@@ -1160,7 +1165,9 @@ function MasterInsertPage() {
                               o.quote_date = src.quote_date;
                               o.pi_number = src.pi_number;
                               o.currency = src.currency;
-                              o.total_value = src.total_value;
+                              // total_value is NOT carried: the PO totals from the editor's
+                              // lines + freight, so a partial PO never inherits the full
+                              // quote total.
                               o.po_date = new Date().toISOString().split('T')[0];
                             }
                             const existingPO = data.pos.find((p) => p.quote_id && String(p.quote_id) === String(value));
@@ -1221,8 +1228,10 @@ function MasterInsertPage() {
                         { name: 'company_id', label: 'Addressed To', type: 'select', options: options.companies, req: true, default: storedPoDefaults?.company_id ?? storedDefaults?.company_id ?? pdfDefaults.company_id },
                         { name: 'quote_date', label: 'Date', type: 'date', req: true, default: storedPoDefaults?.quote_date || storedDefaults?.quote_date || pdfData?.quote_date || pdfData?.pi_date || new Date().toISOString().split('T')[0] },
                         { name: 'pi_number', label: 'Quote Ref', type: 'text', suggestions: suggestions.quoteNumbers, default: storedPoDefaults?.pi_number || storedDefaults?.pi_number || pdfData?.quote_number || pdfData?.pi_number },
+                        // Total Value is NOT typed anymore (owner, 2026-08-14): the deal's
+                        // total is items + supplier-billed freight, computed at save. A
+                        // discount is a negative-price line, so it shows as a line.
                         { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true, default: storedPoDefaults?.currency ?? storedDefaults?.currency ?? pdfData?.currency },
-                        { name: 'total_value', label: 'Total Value', type: 'number', default: storedDefaults?.total_value ?? pdfData?.total_value },
                         // Freight is SHARED (owner, 2026-08-10): the supplier quotes it
                         // and the PO pays it, so it belongs to a Quote-only PI as much as
                         // to a Quote + PO. Stored on 4.0; carried onto the PO when raised.
@@ -1243,7 +1252,8 @@ function MasterInsertPage() {
                           { name: 'po_number', label: 'PO #', type: 'text' as const, req: true, suggestions: suggestions.poNumbers, default: storedPoDefaults?.po_number ?? pdfData?.po_number, accent: true },
                           { name: 'po_date', label: 'PO Date', hint: 'Empty = same as the PI date', type: 'date' as const, default: storedPoDefaults?.po_date ?? storedDefaults?.po_date, accent: true },
                           { name: 'exchange_rate', label: 'Exch Rate', hint: 'Estimated — auto-filled from payment history if empty; IDR ignores it', type: 'number' as const, formula: true, default: storedPoDefaults?.exchange_rate, accent: true },
-                          { name: 'incoterms', label: 'Incoterms', type: 'text' as const, suggestions: ['FOB', 'EXW', 'CIF', 'DDP', ...suggestions.incoterms], default: storedPoDefaults?.incoterms, accent: true },
+                          // Incoterms input hidden (owner, 2026-08-14) — the column and
+                          // Deal Lookup's display of historical values stay.
                           { name: 'method_of_shipment', label: 'Ship Via', type: 'select' as const, options: ENUMS.method_of_shipment, default: storedPoDefaults?.method_of_shipment, accent: true },
                           { name: 'payment_terms', label: 'PO Terms', type: 'text' as const, suggestions: suggestions.paymentTerms, default: storedPoDefaults?.payment_terms ?? settings.defaultPoPaymentTerms, accent: true },
                           // The PO's own replacement link — supersede an older PO

@@ -441,16 +441,26 @@ export default function NewDealForm({
 
       {/* ── Footer: totals + the one save ── */}
       <div className="pt-3 border-t border-slate-800/80 flex flex-wrap items-center gap-3">
-        {!itemsLocked && itemTotals.size > 0 && (
-          <span className="text-[11px] text-slate-500">
-            Items total:{' '}
-            {[...itemTotals.entries()].map(([c, v], i) => (
-              <span key={c} className="text-slate-300 font-semibold tabular-nums">{i > 0 ? ' · ' : ''}{c} {fmtInt(v)}</span>
-            ))}
-            {header.total_value === '' || header.total_value == null
-              ? <span className="text-slate-600"> — fills Total Value on save</span> : null}
-          </span>
-        )}
+        {!itemsLocked && itemTotals.size > 0 && (() => {
+          // The deal's total is never typed — it saves as items + supplier-billed
+          // freight. Say exactly what will be stored, live.
+          const freight = Number(header.freight_charges_intl) || 0;
+          const single = itemTotals.size === 1 ? [...itemTotals.entries()][0] : null;
+          return (
+            <span className="text-[11px] text-slate-500">
+              Items{' '}
+              {[...itemTotals.entries()].map(([c, v], i) => (
+                <span key={c} className="text-slate-300 font-semibold tabular-nums">{i > 0 ? ' · ' : ''}{c} {fmtInt(v)}</span>
+              ))}
+              {single && freight > 0 && (
+                <> + freight <span className="text-slate-300 font-semibold tabular-nums">{fmtInt(freight)}</span></>
+              )}
+              {single
+                ? <span className="text-slate-600"> — saves as Total <span className="text-slate-400 font-semibold tabular-nums">{single[0]} {fmtInt(single[1] + freight)}</span></span>
+                : <span className="text-slate-600"> — mixed currencies; totals stay per line</span>}
+            </span>
+          );
+        })()}
         <button type="submit" disabled={loading}
           className={`w-full sm:w-auto sm:ml-auto font-bold py-2.5 px-6 rounded-xl text-sm shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:transform-none disabled:cursor-not-allowed flex items-center justify-center gap-2 text-white ${
             withPo ? 'bg-violet-600 hover:bg-violet-500 border border-violet-500/50 shadow-violet-900/20'
