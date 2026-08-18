@@ -296,7 +296,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
     // Role-scoped fetches: skipped tables resolve to empty — the data never
     // reaches a client whose role can't see it.
     const none = Promise.resolve({ data: [] as any[] });
-    const [comps, projectQuotes, suppliers, companies, customers, pis, pos, piLines, poLines, quoteLineItems, salesDocs, salesLines, receipts, childInvoices, childDos, grns, cases] = await Promise.all([
+    const [comps, projectQuotes, suppliers, companies, customers, pis, pos, piLines, poLines, quoteLineItems, salesDocs, salesLines, receipts, childInvoices, childDos, grns, cases, custContacts] = await Promise.all([
       (canBuy || canSell) ? fetchAllComponents() : Promise.resolve([]),
       canProjects ? supabase.from('10.0_project_quotes').select('quote_id, quote_number, quote_date, customer_name, status').order('quote_date', { ascending: false }).limit(500) : none,
       canBuy ? supabase.from('2.0_suppliers').select('supplier_id, supplier_name, supplier_code') : none,
@@ -314,6 +314,8 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
       canSell ? supabase.from('24.0_delivery_orders').select('do_id, quote_id, do_number').limit(2000) : none,
       canBuy ? supabase.from('30.2_goods_receipts').select('grn_id, grn_number, po_id, received_at, location, notes').order('received_at', { ascending: false }).limit(500) : none,
       canSell ? supabase.from('27.0_aftersales_cases').select('case_id, case_number, customer_id, quote_id, category, status, subject, reported_at').order('reported_at', { ascending: false }).limit(1000) : none,
+      // Contact people: searching a person's name or position finds their company
+      canSell ? supabase.from('20.1_customer_contacts').select('customer_id, name, title') : none,
     ]);
 
     const supplierName = new Map((suppliers.data ?? []).map((s) => [s.supplier_id as string, (s.supplier_name as string) || '']));
@@ -639,6 +641,11 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
         title: (c.display_name as string) || (c.legal_name as string) || '(no name)',
         sub: [(c.customer_code as string), (c.tier as string), (c.is_active === false ? 'Inactive' : 'Customer')].filter(Boolean).join(' · '),
         href: `/customers?open=${encodeURIComponent(c.customer_id as string)}`,
+        // Legal name + every contact person (name and position) — typing
+        // "Budi" or "purchasing manager" lands on the company they belong to.
+        keywords: [c.legal_name as string, ...((custContacts.data ?? []) as { customer_id: string; name: string | null; title: string | null }[])
+          .filter((ct) => String(ct.customer_id) === String(c.customer_id))
+          .flatMap((ct) => [ct.name, ct.title])].filter(Boolean).join(' '),
         drill: byCustomer.get(c.customer_id as string) ?? [],
       })),
       ...quoteItemsList,

@@ -26,6 +26,9 @@ interface Customer {
   customer_code: string;
   legal_name: string;
   display_name: string;
+  /** 'company' (default — has contacts with positions) or 'individual' (the
+   *  customer IS the person). */
+  customer_type?: 'company' | 'individual';
   tier: string;
   account_manager_id: string | null;
   payment_terms: string;
@@ -104,6 +107,7 @@ const blankCustomer = (tier = ''): Customer => ({
   customer_code: '',
   legal_name: '',
   display_name: '',
+  customer_type: 'company',
   tier,
   account_manager_id: null,
   payment_terms: '',
@@ -175,6 +179,7 @@ function CustomersInner() {
   const [filterAm, setFilterAm] = useState('');       // '' all · 'unassigned' · user id
   const [filterTier, setFilterTier] = useState('');   // '' all · 'none' · tier_code
   const [filterStatus, setFilterStatus] = useState<'active' | 'inactive' | 'all'>('active');
+  const [filterType, setFilterType] = useState<'' | 'company' | 'individual'>('');
 
   const [editing, setEditing] = useState<Customer | null>(null);
   const [draftContacts, setDraftContacts] = useState<Contact[]>([]);
@@ -331,14 +336,19 @@ function CustomersInner() {
       if (filterStatus !== 'all' && c.is_active !== (filterStatus === 'active')) return false;
       if (filterAm === 'unassigned' ? c.account_manager_id : (filterAm && c.account_manager_id !== filterAm)) return false;
       if (filterTier === 'none' ? c.tier : (filterTier && c.tier !== filterTier)) return false;
+      if (filterType && (c.customer_type ?? 'company') !== filterType) return false;
       if (!q) return true;
+      // Contacts are part of the haystack: typing a PERSON's name, position,
+      // email or phone finds the company they belong to.
+      const contacts = (contactsByCustomer[c.customer_id] ?? [])
+        .map((ct) => `${ct.name} ${ct.title} ${ct.email} ${ct.phone}`).join(' ');
       const hay = [
         c.customer_code, c.legal_name, c.display_name, c.tier,
-        amById.get(c.account_manager_id ?? '') ?? '',
+        amById.get(c.account_manager_id ?? '') ?? '', contacts,
       ].join(' ').toLowerCase();
       return hay.includes(q);
     });
-  }, [customers, search, filterStatus, filterAm, filterTier, amById]);
+  }, [customers, search, filterStatus, filterAm, filterTier, filterType, amById, contactsByCustomer]);
 
   // ── Possible duplicates (post-import cleanup) ─────────────────────────────
   // Two customers are "possibly the same" when their names normalize to the
@@ -524,6 +534,7 @@ function CustomersInner() {
     const payload: Record<string, unknown> = {
       legal_name: legal,
       display_name: display,
+      customer_type: editing.customer_type ?? 'company',
       tier: editing.tier.trim(),
       account_manager_id: editing.account_manager_id || null,
       payment_terms: editing.payment_terms.trim(),
@@ -592,12 +603,12 @@ function CustomersInner() {
   } | null>(null);
 
   function exportCsv() {
-    const headers = ['customer_code', 'display_name', 'legal_name', 'tier', 'account_manager', 'payment_terms', 'default_currency', 'tax_id', 'billing_address', 'shipping_address', 'notes', 'referred_by', 'active', 'primary_contact', 'contact_email', 'contact_phone'];
+    const headers = ['customer_code', 'display_name', 'legal_name', 'customer_type', 'tier', 'account_manager', 'payment_terms', 'default_currency', 'tax_id', 'billing_address', 'shipping_address', 'notes', 'referred_by', 'active', 'primary_contact', 'contact_email', 'contact_phone'];
     const data = filtered.map((c) => {
       const contacts = contactsByCustomer[c.customer_id] ?? [];
       const primary = contacts.find((x) => x.is_primary) ?? contacts[0];
       return [
-        c.customer_code, c.display_name, c.legal_name, c.tier,
+        c.customer_code, c.display_name, c.legal_name, c.customer_type ?? 'company', c.tier,
         amById.get(c.account_manager_id ?? '') ?? '', c.payment_terms, c.default_currency,
         c.tax_id, c.billing_address, c.shipping_address, c.notes, c.referred_by, c.is_active ? 'yes' : 'no',
         primary?.name ?? '', primary?.email ?? '', primary?.phone ?? '',
@@ -733,10 +744,16 @@ function CustomersInner() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search code, name, tier, account manager…"
+              placeholder="Search code, name, contact person, tier, account manager…"
               className="w-full pl-10 pr-4 h-11 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors"
             />
           </div>
+          <select value={filterType} onChange={(e) => setFilterType(e.target.value as '' | 'company' | 'individual')} title="Filter by customer type"
+            className="text-xs bg-slate-900/80 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60">
+            <option value="">All types</option>
+            <option value="company">🏢 Companies</option>
+            <option value="individual">👤 Individuals</option>
+          </select>
           <select value={filterAm} onChange={(e) => setFilterAm(e.target.value)} title="Filter by account manager"
             className="text-xs bg-slate-900/80 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60 max-w-[160px]">
             <option value="">All managers</option>
@@ -845,6 +862,12 @@ function CustomersInner() {
                       <span className={`min-w-0 ${compact ? 'flex-1' : ''}`}>
                         <span className="flex items-center gap-2 min-w-0">
                           <span className="text-sm text-slate-100 font-medium truncate">{c.display_name || c.legal_name || '(no name)'}</span>
+                          {/* Individuals are the marked exception — most customers are companies */}
+                          {c.customer_type === 'individual' && (
+                            <span className="flex-shrink-0 px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-300 text-[10px] font-semibold" title="Individual customer — the person is the customer">
+                              👤 Individual
+                            </span>
+                          )}
                           {/* Ranked by transactions → show the number being ranked on */}
                           {sort === 'transactions' && !colSort && (
                             <span className="flex-shrink-0 px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 text-[10px] font-semibold tabular-nums"
@@ -1383,11 +1406,26 @@ function Drawer({
         <div className="px-6 py-5 space-y-5">
           {/* Identity */}
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Display name" full>
-              <input value={customer.display_name} onChange={(e) => onField('display_name', e.target.value)} placeholder="e.g. Acme Solar" className={inputCls} />
+            {/* Company or a person — placeholders follow so each type reads naturally */}
+            <Field label="Customer type" full>
+              <div className="inline-flex rounded-lg border border-slate-700 overflow-hidden">
+                {([['company', '🏢 Company'], ['individual', '👤 Individual']] as const).map(([v, label]) => (
+                  <button key={v} type="button" onClick={() => onField('customer_type', v)}
+                    className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      (customer.customer_type ?? 'company') === v ? 'bg-emerald-600 text-white' : 'bg-slate-900/60 text-slate-400 hover:text-slate-200'
+                    }`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
             </Field>
-            <Field label="Legal name" full>
-              <input value={customer.legal_name} onChange={(e) => onField('legal_name', e.target.value)} placeholder="PT Acme Solar Nusantara" className={inputCls} />
+            <Field label="Display name" full>
+              <input value={customer.display_name} onChange={(e) => onField('display_name', e.target.value)}
+                placeholder={(customer.customer_type ?? 'company') === 'individual' ? 'e.g. Budi Santoso' : 'e.g. Acme Solar'} className={inputCls} />
+            </Field>
+            <Field label={(customer.customer_type ?? 'company') === 'individual' ? 'Full name (as on ID/invoice)' : 'Legal name'} full>
+              <input value={customer.legal_name} onChange={(e) => onField('legal_name', e.target.value)}
+                placeholder={(customer.customer_type ?? 'company') === 'individual' ? 'Budi Santoso' : 'PT Acme Solar Nusantara'} className={inputCls} />
             </Field>
             <Field label="Tier">
               {tiers.length > 0 ? (

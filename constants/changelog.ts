@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-14T13:30:00Z',
+    title: 'Customers: companies vs individuals, and people are searchable',
+    details: [
+      'A customer is now either a 🏢 Company (with contact people and their positions, as before) or a 👤 Individual (the person IS the customer). The type is set in the editor — for an individual, the name fields relabel accordingly. Existing customers all start as Company; flip the few individuals as you meet them.',
+      'The customers list gained an “All types / Companies / Individuals” filter, and individuals carry a 👤 badge on their row. The CSV export includes the type.',
+      'People are searchable everywhere: the customers search now also matches contact names, positions, emails and phones — and Spotlight finds a company by typing its contact person (“Budi” lands on the company Budi works at).',
+    ],
+  },
+  {
     at: '2026-08-14T12:15:00Z',
     title: 'Deal Lookup: In process leads the list; tag a quote as replaced from either side',
     details: [
