@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-14T12:15:00Z',
+    title: 'Deal Lookup: In process leads the list; tag a quote as replaced from either side',
+    details: [
+      '“In process” (accepted quotes and active POs) now sits at the top of the list — the running money first, the decision pile right under it.',
+      'A quote card can now be tagged from either direction: “+ replaces a quote” (this newer quote supersedes an older one) or “+ replaced by…” (pick the newer quote that supersedes THIS one). Both write the same link — the old quote is set to Replaced and shows “⤷ Replaced by …”, the new one shows “↩ Revision of …”.',
+    ],
+  },
+  {
     at: '2026-08-14T11:30:00Z',
     title: 'Deal Lookup: the list now reads in work order',
     details: [

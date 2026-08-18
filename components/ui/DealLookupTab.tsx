@@ -355,8 +355,10 @@ function dealSection(g: DealGroup): DealSection {
 }
 
 const DEAL_SECTIONS: { key: DealSection; label: string; accent: string; hint: string }[] = [
-  { key: 'open',      label: 'Quotes — awaiting an answer', accent: 'text-emerald-300', hint: 'No PO yet and not accepted — decide, negotiate, or let them lapse.' },
+  // In process leads (owner, 2026-08-14): the running money comes first,
+  // the decision pile right under it.
   { key: 'process',   label: 'In process',                  accent: 'text-indigo-300',  hint: 'Accepted quotes and active POs — ordered or about to be, goods not fully in.' },
+  { key: 'open',      label: 'Quotes — awaiting an answer', accent: 'text-emerald-300', hint: 'No PO yet and not accepted — decide, negotiate, or let them lapse.' },
   { key: 'received',  label: 'Received — balance open',     accent: 'text-emerald-400', hint: 'Goods fully received, supplier not fully paid.' },
   { key: 'completed', label: 'Completed',                   accent: 'text-slate-400',   hint: 'Received and settled.' },
   { key: 'void',      label: 'Void / replaced',             accent: 'text-slate-600',   hint: 'Cancelled, replaced, rejected or expired.' },
@@ -456,6 +458,9 @@ export default function DealLookupTab({
   const [editingPoNumber, setEditingPoNumber]     = useState<string | null>(null);
   const [editingPi, setEditingPi]                 = useState<string | null>(null);
   const [editingQuoteReplaces, setEditingQuoteReplaces] = useState<string | null>(null);
+  // The inverse link, set from the SUPERSEDED quote's card: "this quote is
+  // replaced by …" — writes replaces_quote_id on the chosen successor.
+  const [editingQuoteReplacedBy, setEditingQuoteReplacedBy] = useState<string | null>(null);
   const [renameDraft, setRenameDraft]             = useState('');
   const [renameBusy, setRenameBusy]               = useState(false);
   const [acknowledgedMismatches, setAcknowledgedMismatches] = useState<Set<string>>(new Set());
@@ -773,6 +778,25 @@ export default function DealLookupTab({
                             </select>
                             <button onClick={(e) => { e.stopPropagation(); setEditingQuoteReplaces(null); }} className="text-slate-500 hover:text-slate-300">✕</button>
                           </span>
+                        ) : editingQuoteReplacedBy === qKey && onUpdateQuote ? (
+                          <span className="inline-flex items-center gap-1">
+                            <span className="text-slate-500">Replaced by</span>
+                            <select autoFocus defaultValue="" disabled={renameBusy}
+                              onChange={async (e) => {
+                                const successor = e.target.value;
+                                if (!successor) { setEditingQuoteReplacedBy(null); return; }
+                                setRenameBusy(true);
+                                // Written on the SUCCESSOR; the handler also marks THIS quote Replaced.
+                                try { await onUpdateQuote(successor, { replaces_quote_id: qKey }); } finally { setRenameBusy(false); setEditingQuoteReplacedBy(null); }
+                              }}
+                              className="text-[11px] rounded px-1.5 py-0.5 bg-slate-900 border border-sky-500/40 text-white focus:outline-none max-w-[220px]">
+                              <option value="">— pick the newer quote —</option>
+                              {quotes.filter((x) => String(x.quote_id) !== qKey).map((x) => (
+                                <option key={x.quote_id} value={x.quote_id}>{qLabel(x)}{x.quote_date ? ` · ${x.quote_date}` : ''}</option>
+                              ))}
+                            </select>
+                            <button onClick={(e) => { e.stopPropagation(); setEditingQuoteReplacedBy(null); }} className="text-slate-500 hover:text-slate-300">✕</button>
+                          </span>
                         ) : (
                           <>
                             {qRevisionOf && <span className="text-slate-500">↩ Revision of <span className="text-slate-300 font-medium">{qLabel(qRevisionOf)}</span></span>}
@@ -781,7 +805,14 @@ export default function DealLookupTab({
                               <button onClick={(e) => { e.stopPropagation(); setEditingQuoteReplaces(qKey); }}
                                 className="text-slate-500 hover:text-sky-300 underline underline-offset-2"
                                 title="Mark this quote as replacing an earlier one — the old quote is set to Replaced and linked">
-                                {qRevisionOf ? 'change' : '+ mark as replacing a quote'}
+                                {qRevisionOf ? 'change' : '+ replaces a quote'}
+                              </button>
+                            )}
+                            {onUpdateQuote && qSupersededBy.length === 0 && (
+                              <button onClick={(e) => { e.stopPropagation(); setEditingQuoteReplacedBy(qKey); }}
+                                className="text-slate-500 hover:text-amber-300 underline underline-offset-2"
+                                title="Mark this quote as superseded — pick the newer quote that replaces it; this one is set to Replaced and linked">
+                                + replaced by…
                               </button>
                             )}
                           </>
