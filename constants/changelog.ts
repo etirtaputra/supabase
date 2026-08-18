@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-14T11:30:00Z',
+    title: 'Deal Lookup: the list now reads in work order',
+    details: [
+      'The “All” view is grouped into sections instead of one long stream: “Quotes — awaiting an answer” (no PO, not accepted — the decisions) first, then “In process” (accepted quotes and active POs), “Received — balance open” (goods in, supplier not fully paid, with the summed outstanding on the header), “Completed”, and “Void / replaced” at the bottom.',
+      'An accepted quote counts as in-process even before its PO exists; a rejected or expired quote sinks to Void instead of sitting among the open ones.',
+      'The stage chips still work as before — picking one shows that bucket as a flat list; in the sectioned view, column sorting applies within each section.',
+    ],
+  },
+  {
     at: '2026-08-14T09:30:00Z',
     title: 'New Deal: Total Value and Incoterms inputs retired — the total is automatic',
     details: [

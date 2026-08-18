@@ -337,6 +337,31 @@ function dealStage(g: DealGroup): 'quote' | 'active' | 'received' | 'completed' 
   return 'active';
 }
 
+/** The SECTION a deal belongs to in the default list (owner, 2026-08-14):
+ *  an OPEN quote is a decision waiting to be made and must not drown between
+ *  running POs. An ACCEPTED quote is already in motion even before its PO
+ *  exists; a rejected/expired one is dead weight and sinks to the bottom. */
+type DealSection = 'open' | 'process' | 'received' | 'completed' | 'void';
+function dealSection(g: DealGroup): DealSection {
+  const stage = dealStage(g);
+  if (stage === 'active') return 'process';
+  if (stage === 'received') return 'received';
+  if (stage === 'completed') return 'completed';
+  if (stage === 'superseded') return 'void';
+  // No PO yet — the quote's own status decides which pile it sits on
+  if (g.quotes.some((q) => q.status === 'Accepted')) return 'process';
+  if (g.quotes.length > 0 && g.quotes.every((q) => ['Rejected', 'Expired', 'Replaced'].includes(q.status ?? ''))) return 'void';
+  return 'open';
+}
+
+const DEAL_SECTIONS: { key: DealSection; label: string; accent: string; hint: string }[] = [
+  { key: 'open',      label: 'Quotes — awaiting an answer', accent: 'text-emerald-300', hint: 'No PO yet and not accepted — decide, negotiate, or let them lapse.' },
+  { key: 'process',   label: 'In process',                  accent: 'text-indigo-300',  hint: 'Accepted quotes and active POs — ordered or about to be, goods not fully in.' },
+  { key: 'received',  label: 'Received — balance open',     accent: 'text-emerald-400', hint: 'Goods fully received, supplier not fully paid.' },
+  { key: 'completed', label: 'Completed',                   accent: 'text-slate-400',   hint: 'Received and settled.' },
+  { key: 'void',      label: 'Void / replaced',             accent: 'text-slate-600',   hint: 'Cancelled, replaced, rejected or expired.' },
+];
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -2523,13 +2548,37 @@ export default function DealLookupTab({
           />
 
           {/* ── Deal list or table ── */}
+          {/* "All" renders in WORK-ORDER SECTIONS: open quotes (decisions) never
+              drown between running POs. A stage chip narrows to one bucket, so
+              that view stays flat. Column sort applies within each section. */}
           {filtered.length === 0 ? (
             <p className="text-xs text-slate-600 italic py-6 text-center">No deals found</p>
-          ) : tableView ? (
-            renderDealTable(filtered)
+          ) : stageFilter !== 'all' ? (
+            tableView ? renderDealTable(filtered) : (
+              <div className="space-y-1.5">{filtered.map((g) => renderDealRow(g))}</div>
+            )
           ) : (
-            <div className="space-y-1.5">
-              {filtered.map((g) => renderDealRow(g))}
+            <div className="space-y-5">
+              {DEAL_SECTIONS.map(({ key, label, accent, hint }) => {
+                const rows = filtered.filter((g) => dealSection(g) === key);
+                if (!rows.length) return null;
+                const out = key === 'process' || key === 'received'
+                  ? rows.reduce((s, g) => s + (g.outstandingIdr || 0), 0) : 0;
+                return (
+                  <div key={key}>
+                    <div className="flex items-baseline gap-2 mb-1.5" title={hint}>
+                      <span className={`text-[11px] font-bold uppercase tracking-widest ${accent}`}>{label}</span>
+                      <span className="text-[10px] text-slate-600 tabular-nums">{rows.length}</span>
+                      {out > 0 && (
+                        <span className="ml-auto text-[10px] text-slate-500 tabular-nums">outstanding {fmtIdr(out)}</span>
+                      )}
+                    </div>
+                    {tableView ? renderDealTable(rows) : (
+                      <div className="space-y-1.5">{rows.map((g) => renderDealRow(g))}</div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
