@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-19T01:45:00Z',
+    title: 'Fix: saving a customer-type change no longer stalls; emoji dropped',
+    details: [
+      'Changing a customer between Company and Individual could hang on “Save changes” — the API layer’s schema cache didn’t know the new column yet. The cache has been reloaded (and the migration now does this itself), so saves go through instantly.',
+      'The Company / Individual labels lost their emoticons — plain text in the filter, the editor toggle and the row badge.',
+    ],
+  },
+  {
     at: '2026-08-19T01:00:00Z',
     title: 'Straight to Sales Order, plus two visual fixes',
     details: [

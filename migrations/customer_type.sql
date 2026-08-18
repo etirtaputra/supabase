@@ -12,3 +12,8 @@ BEGIN
       CHECK (customer_type IN ('company', 'individual'));
   END IF;
 END $$;
+
+-- PostgREST caches the schema; without this, writes carrying the new column
+-- stall/fail until the cache happens to reload (field report 2026-08-19:
+-- "Save changes takes forever" right after the column shipped).
+NOTIFY pgrst, 'reload schema';

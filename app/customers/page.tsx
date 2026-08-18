@@ -751,8 +751,8 @@ function CustomersInner() {
           <select value={filterType} onChange={(e) => setFilterType(e.target.value as '' | 'company' | 'individual')} title="Filter by customer type"
             className="text-xs bg-slate-900/80 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60">
             <option value="">All types</option>
-            <option value="company">🏢 Companies</option>
-            <option value="individual">👤 Individuals</option>
+            <option value="company">Companies</option>
+            <option value="individual">Individuals</option>
           </select>
           <select value={filterAm} onChange={(e) => setFilterAm(e.target.value)} title="Filter by account manager"
             className="text-xs bg-slate-900/80 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60 max-w-[160px]">
@@ -865,7 +865,7 @@ function CustomersInner() {
                           {/* Individuals are the marked exception — most customers are companies */}
                           {c.customer_type === 'individual' && (
                             <span className="flex-shrink-0 px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-300 text-[10px] font-semibold" title="Individual customer — the person is the customer">
-                              👤 Individual
+                              Individual
                             </span>
                           )}
                           {/* Ranked by transactions → show the number being ranked on */}
@@ -1409,7 +1409,7 @@ function Drawer({
             {/* Company or a person — placeholders follow so each type reads naturally */}
             <Field label="Customer type" full>
               <div className="inline-flex rounded-lg border border-slate-700 overflow-hidden">
-                {([['company', '🏢 Company'], ['individual', '👤 Individual']] as const).map(([v, label]) => (
+                {([['company', 'Company'], ['individual', 'Individual']] as const).map(([v, label]) => (
                   <button key={v} type="button" onClick={() => onField('customer_type', v)}
                     className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
                       (customer.customer_type ?? 'company') === v ? 'bg-emerald-600 text-white' : 'bg-slate-900/60 text-slate-400 hover:text-slate-200'
