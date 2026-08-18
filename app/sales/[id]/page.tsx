@@ -849,7 +849,10 @@ export default function SalesQuotePage() {
   if (st === 'draft') { actions.push({ label: 'Validate', to: 'validated', primary: true }); actions.push({ label: 'Sent', to: 'sent' }); }
   if (st === 'validated') actions.push({ label: 'Sent', to: 'sent', primary: true });
   if (st === 'sent') actions.push({ label: 'Accepted', to: 'accepted' });
-  if (['validated', 'sent', 'accepted'].includes(st)) actions.push({ label: 'Confirm Order', to: 'ordered', primary: st !== 'validated' });
+  // Draft included (owner, 2026-08-19): not every order arrives through a
+  // quotation — a customer who simply orders skips straight to the SO. The
+  // same transition runs, the trigger stamps the SO number, stock reserves.
+  if (['draft', 'validated', 'sent', 'accepted'].includes(st)) actions.push({ label: 'Confirm Order', to: 'ordered', primary: !['draft', 'validated'].includes(st) });
   // Invoices and DOs are created from the Fulfillment panel below; every stage
   // stays revertible — including a delivered order.
   if (st === 'ordered') actions.push({ label: 'Revert', to: 'accepted' });
@@ -1452,8 +1455,13 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, unitCost
         </div>
         <button onClick={onRemove} className="text-slate-600 hover:text-red-400 transition-colors text-lg leading-none px-1 self-start lg:self-end lg:pb-1.5 flex-shrink-0" title="Remove line">×</button>
       </div>
-      {/* Meta row: catalog link, live stock, comment toggle */}
-      <div className="flex items-center gap-3 flex-wrap mt-1.5">
+      {/* Meta row: catalog link, live stock, comment toggle. An INVISIBLE twin
+          of the drag grip leads the row, so the chips align with the Product /
+          description input above at every width and zoom (field report
+          2026-08-19 — they used to start under the grip, a few px left). */}
+      <div className="flex items-start gap-2 mt-1.5">
+        <span className="hidden lg:inline-block invisible -ml-1 flex-shrink-0 select-none" aria-hidden>{GRIP}</span>
+        <div className="flex items-center gap-3 flex-wrap flex-1 min-w-0">
           {line.component_id ? (
             <span className="inline-flex items-center gap-1.5 text-[10px] text-slate-500 bg-slate-800/60 border border-slate-700/60 rounded-md px-1.5 py-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
@@ -1544,6 +1552,7 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, unitCost
             {line.showNote || line.note ? 'Comment' : '+ Comment'}
           </button>
         </div>
+      </div>
       {(line.showNote || line.note) && (
         <input value={line.note} onChange={(e) => onField({ note: e.target.value })} placeholder="Comment / extra description (toggle in PDF)" className={`${inpSm} mt-1.5`} />
       )}

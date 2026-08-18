@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-19T01:00:00Z',
+    title: 'Straight to Sales Order, plus two visual fixes',
+    details: [
+      'Not every order arrives through a quotation: a draft can now be confirmed as a Sales Order in one click — fill in the customer and items, hit “Confirm Order”, and the SO number stamps and stock reserves exactly as if it had walked the quote → validated → sent path. The full quote flow is unchanged for deals that DO negotiate.',
+      'Fixed: on some screens the top navigation painted underneath the search field (the active group’s “· Sales Orders” suffix widened the bar). The nav no longer shrinks below its content and the suffix is capped — the search field yields space instead of overlapping.',
+      'Fixed: the chips under a sales line (catalog link, live stock, lead time) now align exactly with the Product / description field above them.',
+    ],
+  },
+  {
     at: '2026-08-14T13:30:00Z',
     title: 'Customers: companies vs individuals, and people are searchable',
     details: [

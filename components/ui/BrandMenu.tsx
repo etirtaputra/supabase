@@ -400,7 +400,13 @@ export default function BrandMenu({
           menus into invisibility (field report 2026-08-01). At xl+ the bar
           fits with room to spare; overlap protection is the xl gate plus the
           page headers' flex-wrap, not a clip. */}
-      <nav className="hidden xl:flex items-center gap-1 min-w-0">
+      {/* flex-shrink-0, not min-w-0: with min-w-0 the nav absorbed a squeeze by
+          shrinking BELOW its content, and its buttons painted under the search
+          field (field report 2026-08-19, sales editor — the active group's
+          "· Sales Orders" suffix widened the nav past its box). The SEARCH is
+          the flexible element (flex-1, min 140px); the nav never shrinks, and
+          the suffix below is capped so the nav's natural width stays bounded. */}
+      <nav className="hidden xl:flex items-center gap-1 flex-shrink-0">
         {groups.map((group, gi) => {
           const acc = accentOf(group.section, group.title);
           const activeApp = group.apps.find((a) => isActive(a.href));
@@ -431,7 +437,7 @@ export default function BrandMenu({
                   activeApp ? acc.active : isOpen ? 'text-white bg-white/[0.07]' : 'text-slate-400 hover:text-white hover:bg-white/[0.07]'
                 }`}>
                 {group.title ? (GROUP_SHORT[group.title] ?? group.title) : ''}
-                {activeApp && <span className="font-normal opacity-80">· {activeApp.label}</span>}
+                {activeApp && <span className="font-normal opacity-80 truncate max-w-[120px]">· {activeApp.label}</span>}
                 <svg className={`w-3 h-3 transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
               </button>
               {isOpen && (
