@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-19T05:30:00Z',
+    title: 'Customers: auto-tagged individuals, tick-to-select bulk actions, find & replace',
+    details: [
+      '80 customers whose names carry a person marker (Pak, Ibu, Bpk, Bp, Bapak, Sdr) and no company marker (PT, CV, UD, PD, Toko, Yayasan, Koperasi) are now tagged Individual; the other 409 stay Company. The rule was the owner’s: no marker = usually a company.',
+      'Every row has a tick box, plus “Select shown” in the toolbar. Ticked rows get a bulk bar: set Company / Individual / Active / Inactive in one go — the fastest way to correct any tagging the name rule got wrong.',
+      '“⇅ Replace” beside the filters is the Item Editor’s find-and-replace for customer names: find → replace-with, scoped to Display / Legal / both names, match-case optional, live before→after preview, and it applies to the SELECTED rows when a selection exists, otherwise to everything currently filtered.',
+    ],
+  },
+  {
     at: '2026-08-19T04:30:00Z',
     title: 'Customer save crash fixed for real; New Order can no longer become a quote',
     details: [

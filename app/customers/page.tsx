@@ -181,6 +181,36 @@ function CustomersInner() {
   const [filterStatus, setFilterStatus] = useState<'active' | 'inactive' | 'all'>('active');
   const [filterType, setFilterType] = useState<'' | 'company' | 'individual'>('');
 
+  // ── Row selection + bulk actions (owner's ask, 2026-08-19) ────────────────
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const toggleSel = (id: string) =>
+    setSelected((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  async function bulkSet(patch: Record<string, unknown>, label: string) {
+    const ids = [...selected];
+    if (!ids.length) return;
+    setBulkBusy(true);
+    try {
+      for (let i = 0; i < ids.length; i += 100) {
+        const { error } = await supabase.from('20.0_customers').update(patch).in('customer_id', ids.slice(i, i + 100));
+        if (error) { flash(`Error: ${error.message}`); return; }
+      }
+      flash(`${ids.length} customer${ids.length !== 1 ? 's' : ''} set to ${label}`);
+      setSelected(new Set());
+      fetchAll();
+    } finally { setBulkBusy(false); }
+  }
+
+  // ── Find & Replace across names (the Item Editor's tool, for customers) ───
+  const [frOpen, setFrOpen] = useState(false);
+  const [frFind, setFrFind] = useState('');
+  const [frReplace, setFrReplace] = useState('');
+  const [frField, setFrField] = useState<'both' | 'display' | 'legal'>('both');
+  const [frCase, setFrCase] = useState(false);
+  const [frBusy, setFrBusy] = useState(false);
+  const escapeRx = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const frApply = (v: string) => (frFind ? v.replace(new RegExp(escapeRx(frFind), frCase ? 'g' : 'gi'), frReplace) : v);
+
   const [editing, setEditing] = useState<Customer | null>(null);
   const [draftContacts, setDraftContacts] = useState<Contact[]>([]);
   const [draftLinks, setDraftLinks] = useState<string[]>([]); // linked customer ids
@@ -349,6 +379,37 @@ function CustomersInner() {
       return hay.includes(q);
     });
   }, [customers, search, filterStatus, filterAm, filterTier, filterType, amById, contactsByCustomer]);
+
+  // What Find & Replace would change: the SELECTED rows when a selection
+  // exists, otherwise everything currently filtered — search/filter first,
+  // then replace, exactly like the Item Editor.
+  const frScope = useMemo(
+    () => (selected.size ? filtered.filter((c) => selected.has(c.customer_id)) : filtered),
+    [filtered, selected]);
+  const frTargets = useMemo(() => {
+    if (!frFind.trim()) return [];
+    return frScope.flatMap((c) => {
+      const nd = frField !== 'legal' ? frApply(c.display_name ?? '') : (c.display_name ?? '');
+      const nl = frField !== 'display' ? frApply(c.legal_name ?? '') : (c.legal_name ?? '');
+      if (nd === (c.display_name ?? '') && nl === (c.legal_name ?? '')) return [];
+      return [{ c, nd, nl }];
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [frScope, frFind, frReplace, frField, frCase]);
+  async function applyReplace() {
+    if (!frTargets.length) return;
+    setFrBusy(true);
+    try {
+      for (const t of frTargets) {
+        const { error } = await supabase.from('20.0_customers')
+          .update({ display_name: t.nd, legal_name: t.nl }).eq('customer_id', t.c.customer_id);
+        if (error) { flash(`Error at ${t.c.display_name || t.c.legal_name}: ${error.message}`); return; }
+      }
+      flash(`Replaced in ${frTargets.length} customer${frTargets.length !== 1 ? 's' : ''}`);
+      setFrFind(''); setFrReplace('');
+      fetchAll();
+    } finally { setFrBusy(false); }
+  }
 
   // ── Possible duplicates (post-import cleanup) ─────────────────────────────
   // Two customers are "possibly the same" when their names normalize to the
@@ -804,6 +865,20 @@ function CustomersInner() {
             }`}>
             Duplicates{dupGroups.length ? ` (${dupGroups.length})` : ''}
           </button>
+          <button onClick={() => setFrOpen((v) => !v)}
+            title="Find & replace across customer names — like the Item Editor's Replace"
+            className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
+              frOpen ? 'bg-sky-500/15 border-sky-500/40 text-sky-300' : 'bg-slate-900/80 border-slate-700 text-slate-400 hover:text-slate-200'
+            }`}>
+            ⇅ Replace
+          </button>
+          <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer select-none" title="Select every customer currently shown">
+            <input type="checkbox"
+              checked={filtered.length > 0 && filtered.every((c) => selected.has(c.customer_id))}
+              onChange={(e) => setSelected(e.target.checked ? new Set(filtered.map((c) => c.customer_id)) : new Set())}
+              className="accent-emerald-500 w-3.5 h-3.5" />
+            Select shown
+          </label>
           <span className="text-xs text-slate-600 tabular-nums">{filtered.length} of {customers.length}</span>
           <select value={sort} onChange={(e) => { sortTouched.current = true; setSort(e.target.value); setColSort(null); }}
             title="Order — the default lives in Settings › Lists"
@@ -812,6 +887,70 @@ function CustomersInner() {
           </select>
           <LayoutToggle value={layout} onChange={setLayout} />
         </div>
+
+        {/* ── Bulk actions for the ticked rows ── */}
+        {selected.size > 0 && (
+          <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 bg-emerald-500/[0.06] border border-emerald-500/25 rounded-xl">
+            <span className="text-xs font-semibold text-emerald-300 tabular-nums">{selected.size} selected</span>
+            <span className="text-[11px] text-slate-500">set to</span>
+            {([
+              ['Company', { customer_type: 'company' }],
+              ['Individual', { customer_type: 'individual' }],
+              ['Active', { is_active: true }],
+              ['Inactive', { is_active: false }],
+            ] as [string, Record<string, unknown>][]).map(([label, patch]) => (
+              <button key={label} disabled={bulkBusy} onClick={() => bulkSet(patch, label)}
+                className="text-xs px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-900/70 text-slate-300 hover:text-white hover:border-emerald-500/40 transition-colors disabled:opacity-50">
+                {label}
+              </button>
+            ))}
+            {bulkBusy && <span className="text-[11px] text-slate-500 animate-pulse">applying…</span>}
+            <button onClick={() => setSelected(new Set())} className="ml-auto text-[11px] text-slate-500 hover:text-slate-300">Clear ×</button>
+          </div>
+        )}
+
+        {/* ── Find & Replace across names (search/filter first, then replace) ── */}
+        {frOpen && (
+          <div className="bg-slate-900/50 border border-sky-500/25 rounded-xl px-4 py-3 space-y-2.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <input value={frFind} onChange={(e) => setFrFind(e.target.value)} placeholder="Find…"
+                className="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 focus:border-sky-500/60 outline-none text-xs text-white w-44" />
+              <span className="text-slate-600 text-xs">→</span>
+              <input value={frReplace} onChange={(e) => setFrReplace(e.target.value)} placeholder="Replace with…"
+                className="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 focus:border-sky-500/60 outline-none text-xs text-white w-44" />
+              <select value={frField} onChange={(e) => setFrField(e.target.value as typeof frField)}
+                className="text-xs bg-slate-950 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 outline-none">
+                <option value="both">Both names</option>
+                <option value="display">Display name</option>
+                <option value="legal">Legal name</option>
+              </select>
+              <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer select-none">
+                <input type="checkbox" checked={frCase} onChange={(e) => setFrCase(e.target.checked)} className="accent-sky-500 w-3.5 h-3.5" />
+                Match case
+              </label>
+              <button onClick={applyReplace} disabled={frBusy || frTargets.length === 0}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white transition-colors disabled:opacity-40">
+                {frBusy ? 'Replacing…' : `Replace in ${frTargets.length}`}
+              </button>
+              <span className="text-[11px] text-slate-500">
+                across the {selected.size ? `${frScope.length} selected` : `${frScope.length} filtered`} customer{frScope.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+            {frTargets.length > 0 && (
+              <div className="space-y-0.5">
+                {frTargets.slice(0, 6).map(({ c, nd, nl }) => (
+                  <p key={c.customer_id} className="text-[11px] text-slate-500 truncate">
+                    <span className="text-slate-400">{c.display_name || c.legal_name}</span>
+                    <span className="text-slate-600"> → </span>
+                    <span className="text-sky-300">{frField !== 'legal' ? nd : nl}</span>
+                    {frField === 'both' && nl !== (c.legal_name ?? '') && nd !== nl && <span className="text-slate-600"> · legal: {nl}</span>}
+                  </p>
+                ))}
+                {frTargets.length > 6 && <p className="text-[11px] text-slate-600">… and {frTargets.length - 6} more</p>}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Possible-duplicate groups with the merge tool */}
         {dupMode && (
@@ -872,12 +1011,18 @@ function CustomersInner() {
                         status dot); the stacked card belongs to the card layout.
                         On md+ both layouts are the table grid — compact only
                         tightens it. */}
+                    <div className={`flex items-stretch ${open ? 'bg-slate-800/40' : 'hover:bg-slate-800/40'} transition-colors`}>
+                    {/* The tick lives OUTSIDE the row button so selecting never opens the profile */}
+                    <label className="flex items-center pl-3 -mr-1 cursor-pointer flex-shrink-0" title="Select for bulk actions">
+                      <input type="checkbox" checked={selected.has(c.customer_id)} onChange={() => toggleSel(c.customer_id)}
+                        className="accent-emerald-500 w-3.5 h-3.5" />
+                    </label>
                     <button
                       onClick={() => openProfile(c)}
                       aria-expanded={open}
-                      className={`w-full text-left transition-colors items-center md:grid md:grid-cols-[130px_1fr_110px_170px_90px_135px] md:gap-3 ${
+                      className={`flex-1 min-w-0 text-left items-center md:grid md:grid-cols-[130px_1fr_110px_170px_90px_135px] md:gap-3 ${
                         compact ? 'flex gap-2 px-3 py-1.5' : 'grid grid-cols-1 gap-1 px-4 py-3'
-                      } ${open ? 'bg-slate-800/40' : 'hover:bg-slate-800/40'}`}
+                      }`}
                     >
                       <span className={`font-mono text-[11px] text-slate-400 ${compact ? 'hidden md:block' : ''}`}>{c.customer_code || '—'}</span>
                       <span className={`min-w-0 ${compact ? 'flex-1' : ''}`}>
@@ -914,6 +1059,7 @@ function CustomersInner() {
                         <svg className={`w-3.5 h-3.5 text-slate-600 transition-transform duration-150 flex-shrink-0 ${open ? 'rotate-180 text-slate-400' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
                       </span>
                     </button>
+                    </div>
                     {/* Inline preview — expands under the row; editing opens the drawer */}
                     {open && !editing && (
                       <ProfilePanel
