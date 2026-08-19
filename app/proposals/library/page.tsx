@@ -91,7 +91,7 @@ const LIB_TABLE = '10.4_description_library';
 
 export default function DescriptionLibraryPage() {
   const supabase = createSupabaseClient();
-  const gate = useQuotesGate();
+  const gate = useQuotesGate(false, '/proposals/library');
   const isOwner = gate.profile?.role === 'owner';
 
   const [loading, setLoading] = useState(true);

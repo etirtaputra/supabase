@@ -165,7 +165,8 @@ function CustomersInner() {
   useEffect(() => { if (!sortTouched.current) setSort(listDefaults.sort); }, [listDefaults.sort]);
 
   const canManage = !!profile && ROLE_PERMISSIONS[profile.role].canManageCustomers;
-  const canSeeEpc = !!profile && ROLE_PERMISSIONS[profile.role].projects; // EPC module hidden from roles without access
+  // EPC is hidden from roles that cannot open it — asked the same way the menu asks
+  const canSeeEpc = !!profile && canOpenPath(ROLE_PERMISSIONS[profile.role], '/proposals');
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [contactsByCustomer, setContactsByCustomer] = useState<Record<string, Contact[]>>({});

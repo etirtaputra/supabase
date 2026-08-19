@@ -17,7 +17,7 @@ interface Row { customer_name: string; customer_address: string; location: strin
 
 export default function ProposalDirectoryPage() {
   const supabase = createSupabaseClient();
-  const gate = useQuotesGate();
+  const gate = useQuotesGate(false, '/proposals/directory');
   const isOwner = gate.profile?.role === 'owner';
 
   const [rows, setRows] = useState<Row[]>([]);       // 10.0 header fields

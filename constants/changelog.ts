@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-19T12:30:00Z',
+    title: 'EPC proposals are now for project roles only — the same rule the menu shows',
+    details: [
+      'The EPC proposal screens used to let in anyone with the older “edit quotes” flag, which included the warehouse (Data Entry) and Finance logins even though Proposals has never appeared in their menu. They now follow the menu exactly: Owner and Engineer.',
+      'The Description Library says “Owners only” to everybody else, so that is now what its door says too; the Directory stays open to project roles for reviewing duplicates, with merging and renaming still owner-only.',
+      'Nothing else changed hands: sales roles never had proposal access, and the customer profile has always hidden the EPC section from them.',
+    ],
+  },
+  {
     at: '2026-08-19T11:45:00Z',
     title: 'The menu now shows exactly what your account can open — nothing more, nothing less',
     details: [

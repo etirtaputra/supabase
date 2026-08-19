@@ -120,28 +120,41 @@ test('every menu entry is a real destination with a hint someone can read', () =
 });
 
 /**
- * The other half of the same coin: a destination the MENU gates but the page
- * does not enforce — hidden from the menu, wide open to anyone with the link.
- *
- * The EPC proposal screens are in that state today and are left that way on
- * purpose: /customers links a customer's project quotes straight to
- * /proposals/[id], so sell-side roles plainly are meant to read them, and
- * quietly locking them out would break a link people use. Listed here so the
- * gap is visible and deliberate rather than forgotten — and so nothing NEW
- * joins it by accident.
+ * A screen may delegate its gate to a shared hook instead of redirecting
+ * inline — the EPC proposal screens do, through useQuotesGate. That is still
+ * the one rule (the hook asks canOpenPath), so the delegation must be visible
+ * here rather than looking like an ungated page.
  */
-const KNOWN_OPEN = ['/proposals', '/proposals/library', '/proposals/directory'];
+const DELEGATED = 'useQuotesGate';
 
-test('only the known-open screens are gated in the menu but not on the page', () => {
-  const open: string[] = [];
+test('a menu-gated screen always enforces a gate — inline or through the shared hook', () => {
+  const ungated: string[] = [];
   for (const d of DESTINATIONS) {
     const rel = d.href.split('?')[0].replace(/^\//, '');
     const f = rel ? join('app', rel, 'page.tsx') : 'app/page.tsx';
     let src: string;
     try { src = readFileSync(f, 'utf8'); } catch { continue; }   // dynamic route, no plain page
-    const gatedInMenu = !!d.cap || !!d.caps || (d.section !== null && d.section !== undefined);
-    if (gatedInMenu && !src.includes('/unauthorized')) open.push(d.href.split('?')[0]);
+    const gatedInMenu = !!d.cap || !!d.caps || !!d.section;
+    if (!gatedInMenu) continue;
+    if (!src.includes('/unauthorized') && !src.includes(DELEGATED)) ungated.push(d.href.split('?')[0]);
   }
-  assert.deepEqual([...new Set(open)].sort(), [...KNOWN_OPEN].sort(),
-    'a menu-gated screen stopped enforcing its own gate (or a new one never started)');
+  assert.deepEqual(ungated, [],
+    `hidden in the menu but open to anyone with the link: ${ungated.join(', ')}`);
+});
+
+test('the EPC screens are guarded by the path they actually are', () => {
+  const list = readFileSync('app/proposals/page.tsx', 'utf8');
+  const lib = readFileSync('app/proposals/library/page.tsx', 'utf8');
+  const dir = readFileSync('app/proposals/directory/page.tsx', 'utf8');
+  assert.ok(list.includes('useQuotesGate()'), 'the proposal list guards /proposals');
+  assert.ok(lib.includes("'/proposals/library'"), 'the library guards its own path');
+  assert.ok(dir.includes("'/proposals/directory'"), 'the directory guards its own path');
+  // Owner-only library, any projects role may review the directory
+  assert.equal(canOpenPath(ROLE_PERMISSIONS.engineer, '/proposals/library'), false);
+  assert.equal(canOpenPath(ROLE_PERMISSIONS.owner, '/proposals/library'), true);
+  assert.equal(canOpenPath(ROLE_PERMISSIONS.engineer, '/proposals/directory'), true);
+  // EPC belongs to the project roles — a warehouse or finance login is not one
+  assert.equal(canOpenPath(ROLE_PERMISSIONS.data_entry, '/proposals'), false);
+  assert.equal(canOpenPath(ROLE_PERMISSIONS.finance, '/proposals'), false);
+  assert.equal(canOpenPath(ROLE_PERMISSIONS.sell_admin, '/proposals'), false);
 });

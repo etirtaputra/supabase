@@ -201,10 +201,13 @@ export const DESTINATIONS: Destination[] = [
   { href: '/proposals', label: 'Proposals', group: 'Projects', section: 'projects', inNav: true,
     hint: 'EPC project proposals',
     keywords: 'epc project quote solar pv' },
-  { href: '/proposals/library', label: 'Proposals · Description Library', group: 'Projects', section: 'projects', cap: 'canEditQuotes', inNav: false,
+  // Owner-only: the page itself says so to everybody else.
+  { href: '/proposals/library', label: 'Proposals · Description Library', group: 'Projects', section: 'projects', cap: 'canManageUsers', inNav: false,
     hint: 'Curated proposal line texts and default costs',
     keywords: 'library descriptions' },
-  { href: '/proposals/directory', label: 'Proposals · Directory', group: 'Projects', section: 'projects', cap: 'canManageUsers', inNav: false,
+  // Any projects role may REVIEW the duplicates; merging and renaming are
+  // owner-only inside the page, which is why the door itself is not.
+  { href: '/proposals/directory', label: 'Proposals · Directory', group: 'Projects', section: 'projects', inNav: false,
     hint: 'Merge duplicate customers, sites, addresses and brands',
     keywords: 'merge duplicates cleanup directory' },
 
