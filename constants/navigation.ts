@@ -23,6 +23,22 @@ import type { RolePermissions } from './roles';
  */
 export type NavSection = 'buySide' | 'sellSide' | 'projects' | 'trading' | null;
 
+/**
+ * Where a role lands when it signs in with no particular page in mind.
+ *
+ * This is not cosmetic: sign-in used to send EVERYONE to /purchasing, and a
+ * sell-side account has no buy-side access, so the first thing a new sales
+ * admin ever saw was "Access restricted" — an account that worked perfectly,
+ * reading as a broken one. Send each role somewhere it can actually open.
+ * The dashboard is the safe floor: every signed-in role may open it.
+ */
+export const homeFor = (perms: RolePermissions | null): string => {
+  if (!perms) return '/';
+  if (perms.buySide) return '/purchasing';
+  if (perms.sellSide && perms.canEditSalesDocs) return '/sales';
+  return '/';
+};
+
 /** Does this role pass a section gate? (null = open to everyone signed in) */
 export const sectionAllowed = (perms: RolePermissions | null, s: NavSection): boolean =>
   !s || !perms || (s === 'trading' ? (perms.buySide || perms.sellSide) : perms[s]);

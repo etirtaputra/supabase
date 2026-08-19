@@ -1,6 +1,8 @@
 'use client';
 import { useState } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
+import { ROLE_PERMISSIONS, type UserRole } from '@/constants/roles';
+import { homeFor } from '@/constants/navigation';
 
 export default function LoginPage() {
   const supabase = createSupabaseClient();
@@ -13,9 +15,30 @@ export default function LoginPage() {
   const [error, setError]     = useState<string | null>(null);
 
   // Send the user back to the page that required login (e.g. /quotes)
-  const dest = () => {
+  const nextParam = () => {
     const next = new URLSearchParams(window.location.search).get('next');
-    return next && next.startsWith('/') ? next : '/purchasing';
+    return next && next.startsWith('/') ? next : null;
+  };
+
+  /**
+   * Where to go once signed in. This used to be a flat '/purchasing', which a
+   * sell-side account is not allowed to open — so a brand-new sales admin
+   * signed in perfectly and was met with "Access restricted". Now the role
+   * decides, and anything unexpected falls back to the dashboard, which every
+   * signed-in role may open.
+   */
+  const dest = async () => {
+    const next = nextParam();
+    if (next) return next;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return '/';
+      const { data } = await supabase.from('user_profiles').select('role').eq('id', user.id).single();
+      const role = (data as { role?: UserRole } | null)?.role;
+      return homeFor(role ? ROLE_PERMISSIONS[role] ?? null : null);
+    } catch {
+      return '/';
+    }
   };
 
   const handleLink = async (e: React.FormEvent) => {
@@ -24,7 +47,9 @@ export default function LoginPage() {
     setError(null);
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim().toLowerCase(),
-      options: { emailRedirectTo: `${window.location.origin}${dest()}` },
+      // The role is unknown until the link is clicked; the dashboard is the
+      // one destination every signed-in role can open.
+      options: { emailRedirectTo: `${window.location.origin}${nextParam() ?? '/'}` },
     });
     setLoading(false);
     if (error) setError(error.message);
@@ -45,7 +70,7 @@ export default function LoginPage() {
     });
     setLoading(false);
     if (error) setError(error.message);
-    else window.location.assign(dest());
+    else window.location.assign(await dest());
   };
 
   const handlePassword = async (e: React.FormEvent) => {
@@ -62,7 +87,7 @@ export default function LoginPage() {
         ? 'Wrong email or password. First time here? Use the login link tab, then set a password from the app.'
         : error.message);
     } else {
-      window.location.assign(dest());
+      window.location.assign(await dest());
     }
   };
 

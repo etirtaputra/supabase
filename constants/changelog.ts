@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-19T10:35:00Z',
+    title: 'Sell-side accounts no longer sign in straight into “Access restricted”',
+    details: [
+      'Signing in sent everyone to Purchasing, and a Sell-side Admin is not allowed to open Purchasing — so a brand-new sales account entered the right code, signed in perfectly, and was met with “Access restricted”. The account was never the problem.',
+      'Sign-in now lands each role somewhere it can actually open: buy-side roles on Purchasing as before, sell-side roles on Sales, and anyone else on the Dashboard, which every signed-in role can open.',
+      'The “Access restricted” screen also gained a “Go to my home page” button — “Go back” alone led straight back to the page you are not allowed to open.',
+    ],
+  },
+  {
     at: '2026-08-19T09:40:00Z',
     title: 'Landed cost: the bills that arrive after the goods now correct the stock cost',
     details: [

@@ -2,11 +2,16 @@
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { createSupabaseClient } from '@/lib/supabase';
+import { ROLE_PERMISSIONS } from '@/constants/roles';
+import { homeFor } from '@/constants/navigation';
 
 export default function UnauthorizedPage() {
   const router = useRouter();
   const { profile } = useAuth();
   const supabase = createSupabaseClient();
+  // "Go back" alone is a dead end when the page you were sent to is the one
+  // you may not open — offer the way IN, not just the way out.
+  const home = homeFor(profile ? ROLE_PERMISSIONS[profile.role] ?? null : null);
 
   return (
     <div className="min-h-screen bg-chrome flex items-center justify-center p-4">
@@ -18,6 +23,12 @@ export default function UnauthorizedPage() {
           Contact your administrator to request access.
         </p>
         <div className="flex flex-col gap-2 pt-2">
+          <button
+            onClick={() => router.replace(home)}
+            className="px-4 py-2 bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 text-sm font-semibold rounded-lg transition-colors"
+          >
+            Go to my home page
+          </button>
           <button
             onClick={() => router.back()}
             className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium rounded-lg transition-colors"
