@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-19T04:30:00Z',
+    title: 'Customer save crash fixed for real; New Order can no longer become a quote',
+    details: [
+      'The frozen “Save changes” finally confessed: customers with empty fields (imports, quick adds) crashed the save before any request was sent — “Cannot read properties of null”. Every field is now null-safe, so those customers save instantly. This was the actual cause all along.',
+      'New Order mode no longer shows Validate or Sent at all — those are quotation actions, and offering them is how a direct order quietly validated into a PQ price quote. The only forward action is Confirm Order, and the mode now survives the automatic URL change after the first save.',
+      'The PQ that resulted from the earlier attempt is one click from being an order: open it and press Confirm Order.',
+    ],
+  },
+  {
     at: '2026-08-19T03:30:00Z',
     title: 'Fix: sales editor buttons could go silently dead; saves that stall now say so',
     details: [

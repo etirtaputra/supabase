@@ -756,7 +756,7 @@ export default function SalesQuotePage() {
       const qid = await persist();
       if (!qid) return;
       flash('Saved');
-      if (wasNew) router.replace(`/sales/${qid}`); else load(true);
+      if (wasNew) router.replace(`/sales/${qid}${asOrder ? '?as=order' : ''}`); else load(true);
     } catch (e) {
       flash(`Save failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally { setBusy(false); }
@@ -767,7 +767,7 @@ export default function SalesQuotePage() {
     setBusy(true);
     try {
       const qid = await persist();
-      if (qid) { if (!editing?.quote_id) router.replace(`/sales/${qid}`); window.open(`/sales/${qid}/print`, '_blank', 'noopener'); }
+      if (qid) { if (!editing?.quote_id) router.replace(`/sales/${qid}${asOrder ? '?as=order' : ''}`); window.open(`/sales/${qid}/print`, '_blank', 'noopener'); }
     } catch (e) {
       flash(`Save failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally { setBusy(false); }
@@ -784,7 +784,7 @@ export default function SalesQuotePage() {
       // Stock-outs are written PER DELIVERY ORDER (FulfillmentPanel), not on the
       // order-level status — partial shipments each move their own quantities.
       flash(`Marked ${STATUS[next]?.label ?? next}`);
-      if (wasNew) router.replace(`/sales/${qid}`); else load(true); // refresh status + stamped numbers in place
+      if (wasNew) router.replace(`/sales/${qid}${asOrder ? '?as=order' : ''}`); else load(true); // refresh status + stamped numbers in place
     } catch (e) {
       flash(`Could not mark ${STATUS[next]?.label ?? next}: ${e instanceof Error ? e.message : String(e)}`);
     } finally { setBusy(false); }
@@ -868,14 +868,18 @@ export default function SalesQuotePage() {
   const expired = !!editing.valid_until && ['validated', 'sent'].includes(st)
     && editing.valid_until < todayIso;
   const actions: { label: string; to: string; primary?: boolean; danger?: boolean }[] = [];
-  if (st === 'draft') { actions.push({ label: 'Validate', to: 'validated', primary: !asOrder }); actions.push({ label: 'Sent', to: 'sent' }); }
+  // Entered via "+ New Order": the quotation actions do not exist AT ALL on
+  // the draft — offering Validate invited the wrong click and quietly turned
+  // the order into a price quote (field report 2026-08-19). The only forward
+  // action is Confirm Order.
+  const orderMode = asOrder && st === 'draft';
+  if (st === 'draft' && !orderMode) { actions.push({ label: 'Validate', to: 'validated', primary: true }); actions.push({ label: 'Sent', to: 'sent' }); }
   if (st === 'validated') actions.push({ label: 'Sent', to: 'sent', primary: true });
   if (st === 'sent') actions.push({ label: 'Accepted', to: 'accepted' });
   // Draft included (owner, 2026-08-19): not every order arrives through a
   // quotation — a customer who simply orders skips straight to the SO. The
   // same transition runs, the trigger stamps the SO number, stock reserves.
-  // Entered via "+ New Order", Confirm Order IS the draft's primary action.
-  if (['draft', 'validated', 'sent', 'accepted'].includes(st)) actions.push({ label: 'Confirm Order', to: 'ordered', primary: (st === 'draft' && asOrder) || !['draft', 'validated'].includes(st) });
+  if (['draft', 'validated', 'sent', 'accepted'].includes(st)) actions.push({ label: 'Confirm Order', to: 'ordered', primary: orderMode || !['draft', 'validated'].includes(st) });
   // Invoices and DOs are created from the Fulfillment panel below; every stage
   // stays revertible — including a delivered order.
   if (st === 'ordered') actions.push({ label: 'Revert', to: 'accepted' });

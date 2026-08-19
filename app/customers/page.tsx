@@ -503,9 +503,18 @@ function CustomersInner() {
 
   // ── Drawer ──────────────────────────────────────────────────────────────────
   function openDrawer(c: Customer | null) {
-    const target = c ?? blankCustomer(defaultCustomerTier);
+    // Normalize NULLs from the database against the blank record: a customer
+    // saved with empty columns (imports, quick adds) otherwise crashes save()
+    // on `.trim()` — the true cause of the frozen "Save changes" spinner
+    // (2026-08-19; the crash used to be silent, freezing the button forever).
+    const base = blankCustomer(defaultCustomerTier);
+    const target = c
+      ? (Object.fromEntries(Object.entries({ ...base, ...c }).map(([k, v]) => [k, v ?? (base as unknown as Record<string, unknown>)[k] ?? ''])) as unknown as Customer)
+      : base;
     setEditing(target);
-    setDraftContacts(target.customer_id ? (contactsByCustomer[target.customer_id] ?? []).map((x) => ({ ...x })) : []);
+    setDraftContacts(target.customer_id
+      ? (contactsByCustomer[target.customer_id] ?? []).map((x) => ({ ...x, name: x.name ?? '', title: x.title ?? '', email: x.email ?? '', phone: x.phone ?? '' }))
+      : []);
     setDraftLinks(target.customer_id ? linkedIdsOf(target.customer_id) : []);
   }
   function closeDrawer() { setEditing(null); setDraftContacts([]); setDraftLinks([]); }
@@ -521,7 +530,7 @@ function CustomersInner() {
 
   async function save() {
     if (!editing) return;
-    if (!editing.legal_name.trim() && !editing.display_name.trim()) {
+    if (!(editing.legal_name ?? '').trim() && !(editing.display_name ?? '').trim()) {
       flash('A legal name or display name is required');
       return;
     }
@@ -533,23 +542,26 @@ function CustomersInner() {
       Promise.race([Promise.resolve(p), new Promise<T>((_, rej) => setTimeout(() => rej(stall), ms))]);
     try {
 
+    // Null-safe throughout: a DB row can carry NULL text columns, and calling
+    // .trim() on one crashed the whole save (the frozen-spinner bug).
+    const s = (v: string | null | undefined) => (v ?? '').trim();
     // Fall back display/legal names to each other so neither is blank.
-    const legal = editing.legal_name.trim() || editing.display_name.trim();
-    const display = editing.display_name.trim() || legal;
+    const legal = s(editing.legal_name) || s(editing.display_name);
+    const display = s(editing.display_name) || legal;
 
     const payload: Record<string, unknown> = {
       legal_name: legal,
       display_name: display,
       customer_type: editing.customer_type ?? 'company',
-      tier: editing.tier.trim(),
+      tier: s(editing.tier),
       account_manager_id: editing.account_manager_id || null,
-      payment_terms: editing.payment_terms.trim(),
+      payment_terms: s(editing.payment_terms),
       default_currency: editing.default_currency || 'IDR',
-      tax_id: editing.tax_id.trim(),
-      billing_address: editing.billing_address.trim(),
-      shipping_address: editing.shipping_address.trim(),
-      notes: editing.notes.trim(),
-      referred_by: editing.referred_by.trim(),
+      tax_id: s(editing.tax_id),
+      billing_address: s(editing.billing_address),
+      shipping_address: s(editing.shipping_address),
+      notes: s(editing.notes),
+      referred_by: s(editing.referred_by),
       is_active: editing.is_active,
     };
 
@@ -565,15 +577,15 @@ function CustomersInner() {
 
     // Reconcile contacts: replace the set for this customer with the current
     // draft (only rows with a name). Small per-customer counts make this cheap.
-    const keep = draftContacts.filter((c) => c.name.trim() || c.email.trim() || c.phone.trim());
+    const keep = draftContacts.filter((c) => s(c.name) || s(c.email) || s(c.phone));
     await supabase.from('20.1_customer_contacts').delete().eq('customer_id', customerId);
     if (keep.length) {
       const rows = keep.map((c) => ({
         customer_id: customerId,
-        name: c.name.trim(),
-        title: c.title.trim(),
-        email: c.email.trim(),
-        phone: c.phone.trim(),
+        name: s(c.name),
+        title: s(c.title),
+        email: s(c.email),
+        phone: s(c.phone),
         is_primary: c.is_primary,
       }));
       const { error } = await supabase.from('20.1_customer_contacts').insert(rows);
