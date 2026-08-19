@@ -56,6 +56,12 @@ export default function BanksPage() {
   const { user, profile, loading: authLoading } = useAuth();
   const canView = !!profile && ROLE_PERMISSIONS[profile.role].canViewBanks;
   const canEdit = !!profile && ROLE_PERMISSIONS[profile.role].canEditBanks;
+  /**
+   * What the company PAYS is buy-side. A sell-side role keeps this screen for
+   * the receipts it records, but supplier payments — and therefore balances,
+   * which cannot be right without them — belong to the buy side.
+   */
+  const canSeeSpend = !!profile && ROLE_PERMISSIONS[profile.role].buySide;
 
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -99,7 +105,7 @@ export default function BanksPage() {
 
   const loadStatement = useCallback(async (acc: BankAccount) => {
     setRowsLoading(true);
-    setRows(await fetchStatement(supabase, acc));
+    setRows(await fetchStatement(supabase, acc, { includeSpend: canSeeSpend }));
     setRowsLoading(false);
   }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (account) loadStatement(account); }, [account?.bank_account_id, loadStatement]);   // eslint-disable-line react-hooks/exhaustive-deps
@@ -180,7 +186,7 @@ export default function BanksPage() {
     let cancelled = false;
     (async () => {
       const entries = await Promise.all(accounts.map(async (a) => {
-        const st = await fetchStatement(supabase, a);
+        const st = await fetchStatement(supabase, a, { includeSpend: canSeeSpend });
         return [a.bank_account_id, (Number(a.opening_balance) || 0) + st.reduce((s, r) => s + signedAmount(r), 0)] as const;
       }));
       if (!cancelled) setBalances(new Map(entries));
@@ -208,8 +214,14 @@ export default function BanksPage() {
           <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Banks · Accounts & cash position" />
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[11px] text-slate-500 whitespace-nowrap">
-              Cash across {accounts.length} account{accounts.length !== 1 ? 's' : ''}
-              <span className="ml-1.5 text-slate-200 font-bold tabular-nums">{fmtRupiah(totalCash)}</span>
+              {canSeeSpend ? (
+                <>
+                  Cash across {accounts.length} account{accounts.length !== 1 ? 's' : ''}
+                  <span className="ml-1.5 text-slate-200 font-bold tabular-nums">{fmtRupiah(totalCash)}</span>
+                </>
+              ) : (
+                <>Money received into {accounts.length} account{accounts.length !== 1 ? 's' : ''}</>
+              )}
             </span>
             {canEdit && (
               <Link href="/settings?tab=banks"
@@ -265,12 +277,15 @@ export default function BanksPage() {
                     {compact ? (
                       <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
                         <div className="hidden md:grid grid-cols-[minmax(0,1fr)_220px_60px_140px] gap-3 px-3 py-1.5 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
-                          <span>Bank</span><span>Account no.</span><span>Ccy</span><span className="text-right">Balance</span>
+                          <span>Bank</span><span>Account no.</span><span>Ccy</span>
+                          <span className="text-right">{canSeeSpend ? 'Balance' : ''}</span>
                         </div>
                         <div className="divide-y divide-slate-800/60">
                           {g.list.map((a) => {
                             const on = a.bank_account_id === selected;
-                            const bal = balances.get(a.bank_account_id);
+                            // Without the payments out, a per-account balance
+                            // would be a wrong number wearing the right label.
+                            const bal = canSeeSpend ? balances.get(a.bank_account_id) : null;
                             return (
                               <button key={a.bank_account_id} onClick={() => setSelected(a.bank_account_id)}
                                 className={`w-full text-left grid grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_220px_60px_140px] gap-x-3 px-3 py-2 md:py-1.5 items-center transition-colors ${
@@ -299,7 +314,8 @@ export default function BanksPage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                         {g.list.map((a) => {
                           const on = a.bank_account_id === selected;
-                          const bal = balances.get(a.bank_account_id);
+                          // Same rule as the compact list: no spend, no balance
+                          const bal = canSeeSpend ? balances.get(a.bank_account_id) : null;
                           return (
                             <button key={a.bank_account_id} onClick={() => setSelected(a.bank_account_id)}
                               className={`text-left bg-slate-900/40 border rounded-2xl p-4 transition-colors ${
@@ -365,14 +381,26 @@ export default function BanksPage() {
                   </div>
                 </div>
 
+                {/* An unexplained missing balance reads as a bug. Say why. */}
+                {!canSeeSpend && (
+                  <div className="px-4 py-2.5 border-b border-slate-800/60 bg-sky-500/[0.05] text-[11px] text-sky-200/90">
+                    Money received only. Supplier payments are buy-side, and a balance without them would not be
+                    this account&apos;s real position — so balances are not shown here.
+                  </div>
+                )}
+
                 {/* Summary for the range in force */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-slate-800/60 border-b border-slate-800/60">
-                  {[
+                  {(canSeeSpend ? [
                     { label: isOpenRange(range) ? 'Opening balance' : 'Brought forward', value: isOpenRange(range) ? Number(account.opening_balance) || 0 : view.broughtForward, cls: 'text-slate-300' },
                     { label: 'Money in',  value: view.totalIn,  cls: 'text-emerald-300' },
                     { label: 'Money out', value: view.totalOut, cls: 'text-sky-300' },
                     { label: 'Closing balance', value: view.closing, cls: view.closing < 0 ? 'text-rose-300' : 'text-white' },
-                  ].map((k) => (
+                  ] : [
+                    // Balances need both directions. Showing one built from
+                    // receipts alone would read as the account's real position.
+                    { label: 'Money in', value: view.totalIn, cls: 'text-emerald-300' },
+                  ]).map((k) => (
                     <div key={k.label} className="px-4 py-3">
                       <p className="text-[10px] uppercase tracking-widest text-slate-600">{k.label}</p>
                       <p className={`text-base font-bold tabular-nums mt-0.5 ${k.cls}`} title={fmtRupiah(k.value)}>{fmtRupiah(k.value)}</p>
@@ -397,8 +425,8 @@ export default function BanksPage() {
                           <th className="text-left px-3 py-2 font-semibold">Description</th>
                           <th className="text-left px-3 py-2 font-semibold">Reference</th>
                           <th className="text-right px-3 py-2 font-semibold">In</th>
-                          <th className="text-right px-3 py-2 font-semibold">Out</th>
-                          <th className="text-right px-4 py-2 font-semibold">Balance</th>
+                          {canSeeSpend && <th className="text-right px-3 py-2 font-semibold">Out</th>}
+                          {canSeeSpend && <th className="text-right px-4 py-2 font-semibold">Balance</th>}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800/60">
@@ -420,8 +448,8 @@ export default function BanksPage() {
                               )}
                             </td>
                             <td className={`px-3 text-right tabular-nums text-emerald-300 ${compact ? 'py-1' : 'py-2'}`}>{r.direction === 'in' ? fmtInt(r.amount) : ''}</td>
-                            <td className={`px-3 text-right tabular-nums text-sky-300 ${compact ? 'py-1' : 'py-2'}`}>{r.direction === 'out' ? fmtInt(r.amount) : ''}</td>
-                            <td className={`px-4 text-right tabular-nums text-slate-300 ${compact ? 'py-1' : 'py-2'}`}>{fmtInt(view.runningById.get(r.id) ?? 0)}</td>
+                            {canSeeSpend && <td className={`px-3 text-right tabular-nums text-sky-300 ${compact ? 'py-1' : 'py-2'}`}>{r.direction === 'out' ? fmtInt(r.amount) : ''}</td>}
+                            {canSeeSpend && <td className={`px-4 text-right tabular-nums text-slate-300 ${compact ? 'py-1' : 'py-2'}`}>{fmtInt(view.runningById.get(r.id) ?? 0)}</td>}
                           </tr>
                         ))}
                       </tbody>
@@ -439,7 +467,7 @@ export default function BanksPage() {
         )}
       </main>
 
-      {canEdit && !schemaMissing && accounts.length > 0 && (
+      {canEdit && canSeeSpend && !schemaMissing && accounts.length > 0 && (
         <div className="max-w-[1600px] 2xl:max-w-[2120px] mx-auto px-3 sm:px-4 md:px-6 pb-8">
           <UntaggedPanel accounts={accounts} companyName={companyName}
             onAssigned={() => { if (account) loadStatement(account); loadAccounts(); flash('Movement assigned'); }} />

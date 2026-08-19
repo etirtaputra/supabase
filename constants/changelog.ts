@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-19T19:15:00Z',
+    title: 'Supplier payments are buy-side only \u2014 sell-side Finance now shows money in',
+    details: [
+      'A sell-side login could open Finance and read every payment made to every supplier \u2014 amount, date and the account it left. Supplier payments against a purchase order are the buy price read backwards, so that is now buy-side only.',
+      'Sell-side roles keep Finance for the customer receipts they record: money in, searchable, per account. Supplier payments, the Money out and Balance columns, and the untagged-movements panel are gone from that view.',
+      'Bank balances are NOT shown in that view, deliberately. A balance built from receipts alone would look like the account\u2019s real position while ignoring everything paid out \u2014 a wrong number wearing the right label. The screen says so rather than leaving a blank.',
+      'The dashboard follows the same line: the cash tile and the untagged-movements nudge are buy-side.',
+      'Enforced in the database as well as on screen, so a direct link cannot reach what the screen will not show.',
+    ],
+  },
+  {
     at: '2026-08-19T18:05:00Z',
     title: 'Customer list: the column titles now sit over their own columns',
     details: [

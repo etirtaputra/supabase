@@ -265,7 +265,8 @@ export async function fetchActionQueue(
   }
 
   // ── Cash: movements nobody assigned to an account ────────────────────────
-  if (perms.canViewBanks) {
+  // Counting the untagged supplier payments means reading them; buy-side only.
+  if (perms.canViewBanks && perms.buySide) {
     const [rcpRes, costRes] = await Promise.all([
       supabase.from('26.0_customer_receipts').select('receipt_id', { count: 'exact', head: true }).is('bank_account_id', null),
       supabase.from('6.0_po_costs').select('cost_id', { count: 'exact', head: true }).is('bank_account_id', null).not('payment_date', 'is', null),

@@ -284,7 +284,9 @@ export async function fetchPosition(
 ): Promise<PositionData> {
   const needInvoices = perms.sellSide || perms.canViewEconomics;
   const needReceipts = perms.sellSide || perms.canViewBanks || perms.canViewEconomics;
-  const needCosts = perms.buySide || perms.canViewBanks || perms.canViewEconomics;
+  // Supplier payments are buy-side. A sell-side role with bank access reads
+  // the receipts it records, never what the company pays for goods.
+  const needCosts = perms.buySide || perms.canViewEconomics;
   const needPos = perms.buySide || perms.canViewEconomics;
 
   const nowIso = new Date().toISOString();
@@ -313,7 +315,9 @@ export async function fetchPosition(
 
   const out: PositionData = { motion: [] };
 
-  if (perms.canViewBanks && accounts && receipts && costs && txns) {
+  // Cash position nets money out against money in; without the outgoings it
+  // would overstate the bank, so it belongs to whoever may see the spend.
+  if (perms.canViewBanks && perms.buySide && accounts && receipts && costs && txns) {
     out.cash = computeCashPosition(accounts, receipts, costs, txns);
   }
   if (perms.sellSide && invoices && receipts) {

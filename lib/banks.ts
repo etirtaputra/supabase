@@ -123,18 +123,39 @@ function convertToAccount(amount: number, currency: string, rate: number | null,
  * Every movement through one account, newest first. Filtering by date is left
  * to the caller (the UI filters the same rows it charts and totals).
  */
-export async function fetchStatement(supabase: SupabaseClient, account: BankAccount): Promise<StatementRow[]> {
+/**
+ * `includeSpend: false` builds a MONEY-IN statement: customer receipts and
+ * incoming manual movements only.
+ *
+ * Supplier payments are what the company pays for goods, so a row of them is a
+ * price list read backwards — sell-side roles keep the bank screen for the
+ * receipts they record, and never see the spend. The caller must also stop
+ * showing balances in that mode: a running total that quietly omits every
+ * payment out is not a smaller truth, it is a wrong number.
+ */
+export async function fetchStatement(
+  supabase: SupabaseClient, account: BankAccount, opts: { includeSpend?: boolean } = {},
+): Promise<StatementRow[]> {
+  const includeSpend = opts.includeSpend !== false;
   const id = account.bank_account_id;
   const [rcpRes, costRes, txnRes] = await Promise.all([
     supabase.from('26.0_customer_receipts')
       .select('receipt_id, quote_id, receipt_number, amount, payment_date, payment_method, bank_ref, notes, created_by_email')
       .eq('bank_account_id', id),
-    supabase.from('6.0_po_costs')
-      .select('cost_id, po_id, cost_category, amount, currency, exchange_rate, payment_date, notes')
-      .eq('bank_account_id', id),
-    supabase.from('41.1_bank_transactions')
-      .select('txn_id, txn_date, direction, amount, description, reference, source, created_by_email')
-      .eq('bank_account_id', id),
+    // Not merely hidden afterwards — never asked for, so the amounts do not
+    // reach a browser that may not see them.
+    includeSpend
+      ? supabase.from('6.0_po_costs')
+        .select('cost_id, po_id, cost_category, amount, currency, exchange_rate, payment_date, notes')
+        .eq('bank_account_id', id)
+      : Promise.resolve({ data: [] as unknown[] }),
+    includeSpend
+      ? supabase.from('41.1_bank_transactions')
+        .select('txn_id, txn_date, direction, amount, description, reference, source, created_by_email')
+        .eq('bank_account_id', id)
+      : supabase.from('41.1_bank_transactions')
+        .select('txn_id, txn_date, direction, amount, description, reference, source, created_by_email')
+        .eq('bank_account_id', id).eq('direction', 'in'),
   ]);
 
   const rows: StatementRow[] = [];
