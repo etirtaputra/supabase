@@ -8,6 +8,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { useT } from '@/hooks/useT';
 import { useRouter } from 'next/navigation';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
@@ -37,6 +38,7 @@ export default function InvoicesPage() {
   const supabase = createSupabaseClient();
   const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
+  const { t } = useT();
   const canView = !!profile && (ROLE_PERMISSIONS[profile.role].canEditSalesDocs || ROLE_PERMISSIONS[profile.role].canRecordReceipts);
 
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -144,7 +146,7 @@ export default function InvoicesPage() {
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-4">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Invoices · Accounts receivable" />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle={t("Invoices · Accounts receivable")} />
         </div>
       </div>
 

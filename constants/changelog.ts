@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-19T20:40:00Z',
+    title: 'Bahasa Indonesia for the descriptions \u2014 Settings \u203a Defaults \u203a Language',
+    details: [
+      'Set \u201cLanguage of the descriptions\u201d to Bahasa Indonesia and the text that EXPLAINS the app follows: the one-liners under menu entries and in search results, the page subtitles, the hints under Settings fields, and the tooltips people hover.',
+      'Menu names, column headings and document numbers stay English on purpose \u2014 Stock, Deal Lookup, Landed Cost, SO, PO, GRN are the words the team already shares with suppliers and customers, and translating them would give one thing two names.',
+      'Anything not translated yet simply reads in English, so nothing ever shows as blank or as a code. More Indonesian can be added later without touching any screen.',
+    ],
+  },
+  {
     at: '2026-08-19T19:15:00Z',
     title: 'Supplier payments are buy-side only \u2014 sell-side Finance now shows money in',
     details: [

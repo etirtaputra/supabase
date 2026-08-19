@@ -24,6 +24,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { useT } from '@/hooks/useT';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
 import { fmtDay, fmtInt, fmtIdr, fmtRupiah } from '@/lib/formatters';
@@ -37,6 +38,7 @@ export default function ReconcilePage() {
   const supabase = createSupabaseClient();
   const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
+  const { t } = useT();
   const canView = !!profile && ROLE_PERMISSIONS[profile.role].buySide;
   const canManage = !!profile && ROLE_PERMISSIONS[profile.role].canManageStock;
 
@@ -153,7 +155,7 @@ export default function ReconcilePage() {
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <Link href="/stock" className="text-slate-500 hover:text-white transition-colors flex-shrink-0" title="Back to Stock">
+            <Link href="/stock" className="text-slate-500 hover:text-white transition-colors flex-shrink-0" title={t("Back to Stock")}>
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
             </Link>
             <div className="min-w-0">
@@ -199,7 +201,7 @@ export default function ReconcilePage() {
                 </span>
               )}
               {Math.abs(summary.readyCogsDelta) >= 1000 && (
-                <span className="text-[11px] tabular-nums text-slate-400" title="These units were already sold at the estimated cost — that gross profit was overstated by this much">
+                <span className="text-[11px] tabular-nums text-slate-400" title={t("These units were already sold at the estimated cost — that gross profit was overstated by this much")}>
                   <span className="text-slate-500">already sold </span>{fmtIdr(summary.readyCogsDelta)}
                 </span>
               )}
@@ -221,12 +223,12 @@ export default function ReconcilePage() {
               </button>
             )}
             {summary.uncosted > 0 && (
-              <span className="text-slate-500" title="Goods received, but not one cost recorded — there is nothing to allocate yet">
+              <span className="text-slate-500" title={t("Goods received, but not one cost recorded — there is nothing to allocate yet")}>
                 {summary.uncosted} received PO{summary.uncosted !== 1 ? 's' : ''} have no costs recorded at all
               </span>
             )}
             {summary.immaterial > 0 && (
-              <span className="text-slate-500" title="Too small in rupiah and too small a share of the goods to be worth a ledger entry — shown here so it is never silently dropped">
+              <span className="text-slate-500" title={t("Too small in rupiah and too small a share of the goods to be worth a ledger entry — shown here so it is never silently dropped")}>
                 {summary.immaterial} below the materiality floor ({fmtIdr(summary.immaterialDelta)} in total)
               </span>
             )}
@@ -255,11 +257,11 @@ export default function ReconcilePage() {
                       <span className="text-sky-300 font-bold">{v.poNumber}</span>
                       {v.status === 'awaiting' && (
                         <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-slate-800 text-slate-400"
-                          title="No balance payment recorded yet — more bills are still coming">bills open</span>
+                          title={t("No balance payment recorded yet — more bills are still coming")}>bills open</span>
                       )}
                       {v.trued && (
                         <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300"
-                          title="This PO has been trued up before — what is shown is what has come in since">trued before</span>
+                          title={t("This PO has been trued up before — what is shown is what has come in since")}>trued before</span>
                       )}
                       <span className="text-[11px] text-slate-500 truncate">
                         {supplierOf(v) || '—'} · {fmtDay(v.poDate)} · {v.currency}
@@ -308,7 +310,7 @@ export default function ReconcilePage() {
                             <span className="hidden md:block text-right tabular-nums text-xs">
                               {i.revaluable > 0
                                 ? <span className="text-emerald-300 font-semibold">{fmtInt(i.newAvg)}</span>
-                                : <span className="text-slate-600" title="Nothing on hand — this correction cannot reach inventory">—</span>}
+                                : <span className="text-slate-600" title={t("Nothing on hand — this correction cannot reach inventory")}>—</span>}
                             </span>
                             {/* Phone: the same facts, stacked */}
                             <div className="md:hidden mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] tabular-nums">
@@ -343,7 +345,7 @@ export default function ReconcilePage() {
                             // Every unit is gone: there is no inventory left for
                             // the correction to land on, and saying so beats a
                             // button that posts nothing.
-                            <span className="text-[11px] text-slate-500 px-2 py-1.5 whitespace-nowrap" title="All of these units have been sold — the correction cannot reach stock value">
+                            <span className="text-[11px] text-slate-500 px-2 py-1.5 whitespace-nowrap" title={t("All of these units have been sold — the correction cannot reach stock value")}>
                               nothing on hand to revalue
                             </span>
                           ) : (

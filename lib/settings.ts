@@ -142,6 +142,14 @@ export interface AppSettings {
    * solving one item, rather than reading an order and finding the item in it.
    */
   aftersalesEntry: 'ticket' | 'order';
+  /**
+   * The language the app EXPLAINS itself in — menu hints, page subtitles,
+   * field hints and tooltips. Menu labels, column headings and document
+   * numbers stay English on purpose: they are the vocabulary the team already
+   * shares with suppliers and customers, and translating them would make two
+   * names for one thing.
+   */
+  language: 'en' | 'id';
   /** Dashboard: an issued invoice older than this with money outstanding is chased. */
   arOverdueDays: number;
   /** Dashboard: a quotation sent this long ago with no answer needs a nudge. */
@@ -238,6 +246,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   economicsPeriod:       '365',
   costDriftPct:          10,
   aftersalesEntry:    'ticket',
+  language:           'en',
   arOverdueDays:         30,
   quoteFollowUpDays:     7,
   quoteValidityDays:     30,
@@ -405,6 +414,7 @@ export function coerceSettings(raw: Record<string, unknown>): AppSettings {
     slowMoverDays:         pick('slowMoverDays',         (v) => Math.max(1, Math.round(numOr(v, d.slowMoverDays))), d.slowMoverDays),
     costDriftPct:          pick('costDriftPct',          (v) => Math.max(0, numOr(v, d.costDriftPct)), d.costDriftPct),
     aftersalesEntry:       pick('aftersalesEntry',       (v) => (v === 'order' ? 'order' : 'ticket'), d.aftersalesEntry),
+    language:              pick('language',              (v) => (v === 'id' ? 'id' : 'en'), d.language),
     arOverdueDays:         pick('arOverdueDays',         (v) => Math.max(1, Math.round(numOr(v, d.arOverdueDays))), d.arOverdueDays),
     quoteFollowUpDays:     pick('quoteFollowUpDays',     (v) => Math.max(1, Math.round(numOr(v, d.quoteFollowUpDays))), d.quoteFollowUpDays),
     quoteValidityDays:     pick('quoteValidityDays',     (v) => Math.max(1, Math.round(numOr(v, d.quoteValidityDays))), d.quoteValidityDays),

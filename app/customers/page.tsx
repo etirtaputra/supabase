@@ -8,6 +8,7 @@ import { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'rea
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { useT } from '@/hooks/useT';
 import { ROLE_PERMISSIONS, ROLE_LABELS, type UserRole } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
@@ -154,6 +155,7 @@ function CustomersInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, profile, loading: authLoading } = useAuth();
+  const { t } = useT();
   // A new customer starts on the house tier (Settings › Pricing; blank = none)
   const { defaultCustomerTier } = useSettings();
   const [layout, setLayout] = useListLayout('customers');
@@ -812,7 +814,7 @@ function CustomersInner() {
         {/* Phones: wordmark row then actions row — side-by-side squeezes the
             three buttons into the wordmark. sm+ keeps the single row. */}
         <div className="max-w-[1600px] 2xl:max-w-[2120px] mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-4">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Customers · CRM" />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle={t("Customers · CRM")} />
           <div className="flex items-center gap-2 flex-wrap">
             {canExport && (
               <button onClick={exportCsv}
@@ -1047,7 +1049,7 @@ function CustomersInner() {
                         tightens it. */}
                     <div className={`flex items-stretch ${open ? 'bg-slate-800/40' : 'hover:bg-slate-800/40'} transition-colors`}>
                     {/* The tick lives OUTSIDE the row button so selecting never opens the profile */}
-                    <label className="flex items-center pl-3 -mr-1 cursor-pointer flex-shrink-0" title="Select for bulk actions">
+                    <label className="flex items-center pl-3 -mr-1 cursor-pointer flex-shrink-0" title={t("Select for bulk actions")}>
                       <input type="checkbox" checked={selected.has(c.customer_id)} onChange={() => toggleSel(c.customer_id)}
                         className="accent-emerald-500 w-3.5 h-3.5" />
                     </label>
@@ -1064,7 +1066,7 @@ function CustomersInner() {
                           <span className="text-sm text-slate-100 font-medium truncate">{c.display_name || c.legal_name || '(no name)'}</span>
                           {/* Individuals are the marked exception — most customers are companies */}
                           {c.customer_type === 'individual' && (
-                            <span className="flex-shrink-0 px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-300 text-[10px] font-semibold" title="Individual customer — the person is the customer">
+                            <span className="flex-shrink-0 px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-300 text-[10px] font-semibold" title={t("Individual customer — the person is the customer")}>
                               Individual
                             </span>
                           )}

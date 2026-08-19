@@ -22,6 +22,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { useT } from '@/hooks/useT';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
@@ -44,6 +45,7 @@ function SerialsPage() {
   const router = useRouter();
   const params = useSearchParams();
   const { user, profile, loading: authLoading } = useAuth();
+  const { t } = useT();
   const perms = profile ? ROLE_PERMISSIONS[profile.role] : null;
   const canView = !!perms && canOpenPath(perms, '/serials');
   const canEdit = !!perms && (perms.canManageStock || perms.canEditSalesDocs);
@@ -333,7 +335,7 @@ function SerialsPage() {
           Customers. */}
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-4">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Serial Numbers · Unit register" />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle={t("Serial Numbers · Unit register")} />
           <div className="flex items-center gap-2 flex-wrap">
             <Link href="/aftersales"
               className="hidden sm:block px-3 py-1.5 rounded-xl border border-slate-700 text-slate-400 hover:text-emerald-300 hover:border-emerald-500/40 text-xs font-semibold whitespace-nowrap transition-colors">
@@ -414,12 +416,12 @@ function SerialsPage() {
                             <span className="w-8 text-right text-slate-600 tabular-nums">{scanned.length - i}</span>
                             <span className="font-mono text-slate-200 truncate">{s}</span>
                             {known && (
-                              <span className="text-[10px] text-amber-300" title="This unit is already in the register — it will be left alone">
+                              <span className="text-[10px] text-amber-300" title={t("This unit is already in the register — it will be left alone")}>
                                 already registered
                               </span>
                             )}
                             <button onClick={() => setScanned((l) => l.filter((x) => x !== s))}
-                              className="ml-auto text-slate-600 hover:text-red-300 transition-colors" title="Remove this scan">✕</button>
+                              className="ml-auto text-slate-600 hover:text-red-300 transition-colors" title={t("Remove this scan")}>✕</button>
                           </div>
                         );
                       })}
@@ -560,7 +562,7 @@ function SerialsPage() {
               <input type="checkbox" className="w-3.5 h-3.5 accent-emerald-500"
                 checked={rows.length > 0 && rows.every((r) => ticked.has(r.serial_id))}
                 onChange={(e) => setTicked(e.target.checked ? new Set(rows.map((r) => r.serial_id)) : new Set())}
-                title="Tick everything shown" />
+                title={t("Tick everything shown")} />
             ) : <span />}
             {th('serial', 'Serial')}{th('product', 'Product')}{th('status', 'Status')}
             {th('order', 'Sales order')}{th('customer', 'Customer')}{th('delivery', 'Out on')}

@@ -713,6 +713,14 @@ function DefaultsTab({ draft, set, flash }: {
           <input type="number" min={1} className={inputCls} value={draft.quoteValidityDays}
             onChange={(e) => set('quoteValidityDays', Math.max(1, Math.round(Number(e.target.value) || 1)))} />
         </Field>
+        <Field label="Language of the descriptions"
+          hint="Menu names, column headings and document numbers always stay English \u2014 they are the words the team already shares with suppliers and customers. This setting changes the text that EXPLAINS: the one-liners under menu entries, the page subtitles, the hints under these fields, and the tooltips people hover. Anything not translated yet simply stays English.">
+          <select className={inputCls} value={draft.language}
+            onChange={(e) => set('language', e.target.value === 'id' ? 'id' : 'en')}>
+            <option value="en">English</option>
+            <option value="id">Bahasa Indonesia</option>
+          </select>
+        </Field>
         <Field label="After Sales opens on"
           hint="By ticket: one row per service ticket, newest first, and a new ticket starts from the serial number — type it and the order, invoice, delivery and customer fill themselves in. By order: the original view, grouped by status and started from the sales order. Either way both views stay available from the toolbar.">
           <select className={inputCls} value={draft.aftersalesEntry}

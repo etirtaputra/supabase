@@ -22,6 +22,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { useT } from '@/hooks/useT';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
@@ -54,6 +55,7 @@ export default function BanksPage() {
   const supabase = createSupabaseClient();
   const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
+  const { t } = useT();
   const canView = !!profile && ROLE_PERMISSIONS[profile.role].canViewBanks;
   const canEdit = !!profile && ROLE_PERMISSIONS[profile.role].canEditBanks;
   /**
@@ -211,7 +213,7 @@ export default function BanksPage() {
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1600px] 2xl:max-w-[2120px] mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-4">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Banks · Accounts & cash position" />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle={t("Banks · Accounts & cash position")} />
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[11px] text-slate-500 whitespace-nowrap">
               {canSeeSpend ? (
@@ -293,8 +295,8 @@ export default function BanksPage() {
                                 }`}>
                                 <span className={`text-sm truncate ${on ? 'text-emerald-200 font-semibold' : 'text-slate-100 font-medium'}`}>
                                   {a.bank_name || 'Bank not set'}
-                                  {a.is_default_payment && <span className="ml-1.5 text-[9px] font-bold text-sky-400" title="Default account for supplier payments">PAY</span>}
-                                  {a.is_default_receipt && <span className="ml-1.5 text-[9px] font-bold text-emerald-400" title="Default account for customer receipts">RCV</span>}
+                                  {a.is_default_payment && <span className="ml-1.5 text-[9px] font-bold text-sky-400" title={t("Default account for supplier payments")}>PAY</span>}
+                                  {a.is_default_receipt && <span className="ml-1.5 text-[9px] font-bold text-emerald-400" title={t("Default account for customer receipts")}>RCV</span>}
                                 </span>
                                 <span className={`md:hidden text-right tabular-nums text-sm font-semibold ${bal == null ? 'text-slate-600' : bal < 0 ? 'text-rose-300' : 'text-emerald-300'}`}>
                                   {bal == null ? '—' : fmtInt(bal)}
@@ -325,8 +327,8 @@ export default function BanksPage() {
                                 <div className="min-w-0">
                                   <p className="text-sm font-bold text-white truncate">
                                     {a.bank_name || 'Bank not set'}
-                                    {a.is_default_payment && <span className="ml-1.5 text-[9px] font-bold text-sky-400" title="Default account for supplier payments">PAY</span>}
-                                    {a.is_default_receipt && <span className="ml-1.5 text-[9px] font-bold text-emerald-400" title="Default account for customer receipts">RCV</span>}
+                                    {a.is_default_payment && <span className="ml-1.5 text-[9px] font-bold text-sky-400" title={t("Default account for supplier payments")}>PAY</span>}
+                                    {a.is_default_receipt && <span className="ml-1.5 text-[9px] font-bold text-emerald-400" title={t("Default account for customer receipts")}>RCV</span>}
                                   </p>
                                   <p className="text-xs text-slate-300 font-mono tracking-tight mt-0.5 truncate">{a.account_number || 'no account number'}</p>
                                 </div>

@@ -5,6 +5,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS, type RolePermissions } from '@/constants/roles';
 import { destinationsFor } from '@/constants/navigation';
+import { useT } from '@/hooks/useT';
 import { SALES_STATUS } from '@/lib/salesStatus';
 
 /**
@@ -199,6 +200,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
   const supabase = createSupabaseClient();
   const inline = variant === 'inline';
   const { profile } = useAuth();
+  const { t: tr } = useT();
   const perms = profile ? ROLE_PERMISSIONS[profile.role] : null;
 
   const [open, setOpen] = useState(false);       // modal visibility
@@ -644,7 +646,9 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
         kind: 'page' as const,
         id: d.href,
         title: d.label,
-        sub: d.hint ?? d.group,
+        // The one-liner under a page result is explanatory text, so it follows
+        // the language setting; the page's own name does not.
+        sub: d.hint ? tr(d.hint) : d.group,
         href: d.href,
         keywords: [d.group, d.keywords, d.href.replace(/[/?=]/g, ' ')].filter(Boolean).join(' '),
       })),

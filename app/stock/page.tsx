@@ -14,6 +14,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { useT } from '@/hooks/useT';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
@@ -45,6 +46,7 @@ export default function StockPage() {
   const supabase = createSupabaseClient();
   const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
+  const { t } = useT();
   const canView = !!profile && ROLE_PERMISSIONS[profile.role].buySide;
   const canManage = !!profile && ROLE_PERMISSIONS[profile.role].canManageStock;
   const isOwner = !!profile && ROLE_PERMISSIONS[profile.role].canManageUsers;   // owner — Settings
@@ -228,7 +230,7 @@ export default function StockPage() {
         {/* Phones: wordmark row then actions row. Side-by-side, two nowrap
             buttons overflowed the row and printed on top of the wordmark. */}
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-4">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Stock · Warehouse" />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle={t("Stock · Warehouse")} />
           <div className="flex items-center gap-2 flex-wrap">
           {canManage && (
             <Link href="/stock/receive"
@@ -323,7 +325,7 @@ export default function StockPage() {
             )}
             <Link href="/purchasing?tab=lookup"
               className="ml-auto text-[10px] px-2 py-0.5 rounded-lg bg-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors whitespace-nowrap"
-              title="Open Deal Lookup to review open purchase orders">POs ↗</Link>
+              title={t("Open Deal Lookup to review open purchase orders")}>POs ↗</Link>
           </div>
         )}
 
@@ -340,13 +342,13 @@ export default function StockPage() {
             </span>
             {landed.readyInventoryDelta !== 0 && (
               <span className="text-[11px] tabular-nums text-emerald-300"
-                title="What posting would add to the value of stock still on hand">
+                title={t("What posting would add to the value of stock still on hand")}>
                 {fmtIdr(landed.readyInventoryDelta)} recoverable into stock value
               </span>
             )}
             <Link href="/stock/reconcile"
               className="ml-auto text-[10px] px-2 py-0.5 rounded-lg bg-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors whitespace-nowrap"
-              title="Review the difference per PO and post the correction">True up ↗</Link>
+              title={t("Review the difference per PO and post the correction")}>True up ↗</Link>
           </div>
         )}
 

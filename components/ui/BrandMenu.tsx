@@ -4,6 +4,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useT } from '@/hooks/useT';
 import OnlineUsers from './OnlineUsers';
 import { ROLE_PERMISSIONS, type RolePermissions } from '@/constants/roles';
 import { DESTINATIONS, orderedNavGroups, orderedGroupItems, sectionAllowed, menuDestinationsFor, type NavSection } from '@/constants/navigation';
@@ -151,6 +152,9 @@ export default function BrandMenu({
   const pathname = usePathname();
   const router = useRouter();
   const { profile, signOut } = useAuth();
+  // Pages pass their subtitle in English; translating it HERE means the
+  // language setting reaches all 27 of them without any of them knowing.
+  const { t } = useT();
   const { theme, setTheme } = useTheme();
   const [open, setOpen] = useState(false);         // caret dropdown (narrow widths)
   const [moreOpen, setMoreOpen] = useState(false); // mobile "More" sheet
@@ -384,7 +388,7 @@ export default function BrandMenu({
             <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
           </button>
         </div>
-        {subtitle && <p className="text-slate-500 text-[11px] mt-0.5 truncate lg:hidden">{subtitle}</p>}
+        {subtitle && <p className="text-slate-500 text-[11px] mt-0.5 truncate lg:hidden">{t(subtitle)}</p>}
         {open && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />

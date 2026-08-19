@@ -16,6 +16,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { useT } from '@/hooks/useT';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
@@ -47,6 +48,7 @@ function ReceivePage() {
   const router = useRouter();
   const params = useSearchParams();
   const { user, profile, loading: authLoading } = useAuth();
+  const { t } = useT();
   const canManage = !!profile && ROLE_PERMISSIONS[profile.role].canManageStock;
   const { data, loading: dataLoading } = useSupabaseData();
 
@@ -267,7 +269,7 @@ function ReceivePage() {
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <Link href="/stock" className="text-slate-500 hover:text-white transition-colors flex-shrink-0" title="Back to Stock">
+            <Link href="/stock" className="text-slate-500 hover:text-white transition-colors flex-shrink-0" title={t("Back to Stock")}>
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
             </Link>
             <div className="min-w-0">
@@ -279,7 +281,7 @@ function ReceivePage() {
             {/* The way back to where this flow usually starts — the deal itself */}
             <Link href={`/purchasing?tab=lookup${selected?.po_number ? `&q=${encodeURIComponent(selected.po_number)}` : ''}`}
               className="px-3 py-1.5 rounded-xl border border-slate-700 text-slate-400 hover:text-sky-300 hover:border-sky-500/40 text-xs font-semibold whitespace-nowrap transition-colors"
-              title="Back to Deal Lookup — the PI → PO → payment record">
+              title={t("Back to Deal Lookup — the PI → PO → payment record")}>
               Deal Lookup →
             </Link>
             {selected && (
@@ -369,7 +371,7 @@ function ReceivePage() {
                 {/* Whatever this is worth today, freight and duty usually land
                     later — the true-up screen is where that gets corrected. */}
                 <Link href="/stock/reconcile" className="text-[10px] text-slate-600 hover:text-sky-300 transition-colors"
-                  title="When the freight, duty or final payment arrives later, true up the cost there">
+                  title={t("When the freight, duty or final payment arrives later, true up the cost there")}>
                   bills arrive later? true up ↗
                 </Link>
               </div>
@@ -384,7 +386,7 @@ function ReceivePage() {
               <label className="block">
                 <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 block mb-1">Location</span>
                 <select value={location} onChange={(e) => setLocation(e.target.value)} className={`${inp} cursor-pointer`}
-                  title="Warehouse these goods are received into">
+                  title={t("Warehouse these goods are received into")}>
                   {warehouses.map((w) => <option key={w.code} value={w.code} className="bg-slate-900">{w.name}</option>)}
                 </select>
               </label>
@@ -425,12 +427,12 @@ function ReceivePage() {
                             <span className="relative block w-full">
                               <input value={l.cost} inputMode="decimal" onChange={(e) => setLine(i, { cost: e.target.value })}
                                 className={`${inp} text-right ${costHistory.get(l.componentId)?.length ? 'pr-7' : ''}`}
-                                placeholder="IDR/unit" title="Landed unit cost (IDR) — feeds the moving average" />
+                                placeholder="IDR/unit" title={t("Landed unit cost (IDR) — feeds the moving average")} />
                               {/* Previous landed costs for THIS item — from the
                                   ledger's earlier receipts. Click one to use it. */}
                               {(costHistory.get(l.componentId)?.length ?? 0) > 0 && (
                                 <button type="button" onClick={() => setHistOpen((o) => (o === i ? null : i))}
-                                  title="Previous landed costs for this item"
+                                  title={t("Previous landed costs for this item")}
                                   className={`absolute right-1.5 top-1/2 -translate-y-1/2 px-0.5 transition-colors ${histOpen === i ? 'text-sky-300' : 'text-slate-600 hover:text-sky-300'}`}>
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                 </button>
@@ -474,7 +476,7 @@ function ReceivePage() {
                 {posted && (
                   <>
                     <Link href="/stock/reconcile" className="px-4 py-2.5 rounded-xl border border-slate-700 text-slate-400 hover:text-amber-300 hover:border-amber-500/40 text-xs font-semibold transition-colors"
-                      title="Freight, duty or the final payment recorded after today? True up the cost of what you just received.">
+                      title={t("Freight, duty or the final payment recorded after today? True up the cost of what you just received.")}>
                       True up landed cost
                     </Link>
                     <Link href="/stock" className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-semibold transition-colors">
