@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom';
 import { useAuth } from '@/hooks/useAuth';
 import OnlineUsers from './OnlineUsers';
 import { ROLE_PERMISSIONS, type RolePermissions } from '@/constants/roles';
-import { DESTINATIONS, orderedNavGroups, orderedGroupItems, sectionAllowed, type NavSection } from '@/constants/navigation';
+import { DESTINATIONS, orderedNavGroups, orderedGroupItems, sectionAllowed, menuDestinationsFor, type NavSection } from '@/constants/navigation';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useSettings } from '@/hooks/useSettings';
 import { useTheme } from '@/hooks/useTheme';
@@ -195,19 +195,31 @@ export default function BrandMenu({
   const isDesktop = useIsDesktop();
   const openSpotlight = () => window.dispatchEvent(new Event('icaproc:spotlight'));
 
-  // Show only the flows this role can access (Dashboard always). While the
-  // profile loads, show everything to avoid a nav flash.
+  /**
+   * Show only the flows this role can access.
+   *
+   * The rule that matters here is what happens BEFORE the role is known. This
+   * used to render everything "to avoid a nav flash", which had it backwards:
+   * staff saw the entire menu for a moment and then watched modules they are
+   * not allowed to open vanish one by one. An unknown role now shows NOTHING —
+   * a menu that fills in is honest, a menu that empties out is not.
+   *
+   * `useAuth` remembers the last known role in this browser, so after the first
+   * sign-in the role is already in hand on the first frame and there is nothing
+   * to fill in either.
+   */
   const perms = profile ? ROLE_PERMISSIONS[profile.role] : null;
+  const roleKnown = !!perms;
   const { menuOrder, menuItemOrder } = useSettings();
   // Gate each ENTRY by its own flow + capability, not the group's — a mixed
   // group like Catalog (buy-side Item Editor, sell-side Products) must show a
   // buyer its parts and a seller theirs, and appear for either.
-  const groups = buildAppGroups(menuOrder, menuItemOrder)
-    .map((g) => ({ ...g, apps: g.apps.filter((a) => (!a.cap || !perms || !!perms[a.cap]) && sectionAllowed(perms, a.section)) }))
+  const groups = !roleKnown ? [] : buildAppGroups(menuOrder, menuItemOrder)
+    .map((g) => ({ ...g, apps: g.apps.filter((a) => (!a.cap || !!perms[a.cap]) && sectionAllowed(perms, a.section)) }))
     .filter((g) => g.apps.length > 0);
   const allLinks = groups.flatMap((g) => g.apps.map((a) => ({ href: a.href, label: a.label, section: a.section })));
   // Configuration entries, same source, shown under Admin
-  const adminLinks = DESTINATIONS.filter((d) => d.group === 'Admin' && d.inNav && (!perms || !d.cap || !!perms[d.cap]));
+  const adminLinks = menuDestinationsFor(perms).filter((d) => d.group === 'Admin');
 
   // Mobile bottom bar: Home + the role's three primary modules + More
   const primary = MOBILE_PRIORITY

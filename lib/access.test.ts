@@ -17,7 +17,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { DESTINATIONS, destinationsFor, canOpenPath } from '../constants/navigation.ts';
+import { DESTINATIONS, destinationsFor, menuDestinationsFor, canOpenPath } from '../constants/navigation.ts';
 import { ROLE_PERMISSIONS, type UserRole } from '../constants/roles.ts';
 
 /**
@@ -109,9 +109,26 @@ const EXPECTED: Record<UserRole, string[]> = {
 
 test('each role sees exactly the menu it is meant to see', () => {
   for (const role of Object.keys(ROLE_PERMISSIONS) as UserRole[]) {
-    const shown = destinationsFor(ROLE_PERMISSIONS[role]).filter((d) => d.inNav).map((d) => d.href);
+    const shown = menuDestinationsFor(ROLE_PERMISSIONS[role]).map((d) => d.href);
     assert.deepEqual(shown, EXPECTED[role], `menu changed for ${role}`);
   }
+});
+
+test('a menu with no role yet shows NOTHING, never everything', () => {
+  // Staff used to see every module for a moment and watch it shrink. Unknown
+  // means show nothing; the role arrives and the menu fills in.
+  assert.deepEqual(menuDestinationsFor(null), []);
+  // The page gates keep the opposite default on purpose — they must not bounce
+  // someone before the answer is known.
+  assert.ok(destinationsFor(null).length > 0);
+  assert.equal(canOpenPath(null, '/settings'), true);
+});
+
+test('the menu component keeps the unknown-role rule', () => {
+  const src = readFileSync('components/ui/BrandMenu.tsx', 'utf8');
+  assert.ok(/roleKnown/.test(src), 'BrandMenu no longer checks whether the role is known');
+  assert.ok(!/!a\.cap \|\| !perms/.test(src),
+    'BrandMenu is back to treating an unknown role as permission to show everything');
 });
 
 test('every menu entry is a real destination with a hint someone can read', () => {

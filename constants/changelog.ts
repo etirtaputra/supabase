@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-19T17:30:00Z',
+    title: 'The menu no longer shows everything and then takes it away',
+    details: [
+      'Staff were shown the full menu at first, and a moment later the modules they cannot open disappeared one by one. The menu was treating \u201crole not known yet\u201d as permission to show everything \u2014 it now shows nothing until the role is known, so the menu fills in instead of emptying out.',
+      'The wait itself is gone too: the app remembers the role from the last sign-in on that computer, so from the second visit onwards the correct menu is there on the very first frame. Signing out forgets it, and a different person signing in on the same computer never inherits the previous menu.',
+      'This is only about what the menu DRAWS. Every screen still checks with the server before it opens, so a remembered role can never let anyone into a page they are not allowed to open.',
+    ],
+  },
+  {
     at: '2026-08-19T16:10:00Z',
     title: 'Serial numbers: scan with the gun, and see at a glance what has gone out',
     details: [

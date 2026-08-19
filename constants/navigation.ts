@@ -274,6 +274,20 @@ export const destinationsFor = (perms: RolePermissions | null): Destination[] =>
   DESTINATIONS.filter((d) => destinationAllowed(perms, d));
 
 /**
+ * What the MENU shows — and it answers "role not known yet" the opposite way
+ * to everything else: NOTHING.
+ *
+ * A page gate that does not yet know the role must wait rather than bounce
+ * someone mid-load, so `destinationAllowed` is permissive while `perms` is
+ * null. A menu has no such excuse: showing every module and then removing the
+ * ones a person may not open tells them what they are missing and looks
+ * broken while it happens. A menu that fills in is honest; a menu that empties
+ * out is not.
+ */
+export const menuDestinationsFor = (perms: RolePermissions | null): Destination[] =>
+  (perms ? DESTINATIONS.filter((d) => d.inNav && destinationAllowed(perms, d)) : []);
+
+/**
  * May this role open this path? Screens call this for their own gate, so what
  * the menu shows and what the page admits can never disagree. A path nobody
  * registered is open to any signed-in user — registering it is how it gets a
