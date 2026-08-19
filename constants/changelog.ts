@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-19T22:10:00Z',
+    title: 'Two new roles: Warehouse and After-Sales Desk',
+    details: [
+      'Warehouse \u2014 goods in, counted and out: Stock, Receive Goods, Serial Numbers and Delivery, opening straight onto Stock. It never sees supplier prices, selling prices or the bank. Until now a warehouse login had to be Data Entry, which also opened the Purchasing catalog and every buy price in it.',
+      'After-Sales Desk \u2014 service tickets, the serial register, warranty, and the customer behind the machine, opening straight onto After Sales. No pricing, no invoicing, no bank. Until now it had to be Sell-side Admin, which granted all three.',
+      'Both are in Settings \u203a Users like any other role. Nobody lost anything: every role that could open After Sales still can, and the buy-side roles keep Stock and Receive Goods.',
+      'Enforced in the database too \u2014 each new role can write exactly the records its job needs, and supplier costs stay buy-side.',
+    ],
+  },
+  {
     at: '2026-08-19T20:40:00Z',
     title: 'Bahasa Indonesia for the descriptions \u2014 Settings \u203a Defaults \u203a Language',
     details: [

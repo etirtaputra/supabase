@@ -21,6 +21,9 @@ test('each role lands where its own permissions let it in', () => {
   assert.equal(landing('buy_admin'), '/purchasing');
   assert.equal(landing('data_entry'), '/purchasing');
   assert.equal(landing('finance'), '/purchasing');
+  // A single-job role lands ON its job: an empty dashboard reads as broken
+  assert.equal(landing('warehouse'), '/stock');
+  assert.equal(landing('aftersales'), '/aftersales');
   assert.equal(landing('viewer'), '/');               // the dashboard is the safe floor
   assert.equal(homeFor(null), '/');
 });
@@ -35,6 +38,8 @@ test('no role can be sent to a screen that would bounce it', () => {
     }
     // /sales is gated on canEditSalesDocs
     if (to === '/sales') assert.ok(p.canEditSalesDocs, `${r} would be bounced from /sales`);
+    if (to === '/stock') assert.ok(p.buySide || p.canManageStock, `${r} would be bounced from /stock`);
+    if (to === '/aftersales') assert.ok(p.canHandleService, `${r} would be bounced from /aftersales`);
     // and the dashboard turns nobody away, so '/' always passes
   }
 });

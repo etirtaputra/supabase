@@ -8,11 +8,16 @@
 //   sales       — sell-side operational (Customers, Products, Sales, Invoices);
 //                 manages customers + sales docs, no back-end (pricing/stock/AR)
 //   engineer    — Project Quotes + sell-side sales access
+//   warehouse   — the goods themselves: receive, count, scan serials, ship.
+//                 No supplier prices, no selling prices, no money.
+//   aftersales  — the service desk: tickets, the unit register, warranty, and
+//                 the customers behind them. No pricing, invoicing or bank.
 //   viewer      — read-only lookup
 // data_entry / finance are LEGACY (superseded by buy_admin); kept so any
 // un-migrated row still resolves. Not offered in the admin picker.
 export type UserRole =
-  | 'owner' | 'buy_admin' | 'sell_admin' | 'sales' | 'engineer' | 'viewer'
+  | 'owner' | 'buy_admin' | 'sell_admin' | 'sales' | 'engineer'
+  | 'warehouse' | 'aftersales' | 'viewer'
   | 'data_entry' | 'finance';
 
 export interface RolePermissions {
@@ -44,6 +49,15 @@ export interface RolePermissions {
   canViewEconomics: boolean;   // /profitability — item GP, landed costs, CCC. Owner only: the whole P&L in one screen.
   canViewAnalytics: boolean;   // the Analytics group — Spend & Cash, Items, Profitability. Owner only (decided 2026-07-30).
   canManageStock: boolean;     // inventory: receive / adjust stock movements
+  /**
+   * The service desk: after-sales tickets and the serial register.
+   *
+   * Its own capability because handling a warranty claim is not the same job
+   * as writing a quotation. Before it existed, the only way to let someone run
+   * after-sales was to hand them the whole sell side — pricing and invoicing
+   * included.
+   */
+  canHandleService: boolean;
   canRecordReceipts: boolean;  // AR: record customer payments against sales invoices
   canViewBanks: boolean;       // bank accounts + their statements (cash position)
   canEditBanks: boolean;       // owner-only: create accounts, correct balances
@@ -56,7 +70,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canEdit: true, canExportCsv: true,
     canViewSellingPrice: true, canViewBankFees: true, canViewCompetitorPrices: true, canViewBrand: true,
     canManageUsers: true, canEditQuotes: true,
-    canManageCustomers: true, canEditSalesDocs: true, canManagePricing: true, canManageStock: true, canRecordReceipts: true,
+    canManageCustomers: true, canEditSalesDocs: true, canManagePricing: true, canManageStock: true, canHandleService: true, canRecordReceipts: true,
     canViewEconomics: true,
     canViewAnalytics: true,
     canViewBanks: true, canEditBanks: true,
@@ -68,7 +82,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canEdit: true, canExportCsv: true,
     canViewSellingPrice: true, canViewBankFees: true, canViewCompetitorPrices: true, canViewBrand: true,
     canManageUsers: false, canEditQuotes: false,
-    canManageCustomers: false, canEditSalesDocs: false, canManagePricing: false, canManageStock: true, canRecordReceipts: false,
+    canManageCustomers: false, canEditSalesDocs: false, canManagePricing: false, canManageStock: true, canHandleService: false, canRecordReceipts: false,
     canViewEconomics: false,
     canViewAnalytics: false,
     canViewBanks: true, canEditBanks: false,
@@ -80,7 +94,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canEdit: true, canExportCsv: true,
     canViewSellingPrice: true, canViewBankFees: false, canViewCompetitorPrices: false, canViewBrand: false,
     canManageUsers: false, canEditQuotes: false,
-    canManageCustomers: true, canEditSalesDocs: true, canManagePricing: true, canManageStock: false, canRecordReceipts: true,
+    canManageCustomers: true, canEditSalesDocs: true, canManagePricing: true, canManageStock: false, canHandleService: true, canRecordReceipts: true,
     canViewEconomics: false,
     canViewAnalytics: false,
     canViewBanks: true, canEditBanks: false,
@@ -92,7 +106,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canEdit: false, canExportCsv: false,
     canViewSellingPrice: true, canViewBankFees: false, canViewCompetitorPrices: false, canViewBrand: false,
     canManageUsers: false, canEditQuotes: false,
-    canManageCustomers: true, canEditSalesDocs: true, canManagePricing: false, canManageStock: false, canRecordReceipts: false,
+    canManageCustomers: true, canEditSalesDocs: true, canManagePricing: false, canManageStock: false, canHandleService: true, canRecordReceipts: false,
     canViewEconomics: false,
     canViewAnalytics: false,
     canViewBanks: false, canEditBanks: false,
@@ -104,7 +118,40 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canEdit: false, canExportCsv: false,
     canViewSellingPrice: true, canViewBankFees: false, canViewCompetitorPrices: false, canViewBrand: false,
     canManageUsers: false, canEditQuotes: true,
-    canManageCustomers: true, canEditSalesDocs: true, canManagePricing: false, canManageStock: false, canRecordReceipts: false,
+    canManageCustomers: true, canEditSalesDocs: true, canManagePricing: false, canManageStock: false, canHandleService: true, canRecordReceipts: false,
+    canViewEconomics: false,
+    canViewAnalytics: false,
+    canViewBanks: false, canEditBanks: false,
+  },
+  /**
+   * The warehouse: goods in, goods counted, goods out. It sees WHAT and HOW
+   * MANY, never what anything cost or sells for — a picker does not need the
+   * buy price, and giving it away is how a price list leaves the building.
+   */
+  warehouse: {
+    buySide: false, sellSide: false, projects: false,
+    tabs: { catalog: false, quoting: false, ordering: false, financials: false, lookup: false, 'market-intel': false },
+    canEdit: true, canExportCsv: false,
+    canViewSellingPrice: false, canViewBankFees: false, canViewCompetitorPrices: false, canViewBrand: false,
+    canManageUsers: false, canEditQuotes: false,
+    canManageCustomers: false, canEditSalesDocs: false, canManagePricing: false, canManageStock: true, canHandleService: false, canRecordReceipts: false,
+    canViewEconomics: false,
+    canViewAnalytics: false,
+    canViewBanks: false, canEditBanks: false,
+  },
+  /**
+   * The service desk: tickets, the unit register, warranty, and the customer
+   * behind the machine. It can correct a customer's contact details because
+   * that is half of any service call, but it prices nothing, invoices nothing
+   * and never sees the bank.
+   */
+  aftersales: {
+    buySide: false, sellSide: false, projects: false,
+    tabs: { catalog: false, quoting: false, ordering: false, financials: false, lookup: false, 'market-intel': false },
+    canEdit: true, canExportCsv: false,
+    canViewSellingPrice: false, canViewBankFees: false, canViewCompetitorPrices: false, canViewBrand: false,
+    canManageUsers: false, canEditQuotes: false,
+    canManageCustomers: true, canEditSalesDocs: false, canManagePricing: false, canManageStock: false, canHandleService: true, canRecordReceipts: false,
     canViewEconomics: false,
     canViewAnalytics: false,
     canViewBanks: false, canEditBanks: false,
@@ -115,7 +162,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canEdit: false, canExportCsv: false,
     canViewSellingPrice: false, canViewBankFees: false, canViewCompetitorPrices: false, canViewBrand: false,
     canManageUsers: false, canEditQuotes: false,
-    canManageCustomers: false, canEditSalesDocs: false, canManagePricing: false, canManageStock: false, canRecordReceipts: false,
+    canManageCustomers: false, canEditSalesDocs: false, canManagePricing: false, canManageStock: false, canHandleService: false, canRecordReceipts: false,
     canViewEconomics: false,
     canViewAnalytics: false,
     canViewBanks: false, canEditBanks: false,
@@ -127,7 +174,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canEdit: true, canExportCsv: false,
     canViewSellingPrice: false, canViewBankFees: false, canViewCompetitorPrices: false, canViewBrand: true,
     canManageUsers: false, canEditQuotes: true,
-    canManageCustomers: false, canEditSalesDocs: false, canManagePricing: false, canManageStock: true, canRecordReceipts: false,
+    canManageCustomers: false, canEditSalesDocs: false, canManagePricing: false, canManageStock: true, canHandleService: false, canRecordReceipts: false,
     canViewEconomics: false,
     canViewAnalytics: false,
     canViewBanks: false, canEditBanks: false,
@@ -138,7 +185,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canEdit: true, canExportCsv: true,
     canViewSellingPrice: false, canViewBankFees: true, canViewCompetitorPrices: false, canViewBrand: true,
     canManageUsers: false, canEditQuotes: true,
-    canManageCustomers: false, canEditSalesDocs: false, canManagePricing: false, canManageStock: false, canRecordReceipts: true,
+    canManageCustomers: false, canEditSalesDocs: false, canManagePricing: false, canManageStock: false, canHandleService: false, canRecordReceipts: true,
     canViewEconomics: false,
     canViewAnalytics: false,
     canViewBanks: true, canEditBanks: false,
@@ -186,7 +233,7 @@ export const PERMISSION_MATRIX: { group: string; rows: { key: PermissionKey; lab
   ]},
 ];
 
-export const ASSIGNABLE_ROLES: UserRole[] = ['owner', 'buy_admin', 'sell_admin', 'sales', 'engineer', 'viewer'];
+export const ASSIGNABLE_ROLES: UserRole[] = ['owner', 'buy_admin', 'sell_admin', 'sales', 'engineer', 'warehouse', 'aftersales', 'viewer'];
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   owner:      'Owner',
@@ -194,6 +241,8 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   sell_admin: 'Sell-side Admin',
   sales:      'Sell-side Sales',
   engineer:   'Project Engineer',
+  warehouse:  'Warehouse',
+  aftersales: 'After-Sales Desk',
   viewer:     'Viewer',
   data_entry: 'Data Entry (legacy)',
   finance:    'Finance (legacy)',
@@ -205,6 +254,8 @@ export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
   sell_admin: 'Sell-side modules — can edit customers, pricing, stock, invoices & receipts',
   sales:      'Sell-side sales — customers, products, sales & invoices; no back-end editing',
   engineer:   'Project Quotes plus sell-side sales access',
+  warehouse:  'Goods in, stock, serial numbers and shipping — no prices, no money',
+  aftersales: 'Service tickets, serial lookup and warranty — no pricing or invoicing',
   viewer:     'Read-only access to deal lookup',
   data_entry: 'Legacy buy-side editor — reassign to Buy-side Admin',
   finance:    'Legacy buy-side finance — reassign to Buy-side Admin',

@@ -110,7 +110,8 @@ function AfterSalesPage() {
   const { user, profile, loading: authLoading } = useAuth();
   const { t } = useT();
   const perms = profile ? ROLE_PERMISSIONS[profile.role] : null;
-  const canEdit = !!perms?.canEditSalesDocs;
+  // Running the service desk is its own job — see constants/roles.ts
+  const canEdit = !!perms?.canHandleService;
 
   const [cases, setCases] = useState<Case[]>([]);
   const [partsByCase, setPartsByCase] = useState<Map<string, Part[]>>(new Map());

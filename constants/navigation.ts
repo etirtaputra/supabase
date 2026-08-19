@@ -36,6 +36,10 @@ export const homeFor = (perms: RolePermissions | null): string => {
   if (!perms) return '/';
   if (perms.buySide) return '/purchasing';
   if (perms.sellSide && perms.canEditSalesDocs) return '/sales';
+  // Single-job roles land ON that job — the dashboard has little to tell a
+  // picker or a service desk, and an empty home screen reads as a broken one.
+  if (perms.canManageStock) return '/stock';
+  if (perms.canHandleService) return '/aftersales';
   return '/';
 };
 
@@ -95,12 +99,14 @@ export const DESTINATIONS: Destination[] = [
   { href: '/suppliers', label: 'Suppliers', group: 'Purchasing', section: 'buySide', inNav: true,
     hint: 'Vendor profiles, purchase volume, outstanding payables',
     keywords: 'vendors payables' },
-  { href: '/stock', label: 'Stock', group: 'Purchasing', section: 'buySide', inNav: true,
+  // Buy-side roles keep Stock; the warehouse reaches it through the capability
+  // that names its job, without being handed the buy prices next door.
+  { href: '/stock', label: 'Stock', group: 'Purchasing', section: null, caps: ['buySide', 'canManageStock'], inNav: true,
     hint: 'On-hand per warehouse, moving-average cost, shortages',
     keywords: 'inventory warehouse gudang on hand balance' },
   // Promoted out of hiding: booking goods in is a daily warehouse job and the
   // moment landed cost enters the system — it should not be search-only.
-  { href: '/stock/receive', label: 'Receive Goods', group: 'Purchasing', section: 'buySide', cap: 'canManageStock', inNav: true,
+  { href: '/stock/receive', label: 'Receive Goods', group: 'Purchasing', section: null, cap: 'canManageStock', inNav: true,
     hint: 'Book goods in against a purchase order (GRN)',
     keywords: 'grn goods receipt receiving inbound terima barang' },
   // The other half of receiving: the bills that arrive after the goods do.
@@ -114,7 +120,9 @@ export const DESTINATIONS: Destination[] = [
     keywords: 'procurement buying purchase' },
 
   // ── Sales (owner's wording 2026-08-07; the section gate stays `sellSide`) ──
-  { href: '/customers', label: 'Customers', group: 'Sales', section: 'sellSide', cap: 'canManageCustomers', inNav: true,
+  // Gated on the capability alone: the service desk keeps customer records
+  // current as part of a service call, without being a sell-side role.
+  { href: '/customers', label: 'Customers', group: 'Sales', section: null, cap: 'canManageCustomers', inNav: true,
     hint: 'CRM — customers, contacts, account managers',
     keywords: 'crm clients contacts buyers' },
   // Products lives with Sales — it is the list the sales team quotes from, in
@@ -142,10 +150,10 @@ export const DESTINATIONS: Destination[] = [
     keywords: 'do surat jalan shipping dispatch' },
   // The unit register: the warehouse writes it while packing, after-sales reads
   // it from a label. Both sides of that need the door.
-  { href: '/serials', label: 'Serial Numbers', group: 'Sales', section: null, caps: ['canManageStock', 'canEditSalesDocs'], inNav: true,
+  { href: '/serials', label: 'Serial Numbers', group: 'Sales', section: null, caps: ['canManageStock', 'canEditSalesDocs', 'canHandleService'], inNav: true,
     hint: 'Record the serial numbers on a delivery, and find the order from one',
     keywords: 'serial number sn unit register nomor seri warranty label' },
-  { href: '/aftersales', label: 'After Sales', group: 'Sales', section: 'sellSide', inNav: true,
+  { href: '/aftersales', label: 'After Sales', group: 'Sales', section: null, cap: 'canHandleService', inNav: true,
     hint: 'Service & warranty cases — repairs, replacements, complaints',
     keywords: 'service warranty klaim garansi rma repair replacement complaint case claim' },
   { href: '/support-letters', label: 'Support Letters', group: 'Sales', section: 'sellSide', inNav: true,

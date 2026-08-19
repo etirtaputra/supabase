@@ -94,6 +94,8 @@ const EXPECTED: Record<UserRole, string[]> = {
     '/', '/customers', '/products', '/sales', '/invoices', '/delivery', '/serials',
     '/aftersales', '/support-letters', '/proposals',
   ],
+  warehouse: ['/', '/stock', '/stock/receive', '/delivery', '/serials'],
+  aftersales: ['/', '/customers', '/serials', '/aftersales'],
   viewer: ['/'],
   data_entry: [
     '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=lookup',
@@ -111,6 +113,31 @@ test('each role sees exactly the menu it is meant to see', () => {
   for (const role of Object.keys(ROLE_PERMISSIONS) as UserRole[]) {
     const shown = menuDestinationsFor(ROLE_PERMISSIONS[role]).map((d) => d.href);
     assert.deepEqual(shown, EXPECTED[role], `menu changed for ${role}`);
+  }
+});
+
+test('the single-job roles reach their job and stop there', () => {
+  const wh = ROLE_PERMISSIONS.warehouse;
+  const svc = ROLE_PERMISSIONS.aftersales;
+  // The warehouse handles goods
+  for (const p of ['/stock', '/stock/receive', '/serials', '/delivery']) {
+    assert.equal(canOpenPath(wh, p), true, `warehouse cannot open ${p}`);
+  }
+  // ...and never the money or the prices
+  for (const p of ['/purchasing', '/purchasing?tab=catalog', '/stock/reconcile', '/banks', '/products', '/sales', '/invoices', '/settings']) {
+    assert.equal(canOpenPath(wh, p), false, `warehouse can open ${p}`);
+  }
+  // The service desk handles tickets, units and the customer behind them
+  for (const p of ['/aftersales', '/serials', '/customers']) {
+    assert.equal(canOpenPath(svc, p), true, `after-sales cannot open ${p}`);
+  }
+  // ...and never pricing, invoicing or the bank
+  for (const p of ['/pricing', '/invoices', '/banks', '/sales', '/purchasing', '/stock/receive', '/settings']) {
+    assert.equal(canOpenPath(svc, p), false, `after-sales can open ${p}`);
+  }
+  // Nobody who had After Sales lost it when it moved to its own capability
+  for (const r of ['owner', 'sell_admin', 'sales', 'engineer'] as UserRole[]) {
+    assert.equal(canOpenPath(ROLE_PERMISSIONS[r], '/aftersales'), true, `${r} lost After Sales`);
   }
 });
 
