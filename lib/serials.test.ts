@@ -14,6 +14,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   normSerial, parseSerialBatch, findExisting, traceSerial, lookupSerial, serialsForDoc,
+  statusFor, isOut, SERIAL_STATUS,
   type SerialRow, type SerialSalesDoc, type SerialDo, type SerialInvoice,
 } from './serials.ts';
 
@@ -119,4 +120,28 @@ test('a document lists its units in the order they were entered', () => {
   ];
   assert.deepEqual(serialsForDoc(register, 'do_id', 'D1').map((r) => r.serial_id), ['S1', 'S2']);
   assert.deepEqual(serialsForDoc(register, 'do_id', 'D9'), []);
+});
+
+test('a unit\'s state follows the paperwork on it — in stock, spoken for, or gone', () => {
+  // Nothing attached: still ours, on the shelf
+  assert.equal(statusFor({ quote_id: null, do_id: null }), 'in_stock');
+  // Assigned to an order but not yet shipped — the warehouse still holds it
+  assert.equal(statusFor({ quote_id: 'Q1', do_id: null }), 'allocated');
+  // A delivery order means it left the building
+  assert.equal(statusFor({ quote_id: 'Q1', do_id: 'D1' }), 'delivered');
+  // A delivery with no order named is still gone
+  assert.equal(statusFor({ quote_id: null, do_id: 'D1' }), 'delivered');
+  // Returned and scrapped are facts about the UNIT, not about documents
+  assert.equal(statusFor({ quote_id: 'Q1', do_id: 'D1', status: 'returned' }), 'returned');
+  assert.equal(statusFor({ quote_id: null, do_id: null, status: 'scrapped' }), 'scrapped');
+});
+
+test('"out" means gone, not merely spoken for', () => {
+  assert.equal(isOut({ status: 'delivered' }), true);
+  assert.equal(isOut({ status: 'allocated' }), false);
+  assert.equal(isOut({ status: 'in_stock' }), false);
+  // Every state the rule can produce has a label the list can show
+  for (const s of ['in_stock', 'allocated', 'delivered', 'returned', 'scrapped']) {
+    assert.ok(SERIAL_STATUS[s]?.label, `${s} has no label`);
+  }
 });

@@ -27,13 +27,34 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 /** How a serial is compared: letters and digits only, upper case. */
 export const normSerial = (s: string): string => (s ?? '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
 
-/** Where a unit is in its life. */
+/**
+ * Where a unit is in its life. The register's job is to answer "is it still
+ * ours, and if not, whose order took it" — so the states that matter are on
+ * the shelf, spoken for, and gone.
+ */
 export const SERIAL_STATUS: Record<string, { label: string; cls: string }> = {
   in_stock:  { label: 'In stock',  cls: 'bg-sky-500/15 text-sky-300' },
-  delivered: { label: 'Delivered', cls: 'bg-emerald-500/15 text-emerald-300' },
+  allocated: { label: 'Allocated', cls: 'bg-violet-500/15 text-violet-300' },
+  delivered: { label: 'Out',       cls: 'bg-emerald-500/15 text-emerald-300' },
   returned:  { label: 'Returned',  cls: 'bg-amber-500/15 text-amber-300' },
   scrapped:  { label: 'Scrapped',  cls: 'bg-slate-700/40 text-slate-400' },
 };
+
+/** Has this unit left the warehouse? */
+export const isOut = (r: { status: string }): boolean => r.status === 'delivered';
+
+/**
+ * The state a unit should carry, given the paperwork on it — the same rule the
+ * database applies, so the screen never shows a different answer than the row.
+ * A returned or scrapped unit keeps its own state: those are facts about the
+ * unit, not about the documents.
+ */
+export function statusFor(r: { quote_id: string | null; do_id: string | null; status?: string }): string {
+  if (r.status === 'returned' || r.status === 'scrapped') return r.status;
+  if (r.do_id) return 'delivered';
+  if (r.quote_id) return 'allocated';
+  return 'in_stock';
+}
 
 // ── Row shapes (only the columns the logic reads) ────────────────────────────
 export interface SerialRow {

@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-19T16:10:00Z',
+    title: 'Serial numbers: scan with the gun, and see at a glance what has gone out',
+    details: [
+      'Recording units now follows the warehouse\u2019s actual motion: pick the product once, then scan. The box takes one unit per scan, clears itself and keeps the focus, so a whole pallet goes in without touching the mouse. Each line says whether it is new, already registered, or the same label read twice. Pasting a column still works \u2014 it is the second tab.',
+      'Attaching to paperwork is now a separate job, done later. Units scan into stock when they arrive; when they ship, tick them in the list, pick the sales order (and the delivery order if it is going out today) and press Attach. \u201cBack to stock\u201d undoes it.',
+      'The master list says where every unit stands: In stock, Allocated (spoken for by an order, still on the shelf) or Out \u2014 with the sales order beside it. The status chips at the top filter the list to any one of them, and every column sorts.',
+      'The Serial Numbers header no longer overlaps the menu bar.',
+      'Item fix: eleven ICA SOLAR SNV items (SNV-GH5042 and its GF / GH / SP sister models) were flagged Cost Basis \u2192 Hidden, which keeps an item out of the EPC proposal and Surat Dukungan pickers. They are quotable again.',
+    ],
+  },
+  {
     at: '2026-08-19T14:20:00Z',
     title: 'Serial numbers, and an After Sales desk that starts from the unit',
     details: [

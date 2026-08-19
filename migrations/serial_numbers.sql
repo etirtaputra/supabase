@@ -49,8 +49,10 @@ CREATE TABLE IF NOT EXISTS "30.4_serial_numbers" (
 );
 
 ALTER TABLE "30.4_serial_numbers" DROP CONSTRAINT IF EXISTS serial_status_chk;
+-- in_stock → on the shelf · allocated → spoken for by a sales order, still here
+-- · delivered → gone out on a delivery · returned / scrapped → back or dead
 ALTER TABLE "30.4_serial_numbers" ADD CONSTRAINT serial_status_chk
-  CHECK (status = ANY (ARRAY['in_stock'::text, 'delivered'::text, 'returned'::text, 'scrapped'::text]));
+  CHECK (status = ANY (ARRAY['in_stock'::text, 'allocated'::text, 'delivered'::text, 'returned'::text, 'scrapped'::text]));
 
 ALTER TABLE "30.4_serial_numbers" DROP CONSTRAINT IF EXISTS serial_not_blank_chk;
 ALTER TABLE "30.4_serial_numbers" ADD CONSTRAINT serial_not_blank_chk
@@ -84,9 +86,16 @@ BEGIN
   NEW.serial := btrim(NEW.serial);
   NEW.updated_at := NOW();
   NEW.updated_by_email := COALESCE(actor, 'system');
-  -- A unit attached to a delivery has left the building; say so without asking
-  IF NEW.do_id IS NOT NULL AND NEW.status = 'in_stock' THEN
-    NEW.status := 'delivered';
+  -- The unit's own state follows the paperwork attached to it, so the register
+  -- can never claim a unit is on the shelf while a delivery says it shipped.
+  IF NEW.status NOT IN ('returned', 'scrapped') THEN
+    IF NEW.do_id IS NOT NULL THEN
+      NEW.status := 'delivered';
+    ELSIF NEW.quote_id IS NOT NULL THEN
+      NEW.status := 'allocated';
+    ELSE
+      NEW.status := 'in_stock';
+    END IF;
   END IF;
   RETURN NEW;
 END $function$;
