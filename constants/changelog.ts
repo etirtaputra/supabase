@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-19T06:15:00Z',
+    title: 'Customer find & replace: whole words, and no more “Bpk..”',
+    details: [
+      'Replacing “Bpk” with “Bpk.” used to also hit the names already written “Bpk.” and stack another dot (“Bpk..”). When the replacement extends the search term, matches already carrying the full form are now skipped — running the same replace twice changes nothing.',
+      'A “Whole words” option (on by default) makes “Bpk” match the word Bpk but never letters inside a longer word.',
+    ],
+  },
+  {
     at: '2026-08-19T05:30:00Z',
     title: 'Customers: auto-tagged individuals, tick-to-select bulk actions, find & replace',
     details: [

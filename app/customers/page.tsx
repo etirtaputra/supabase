@@ -207,9 +207,28 @@ function CustomersInner() {
   const [frReplace, setFrReplace] = useState('');
   const [frField, setFrField] = useState<'both' | 'display' | 'legal'>('both');
   const [frCase, setFrCase] = useState(false);
+  const [frWhole, setFrWhole] = useState(true);
   const [frBusy, setFrBusy] = useState(false);
   const escapeRx = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const frApply = (v: string) => (frFind ? v.replace(new RegExp(escapeRx(frFind), frCase ? 'g' : 'gi'), frReplace) : v);
+  const frApply = (v: string) => {
+    const find = frFind.trim();
+    if (!find) return v;
+    let pat = escapeRx(find);
+    // Whole words: "Bpk" matches the token Bpk (even before a dot) but never
+    // the letters inside "Bpkxyz".
+    if (frWhole) pat = `(?<![\\p{L}\\p{N}])${pat}(?![\\p{L}\\p{N}])`;
+    // Idempotence: replacing "Bpk" with "Bpk." must SKIP names already written
+    // "Bpk." — plain substring matching stacked another dot on every apply
+    // (field report 2026-08-19, "Bpk.."). When the replacement extends the
+    // search term, matches already followed (or preceded) by the extension are
+    // left alone, so re-running the same replace changes nothing.
+    const eq = (a: string, b: string) => (frCase ? a === b : a.toLowerCase() === b.toLowerCase());
+    if (frReplace.length > find.length) {
+      if (eq(frReplace.slice(0, find.length), find)) pat = `${pat}(?!${escapeRx(frReplace.slice(find.length))})`;
+      else if (eq(frReplace.slice(-find.length), find)) pat = `(?<!${escapeRx(frReplace.slice(0, frReplace.length - find.length))})${pat}`;
+    }
+    return v.replace(new RegExp(pat, frCase ? 'gu' : 'giu'), frReplace);
+  };
 
   const [editing, setEditing] = useState<Customer | null>(null);
   const [draftContacts, setDraftContacts] = useState<Contact[]>([]);
@@ -395,7 +414,7 @@ function CustomersInner() {
       return [{ c, nd, nl }];
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [frScope, frFind, frReplace, frField, frCase]);
+  }, [frScope, frFind, frReplace, frField, frCase, frWhole]);
   async function applyReplace() {
     if (!frTargets.length) return;
     setFrBusy(true);
@@ -924,6 +943,11 @@ function CustomersInner() {
                 <option value="display">Display name</option>
                 <option value="legal">Legal name</option>
               </select>
+              <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer select-none"
+                title="Match whole words only — “Bpk” matches the word Bpk but never letters inside a longer word">
+                <input type="checkbox" checked={frWhole} onChange={(e) => setFrWhole(e.target.checked)} className="accent-sky-500 w-3.5 h-3.5" />
+                Whole words
+              </label>
               <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer select-none">
                 <input type="checkbox" checked={frCase} onChange={(e) => setFrCase(e.target.checked)} className="accent-sky-500 w-3.5 h-3.5" />
                 Match case
