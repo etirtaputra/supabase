@@ -157,6 +157,10 @@ export async function fetchTradePositions(
         const k = `${String(m.source_id)}·${m.component_id}`;
         receivedByPoComp.set(k, (receivedByPoComp.get(k) ?? 0) + q);
       }
+    } else if (m.direction === 'revalue') {
+      // Value only: a landed-cost true-up buys no units, it re-prices the ones
+      // already received. Counting it as quantity would invent stock.
+      a.poValue += q * num(m.unit_cost_idr);
     } else {
       a.delivered += q;
     }

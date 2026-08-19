@@ -921,7 +921,7 @@ function StockTab({ balances, warehouses, movements, physical, reserved, live, u
   balances: Balance[]; warehouses: Warehouse[]; movements: Movement[];
   physical: number; reserved: number; live: number; unit: string | null;
 }) {
-  const dirCls: Record<string, string> = { in: 'text-emerald-400', out: 'text-red-400', adjust: 'text-amber-400' };
+  const dirCls: Record<string, string> = { in: 'text-emerald-400', out: 'text-red-400', adjust: 'text-amber-400', revalue: 'text-amber-300' };
   const held = balances.filter((b) => (Number(b.qty_on_hand) || 0) !== 0).sort((a, b) => Number(b.qty_on_hand) - Number(a.qty_on_hand));
   return (
     <div className="space-y-4">
@@ -987,8 +987,20 @@ function StockTab({ balances, warehouses, movements, physical, reserved, live, u
                 <tr key={m.movement_id} className="hover:bg-slate-800/20 transition-colors">
                   <td className="px-4 py-1.5 text-xs text-slate-400 tabular-nums whitespace-nowrap">{fmtDay(m.moved_at)}</td>
                   <td className={`px-3 py-1.5 text-xs font-semibold uppercase ${dirCls[m.direction] ?? 'text-slate-400'}`}>{m.direction}</td>
-                  <td className="px-3 py-1.5 text-right tabular-nums text-xs text-slate-200">{m.direction === 'out' ? '−' : ''}{fmtInt(Number(m.quantity))}</td>
-                  <td className="px-3 py-1.5 text-right tabular-nums text-xs text-slate-400">{Number(m.unit_cost_idr) > 0 ? fmtInt(Number(m.unit_cost_idr)) : '—'}</td>
+                  {/* A revaluation moves value, never stock — showing its
+                      quantity in the Qty column would read as goods arriving. */}
+                  <td className="px-3 py-1.5 text-right tabular-nums text-xs text-slate-200">
+                    {m.direction === 'revalue'
+                      ? <span className="text-slate-600" title={`Landed-cost correction on ${fmtInt(Number(m.quantity))} received`}>—</span>
+                      : <>{m.direction === 'out' ? '−' : ''}{fmtInt(Number(m.quantity))}</>}
+                  </td>
+                  <td className="px-3 py-1.5 text-right tabular-nums text-xs text-slate-400">
+                    {m.direction === 'revalue'
+                      ? <span className={Number(m.unit_cost_idr) >= 0 ? 'text-amber-300' : 'text-emerald-300'}>
+                          {Number(m.unit_cost_idr) >= 0 ? '+' : '−'}{fmtInt(Math.abs(Number(m.unit_cost_idr)))}/unit
+                        </span>
+                      : Number(m.unit_cost_idr) > 0 ? fmtInt(Number(m.unit_cost_idr)) : '—'}
+                  </td>
                   <td className="px-3 py-1.5 text-[11px] text-slate-500 whitespace-nowrap">{m.location ? warehouseLabel(warehouses, m.location) : '—'}</td>
                   <td className="px-3 py-1.5 text-[11px] text-slate-500 truncate max-w-[220px]">{m.source_type}{m.notes ? ` · ${m.notes}` : ''}</td>
                   <td className="px-3 py-1.5 text-[11px] text-slate-600 truncate max-w-[140px]">{m.created_by_email?.split('@')[0] ?? '—'}</td>

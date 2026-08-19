@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-19T09:40:00Z',
+    title: 'Landed cost: the bills that arrive after the goods now correct the stock cost',
+    details: [
+      'Goods arrive before their invoices do. Receiving books stock at the costs recorded that day — usually the principal and whatever fees are in — and the freight, the duty and the final payment land weeks later. Until now nothing went back, so imports sat in stock below what they cost and every margin measured off that cost looked better than it was.',
+      'Stock › Landed Cost is the going back. Per purchase order it shows what the receipt booked, what the bills now say, and the difference per item — with the new average cost each item would carry. Right now it finds 23 purchase orders and about Rp 709 million of understated cost, of which nearly all is still sitting in stock and can be recovered.',
+      'The correction is split honestly: units STILL ON HAND are revalued, units ALREADY SOLD are shown separately as gross profit that was overstated, because that sale is history and cannot be re-priced.',
+      '“Post true-up” writes value-only ledger entries — quantities never move, and the item’s movement history shows them as a per-unit correction rather than goods arriving. Safe to press twice: a trued-up PO drops off the list, and if another bill turns up later only the new difference comes back.',
+      'The Stock screen and the dashboard action queue both carry the total, and Receive Goods now points at the true-up for the bills it knows are still coming. Corrections too small to matter are counted at the bottom of the screen instead of being dropped quietly.',
+    ],
+  },
+  {
     at: '2026-08-19T06:15:00Z',
     title: 'Customer find & replace: whole words, and no more “Bpk..”',
     details: [

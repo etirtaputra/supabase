@@ -365,6 +365,12 @@ function ReceivePage() {
                 <p className={lines[0]?.costBasis === 'landed' ? 'text-emerald-300' : 'text-amber-300'}>
                   {lines[0]?.costBasis === 'landed' ? 'Landed (principal + fees)' : 'Principal × FX — no costs recorded yet'}
                 </p>
+                {/* Whatever this is worth today, freight and duty usually land
+                    later — the true-up screen is where that gets corrected. */}
+                <Link href="/stock/reconcile" className="text-[10px] text-slate-600 hover:text-sky-300 transition-colors"
+                  title="When the freight, duty or final payment arrives later, true up the cost there">
+                  bills arrive later? true up ↗
+                </Link>
               </div>
             </div>
 
@@ -465,9 +471,15 @@ function ReceivePage() {
               </p>
               <div className="flex items-center gap-2">
                 {posted && (
-                  <Link href="/stock" className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-semibold transition-colors">
-                    Done — view stock
-                  </Link>
+                  <>
+                    <Link href="/stock/reconcile" className="px-4 py-2.5 rounded-xl border border-slate-700 text-slate-400 hover:text-amber-300 hover:border-amber-500/40 text-xs font-semibold transition-colors"
+                      title="Freight, duty or the final payment recorded after today? True up the cost of what you just received.">
+                      True up landed cost
+                    </Link>
+                    <Link href="/stock" className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-semibold transition-colors">
+                      Done — view stock
+                    </Link>
+                  </>
                 )}
                 <button onClick={post} disabled={busy || receiveNowTotal <= 0}
                   className="px-5 py-2.5 rounded-xl bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30 hover:bg-sky-500/25 text-xs font-bold transition-colors disabled:opacity-40 flex items-center gap-2">

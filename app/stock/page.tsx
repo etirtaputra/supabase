@@ -24,6 +24,7 @@ import { fetchDeliveredByQuoteComp } from '@/lib/reservedStock';
 import { fetchReorderAlerts, type ReorderAlert } from '@/lib/reorder';
 import { fmtDay, fmtInt, fmtIdr, fmtRupiah } from '@/lib/formatters';
 import { fetchInTransit, type InTransitSummary } from '@/lib/inTransit';
+import { fetchLandedVariances, type LandedSummary } from '@/lib/landedCost';
 import FitText from '@/components/ui/FitText';
 
 /** An order line still waiting on stock — what the shortage is FOR. */
@@ -57,6 +58,7 @@ export default function StockPage() {
   const [shortages, setShortages] = useState<Shortage[]>([]);
   const [reorders, setReorders] = useState<ReorderAlert[]>([]);
   const [inTransit, setInTransit] = useState<InTransitSummary | null>(null);
+  const [landed, setLanded] = useState<LandedSummary | null>(null);
   const [transfer, setTransfer] = useState<{ c: Comp; from: string; available: number } | null>(null);
   const [toast, setToast] = useState('');
   const [loading, setLoading] = useState(true);
@@ -96,6 +98,8 @@ export default function StockPage() {
     fetchReorderAlerts(supabase).then(setReorders).catch(() => setReorders([]));
     // Goods on the water — paid/ordered, not yet received — read the same way
     fetchInTransit(supabase).then(setInTransit).catch(() => setInTransit(null));
+    // Bills that landed after the goods did — stock value still carrying the guess
+    fetchLandedVariances(supabase).then(setLanded).catch(() => setLanded(null));
     const [allComps, balRes, movRes, whs, sqRes, sqiRes, custRes, deliveredMap] = await Promise.all([
       fetchAllComponents(),
       supabase.from('30.1_stock_balances').select('component_id, location, qty_on_hand, avg_cost_idr, updated_at'),
@@ -319,6 +323,29 @@ export default function StockPage() {
             <Link href="/purchasing?tab=lookup"
               className="ml-auto text-[10px] px-2 py-0.5 rounded-lg bg-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors whitespace-nowrap"
               title="Open Deal Lookup to review open purchase orders">POs ↗</Link>
+          </div>
+        )}
+
+        {/* Landed cost still to true up — the freight/duty/final payment that
+            arrived AFTER the goods were booked in. Until it is posted, stock
+            value (and every margin computed off it) is understated. */}
+        {landed && landed.ready.length > 0 && canManage && (
+          <div className="bg-amber-500/[0.05] border border-amber-500/25 rounded-2xl px-4 py-3 flex flex-wrap items-baseline gap-x-4 gap-y-1.5">
+            <h2 className="text-[11px] font-bold uppercase tracking-widest text-amber-300">
+              Landed cost — {landed.ready.length} PO{landed.ready.length !== 1 ? 's' : ''} to true up
+            </h2>
+            <span className="text-[11px] tabular-nums text-slate-300">
+              <span className="text-slate-500">understated by </span>{fmtIdr(landed.readyDelta)}
+            </span>
+            {landed.readyInventoryDelta !== 0 && (
+              <span className="text-[11px] tabular-nums text-emerald-300"
+                title="What posting would add to the value of stock still on hand">
+                {fmtIdr(landed.readyInventoryDelta)} recoverable into stock value
+              </span>
+            )}
+            <Link href="/stock/reconcile"
+              className="ml-auto text-[10px] px-2 py-0.5 rounded-lg bg-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors whitespace-nowrap"
+              title="Review the difference per PO and post the correction">True up ↗</Link>
           </div>
         )}
 

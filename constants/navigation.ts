@@ -85,6 +85,10 @@ export const DESTINATIONS: Destination[] = [
   { href: '/stock/receive', label: 'Receive Goods', group: 'Purchasing', section: 'buySide', cap: 'canManageStock', inNav: true,
     hint: 'Book goods in against a purchase order (GRN)',
     keywords: 'grn goods receipt receiving inbound terima barang' },
+  // The other half of receiving: the bills that arrive after the goods do.
+  { href: '/stock/reconcile', label: 'Landed Cost', group: 'Purchasing', section: 'buySide', cap: 'canManageStock', inNav: true,
+    hint: 'True up stock cost when the freight, duty and final payment land',
+    keywords: 'landed cost true up reconcile variance freight duty revaluation biaya' },
   // The bare /purchasing URL still resolves (it opens the Item Editor tab) —
   // search-only so the menu is not saying the same thing twice.
   { href: '/purchasing', label: 'Purchasing', group: 'Purchasing', section: 'buySide', inNav: false,

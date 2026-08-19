@@ -158,7 +158,7 @@ export default function StockModal({ componentId, componentName, unit, anchor, o
     load();
   }
 
-  const dirCls: Record<string, string> = { in: 'text-emerald-400', out: 'text-red-400', adjust: 'text-amber-400' };
+  const dirCls: Record<string, string> = { in: 'text-emerald-400', out: 'text-red-400', adjust: 'text-amber-400', revalue: 'text-amber-300' };
 
   return createPortal(
     <div className={`fixed inset-0 z-[120] ${asPopover ? '' : 'flex items-end sm:items-center justify-center sm:px-4'}`} onClick={onClose}>
@@ -273,9 +273,16 @@ export default function StockModal({ componentId, componentName, unit, anchor, o
                     {movements.map((m) => (
                       <div key={m.movement_id} className="flex items-center gap-2.5 px-2.5 py-1.5 text-[11px]">
                         <span className={`font-semibold uppercase w-11 flex-shrink-0 ${dirCls[m.direction] ?? 'text-slate-400'}`}>{m.direction}</span>
-                        <span className="tabular-nums text-slate-300 w-14 text-right flex-shrink-0">{m.direction === 'out' ? '−' : ''}{fmtInt(Number(m.quantity))}</span>
+                        {/* Value only: a true-up re-prices stock, it never moves it */}
+                        <span className="tabular-nums text-slate-300 w-14 text-right flex-shrink-0">
+                          {m.direction === 'revalue' ? <span className="text-slate-600">—</span> : <>{m.direction === 'out' ? '−' : ''}{fmtInt(Number(m.quantity))}</>}
+                        </span>
                         <span className="text-slate-500 flex-1 truncate">{m.source_type}{m.notes ? ` · ${m.notes}` : ''}</span>
-                        {Number(m.unit_cost_idr) > 0 && <span className="tabular-nums text-slate-500 flex-shrink-0">@ {fmtInt(Number(m.unit_cost_idr))}</span>}
+                        {m.direction === 'revalue'
+                          ? <span className={`tabular-nums flex-shrink-0 ${Number(m.unit_cost_idr) >= 0 ? 'text-amber-300' : 'text-emerald-300'}`}>
+                              {Number(m.unit_cost_idr) >= 0 ? '+' : '−'}{fmtInt(Math.abs(Number(m.unit_cost_idr)))}/unit
+                            </span>
+                          : Number(m.unit_cost_idr) > 0 && <span className="tabular-nums text-slate-500 flex-shrink-0">@ {fmtInt(Number(m.unit_cost_idr))}</span>}
                         <span className="text-slate-600 w-16 text-right tabular-nums flex-shrink-0">{fmtDay(m.moved_at)}</span>
                       </div>
                     ))}

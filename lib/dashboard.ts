@@ -16,6 +16,7 @@ import { COMMITTED_STATUSES } from './salesStatus';
 import { fetchDeliveredByQuoteComp } from './reservedStock';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 import { todayISO } from './dateRange';
+import { fetchLandedVariances } from './landedCost';
 import { fetchReorderAlerts } from './reorder';
 import { computeInTransit, type OpenPo, type ReceivedPo, type PoCost } from './inTransit';
 
@@ -225,6 +226,24 @@ export async function fetchActionQueue(
         });
       }
     }
+
+    // ── Landed cost not yet trued up ───────────────────────────────────────
+    // The freight invoice, the duty and the final payment arrive after the
+    // goods are already booked in. Until the correction is posted, stock sits
+    // below what it cost and every margin off that cost reads too well.
+    try {
+      const landed = await fetchLandedVariances(supabase);
+      if (landed.ready.length > 0) {
+        items.push({
+          key: 'landed-variance', domain: 'buy', tone: 'watch',
+          title: `${landed.ready.length} PO${landed.ready.length !== 1 ? 's' : ''} costing more than stock says`,
+          detail: landed.readyInventoryDelta !== 0
+            ? 'bills landed after the goods did — post the correction and stock value catches up'
+            : 'bills landed after the goods were sold — the margin on them was overstated',
+          amount: landed.readyDelta, count: landed.ready.length, href: '/stock/reconcile',
+        });
+      }
+    } catch { /* additive — never cost the rest of the queue */ }
 
     // ── Items at their reorder point ───────────────────────────────────────
     // Demand rate × measured lead time says the next PO is due NOW — the
