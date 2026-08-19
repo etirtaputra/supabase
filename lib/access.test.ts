@@ -72,36 +72,38 @@ const EXPECTED: Record<UserRole, string[]> = {
   owner: [
     '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=financials',
     '/purchasing?tab=lookup', '/suppliers', '/stock', '/stock/receive', '/stock/reconcile',
-    '/customers', '/products', '/sales', '/invoices', '/delivery', '/aftersales', '/support-letters',
-    '/banks', '/spend-cash', '/profitability', '/items', '/purchasing?tab=market-intel', '/pricing',
-    '/proposals', '/settings', '/import-export',
+    '/customers', '/products', '/sales', '/invoices', '/delivery', '/serials', '/aftersales',
+    '/support-letters', '/banks', '/spend-cash', '/profitability', '/items',
+    '/purchasing?tab=market-intel', '/pricing', '/proposals', '/settings', '/import-export',
   ],
   buy_admin: [
     '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=financials',
     '/purchasing?tab=lookup', '/suppliers', '/stock', '/stock/receive', '/stock/reconcile',
-    '/products', '/delivery', '/banks', '/purchasing?tab=market-intel', '/import-export',
+    '/products', '/delivery', '/serials', '/banks', '/purchasing?tab=market-intel',
+    '/import-export',
   ],
   sell_admin: [
-    '/', '/customers', '/products', '/sales', '/invoices', '/delivery', '/aftersales',
-    '/support-letters', '/banks', '/pricing', '/import-export',
+    '/', '/customers', '/products', '/sales', '/invoices', '/delivery', '/serials',
+    '/aftersales', '/support-letters', '/banks', '/pricing', '/import-export',
   ],
   sales: [
-    '/', '/customers', '/products', '/sales', '/invoices', '/delivery', '/aftersales', '/support-letters',
+    '/', '/customers', '/products', '/sales', '/invoices', '/delivery', '/serials',
+    '/aftersales', '/support-letters',
   ],
   engineer: [
-    '/', '/customers', '/products', '/sales', '/invoices', '/delivery', '/aftersales',
-    '/support-letters', '/proposals',
+    '/', '/customers', '/products', '/sales', '/invoices', '/delivery', '/serials',
+    '/aftersales', '/support-letters', '/proposals',
   ],
   viewer: ['/'],
   data_entry: [
     '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=lookup',
-    '/suppliers', '/stock', '/stock/receive', '/stock/reconcile', '/delivery',
+    '/suppliers', '/stock', '/stock/receive', '/stock/reconcile', '/delivery', '/serials',
     '/purchasing?tab=market-intel',
   ],
   finance: [
     '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=financials',
-    '/purchasing?tab=lookup', '/suppliers', '/stock', '/stock/reconcile', '/invoices', '/banks',
-    '/purchasing?tab=market-intel', '/import-export',
+    '/purchasing?tab=lookup', '/suppliers', '/stock', '/stock/reconcile', '/invoices',
+    '/banks', '/purchasing?tab=market-intel', '/import-export',
   ],
 };
 

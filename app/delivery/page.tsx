@@ -237,7 +237,20 @@ export default function DeliveryPage() {
                         {agg ? `${agg.count} line${agg.count !== 1 ? 's' : ''} · ${fmtInt(agg.qty)} pcs` : '—'}
                       </span>
                       <span><span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/15 text-emerald-300">Delivered</span></span>
-                      <span className="md:text-right text-[11px] text-slate-500 tabular-nums">{fmtDay(q.delivered_at)}</span>
+                      <span className="md:text-right text-[11px] text-slate-500 tabular-nums flex md:justify-end items-center gap-2">
+                        {fmtDay(q.delivered_at)}
+                        {/* Recording the units is a warehouse job done AT the
+                            delivery — the register is one click from here. */}
+                        {q.do_number && (
+                          <span role="link" tabIndex={0}
+                            onClick={(e) => { e.stopPropagation(); router.push(`/serials?q=${encodeURIComponent(q.do_number ?? '')}`); }}
+                            onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); router.push(`/serials?q=${encodeURIComponent(q.do_number ?? '')}`); } }}
+                            title="Serial numbers recorded against this delivery"
+                            className="text-[10px] px-1.5 py-0.5 rounded border border-slate-700 text-slate-500 hover:text-teal-300 hover:border-teal-500/40 transition-colors cursor-pointer">
+                            SN
+                          </span>
+                        )}
+                      </span>
                     </button>
                   );
                 })}

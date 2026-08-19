@@ -20,6 +20,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-19T14:20:00Z',
+    title: 'Serial numbers, and an After Sales desk that starts from the unit',
+    details: [
+      'New menu: Serial Numbers. The warehouse records the units on a delivery by PASTING the whole column off the packing list — pick the order, the delivery and the product once, paste, and the screen says what it will write before it writes: how many are new, how many are already registered, and which lines the paste repeated.',
+      'A serial matches however it is typed. “SN-1234”, “sn 1234” and “SN1234” are the same unit everywhere — the register, the search box and Spotlight (type “sn 1234”).',
+      'After Sales now opens BY TICKET: one row per service ticket, newest first, and every column sorts — ticket number, reported date, serial, product, customer, order, category, status. Ticket numbers already carry their date (AS-YYYYMMDD-NNNN), so sorting by ticket is sorting by day.',
+      'A new ticket starts from the serial number. Type it off the label and the product, the customer, the sales order, the invoice and the delivery order arrive with it. If the same serial exists on two products, the desk picks; nothing is guessed.',
+      'The old view is untouched: “By order” in the toolbar is the grouped-by-status screen exactly as it was. Which one opens by default is now a setting — Settings › Defaults › “After Sales opens on”.',
+      'Products that did not come from us are finally allowed. A ticket can be marked “not bought from us”, name the product in free text, and record where and when the customer bought it — no order of ours, no warranty of ours, but a real service history.',
+      'Deliveries carry an “SN” button through to the units recorded against them, and any unit in the register opens a service ticket in one click.',
+    ],
+  },
+  {
     at: '2026-08-19T12:30:00Z',
     title: 'EPC proposals are now for project roles only — the same rule the menu shows',
     details: [

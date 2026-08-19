@@ -15,8 +15,8 @@
  * Sell-side rules apply: items show internal descriptions only — never brand
  * or supplier model. Writes gate on `canEditSalesDocs`.
  */
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { createPortal } from 'react-dom';
 import { createSupabaseClient } from '@/lib/supabase';
@@ -33,13 +33,25 @@ import { inRange, type DateRange } from '@/lib/dateRange';
 import { fmtDay, fmtDayTime, fmtInt, fmtQty } from '@/lib/formatters';
 import { SALES_STATUS, displayDocNumber } from '@/lib/salesStatus';
 import { fmtWarranty, warrantyRun, type WarrantyUnit } from '@/lib/warranty';
+import { getSettings } from '@/lib/settings';
+import {
+  fetchSerials, lookupSerial, traceSerial, normSerial,
+  type SerialRow, type SerialSalesDoc, type SerialDo, type SerialInvoice,
+} from '@/lib/serials';
 
 interface Case {
   case_id: string; case_number: string; customer_id: string | null; quote_id: string | null;
   category: string; status: string; subject: string; description: string; resolution: string;
   reported_at: string; resolved_at: string | null;
   created_at: string; updated_at: string; created_by_email: string; updated_by_email: string;
+  /** The unit this ticket is about — the desk's starting point, not the order. */
+  serial_id: string | null; serial_text: string; component_id: string | null; product_text: string;
+  /** Bought somewhere else: no order of ours, and no warranty of ours. */
+  is_external: boolean; purchased_from: string; purchased_at: string | null;
 }
+/** Columns the ticket table sorts by. Ticket numbers carry their own date. */
+type TicketSort = 'ticket' | 'reported' | 'serial' | 'product' | 'customer' | 'order' | 'category' | 'status';
+
 interface Part { part_id: string; case_id: string; component_id: string | null; description: string; action: string; quantity: number; notes: string }
 interface Update { update_id: string; case_id: string; note: string; created_at: string; created_by_email: string }
 interface Customer { customer_id: string; display_name: string; legal_name: string }
@@ -91,7 +103,7 @@ interface QuoteItem { quote_id: string; description: string; quantity: number; i
 interface Inv { invoice_id: string; quote_id: string; invoice_number: string; issued_at: string | null; created_at: string }
 interface DoRow { do_id: string; quote_id: string; do_number: string; status: string; delivery_date: string | null; delivered_at: string | null }
 
-export default function AfterSalesPage() {
+function AfterSalesPage() {
   const supabase = createSupabaseClient();
   const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
@@ -116,6 +128,15 @@ export default function AfterSalesPage() {
   }, [listDefaults.range.from, listDefaults.range.to]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [layout, setLayout] = useListLayout('aftersales');
   const compact = layout === 'compact';
+
+  // How the desk works. The house default lives in Settings; the toggle in the
+  // toolbar is this person's own choice for this visit, so nobody is stuck in
+  // a view that does not suit the job in front of them.
+  const [mode, setMode] = useState<'ticket' | 'order'>(() => getSettings().aftersalesEntry ?? 'ticket');
+  const [serials, setSerials] = useState<SerialRow[]>([]);
+  const [ticketSort, setTicketSort] = useState<{ key: TicketSort; dir: 1 | -1 }>({ key: 'ticket', dir: -1 });
+  /** What the serial box holds while it is being typed, and what it found. */
+  const [serialInput, setSerialInput] = useState('');
   const [toast, setToast] = useState<string | null>(null);
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 3500); };
 
@@ -163,9 +184,68 @@ export default function AfterSalesPage() {
     setQuoteItems(((qiRes.error ? [] : qiRes.data as QuoteItem[]) ?? []).filter((l) => !l.is_section && (l.description ?? '').trim()));
     setInvoices((invRes.error ? [] : invRes.data as Inv[]) ?? []);
     setDos((doRes.error ? [] : doRes.data as DoRow[]) ?? []);
+    // The unit register — additive, and never allowed to cost the page
+    fetchSerials(supabase).then(setSerials).catch(() => setSerials([]));
     setLoading(false);
   }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (user && perms?.sellSide) load(); }, [user, perms?.sellSide, load]);
+
+  // The documents the register's walk-back needs, in the shapes lib/serials wants
+  const serialOrders = useMemo<SerialSalesDoc[]>(() => orders.map((o) => ({
+    quote_id: o.quote_id, quote_number: o.quote_number, order_number: o.order_number,
+    invoice_number: null, do_number: null, customer_id: o.customer_id, status: o.status,
+  })), [orders]);
+  const serialDos = useMemo<SerialDo[]>(() => dos.map((d) => ({
+    do_id: d.do_id, do_number: d.do_number, quote_id: d.quote_id,
+    delivery_date: d.delivery_date, delivered_at: d.delivered_at, status: d.status,
+  })), [dos]);
+  const serialInvoices = useMemo<SerialInvoice[]>(() => invoices.map((i) => ({
+    invoice_id: i.invoice_id, invoice_number: i.invoice_number, quote_id: i.quote_id, issued_at: i.issued_at,
+  })), [invoices]);
+  const serialById = useMemo(() => new Map(serials.map((r) => [r.serial_id, r])), [serials]);
+
+  /**
+   * What the typed serial resolves to. Every match is kept: the same string can
+   * belong to two products, and the desk must choose rather than be handed a
+   * guess. Nothing is applied to the draft until a unit is picked.
+   */
+  const serialHits = useMemo(
+    () => (serialInput.trim() ? lookupSerial(serialInput, serials) : []),
+    [serialInput, serials]);
+  const serialTrace = useMemo(() => {
+    const picked = draft.serial_id ? serialById.get(draft.serial_id) : (serialHits.length === 1 ? serialHits[0] : null);
+    return picked ? traceSerial(picked, serialOrders, serialDos, serialInvoices) : null;
+  }, [draft.serial_id, serialById, serialHits, serialOrders, serialDos, serialInvoices]);
+
+  /** Take a unit: its order, customer and product become the ticket's. */
+  const applySerial = useCallback((row: SerialRow) => {
+    const t = traceSerial(row, serialOrders, serialDos, serialInvoices);
+    setSerialInput(row.serial);
+    setDraft((d) => ({
+      ...d,
+      serial_id: row.serial_id,
+      serial_text: row.serial,
+      component_id: row.component_id,
+      product_text: row.component_id ? '' : row.product_text,
+      customer_id: t.customerId ?? d.customer_id ?? null,
+      quote_id: t.order?.quote_id ?? d.quote_id ?? null,
+      is_external: t.external,
+    }));
+  }, [serialOrders, serialDos, serialInvoices]);
+
+  // Arriving from the serial register: open a new ticket already pointed at
+  // that unit, so the walk from a label to a ticket is one click.
+  const params = useSearchParams();
+  const seededSerial = useRef(false);
+  useEffect(() => {
+    const q = params.get('serial');
+    if (!q || seededSerial.current || !canEdit || loading) return;
+    seededSerial.current = true;
+    openEditor('new');
+    setSerialInput(q);
+    const hit = lookupSerial(q, serials);
+    if (hit.length === 1) applySerial(hit[0]);
+  }, [params, canEdit, loading, serials, applySerial]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   const custName = useMemo(() => new Map(customers.map((c) => [c.customer_id, c.display_name || c.legal_name])), [customers]);
   const orderById = useMemo(() => new Map(orders.map((o) => [o.quote_id, o])), [orders]);
@@ -221,10 +301,48 @@ export default function AfterSalesPage() {
       if (!inRange((c.reported_at ?? '').slice(0, 10), range)) return false;
       if (!q) return true;
       const parts = (partsByCase.get(c.case_id) ?? []).map((p) => p.description).join(' ');
-      return `${c.case_number} ${c.subject} ${c.description} ${custName.get(c.customer_id ?? '') ?? ''} ${orderLabel(c.quote_id)} ${parts}`
+      // A serial matches however it was typed — the label rarely gets copied
+      // the same way twice.
+      const qn = normSerial(search);
+      const serial = c.serial_text || (c.serial_id ? serialById.get(c.serial_id)?.serial ?? '' : '');
+      if (qn && normSerial(serial).includes(qn)) return true;
+      return `${c.case_number} ${c.subject} ${c.description} ${custName.get(c.customer_id ?? '') ?? ''} ${orderLabel(c.quote_id)} ${parts} ${serial} ${c.product_text}`
         .toLowerCase().includes(q);
     });
-  }, [cases, search, catFilter, range, custName, partsByCase, orderById]);   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cases, search, catFilter, range, custName, partsByCase, orderById, serialById]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** The ticket table's rows — the unit first, the order second. */
+  const ticketRows = useMemo(() => {
+    const val = (c: Case): string => {
+      const row = c.serial_id ? serialById.get(c.serial_id) : null;
+      const t = row ? traceSerial(row, serialOrders, serialDos, serialInvoices) : null;
+      switch (ticketSort.key) {
+        case 'reported': return c.reported_at ?? '';
+        case 'serial':   return normSerial(c.serial_text || row?.serial || '');
+        case 'product':  return (c.component_id ? compById.get(c.component_id)?.internal_description ?? '' : c.product_text).toLowerCase();
+        case 'customer': return (custName.get(c.customer_id ?? '') ?? '').toLowerCase();
+        case 'order':    return (t?.order ? displayDocNumber(t.order) : (c.quote_id ? orderLabel(c.quote_id) : '')).toLowerCase();
+        case 'category': return c.category;
+        case 'status':   return c.status;
+        // The ticket number CARRIES its date (AS-YYYYMMDD-NNNN), so sorting on
+        // it is chronological by construction — newest first by default.
+        default:         return c.case_number;
+      }
+    };
+    return [...visible].sort((a, b) => val(a).localeCompare(val(b)) * ticketSort.dir);
+  }, [visible, ticketSort, serialById, serialOrders, serialDos, serialInvoices, compById, custName]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** A sortable column head for the ticket table. */
+  const ticketTh = (key: TicketSort, label: string) => (
+    <button onClick={() => setTicketSort((t) => ({
+      key,
+      // Dates and ticket numbers read newest-first; words read A→Z
+      dir: t.key === key ? (t.dir === 1 ? -1 : 1) : (key === 'ticket' || key === 'reported' ? -1 : 1),
+    }))}
+      className={`text-left font-semibold uppercase tracking-widest text-[10px] hover:text-white transition-colors ${ticketSort.key === key ? 'text-emerald-300' : 'text-slate-500'}`}>
+      {label}{ticketSort.key === key ? (ticketSort.dir === 1 ? ' ↑' : ' ↓') : ''}
+    </button>
+  );
 
   const catCounts = useMemo(() => {
     const m = new Map<string, number>();
@@ -238,11 +356,18 @@ export default function AfterSalesPage() {
     setEditing(c);
     setNewNote('');
     if (c === 'new') {
-      setDraft({ category: 'repair', status: 'open', reported_at: new Date().toISOString().slice(0, 10), subject: '', description: '', resolution: '', customer_id: null, quote_id: null });
+      setDraft({
+        category: 'repair', status: 'open', reported_at: new Date().toISOString().slice(0, 10),
+        subject: '', description: '', resolution: '', customer_id: null, quote_id: null,
+        serial_id: null, serial_text: '', component_id: null, product_text: '',
+        is_external: false, purchased_from: '', purchased_at: null,
+      });
+      setSerialInput('');
       setDraftParts([]);
       setUpdates([]);
     } else {
       setDraft({ ...c });
+      setSerialInput(c.serial_text || (c.serial_id ? serialById.get(c.serial_id)?.serial ?? '' : ''));
       setDraftParts((partsByCase.get(c.case_id) ?? []).map((p) => ({
         part_id: p.part_id, component_id: p.component_id, description: p.description,
         action: p.action, quantity: String(p.quantity), notes: p.notes,
@@ -268,6 +393,16 @@ export default function AfterSalesPage() {
         description: draft.description ?? '',
         resolution: draft.resolution ?? '',
         reported_at: draft.reported_at || new Date().toISOString().slice(0, 10),
+        // The unit under service. The typed serial is kept even when the
+        // register has never seen it — a ticket must open either way, and
+        // matching it to a unit can happen later.
+        serial_id: draft.serial_id || null,
+        serial_text: (serialInput || draft.serial_text || '').trim(),
+        component_id: draft.component_id || null,
+        product_text: (draft.product_text ?? '').trim(),
+        is_external: !!draft.is_external,
+        purchased_from: (draft.purchased_from ?? '').trim(),
+        purchased_at: draft.purchased_at || null,
       };
       let caseId = editing !== 'new' && editing ? editing.case_id : null;
       if (caseId) {
@@ -361,7 +496,7 @@ export default function AfterSalesPage() {
           )}
           <div className="relative flex-1 min-w-[180px]">
             <svg className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search case, customer, order, item…"
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search serial, ticket, customer, order, item…"
               className="w-full pl-10 pr-4 h-10 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors" />
           </div>
           {Object.entries(CATEGORIES).map(([k, c]) => (
@@ -371,7 +506,20 @@ export default function AfterSalesPage() {
             </button>
           ))}
           <DateRangeFilter value={range} onChange={(r) => { listTouched.current = true; setRange(r); }} label="Reported" />
-          <LayoutToggle value={layout} onChange={setLayout} />
+          {/* Two ways to work the same tickets. The house default is Settings ›
+              Defaults; this switch is personal and lasts the visit. */}
+          <div className="flex items-center rounded-lg border border-slate-700/80 overflow-hidden">
+            {(['ticket', 'order'] as const).map((m) => (
+              <button key={m} onClick={() => setMode(m)}
+                title={m === 'ticket'
+                  ? 'One row per service ticket, newest first — start from the serial number'
+                  : 'Grouped by status, the way the desk worked before — start from the sales order'}
+                className={`text-[11px] px-2.5 py-1.5 font-semibold transition-colors ${mode === m ? 'bg-emerald-500/15 text-emerald-300' : 'text-slate-500 hover:text-slate-300'}`}>
+                {m === 'ticket' ? 'By ticket' : 'By order'}
+              </button>
+            ))}
+          </div>
+          {mode === 'order' && <LayoutToggle value={layout} onChange={setLayout} />}
         </div>
 
         {loading ? (
@@ -391,6 +539,53 @@ export default function AfterSalesPage() {
           </div>
         ) : visible.length === 0 ? (
           <p className="text-slate-500 text-xs italic py-10 text-center">No case matches.</p>
+        ) : mode === 'ticket' ? (
+          /* ── By ticket: one row per ticket, every column sorts ─────────── */
+          <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
+            <div className="hidden lg:grid grid-cols-[165px_90px_150px_1fr_150px_120px_110px_100px] gap-3 px-4 py-2.5 border-b border-slate-800 bg-chrome">
+              {ticketTh('ticket', 'Ticket')}{ticketTh('reported', 'Reported')}{ticketTh('serial', 'Serial')}
+              {ticketTh('product', 'Product')}{ticketTh('customer', 'Customer')}{ticketTh('order', 'Order')}
+              {ticketTh('category', 'Category')}{ticketTh('status', 'Status')}
+            </div>
+            <div className="divide-y divide-slate-800/60">
+              {ticketRows.map((c) => {
+                const cat = CATEGORIES[c.category] ?? CATEGORIES.other;
+                const row = c.serial_id ? serialById.get(c.serial_id) : null;
+                const t = row ? traceSerial(row, serialOrders, serialDos, serialInvoices) : null;
+                const so = t?.order ?? (c.quote_id ? orderById.get(c.quote_id) : null);
+                const product = c.component_id
+                  ? compById.get(c.component_id)?.internal_description ?? '—'
+                  : c.product_text || (partsByCase.get(c.case_id) ?? []).map((p) => p.description).filter(Boolean).join(', ') || c.subject || '—';
+                const serialShown = c.serial_text || row?.serial || '';
+                return (
+                  <button key={c.case_id} onClick={() => openEditor(c)}
+                    className="w-full text-left px-4 py-2.5 hover:bg-white/[0.03] transition-colors lg:grid lg:grid-cols-[165px_90px_150px_1fr_150px_120px_110px_100px] lg:gap-3 lg:items-center">
+                    <span className="font-mono text-xs text-emerald-300">{c.case_number}</span>
+                    <span className="hidden lg:block text-[11px] text-slate-500 tabular-nums">{fmtDay(c.reported_at)}</span>
+                    <span className="hidden lg:block font-mono text-[11px] text-slate-300 truncate" title={serialShown}>
+                      {serialShown || <span className="text-slate-600">—</span>}
+                    </span>
+                    <span className="text-xs text-slate-300 truncate block lg:inline" title={product}>
+                      {product}
+                      {c.is_external && <span className="ml-2 text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300">not ours</span>}
+                    </span>
+                    <span className="hidden lg:block text-[11px] text-slate-400 truncate">{custName.get(c.customer_id ?? '') || '—'}</span>
+                    <span className="hidden lg:block text-[11px] text-sky-300 font-mono truncate">{so ? displayDocNumber(so) : '—'}</span>
+                    <span className="hidden lg:block">
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold ${cat.cls}`}>{cat.label}</span>
+                    </span>
+                    <span className="hidden lg:block">
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold ${STATUS_BADGE[c.status]}`}>{statusLabel(c.status)}</span>
+                    </span>
+                    {/* Phone: the same facts, stacked */}
+                    <span className="lg:hidden block text-[11px] text-slate-500 mt-0.5 truncate">
+                      {[serialShown, custName.get(c.customer_id ?? ''), so ? displayDocNumber(so) : '', statusLabel(c.status)].filter(Boolean).join(' · ')}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         ) : (
           <div className="space-y-7">
             {STATUS_SECTIONS.map(({ key, label, accent, rule }) => {
@@ -601,6 +796,110 @@ export default function AfterSalesPage() {
               <button onClick={() => !busy && setEditing(null)} className="text-slate-500 hover:text-white p-1 transition-colors">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
+            </div>
+
+            {/* ── The unit ─────────────────────────────────────────────────
+                The desk starts here, not at the order: a customer is holding a
+                machine and reading a label. Type the serial and the order, the
+                invoice, the delivery and the customer arrive with it. */}
+            <div className="bg-slate-900/60 border border-emerald-500/20 rounded-xl p-3 space-y-2.5">
+              <div className="flex flex-wrap items-end gap-2">
+                <label className="block flex-1 min-w-[200px]">
+                  <span className="block text-[10px] uppercase tracking-widest text-emerald-400/80 mb-1">Serial number</span>
+                  <input value={serialInput} disabled={!canEdit}
+                    onChange={(e) => {
+                      setSerialInput(e.target.value);
+                      // Typing past a chosen unit un-chooses it — no stale link
+                      if (draft.serial_id && normSerial(e.target.value) !== normSerial(serialById.get(draft.serial_id)?.serial ?? '')) {
+                        set('serial_id', null);
+                      }
+                    }}
+                    placeholder="Read it off the label — dashes and spaces don't matter"
+                    className={`${inputCls} font-mono`} />
+                </label>
+                <Link href={`/serials?q=${encodeURIComponent(serialInput)}`}
+                  className="px-3 py-2 rounded-lg border border-slate-700 text-slate-400 hover:text-emerald-300 hover:border-emerald-500/40 text-[11px] font-semibold whitespace-nowrap transition-colors"
+                  title="Open the serial register">Register ↗</Link>
+              </div>
+
+              {/* One match: taken. Several: the desk picks. None: say so plainly. */}
+              {serialInput.trim() && !draft.serial_id && serialHits.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-[11px] text-slate-500">{serialHits.length === 1 ? 'Found this unit:' : `${serialHits.length} units carry that serial — pick the right product:`}</p>
+                  {serialHits.map((r) => {
+                    const t = traceSerial(r, serialOrders, serialDos, serialInvoices);
+                    return (
+                      <button key={r.serial_id} onClick={() => applySerial(r)} disabled={!canEdit}
+                        className="w-full text-left px-3 py-2 rounded-lg bg-emerald-500/[0.07] border border-emerald-500/25 hover:bg-emerald-500/15 transition-colors">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+                          <span className="font-mono text-emerald-300">{r.serial}</span>
+                          <span className="text-slate-300">{r.component_id ? compById.get(r.component_id)?.internal_description ?? '—' : r.product_text || '—'}</span>
+                          <span className="text-slate-500">{custName.get(t.customerId ?? '') ?? 'no customer'}</span>
+                          {t.order && <span className="text-sky-300 font-mono">{displayDocNumber(t.order)}</span>}
+                          {t.delivery?.do_number && <span className="text-slate-500 font-mono">{t.delivery.do_number}</span>}
+                          {t.external && <span className="text-amber-300">not sold by us</span>}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Typed, and the register has never seen it */}
+              {serialInput.trim() && !draft.serial_id && serialHits.length === 0 && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px]">
+                  <span className="text-amber-300">No unit with that serial in the register.</span>
+                  <span className="text-slate-500">Open the ticket anyway — the serial is kept as typed.</span>
+                  <label className="flex items-center gap-1.5 text-slate-400 cursor-pointer">
+                    <input type="checkbox" checked={!!draft.is_external} disabled={!canEdit}
+                      onChange={(e) => set('is_external', e.target.checked)} className="w-3.5 h-3.5 accent-amber-500" />
+                    not bought from us
+                  </label>
+                  <Link href="/serials" className="text-slate-500 hover:text-emerald-300 transition-colors">record it in the register ↗</Link>
+                </div>
+              )}
+
+              {/* A unit is attached — show what came with it */}
+              {draft.serial_id && serialTrace && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+                  <span className="text-emerald-300 font-semibold">unit attached</span>
+                  <span className="text-slate-300">
+                    {draft.component_id ? compById.get(draft.component_id)?.internal_description ?? '—' : draft.product_text || '—'}
+                  </span>
+                  {serialTrace.order && <span className="text-sky-300 font-mono">{displayDocNumber(serialTrace.order)}</span>}
+                  {serialTrace.invoice?.invoice_number && <span className="text-slate-400 font-mono">{serialTrace.invoice.invoice_number}</span>}
+                  {serialTrace.delivery?.do_number && <span className="text-slate-400 font-mono">{serialTrace.delivery.do_number}</span>}
+                  {serialTrace.deliveredAt && <span className="text-slate-500">delivered {fmtDay(serialTrace.deliveredAt)}</span>}
+                  {serialTrace.external && <span className="text-amber-300">not sold by us — out of our warranty</span>}
+                  {canEdit && (
+                    <button onClick={() => { set('serial_id', null); setSerialInput(''); }}
+                      className="ml-auto text-slate-500 hover:text-white transition-colors">detach</button>
+                  )}
+                </div>
+              )}
+
+              {/* Not ours: where it came from, so the history is not a blank */}
+              {draft.is_external && (
+                <div className="grid sm:grid-cols-3 gap-2">
+                  <label className="block sm:col-span-1">
+                    <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Product</span>
+                    <input value={draft.product_text ?? ''} disabled={!canEdit || !!draft.component_id}
+                      onChange={(e) => set('product_text', e.target.value)}
+                      placeholder="What is it?" className={inputCls} />
+                  </label>
+                  <label className="block">
+                    <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Bought from</span>
+                    <input value={draft.purchased_from ?? ''} disabled={!canEdit}
+                      onChange={(e) => set('purchased_from', e.target.value)}
+                      placeholder="Which seller?" className={inputCls} />
+                  </label>
+                  <label className="block">
+                    <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Bought on</span>
+                    <input type="date" value={draft.purchased_at ?? ''} disabled={!canEdit}
+                      onChange={(e) => set('purchased_at', e.target.value || null)} className={inputCls} />
+                  </label>
+                </div>
+              )}
             </div>
 
             <div className="grid sm:grid-cols-2 gap-3">
@@ -818,5 +1117,13 @@ export default function AfterSalesPage() {
         document.body
       )}
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-chrome" />}>
+      <AfterSalesPage />
+    </Suspense>
   );
 }

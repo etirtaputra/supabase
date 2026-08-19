@@ -133,6 +133,15 @@ export interface AppSettings {
   slowMoverDays: number;          // /profitability: "no movement in N days"
   economicsPeriod: '90' | '365' | 'all';  // /profitability period the page opens on
   costDriftPct: number;           // proposals list: flag costs N% off today's
+  /**
+   * How the After Sales desk works. 'ticket' opens on the service tickets
+   * themselves, newest first, and a new ticket starts from the SERIAL NUMBER —
+   * type it and the order, invoice, delivery and customer fill themselves in.
+   * 'order' keeps the original view, which starts from the sales order.
+   * The after-sales admin's own words: working per unit keeps her focused on
+   * solving one item, rather than reading an order and finding the item in it.
+   */
+  aftersalesEntry: 'ticket' | 'order';
   /** Dashboard: an issued invoice older than this with money outstanding is chased. */
   arOverdueDays: number;
   /** Dashboard: a quotation sent this long ago with no answer needs a nudge. */
@@ -228,6 +237,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   slowMoverDays:         60,
   economicsPeriod:       '365',
   costDriftPct:          10,
+  aftersalesEntry:    'ticket',
   arOverdueDays:         30,
   quoteFollowUpDays:     7,
   quoteValidityDays:     30,
@@ -394,6 +404,7 @@ export function coerceSettings(raw: Record<string, unknown>): AppSettings {
     epcCostBufferPct:      pick('epcCostBufferPct',      (v) => numOr(v, d.epcCostBufferPct), d.epcCostBufferPct),
     slowMoverDays:         pick('slowMoverDays',         (v) => Math.max(1, Math.round(numOr(v, d.slowMoverDays))), d.slowMoverDays),
     costDriftPct:          pick('costDriftPct',          (v) => Math.max(0, numOr(v, d.costDriftPct)), d.costDriftPct),
+    aftersalesEntry:       pick('aftersalesEntry',       (v) => (v === 'order' ? 'order' : 'ticket'), d.aftersalesEntry),
     arOverdueDays:         pick('arOverdueDays',         (v) => Math.max(1, Math.round(numOr(v, d.arOverdueDays))), d.arOverdueDays),
     quoteFollowUpDays:     pick('quoteFollowUpDays',     (v) => Math.max(1, Math.round(numOr(v, d.quoteFollowUpDays))), d.quoteFollowUpDays),
     quoteValidityDays:     pick('quoteValidityDays',     (v) => Math.max(1, Math.round(numOr(v, d.quoteValidityDays))), d.quoteValidityDays),

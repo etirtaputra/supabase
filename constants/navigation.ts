@@ -140,6 +140,11 @@ export const DESTINATIONS: Destination[] = [
   { href: '/delivery', label: 'Delivery', group: 'Sales', section: null, caps: ['canEditSalesDocs', 'canManageStock'], inNav: true,
     hint: 'Delivery orders and Surat Jalan',
     keywords: 'do surat jalan shipping dispatch' },
+  // The unit register: the warehouse writes it while packing, after-sales reads
+  // it from a label. Both sides of that need the door.
+  { href: '/serials', label: 'Serial Numbers', group: 'Sales', section: null, caps: ['canManageStock', 'canEditSalesDocs'], inNav: true,
+    hint: 'Record the serial numbers on a delivery, and find the order from one',
+    keywords: 'serial number sn unit register nomor seri warranty label' },
   { href: '/aftersales', label: 'After Sales', group: 'Sales', section: 'sellSide', inNav: true,
     hint: 'Service & warranty cases — repairs, replacements, complaints',
     keywords: 'service warranty klaim garansi rma repair replacement complaint case claim' },

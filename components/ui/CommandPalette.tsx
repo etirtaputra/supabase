@@ -51,7 +51,7 @@ interface DealRef {
 }
 
 interface Item {
-  kind: 'page' | 'supplier' | 'company' | 'customer' | 'quote' | 'sales' | 'pi' | 'po' | 'grn' | 'receipt' | 'case' | 'component';
+  kind: 'page' | 'supplier' | 'company' | 'customer' | 'quote' | 'sales' | 'pi' | 'po' | 'grn' | 'receipt' | 'case' | 'serial' | 'component';
   id: string;
   title: string;
   sub: string;
@@ -75,23 +75,25 @@ const KIND_BADGE: Record<Item['kind'], { label: string; cls: string }> = {
   grn:       { label: 'GRN',      cls: 'bg-cyan-500/15 text-cyan-300' },
   receipt:   { label: 'RCPT',     cls: 'bg-lime-500/15 text-lime-300' },
   case:      { label: 'Case',     cls: 'bg-orange-500/15 text-orange-300' },
+  serial:    { label: 'Serial',   cls: 'bg-teal-500/15 text-teal-300' },
   component: { label: 'Item',     cls: 'bg-emerald-500/15 text-emerald-300' },
 };
 
-const KIND_ORDER: Item['kind'][] = ['page', 'supplier', 'company', 'customer', 'quote', 'sales', 'pi', 'po', 'grn', 'receipt', 'case', 'component'];
+const KIND_ORDER: Item['kind'][] = ['page', 'supplier', 'company', 'customer', 'quote', 'sales', 'pi', 'po', 'grn', 'receipt', 'case', 'serial', 'component'];
 
 const KIND_GROUP: Record<Item['kind'], string> = {
   page: 'Pages',
   supplier: 'Suppliers', company: 'Buying companies', customer: 'Customers',
   quote: 'EPC proposals', sales: 'Sales documents', pi: 'Supplier quotes (PI)',
   po: 'Purchase orders', grn: 'Goods receipts', receipt: 'Payments received',
-  case: 'After-sales cases', component: 'Items',
+  case: 'After-sales cases', serial: 'Serial numbers', component: 'Items',
 };
 
 // A leading token narrows the search to one kind: "inv 0007", "po jinko",
 // "cust dea", "item mc4". The alias alone lists that kind's latest entries.
 const KIND_ALIASES: Record<string, Item['kind']> = {
   go: 'page', page: 'page', open: 'page', nav: 'page', menu: 'page',
+  sn: 'serial', serial: 'serial', unit: 'serial',
   supplier: 'supplier', sup: 'supplier', vendor: 'supplier',
   company: 'company',
   customer: 'customer', cust: 'customer',
@@ -158,7 +160,7 @@ const readSpotPrefs = (): SpotPrefs => {
 const KIND_TO_SPOT_GROUP: Record<Item['kind'], SpotGroup> = {
   page: 'pages',
   customer: 'sell', sales: 'sell', receipt: 'sell',
-  case: 'aftersales',
+  case: 'aftersales', serial: 'aftersales',
   supplier: 'buy', company: 'buy', pi: 'buy', po: 'buy', grn: 'buy',
   quote: 'epc', component: 'items',
 };
@@ -296,7 +298,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
     // Role-scoped fetches: skipped tables resolve to empty — the data never
     // reaches a client whose role can't see it.
     const none = Promise.resolve({ data: [] as any[] });
-    const [comps, projectQuotes, suppliers, companies, customers, pis, pos, piLines, poLines, quoteLineItems, salesDocs, salesLines, receipts, childInvoices, childDos, grns, cases, custContacts] = await Promise.all([
+    const [comps, projectQuotes, suppliers, companies, customers, pis, pos, piLines, poLines, quoteLineItems, salesDocs, salesLines, receipts, childInvoices, childDos, grns, cases, serialUnits, custContacts] = await Promise.all([
       (canBuy || canSell) ? fetchAllComponents() : Promise.resolve([]),
       canProjects ? supabase.from('10.0_project_quotes').select('quote_id, quote_number, quote_date, customer_name, status').order('quote_date', { ascending: false }).limit(500) : none,
       canBuy ? supabase.from('2.0_suppliers').select('supplier_id, supplier_name, supplier_code') : none,
@@ -314,6 +316,9 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
       canSell ? supabase.from('24.0_delivery_orders').select('do_id, quote_id, do_number').limit(2000) : none,
       canBuy ? supabase.from('30.2_goods_receipts').select('grn_id, grn_number, po_id, received_at, location, notes').order('received_at', { ascending: false }).limit(500) : none,
       canSell ? supabase.from('27.0_aftersales_cases').select('case_id, case_number, customer_id, quote_id, category, status, subject, reported_at').order('reported_at', { ascending: false }).limit(1000) : none,
+      // The unit register — a serial read off a label is the fastest route to
+      // everything about that unit, so it belongs in the one search box.
+      (canSell || canBuy) ? supabase.from('30.4_serial_numbers').select('serial_id, serial, serial_norm, component_id, product_text, customer_id, quote_id, status, is_external, created_at').order('created_at', { ascending: false }).limit(4000) : none,
       // Contact people: searching a person's name or position finds their company
       canSell ? supabase.from('20.1_customer_contacts').select('customer_id, name, title') : none,
     ]);
@@ -476,6 +481,9 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
     // ── Sell-side documents: one entry per sales doc carrying ALL its numbers,
     //    so typing any of SQ / SO / INV / DO lands on /sales/[id]. ────────────
     const custNameById = new Map((customers.data ?? []).map((c) => [c.customer_id as string, (c.display_name as string) || (c.legal_name as string) || '']));
+    // Sell-side wording for a unit's product: the internal description, never
+    // the supplier model — the same rule the rest of the sell side follows.
+    const compDescById = new Map(comps.map((c) => [c.component_id, (c.internal_description ?? '').trim() || c.supplier_model || '']));
     const salesLinesBy = new Map<string, DealLine[]>();
     for (const l of salesLines.data ?? []) {
       if (l.is_section) continue;
@@ -575,6 +583,27 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
       };
     });
 
+    // ── Serial numbers: the unit itself. Matching ignores dashes and spaces,
+    //    because a label almost never gets typed the same way twice.
+    const serialItemsList: Item[] = (serialUnits.data ?? []).map((r) => {
+      const cust = r.customer_id ? (custNameById.get(r.customer_id as string) ?? '') : '';
+      const product = r.component_id
+        ? (compDescById.get(r.component_id as string) ?? '')
+        : String(r.product_text ?? '');
+      const bare = String(r.serial ?? '').replace(/[^A-Za-z0-9]/g, '');
+      return {
+        kind: 'serial' as const,
+        id: r.serial_id as string,
+        title: String(r.serial ?? ''),
+        sub: [product, cust, String(r.status ?? '').replace(/_/g, ' '), r.is_external ? 'not sold by us' : '']
+          .filter(Boolean).join(' · '),
+        href: `/serials?q=${encodeURIComponent(String(r.serial ?? ''))}`,
+        date: String(r.created_at ?? '').slice(0, 10),
+        // The bare form is a keyword so "SN1234" finds "SN-1234" and back again
+        keywords: [bare, product, cust].filter(Boolean).join(' '),
+      };
+    });
+
     // ── Items: buy-side sees model + brand, sell-side the customer-facing
     //    description. The OWNER lands on the Item hub LIST with the search
     //    pre-filled and that row pre-expanded (?open=) — the forensics open
@@ -654,6 +683,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
       ...poItemsList,
       ...grnItemsList,
       ...caseItemsList,
+      ...serialItemsList,
       ...receiptItemsList,
       ...componentItems,
     ];

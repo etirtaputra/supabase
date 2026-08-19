@@ -713,6 +713,14 @@ function DefaultsTab({ draft, set, flash }: {
           <input type="number" min={1} className={inputCls} value={draft.quoteValidityDays}
             onChange={(e) => set('quoteValidityDays', Math.max(1, Math.round(Number(e.target.value) || 1)))} />
         </Field>
+        <Field label="After Sales opens on"
+          hint="By ticket: one row per service ticket, newest first, and a new ticket starts from the serial number — type it and the order, invoice, delivery and customer fill themselves in. By order: the original view, grouped by status and started from the sales order. Either way both views stay available from the toolbar.">
+          <select className={inputCls} value={draft.aftersalesEntry}
+            onChange={(e) => set('aftersalesEntry', e.target.value === 'order' ? 'order' : 'ticket')}>
+            <option value="ticket">Ticket number + serial number</option>
+            <option value="order">Sales order</option>
+          </select>
+        </Field>
         <Field label="Invoice overdue after (days)" hint="The dashboard chases an issued invoice this old that still has money outstanding.">
           <input type="number" min={1} className={inputCls} value={draft.arOverdueDays}
             onChange={(e) => set('arOverdueDays', Math.max(1, Math.round(Number(e.target.value) || 1)))} />
