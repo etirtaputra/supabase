@@ -182,6 +182,9 @@ export default function SalesQuotePage() {
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2400); };
+  // Entered via "+ New Order" (?as=order): this deal skips the quotation dance,
+  // so Confirm Order is the PRIMARY action on the draft instead of Validate.
+  const [asOrder] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('as') === 'order');
 
   useEffect(() => {
     if (authLoading) return;
@@ -846,13 +849,14 @@ export default function SalesQuotePage() {
   const expired = !!editing.valid_until && ['validated', 'sent'].includes(st)
     && editing.valid_until < todayIso;
   const actions: { label: string; to: string; primary?: boolean; danger?: boolean }[] = [];
-  if (st === 'draft') { actions.push({ label: 'Validate', to: 'validated', primary: true }); actions.push({ label: 'Sent', to: 'sent' }); }
+  if (st === 'draft') { actions.push({ label: 'Validate', to: 'validated', primary: !asOrder }); actions.push({ label: 'Sent', to: 'sent' }); }
   if (st === 'validated') actions.push({ label: 'Sent', to: 'sent', primary: true });
   if (st === 'sent') actions.push({ label: 'Accepted', to: 'accepted' });
   // Draft included (owner, 2026-08-19): not every order arrives through a
   // quotation — a customer who simply orders skips straight to the SO. The
   // same transition runs, the trigger stamps the SO number, stock reserves.
-  if (['draft', 'validated', 'sent', 'accepted'].includes(st)) actions.push({ label: 'Confirm Order', to: 'ordered', primary: !['draft', 'validated'].includes(st) });
+  // Entered via "+ New Order", Confirm Order IS the draft's primary action.
+  if (['draft', 'validated', 'sent', 'accepted'].includes(st)) actions.push({ label: 'Confirm Order', to: 'ordered', primary: (st === 'draft' && asOrder) || !['draft', 'validated'].includes(st) });
   // Invoices and DOs are created from the Fulfillment panel below; every stage
   // stays revertible — including a delivered order.
   if (st === 'ordered') actions.push({ label: 'Revert', to: 'accepted' });

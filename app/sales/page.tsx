@@ -259,6 +259,15 @@ export default function SalesListPage() {
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
               New Quote
             </button>
+            {/* Straight to a Sales Order — same editor, but Confirm Order is
+                the primary action: no quotation dance for a customer who
+                simply ordered (owner, 2026-08-19). */}
+            <button onClick={() => router.push('/sales/new?as=order')}
+              title="Create a Sales Order directly — fill the customer and items, then Confirm Order in one step"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-violet-500/40 text-violet-300 hover:bg-violet-500/10 text-xs font-semibold whitespace-nowrap transition-colors">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+              New Order
+            </button>
             <DateRangeFilter value={range} onChange={(r) => { touched.current = true; setRange(r); }} label="Quote date" align="left" />
             <select value={sort} onChange={(e) => { touched.current = true; setSort(e.target.value); setColSort(null); }}
               title="Order — the default lives in Settings › Lists"

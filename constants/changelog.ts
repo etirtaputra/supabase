@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-19T02:30:00Z',
+    title: '“+ New Order” button, and the real fix for stuck saves',
+    details: [
+      'Sales gained a “+ New Order” button beside “+ New Quote” — same editor, but Confirm Order is the primary action, so a customer who simply ordered never walks the quotation steps.',
+      'The stuck “Save changes” had nothing to do with the customer form: the browser’s cross-tab auth lock could be held forever by a stale background tab, and then EVERY request from other tabs queued silently (the save never even reached the server — a fresh tab saved in under half a second). The app now uses a per-tab lock, so one wedged tab can no longer freeze the rest. If a tab was already stuck, reload it once.',
+    ],
+  },
+  {
     at: '2026-08-19T01:45:00Z',
     title: 'Fix: saving a customer-type change no longer stalls; emoji dropped',
     details: [
