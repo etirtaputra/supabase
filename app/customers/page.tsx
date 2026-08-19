@@ -9,6 +9,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS, ROLE_LABELS, type UserRole } from '@/constants/roles';
+import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
 import CrmMigrationBanner from '@/components/ui/CrmMigrationBanner';
 import { SALES_STATUS, displayDocNumber, docNumberCls } from '@/lib/salesStatus';
@@ -311,7 +312,7 @@ function CustomersInner() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/customers')}`); return; }
-    if (profile && !ROLE_PERMISSIONS[profile.role].canManageCustomers) router.replace('/unauthorized');
+    if (profile && !canOpenPath(ROLE_PERMISSIONS[profile.role], '/customers')) router.replace('/unauthorized');
   }, [authLoading, user, profile, router]);
 
   // ── Data ──────────────────────────────────────────────────────────────────

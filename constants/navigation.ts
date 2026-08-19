@@ -48,7 +48,9 @@ export interface Destination {
   label: string;                    // what the menu/search shows
   group: string;                    // section header ("Buy side", "Admin"…)
   section: NavSection;              // flow gate
-  cap?: keyof RolePermissions;      // extra capability gate
+  cap?: keyof RolePermissions;      // extra capability gate (all must pass)
+  /** A page gated on "A OR B" — any one of these is enough. */
+  caps?: (keyof RolePermissions)[];
   /** What this screen is for — Spotlight's sub-line. */
   hint?: string;
   /** Synonyms people actually type. Searched, never displayed. */
@@ -102,7 +104,7 @@ export const DESTINATIONS: Destination[] = [
     hint: 'Book goods in against a purchase order (GRN)',
     keywords: 'grn goods receipt receiving inbound terima barang' },
   // The other half of receiving: the bills that arrive after the goods do.
-  { href: '/stock/reconcile', label: 'Landed Cost', group: 'Purchasing', section: 'buySide', cap: 'canManageStock', inNav: true,
+  { href: '/stock/reconcile', label: 'Landed Cost', group: 'Purchasing', section: 'buySide', inNav: true,
     hint: 'True up stock cost when the freight, duty and final payment land',
     keywords: 'landed cost true up reconcile variance freight duty revaluation biaya' },
   // The bare /purchasing URL still resolves (it opens the Item Editor tab) —
@@ -112,28 +114,30 @@ export const DESTINATIONS: Destination[] = [
     keywords: 'procurement buying purchase' },
 
   // ── Sales (owner's wording 2026-08-07; the section gate stays `sellSide`) ──
-  { href: '/customers', label: 'Customers', group: 'Sales', section: 'sellSide', inNav: true,
+  { href: '/customers', label: 'Customers', group: 'Sales', section: 'sellSide', cap: 'canManageCustomers', inNav: true,
     hint: 'CRM — customers, contacts, account managers',
     keywords: 'crm clients contacts buyers' },
   // Products lives with Sales — it is the list the sales team quotes from, in
   // their own words (internal description, tier price, live stock; never a
   // brand or supplier model). The item's OTHER lenses sit in Catalog.
-  { href: '/products', label: 'Products', group: 'Sales', section: 'sellSide', inNav: true,
+  { href: '/products', label: 'Products', group: 'Sales', section: null, cap: 'canViewSellingPrice', inNav: true,
     hint: 'What we sell, with tier prices and live stock',
     keywords: 'catalogue catalog items selling price tier products' },
-  { href: '/sales', label: 'Sales Orders', group: 'Sales', section: 'sellSide', inNav: true,
+  { href: '/sales', label: 'Sales Orders', group: 'Sales', section: 'sellSide', cap: 'canEditSalesDocs', inNav: true,
     hint: 'Quotations → orders → invoices → delivery (DQ → PQ → SO)',
     keywords: 'sales quotation dq pq sq so price quote order penawaran' },
   { href: '/sales/new', label: 'New Quotation', group: 'Sales', section: 'sellSide', cap: 'canEditSalesDocs', inNav: false,
     hint: 'Start a new sales quotation',
     keywords: 'new quote create sq penawaran baru sales' },
-  { href: '/sales/library', label: 'Sales · Description Library', group: 'Sales', section: 'sellSide', cap: 'canEditSalesDocs', inNav: false,
+  // Owner-only, and always has been — the nav used to advertise it to every
+  // sell-side role, so search offered a door that bounced them.
+  { href: '/sales/library', label: 'Sales · Description Library', group: 'Sales', section: 'sellSide', cap: 'canManageUsers', inNav: false,
     hint: 'Curated line texts that feed the item picker',
     keywords: 'library descriptions text' },
-  { href: '/invoices', label: 'Invoices', group: 'Sales', section: 'sellSide', inNav: true,
+  { href: '/invoices', label: 'Invoices', group: 'Sales', section: null, caps: ['canEditSalesDocs', 'canRecordReceipts'], inNav: true,
     hint: 'Accounts receivable — issued, received, outstanding',
     keywords: 'ar receivable billing tagihan' },
-  { href: '/delivery', label: 'Delivery', group: 'Sales', section: 'sellSide', inNav: true,
+  { href: '/delivery', label: 'Delivery', group: 'Sales', section: null, caps: ['canEditSalesDocs', 'canManageStock'], inNav: true,
     hint: 'Delivery orders and Surat Jalan',
     keywords: 'do surat jalan shipping dispatch' },
   { href: '/aftersales', label: 'After Sales', group: 'Sales', section: 'sellSide', inNav: true,
@@ -161,10 +165,10 @@ export const DESTINATIONS: Destination[] = [
   // and what did we EARN.
   // Pricing Intelligence, Cash Cycle and Exchange Rates moved to the Item
   // hub's per-item tabs (2026-08-11) — their keywords moved with them.
-  { href: '/spend-cash', label: 'Spend & Cash', group: 'Insights', section: 'buySide', cap: 'canViewAnalytics', inNav: true,
+  { href: '/spend-cash', label: 'Spend & Cash', group: 'Insights', section: null, cap: 'canViewAnalytics', inNav: true,
     hint: 'Spend analytics, cost breakdown, positioning map',
     keywords: 'insights analytics reports spend tuc costs positioning' },
-  { href: '/profitability', label: 'Profitability', group: 'Insights', section: 'sellSide', cap: 'canViewEconomics', inNav: true,
+  { href: '/profitability', label: 'Profitability', group: 'Insights', section: null, cap: 'canViewEconomics', inNav: true,
     hint: 'GP per item / customer / rep, capital allocation, cash cycle',
     keywords: 'economics margin profit gp ccc dio dso dpo turnover position capital allocation gmroi' },
   // ── Catalog — the item and its back-office lenses (consolidated 2026-08-10) ─
@@ -244,13 +248,34 @@ export const DESTINATIONS: Destination[] = [
 ];
 
 /** The destinations this role can actually open. */
+/**
+ * THE access rule. The menu, Spotlight and the screens themselves all ask this
+ * one function, which is the point: a rule written twice is a rule that drifts,
+ * and every way it drifts is a bug someone meets. Either the menu offers a door
+ * that throws you out, or it hides a door you were allowed to walk through.
+ */
+export const destinationAllowed = (perms: RolePermissions | null, d: Destination): boolean => {
+  if (!perms) return true;                         // profile still loading
+  if (!sectionAllowed(perms, d.section)) return false;
+  if (d.cap && !perms[d.cap]) return false;
+  if (d.caps && !d.caps.some((c) => !!perms[c])) return false;
+  return true;
+};
+
 export const destinationsFor = (perms: RolePermissions | null): Destination[] =>
-  DESTINATIONS.filter((d) => {
-    if (!perms) return true;                       // profile still loading
-    if (!sectionAllowed(perms, d.section)) return false;
-    if (d.cap && !perms[d.cap]) return false;
-    return true;
-  });
+  DESTINATIONS.filter((d) => destinationAllowed(perms, d));
+
+/**
+ * May this role open this path? Screens call this for their own gate, so what
+ * the menu shows and what the page admits can never disagree. A path nobody
+ * registered is open to any signed-in user — registering it is how it gets a
+ * gate, and `lib/access.test.ts` fails the build if a gated page is missing.
+ */
+export const canOpenPath = (perms: RolePermissions | null, path: string): boolean => {
+  const bare = path.split('?')[0];
+  const d = DESTINATIONS.find((x) => x.href.split('?')[0] === bare);
+  return d ? destinationAllowed(perms, d) : true;
+};
 
 /**
  * Menu order. The two trading flows lead (that is the business), then the

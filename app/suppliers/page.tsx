@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
+import { canOpenPath } from '@/constants/navigation';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 import BrandMenu from '@/components/ui/BrandMenu';
 import type { Supplier, PriceQuote, PurchaseOrder, POCost, PurchaseLineItem, Component } from '@/types/database';
@@ -54,7 +55,7 @@ export default function SuppliersPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/suppliers')}`); return; }
-    if (profile && !ROLE_PERMISSIONS[profile.role].buySide) router.replace('/unauthorized');
+    if (profile && !canOpenPath(ROLE_PERMISSIONS[profile.role], '/suppliers')) router.replace('/unauthorized');
   }, [authLoading, user, profile, router]);
 
   const quoteById = useMemo(() => new Map(data.quotes.map((q) => [String(q.quote_id), q])), [data.quotes]);

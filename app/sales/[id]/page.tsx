@@ -11,6 +11,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter, useParams } from 'next/navigation';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
+import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
 import SalesMilestones from '@/components/ui/SalesMilestones';
 import FulfillmentPanel, { type SoLine, type Invoice, type InvItem, type DeliveryOrder, type DoItem } from '@/components/ui/FulfillmentPanel';
@@ -189,7 +190,7 @@ export default function SalesQuotePage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent(`/sales/${id}`)}`); return; }
-    if (profile && !ROLE_PERMISSIONS[profile.role].canEditSalesDocs) router.replace('/unauthorized');
+    if (profile && !canOpenPath(ROLE_PERMISSIONS[profile.role], '/sales')) router.replace('/unauthorized');
   }, [authLoading, user, profile, id, router]);
 
   const load = useCallback(async (silent = false) => {

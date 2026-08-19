@@ -15,6 +15,7 @@ import Link from 'next/link';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
+import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
 import StockModal from '@/components/ui/StockModal';
 import { formatCategory as humanize } from '@/lib/formatCategory';
@@ -74,7 +75,7 @@ export default function StockPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/stock')}`); return; }
-    if (profile && !ROLE_PERMISSIONS[profile.role].buySide) router.replace('/unauthorized');
+    if (profile && !canOpenPath(ROLE_PERMISSIONS[profile.role], '/stock')) router.replace('/unauthorized');
   }, [authLoading, user, profile, router]);
 
   const load = useCallback(async () => {

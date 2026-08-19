@@ -8,6 +8,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
+import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
 import SalesMigrationBanner from '@/components/ui/SalesMigrationBanner';
 import { SALES_STATUS as STATUS, milestoneIndex, displayDocNumber, docNumberCls } from '@/lib/salesStatus';
@@ -81,7 +82,7 @@ export default function SalesListPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/sales')}`); return; }
-    if (profile && !ROLE_PERMISSIONS[profile.role].canEditSalesDocs) router.replace('/unauthorized');
+    if (profile && !canOpenPath(ROLE_PERMISSIONS[profile.role], '/sales')) router.replace('/unauthorized');
   }, [authLoading, user, profile, router]);
 
   const [receivedByQuote, setReceivedByQuote] = useState<Record<string, number>>({});

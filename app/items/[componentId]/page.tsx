@@ -26,6 +26,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
+import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
 import SpecRenderer from '@/components/ui/SpecRenderer';
 import { PositionDetail } from '@/components/profitability/PositionPanel';
@@ -95,7 +96,7 @@ export default function ItemHubPage() {
   const { slowMoverDays: SLOW_DAYS } = useSettings();
 
   const perms = profile ? ROLE_PERMISSIONS[profile.role] : null;
-  const canOpen = !!perms && perms.canViewAnalytics;
+  const canOpen = !!perms && canOpenPath(perms, '/items');
   const canBuy = !!perms && perms.buySide;
   const canSell = !!perms && perms.canViewSellingPrice;
   const canBrand = !!perms && perms.canViewBrand;

@@ -15,6 +15,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
+import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { formatCategory as humanize } from '@/lib/formatCategory';
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
@@ -92,7 +93,7 @@ function ItemsInner() {
   const searchParams = useSearchParams();
   const { user, profile, loading: authLoading } = useAuth();
   const perms = profile ? ROLE_PERMISSIONS[profile.role] : null;
-  const canOpen = !!perms && perms.canViewAnalytics;
+  const canOpen = !!perms && canOpenPath(perms, '/items');
   const canBuy = !!perms && perms.buySide;
   const canSell = !!perms && perms.canViewSellingPrice;
   const canBrand = !!perms && perms.canViewBrand;

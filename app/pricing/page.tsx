@@ -24,6 +24,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
+import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { computeTierChain, roundUpToStep } from '@/lib/tierPricing';
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
@@ -89,7 +90,7 @@ export default function PricingPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/pricing')}`); return; }
-    if (profile && !ROLE_PERMISSIONS[profile.role].canManagePricing) router.replace('/unauthorized');
+    if (profile && !canOpenPath(ROLE_PERMISSIONS[profile.role], '/pricing')) router.replace('/unauthorized');
   }, [authLoading, user, profile, router]);
 
   const fetchAll = useCallback(async () => {

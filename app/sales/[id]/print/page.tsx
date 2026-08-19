@@ -12,6 +12,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { displayDocNumber } from '@/lib/salesStatus';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
+import { canOpenPath } from '@/constants/navigation';
 import { DEFAULT_SALES_COLS, SALES_COL_KEYS, SALES_COL_LABELS, loadSalesCols, saveSalesCols, type SalesExportCols } from '@/lib/salesExportCols';
 import { fmtRupiahDoc as fmtIdr, fmtIntDoc, fmtQtyDoc, fmtDayDoc as fmtDate } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
@@ -48,7 +49,7 @@ export default function SalesPrintPage() {
   useEffect(() => {
     if (!authLoading && !user) { router.replace(`/login?next=${encodeURIComponent(`/sales/${id}/print`)}`); return; }
     // Sell-side document — hidden from roles without sell-side access
-    if (profile && !ROLE_PERMISSIONS[profile.role].sellSide) router.replace('/unauthorized');
+    if (profile && !canOpenPath(ROLE_PERMISSIONS[profile.role], '/sales')) router.replace('/unauthorized');
   }, [authLoading, user, profile, id, router]);
 
   useEffect(() => {

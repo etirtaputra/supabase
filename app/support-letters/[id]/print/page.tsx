@@ -15,6 +15,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
+import { canOpenPath } from '@/constants/navigation';
 import { useSettings } from '@/hooks/useSettings';
 import { fmtDateID, statementLines, type SupportLetter, type SupportLetterItem } from '@/lib/supportLetters';
 
@@ -77,7 +78,7 @@ export default function SupportLetterPrintPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent(`/support-letters/${id}/print`)}`); return; }
-    if (profile && !ROLE_PERMISSIONS[profile.role].sellSide) router.replace('/unauthorized');
+    if (profile && !canOpenPath(ROLE_PERMISSIONS[profile.role], '/support-letters')) router.replace('/unauthorized');
   }, [authLoading, user, profile, id, router]);
 
   useEffect(() => {

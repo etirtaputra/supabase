@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-19T11:45:00Z',
+    title: 'The menu now shows exactly what your account can open — nothing more, nothing less',
+    details: [
+      'A menu that offers a page you are not allowed to open is a broken menu. Access is now decided in ONE place: the menu, the search bar and the screens themselves all ask the same question, so a hidden item is genuinely closed and a visible item genuinely opens.',
+      'Two things were quietly out of step and are now fixed. Search offered “Sales · Description Library” to every sell-side role although the page has always been owner-only — it is no longer offered. And several screens were hidden from people who could already use them: Invoices and Landed Cost now appear for Finance, Delivery for the warehouse roles who post the stock, and Products for buy-side admins.',
+      'Nobody lost access to anything they had. If a page let you in before, it still does — the menu simply stopped pretending otherwise.',
+      'A test now reads the app\u2019s own screens and fails the build if any of them starts deciding access on its own again.',
+    ],
+  },
+  {
     at: '2026-08-19T10:35:00Z',
     title: 'Sell-side accounts no longer sign in straight into “Access restricted”',
     details: [

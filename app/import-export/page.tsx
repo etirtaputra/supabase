@@ -16,6 +16,7 @@ import { useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
+import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { downloadCsv, parseCsv, readFileText } from '@/lib/csv';
 import { fmtInt, fmtDayTime } from '@/lib/formatters';
@@ -39,7 +40,7 @@ export default function DataPage() {
   const { user, profile, loading: authLoading } = useAuth();
   const perms = profile ? ROLE_PERMISSIONS[profile.role] : null;
   const canImport = !!perms?.canManageUsers;      // a bulk write can rewrite the business — owner only
-  const canExport = !!perms?.canExportCsv;
+  const canExport = !!perms && canOpenPath(perms, '/import-export');
 
   const [tab, setTab] = useState<'export' | 'import'>('export');
   const [msg, setMsg] = useState('');

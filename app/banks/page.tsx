@@ -23,6 +23,7 @@ import Link from 'next/link';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
+import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
 import DateRangeFilter from '@/components/ui/DateRangeFilter';
 import LayoutToggle from '@/components/ui/LayoutToggle';
@@ -76,7 +77,7 @@ export default function BanksPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/banks')}`); return; }
-    if (profile && !ROLE_PERMISSIONS[profile.role].canViewBanks) router.replace('/unauthorized');
+    if (profile && !canOpenPath(ROLE_PERMISSIONS[profile.role], '/banks')) router.replace('/unauthorized');
   }, [authLoading, user, profile, router]);
 
   const loadAccounts = useCallback(async () => {

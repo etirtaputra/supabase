@@ -22,6 +22,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
+import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
 import RichDropdown from '@/components/ui/RichDropdown';
 import LayoutToggle from '@/components/ui/LayoutToggle';
@@ -118,7 +119,7 @@ export default function SupportLettersPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/support-letters')}`); return; }
-    if (profile && !perms?.sellSide) router.replace('/unauthorized');
+    if (profile && !canOpenPath(perms, '/support-letters')) router.replace('/unauthorized');
   }, [authLoading, user, profile, perms?.sellSide, router]);
 
   const load = useCallback(async () => {

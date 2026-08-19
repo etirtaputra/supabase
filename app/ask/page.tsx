@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
+import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
 
 interface ChatMessage { role: 'user' | 'assistant'; content: string; error?: boolean }
@@ -37,7 +38,7 @@ export default function AskPage() {
   // Answers draw on buy-side data (suppliers, costs, brands) — buy-side only.
   useEffect(() => {
     if (!authLoading && !user) { router.replace('/login?next=/ask'); return; }
-    if (profile && !ROLE_PERMISSIONS[profile.role].buySide) router.replace('/unauthorized');
+    if (profile && !canOpenPath(ROLE_PERMISSIONS[profile.role], '/ask')) router.replace('/unauthorized');
   }, [authLoading, user, profile, router]);
 
   useEffect(() => {

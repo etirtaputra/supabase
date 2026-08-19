@@ -7,6 +7,8 @@
  * itself from every other role.
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { ROLE_PERMISSIONS } from '@/constants/roles';
+import { canOpenPath } from '@/constants/navigation';
 import { useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
@@ -44,7 +46,7 @@ export default function SalesLibraryPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/sales/library')}`); return; }
-    if (profile && profile.role !== 'owner') router.replace('/unauthorized');
+    if (profile && !canOpenPath(ROLE_PERMISSIONS[profile.role], '/sales/library')) router.replace('/unauthorized');
   }, [authLoading, user, profile, router]);
 
   // Custom (non-catalog) lines already used in sales quotes — shown so the

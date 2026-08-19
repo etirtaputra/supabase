@@ -25,6 +25,7 @@ import Link from 'next/link';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
+import { canOpenPath } from '@/constants/navigation';
 import { fmtDay, fmtInt, fmtIdr, fmtRupiah } from '@/lib/formatters';
 import {
   fetchLandedVariances, revaluationRows, type LandedSummary, type PoVariance,
@@ -56,7 +57,7 @@ export default function ReconcilePage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/stock/reconcile')}`); return; }
-    if (profile && !ROLE_PERMISSIONS[profile.role].buySide) router.replace('/unauthorized');
+    if (profile && !canOpenPath(ROLE_PERMISSIONS[profile.role], '/stock/reconcile')) router.replace('/unauthorized');
   }, [authLoading, user, profile, router]);
 
   const load = useCallback(async () => {

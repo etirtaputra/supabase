@@ -23,6 +23,7 @@ import Link from 'next/link';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
+import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { fmtInt } from '@/lib/formatters';
 import { formatCategory as humanize } from '@/lib/formatCategory';
@@ -75,7 +76,7 @@ export default function SpecReadinessPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/items/specs')}`); return; }
-    if (profile && !perms?.canViewAnalytics) router.replace('/unauthorized');
+    if (profile && !canOpenPath(perms, '/items/specs')) router.replace('/unauthorized');
   }, [authLoading, user, profile, perms?.canViewAnalytics, router]);
 
   const load = useCallback(async () => {

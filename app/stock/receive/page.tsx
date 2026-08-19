@@ -18,6 +18,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
+import { canOpenPath } from '@/constants/navigation';
 import { TAX_CATS } from '@/constants/costCategories';
 import type { PurchaseOrder, PurchaseLineItem, POCost } from '@/types/database';
 import { fetchWarehouses, defaultWarehouse, type Warehouse } from '@/lib/warehouses';
@@ -73,7 +74,7 @@ function ReceivePage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/stock/receive')}`); return; }
-    if (profile && !ROLE_PERMISSIONS[profile.role].canManageStock) router.replace('/unauthorized');
+    if (profile && !canOpenPath(ROLE_PERMISSIONS[profile.role], '/stock/receive')) router.replace('/unauthorized');
   }, [authLoading, user, profile, router]);
 
   // Per-component landed-cost history — every prior receipt's booked cost,

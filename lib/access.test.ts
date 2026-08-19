@@ -1,0 +1,147 @@
+/**
+ * Access is ONE rule — the menu shows exactly what the screen admits.
+ *
+ * The failure this guards against is not exotic: the menu offered a door that
+ * threw you out ("Access restricted" on a page you were invited to), or hid a
+ * door you were allowed to walk through. Both came from the same cause — the
+ * rule was written twice, once in constants/navigation.ts for the menu and
+ * again by hand inside each page.
+ *
+ *   1. Every screen that can bounce someone must ask `canOpenPath`, so its gate
+ *      IS the menu's gate. Checked by reading the app's own source.
+ *   2. What each role sees is pinned below, so widening or narrowing anyone's
+ *      access shows up as a failing test rather than as a surprise in someone's
+ *      menu on a Monday morning.
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { DESTINATIONS, destinationsFor, canOpenPath } from '../constants/navigation.ts';
+import { ROLE_PERMISSIONS, type UserRole } from '../constants/roles.ts';
+
+/**
+ * The one screen allowed to keep its own rule: /purchasing admits anyone with
+ * buy-side access OR a single visible tab, which no single capability names.
+ */
+const OWN_RULE = new Set(['app/purchasing/page.tsx']);
+
+const pageFiles = (dir: string): string[] => {
+  const out: string[] = [];
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, e.name);
+    if (e.isDirectory()) out.push(...pageFiles(p));
+    else if (e.name === 'page.tsx') out.push(p);
+  }
+  return out;
+};
+
+test('every screen that can turn someone away asks the shared rule', () => {
+  const offenders: string[] = [];
+  for (const f of pageFiles('app')) {
+    const src = readFileSync(f, 'utf8');
+    if (!src.includes('/unauthorized')) continue;          // no gate, nothing to align
+    if (OWN_RULE.has(f)) continue;
+    if (f === 'app/unauthorized/page.tsx') continue;        // it IS the restricted screen
+    if (!src.includes('canOpenPath')) offenders.push(f);
+  }
+  assert.deepEqual(offenders, [],
+    `these screens gate access by hand, so the menu can disagree with them: ${offenders.join(', ')}`);
+});
+
+test('a menu entry never leads to a door that throws you out', () => {
+  for (const role of Object.keys(ROLE_PERMISSIONS) as UserRole[]) {
+    const perms = ROLE_PERMISSIONS[role];
+    for (const d of destinationsFor(perms)) {
+      assert.ok(canOpenPath(perms, d.href), `${role} is shown ${d.href} but would be bounced`);
+    }
+  }
+});
+
+test('an unregistered path is open — registering it is how a page gets a gate', () => {
+  assert.equal(canOpenPath(ROLE_PERMISSIONS.viewer, '/somewhere-nobody-declared'), true);
+  // A query string is not part of the identity — /settings?tab=users is /settings
+  assert.equal(canOpenPath(ROLE_PERMISSIONS.viewer, '/settings?tab=users'), false);
+  assert.equal(canOpenPath(ROLE_PERMISSIONS.owner, '/settings?tab=users'), true);
+  // Still loading a profile: never flash a locked door before the answer is known
+  assert.equal(canOpenPath(null, '/settings'), true);
+});
+
+/** What each role finds in its menu. Change this only on purpose. */
+const EXPECTED: Record<UserRole, string[]> = {
+  owner: [
+    '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=financials',
+    '/purchasing?tab=lookup', '/suppliers', '/stock', '/stock/receive', '/stock/reconcile',
+    '/customers', '/products', '/sales', '/invoices', '/delivery', '/aftersales', '/support-letters',
+    '/banks', '/spend-cash', '/profitability', '/items', '/purchasing?tab=market-intel', '/pricing',
+    '/proposals', '/settings', '/import-export',
+  ],
+  buy_admin: [
+    '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=financials',
+    '/purchasing?tab=lookup', '/suppliers', '/stock', '/stock/receive', '/stock/reconcile',
+    '/products', '/delivery', '/banks', '/purchasing?tab=market-intel', '/import-export',
+  ],
+  sell_admin: [
+    '/', '/customers', '/products', '/sales', '/invoices', '/delivery', '/aftersales',
+    '/support-letters', '/banks', '/pricing', '/import-export',
+  ],
+  sales: [
+    '/', '/customers', '/products', '/sales', '/invoices', '/delivery', '/aftersales', '/support-letters',
+  ],
+  engineer: [
+    '/', '/customers', '/products', '/sales', '/invoices', '/delivery', '/aftersales',
+    '/support-letters', '/proposals',
+  ],
+  viewer: ['/'],
+  data_entry: [
+    '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=lookup',
+    '/suppliers', '/stock', '/stock/receive', '/stock/reconcile', '/delivery',
+    '/purchasing?tab=market-intel',
+  ],
+  finance: [
+    '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=financials',
+    '/purchasing?tab=lookup', '/suppliers', '/stock', '/stock/reconcile', '/invoices', '/banks',
+    '/purchasing?tab=market-intel', '/import-export',
+  ],
+};
+
+test('each role sees exactly the menu it is meant to see', () => {
+  for (const role of Object.keys(ROLE_PERMISSIONS) as UserRole[]) {
+    const shown = destinationsFor(ROLE_PERMISSIONS[role]).filter((d) => d.inNav).map((d) => d.href);
+    assert.deepEqual(shown, EXPECTED[role], `menu changed for ${role}`);
+  }
+});
+
+test('every menu entry is a real destination with a hint someone can read', () => {
+  for (const d of DESTINATIONS) {
+    assert.ok(d.href.startsWith('/'), `${d.label} has no path`);
+    if (d.inNav) assert.ok(d.label.length > 0, `${d.href} has no label`);
+  }
+});
+
+/**
+ * The other half of the same coin: a destination the MENU gates but the page
+ * does not enforce — hidden from the menu, wide open to anyone with the link.
+ *
+ * The EPC proposal screens are in that state today and are left that way on
+ * purpose: /customers links a customer's project quotes straight to
+ * /proposals/[id], so sell-side roles plainly are meant to read them, and
+ * quietly locking them out would break a link people use. Listed here so the
+ * gap is visible and deliberate rather than forgotten — and so nothing NEW
+ * joins it by accident.
+ */
+const KNOWN_OPEN = ['/proposals', '/proposals/library', '/proposals/directory'];
+
+test('only the known-open screens are gated in the menu but not on the page', () => {
+  const open: string[] = [];
+  for (const d of DESTINATIONS) {
+    const rel = d.href.split('?')[0].replace(/^\//, '');
+    const f = rel ? join('app', rel, 'page.tsx') : 'app/page.tsx';
+    let src: string;
+    try { src = readFileSync(f, 'utf8'); } catch { continue; }   // dynamic route, no plain page
+    const gatedInMenu = !!d.cap || !!d.caps || (d.section !== null && d.section !== undefined);
+    if (gatedInMenu && !src.includes('/unauthorized')) open.push(d.href.split('?')[0]);
+  }
+  assert.deepEqual([...new Set(open)].sort(), [...KNOWN_OPEN].sort(),
+    'a menu-gated screen stopped enforcing its own gate (or a new one never started)');
+});

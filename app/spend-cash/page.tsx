@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
+import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
 import MobileNotice from '@/components/ui/MobileNotice';
 import SpendOverview from '@/components/ui/SpendOverview';
@@ -85,7 +86,7 @@ export default function DatabaseViewPage() {
   useEffect(() => {
     if (!profile) return;
     const p = ROLE_PERMISSIONS[profile.role];
-    if (!p.canViewAnalytics) router.replace('/unauthorized');
+    if (!canOpenPath(p, '/spend-cash')) router.replace('/unauthorized');
   }, [profile, router]);
 
   // Deep links: /spend-cash?tab=<id>. Old ?tab=lookup links (the retired Cost

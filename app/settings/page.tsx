@@ -23,6 +23,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth, type UserProfile } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
 import { ROLE_PERMISSIONS, ROLE_LABELS, ROLE_DESCRIPTIONS, ASSIGNABLE_ROLES, PERMISSION_MATRIX, type UserRole } from '@/constants/roles';
+import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
 import {
   DEFAULT_SETTINGS, NUMBER_PRESET_EN, NUMBER_PRESET_ID, saveSettings,
@@ -113,7 +114,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/settings')}`); return; }
-    if (profile && !ROLE_PERMISSIONS[profile.role].canManageUsers) router.replace('/unauthorized');
+    if (profile && !canOpenPath(ROLE_PERMISSIONS[profile.role], '/settings')) router.replace('/unauthorized');
   }, [authLoading, user, profile, router]);
 
   const set = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {

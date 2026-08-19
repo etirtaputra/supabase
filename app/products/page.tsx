@@ -17,6 +17,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
+import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { COMMITTED_STATUSES as COMMITTED } from '@/lib/salesStatus';
 import { downloadCsv, parseCsv, readFileText, csvNum } from '@/lib/csv';
@@ -256,7 +257,7 @@ function ProductsInner() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/products')}`); return; }
-    if (profile && !ROLE_PERMISSIONS[profile.role].canViewSellingPrice) router.replace('/unauthorized');
+    if (profile && !canOpenPath(ROLE_PERMISSIONS[profile.role], '/products')) router.replace('/unauthorized');
   }, [authLoading, user, profile, router]);
 
   const fetchAll = useCallback(async () => {

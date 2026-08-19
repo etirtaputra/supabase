@@ -22,6 +22,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
+import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { formatCategory as humanize } from '@/lib/formatCategory';
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
@@ -132,7 +133,7 @@ function EconomicsInner() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/profitability')}`); return; }
-    if (profile && !ROLE_PERMISSIONS[profile.role].canViewEconomics) router.replace('/unauthorized');
+    if (profile && !canOpenPath(ROLE_PERMISSIONS[profile.role], '/profitability')) router.replace('/unauthorized');
   }, [authLoading, user, profile, router]);
 
   const fetchAll = useCallback(async () => {

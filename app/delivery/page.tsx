@@ -11,6 +11,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
+import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { displayDocNumber } from '@/lib/salesStatus';
 import { fmtDay, fmtInt } from '@/lib/formatters';
@@ -57,7 +58,7 @@ export default function DeliveryPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/delivery')}`); return; }
-    if (profile && !(ROLE_PERMISSIONS[profile.role].canEditSalesDocs || ROLE_PERMISSIONS[profile.role].canManageStock)) router.replace('/unauthorized');
+    if (profile && !canOpenPath(ROLE_PERMISSIONS[profile.role], '/delivery')) router.replace('/unauthorized');
   }, [authLoading, user, profile, router]);
 
   const fetchAll = useCallback(async () => {
