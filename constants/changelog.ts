@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-19T18:05:00Z',
+    title: 'Customer list: the column titles now sit over their own columns',
+    details: [
+      'The tick box on each row sits outside the row\u2019s columns, but the header row had no matching space \u2014 so every title, Name included, was drawn about a tick-box\u2019s width to the left of the values under it. The header now carries the same leading space and the columns line up.',
+    ],
+  },
+  {
     at: '2026-08-19T17:30:00Z',
     title: 'The menu no longer shows everything and then takes it away',
     details: [

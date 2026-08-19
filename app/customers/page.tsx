@@ -1006,7 +1006,14 @@ function CustomersInner() {
         <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
           {/* Sortable titles: click sorts ascending, click again flips.
               Overrides the order dropdown until it is touched again. */}
-          <div className={`hidden md:grid grid-cols-[130px_1fr_110px_170px_90px_135px] gap-3 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500 ${compact ? 'px-3 py-1.5' : 'px-4 py-2.5'}`}>
+          <div className="hidden md:flex items-stretch border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+          {/* The tick box lives outside each row's grid, so the header needs the
+              same leading width — without it every title sits a tick-box to the
+              left of the values underneath it. */}
+          <span aria-hidden className={`flex items-center flex-shrink-0 pl-3 -mr-1 ${compact ? 'py-1.5' : 'py-2.5'}`}>
+            <span className="w-3.5" />
+          </span>
+          <div className={`flex-1 min-w-0 grid grid-cols-[130px_1fr_110px_170px_90px_135px] gap-3 ${compact ? 'px-3 py-1.5' : 'px-4 py-2.5'}`}>
             {([['code', 'Code'], ['name', 'Name'], ['tier', 'Tier'], ['am', 'Account Manager'], ['status', 'Status'], ['updated', 'Updated']] as [ColKey, string][]).map(([k, label]) => (
               <button key={k} onClick={() => clickCol(k)} title={`Sort by ${label.toLowerCase()}`}
                 className={`flex items-center gap-1 text-left uppercase tracking-widest transition-colors ${
@@ -1018,6 +1025,7 @@ function CustomersInner() {
                 </span>
               </button>
             ))}
+          </div>
           </div>
           {loading ? (
             <div className="p-4 space-y-1.5">{[...Array(6)].map((_, i) => <div key={i} className="h-12 bg-slate-800/40 rounded-xl animate-pulse" />)}</div>
