@@ -745,36 +745,49 @@ export default function SalesQuotePage() {
     return qid;
   }
 
+  // Every busy-setter runs in try/finally: a thrown exception used to leave
+  // `busy` true forever, silently disabling EVERY action button — clicks then
+  // "did nothing" with no error in sight (field report 2026-08-19). Now the
+  // exception is flashed and the buttons come back.
   async function save() {
     setBusy(true);
-    const wasNew = !editing?.quote_id;
-    const qid = await persist();
-    setBusy(false);
-    if (!qid) return;
-    flash('Saved');
-    if (wasNew) router.replace(`/sales/${qid}`); else load(true);
+    try {
+      const wasNew = !editing?.quote_id;
+      const qid = await persist();
+      if (!qid) return;
+      flash('Saved');
+      if (wasNew) router.replace(`/sales/${qid}`); else load(true);
+    } catch (e) {
+      flash(`Save failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally { setBusy(false); }
   }
   saveRef.current = () => { void save(); };
 
   async function printPdf() {
     setBusy(true);
-    const qid = await persist();
-    setBusy(false);
-    if (qid) { if (!editing?.quote_id) router.replace(`/sales/${qid}`); window.open(`/sales/${qid}/print`, '_blank', 'noopener'); }
+    try {
+      const qid = await persist();
+      if (qid) { if (!editing?.quote_id) router.replace(`/sales/${qid}`); window.open(`/sales/${qid}/print`, '_blank', 'noopener'); }
+    } catch (e) {
+      flash(`Save failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally { setBusy(false); }
   }
 
   // Advance / revert status — stays on this page. Delivery writes stock-out movements.
   async function transition(next: string) {
     if (!editing) return;
     setBusy(true);
-    const wasNew = !editing.quote_id;
-    const qid = await persist(next);
-    if (!qid) { setBusy(false); return; }
-    // Stock-outs are written PER DELIVERY ORDER (FulfillmentPanel), not on the
-    // order-level status — partial shipments each move their own quantities.
-    setBusy(false);
-    flash(`Marked ${STATUS[next]?.label ?? next}`);
-    if (wasNew) router.replace(`/sales/${qid}`); else load(true); // refresh status + stamped numbers in place
+    try {
+      const wasNew = !editing.quote_id;
+      const qid = await persist(next);
+      if (!qid) return;
+      // Stock-outs are written PER DELIVERY ORDER (FulfillmentPanel), not on the
+      // order-level status — partial shipments each move their own quantities.
+      flash(`Marked ${STATUS[next]?.label ?? next}`);
+      if (wasNew) router.replace(`/sales/${qid}`); else load(true); // refresh status + stamped numbers in place
+    } catch (e) {
+      flash(`Could not mark ${STATUS[next]?.label ?? next}: ${e instanceof Error ? e.message : String(e)}`);
+    } finally { setBusy(false); }
   }
 
   // Create Delivery Order: capture delivery instructions for the warehouse,
@@ -784,19 +797,22 @@ export default function SalesQuotePage() {
   async function submitDeliveryOrder(d: DeliveryDetails) {
     if (!editing) return;
     setBusy(true);
-    const fields = {
-      delivery_date: d.date || null, delivery_time: d.time, delivery_method: d.method,
-      delivery_via: d.method === 'pickup' ? '' : d.via,
-      delivery_address: d.method === 'pickup' ? '' : d.address,
-      delivery_map_url: d.method === 'pickup' ? '' : d.mapUrl,
-      delivery_contact: d.contact,
-    };
-    const qid = await persist(editing.status === 'preparing' ? undefined : 'preparing', fields);
-    setBusy(false);
-    if (!qid) return;
-    setShowDoModal(false);
-    flash(editing.status === 'preparing' ? 'Delivery details updated' : 'Delivery Order created — warehouse can start preparing');
-    load(true);
+    try {
+      const fields = {
+        delivery_date: d.date || null, delivery_time: d.time, delivery_method: d.method,
+        delivery_via: d.method === 'pickup' ? '' : d.via,
+        delivery_address: d.method === 'pickup' ? '' : d.address,
+        delivery_map_url: d.method === 'pickup' ? '' : d.mapUrl,
+        delivery_contact: d.contact,
+      };
+      const qid = await persist(editing.status === 'preparing' ? undefined : 'preparing', fields);
+      if (!qid) return;
+      setShowDoModal(false);
+      flash(editing.status === 'preparing' ? 'Delivery details updated' : 'Delivery Order created — warehouse can start preparing');
+      load(true);
+    } catch (e) {
+      flash(`Could not save the delivery order: ${e instanceof Error ? e.message : String(e)}`);
+    } finally { setBusy(false); }
   }
 
   // Revise: back to draft. The revision counter only bumps when the customer
@@ -808,15 +824,18 @@ export default function SalesQuotePage() {
   async function revise() {
     if (!editing?.quote_id) return;
     setBusy(true);
-    // A bumped revision is a fresh offer — its validity restarts from today,
-    // so an old quote doesn't come back already Expired.
-    const qid = await persist('draft', reviseBumps
-      ? { revision: (editing.revision ?? 0) + 1, valid_until: addDays(todayISO(), quoteValidityDays) }
-      : { validated_at: null });
-    setBusy(false);
-    if (!qid) return;
-    flash(reviseBumps ? `Revision ${(editing.revision ?? 0) + 1} — back to draft` : 'Back to draft — same revision');
-    load(true);
+    try {
+      // A bumped revision is a fresh offer — its validity restarts from today,
+      // so an old quote doesn't come back already Expired.
+      const qid = await persist('draft', reviseBumps
+        ? { revision: (editing.revision ?? 0) + 1, valid_until: addDays(todayISO(), quoteValidityDays) }
+        : { validated_at: null });
+      if (!qid) return;
+      flash(reviseBumps ? `Revision ${(editing.revision ?? 0) + 1} — back to draft` : 'Back to draft — same revision');
+      load(true);
+    } catch (e) {
+      flash(`Could not revise: ${e instanceof Error ? e.message : String(e)}`);
+    } finally { setBusy(false); }
   }
 
   if (authLoading || !profile || (loading && !editing)) return <CenterSpinner />;
@@ -907,7 +926,10 @@ export default function SalesQuotePage() {
               Partly Delivered
             </span>
           ) : (
-            <span className={`flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS[st]?.cls ?? ''}`}>{STATUS[st]?.label ?? st}</span>
+            <span className={`flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS[st]?.cls ?? ''}`}
+              title={st === 'draft' && asOrder ? 'Entered via + New Order — the SO number stamps when you Confirm Order' : undefined}>
+              {st === 'draft' && asOrder ? 'Draft order' : STATUS[st]?.label ?? st}
+            </span>
           )}
           {/* After-sales quote — repair/replacement, badge links back to the case */}
           {(caseInfo || editing.case_id) && (

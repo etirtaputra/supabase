@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-19T03:30:00Z',
+    title: 'Fix: sales editor buttons could go silently dead; saves that stall now say so',
+    details: [
+      'If anything threw during a save or status change in the sales editor, the “busy” flag stayed on forever — Validate, Confirm Order and every other button silently ignored clicks from then on. Every action now releases the buttons no matter what and shows the actual error.',
+      'The customer editor’s Save now times out after 15 seconds with “this tab looks stuck — reload the tab” instead of spinning forever when a request never leaves the browser.',
+      'A draft opened via “+ New Order” is labelled “Draft order”; the DQ number is the draft’s identity — the SO number stamps at Confirm Order, as with any order.',
+    ],
+  },
+  {
     at: '2026-08-19T02:30:00Z',
     title: '“+ New Order” button, and the real fix for stuck saves',
     details: [

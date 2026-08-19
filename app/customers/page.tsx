@@ -526,6 +526,12 @@ function CustomersInner() {
       return;
     }
     setSaving(true);
+    // A write that never reaches the server (a wedged tab) must not spin
+    // forever — it fails loudly with the remedy instead (2026-08-19 report).
+    const stall = new Error('The request never reached the server — this tab looks stuck. Reload the tab and try again.');
+    const withTimeout = <T,>(p: PromiseLike<T>, ms = 15000): Promise<T> =>
+      Promise.race([Promise.resolve(p), new Promise<T>((_, rej) => setTimeout(() => rej(stall), ms))]);
+    try {
 
     // Fall back display/legal names to each other so neither is blank.
     const legal = editing.legal_name.trim() || editing.display_name.trim();
@@ -549,11 +555,11 @@ function CustomersInner() {
 
     let customerId = editing.customer_id;
     if (customerId) {
-      const { error } = await supabase.from('20.0_customers').update(payload).eq('customer_id', customerId);
-      if (error) { flash(`Error: ${error.message}`); setSaving(false); return; }
+      const { error } = await withTimeout(supabase.from('20.0_customers').update(payload).eq('customer_id', customerId));
+      if (error) { flash(`Error: ${error.message}`); return; }
     } else {
-      const { data, error } = await supabase.from('20.0_customers').insert(payload).select('customer_id').single();
-      if (error || !data) { flash(`Error: ${error?.message ?? 'insert failed'}`); setSaving(false); return; }
+      const { data, error } = await withTimeout(supabase.from('20.0_customers').insert(payload).select('customer_id').single());
+      if (error || !data) { flash(`Error: ${error?.message ?? 'insert failed'}`); return; }
       customerId = data.customer_id as string;
     }
 
@@ -585,12 +591,15 @@ function CustomersInner() {
       if (error) { flash(`Saved customer, but links failed: ${error.message}`); }
     }
 
-    setSaving(false);
     flash('Customer saved');
     closeDrawer();
     // Clear the deep-link param so re-renders don't reopen the drawer.
     if (searchParams.get('open')) router.replace('/customers', { scroll: false });
     fetchAll();
+
+    } catch (e) {
+      flash(e instanceof Error ? e.message : `Save failed: ${String(e)}`);
+    } finally { setSaving(false); }
   }
 
   // ── Import / Export ────────────────────────────────────────────────────────
