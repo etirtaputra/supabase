@@ -34,6 +34,11 @@ import { fetchWarehouses, type Warehouse } from '@/lib/warehouses';
 import { LIST_SPECS } from '@/constants/listDefaults';
 import { PRODUCT_COLS } from '@/constants/productColumns';
 import { orderedNavGroups, orderedGroupItems, DEFAULT_MENU_ORDER, DESTINATIONS } from '@/constants/navigation';
+import {
+  orderedWidgetKeys, hiddenWidgetKeys, WIDGET_BY_KEY,
+  DEFAULT_WIDGET_ORDER, DEFAULT_WIDGET_HIDDEN, type DashboardLayout,
+} from '@/constants/dashboardWidgets';
+import WidgetArranger from '@/components/ui/WidgetArranger';
 import { ITEM_SCORE_FACTORS, DEFAULT_ITEM_SCORE_WEIGHTS, type ItemScoreWeights } from '@/lib/itemScore';
 import { PRESET_LABELS, type RangePreset } from '@/lib/dateRange';
 import { accountLabel, type BankAccount } from '@/lib/banks';
@@ -42,9 +47,9 @@ import Autocomplete from '@/components/ui/Autocomplete';
 import { fmtRupiah } from '@/lib/formatters';
 import Link from 'next/link';
 
-type Tab = 'format' | 'appearance' | 'menu' | 'lists' | 'pricing' | 'defaults' | 'terms' | 'company' | 'banks' | 'users';
+type Tab = 'format' | 'appearance' | 'menu' | 'dashboard' | 'lists' | 'pricing' | 'defaults' | 'terms' | 'company' | 'banks' | 'users';
 const TABS: [Tab, string][] = [
-  ['format', 'Formatting'], ['appearance', 'Appearance'], ['menu', 'Menu'], ['lists', 'Lists'], ['pricing', 'Pricing'],
+  ['format', 'Formatting'], ['appearance', 'Appearance'], ['menu', 'Menu'], ['dashboard', 'Dashboard'], ['lists', 'Lists'], ['pricing', 'Pricing'],
   ['defaults', 'Defaults'], ['terms', 'Terms'], ['company', 'Company'], ['banks', 'Banks'], ['users', 'Users'],
 ];
 
@@ -200,6 +205,7 @@ export default function SettingsPage() {
         {tab === 'format'   && <FormatTab draft={draft} set={set} />}
         {tab === 'appearance' && <AppearanceTab draft={draft} set={set} />}
         {tab === 'menu'     && <MenuOrderTab draft={draft} set={set} />}
+        {tab === 'dashboard' && <DashboardTab draft={draft} set={set} />}
         {tab === 'lists'    && <ListsTab draft={draft} set={set} />}
         {tab === 'pricing'  && <PricingTab draft={draft} set={set} />}
         {tab === 'defaults' && <DefaultsTab draft={draft} set={set} flash={flash} />}
@@ -821,6 +827,62 @@ function DefaultsTab({ draft, set, flash }: {
 // ── Menu order ────────────────────────────────────────────────────────────
 
 /** A small up/down arrow pair, disabled at the ends. */
+/**
+ * The HOUSE dashboard — what everyone's dashboard starts as.
+ *
+ * A starting point, not a cage: anyone can arrange their own on the dashboard
+ * itself (Customise), including switching back on something switched off here.
+ * Changing anything on this screen DISSOLVES every stale personal arrangement,
+ * so a house change actually reaches people instead of being outvoted by an
+ * old local preference — the lesson of the 2026-08-13 list-layout bug.
+ *
+ * A role still only sees the widgets it may open: the gate lives in
+ * constants/dashboardWidgets.ts and is not negotiable from here.
+ */
+function DashboardTab({ draft, set }: { draft: AppSettings; set: <K extends keyof AppSettings>(k: K, v: AppSettings[K]) => void }) {
+  const hidden = hiddenWidgetKeys(draft.dashboardOrder, draft.dashboardHidden);
+  const rows = orderedWidgetKeys(draft.dashboardOrder)
+    .map((k) => ({ widget: WIDGET_BY_KEY.get(k)!, shown: !hidden.has(k) }));
+
+  const apply = (next: DashboardLayout) => {
+    set('dashboardOrder', next.order);
+    set('dashboardHidden', next.hidden);
+  };
+  const isDefault = JSON.stringify(rows.map((r) => r.widget.key)) === JSON.stringify(DEFAULT_WIDGET_ORDER)
+    && JSON.stringify([...hidden].sort()) === JSON.stringify([...DEFAULT_WIDGET_HIDDEN].sort());
+  const resetAll = () => {
+    set('dashboardOrder', [...DEFAULT_WIDGET_ORDER]);
+    set('dashboardHidden', [...DEFAULT_WIDGET_HIDDEN]);
+  };
+  const off = rows.filter((r) => !r.shown).length;
+
+  return (
+    <div className="max-w-2xl space-y-4">
+      <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 space-y-3.5">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">Dashboard widgets</p>
+          <button onClick={resetAll} disabled={isDefault}
+            className="text-[11px] font-semibold text-slate-400 hover:text-white disabled:text-slate-700 disabled:hover:text-slate-700 transition-colors">
+            Reset to default
+          </button>
+        </div>
+        <p className="text-[11px] text-slate-500 leading-snug">
+          What the Dashboard shows, and in what order, for everyone.
+          <span className="text-slate-400 font-semibold"> Tick</span> a widget to include it,
+          <span className="text-slate-400 font-semibold"> drag a row</span> to move it (the arrows do the same on touch).
+          Each person can still arrange their own from the Dashboard’s Customise button — and changing anything here
+          resets those personal arrangements, so a change made here actually reaches everyone.
+          A role only ever sees the widgets it may open: the buy-side tiles never render for a sell-side login.
+        </p>
+        <WidgetArranger rows={rows} onChange={apply} />
+        <p className="text-[11px] text-slate-600">
+          {off === 0 ? 'Every widget is on.' : `${off} widget${off !== 1 ? 's' : ''} switched off for everyone.`}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function MoveArrows({ onUp, onDown, upDisabled, downDisabled, label, small }: {
   onUp: () => void; onDown: () => void; upDisabled: boolean; downDisabled: boolean; label: string; small?: boolean;
 }) {

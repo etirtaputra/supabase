@@ -124,6 +124,39 @@ export const ID: Record<string, string> = {
   'Bulk CSV in and out — customers, orders, invoices, receipts':
     'CSV masuk dan keluar secara massal — pelanggan, pesanan, faktur, penerimaan',
 
+  'The house dashboard \u2014 which widgets everyone starts with, and in what order':
+    'Dasbor bawaan perusahaan \u2014 widget apa yang tampil untuk semua orang, dan dalam urutan apa',
+
+  // ── Dashboard widgets (constants/dashboardWidgets.ts) ─────────────────────
+  // The names stay English (Position, Stock alerts, Quick Actions \u2014 the
+  // words the team already uses); what each one TELLS you is translated.
+  'Cash held, owed to us, we owe, and how fast a rupiah comes back':
+    'Kas yang dipegang, piutang, utang, dan seberapa cepat satu rupiah kembali',
+  'What is stuck, what it is worth, and one tap to unstick it':
+    'Apa yang tertahan, berapa nilainya, dan satu ketuk untuk melepaskannya',
+  'The AI reads the same numbers and proposes one move':
+    'AI membaca angka yang sama lalu mengusulkan satu langkah',
+  'This month so far against the same days of last month':
+    'Bulan ini sejauh ini dibandingkan hari yang sama bulan lalu',
+  'Principal paid to suppliers so far this month':
+    'Pokok yang dibayarkan ke pemasok bulan ini',
+  'On-hand quantity at moving-average landed cost':
+    'Jumlah stok di gudang pada biaya sampai gudang rata-rata bergerak',
+  'Purchase orders that are not cancelled':
+    'PO yang tidak dibatalkan',
+  'How many items the catalog carries':
+    'Berapa banyak item yang ada di katalog',
+  'Orders that cannot ship, and items at their reorder point':
+    'Pesanan yang tidak bisa dikirim, dan item yang mencapai titik pemesanan ulang',
+  'One stream of what everyone saved, across every module':
+    'Satu aliran dari semua yang disimpan tim, dari seluruh modul',
+  'The screens this role starts its day on, one tap away':
+    'Layar tempat peran ini memulai harinya, cukup satu ketuk',
+  'Tick what you want to watch, drag a row to move it (the arrows do the same on touch). This is your own arrangement, on this browser \u2014 it does not change anyone else\u2019s.':
+    'Centang yang ingin Anda pantau, seret baris untuk memindahkannya (panah melakukan hal yang sama di layar sentuh). Ini susunan Anda sendiri, di peramban ini \u2014 tidak mengubah milik orang lain.',
+  'sets the starting point for everyone.':
+    'menetapkan titik awal untuk semua orang.',
+
   // ── Page subtitles (BrandMenu) ────────────────────────────────────────────
   'Stock · Warehouse': 'Stock · Gudang',
   'Customers · CRM': 'Customers · Data pelanggan',

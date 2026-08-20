@@ -20,6 +20,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-20T09:20:00Z',
+    title: 'The Dashboard is yours to arrange \u2014 pick the panels you watch',
+    details: [
+      'A new Customise button on the Dashboard: tick the panels you want and drag them into the order you want. Every section is now its own widget \u2014 Position, Needs you today, Next best step, Month in motion, Stock alerts, Latest activity, Quick Actions, and the four figures at the top (Paid This Month, Stock Value, Active POs, Components) which are now four separate tiles, so you can keep the one you check every morning and drop the rest.',
+      'Your arrangement is yours: it is remembered on your own browser and changes nobody else\u2019s screen.',
+      'Settings \u203a Dashboard sets the starting point for everyone \u2014 which panels the team begins with, and in what order. Changing it resets personal arrangements, so a change made there actually reaches people instead of being outvoted by an old local preference.',
+      'A role still only sees what it may see. The buy-side figures never render for a sell-side login, however the dashboard is arranged \u2014 and a panel that could only ever say \u201cnothing here\u201d is no longer offered at all, so the Warehouse and After-Sales desks get a short, useful screen instead of a page of empty boxes.',
+      'Quick Actions now carries the service desk and the warehouse too (After Sales, Serial Numbers, Stock), and every shortcut is checked against the same access rule as the menu \u2014 no shortcut can lead to a door that turns you away.',
+      'Panels you switch off are not fetched at all, so a leaner dashboard is also a faster one.',
+    ],
+  },
+  {
     at: '2026-08-19T23:30:00Z',
     title: 'New PO cost category: Freight \u2014 and it counts towards the item cost',
     details: [

@@ -28,6 +28,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { RangePreset } from './dateRange';
 import { DEFAULT_LIST_DEFAULTS } from '@/constants/listDefaults';
 import { DEFAULT_MENU_ORDER } from '@/constants/navigation';
+import { DEFAULT_WIDGET_ORDER, DEFAULT_WIDGET_HIDDEN } from '@/constants/dashboardWidgets';
 import { ENUMS } from '@/constants/enums';
 import { DEFAULT_ITEM_SCORE_WEIGHTS, type ItemScoreWeights } from './itemScore';
 
@@ -200,6 +201,17 @@ export interface AppSettings {
    */
   menuItemOrder: Record<string, string[]>;
 
+  // ── Dashboard ─────────────────────────────────────────────────────────────
+  /**
+   * The house dashboard (Settings › Dashboard): the order the widgets appear
+   * in, and which are switched off for everyone. Keys as in
+   * constants/dashboardWidgets.ts. `orderedWidgetKeys`/`hiddenWidgetKeys`
+   * reconcile stale or partial lists, so this can never swallow a panel that
+   * ships later — and a person can still arrange their own on top of it.
+   */
+  dashboardOrder: string[];
+  dashboardHidden: string[];
+
   // ── Item Economics ────────────────────────────────────────────────────────
   /**
    * Weights behind the Item Score on the Profitability dashboard — how much
@@ -282,6 +294,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
   menuOrder: DEFAULT_MENU_ORDER,
   menuItemOrder: {},
+
+  dashboardOrder: DEFAULT_WIDGET_ORDER,
+  dashboardHidden: DEFAULT_WIDGET_HIDDEN,
 
   itemScoreWeights: DEFAULT_ITEM_SCORE_WEIGHTS,
 };
@@ -435,6 +450,8 @@ export function coerceSettings(raw: Record<string, unknown>): AppSettings {
     // real groups at render, so a stale or partial list is never a problem.
     menuOrder:          pick('menuOrder',          (v) => strList(v, d.menuOrder), d.menuOrder),
     menuItemOrder:      pick('menuItemOrder',      (v) => strListMap(v, d.menuItemOrder), d.menuItemOrder),
+    dashboardOrder:     pick('dashboardOrder',     (v) => strList(v, d.dashboardOrder), d.dashboardOrder),
+    dashboardHidden:    pick('dashboardHidden',    (v) => strList(v, d.dashboardHidden), d.dashboardHidden),
     itemScoreWeights:   pick('itemScoreWeights',   (v) => scoreWeights(v, d.itemScoreWeights), d.itemScoreWeights),
   };
 }

@@ -6,6 +6,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
+import { useT } from '@/hooks/useT';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
@@ -17,6 +18,10 @@ import { fetchPosition, type PositionData, type MotionRow } from '@/lib/position
 import type { RolePermissions } from '@/constants/roles';
 import { fetchShortages, fetchReorderAlerts, type ShortageAlert, type ReorderAlert } from '@/lib/reorder';
 import { fmtInt } from '@/lib/formatters';
+import { useDashboardLayout } from '@/hooks/useDashboardLayout';
+import { WIDTH_SPAN, type DashboardLayout } from '@/constants/dashboardWidgets';
+import { canOpenPath } from '@/constants/navigation';
+import WidgetArranger from '@/components/ui/WidgetArranger';
 
 function fmtDate(d?: string | null) {
   const dt = parseDate(d);
@@ -31,6 +36,7 @@ export default function Home() {
   const { user, profile, loading: authLoading } = useAuth();
   const { data, loading } = useSupabaseData();
   const { arOverdueDays, quoteFollowUpDays } = useSettings();
+  const { t } = useT();
   // Module visibility mirrors the nav: a role only sees panels for flows it
   // can access (nothing sensitive renders until the profile has resolved).
   const perms = profile ? ROLE_PERMISSIONS[profile.role] : null;
@@ -40,6 +46,24 @@ export default function Home() {
   const [shortages, setShortages] = useState<ShortageAlert[] | null>(null);
   const [reorders, setReorders] = useState<ReorderAlert[] | null>(null);
   const [position, setPosition] = useState<PositionData | null>(null);
+
+  // ── Which panels this person watches ──────────────────────────────────────
+  // The house layout from Settings › Dashboard, unless they arranged their own.
+  // `visible` is the whole answer: role gate, house default and personal
+  // arrangement resolved in one place (constants/dashboardWidgets.ts), so a
+  // panel can never render for a role that may not read what feeds it.
+  const { visible, arranged, isPersonal, save, reset } = useDashboardLayout(perms);
+  const shown = useMemo(() => new Set(visible.map((w) => w.key)), [visible]);
+  const [customising, setCustomising] = useState(false);
+
+  // Nothing is fetched for a panel nobody is looking at. The advisor reads the
+  // position and the queue, so it keeps them alive even when their own tiles
+  // are switched off — it must never reason from half the numbers.
+  const needQueue    = shown.has('queue') || shown.has('nextStep');
+  const needPosition = shown.has('position') || shown.has('motion') || shown.has('nextStep');
+  const needActivity = shown.has('activity');
+  const needAlerts   = shown.has('stockAlerts');
+  const needStockVal = shown.has('kpiStockValue');
 
   useEffect(() => { document.title = 'Dashboard — ICAPROC'; }, []);
 
@@ -52,41 +76,47 @@ export default function Home() {
   // Both derive from the owning modules' own tables, so fixing a row on Sales
   // or Banks clears it here on the next load — no second source of truth.
   useEffect(() => {
-    if (!user || !perms) return;
+    if (!user || !perms || !needQueue) return;
     let live = true;
     fetchActionQueue(supabase, perms, { arOverdueDays, quoteFollowUpDays })
       .then((r) => { if (live) setQueue(r); })
       .catch(() => { if (live) setQueue([]); });
+    return () => { live = false; };
+  }, [user, profile?.role, needQueue, arOverdueDays, quoteFollowUpDays]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!user || !perms || !needActivity) return;
+    let live = true;
     fetchActivity(supabase, perms)
       .then((r) => { if (live) setActivity(r); })
       .catch(() => { if (live) setActivity([]); });
     return () => { live = false; };
-  }, [user, profile?.role, arOverdueDays, quoteFollowUpDays]);
+  }, [user, profile?.role, needActivity]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── The position: Cash / Owed to us / We owe / CCC + month-in-motion ──────
   // Same rules as /banks, /invoices, the unpaid-PO queue and /profitability —
   // the strip is a window onto those screens, never a second truth.
   useEffect(() => {
-    if (!user || !perms) return;
+    if (!user || !perms || !needPosition) return;
     let live = true;
     fetchPosition(supabase, perms, { arOverdueDays })
       .then((r) => { if (live) setPosition(r); })
       .catch(() => { if (live) setPosition({ motion: [] }); });
     return () => { live = false; };
-  }, [user, profile?.role, arOverdueDays]);   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user, profile?.role, needPosition, arOverdueDays]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Stock alerts: shortages (orders that cannot ship) + reorder points ────
   // Same engines /stock uses — the dashboard is a window, not a second truth.
   useEffect(() => {
-    if (!user || !perms?.buySide) return;
+    if (!user || !perms?.buySide || !needAlerts) return;
     let live = true;
     fetchShortages(supabase).then((r) => { if (live) setShortages(r); }).catch(() => { if (live) setShortages([]); });
     fetchReorderAlerts(supabase).then((r) => { if (live) setReorders(r); }).catch(() => { if (live) setReorders([]); });
     return () => { live = false; };
-  }, [user, perms?.buySide]);   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user, perms?.buySide, needAlerts]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!user || !perms?.buySide) return;
+    if (!user || !perms?.buySide || !needStockVal) return;
     // Warehouse value = Σ on-hand × moving-avg landed cost (30.1 balances)
     supabase.from('30.1_stock_balances')
       .select('qty_on_hand, avg_cost_idr')
@@ -94,7 +124,7 @@ export default function Home() {
         if (error || !data) { setStockValue(0); return; }
         setStockValue(data.reduce((s, b) => s + (Number(b.qty_on_hand) || 0) * (Number(b.avg_cost_idr) || 0), 0));
       });
-  }, [user, perms?.buySide]);
+  }, [user, perms?.buySide, needStockVal]);
 
   const poById = useMemo(
     () => new Map(data.pos.map((p) => [String(p.po_id), p])),
@@ -120,6 +150,39 @@ export default function Home() {
 
   const atStake = useMemo(() => (queue ?? []).reduce((s, i) => s + i.amount, 0), [queue]);
 
+  // The screens this role starts its day on. Computed here rather than inside
+  // the card so the widget can be skipped entirely when a role has none — an
+  // empty panel headed "Quick Actions" is a broken panel.
+  const quickActions = useMemo(() => [
+    ...(perms?.sellSide ? [
+      { href: '/sales/new',  label: 'New Sales Quotation', accent: 'emerald' },
+      { href: '/customers',  label: 'Customers',           accent: 'emerald' },
+    ] : []),
+    ...(perms?.buySide ? [
+      { href: '/purchasing?tab=quoting',    label: 'New Deal — PI / PO',        accent: 'blue' },
+      { href: '/purchasing?tab=financials', label: 'Log Payment',                accent: 'rose' },
+      { href: '/purchasing?tab=lookup',     label: 'Deal Lookup',                accent: 'blue' },
+    ] : []),
+    ...(perms?.canManageStock ? [
+      { href: '/stock/receive',             label: 'Receive Goods',              accent: 'blue' },
+      { href: '/stock',                     label: 'Stock',                      accent: 'blue' },
+    ] : []),
+    // The service desk and the warehouse have a dashboard too — without this
+    // their Quick Actions card had nothing in it at all.
+    ...(perms?.canHandleService ? [
+      { href: '/aftersales',                label: 'After Sales',                accent: 'violet' },
+      { href: '/serials',                   label: 'Serial Numbers',             accent: 'violet' },
+    ] : []),
+    ...(perms?.projects ? [
+      { href: '/proposals',              label: 'New EPC Proposal',          accent: 'violet' },
+    ] : []),
+    ...(perms?.canViewBanks ? [
+      { href: '/banks',                  label: 'Bank Accounts',             accent: 'amber' },
+    ] : []),
+    // Last word to the shared access rule: a shortcut may never lead to a door
+    // that throws you out, whatever the capability above suggested.
+  ].filter((a) => canOpenPath(perms, a.href)), [perms]);
+
   if (authLoading || !user) {
     return (
       <div className="min-h-screen bg-canvas flex items-center justify-center">
@@ -127,6 +190,34 @@ export default function Home() {
       </div>
     );
   }
+
+  /**
+   * One widget, drawn from data the page has already fetched. A widget that
+   * has nothing to say returns null and its cell is skipped — the honesty
+   * doctrine applied to layout: no empty box wearing a heading.
+   */
+  const widgetNode = (key: string): React.ReactNode => {
+    switch (key) {
+      case 'position':   return perms ? <PositionStrip data={position} perms={perms} /> : null;
+      case 'queue':      return <ActionQueue items={queue} atStake={atStake} />;
+      case 'nextStep':   return <NextStepCard position={position} queue={queue} role={profile?.role ?? ''} />;
+      case 'motion':     return position && position.motion.length === 0 ? null
+                                : <MonthMotion rows={position === null ? null : position.motion} />;
+      case 'kpiPaid':    return <KpiTile label="Paid This Month" value={loading ? '—' : fmtIdr(stats.paidThisMonthIdr)}
+                                  sub={new Date().toLocaleDateString('en-GB', { month: 'long' })}
+                                  color="text-rose-300" ring="ring-rose-500/20" />;
+      case 'kpiStockValue': return <KpiTile label="Stock Value" value={stockValue == null ? '—' : fmtIdr(stockValue)}
+                                  sub="on-hand × avg landed cost" color="text-violet-300" ring="ring-violet-500/20" />;
+      case 'kpiActivePos':  return <KpiTile label="Active POs" value={loading ? '—' : stats.activePOs.toString()}
+                                  sub="not cancelled" color="text-sky-300" ring="ring-sky-500/20" />;
+      case 'kpiComponents': return <KpiTile label="Components" value={loading ? '—' : stats.componentCount.toLocaleString('en-US')}
+                                  sub="in catalog" color="text-emerald-300" ring="ring-emerald-500/20" />;
+      case 'stockAlerts':   return <StockAlerts shortages={shortages} reorders={reorders} />;
+      case 'activity':      return <ActivityStream rows={activity} />;
+      case 'quickActions':  return quickActions.length === 0 ? null : <QuickActions items={quickActions} />;
+      default:              return null;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
@@ -137,97 +228,118 @@ export default function Home() {
             wordmarkClass="text-xl md:text-2xl font-extrabold"
             subtitle={new Date().toLocaleDateString('en-GB', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
           />
+          {arranged.length > 0 && (
+            <button onClick={() => setCustomising((v) => !v)} aria-expanded={customising}
+              className={`self-start sm:self-auto flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-colors ${
+                customising ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+                            : 'border-slate-800 text-slate-400 hover:text-white hover:border-slate-600'}`}>
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h10M18 6h2M4 12h2M10 12h10M4 18h8M16 18h4" />
+                <circle cx="16" cy="6" r="2" /><circle cx="8" cy="12" r="2" /><circle cx="14" cy="18" r="2" />
+              </svg>
+              Customise
+            </button>
+          )}
         </div>
       </div>
 
-      <main className="max-w-[1800px] 2xl:max-w-[2460px] mx-auto px-3 sm:px-4 md:px-6 xl:px-8 py-6 xl:py-8 space-y-8">
+      <main className="max-w-[1800px] 2xl:max-w-[2460px] mx-auto px-3 sm:px-4 md:px-6 xl:px-8 py-6 xl:py-8 space-y-6 xl:space-y-7">
 
-        {/* Spotlight used to open this page as a hero. It now lives in the nav
-            bar on every page including this one, so the dashboard leads with
-            the thing only the dashboard can tell you: what needs a human. */}
-
-        {/* ── The position: what the company holds, is owed, owes, and how fast
-               cash cycles — read before the queue asks for anything ── */}
-        {perms && <PositionStrip data={position} perms={perms} />}
-
-        {/* ── Needs you today — the queue leads, at full width ── */}
-        <ActionQueue items={queue} atStake={atStake} />
-
-        {/* ── The AI's read of that queue, and the month's trend beside it.
-               Kept as a two-up row so neither card floats in a half-empty
-               rail next to a short queue. Bank-only roles have no motion, so
-               the advisor takes the full width there. ── */}
-        {perms && (perms.sellSide || perms.buySide) ? (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-stretch">
-            <NextStepCard position={position} queue={queue} role={profile?.role ?? ''} />
-            <MonthMotion rows={position === null ? null : position.motion} />
-          </div>
-        ) : perms?.canViewBanks ? (
-          <NextStepCard position={position} queue={queue} role={profile?.role ?? ''} />
-        ) : null}
-
-        {/* ── KPI row (buy-side economics — hidden from sell-side-only roles) ── */}
-        {perms?.buySide && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 xl:gap-5">
-          {[
-            { label: 'Paid This Month', value: loading ? '—' : fmtIdr(stats.paidThisMonthIdr),
-              sub: new Date().toLocaleDateString('en-GB', { month: 'long' }), color: 'text-rose-300', ring: 'ring-rose-500/20' },
-            { label: 'Stock Value', value: stockValue == null ? '—' : fmtIdr(stockValue), sub: 'on-hand × avg landed cost', color: 'text-violet-300', ring: 'ring-violet-500/20' },
-            { label: 'Active POs', value: loading ? '—' : stats.activePOs.toString(), sub: 'not cancelled', color: 'text-sky-300', ring: 'ring-sky-500/20' },
-            { label: 'Components', value: loading ? '—' : stats.componentCount.toLocaleString('en-US'), sub: 'in catalog', color: 'text-emerald-300', ring: 'ring-emerald-500/20' },
-          ].map(({ label, value, sub, color, ring }) => (
-            <div key={label} className={`bg-slate-900/60 border border-slate-800/80 ring-1 ${ring} rounded-2xl p-4 xl:p-5`}>
-              <p className="text-[10px] xl:text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">{label}</p>
-              <p className={`text-2xl xl:text-3xl font-extrabold tabular-nums ${color} leading-none`}><FitText text={value} /></p>
-              <p className="text-[11px] text-slate-600 mt-1.5">{sub}</p>
+        {/* ── Customise: what this person watches, and in what order ──
+               Personal and per-device. The house layout stays in
+               Settings › Dashboard, and changing it dissolves every stale
+               personal arrangement so the setting never looks dead. */}
+        {customising && (
+          <div className="bg-slate-900/60 border border-slate-800/80 ring-1 ring-emerald-500/15 rounded-2xl p-4 sm:p-5 space-y-3.5">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">Your dashboard</p>
+                <p className="text-[11px] text-slate-500 leading-snug mt-1 max-w-2xl">
+                  {t('Tick what you want to watch, drag a row to move it (the arrows do the same on touch). This is your own arrangement, on this browser — it does not change anyone else’s.')}
+                  {perms?.canManageUsers && (
+                    <> <Link href="/settings?tab=dashboard" className="text-slate-400 hover:text-emerald-300 font-semibold transition-colors">Settings › Dashboard</Link>{' '}
+                      {t('sets the starting point for everyone.')}</>
+                  )}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button onClick={reset} disabled={!isPersonal}
+                  className="text-[11px] font-semibold text-slate-400 hover:text-white disabled:text-slate-700 disabled:hover:text-slate-700 transition-colors">
+                  Reset to house default
+                </button>
+                <button onClick={() => setCustomising(false)}
+                  className="text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-slate-800/60 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                  Done
+                </button>
+              </div>
             </div>
-          ))}
-        </div>
+            <WidgetArranger rows={arranged} onChange={(next: DashboardLayout) => save(next)} />
+            {visible.length === 0 && (
+              <p className="text-[11px] text-amber-300/80">Everything is switched off — the dashboard below is empty until you tick something.</p>
+            )}
+          </div>
         )}
 
-        {/* ── Stock alerts — shortages (the fire) + reorder points (the smoke
-               detector), in one dedicated section ── */}
-        {perms?.buySide && <StockAlerts shortages={shortages} reorders={reorders} />}
-
-        {/* ── Activity + quick actions ── */}
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-          <div className="xl:col-span-2"><ActivityStream rows={activity} /></div>
-
-          {/* Quick actions (text only, no emoji) */}
-          <div className="bg-slate-900/40 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl p-5">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-3">Quick Actions</p>
-            <div className="space-y-2">
-              {[
-                ...(perms?.sellSide ? [
-                  { href: '/sales/new',  label: 'New Sales Quotation', accent: 'emerald' },
-                  { href: '/customers',  label: 'Customers',           accent: 'emerald' },
-                ] : []),
-                ...(perms?.buySide ? [
-                  { href: '/purchasing?tab=quoting',    label: 'New Deal — PI / PO',        accent: 'blue' },
-                  { href: '/purchasing?tab=financials', label: 'Log Payment',                accent: 'rose' },
-                  { href: '/purchasing?tab=lookup',     label: 'Deal Lookup',                accent: 'blue' },
-                ] : []),
-                ...(perms?.canManageStock ? [
-                  { href: '/stock/receive',             label: 'Receive Goods',              accent: 'blue' },
-                ] : []),
-                ...(perms?.projects ? [
-                  { href: '/proposals',              label: 'New EPC Proposal',          accent: 'violet' },
-                ] : []),
-                ...(perms?.canViewBanks ? [
-                  { href: '/banks',                  label: 'Bank Accounts',             accent: 'amber' },
-                ] : []),
-              ].map(({ href, label, accent }) => (
-                <Link key={href} href={href}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-800/30 hover:bg-slate-800/60 border border-transparent hover:border-slate-700 transition-colors group">
-                  <span className={`w-1.5 h-1.5 rounded-full ${DOT[accent]}`} />
-                  <span className="text-sm text-slate-300 group-hover:text-white transition-colors">{label}</span>
-                  <span className="ml-auto text-slate-700 group-hover:text-slate-400 transition-colors">→</span>
-                </Link>
-              ))}
-            </div>
+        {/* ── The widgets, in this person's order ──
+               One grid rather than a stack of hand-placed sections: a widget
+               declares its width in constants/dashboardWidgets.ts and lands
+               wherever the order puts it. */}
+        {perms === null ? (
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            {[...Array(4)].map((_, i) => <div key={i} className="h-28 bg-slate-800/30 rounded-2xl animate-pulse" />)}
           </div>
-        </div>
+        ) : visible.length === 0 ? (
+          <p className="text-center text-xs text-slate-500 py-16">
+            {arranged.length === 0
+              ? 'There is no dashboard panel for this role — your work lives in the menu above.'
+              : customising
+                ? 'Nothing is switched on yet.'
+                : 'Every panel is switched off — press Customise to bring one back.'}
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 lg:grid-cols-12 gap-x-4 xl:gap-x-5 gap-y-6 xl:gap-y-7">
+            {visible.map((w) => {
+              const node = widgetNode(w.key);
+              if (!node) return null;
+              return (
+                <div key={w.key} className={`${WIDTH_SPAN[w.width]} min-w-0 h-full [&>*]:h-full`}>{node}</div>
+              );
+            })}
+          </div>
+        )}
       </main>
+    </div>
+  );
+}
+
+/** One KPI tile — a label, one big number, and what the number means. */
+function KpiTile({ label, value, sub, color, ring }: {
+  label: string; value: string; sub: string; color: string; ring: string;
+}) {
+  return (
+    <div className={`bg-slate-900/60 border border-slate-800/80 ring-1 ${ring} rounded-2xl p-4 xl:p-5`}>
+      <p className="text-[10px] xl:text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">{label}</p>
+      <p className={`text-2xl xl:text-3xl font-extrabold tabular-nums ${color} leading-none`}><FitText text={value} /></p>
+      <p className="text-[11px] text-slate-600 mt-1.5">{sub}</p>
+    </div>
+  );
+}
+
+/** Where this role starts its day — text only, no emoji (owner's rule). */
+function QuickActions({ items }: { items: { href: string; label: string; accent: string }[] }) {
+  return (
+    <div className="bg-slate-900/40 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl p-5">
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-3">Quick Actions</p>
+      <div className="space-y-2">
+        {items.map(({ href, label, accent }) => (
+          <Link key={href} href={href}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-800/30 hover:bg-slate-800/60 border border-transparent hover:border-slate-700 transition-colors group">
+            <span className={`w-1.5 h-1.5 rounded-full ${DOT[accent]}`} />
+            <span className="text-sm text-slate-300 group-hover:text-white transition-colors">{label}</span>
+            <span className="ml-auto text-slate-700 group-hover:text-slate-400 transition-colors">→</span>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }
