@@ -15,7 +15,7 @@ const COST_LABELS: Record<string, string> = {
   value_today_bank_fee: 'Bank Fee (Value Today)', admin_bank_fee: 'Bank Fee (Admin)',
   inter_bank_transfer_fee: 'Inter-bank Transfer Fee', local_import_duty: 'Import Duty',
   local_vat: 'Local VAT / PPN', local_income_tax: 'Income Tax (PPh)',
-  local_delivery: 'Local Delivery', demurrage_fee: 'Demurrage', penalty_fee: 'Penalty',
+  freight_cost: 'Freight', local_delivery: 'Local Delivery', demurrage_fee: 'Demurrage', penalty_fee: 'Penalty',
   dhl_advance_payment_fee: 'DHL Advance Fee', local_import_tax: 'Import Tax',
 };
 

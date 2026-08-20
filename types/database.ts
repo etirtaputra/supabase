@@ -34,6 +34,9 @@ export type POCostCategory =
   | 'local_import_duty'
   | 'local_vat'
   | 'local_income_tax'
+  // Third-party freight billed separately from the supplier's invoice. Part of
+  // landed cost, so it lands in TUC like any other non-tax cost.
+  | 'freight_cost'
   | 'local_delivery'
   | 'demurrage_fee'
   | 'penalty_fee'

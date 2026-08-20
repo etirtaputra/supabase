@@ -56,6 +56,25 @@ test('the factor carries the exchange rate; no costs or no line value means no f
   assert.equal(landedFactorOf([line({ quantity: 0 })], [cost()], 16_000), null);
 });
 
+test('freight billed separately reaches the unit cost', () => {
+  // The forwarder's own invoice is landed cost, not a tax, so the pool takes
+  // it — the same rule computeTUC applies, which is why adding the category
+  // was the whole change.
+  const withFreight = poolIdrOf([
+    cost({ amount: 1000 }),                                                        // 16,000,000 principal
+    cost({ cost_category: 'freight_cost', amount: 3_000_000, currency: 'IDR' }),
+  ], 16_000);
+  assert.equal(withFreight, 19_000_000);
+  // And it moves the landed cost of the goods, rather than sitting beside them
+  const s = computeLandedVariances(
+    [po()], [line()],
+    [cost({ amount: 1000 }), cost({ cost_category: 'freight_cost', amount: 4_000_000, currency: 'IDR' })],
+    [move()], [bal({ qty_on_hand: 10 })],
+  );
+  assert.equal(s.pos[0].items[0].actualUnit, 2_000_000);   // 1,600,000 + 400,000 of freight
+  assert.equal(s.pos[0].delta, 4_000_000);
+});
+
 test('settled means a balance payment exists — a down payment alone is not final', () => {
   assert.equal(isSettled([cost({ cost_category: 'down_payment' })]), false);
   assert.equal(isSettled([cost({ cost_category: 'down_payment' }), cost({ cost_category: 'balance_payment' })]), true);

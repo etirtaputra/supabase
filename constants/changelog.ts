@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-19T23:30:00Z',
+    title: 'New PO cost category: Freight \u2014 and it counts towards the item cost',
+    details: [
+      '\u201cfreight_cost\u201d is now in the PO Costs dropdown, for freight billed separately from the supplier\u2019s invoice \u2014 the forwarder\u2019s own bill. Freight the supplier charges on the PO itself still belongs in the PO\u2019s Freight Cost field, inside the document total.',
+      'It counts as landed cost everywhere that matters: the true unit cost behind Last Price, the moving-average stock cost when goods are received, and the landed-cost true-up. Only local VAT and income tax stay out of those, as before.',
+    ],
+  },
+  {
     at: '2026-08-19T22:10:00Z',
     title: 'Two new roles: Warehouse and After-Sales Desk',
     details: [
