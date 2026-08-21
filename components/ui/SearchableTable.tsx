@@ -7,7 +7,9 @@
 import React, { useState, useMemo } from 'react';
 import { TableSkeleton } from './LoadingSkeleton';
 import type { SearchableTableProps, TableColumn } from '../../types/forms';
+import { useT } from '@/hooks/useT';
 function SearchableTable<T = any>({ title, data, columns, isLoading = false }: SearchableTableProps<T>) {
+  const { t, tf } = useT();
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
@@ -75,7 +77,7 @@ function SearchableTable<T = any>({ title, data, columns, isLoading = false }: S
             </span>
           </h3>
           <div className="flex items-center gap-2 text-xs">
-            <span className="text-slate-400 font-medium">Rows per page:</span>
+            <span className="text-slate-400 font-medium">{t('Rows per page:')}</span>
             <select
               value={itemsPerPage}
               onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
@@ -91,7 +93,7 @@ function SearchableTable<T = any>({ title, data, columns, isLoading = false }: S
         <div className="relative">
           <input
             type="text"
-            placeholder="Search records..."
+            placeholder={t('Search records...')}
             className="w-full bg-slate-950/50 border border-slate-700/80 rounded-xl py-2.5 pl-10 pr-4 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:bg-slate-900 focus:ring-2 focus:ring-emerald-500/40 focus:border-transparent transition-all"
             value={searchTerm}
             onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
@@ -126,7 +128,7 @@ function SearchableTable<T = any>({ title, data, columns, isLoading = false }: S
             {paginatedData.length === 0 ? (
               <tr>
                 <td colSpan={columns.length} className="px-6 py-12 text-center">
-                  <p className="text-slate-500 text-sm">No matching records found.</p>
+                  <p className="text-slate-500 text-sm">{t('No matching records found.')}</p>
                 </td>
               </tr>
             ) : (
@@ -150,16 +152,23 @@ function SearchableTable<T = any>({ title, data, columns, isLoading = false }: S
       {totalPages > 1 && (
         <div className="p-4 border-t border-slate-800/80 bg-slate-900/50 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs">
           <span className="text-slate-400 font-medium">
-            Showing <strong className="text-slate-200">{(currentPage - 1) * itemsPerPage + 1}</strong> to <strong className="text-slate-200">{Math.min(currentPage * itemsPerPage, sortedData.length)}</strong> of <strong className="text-slate-200">{sortedData.length}</strong> entries
+            {/* One sentence, not four fragments glued to three numbers — see
+                lib/i18n.ts. Bold is applied to the numbers after the fact, so
+                the Indonesian can put them wherever Indonesian puts them. */}
+            {tf('Showing {from} to {to} of {total} entries', {
+              from: (currentPage - 1) * itemsPerPage + 1,
+              to: Math.min(currentPage * itemsPerPage, sortedData.length),
+              total: sortedData.length,
+            })}
           </span>
           <div className="flex items-center gap-1.5">
-            <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-2 bg-slate-800/80 text-slate-300 rounded-lg hover:bg-slate-700 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all font-medium border border-slate-700/50">First</button>
-            <button onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))} disabled={currentPage === 1} className="px-3 py-2 bg-slate-800/80 text-slate-300 rounded-lg hover:bg-slate-700 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all font-medium border border-slate-700/50">Prev</button>
+            <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-2 bg-slate-800/80 text-slate-300 rounded-lg hover:bg-slate-700 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all font-medium border border-slate-700/50">{t('First')}</button>
+            <button onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))} disabled={currentPage === 1} className="px-3 py-2 bg-slate-800/80 text-slate-300 rounded-lg hover:bg-slate-700 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all font-medium border border-slate-700/50">{t('Prev')}</button>
             <div className="px-4 py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg font-bold min-w-[40px] text-center shadow-inner">
               {currentPage}
             </div>
-            <button onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages} className="px-3 py-2 bg-slate-800/80 text-slate-300 rounded-lg hover:bg-slate-700 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all font-medium border border-slate-700/50">Next</button>
-            <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-2 bg-slate-800/80 text-slate-300 rounded-lg hover:bg-slate-700 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all font-medium border border-slate-700/50">Last</button>
+            <button onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages} className="px-3 py-2 bg-slate-800/80 text-slate-300 rounded-lg hover:bg-slate-700 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all font-medium border border-slate-700/50">{t('Next')}</button>
+            <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-2 bg-slate-800/80 text-slate-300 rounded-lg hover:bg-slate-700 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all font-medium border border-slate-700/50">{t('Last')}</button>
           </div>
         </div>
       )}

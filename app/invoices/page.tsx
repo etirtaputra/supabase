@@ -168,12 +168,12 @@ export default function InvoicesPage() {
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative flex-1 min-w-[220px]">
             <svg className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search invoice number, customer…"
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('Search invoice number, customer…')}
               className="w-full pl-10 pr-4 h-11 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors" />
           </div>
           <DateRangeFilter value={range} onChange={(r) => { touched.current = true; setRange(r); }} label="Issued" />
           <select value={sort} onChange={(e) => { touched.current = true; setSort(e.target.value); }}
-            title="Order — the default lives in Settings › Lists"
+            title={t('Order — the default lives in Settings › Lists')}
             className="text-xs bg-slate-900/80 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60">
             {listSpec('invoices').sorts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
@@ -187,7 +187,7 @@ export default function InvoicesPage() {
 
         <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
           <div className={`hidden md:grid grid-cols-[160px_1fr_100px_130px_150px_90px] gap-3 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500 ${compact ? 'px-3 py-1.5' : 'px-4 py-2.5'}`}>
-            <span>Invoice</span><span>Customer</span><span className="text-right">Date</span><span className="text-right">Total</span><span className="text-right">Received</span><span className="text-right">Status</span>
+            <span>{t('Invoice')}</span><span>{t('Customer')}</span><span className="text-right">{t('Date')}</span><span className="text-right">{t('Total')}</span><span className="text-right">{t('Received')}</span><span className="text-right">{t('Status')}</span>
           </div>
           {loading ? (
             <div className="p-4 space-y-1.5">{[...Array(6)].map((_, i) => <div key={i} className="h-12 bg-slate-800/40 rounded-xl animate-pulse" />)}</div>
@@ -205,7 +205,7 @@ export default function InvoicesPage() {
                       <span className="block font-mono text-[11px] text-amber-200">{q.invoice_number || '—'}</span>
                       {!compact && <span className="block text-[10px] text-slate-600 font-mono">{displayDocNumber(q)}{q.kind === 'progress' ? ` · ${Number(q.pct ?? 0)}%` : ''}</span>}
                     </span>
-                    <span className="text-sm text-slate-100 truncate">{c?.display_name || c?.legal_name || <span className="text-slate-600">No customer</span>}</span>
+                    <span className="text-sm text-slate-100 truncate">{c?.display_name || c?.legal_name || <span className="text-slate-600">{t('No customer')}</span>}</span>
                     <span className="md:text-right text-[11px] text-slate-500 tabular-nums">{fmtDay(q.invoiced_at)}</span>
                     <span className="md:text-right tabular-nums text-slate-200">{fmtInt(total)}</span>
                     <span className="md:text-right">
@@ -225,7 +225,7 @@ export default function InvoicesPage() {
                       <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${paid ? 'bg-emerald-500/20 text-emerald-300' : rcv > 0 ? 'bg-amber-500/15 text-amber-300' : 'bg-slate-800 text-slate-400'}`}>
                         {paid ? 'PAID' : rcv > 0 ? 'PARTIAL' : 'UNPAID'}
                       </span>
-                      {q.status === 'delivered' && !compact && <span className="block mt-0.5 text-[9px] text-emerald-500/70 uppercase font-semibold md:text-right">Delivered</span>}
+                      {q.status === 'delivered' && !compact && <span className="block mt-0.5 text-[9px] text-emerald-500/70 uppercase font-semibold md:text-right">{t('Delivered')}</span>}
                     </span>
                   </button>
                 );

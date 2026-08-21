@@ -222,7 +222,7 @@ function AfterSalesPage() {
 
   /** Take a unit: its order, customer and product become the ticket's. */
   const applySerial = useCallback((row: SerialRow) => {
-    const t = traceSerial(row, serialOrders, serialDos, serialInvoices);
+    const trace = traceSerial(row, serialOrders, serialDos, serialInvoices);
     setSerialInput(row.serial);
     setDraft((d) => ({
       ...d,
@@ -230,9 +230,9 @@ function AfterSalesPage() {
       serial_text: row.serial,
       component_id: row.component_id,
       product_text: row.component_id ? '' : row.product_text,
-      customer_id: t.customerId ?? d.customer_id ?? null,
-      quote_id: t.order?.quote_id ?? d.quote_id ?? null,
-      is_external: t.external,
+      customer_id: trace.customerId ?? d.customer_id ?? null,
+      quote_id: trace.order?.quote_id ?? d.quote_id ?? null,
+      is_external: trace.external,
     }));
   }, [serialOrders, serialDos, serialInvoices]);
 
@@ -318,13 +318,13 @@ function AfterSalesPage() {
   const ticketRows = useMemo(() => {
     const val = (c: Case): string => {
       const row = c.serial_id ? serialById.get(c.serial_id) : null;
-      const t = row ? traceSerial(row, serialOrders, serialDos, serialInvoices) : null;
+      const trace = row ? traceSerial(row, serialOrders, serialDos, serialInvoices) : null;
       switch (ticketSort.key) {
         case 'reported': return c.reported_at ?? '';
         case 'serial':   return normSerial(c.serial_text || row?.serial || '');
         case 'product':  return (c.component_id ? compById.get(c.component_id)?.internal_description ?? '' : c.product_text).toLowerCase();
         case 'customer': return (custName.get(c.customer_id ?? '') ?? '').toLowerCase();
-        case 'order':    return (t?.order ? displayDocNumber(t.order) : (c.quote_id ? orderLabel(c.quote_id) : '')).toLowerCase();
+        case 'order':    return (trace?.order ? displayDocNumber(trace.order) : (c.quote_id ? orderLabel(c.quote_id) : '')).toLowerCase();
         case 'category': return c.category;
         case 'status':   return c.status;
         // The ticket number CARRIES its date (AS-YYYYMMDD-NNNN), so sorting on
@@ -499,7 +499,7 @@ function AfterSalesPage() {
           )}
           <div className="relative flex-1 min-w-[180px]">
             <svg className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search serial, ticket, customer, order, item…"
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('Search serial, ticket, customer, order, item…')}
               className="w-full pl-10 pr-4 h-10 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors" />
           </div>
           {Object.entries(CATEGORIES).map(([k, c]) => (
@@ -529,7 +529,7 @@ function AfterSalesPage() {
           <div className="space-y-2">{[...Array(4)].map((_, i) => <div key={i} className="h-16 bg-slate-800/40 rounded-2xl animate-pulse" />)}</div>
         ) : cases.length === 0 ? (
           <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-10 text-center space-y-2">
-            <p className="text-slate-300 font-semibold">No after-sales cases yet</p>
+            <p className="text-slate-300 font-semibold">{t('No after-sales cases yet')}</p>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
               When a customer reports a fault, log it here — attached to their sales order and the items involved —
               and the service history builds itself.
@@ -541,7 +541,7 @@ function AfterSalesPage() {
             )}
           </div>
         ) : visible.length === 0 ? (
-          <p className="text-slate-500 text-xs italic py-10 text-center">No case matches.</p>
+          <p className="text-slate-500 text-xs italic py-10 text-center">{t('No case matches.')}</p>
         ) : mode === 'ticket' ? (
           /* ── By ticket: one row per ticket, every column sorts ─────────── */
           <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
@@ -554,8 +554,8 @@ function AfterSalesPage() {
               {ticketRows.map((c) => {
                 const cat = CATEGORIES[c.category] ?? CATEGORIES.other;
                 const row = c.serial_id ? serialById.get(c.serial_id) : null;
-                const t = row ? traceSerial(row, serialOrders, serialDos, serialInvoices) : null;
-                const so = t?.order ?? (c.quote_id ? orderById.get(c.quote_id) : null);
+                const trace = row ? traceSerial(row, serialOrders, serialDos, serialInvoices) : null;
+                const so = trace?.order ?? (c.quote_id ? orderById.get(c.quote_id) : null);
                 const product = c.component_id
                   ? compById.get(c.component_id)?.internal_description ?? '—'
                   : c.product_text || (partsByCase.get(c.case_id) ?? []).map((p) => p.description).filter(Boolean).join(', ') || c.subject || '—';
@@ -570,7 +570,7 @@ function AfterSalesPage() {
                     </span>
                     <span className="text-xs text-slate-300 truncate block lg:inline" title={product}>
                       {product}
-                      {c.is_external && <span className="ml-2 text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300">not ours</span>}
+                      {c.is_external && <span className="ml-2 text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300">{t('not ours')}</span>}
                     </span>
                     <span className="hidden lg:block text-[11px] text-slate-400 truncate">{custName.get(c.customer_id ?? '') || '—'}</span>
                     <span className="hidden lg:block text-[11px] text-sky-300 font-mono truncate">{so ? displayDocNumber(so) : '—'}</span>
@@ -636,7 +636,7 @@ function AfterSalesPage() {
                                       {so && <a href={`/sales/${so.quote_id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-slate-500 hover:text-emerald-300 transition-colors">{displayDocNumber(so)}</a>}
                                       {invs.slice(0, 1).map((i) => <a key={i.invoice_id} href={`/sales/${i.quote_id}/print?inv=${i.invoice_id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-slate-500 hover:text-emerald-300 transition-colors">{i.invoice_number}</a>)}
                                       {qdos.slice(0, 1).map((d) => <a key={d.do_id} href={`/sales/${d.quote_id}/do?do=${d.do_id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-slate-500 hover:text-emerald-300 transition-colors">{d.do_number}</a>)}
-                                      {(invs.length > 1 || qdos.length > 1) && <span className="text-slate-600" title="More invoices / delivery orders — expand the row">+{Math.max(0, invs.length - 1) + Math.max(0, qdos.length - 1)}</span>}
+                                      {(invs.length > 1 || qdos.length > 1) && <span className="text-slate-600" title={t('More invoices / delivery orders — expand the row')}>+{Math.max(0, invs.length - 1) + Math.max(0, qdos.length - 1)}</span>}
                                     </span>
                                   )}
                                   {parts.length > 0 && <span className="text-[10px] text-slate-500">{fmtInt(parts.length)} item{parts.length !== 1 ? 's' : ''}</span>}
@@ -675,17 +675,17 @@ function AfterSalesPage() {
                           {open && (
                             <div className="border-t border-slate-800/60 bg-slate-950/40 px-4 py-3 space-y-1.5 text-[11px]">
                               <p className="flex items-center gap-2 flex-wrap">
-                                <span className={lbl}>Sales order</span>
+                                <span className={lbl}>{t('Sales order')}</span>
                                 {so ? (
                                   <>
                                     <a href={`/sales/${so.quote_id}`} target="_blank" rel="noopener noreferrer" className={docLink}>{displayDocNumber(so)}</a>
                                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${SALES_STATUS[so.status]?.cls ?? ''}`}>{SALES_STATUS[so.status]?.label ?? so.status}</span>
                                   </>
-                                ) : <span className="text-slate-600 italic">none linked</span>}
+                                ) : <span className="text-slate-600 italic">{t('none linked')}</span>}
                               </p>
                               <p className="flex items-center gap-x-3 gap-y-1 flex-wrap">
                                 <span className={lbl}>Invoice{invs.length > 1 ? `s ×${invs.length}` : ''}</span>
-                                {invs.length === 0 ? <span className="text-slate-600 italic">none</span> : invs.map((i) => (
+                                {invs.length === 0 ? <span className="text-slate-600 italic">{t('none')}</span> : invs.map((i) => (
                                   <span key={i.invoice_id} className="inline-flex items-center gap-1.5">
                                     <a href={`/sales/${i.quote_id}/print?inv=${i.invoice_id}`} target="_blank" rel="noopener noreferrer" className={docLink}>{i.invoice_number}</a>
                                     <span className="text-slate-500">issued {fmtDay(i.issued_at || i.created_at)}</span>
@@ -695,7 +695,7 @@ function AfterSalesPage() {
                               </p>
                               <p className="flex items-center gap-x-3 gap-y-1 flex-wrap">
                                 <span className={lbl}>Delivery{qdos.length > 1 ? ` ×${qdos.length}` : ''}</span>
-                                {qdos.length === 0 ? <span className="text-slate-600 italic">none</span> : qdos.map((d) => (
+                                {qdos.length === 0 ? <span className="text-slate-600 italic">{t('none')}</span> : qdos.map((d) => (
                                   <span key={d.do_id} className="inline-flex items-center gap-1.5">
                                     <a href={`/sales/${d.quote_id}/do?do=${d.do_id}`} target="_blank" rel="noopener noreferrer" className={docLink}>{d.do_number}</a>
                                     {d.status === 'delivered' ? (
@@ -703,13 +703,13 @@ function AfterSalesPage() {
                                         <span className="text-slate-500">delivered {fmtDay(d.delivered_at || d.delivery_date)}</span>
                                         {runningFor(d.delivered_at || d.delivery_date) && <span className="text-amber-300/90 tabular-nums">{runningFor(d.delivered_at || d.delivery_date)} running</span>}
                                       </>
-                                    ) : <span className="text-orange-300/80">preparing</span>}
+                                    ) : <span className="text-orange-300/80">{t('preparing')}</span>}
                                   </span>
                                 ))}
                               </p>
                               {(invs.length > 0 || qdos.some((d) => d.status === 'delivered')) && (
                                 <p className="flex items-start gap-2 flex-wrap">
-                                  <span className={`${lbl} mt-0.5`}>Warranty</span>
+                                  <span className={`${lbl} mt-0.5`}>{t('Warranty')}</span>
                                   {wty ? (
                                     <span className="flex-1 min-w-0 space-y-0.5">
                                       <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${WTY_BADGE[wty.status].cls}`}>
@@ -723,7 +723,7 @@ function AfterSalesPage() {
                                             {run.expired ? '✕' : '✓'} {run.label} · until {fmtDay(run.end.toISOString())}
                                           </span>
                                           {fmtWarranty(cmp.perf_warranty_value, cmp.perf_warranty_unit) && (
-                                            <span className="text-slate-600" title="Performance warranty — output guarantee, not a repair claim">
+                                            <span className="text-slate-600" title={t('Performance warranty — output guarantee, not a repair claim')}>
                                               perf {fmtWarranty(cmp.perf_warranty_value, cmp.perf_warranty_unit)}
                                             </span>
                                           )}
@@ -739,7 +739,7 @@ function AfterSalesPage() {
                               )}
                               {parts.length > 0 && (
                                 <p className="flex items-start gap-2 flex-wrap">
-                                  <span className={`${lbl} mt-0.5`}>Items</span>
+                                  <span className={`${lbl} mt-0.5`}>{t('Items')}</span>
                                   <span className="flex-1 min-w-0 text-slate-400">
                                     {parts.map((p) => `${ACTIONS[p.action] ?? p.action}: ${p.description}${Number(p.quantity) !== 1 ? ` ×${fmtQty(Number(p.quantity))}` : ''}`).join(' · ')}
                                   </span>
@@ -747,7 +747,7 @@ function AfterSalesPage() {
                               )}
                               {svcQuotes.length > 0 && (
                                 <p className="flex items-center gap-x-3 gap-y-1 flex-wrap">
-                                  <span className={lbl}>Quotes</span>
+                                  <span className={lbl}>{t('Quotes')}</span>
                                   {svcQuotes.map((q) => (
                                     <span key={q.quote_id} className="inline-flex items-center gap-1.5">
                                       <a href={`/sales/${q.quote_id}`} target="_blank" rel="noopener noreferrer" className={docLink}>{displayDocNumber(q)}</a>
@@ -808,7 +808,7 @@ function AfterSalesPage() {
             <div className="bg-slate-900/60 border border-emerald-500/20 rounded-xl p-3 space-y-2.5">
               <div className="flex flex-wrap items-end gap-2">
                 <label className="block flex-1 min-w-[200px]">
-                  <span className="block text-[10px] uppercase tracking-widest text-emerald-400/80 mb-1">Serial number</span>
+                  <span className="block text-[10px] uppercase tracking-widest text-emerald-400/80 mb-1">{t('Serial number')}</span>
                   <input value={serialInput} disabled={!canEdit}
                     onChange={(e) => {
                       setSerialInput(e.target.value);
@@ -822,7 +822,7 @@ function AfterSalesPage() {
                 </label>
                 <Link href={`/serials?q=${encodeURIComponent(serialInput)}`}
                   className="px-3 py-2 rounded-lg border border-slate-700 text-slate-400 hover:text-emerald-300 hover:border-emerald-500/40 text-[11px] font-semibold whitespace-nowrap transition-colors"
-                  title={t("Open the serial register")}>Register ↗</Link>
+                  title={t("Open the serial register")}>{t('Register ↗')}</Link>
               </div>
 
               {/* One match: taken. Several: the desk picks. None: say so plainly. */}
@@ -830,17 +830,17 @@ function AfterSalesPage() {
                 <div className="space-y-1.5">
                   <p className="text-[11px] text-slate-500">{serialHits.length === 1 ? 'Found this unit:' : `${serialHits.length} units carry that serial — pick the right product:`}</p>
                   {serialHits.map((r) => {
-                    const t = traceSerial(r, serialOrders, serialDos, serialInvoices);
+                    const trace = traceSerial(r, serialOrders, serialDos, serialInvoices);
                     return (
                       <button key={r.serial_id} onClick={() => applySerial(r)} disabled={!canEdit}
                         className="w-full text-left px-3 py-2 rounded-lg bg-emerald-500/[0.07] border border-emerald-500/25 hover:bg-emerald-500/15 transition-colors">
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
                           <span className="font-mono text-emerald-300">{r.serial}</span>
                           <span className="text-slate-300">{r.component_id ? compById.get(r.component_id)?.internal_description ?? '—' : r.product_text || '—'}</span>
-                          <span className="text-slate-500">{custName.get(t.customerId ?? '') ?? 'no customer'}</span>
-                          {t.order && <span className="text-sky-300 font-mono">{displayDocNumber(t.order)}</span>}
-                          {t.delivery?.do_number && <span className="text-slate-500 font-mono">{t.delivery.do_number}</span>}
-                          {t.external && <span className="text-amber-300">not sold by us</span>}
+                          <span className="text-slate-500">{custName.get(trace.customerId ?? '') ?? 'no customer'}</span>
+                          {trace.order && <span className="text-sky-300 font-mono">{displayDocNumber(trace.order)}</span>}
+                          {trace.delivery?.do_number && <span className="text-slate-500 font-mono">{trace.delivery.do_number}</span>}
+                          {trace.external && <span className="text-amber-300">{t('not sold by us')}</span>}
                         </div>
                       </button>
                     );
@@ -851,21 +851,21 @@ function AfterSalesPage() {
               {/* Typed, and the register has never seen it */}
               {serialInput.trim() && !draft.serial_id && serialHits.length === 0 && (
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px]">
-                  <span className="text-amber-300">No unit with that serial in the register.</span>
-                  <span className="text-slate-500">Open the ticket anyway — the serial is kept as typed.</span>
+                  <span className="text-amber-300">{t('No unit with that serial in the register.')}</span>
+                  <span className="text-slate-500">{t('Open the ticket anyway — the serial is kept as typed.')}</span>
                   <label className="flex items-center gap-1.5 text-slate-400 cursor-pointer">
                     <input type="checkbox" checked={!!draft.is_external} disabled={!canEdit}
                       onChange={(e) => set('is_external', e.target.checked)} className="w-3.5 h-3.5 accent-amber-500" />
                     not bought from us
                   </label>
-                  <Link href="/serials" className="text-slate-500 hover:text-emerald-300 transition-colors">record it in the register ↗</Link>
+                  <Link href="/serials" className="text-slate-500 hover:text-emerald-300 transition-colors">{t('record it in the register ↗')}</Link>
                 </div>
               )}
 
               {/* A unit is attached — show what came with it */}
               {draft.serial_id && serialTrace && (
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
-                  <span className="text-emerald-300 font-semibold">unit attached</span>
+                  <span className="text-emerald-300 font-semibold">{t('unit attached')}</span>
                   <span className="text-slate-300">
                     {draft.component_id ? compById.get(draft.component_id)?.internal_description ?? '—' : draft.product_text || '—'}
                   </span>
@@ -873,10 +873,10 @@ function AfterSalesPage() {
                   {serialTrace.invoice?.invoice_number && <span className="text-slate-400 font-mono">{serialTrace.invoice.invoice_number}</span>}
                   {serialTrace.delivery?.do_number && <span className="text-slate-400 font-mono">{serialTrace.delivery.do_number}</span>}
                   {serialTrace.deliveredAt && <span className="text-slate-500">delivered {fmtDay(serialTrace.deliveredAt)}</span>}
-                  {serialTrace.external && <span className="text-amber-300">not sold by us — out of our warranty</span>}
+                  {serialTrace.external && <span className="text-amber-300">{t('not sold by us — out of our warranty')}</span>}
                   {canEdit && (
                     <button onClick={() => { set('serial_id', null); setSerialInput(''); }}
-                      className="ml-auto text-slate-500 hover:text-white transition-colors">detach</button>
+                      className="ml-auto text-slate-500 hover:text-white transition-colors">{t('detach')}</button>
                   )}
                 </div>
               )}
@@ -885,19 +885,19 @@ function AfterSalesPage() {
               {draft.is_external && (
                 <div className="grid sm:grid-cols-3 gap-2">
                   <label className="block sm:col-span-1">
-                    <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Product</span>
+                    <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Product')}</span>
                     <input value={draft.product_text ?? ''} disabled={!canEdit || !!draft.component_id}
                       onChange={(e) => set('product_text', e.target.value)}
-                      placeholder="What is it?" className={inputCls} />
+                      placeholder={t('What is it?')} className={inputCls} />
                   </label>
                   <label className="block">
-                    <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Bought from</span>
+                    <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Bought from')}</span>
                     <input value={draft.purchased_from ?? ''} disabled={!canEdit}
                       onChange={(e) => set('purchased_from', e.target.value)}
-                      placeholder="Which seller?" className={inputCls} />
+                      placeholder={t('Which seller?')} className={inputCls} />
                   </label>
                   <label className="block">
-                    <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Bought on</span>
+                    <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Bought on')}</span>
                     <input type="date" value={draft.purchased_at ?? ''} disabled={!canEdit}
                       onChange={(e) => set('purchased_at', e.target.value || null)} className={inputCls} />
                   </label>
@@ -909,24 +909,24 @@ function AfterSalesPage() {
               {/* Searchable comboboxes (same component as the Payment pickers) —
                   489 customers do not fit a native select. */}
               <label className="block">
-                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Customer</span>
+                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Customer')}</span>
                 <fieldset disabled={!canEdit} className={!canEdit ? 'opacity-60 pointer-events-none' : ''}>
                   <RichDropdown
                     options={customerOptions}
                     value={draft.customer_id ?? ''}
-                    placeholder="Search customer…"
+                    placeholder={t('Search customer…')}
                     config={{ labelKey: 'name', valueKey: 'customer_id', subLabelKey: 'sub' }}
                     onChange={(v: any) => { set('customer_id', v || null); set('quote_id', null); }}
                   />
                 </fieldset>
               </label>
               <label className="block">
-                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Sales order / document</span>
+                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Sales order / document')}</span>
                 <fieldset disabled={!canEdit} className={!canEdit ? 'opacity-60 pointer-events-none' : ''}>
                   <RichDropdown
                     options={orderOptions}
                     value={draft.quote_id ?? ''}
-                    placeholder="Search SO / SQ number…"
+                    placeholder={t('Search SO / SQ number…')}
                     config={{ labelKey: 'label', valueKey: 'quote_id', subLabelKey: 'sub' }}
                     onChange={(v: any) => v && !draft.customer_id
                       ? (set('quote_id', v), set('customer_id', orderById.get(String(v))?.customer_id ?? null))
@@ -935,48 +935,48 @@ function AfterSalesPage() {
                 </fieldset>
               </label>
               <label className="block">
-                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Category</span>
+                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Category')}</span>
                 <select className={inputCls} value={draft.category ?? 'repair'} disabled={!canEdit} onChange={(e) => set('category', e.target.value)}>
                   {Object.entries(CATEGORIES).map(([k, c]) => <option key={k} value={k}>{c.label}</option>)}
                 </select>
               </label>
               <label className="block">
-                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Status</span>
+                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Status')}</span>
                 <select className={inputCls} value={draft.status ?? 'open'} disabled={!canEdit} onChange={(e) => set('status', e.target.value)}>
                   {STATUS_SECTIONS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
                 </select>
               </label>
               <label className="block">
-                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Reported</span>
+                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Reported')}</span>
                 <input type="date" className={inputCls} value={draft.reported_at ?? ''} disabled={!canEdit} onChange={(e) => set('reported_at', e.target.value)} />
               </label>
               <label className="block">
-                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Subject</span>
+                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Subject')}</span>
                 <input className={inputCls} value={draft.subject ?? ''} disabled={!canEdit} placeholder="e.g. Inverter fault E-07"
                   onChange={(e) => set('subject', e.target.value)} />
               </label>
             </div>
 
             <label className="block">
-              <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Description</span>
+              <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Description')}</span>
               <textarea rows={2} className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 focus:border-emerald-500/60 outline-none text-white text-sm placeholder:text-slate-600 resize-y transition-colors"
-                value={draft.description ?? ''} disabled={!canEdit} placeholder="What the customer reported"
+                value={draft.description ?? ''} disabled={!canEdit} placeholder={t('What the customer reported')}
                 onChange={(e) => set('description', e.target.value)} />
             </label>
 
             {/* ── Parts / items involved ── */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[10px] uppercase tracking-widest text-slate-500">Items involved</span>
+                <span className="text-[10px] uppercase tracking-widest text-slate-500">{t('Items involved')}</span>
                 {canEdit && (
                   <button onClick={() => setDraftParts((p) => [...p, { component_id: null, description: '', action: 'repaired', quantity: '1', notes: '' }])}
-                    className="text-[11px] font-semibold text-emerald-300 hover:text-emerald-200 transition-colors">+ Add item</button>
+                    className="text-[11px] font-semibold text-emerald-300 hover:text-emerald-200 transition-colors">{t('+ Add item')}</button>
                 )}
               </div>
               {/* The selected SO's own lines, one click to log — items and case connected */}
               {canEdit && soItems.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5 mb-2">
-                  <span className="text-[10px] text-slate-600 flex-shrink-0">On this order:</span>
+                  <span className="text-[10px] text-slate-600 flex-shrink-0">{t('On this order:')}</span>
                   {soItems.map((l, k) => {
                     const added = draftParts.some((p) => p.description.trim().toLowerCase() === l.description.trim().toLowerCase());
                     return (
@@ -996,14 +996,14 @@ function AfterSalesPage() {
                 </div>
               )}
               {draftParts.length === 0 ? (
-                <p className="text-[11px] text-slate-600 italic">No items logged.</p>
+                <p className="text-[11px] text-slate-600 italic">{t('No items logged.')}</p>
               ) : (
                 <div className="space-y-2">
                   {draftParts.map((p, i) => (
                     <div key={i} className="grid grid-cols-[1fr_auto] sm:grid-cols-[minmax(0,1fr)_120px_64px_auto] gap-2 items-start">
                       <div className="col-span-2 sm:col-span-1">
                         <input list="aftersales-items" className={inputCls} value={p.description} disabled={!canEdit}
-                          placeholder="Item — type to search the catalog"
+                          placeholder={t('Item — type to search the catalog')}
                           onChange={(e) => {
                             const v = e.target.value;
                             const hit = compByDesc.get(v.trim().toLowerCase());
@@ -1018,7 +1018,7 @@ function AfterSalesPage() {
                         onChange={(e) => setDraftParts((arr) => arr.map((x, j) => j === i ? { ...x, action: e.target.value } : x))}>
                         {Object.entries(ACTIONS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
                       </select>
-                      <input type="number" min={1} className={inputCls} value={p.quantity} disabled={!canEdit} title="Quantity"
+                      <input type="number" min={1} className={inputCls} value={p.quantity} disabled={!canEdit} title={t('Quantity')}
                         onChange={(e) => setDraftParts((arr) => arr.map((x, j) => j === i ? { ...x, quantity: e.target.value } : x))} />
                       {canEdit && (
                         <button onClick={() => setDraftParts((arr) => arr.filter((_, j) => j !== i))}
@@ -1042,15 +1042,15 @@ function AfterSalesPage() {
             {editing !== 'new' && (
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[10px] uppercase tracking-widest text-slate-500">Repair / replacement quotes</span>
+                  <span className="text-[10px] uppercase tracking-widest text-slate-500">{t('Repair / replacement quotes')}</span>
                   {canEdit && (
                     <a href={`/sales/new?case=${(editing as Case).case_id}${draft.customer_id ? `&customer=${draft.customer_id}` : ''}`}
                       target="_blank" rel="noopener noreferrer"
-                      className="text-[11px] font-semibold text-emerald-300 hover:text-emerald-200 transition-colors">+ New quote</a>
+                      className="text-[11px] font-semibold text-emerald-300 hover:text-emerald-200 transition-colors">{t('+ New quote')}</a>
                   )}
                 </div>
                 {caseQuotes.length === 0 ? (
-                  <p className="text-[11px] text-slate-600 italic">No quote for this case yet — repairs and component replacements are quoted from here.</p>
+                  <p className="text-[11px] text-slate-600 italic">{t('No quote for this case yet — repairs and component replacements are quoted from here.')}</p>
                 ) : (
                   <div className="rounded-lg border border-slate-800 divide-y divide-slate-800/60">
                     {caseQuotes.map((q) => (
@@ -1068,9 +1068,9 @@ function AfterSalesPage() {
 
             {(draft.status === 'resolved' || draft.status === 'closed' || (draft.resolution ?? '') !== '') && (
               <label className="block">
-                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Resolution</span>
+                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Resolution')}</span>
                 <textarea rows={2} className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 focus:border-emerald-500/60 outline-none text-white text-sm placeholder:text-slate-600 resize-y transition-colors"
-                  value={draft.resolution ?? ''} disabled={!canEdit} placeholder="How it was fixed"
+                  value={draft.resolution ?? ''} disabled={!canEdit} placeholder={t('How it was fixed')}
                   onChange={(e) => set('resolution', e.target.value)} />
               </label>
             )}
@@ -1078,10 +1078,10 @@ function AfterSalesPage() {
             {/* ── Update log (existing cases only) ── */}
             {editing !== 'new' && (
               <div>
-                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1.5">Log</span>
+                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1.5">{t('Log')}</span>
                 {canEdit && (
                   <div className="flex gap-2 mb-2">
-                    <input className={inputCls} value={newNote} placeholder="Add an update — parts ordered, technician visit, customer called…"
+                    <input className={inputCls} value={newNote} placeholder={t('Add an update — parts ordered, technician visit, customer called…')}
                       onChange={(e) => setNewNote(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') addNote(); }} />
                     <button onClick={addNote} disabled={!newNote.trim()}
@@ -1091,7 +1091,7 @@ function AfterSalesPage() {
                   </div>
                 )}
                 {updates.length === 0 ? (
-                  <p className="text-[11px] text-slate-600 italic">No updates yet.</p>
+                  <p className="text-[11px] text-slate-600 italic">{t('No updates yet.')}</p>
                 ) : (
                   <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                     {updates.map((u) => (
@@ -1108,7 +1108,7 @@ function AfterSalesPage() {
             {canEdit && (
               <div className="flex justify-end gap-3 pt-1">
                 <button onClick={() => setEditing(null)} disabled={busy}
-                  className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors disabled:opacity-50">Cancel</button>
+                  className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors disabled:opacity-50">{t('Cancel')}</button>
                 <button onClick={save} disabled={busy}
                   className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-colors disabled:opacity-50">
                   {busy ? 'Saving…' : 'Save case'}

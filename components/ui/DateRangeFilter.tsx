@@ -6,6 +6,7 @@ import {
   type DateRange, type RangePreset,
 } from '@/lib/dateRange';
 import { fmtDay } from '@/lib/formatters';
+import { useT } from '@/hooks/useT';
 
 /**
  * The date filter every list shares: quick presets (this week / month /
@@ -29,6 +30,7 @@ export default function DateRangeFilter({
   accent?: 'emerald' | 'sky' | 'violet';
   align?: 'left' | 'right';
 }) {
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -78,7 +80,7 @@ export default function DateRangeFilter({
       <div className="fixed z-[131] w-[320px] max-w-[calc(100vw-16px)] max-h-[70vh] overflow-y-auto bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-3 space-y-3"
         style={{ top: pos.top, left: pos.left }}>
         <div>
-          <p className="text-[10px] uppercase tracking-widest text-slate-600 mb-1.5">Quick ranges</p>
+          <p className="text-[10px] uppercase tracking-widest text-slate-600 mb-1.5">{t('Quick ranges')}</p>
           <div className="flex flex-wrap gap-1.5">
             {QUICK.map((p) => {
               const r = rangeForPreset(p);
@@ -98,13 +100,13 @@ export default function DateRangeFilter({
 
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <p className="text-[10px] uppercase tracking-widest text-slate-600 mb-1">Month</p>
+            <p className="text-[10px] uppercase tracking-widest text-slate-600 mb-1">{t('Month')}</p>
             <input type="month" value={monthValue}
               onChange={(e) => { if (e.target.value) { onChange(rangeForMonth(e.target.value)); setOpen(false); } }}
               className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500/60" />
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-widest text-slate-600 mb-1">Year</p>
+            <p className="text-[10px] uppercase tracking-widest text-slate-600 mb-1">{t('Year')}</p>
             <div className="flex flex-wrap gap-1">
               {years.map((y) => {
                 const r = rangeForYear(y);
@@ -123,7 +125,7 @@ export default function DateRangeFilter({
         </div>
 
         <div>
-          <p className="text-[10px] uppercase tracking-widest text-slate-600 mb-1">Custom range</p>
+          <p className="text-[10px] uppercase tracking-widest text-slate-600 mb-1">{t('Custom range')}</p>
           <div className="flex items-center gap-2">
             <input type="date" value={value.from ?? ''} onChange={(e) => onChange({ ...value, from: e.target.value || null })}
               className="flex-1 min-w-0 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500/60" />
@@ -135,9 +137,9 @@ export default function DateRangeFilter({
 
         <div className="flex items-center justify-between pt-1 border-t border-slate-800">
           <button onClick={() => { onChange(ALL_TIME); setOpen(false); }}
-            className="text-[11px] text-slate-500 hover:text-white transition-colors">Clear</button>
+            className="text-[11px] text-slate-500 hover:text-white transition-colors">{t('Clear')}</button>
           <button onClick={() => setOpen(false)}
-            className="text-[11px] font-semibold text-emerald-300 hover:text-emerald-200 transition-colors">Done</button>
+            className="text-[11px] font-semibold text-emerald-300 hover:text-emerald-200 transition-colors">{t('Done')}</button>
         </div>
       </div>
     </>
@@ -156,7 +158,7 @@ export default function DateRangeFilter({
         <span className="max-w-[190px] truncate">{summary}</span>
         {active && (
           <span onClick={(e) => { e.stopPropagation(); onChange(ALL_TIME); }}
-            className="text-slate-500 hover:text-white ml-0.5" title="Clear the date filter">×</span>
+            className="text-slate-500 hover:text-white ml-0.5" title={t('Clear the date filter')}>×</span>
         )}
       </button>
       {open && mounted && createPortal(panel, document.body)}

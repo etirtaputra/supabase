@@ -278,22 +278,22 @@ function SerialsPage() {
       if (statusFilter && r.status !== statusFilter) return false;
       if (!q) return true;
       if (qn && (r.serial_norm || normSerial(r.serial)).includes(qn)) return true;
-      const t = traceOf(r);
+      const trace = traceOf(r);
       return [
         r.serial, productOf(r), custById.get(r.customer_id ?? '') ?? '',
-        t.order ? displayDocNumber(t.order) : '', t.delivery?.do_number ?? '',
-        t.invoice?.invoice_number ?? '', r.notes,
+        trace.order ? displayDocNumber(trace.order) : '', trace.delivery?.do_number ?? '',
+        trace.invoice?.invoice_number ?? '', r.notes,
       ].join(' ').toLowerCase().includes(q);
     });
     const val = (r: SerialRow): string => {
-      const t = traceOf(r);
+      const trace = traceOf(r);
       switch (sort.key) {
         case 'serial':   return r.serial_norm || normSerial(r.serial);
         case 'product':  return productOf(r).toLowerCase();
         case 'status':   return r.status;
-        case 'order':    return (t.order ? displayDocNumber(t.order) : '').toLowerCase();
+        case 'order':    return (trace.order ? displayDocNumber(trace.order) : '').toLowerCase();
         case 'customer': return (custById.get(r.customer_id ?? '') ?? '').toLowerCase();
-        case 'delivery': return t.deliveredAt ?? '';
+        case 'delivery': return trace.deliveredAt ?? '';
         default:         return r.created_at ?? '';
       }
     };
@@ -354,7 +354,7 @@ function SerialsPage() {
       <main className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-6 space-y-5">
         {failed && (
           <div className="bg-red-500/10 border border-red-500/40 rounded-2xl p-4 text-sm">
-            <span className="text-red-300 font-semibold">Could not read the register.</span>
+            <span className="text-red-300 font-semibold">{t('Could not read the register.')}</span>
             <span className="text-red-200/80 text-xs ml-2 font-mono">{failed}</span>
           </div>
         )}
@@ -365,9 +365,9 @@ function SerialsPage() {
             {/* 1 — what are we scanning? */}
             <div className="grid md:grid-cols-[2fr_1fr] gap-3">
               <label className="block">
-                <span className="text-[10px] font-semibold uppercase tracking-widest text-emerald-400/80 block mb-1">1 · Product</span>
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-emerald-400/80 block mb-1">{t('1 · Product')}</span>
                 <select value={fComp} onChange={(e) => { setFComp(e.target.value); setTimeout(() => scanRef.current?.focus(), 30); }} className={inp}>
-                  <option value="">— pick the product being scanned —</option>
+                  <option value="">{t('— pick the product being scanned —')}</option>
                   {catalogOptions.map((c) => <option key={c.component_id} value={c.component_id}>{c.internal_description}</option>)}
                 </select>
               </label>
@@ -384,7 +384,7 @@ function SerialsPage() {
             {/* 2 — the scan gun */}
             <div>
               <div className="flex items-center justify-between gap-3 mb-1">
-                <span className="text-[10px] font-semibold uppercase tracking-widest text-emerald-400/80">2 · Scan</span>
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-emerald-400/80">{t('2 · Scan')}</span>
                 <div className="flex items-center rounded-lg border border-slate-700/80 overflow-hidden">
                   {(['scan', 'paste'] as const).map((m) => (
                     <button key={m} onClick={() => { setEntry(m); if (m === 'scan') setTimeout(() => scanRef.current?.focus(), 30); }}
@@ -453,32 +453,32 @@ function SerialsPage() {
               {showAttachOnEntry && (
                 <div className="grid md:grid-cols-4 gap-3 mt-2">
                   <label className="block">
-                    <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 block mb-1">Sales order</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 block mb-1">{t('Sales order')}</span>
                     <select value={fQuote} onChange={(e) => { setFQuote(e.target.value); setFDo(''); setFInvoice(''); }} className={inp} disabled={fExternal}>
-                      <option value="">— none (into stock) —</option>
+                      <option value="">{t('— none (into stock) —')}</option>
                       {orders.map((o) => (
                         <option key={o.quote_id} value={String(o.quote_id)}>{displayDocNumber(o) || o.quote_id} · {custById.get(o.customer_id ?? '') ?? '—'}</option>
                       ))}
                     </select>
                   </label>
                   <label className="block">
-                    <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 block mb-1">Delivery order</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 block mb-1">{t('Delivery order')}</span>
                     <select value={fDo} onChange={(e) => setFDo(e.target.value)} className={inp} disabled={!fQuote}>
                       <option value="">{fQuote ? '— none —' : 'pick an order first'}</option>
                       {entryDos.map((d) => <option key={d.do_id} value={String(d.do_id)}>{d.do_number || d.do_id} · {fmtDay(d.delivery_date)}</option>)}
                     </select>
                   </label>
                   <label className="block">
-                    <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 block mb-1">Invoice</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 block mb-1">{t('Invoice')}</span>
                     <select value={fInvoice} onChange={(e) => setFInvoice(e.target.value)} className={inp} disabled={!fQuote}>
                       <option value="">{fQuote ? '— none —' : 'pick an order first'}</option>
                       {entryInvoices.map((i) => <option key={i.invoice_id} value={String(i.invoice_id)}>{i.invoice_number || i.invoice_id}</option>)}
                     </select>
                   </label>
                   <label className="block">
-                    <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 block mb-1">Customer</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 block mb-1">{t('Customer')}</span>
                     <select value={fCustomer} onChange={(e) => setFCustomer(e.target.value)} className={inp}>
-                      <option value="">— none —</option>
+                      <option value="">{t('— none —')}</option>
                       {customers.map((c) => <option key={c.customer_id} value={c.customer_id}>{c.display_name || c.legal_name}</option>)}
                     </select>
                   </label>
@@ -494,9 +494,9 @@ function SerialsPage() {
             </label>
 
             <div className="flex flex-wrap items-center gap-2">
-              <input value={fNotes} onChange={(e) => setFNotes(e.target.value)} placeholder="Note on this batch (optional)"
+              <input value={fNotes} onChange={(e) => setFNotes(e.target.value)} placeholder={t('Note on this batch (optional)')}
                 className={`${inp} flex-1 min-w-[200px]`} />
-              <button onClick={resetForm} className="px-3 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-semibold transition-colors">Clear</button>
+              <button onClick={resetForm} className="px-3 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-semibold transition-colors">{t('Clear')}</button>
               <button onClick={saveBatch} disabled={busy || willWrite.length === 0}
                 className="px-4 py-2 rounded-xl bg-emerald-500/90 hover:bg-emerald-400 text-slate-950 text-xs font-bold disabled:opacity-40 transition-colors">
                 {busy ? 'Recording…' : `Record ${willWrite.length || ''} unit${willWrite.length !== 1 ? 's' : ''}`}
@@ -508,7 +508,7 @@ function SerialsPage() {
         {/* ── Filters ───────────────────────────────────────────────────── */}
         <div className="flex flex-wrap items-center gap-2">
           <input value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="Scan or type a serial, or search product, customer, order…"
+            placeholder={t('Scan or type a serial, or search product, customer, order…')}
             className={`${inp} flex-1 min-w-[220px] max-w-lg font-mono`} />
           <div className="flex flex-wrap items-center gap-1.5">
             <button onClick={() => setStatusFilter('')}
@@ -530,7 +530,7 @@ function SerialsPage() {
           <div className="bg-violet-500/[0.06] border border-violet-500/25 rounded-2xl px-4 py-3 flex flex-wrap items-center gap-2">
             <span className="text-[11px] font-bold text-violet-300 whitespace-nowrap">{ticked.size} ticked</span>
             <select value={bQuote} onChange={(e) => { setBQuote(e.target.value); setBDo(''); setBInvoice(''); }} className={`${inp} w-auto flex-1 min-w-[200px]`}>
-              <option value="">Attach to sales order…</option>
+              <option value="">{t('Attach to sales order…')}</option>
               {orders.map((o) => (
                 <option key={o.quote_id} value={String(o.quote_id)}>{displayDocNumber(o) || o.quote_id} · {custById.get(o.customer_id ?? '') ?? '—'}</option>
               ))}
@@ -551,7 +551,7 @@ function SerialsPage() {
               className="px-3 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-amber-300 hover:border-amber-500/40 text-xs font-semibold transition-colors">
               Back to stock
             </button>
-            <button onClick={() => setTicked(new Set())} className="text-[11px] text-slate-500 hover:text-white transition-colors">clear</button>
+            <button onClick={() => setTicked(new Set())} className="text-[11px] text-slate-500 hover:text-white transition-colors">{t('clear')}</button>
           </div>
         )}
 
@@ -581,7 +581,7 @@ function SerialsPage() {
           ) : (
             <div className="divide-y divide-slate-800/60">
               {rows.map((r) => {
-                const t = traceOf(r);
+                const trace = traceOf(r);
                 const st = SERIAL_STATUS[r.status] ?? SERIAL_STATUS.in_stock;
                 const isOpen = openRow === r.serial_id;
                 return (
@@ -597,29 +597,29 @@ function SerialsPage() {
                       </button>
                       <button onClick={() => setOpenRow(isOpen ? null : r.serial_id)} className="text-left text-xs text-slate-300 truncate block w-full">
                         {productOf(r)}
-                        {r.is_external && <span className="ml-2 text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300">not ours</span>}
+                        {r.is_external && <span className="ml-2 text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300">{t('not ours')}</span>}
                       </button>
                       <span className="hidden lg:block">
                         <span className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded ${st.cls}`}>{st.label}</span>
                       </span>
-                      <span className="hidden lg:block text-[11px] text-sky-300 font-mono truncate">{t.order ? displayDocNumber(t.order) : '—'}</span>
+                      <span className="hidden lg:block text-[11px] text-sky-300 font-mono truncate">{trace.order ? displayDocNumber(trace.order) : '—'}</span>
                       <span className="hidden lg:block text-[11px] text-slate-400 truncate">{custById.get(r.customer_id ?? '') ?? '—'}</span>
-                      <span className="hidden lg:block text-[11px] text-slate-500 tabular-nums">{t.deliveredAt ? fmtDay(t.deliveredAt) : '—'}</span>
+                      <span className="hidden lg:block text-[11px] text-slate-500 tabular-nums">{trace.deliveredAt ? fmtDay(trace.deliveredAt) : '—'}</span>
                       <span className="lg:hidden block text-[11px] text-slate-500 mt-0.5 truncate">
-                        {[st.label, t.order ? displayDocNumber(t.order) : '', custById.get(r.customer_id ?? '')].filter(Boolean).join(' · ')}
+                        {[st.label, trace.order ? displayDocNumber(trace.order) : '', custById.get(r.customer_id ?? '')].filter(Boolean).join(' · ')}
                       </span>
                     </div>
 
                     {isOpen && (
-                      <div className="px-4 py-3 bg-slate-900/60 border-t border-slate-800/60 space-y-3">
+                      <div className="px-4 py-3 bg-slate-900/60 border-trace border-slate-800/60 space-y-3">
                         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 text-[11px]">
-                          <Fact label="Sales order" value={t.order ? displayDocNumber(t.order) : '—'} href={t.order ? `/sales/${t.order.quote_id}` : undefined} />
-                          <Fact label="Invoice" value={t.invoice?.invoice_number ?? '—'} href={t.invoice ? '/invoices' : undefined} />
-                          <Fact label="Delivery order" value={t.delivery?.do_number ?? '—'} href={t.delivery ? '/delivery' : undefined} />
-                          <Fact label="Customer" value={custById.get(t.customerId ?? '') ?? '—'} href={t.customerId ? '/customers' : undefined} />
+                          <Fact label="Sales order" value={trace.order ? displayDocNumber(trace.order) : '—'} href={trace.order ? `/sales/${trace.order.quote_id}` : undefined} />
+                          <Fact label="Invoice" value={trace.invoice?.invoice_number ?? '—'} href={trace.invoice ? '/invoices' : undefined} />
+                          <Fact label="Delivery order" value={trace.delivery?.do_number ?? '—'} href={trace.delivery ? '/delivery' : undefined} />
+                          <Fact label="Customer" value={custById.get(trace.customerId ?? '') ?? '—'} href={trace.customerId ? '/customers' : undefined} />
                         </div>
-                        {t.external && (
-                          <p className="text-[11px] text-amber-300/90">No sale of ours carries this unit — service on it is out of warranty unless someone says otherwise.</p>
+                        {trace.external && (
+                          <p className="text-[11px] text-amber-300/90">{t('No sale of ours carries this unit — service on it is out of warranty unless someone says otherwise.')}</p>
                         )}
                         {r.notes && <p className="text-[11px] text-slate-400">{r.notes}</p>}
                         <div className="flex flex-wrap items-center gap-2">

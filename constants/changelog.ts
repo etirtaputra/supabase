@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-21T15:10:00Z',
+    title: 'Bahasa Indonesia reaches nine more screens',
+    details: [
+      'Sales, Products, Stock, After Sales, Serial Numbers, Suppliers, Invoices and Delivery now follow the language, along with the date-range filter and the table pager that appear on almost every list. The phrase book has gone from 131 entries to 284.',
+      'Filters, buttons, search boxes, empty states and the sentences that explain a screen are translated. Column headings and field names deliberately stay English \u2014 Invoice, Customer, Date, Total, Status, Product, Quantity, Serial number \u2014 because those are the words already shared with suppliers and customers. Any one of them can be switched to Indonesian later without touching a single screen.',
+      'Wording follows the trade: barang for an item, penawaran for a quotation, pesanan for a confirmed order, dalam perjalanan for goods on the water, gudang for a warehouse. Anything that reads wrong is a one-line change.',
+      'Still English: Purchasing, EPC Proposals, Pricing, Profitability, Spend & Cash, Support Letters, Import & Export and the body of Settings. Those follow next.',
+    ],
+  },
+  {
     at: '2026-08-21T13:05:00Z',
     title: 'The top bar stops overlapping itself \u2014 properly this time',
     details: [

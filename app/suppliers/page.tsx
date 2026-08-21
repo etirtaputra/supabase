@@ -18,6 +18,7 @@ import type { Supplier, PriceQuote, PurchaseOrder, POCost, PurchaseLineItem, Com
 import { fmtDay, fmtInt, fmtRupiah as fmtIdr } from '@/lib/formatters';
 import LayoutToggle from '@/components/ui/LayoutToggle';
 import { useListLayout } from '@/hooks/useListLayout';
+import { useT } from '@/hooks/useT';
 
 
 const lookupHref = (n: string) => `/purchasing?tab=lookup&q=${encodeURIComponent(n)}`;
@@ -36,6 +37,7 @@ type SortKey = 'code' | 'name' | 'activity' | 'purchased' | 'outstanding';
 const DEFAULT_DIR: Record<SortKey, 1 | -1> = { code: 1, name: 1, activity: -1, purchased: -1, outstanding: -1 };
 
 export default function SuppliersPage() {
+  const { t } = useT();
   const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
   const canView = !!profile && ROLE_PERMISSIONS[profile.role].buySide;
@@ -132,14 +134,14 @@ export default function SuppliersPage() {
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-4">
           <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Suppliers · Vendors" />
-          <span className="text-[11px] text-slate-500 whitespace-nowrap">Vendors are created in Catalog → Supplier Quotes</span>
+          <span className="text-[11px] text-slate-500 whitespace-nowrap">{t('Vendors are created in Catalog → Supplier Quotes')}</span>
         </div>
       </div>
 
       <main className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-6 space-y-5">
         <div className="relative">
           <svg className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search supplier name, code, location…"
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('Search supplier name, code, location…')}
             className="w-full pl-10 pr-4 h-11 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-sky-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors" />
         </div>
 
@@ -174,7 +176,7 @@ export default function SuppliersPage() {
                         <span className="block text-sm text-slate-100 font-medium truncate">{s.supplier_name}</span>
                         {s.location && <span className="block text-[11px] text-slate-500 truncate">{s.location}</span>}
                       </span>
-                      <span className="text-left md:text-right text-[11px] text-slate-400 tabular-nums">{st?.quotes.length ?? 0} / {st?.pos.length ?? 0} <span className="md:hidden text-slate-600">quotes / POs</span></span>
+                      <span className="text-left md:text-right text-[11px] text-slate-400 tabular-nums">{st?.quotes.length ?? 0} / {st?.pos.length ?? 0} <span className="md:hidden text-slate-600">{t('quotes / POs')}</span></span>
                       <span className="hidden md:block" />
                       <span className="text-left md:text-right tabular-nums text-slate-200">{st && st.purchasedIdr > 0 ? fmtIdr(st.purchasedIdr) : <span className="text-slate-600">—</span>}</span>
                       <span className="flex items-center justify-end gap-2">
@@ -234,6 +236,7 @@ function SupplierProfile({ supplier, stats, poItems, components, poPaidIdr, poId
   poIdr: (po: PurchaseOrder) => number;
   onClose: () => void;
 }) {
+  const { t } = useT();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -294,7 +297,7 @@ function SupplierProfile({ supplier, stats, poItems, components, poPaidIdr, poId
           {supplier.payment_terms_default ? ` · ${supplier.payment_terms_default}` : ''}
           {supplier.primary_contact_email ? ` · ${supplier.primary_contact_email}` : ''}
         </p>
-        <button onClick={onClose} title="Collapse" className="p-1.5 -m-1 text-slate-500 hover:text-white transition-colors flex-shrink-0">
+        <button onClick={onClose} title={t('Collapse')} className="p-1.5 -m-1 text-slate-500 hover:text-white transition-colors flex-shrink-0">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" /></svg>
         </button>
       </div>
@@ -310,9 +313,9 @@ function SupplierProfile({ supplier, stats, poItems, components, poPaidIdr, poId
 
           {/* Documents — every quote & PO, linked to Deal Lookup */}
           <section>
-            <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">Documents & activity</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">{t('Documents & activity')}</h3>
             {docs.length === 0 ? (
-              <p className="text-xs text-slate-600 italic">No supplier quotes or POs yet.</p>
+              <p className="text-xs text-slate-600 italic">{t('No supplier quotes or POs yet.')}</p>
             ) : (
               <div className="rounded-xl border border-slate-800 divide-y divide-slate-800/60">
                 {docs.map((d, i) => (
@@ -336,14 +339,14 @@ function SupplierProfile({ supplier, stats, poItems, components, poPaidIdr, poId
                 ))}
               </div>
             )}
-            <p className="mt-1.5 text-[10px] text-slate-600">Click any document to open it in Deal Lookup.</p>
+            <p className="mt-1.5 text-[10px] text-slate-600">{t('Click any document to open it in Deal Lookup.')}</p>
           </section>
 
           {/* Most purchased items */}
           <section>
-            <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">Most purchased items</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">{t('Most purchased items')}</h3>
             {topItems.length === 0 ? (
-              <p className="text-xs text-slate-600 italic">No PO lines yet.</p>
+              <p className="text-xs text-slate-600 italic">{t('No PO lines yet.')}</p>
             ) : (
               <div className="rounded-xl border border-slate-800 divide-y divide-slate-800/60">
                 {topItems.map((it) => (
@@ -360,7 +363,7 @@ function SupplierProfile({ supplier, stats, poItems, components, poPaidIdr, poId
           {/* Bank details (buy-side sensitive, useful when paying) */}
           {supplier.supplier_bank_details && (
             <section>
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">Bank details</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">{t('Bank details')}</h3>
               <p className="text-xs text-slate-300 whitespace-pre-line bg-slate-900/60 border border-slate-800 rounded-xl px-3 py-2.5">{supplier.supplier_bank_details}</p>
             </section>
           )}

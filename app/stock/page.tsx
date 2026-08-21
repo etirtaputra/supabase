@@ -46,7 +46,7 @@ export default function StockPage() {
   const supabase = createSupabaseClient();
   const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
-  const { t } = useT();
+  const { t, tf } = useT();
   const canView = !!profile && ROLE_PERMISSIONS[profile.role].buySide;
   const canManage = !!profile && ROLE_PERMISSIONS[profile.role].canManageStock;
   const isOwner = !!profile && ROLE_PERMISSIONS[profile.role].canManageUsers;   // owner — Settings
@@ -241,7 +241,7 @@ export default function StockPage() {
           {isOwner && (
             <Link href="/settings?tab=defaults"
               className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap"
-              title="The default warehouse — the one preselected when receiving, adjusting or shipping — is set in Settings">
+              title={t('The default warehouse — the one preselected when receiving, adjusting or shipping — is set in Settings')}>
               Default warehouse: Settings →
             </Link>
           )}
@@ -252,7 +252,7 @@ export default function StockPage() {
       <main className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-6 space-y-5">
         {schemaMissing && (
           <div className="bg-amber-500/10 border border-amber-500/40 rounded-2xl p-4 text-sm">
-            <span className="text-amber-300 font-semibold">Inventory tables are behind the app.</span>
+            <span className="text-amber-300 font-semibold">{t('Inventory tables are behind the app.')}</span>
             <span className="text-amber-200/80 text-xs ml-2">
               Run <span className="font-mono">migrations/create_sales_and_inventory.sql</span> then{' '}
               <span className="font-mono">migrations/create_goods_receipts.sql</span> in Supabase → SQL Editor.
@@ -267,7 +267,7 @@ export default function StockPage() {
               <h2 className="text-[11px] font-bold uppercase tracking-widest text-red-300">
                 ⚠ Shortages — {shortages.length} item{shortages.length !== 1 ? 's' : ''} short of committed orders
               </h2>
-              <span className="text-[10px] text-slate-500">on-hand across all warehouses vs undelivered committed order qty</span>
+              <span className="text-[10px] text-slate-500">{t('on-hand across all warehouses vs undelivered committed order qty')}</span>
             </div>
             <div className="space-y-2">
               {shortages.map((sh) => (
@@ -311,7 +311,7 @@ export default function StockPage() {
             </h2>
             {inTransit.paidIdr > 0 && (
               <span className="text-[11px] tabular-nums text-slate-300">
-                <span className="text-slate-500">on the water </span>{fmtIdr(inTransit.paidIdr)}
+                <span className="text-slate-500">{t('on the water')} </span>{fmtIdr(inTransit.paidIdr)}
               </span>
             )}
             {inTransit.overdueCount > 0 && (
@@ -325,7 +325,7 @@ export default function StockPage() {
             )}
             <Link href="/purchasing?tab=lookup"
               className="ml-auto text-[10px] px-2 py-0.5 rounded-lg bg-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors whitespace-nowrap"
-              title={t("Open Deal Lookup to review open purchase orders")}>POs ↗</Link>
+              title={t("Open Deal Lookup to review open purchase orders")}>{t('POs ↗')}</Link>
           </div>
         )}
 
@@ -338,7 +338,10 @@ export default function StockPage() {
               Landed cost — {landed.ready.length} PO{landed.ready.length !== 1 ? 's' : ''} to true up
             </h2>
             <span className="text-[11px] tabular-nums text-slate-300">
-              <span className="text-slate-500">understated by </span>{fmtIdr(landed.readyDelta)}
+              {/* One sentence: "understated by" alone is a dangling fragment,
+                  and the two-tone styling is not worth a sentence that cannot
+                  be reordered in another language. */}
+              {tf('understated by {amount}', { amount: fmtIdr(landed.readyDelta) })}
             </span>
             {landed.readyInventoryDelta !== 0 && (
               <span className="text-[11px] tabular-nums text-emerald-300"
@@ -348,7 +351,7 @@ export default function StockPage() {
             )}
             <Link href="/stock/reconcile"
               className="ml-auto text-[10px] px-2 py-0.5 rounded-lg bg-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors whitespace-nowrap"
-              title={t("Review the difference per PO and post the correction")}>True up ↗</Link>
+              title={t("Review the difference per PO and post the correction")}>{t('True up ↗')}</Link>
           </div>
         )}
 
@@ -372,7 +375,7 @@ export default function StockPage() {
                     <span className="text-sm text-slate-100 font-medium truncate max-w-[380px]">{a.name}</span>
                     {a.urgent && (
                       <span className="text-[10px] font-bold text-red-300 uppercase tracking-wide"
-                        title="At the current demand rate, stock runs out before a PO raised today could arrive">
+                        title={t('At the current demand rate, stock runs out before a PO raised today could arrive')}>
                         stock-out before replenishment
                       </span>
                     )}
@@ -390,11 +393,11 @@ export default function StockPage() {
                       {canHub && (
                         <Link href={`/items/${a.component_id}`}
                           className="text-[10px] px-2 py-0.5 rounded-lg bg-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
-                          title="Open the item hub — buy history, lead times, demand">item ↗</Link>
+                          title={t('Open the item hub — buy history, lead times, demand')}>{t('item ↗')}</Link>
                       )}
                       <Link href="/purchasing?tab=quoting"
                         className="text-[10px] px-2 py-0.5 rounded-lg bg-sky-500/10 text-sky-300 ring-1 ring-sky-500/25 hover:bg-sky-500/20 transition-colors whitespace-nowrap"
-                        title="Raise the next deal — New Deal, Quote + PO">New PO →</Link>
+                        title={t('Raise the next deal — New Deal, Quote + PO')}>{t('New PO →')}</Link>
                     </span>
                   </div>
                 </div>
@@ -421,19 +424,19 @@ export default function StockPage() {
         <div className="flex flex-col sm:flex-row gap-2">
           <div className="relative flex-1">
             <svg className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search item, brand, category…"
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('Search item, brand, category…')}
               className="w-full pl-10 pr-4 h-11 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-sky-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors" />
           </div>
           <div className="flex gap-2">
             <select value={filterWh} onChange={(e) => setFilterWh(e.target.value)}
-              title="Show one warehouse or all of them"
+              title={t('Show one warehouse or all of them')}
               className="h-11 px-3 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-sky-500/60 outline-none text-slate-300 text-xs">
-              <option value="">All warehouses</option>
+              <option value="">{t('All warehouses')}</option>
               {warehouses.map((w) => <option key={w.code} value={w.code}>{w.name}</option>)}
             </select>
             <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}
               className="h-11 px-3 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-sky-500/60 outline-none text-slate-300 text-xs">
-              <option value="">All categories</option>
+              <option value="">{t('All categories')}</option>
               {categories.map((c) => <option key={c} value={c}>{humanize(c)}</option>)}
             </select>
             <button onClick={() => setStockOnly((v) => !v)}
@@ -449,10 +452,10 @@ export default function StockPage() {
         <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
           <div className="hidden md:grid grid-cols-[1fr_110px_120px_110px_130px_140px_130px] gap-3 px-4 py-2.5 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
             <button onClick={() => clickSort('item')} className="text-left hover:text-slate-300 transition-colors uppercase tracking-widest">Item{arrow('item')}</button>
-            <span>Brand</span>
-            <span>Category</span>
+            <span>{t('Brand')}</span>
+            <span>{t('Category')}</span>
             <button onClick={() => clickSort('qty')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest">On hand{arrow('qty')}</button>
-            <span className="text-right">Avg cost</span>
+            <span className="text-right">{t('Avg cost')}</span>
             <button onClick={() => clickSort('value')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest">Value{arrow('value')}</button>
             <button onClick={() => clickSort('moved')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest">Last move{arrow('moved')}</button>
           </div>
@@ -476,13 +479,13 @@ export default function StockPage() {
                         <span className="inline-block text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">{warehouseLabel(warehouses, r.loc)}</span>
                         {canManage && r.qty > 0 && warehouses.length > 1 && (
                           <button onClick={(e) => { e.stopPropagation(); setTransfer({ c: r.c, from: r.loc, available: r.qty }); }}
-                            title="Move this stock to another warehouse"
-                            className="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-300 hover:bg-sky-500/20 transition-colors">⇄ move</button>
+                            title={t('Move this stock to another warehouse')}
+                            className="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-300 hover:bg-sky-500/20 transition-colors">{t('⇄ move')}</button>
                         )}
                         {canHub && (
                           <Link href={`/items/${r.c.component_id}`} onClick={(e) => e.stopPropagation()}
-                            title="Open the item hub — buy, sell, stock, specs on one page"
-                            className="text-[9px] px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-500 hover:text-white hover:bg-slate-700 transition-colors">item ↗</Link>
+                            title={t('Open the item hub — buy, sell, stock, specs on one page')}
+                            className="text-[9px] px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-500 hover:text-white hover:bg-slate-700 transition-colors">{t('item ↗')}</Link>
                         )}
                       </span>
                     </span>
@@ -559,6 +562,7 @@ function TransferModal({ item, warehouses, onClose, onDone }: {
   onClose: () => void;
   onDone: (msg: string) => void;
 }) {
+  const { t } = useT();
   const supabase = createSupabaseClient();
   const options = warehouses.filter((w) => w.code !== item.from);
   const [to, setTo] = useState(options[0]?.code ?? '');
@@ -584,19 +588,19 @@ function TransferModal({ item, warehouses, onClose, onDone }: {
       <div className="absolute inset-0 bg-black/60" />
       <div className="relative w-full max-w-sm bg-canvas border border-slate-800 rounded-2xl shadow-2xl p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
         <div>
-          <h3 className="text-sm font-bold text-white">Move stock</h3>
+          <h3 className="text-sm font-bold text-white">{t('Move stock')}</h3>
           <p className="text-[11px] text-slate-500 truncate">{item.c.internal_description || item.c.supplier_model}</p>
         </div>
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div>
-            <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">From</label>
+            <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('From')}</label>
             <p className="px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 truncate">
               {warehouseLabel(warehouses, item.from)}
             </p>
             <p className="text-[10px] text-slate-600 mt-0.5 tabular-nums">{fmtInt(item.available)} available</p>
           </div>
           <div>
-            <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">To</label>
+            <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('To')}</label>
             <select value={to} onChange={(e) => setTo(e.target.value)}
               className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 focus:border-sky-500/60 outline-none text-white cursor-pointer">
               {options.map((w) => <option key={w.code} value={w.code} className="bg-slate-900">{w.name}</option>)}
@@ -604,15 +608,15 @@ function TransferModal({ item, warehouses, onClose, onDone }: {
           </div>
         </div>
         <div>
-          <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Quantity</label>
+          <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Quantity')}</label>
           <input value={qty} inputMode="decimal" autoFocus onChange={(e) => setQty(e.target.value)}
             placeholder={`Max ${fmtInt(item.available)}`}
             className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 focus:border-sky-500/60 outline-none text-white text-sm text-right tabular-nums" />
         </div>
         {err && <p className="text-[11px] text-red-400">{err}</p>}
-        <p className="text-[10px] text-slate-600">Moves at the source warehouse&apos;s average cost — total inventory value is unchanged.</p>
+        <p className="text-[10px] text-slate-600">{t('Moves at the source warehouse&apos;s average cost — total inventory value is unchanged.')}</p>
         <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="px-3 py-2 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/10 transition-colors">Cancel</button>
+          <button onClick={onClose} className="px-3 py-2 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/10 transition-colors">{t('Cancel')}</button>
           <button onClick={submit} disabled={busy || !to}
             className="px-4 py-2 rounded-lg bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30 hover:bg-sky-500/25 text-xs font-bold transition-colors disabled:opacity-50">
             {busy ? 'Moving…' : 'Move stock'}

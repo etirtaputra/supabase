@@ -19,6 +19,7 @@ import { useListLayout } from '@/hooks/useListLayout';
 import { useListDefaults } from '@/hooks/useListDefaults';
 import { listSpec } from '@/constants/listDefaults';
 import { inRange, todayISO, type DateRange } from '@/lib/dateRange';
+import { useT } from '@/hooks/useT';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string; case_id?: string | null;
@@ -32,6 +33,7 @@ interface DoLite { do_id: string; quote_id: string; do_number: string; status: s
 
 
 export default function SalesListPage() {
+  const { t } = useT();
   const supabase = createSupabaseClient();
   const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
@@ -236,7 +238,7 @@ export default function SalesListPage() {
           <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Sales Orders · DQ → PQ → SO" />
           {profile?.role === 'owner' && (
             <button onClick={() => router.push('/sales/library')}
-              title="Owner-only: curated custom line texts that feed the item picker"
+              title={t('Owner-only: curated custom line texts that feed the item picker')}
               className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap">
               Library
             </button>
@@ -247,7 +249,7 @@ export default function SalesListPage() {
         <SalesMigrationBanner />
         <div className="relative">
           <svg className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by number, customer, status, product…"
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('Search by number, customer, status, product…')}
             className="w-full pl-10 pr-4 h-11 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors" />
         </div>
 
@@ -264,41 +266,41 @@ export default function SalesListPage() {
                 the primary action: no quotation dance for a customer who
                 simply ordered (owner, 2026-08-19). */}
             <button onClick={() => router.push('/sales/new?as=order')}
-              title="Create a Sales Order directly — fill the customer and items, then Confirm Order in one step"
+              title={t('Create a Sales Order directly — fill the customer and items, then Confirm Order in one step')}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-violet-500/40 text-violet-300 hover:bg-violet-500/10 text-xs font-semibold whitespace-nowrap transition-colors">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
               New Order
             </button>
             <DateRangeFilter value={range} onChange={(r) => { touched.current = true; setRange(r); }} label="Quote date" align="left" />
             <select value={sort} onChange={(e) => { touched.current = true; setSort(e.target.value); setColSort(null); }}
-              title="Order — the default lives in Settings › Lists"
+              title={t('Order — the default lives in Settings › Lists')}
               className="text-xs bg-slate-900/80 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60">
               {listSpec('sales').sorts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
             <select value={stageFilter} onChange={(e) => setStageFilter(e.target.value)}
-              title="Filter by lifecycle stage — draft, price quote or confirmed order"
+              title={t('Filter by lifecycle stage — draft, price quote or confirmed order')}
               className={`text-xs bg-slate-900/80 border rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60 ${stageFilter !== 'all' ? 'border-emerald-500/50 text-emerald-300' : 'border-slate-700 text-slate-300'}`}>
-              <option value="all">Stage: all</option>
-              <option value="quote">Quote (PQ)</option>
-              <option value="order">Order (SO)</option>
+              <option value="all">{t('Stage: all')}</option>
+              <option value="quote">{t('Quote (PQ)')}</option>
+              <option value="order">{t('Order (SO)')}</option>
             </select>
             <select value={payFilter} onChange={(e) => setPayFilter(e.target.value)}
-              title="Filter by payment state"
+              title={t('Filter by payment state')}
               className={`text-xs bg-slate-900/80 border rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60 ${payFilter !== 'all' ? 'border-emerald-500/50 text-emerald-300' : 'border-slate-700 text-slate-300'}`}>
-              <option value="all">Payment: all</option>
-              <option value="unpaid">Unpaid</option>
-              <option value="partial">Partial</option>
-              <option value="outstanding">Outstanding</option>
-              <option value="paid">Paid</option>
+              <option value="all">{t('Payment: all')}</option>
+              <option value="unpaid">{t('Unpaid')}</option>
+              <option value="partial">{t('Partial')}</option>
+              <option value="outstanding">{t('Outstanding')}</option>
+              <option value="paid">{t('Paid')}</option>
             </select>
             <select value={delFilter} onChange={(e) => setDelFilter(e.target.value)}
-              title="Filter by delivery state"
+              title={t('Filter by delivery state')}
               className={`text-xs bg-slate-900/80 border rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60 ${delFilter !== 'all' ? 'border-emerald-500/50 text-emerald-300' : 'border-slate-700 text-slate-300'}`}>
-              <option value="all">Delivery: all</option>
-              <option value="none">Not shipped</option>
-              <option value="preparing">Preparing</option>
-              <option value="partial">Partly delivered</option>
-              <option value="delivered">Delivered</option>
+              <option value="all">{t('Delivery: all')}</option>
+              <option value="none">{t('Not shipped')}</option>
+              <option value="preparing">{t('Preparing')}</option>
+              <option value="partial">{t('Partly delivered')}</option>
+              <option value="delivered">{t('Delivered')}</option>
             </select>
             <LayoutToggle value={layout} onChange={setLayout} />
           </div>
@@ -343,10 +345,10 @@ export default function SalesListPage() {
               <input type="checkbox"
                 checked={draftDocs.length > 0 && draftDocs.every((d) => selectedDrafts.has(d.quote_id))}
                 onChange={(e) => setSelectedDrafts(e.target.checked ? new Set(draftDocs.map((d) => d.quote_id)) : new Set())}
-                title="Select all drafts"
+                title={t('Select all drafts')}
                 className="w-3.5 h-3.5 accent-red-500 cursor-pointer flex-shrink-0" />
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Drafts <span className="tabular-nums">({draftDocs.length})</span></span>
-              <span className="text-[10px] text-slate-600 hidden sm:inline">unfinished quotes — not in the totals until validated</span>
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">{t('Drafts')} <span className="tabular-nums">({draftDocs.length})</span></span>
+              <span className="text-[10px] text-slate-600 hidden sm:inline">{t('unfinished quotes — not in the totals until validated')}</span>
               {draftsSelected.length > 0 && (
                 <button onClick={deleteArmed ? deleteSelectedDrafts : () => { setDeleteArmed(true); setTimeout(() => setDeleteArmed(false), 4000); }}
                   disabled={deleting}
@@ -402,26 +404,26 @@ export default function SalesListPage() {
                               const on = e.target.checked;
                               setSelectedDrafts((prev) => { const n = new Set(prev); if (on) n.add(q.quote_id); else n.delete(q.quote_id); return n; });
                             }}
-                            title="Select this draft for deletion"
+                            title={t('Select this draft for deletion')}
                             className="mr-2 w-3.5 h-3.5 accent-red-500 cursor-pointer flex-shrink-0" />
                         )}
-                        <a href={`/sales/${q.quote_id}`} onClick={(e) => e.stopPropagation()} title="Open document"
+                        <a href={`/sales/${q.quote_id}`} onClick={(e) => e.stopPropagation()} title={t('Open document')}
                           className={`${docNumberCls(q.status)} hover:text-emerald-300 transition-colors whitespace-nowrap`}>
                           {displayDocNumber(q)}
                         </a>
                         {(q.revision ?? 0) > 0 && <span className="ml-1 text-[9px] font-bold text-sky-400">R{q.revision}</span>}
-                        {q.case_id && <span className="ml-1 px-1 py-0.5 rounded text-[9px] font-bold bg-orange-500/15 text-orange-300 align-middle" title="After-sales quote — repair / replacement for a service case">SVC</span>}
+                        {q.case_id && <span className="ml-1 px-1 py-0.5 rounded text-[9px] font-bold bg-orange-500/15 text-orange-300 align-middle" title={t('After-sales quote — repair / replacement for a service case')}>{t('SVC')}</span>}
                       </span>
                       {/* Customer name links to their profile (new tab) — the
                           row click still expands the preview around it. */}
                       <span className={`text-sm text-slate-100 truncate ${compact ? 'flex-1 min-w-[6rem]' : ''}`}>
                         {c ? (
                           <a href={`/customers?open=${encodeURIComponent(q.customer_id!)}`} target="_blank" rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()} title="Open customer profile in a new tab"
+                            onClick={(e) => e.stopPropagation()} title={t('Open customer profile in a new tab')}
                             className="hover:text-emerald-300 transition-colors">
                             {c.display_name || c.legal_name}
                           </a>
-                        ) : <span className="text-slate-600">No customer</span>}
+                        ) : <span className="text-slate-600">{t('No customer')}</span>}
                       </span>
                       {/* Column 1 of the pair: WHERE IS THE ORDER. A half-
                           shipped order says so — "Partly Delivered" is derived
@@ -431,13 +433,13 @@ export default function SalesListPage() {
                         <span className="flex items-center gap-1.5 flex-wrap">
                           {delStateOf(q) === 'partial' ? (
                             <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-teal-500/15 text-teal-300"
-                              title="Some delivery orders are delivered, the rest still preparing — the order completes when every item has shipped">
+                              title={t('Some delivery orders are delivered, the rest still preparing — the order completes when every item has shipped')}>
                               Partly Delivered
                             </span>
                           ) : (
                             <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS[q.status]?.cls ?? ''}`}>{STATUS[q.status]?.label ?? q.status}</span>
                           )}
-                          {isExpired(q) && <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/15 text-amber-300" title={`Offer expired ${fmtDay(q.valid_until!)}`}>Expired</span>}
+                          {isExpired(q) && <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/15 text-amber-300" title={`Offer expired ${fmtDay(q.valid_until!)}`}>{t('Expired')}</span>}
                         </span>
                         {!compact && <MilestoneDots status={q.status} paid={paidFull} delivered={q.status === 'delivered'} />}
                       </span>
@@ -485,7 +487,7 @@ export default function SalesListPage() {
                               )}
                               {billed && (
                                 <p className="flex items-center gap-2 flex-wrap">
-                                  <span className={lbl}>Payment</span>
+                                  <span className={lbl}>{t('Payment')}</span>
                                   <span className="w-14 h-1.5 bg-slate-800 rounded-full overflow-hidden inline-block flex-shrink-0">
                                     <span className={`block h-full rounded-full ${paidFull ? 'bg-emerald-500' : arOpen && rcv <= 0 ? 'bg-red-500/70' : pct > 0 ? 'bg-amber-400' : 'bg-slate-700'}`} style={{ width: `${pct}%` }} />
                                   </span>
@@ -496,7 +498,7 @@ export default function SalesListPage() {
                               {billed && (
                                 <p className="flex items-center gap-x-3 gap-y-1 flex-wrap">
                                   <span className={lbl}>Invoices{invs.length > 1 ? ` ×${invs.length}` : ''}</span>
-                                  {invs.length === 0 ? <span className="text-slate-600 italic">none yet</span> : (
+                                  {invs.length === 0 ? <span className="text-slate-600 italic">{t('none yet')}</span> : (
                                     <>
                                       {invs.map((i) => {
                                         const it = Number(i.grand_total) || 0;
@@ -518,7 +520,7 @@ export default function SalesListPage() {
                               {billed && (
                                 <p className="flex items-center gap-x-3 gap-y-1 flex-wrap">
                                   <span className={lbl}>Delivery{qdos.length > 1 ? ` ×${qdos.length}` : ''}</span>
-                                  {qdos.length === 0 ? <span className="text-slate-600 italic">no DO yet</span> : (
+                                  {qdos.length === 0 ? <span className="text-slate-600 italic">{t('no DO yet')}</span> : (
                                     <>
                                       {qdos.map((d) => (
                                         <a key={d.do_id} href={`/sales/${q.quote_id}/do?do=${d.do_id}`} target="_blank" rel="noopener noreferrer"
@@ -536,7 +538,7 @@ export default function SalesListPage() {
                           );
                         })()}
                         {items.length === 0 ? (
-                          <p className="text-[11px] text-slate-600 italic py-1.5">No items on this quote.</p>
+                          <p className="text-[11px] text-slate-600 italic py-1.5">{t('No items on this quote.')}</p>
                         ) : (
                           <div className="rounded-lg border border-slate-800 bg-slate-950/50 divide-y divide-slate-800/60">
                             {lines.map((l, li) => l.is_section ? (
@@ -550,7 +552,7 @@ export default function SalesListPage() {
                               </div>
                             ))}
                             <div className="flex items-center justify-between px-3 py-1.5 text-[11px] bg-slate-900/60">
-                              <span className="text-slate-500 font-semibold">Grand Total (excl. PPN)</span>
+                              <span className="text-slate-500 font-semibold">{t('Grand Total (excl. PPN)')}</span>
                               <span className="text-emerald-300 font-bold tabular-nums">{fmtInt(subtotal)}</span>
                             </div>
                           </div>

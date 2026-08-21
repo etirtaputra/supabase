@@ -204,6 +204,217 @@ export const ID: Record<string, string> = {
   'Write one': 'Buat sekarang',
   'Contacts': 'Kontak',
 
+  // ── Shared toolbars (date filter, table pagination) ───────────────────────
+  // These render on many screens at once, so one line here moves the whole app.
+  'Quick ranges': 'Rentang cepat',
+  'Month': 'Bulan',
+  'Year': 'Tahun',
+  'Custom range': 'Rentang sendiri',
+  'Clear': 'Hapus',
+  'Done': 'Selesai',
+  'Clear the date filter': 'Hapus filter tanggal',
+  'Rows per page:': 'Baris per halaman:',
+  'No matching records found.': 'Tidak ada data yang cocok.',
+  'Showing {from} to {to} of {total} entries':
+    'Menampilkan {from}–{to} dari {total} data',
+  'First': 'Awal',
+  'Prev': 'Sebelumnya',
+  'Next': 'Berikutnya',
+  'Last': 'Akhir',
+  'Search records...': 'Cari data...',
+
+  // ── Products ──────────────────────────────────────────────────────────────
+  // "Item" is barang; a customer-facing price is harga jual; net price stays
+  // "harga net", which is what the sales desk already says out loud.
+  'All categories': 'Semua kategori',
+  'All brands': 'Semua merek',
+  'Clear ×': 'Hapus ×',
+  'Live/Physical': 'Tersedia/Fisik',
+  'Incoming': 'Dalam perjalanan',
+  'No products match.': 'Tidak ada barang yang cocok.',
+  '↑ Newer version': '↑ Versi lebih baru',
+  'Import products — preview': 'Impor barang — pratinjau',
+  'Updates': 'Pembaruan',
+  'New products': 'Barang baru',
+  'Cancel': 'Batal',
+  'Expected arrival': 'Perkiraan tiba',
+  'no date': 'tanpa tanggal',
+  'No net price —': 'Belum ada harga net —',
+  'set it in Catalog': 'atur di Catalog',
+  'Datasheet URL (Drive or web)': 'Tautan datasheet (Drive atau web)',
+  'Open': 'Buka',
+  'Open datasheet': 'Buka datasheet',
+  'Open the item hub': 'Buka Item Hub',
+  'Last Customer Orders': 'Pesanan pelanggan terakhir',
+  'Last Deliveries': 'Pengiriman terakhir',
+  'Download the filtered list as CSV (opens in Excel)':
+    'Unduh daftar yang tersaring sebagai CSV (bisa dibuka di Excel)',
+  'Manage price tiers, margin floors and per-item overrides':
+    'Atur tier harga, batas bawah margin, dan harga khusus per barang',
+  'Prices are set in Purchasing › Items (the Item Editor) — Sell Price column → Tiers':
+    'Harga diatur di Purchasing › Items (Item Editor) — kolom Sell Price → Tiers',
+  'Only items with a sell price set — the default view; untick to include unpriced items':
+    'Hanya barang yang sudah ada harga jualnya — tampilan bawaan; hilangkan centang untuk memasukkan yang belum ada harganya',
+  'Choose which columns the table shows': 'Pilih kolom yang ditampilkan',
+  'Drag to set the Description width — double-click to reset':
+    'Geser untuk mengatur lebar kolom Description — klik dua kali untuk mengembalikan',
+  'Open the item hub — buy, sell, stock, specs on one page':
+    'Buka Item Hub — pembelian, penjualan, stok, dan spesifikasi dalam satu halaman',
+  'Everything about this item — buy, sell, stock, specs — on one page':
+    'Semua tentang barang ini — pembelian, penjualan, stok, spesifikasi — dalam satu halaman',
+  'Performance warranty — PV output guarantee':
+    'Garansi performa — jaminan keluaran daya PV',
+  '— product (claimable) · performance (PV output guarantee)':
+    '— produk (bisa diklaim) · performa (jaminan keluaran daya PV)',
+  'Free-text warranty from before the structured fields — retype it into the boxes above':
+    'Garansi dalam bentuk teks bebas dari sebelum kolom terstruktur ada — ketik ulang ke kolom di atas',
+
+  // ── Sales, Invoices, Delivery ─────────────────────────────────────────────
+  // NOTE ON WHAT IS ABSENT. Column headings and field labels (Invoice,
+  // Customer, Date, Total, Status, Product, Category, Quantity, Warranty,
+  // Serial number…) are wrapped at their call sites but deliberately have NO
+  // entry here: the house rule keeps the NAMES of things English, and the
+  // fallback renders them in English for free. Giving one of them an entry is
+  // a one-line decision, not a code change — which is the point.
+  'Stage: all': 'Tahap: semua',
+  'Payment: all': 'Pembayaran: semua',
+  'Delivery: all': 'Pengiriman: semua',
+  'Unpaid': 'Belum dibayar',
+  'Partial': 'Sebagian',
+  'Outstanding': 'Belum lunas',
+  'Paid': 'Lunas',
+  'Not shipped': 'Belum dikirim',
+  'Preparing': 'Disiapkan',
+  'Partly delivered': 'Terkirim sebagian',
+  'Delivered': 'Terkirim',
+  'Drafts': 'Draf',
+  'unfinished quotes — not in the totals until validated':
+    'penawaran yang belum selesai — belum masuk total sampai divalidasi',
+  'No customer': 'Tanpa pelanggan',
+  'Expired': 'Kedaluwarsa',
+  'none yet': 'belum ada',
+  'no DO yet': 'belum ada DO',
+  'No items on this quote.': 'Tidak ada barang pada penawaran ini.',
+  'Grand Total (excl. PPN)': 'Total Keseluruhan (belum termasuk PPN)',
+  'Owner-only: curated custom line texts that feed the item picker':
+    'Khusus pemilik: daftar teks baris pilihan yang mengisi pemilih barang',
+  'Search by number, customer, status, product…':
+    'Cari berdasarkan nomor, pelanggan, status, barang…',
+  'Create a Sales Order directly — fill the customer and items, then Confirm Order in one step':
+    'Buat Sales Order langsung — isi pelanggan dan barangnya, lalu Confirm Order sekaligus',
+  'Order — the default lives in Settings › Lists':
+    'Urutan — bawaannya diatur di Settings › Lists',
+  'Filter by lifecycle stage — draft, price quote or confirmed order':
+    'Saring berdasarkan tahap — draf, penawaran harga, atau pesanan yang sudah dikonfirmasi',
+  'Filter by payment state': 'Saring berdasarkan status pembayaran',
+  'Filter by delivery state': 'Saring berdasarkan status pengiriman',
+  'Select all drafts': 'Pilih semua draf',
+  'Select this draft for deletion': 'Pilih draf ini untuk dihapus',
+  'Open document': 'Buka dokumen',
+  'After-sales quote — repair / replacement for a service case':
+    'Penawaran purna jual — perbaikan / penggantian untuk kasus servis',
+  'Open customer profile in a new tab': 'Buka profil pelanggan di tab baru',
+  'Some delivery orders are delivered, the rest still preparing — the order completes when every item has shipped':
+    'Sebagian surat jalan sudah terkirim, sisanya masih disiapkan — pesanan selesai setelah semua barang dikirim',
+  'Search invoice number, customer…': 'Cari nomor faktur, pelanggan…',
+  'Ready to deliver': 'Siap dikirim',
+  'No deliveries yet.': 'Belum ada pengiriman.',
+  'Search DO / SO / invoice number, customer…':
+    'Cari nomor DO / SO / faktur, pelanggan…',
+
+  // ── Suppliers ─────────────────────────────────────────────────────────────
+  'Vendors are created in Catalog → Supplier Quotes':
+    'Pemasok dibuat di Catalog → Supplier Quotes',
+  'quotes / POs': 'penawaran / PO',
+  'No supplier quotes or POs yet.': 'Belum ada penawaran pemasok atau PO.',
+  'Click any document to open it in Deal Lookup.':
+    'Klik dokumen mana pun untuk membukanya di Deal Lookup.',
+  'Most purchased items': 'Barang paling sering dibeli',
+  'No PO lines yet.': 'Belum ada baris PO.',
+  'Search supplier name, code, location…': 'Cari nama pemasok, kode, lokasi…',
+  'Collapse': 'Tutup',
+
+  // ── After Sales & Serial numbers ──────────────────────────────────────────
+  'No after-sales cases yet': 'Belum ada kasus purna jual',
+  'No case matches.': 'Tidak ada kasus yang cocok.',
+  'not ours': 'bukan dari kami',
+  'not sold by us': 'bukan penjualan kami',
+  'not sold by us — out of our warranty': 'bukan penjualan kami — di luar garansi kami',
+  'none linked': 'belum ditautkan',
+  'none': 'tidak ada',
+  'preparing': 'disiapkan',
+  'Register ↗': 'Daftar unit ↗',
+  'No unit with that serial in the register.':
+    'Tidak ada unit dengan nomor seri itu di daftar.',
+  'Open the ticket anyway — the serial is kept as typed.':
+    'Tetap buka tiketnya — nomor seri disimpan seperti yang diketik.',
+  'record it in the register ↗': 'catat di daftar unit ↗',
+  'unit attached': 'unit terlampir',
+  'detach': 'lepaskan',
+  '+ Add item': '+ Tambah barang',
+  'On this order:': 'Pada pesanan ini:',
+  'No items logged.': 'Belum ada barang dicatat.',
+  'Repair / replacement quotes': 'Penawaran perbaikan / penggantian',
+  '+ New quote': '+ Penawaran baru',
+  'No quote for this case yet — repairs and component replacements are quoted from here.':
+    'Belum ada penawaran untuk kasus ini — perbaikan dan penggantian komponen ditawarkan dari sini.',
+  'No updates yet.': 'Belum ada pembaruan.',
+  'Search serial, ticket, customer, order, item…':
+    'Cari nomor seri, tiket, pelanggan, pesanan, barang…',
+  'More invoices / delivery orders — expand the row':
+    'Faktur / surat jalan lainnya — buka barisnya',
+  'Performance warranty — output guarantee, not a repair claim':
+    'Garansi performa — jaminan keluaran daya, bukan klaim perbaikan',
+  'What is it?': 'Barang apa?',
+  'Which seller?': 'Dibeli dari siapa?',
+  'Search customer…': 'Cari pelanggan…',
+  'Search SO / SQ number…': 'Cari nomor SO / SQ…',
+  'What the customer reported': 'Yang dilaporkan pelanggan',
+  'Item — type to search the catalog': 'Barang — ketik untuk mencari di katalog',
+  'How it was fixed': 'Bagaimana diperbaiki',
+  'Add an update — parts ordered, technician visit, customer called…':
+    'Tambah pembaruan — suku cadang dipesan, teknisi datang, pelanggan dihubungi…',
+  'Could not read the register.': 'Daftar unit tidak bisa dibaca.',
+  '1 · Product': '1 · Barang',
+  '— pick the product being scanned —': '— pilih barang yang dipindai —',
+  '2 · Scan': '2 · Pindai',
+  '— none (into stock) —': '— tidak ada (masuk stok) —',
+  '— none —': '— tidak ada —',
+  'Attach to sales order…': 'Tautkan ke sales order…',
+  'clear': 'hapus',
+  'No sale of ours carries this unit — service on it is out of warranty unless someone says otherwise.':
+    'Tidak ada penjualan kami yang mencakup unit ini — servisnya di luar garansi kecuali ada keputusan lain.',
+  'Note on this batch (optional)': 'Catatan untuk batch ini (opsional)',
+  'Scan or type a serial, or search product, customer, order…':
+    'Pindai atau ketik nomor seri, atau cari barang, pelanggan, pesanan…',
+
+  // ── Stock ─────────────────────────────────────────────────────────────────
+  'Inventory tables are behind the app.': 'Tabel persediaan tertinggal dari aplikasi.',
+  'on-hand across all warehouses vs undelivered committed order qty':
+    'stok di semua gudang dibanding jumlah pesanan terikat yang belum dikirim',
+  'on the water': 'dalam perjalanan',
+  'POs ↗': 'PO ↗',
+  'understated by {amount}': 'kurang dicatat sebesar {amount}',
+  'True up ↗': 'Sesuaikan ↗',
+  'item ↗': 'barang ↗',
+  'New PO →': 'PO baru →',
+  'All warehouses': 'Semua gudang',
+  '⇄ move': '⇄ pindah',
+  'Move stock': 'Pindahkan stok',
+  'Moves at the source warehouse&apos;s average cost — total inventory value is unchanged.':
+    'Dipindahkan pada biaya rata-rata gudang asal — total nilai persediaan tidak berubah.',
+  'The default warehouse — the one preselected when receiving, adjusting or shipping — is set in Settings':
+    'Gudang bawaan — yang otomatis terpilih saat menerima, menyesuaikan, atau mengirim — diatur di Settings',
+  'At the current demand rate, stock runs out before a PO raised today could arrive':
+    'Dengan laju permintaan saat ini, stok habis sebelum PO yang dibuat hari ini bisa tiba',
+  'Open the item hub — buy history, lead times, demand':
+    'Buka Item Hub — riwayat pembelian, lead time, permintaan',
+  'Raise the next deal — New Deal, Quote + PO':
+    'Buat transaksi berikutnya — New Deal, penawaran + PO',
+  'Search item, brand, category…': 'Cari barang, merek, kategori…',
+  'Show one warehouse or all of them': 'Tampilkan satu gudang atau semuanya',
+  'Move this stock to another warehouse': 'Pindahkan stok ini ke gudang lain',
+
   // ── Page subtitles (BrandMenu) ────────────────────────────────────────────
   'Stock · Warehouse': 'Stock · Gudang',
   'Customers · CRM': 'Customers · Data pelanggan',

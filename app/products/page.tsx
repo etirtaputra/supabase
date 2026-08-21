@@ -51,6 +51,7 @@ import DateRangeFilter from '@/components/ui/DateRangeFilter';
 import { inRange, type DateRange } from '@/lib/dateRange';
 import { successorMap } from '@/lib/successors';
 import { WARRANTY_UNITS, fmtWarranty, warrantyLabel } from '@/lib/warranty';
+import { useT } from '@/hooks/useT';
 // "Just arrived" window: a goods receipt in the last N days makes stock NEW.
 // The item's FIRST-ever receipt inside the window = a brand-new product.
 // The length is Settings › Defaults, shared with the dashboard's New arrivals
@@ -83,6 +84,7 @@ function ArrivalTag({ a, days }: { a: { first: string; last: string } | undefine
 // The product's customer-facing name: our internal description, never the supplier's model/SKU.
 /** Amber "newer version" tag — shown wherever a superseded item appears. */
 function SupersededTag({ succId, comps, canHub }: { succId?: string; comps: { component_id: string; internal_description: string | null; supplier_model: string }[]; canHub: boolean }) {
+  const { t } = useT();
   if (!succId) return null;
   const succ = comps.find((c) => c.component_id === succId);
   const label = succ ? descOf(succ) : 'newer item';
@@ -93,7 +95,7 @@ function SupersededTag({ succId, comps, canHub }: { succId?: string; comps: { co
       ↑ Newer version ↗
     </a>
   ) : (
-    <span title={`This item is replaced by ${label}`} className={cls}>↑ Newer version</span>
+    <span title={`This item is replaced by ${label}`} className={cls}>{t('↑ Newer version')}</span>
   );
 }
 
@@ -130,6 +132,7 @@ export default function ProductsPage() {
 }
 
 function ProductsInner() {
+  const { t } = useT();
   const supabase = createSupabaseClient();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -416,7 +419,7 @@ function ProductsInner() {
 
   useEffect(() => { if (canView) fetchAll(); }, [canView, fetchAll]);
 
-  const activeTiers = useMemo(() => [...tiers].filter((t) => t.is_active).sort((a, b) => a.sort_order - b.sort_order), [tiers]);
+  const activeTiers = useMemo(() => [...tiers].filter((tr) => tr.is_active).sort((a, b) => a.sort_order - b.sort_order), [tiers]);
   const ovByKey = useMemo(() => { const m = new Map<string, Override>(); for (const o of overrides) m.set(`${o.component_id}:${o.tier_id}`, o); return m; }, [overrides]);
 
   // Markup chain: entered price = Tier-1 net; each next tier = prev ÷ (1−step%),
@@ -638,7 +641,7 @@ function ProductsInner() {
           <div className="flex items-center gap-2 flex-wrap">
             {canExport && (
               <button onClick={exportCsv}
-                title="Download the filtered list as CSV (opens in Excel)"
+                title={t('Download the filtered list as CSV (opens in Excel)')}
                 className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap">
                 ↓ Export CSV
               </button>
@@ -653,12 +656,12 @@ function ProductsInner() {
             )}
             {canImport && (
               <Link href="/pricing" className="hidden sm:block text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap"
-                title="Manage price tiers, margin floors and per-item overrides">
+                title={t('Manage price tiers, margin floors and per-item overrides')}>
                 Tiers &amp; floors →
               </Link>
             )}
             <Link href="/purchasing" className="hidden sm:block text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap"
-              title="Prices are set in Purchasing › Items (the Item Editor) — Sell Price column → Tiers">
+              title={t('Prices are set in Purchasing › Items (the Item Editor) — Sell Price column → Tiers')}>
               Set pricing in Items →
             </Link>
           </div>
@@ -674,12 +677,12 @@ function ProductsInner() {
               className="w-full pl-10 pr-4 h-11 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors" />
           </div>
           <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className={selCls}>
-            <option value="">All categories</option>
+            <option value="">{t('All categories')}</option>
             {categories.map((c) => <option key={c} value={c}>{humanize(c)}</option>)}
           </select>
           {canViewBrand && (
             <select value={filterBrand} onChange={(e) => setFilterBrand(e.target.value)} className={selCls}>
-              <option value="">All brands</option>
+              <option value="">{t('All brands')}</option>
               {brands.map((b) => <option key={b} value={b}>{b}</option>)}
             </select>
           )}
@@ -693,7 +696,7 @@ function ProductsInner() {
             ))}
           </select>
           <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none whitespace-nowrap"
-            title="Only items with a sell price set — the default view; untick to include unpriced items">
+            title={t('Only items with a sell price set — the default view; untick to include unpriced items')}>
             <input type="checkbox" checked={pricedOnly} onChange={(e) => setPricedOnly(e.target.checked)} className="accent-emerald-500 w-4 h-4" />
             Priced
           </label>
@@ -708,7 +711,7 @@ function ProductsInner() {
           </label>
           {hasFilters && (
             <button onClick={() => { setSearch(''); setFilterCategory(''); setFilterBrand(''); setStockOnly(false); setJustArrived(false); setPricedOnly(true); }}
-              className="text-[11px] text-slate-500 hover:text-white px-2 py-1 transition-colors">Clear ×</button>
+              className="text-[11px] text-slate-500 hover:text-white px-2 py-1 transition-colors">{t('Clear ×')}</button>
           )}
           <span className="text-xs text-slate-600 tabular-nums ml-auto">{rows.length} of {comps.length}</span>
           {/* "Text quote", not "Quote" — this builds a WhatsApp MESSAGE, it
@@ -729,7 +732,7 @@ function ProductsInner() {
           <div className="relative hidden md:block">
             <button onClick={() => setColsOpen((v) => !v)}
               className="px-2.5 py-1.5 rounded-lg border border-slate-800 bg-slate-900/60 text-[11px] font-medium text-slate-400 hover:text-slate-200 transition-colors"
-              title="Choose which columns the table shows">
+              title={t('Choose which columns the table shows')}>
               ▦ Columns
             </button>
             {colsOpen && (
@@ -755,8 +758,8 @@ function ProductsInner() {
         </div>
 
         <p className="hidden md:block text-[11px] text-slate-600">
-          Stock reads <span className="text-slate-400">Live/Physical</span> — e.g. 100/150 means 150 in the warehouse, 100 still free to sell (50 reserved on confirmed orders).{' '}
-          <span className="text-slate-400">Incoming</span> = on POs not yet fully received. Click a row for tier prices + last orders &amp; deliveries.
+          Stock reads <span className="text-slate-400">{t('Live/Physical')}</span> — e.g. 100/150 means 150 in the warehouse, 100 still free to sell (50 reserved on confirmed orders).{' '}
+          <span className="text-slate-400">{t('Incoming')}</span> = on POs not yet fully received. Click a row for tier prices + last orders &amp; deliveries.
         </p>
 
         {/* ── Desktop table ── */}
@@ -774,7 +777,7 @@ function ProductsInner() {
                 <Th label="Description" active={sort.key === 'name'} dir={sort.dir} onClick={() => toggleSort('name')} className="px-4 sticky left-0 z-20 bg-chrome"
                   resizer={
                     <span onMouseDown={startDescResize} onDoubleClick={resetDescWidth}
-                      title="Drag to set the Description width — double-click to reset"
+                      title={t('Drag to set the Description width — double-click to reset')}
                       className="absolute right-0 top-0 bottom-0 w-2.5 cursor-col-resize group/rsz flex items-center justify-center select-none">
                       <span className={`w-px h-4 transition-colors ${descW != null ? 'bg-emerald-500/50' : 'bg-slate-700'} group-hover/rsz:bg-emerald-400`} />
                     </span>
@@ -794,7 +797,7 @@ function ProductsInner() {
               {loading ? (
                 [...Array(8)].map((_, i) => <tr key={i}><td colSpan={visibleColCount} className="px-4 py-2"><div className="h-9 bg-slate-800/40 rounded-lg animate-pulse" /></td></tr>)
               ) : rows.length === 0 ? (
-                <tr><td colSpan={visibleColCount} className="px-4 py-12 text-center text-slate-600 text-sm">No products match.</td></tr>
+                <tr><td colSpan={visibleColCount} className="px-4 py-12 text-center text-slate-600 text-sm">{t('No products match.')}</td></tr>
               ) : rows.map((r) => (
                 <Fragment key={r.c.component_id}>
                   <tr onClick={() => setExpanded((e) => (e === r.c.component_id ? null : r.c.component_id))}
@@ -812,7 +815,7 @@ function ProductsInner() {
                         {r.activity > 0 && <span className="px-1 py-0.5 rounded bg-slate-800 text-[9px] text-slate-500 tabular-nums flex-shrink-0" title={`${r.activity} POs / quotes / orders`}>{r.activity}</span>}
                         {canHub && (
                           <Link href={`/items/${r.c.component_id}`} onClick={(e) => e.stopPropagation()}
-                            title="Open the item hub — buy, sell, stock, specs on one page"
+                            title={t('Open the item hub — buy, sell, stock, specs on one page')}
                             className="p-1 -m-0.5 text-slate-600 hover:text-emerald-300 transition-colors flex-shrink-0">
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                           </Link>
@@ -845,13 +848,13 @@ function ProductsInner() {
                     {colShown('warranty') && <td className="px-3 py-2 text-xs text-slate-400 whitespace-nowrap">
                       {warrantyLabel(r.c) || <span className="text-slate-700">—</span>}
                       {fmtWarranty(r.c.perf_warranty_value, r.c.perf_warranty_unit) && (
-                        <span className="text-slate-600" title="Performance warranty — PV output guarantee"> · perf {fmtWarranty(r.c.perf_warranty_value, r.c.perf_warranty_unit)}</span>
+                        <span className="text-slate-600" title={t('Performance warranty — PV output guarantee')}> · perf {fmtWarranty(r.c.perf_warranty_value, r.c.perf_warranty_unit)}</span>
                       )}
                     </td>}
                     {colShown('sheet') && <td className="px-3 py-2 text-center">
                       {r.c.datasheet_url ? (
                         <a href={r.c.datasheet_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
-                          title="Open datasheet" className="inline-flex text-sky-400 hover:text-sky-300 transition-colors">
+                          title={t('Open datasheet')} className="inline-flex text-sky-400 hover:text-sky-300 transition-colors">
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 010 5.656l-4 4a4 4 0 01-5.656-5.656l1.1-1.1m9.556-3.9l1.1-1.1a4 4 0 10-5.656-5.656l-4 4a4 4 0 000 5.656" /></svg>
                         </a>
                       ) : <span className="text-slate-700">—</span>}
@@ -879,7 +882,7 @@ function ProductsInner() {
           {loading ? (
             [...Array(6)].map((_, i) => <div key={i} className="h-24 bg-slate-800/40 rounded-xl animate-pulse" />)
           ) : rows.length === 0 ? (
-            <p className="px-4 py-12 text-center text-slate-600 text-sm">No products match.</p>
+            <p className="px-4 py-12 text-center text-slate-600 text-sm">{t('No products match.')}</p>
           ) : rows.map((r) => {
             const open = expanded === r.c.component_id;
             return (
@@ -902,13 +905,13 @@ function ProductsInner() {
                     </div>
                     {canHub && (
                       <Link href={`/items/${r.c.component_id}`} onClick={(e) => e.stopPropagation()}
-                        className="p-1.5 -m-0.5 text-slate-600 active:text-emerald-300 flex-shrink-0" title="Open the item hub">
+                        className="p-1.5 -m-0.5 text-slate-600 active:text-emerald-300 flex-shrink-0" title={t('Open the item hub')}>
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                       </Link>
                     )}
                     {r.c.datasheet_url && (
                       <a href={r.c.datasheet_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
-                        className="p-1.5 -m-0.5 text-sky-400 flex-shrink-0" title="Datasheet">
+                        className="p-1.5 -m-0.5 text-sky-400 flex-shrink-0" title={t('Datasheet')}>
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 010 5.656l-4 4a4 4 0 01-5.656-5.656l1.1-1.1m9.556-3.9l1.1-1.1a4 4 0 10-5.656-5.656l-4 4a4 4 0 000 5.656" /></svg>
                       </a>
                     )}
@@ -941,18 +944,18 @@ function ProductsInner() {
                         {pickedAt(r.c) && '✓ '}{fmtRupiah(r.c.selling_price_idr)}
                       </span>
                     ) : null}
-                    {compact ? null : activeTiers.map((t) => {
-                      const p = tierPrice(r.c, t);
+                    {compact ? null : activeTiers.map((tier) => {
+                      const p = tierPrice(r.c, tier);
                       return p != null ? (
-                        <span key={t.tier_id} role="button" tabIndex={0}
-                          onClick={(e) => { e.stopPropagation(); onPrice(r.c, p, t.name, t.tier_id); }}
-                          title={multi ? `Tap to add at ${t.name}` : `Tap to copy ${t.name} price for WhatsApp`}
+                        <span key={tier.tier_id} role="button" tabIndex={0}
+                          onClick={(e) => { e.stopPropagation(); onPrice(r.c, p, tier.name, tier.tier_id); }}
+                          title={multi ? `Tap to add at ${tier.name}` : `Tap to copy ${tier.name} price for WhatsApp`}
                           className={`px-2 py-1 rounded-lg text-[11px] tabular-nums transition-colors ${
-                            pickedAt(r.c, t.tier_id)
+                            pickedAt(r.c, tier.tier_id)
                               ? 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40'
                               : 'bg-slate-800/60 text-slate-400 active:text-emerald-300'
                           }`}>
-                          {pickedAt(r.c, t.tier_id) && '✓ '}{t.name} <span className="text-slate-200 font-semibold">{fmtRupiah(p)}</span>
+                          {pickedAt(r.c, tier.tier_id) && '✓ '}{tier.name} <span className="text-slate-200 font-semibold">{fmtRupiah(p)}</span>
                         </span>
                       ) : null;
                     })}
@@ -980,7 +983,7 @@ function ProductsInner() {
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setImportPreview(null)} />
           <div className="relative w-full max-w-2xl max-h-[85vh] flex flex-col bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl">
             <div className="px-5 pt-4 pb-3 border-b border-slate-800">
-              <h3 className="text-sm font-bold text-white">Import products — preview</h3>
+              <h3 className="text-sm font-bold text-white">{t('Import products — preview')}</h3>
               <p className="text-[11px] text-slate-500 mt-0.5">
                 {importPreview.updates.length} update{importPreview.updates.length !== 1 ? 's' : ''} · {importPreview.creates.length} new product{importPreview.creates.length !== 1 ? 's' : ''}
                 {importPreview.skipped.length ? ` · ${importPreview.skipped.length} skipped (no id/model/description)` : ''}
@@ -989,7 +992,7 @@ function ProductsInner() {
             <div className="flex-1 overflow-y-auto px-5 py-3 space-y-3 text-xs">
               {importPreview.updates.length > 0 && (
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Updates</p>
+                  <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">{t('Updates')}</p>
                   <div className="rounded-lg border border-slate-800 divide-y divide-slate-800/60">
                     {importPreview.updates.map((u) => (
                       <div key={u.id} className="px-3 py-1.5 flex items-center gap-3">
@@ -1002,7 +1005,7 @@ function ProductsInner() {
               )}
               {importPreview.creates.length > 0 && (
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">New products</p>
+                  <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">{t('New products')}</p>
                   <div className="rounded-lg border border-slate-800 divide-y divide-slate-800/60">
                     {importPreview.creates.map((c, i) => (
                       <div key={i} className="px-3 py-1.5 flex items-center gap-3">
@@ -1016,7 +1019,7 @@ function ProductsInner() {
             </div>
             <div className="px-5 py-3 border-t border-slate-800 flex items-center justify-end gap-2">
               <button onClick={() => setImportPreview(null)} disabled={importBusy}
-                className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all">Cancel</button>
+                className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all">{t('Cancel')}</button>
               <button onClick={applyImport} disabled={importBusy}
                 className="px-4 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors disabled:opacity-50">
                 {importBusy ? 'Importing…' : `Apply ${importPreview.updates.length + importPreview.creates.length} rows`}
@@ -1062,6 +1065,7 @@ function Th({ label, hint, tip, right, center, active, dir, onClick, className, 
  *  `showPo` gates the PO numbers: buy-side eyes only — a sales login sees
  *  "Shipment 1/2/…" (buy-document numbers are not sell-side data). */
 function IncomingCell({ qty, unit, details, showPo }: { qty: number; unit: string | null; details: ArrivalDetail[]; showPo: boolean }) {
+  const { t } = useT();
   const srcLabel = (d: ArrivalDetail) =>
     d.source === 'eta' ? 'supplier ETA'
     : d.source === 'stated' ? `ordered ${fmtDate(d.poDate)} + ${d.leadDays} working day${d.leadDays !== 1 ? 's' : ''} quoted lead`
@@ -1072,7 +1076,7 @@ function IncomingCell({ qty, unit, details, showPo }: { qty: number; unit: strin
       <span className={details.some((d) => d.overdue) ? 'text-amber-300' : undefined}>{fmtInt(qty)}</span>
       {details.length > 0 && (
         <span className="pointer-events-none absolute right-0 top-full mt-1 z-30 hidden group-hover/inc:block w-[260px] rounded-xl border border-slate-700 bg-deep shadow-2xl p-3 text-left">
-          <span className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Expected arrival</span>
+          <span className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">{t('Expected arrival')}</span>
           <span className="block space-y-2">
             {details.map((d, i) => (
               <span key={`${d.po_id}-${i}`} className="block">
@@ -1085,7 +1089,7 @@ function IncomingCell({ qty, unit, details, showPo }: { qty: number; unit: strin
                     <span className={`text-[11px] font-semibold tabular-nums whitespace-nowrap ${d.overdue ? 'text-amber-300' : 'text-sky-300'}`}>
                       {fmtDate(d.expected)}{d.overdue ? ' · late' : ''}
                     </span>
-                  ) : <span className="text-[11px] text-slate-500">no date</span>}
+                  ) : <span className="text-[11px] text-slate-500">{t('no date')}</span>}
                 </span>
                 <span className="block text-[10px] text-slate-600 leading-snug">{srcLabel(d)}</span>
               </span>
@@ -1121,6 +1125,7 @@ function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEdi
   pickedAt: (c: Comp, tierKey?: string) => boolean;
   canHub: boolean;
 }) {
+  const { t } = useT();
   const { c, rsv } = row;
   // Structured warranty (After Sales runs its clocks on these): value + unit,
   // product and performance each. Saved on blur / unit change.
@@ -1157,22 +1162,22 @@ function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEdi
             <span className="text-slate-500">{pickedAt(c) ? '✓ Net' : 'Net'}</span> <span className="tabular-nums text-slate-200 font-semibold">{fmtRupiah(c.selling_price_idr)}</span>
           </button>
         ) : (
-          <span className="text-[11px] text-slate-600 italic">No net price — <Link href="/purchasing" className="text-emerald-400 hover:text-emerald-300">set it in Catalog</Link></span>
+          <span className="text-[11px] text-slate-600 italic">{t('No net price —')} <Link href="/purchasing" className="text-emerald-400 hover:text-emerald-300">{t('set it in Catalog')}</Link></span>
         )}
-        {activeTiers.map((t) => {
-          const p = tierPrice(c, t);
+        {activeTiers.map((tier) => {
+          const p = tierPrice(c, tier);
           if (p == null) return (
-            <span key={t.tier_id} className="px-2.5 py-1 rounded-lg bg-slate-800/60 border border-slate-700 text-[11px]">
-              <span className="text-slate-500">{t.name}</span> <span className="text-slate-600">—</span>
+            <span key={tier.tier_id} className="px-2.5 py-1 rounded-lg bg-slate-800/60 border border-slate-700 text-[11px]">
+              <span className="text-slate-500">{tier.name}</span> <span className="text-slate-600">—</span>
             </span>
           );
           return (
-            <button key={t.tier_id} onClick={() => onPrice(c, p, t.name, t.tier_id)}
-              title={multi ? `Add at ${t.name}` : `Copy ${t.name} price (excl. PPN) for WhatsApp`}
+            <button key={tier.tier_id} onClick={() => onPrice(c, p, tier.name, tier.tier_id)}
+              title={multi ? `Add at ${tier.name}` : `Copy ${tier.name} price (excl. PPN) for WhatsApp`}
               className={`px-2.5 py-1 rounded-lg border text-[11px] transition-colors ${
-                pickedAt(c, t.tier_id) ? 'bg-emerald-500/15 border-emerald-500/40' : 'bg-slate-800/60 border-slate-700 hover:border-emerald-500/40'
+                pickedAt(c, tier.tier_id) ? 'bg-emerald-500/15 border-emerald-500/40' : 'bg-slate-800/60 border-slate-700 hover:border-emerald-500/40'
               }`}>
-              <span className="text-slate-500">{pickedAt(c, t.tier_id) ? `✓ ${t.name}` : t.name}</span>{' '}
+              <span className="text-slate-500">{pickedAt(c, tier.tier_id) ? `✓ ${tier.name}` : tier.name}</span>{' '}
               <span className="tabular-nums text-slate-200 font-semibold">{fmtRupiah(p)}</span>
             </button>
           );
@@ -1181,7 +1186,7 @@ function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEdi
         {canHub && (
           <Link href={`/items/${c.component_id}`}
             className={`text-[11px] text-slate-500 hover:text-emerald-300 transition-colors whitespace-nowrap ${rsv > 0 ? '' : 'sm:ml-auto'}`}
-            title="Everything about this item — buy, sell, stock, specs — on one page">
+            title={t('Everything about this item — buy, sell, stock, specs — on one page')}>
             Item hub →
           </Link>
         )}
@@ -1191,7 +1196,7 @@ function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEdi
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div>
           <label className="block text-[10px] font-medium text-slate-500 mb-0.5">
-            Warranty <span className="text-slate-600 normal-case">— product (claimable) · performance (PV output guarantee)</span>
+            Warranty <span className="text-slate-600 normal-case">{t('— product (claimable) · performance (PV output guarantee)')}</span>
           </label>
           {canEditMeta ? (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -1211,7 +1216,7 @@ function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEdi
                 </span>
               ))}
               {!wv && !pv && c.warranty && (
-                <span className="text-[10px] text-slate-600 w-full" title="Free-text warranty from before the structured fields — retype it into the boxes above">
+                <span className="text-[10px] text-slate-600 w-full" title={t('Free-text warranty from before the structured fields — retype it into the boxes above')}>
                   legacy note: {c.warranty}
                 </span>
               )}
@@ -1226,7 +1231,7 @@ function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEdi
           )}
         </div>
         <div>
-          <label className="block text-[10px] font-medium text-slate-500 mb-0.5">Datasheet URL (Drive or web)</label>
+          <label className="block text-[10px] font-medium text-slate-500 mb-0.5">{t('Datasheet URL (Drive or web)')}</label>
           {canEditMeta ? (
             <div className="flex gap-1.5">
               <input value={sheet} onChange={(e) => setSheet(e.target.value)}
@@ -1234,7 +1239,7 @@ function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEdi
                 placeholder="https://…" className={dInp} />
               {c.datasheet_url && (
                 <a href={c.datasheet_url} target="_blank" rel="noopener noreferrer"
-                  className="px-3 py-1.5 rounded-lg bg-sky-500/10 text-sky-300 text-xs font-semibold hover:bg-sky-500/20 transition-colors whitespace-nowrap self-start">Open</a>
+                  className="px-3 py-1.5 rounded-lg bg-sky-500/10 text-sky-300 text-xs font-semibold hover:bg-sky-500/20 transition-colors whitespace-nowrap self-start">{t('Open')}</a>
               )}
             </div>
           ) : c.datasheet_url ? (
@@ -1247,8 +1252,8 @@ function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEdi
 
       {/* Last orders + deliveries */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <DocList title="Last Customer Orders" empty="No customer orders yet." refs={orders} accent="text-violet-300" unit={c.unit} />
-        <DocList title="Last Deliveries" empty="No deliveries yet." refs={deliveries} accent="text-emerald-300" unit={c.unit} />
+        <DocList title={t('Last Customer Orders')} empty="No customer orders yet." refs={orders} accent="text-violet-300" unit={c.unit} />
+        <DocList title={t('Last Deliveries')} empty="No deliveries yet." refs={deliveries} accent="text-emerald-300" unit={c.unit} />
       </div>
     </div>
   );
