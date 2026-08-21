@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useT } from '@/hooks/useT';
@@ -145,6 +145,75 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
   '/purchasing?tab=financials': <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 10a2 2 0 012-2h14a2 2 0 012 2M3 10v8a2 2 0 002 2h14a2 2 0 002-2v-8M7 15h4" />,
 };
 
+/** useLayoutEffect on the client, useEffect on the server (which never runs it). */
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+
+/**
+ * How hard the header bar is being squeezed right now — 0 roomy, 1 tight,
+ * 2 out of room — MEASURED, not guessed.
+ *
+ * Three times this bar has painted over whatever the page put beside it
+ * (2026-07-31, 2026-08-01, 2026-08-19) and three times the fix was a bigger
+ * hardcoded `min-w-[…]`. It kept coming back because that number is a guess
+ * about content nobody controls: add a menu group, rename a module, sign in
+ * as a different role, switch the language, and the bar's real width moves
+ * while the guess stays put. A guess that must track four moving parts is not
+ * a fix, it is a countdown.
+ *
+ * So the bar asks the browser instead. When its content no longer fits the
+ * room the page gave it, it gives something up — the clock first, then the
+ * inline nav groups (which the wordmark dropdown carries in full, so nothing
+ * becomes unreachable). It cannot overlap a neighbour, because it never keeps
+ * more than it was given.
+ *
+ * Each level remembers the width that defeated it, so widening the window
+ * hands the pieces back in order and nothing flickers between two states at
+ * one width.
+ */
+function useHeaderSqueeze(): [number, React.RefObject<HTMLDivElement | null>] {
+  const ref = useRef<HTMLDivElement>(null);
+  const [level, setLevel] = useState(0);
+  const defeatedAt = useRef<number[]>([0, 0, 0]);
+
+  useIsomorphicLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const measure = () => {
+      // Two ways this bar can be out of room, and it must catch both:
+      //   • it was clamped narrower than its content (something above it set a
+      //     width) — its own content then overflows: scrollWidth > clientWidth;
+      //   • it is on its own row already and STILL too wide for that row —
+      //     nothing clamps it, so compare what it occupies with the room the
+      //     parent actually has.
+      const parent = el.parentElement;
+      const cs = parent && getComputedStyle(parent);
+      const room = parent && cs
+        ? parent.clientWidth - parseFloat(cs.paddingLeft || '0') - parseFloat(cs.paddingRight || '0')
+        : el.clientWidth;
+      const needed = Math.max(el.scrollWidth, el.getBoundingClientRect().width);
+      const fits = Math.min(room, el.clientWidth);
+      if (needed > fits + 2) {
+        setLevel((l) => {
+          if (l >= 2) return l;              // nothing left to give up
+          defeatedAt.current[l] = fits;
+          return l + 1;
+        });
+      } else {
+        // Only hand a piece back once there is more room than the width that
+        // defeated it, plus a margin — otherwise the two states trade places
+        // forever at the boundary.
+        setLevel((l) => (l > 0 && fits > defeatedAt.current[l - 1] + 48 ? l - 1 : l));
+      }
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
+
+  return [level, ref];
+}
+
 export default function BrandMenu({
   wordmarkClass = 'text-xl font-bold',
   subtitle,
@@ -159,6 +228,7 @@ export default function BrandMenu({
   const { t } = useT();
   const { theme, setTheme } = useTheme();
   const { lang, setLang } = useLanguage();
+  const [squeeze, barRef] = useHeaderSqueeze();
   const [open, setOpen] = useState(false);         // caret dropdown (narrow widths)
   const [moreOpen, setMoreOpen] = useState(false); // mobile "More" sheet
   const [deskOpen, setDeskOpen] = useState<number | null>(null); // desktop group dropdown
@@ -371,12 +441,23 @@ export default function BrandMenu({
   );
 
   return (
-    // min-w floors (not min-w-0) at lg/xl: with min-w-0 the menu absorbed any
-    // squeeze from a page's header buttons by silently shrinking below its
-    // content, and the nav painted OVER the search box and clock (field
-    // report 2026-08-01). With a floor, the page header's flex-wrap moves the
-    // page's own buttons to a second row instead — nothing overlaps.
-    <div className="relative min-w-0 lg:min-w-[430px] xl:min-w-[1020px] flex-1 flex items-center gap-1 lg:gap-3">
+    // NO min-width floor and, just as deliberately, no `min-w-0` either.
+    //
+    // Both of those were ways of lying to the flex parent about how much room
+    // this bar needs. `min-w-0` let it shrink below its own content, so the
+    // content ran out of the box and painted across the page's buttons;
+    // `lg:min-w-[430px] xl:min-w-[1020px]` then guessed the content back, and a
+    // guess about a bar whose width depends on the role, the menu order, the
+    // active module's name and now the language is a countdown, not a fix.
+    // Measured at 1500px wide: the real bar needed 1126px, the guess claimed
+    // 1020px, and the 33px difference is what landed on top of "Export CSV".
+    //
+    // The default `min-width: auto` tells the truth instead: the parent can see
+    // what this bar actually needs, so its own flex-wrap moves the page's
+    // buttons to a second row rather than letting anything overlap. The
+    // measured squeeze below is only the backstop for when even a whole row is
+    // not enough.
+    <div ref={barRef} className="relative flex-1 flex items-center gap-1 lg:gap-3">
       <div
         className="relative min-w-0 flex-shrink-0"
         onMouseEnter={() => setOpen(true)}
@@ -448,6 +529,7 @@ export default function BrandMenu({
           "· Sales Orders" suffix widened the nav past its box). The SEARCH is
           the flexible element (flex-1, min 140px); the nav never shrinks, and
           the suffix below is capped so the nav's natural width stays bounded. */}
+      {squeeze < 2 && (
       <nav className="hidden xl:flex items-center gap-1 flex-shrink-0">
         {groups.map((group, gi) => {
           const acc = accentOf(group.section, group.title);
@@ -505,6 +587,7 @@ export default function BrandMenu({
           );
         })}
       </nav>
+      )}
 
       {/* ── Spotlight, lg and up: the real field, not a button that opens one.
 
@@ -525,7 +608,7 @@ export default function BrandMenu({
           right-aligns beside the wordmark, on desktop after the search. A page
           that shows its own status stamp (e.g. Spend & Cash's "Updated…")
           hides these to avoid two clocks colliding in a cramped header. */}
-      {showStatus && <HeaderClock />}
+      {showStatus && squeeze < 1 && <HeaderClock />}
       {/* Who else is in the system right now, and on which screen */}
       {showStatus && <OnlineUsers />}
 

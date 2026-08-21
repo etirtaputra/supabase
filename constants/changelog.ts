@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-21T13:05:00Z',
+    title: 'The top bar stops overlapping itself \u2014 properly this time',
+    details: [
+      'On some window widths the menu bar painted over whatever the page had put beside it \u2014 the online-users dot landing on top of \u201cExport CSV\u201d, the clock sitting on the search box. It has been patched three times before and kept coming back.',
+      'The reason it kept coming back: each patch set a fixed minimum width for the bar, and that number was a guess about something that keeps changing \u2014 how many menu groups your role has, how long the current module\u2019s name is, and now which language you read in. Measured on the actual screen: at 1500px wide the bar needed 1126px while the guess claimed 1020px, and those missing 106px are what landed on the buttons.',
+      'The bar now tells the layout the truth about how much room it needs, so the page\u2019s own buttons move to a second line instead of being painted over. If a window is so narrow that even a full line is not enough, the bar gives up its clock first, then its menu groups \u2014 which the wordmark menu still lists in full, so nothing becomes unreachable.',
+      'Because it measures rather than guesses, adding a module, renaming one, or switching language cannot bring this back.',
+    ],
+  },
+  {
     at: '2026-08-21T08:30:00Z',
     title: 'Language is now your own choice \u2014 EN / ID in the wordmark menu',
     details: [
