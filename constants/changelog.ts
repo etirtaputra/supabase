@@ -20,6 +20,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-20T11:40:00Z',
+    title: 'Two new Dashboard panels: New arrivals, and Arriving soon',
+    details: [
+      'New arrivals \u2014 what came into the warehouse recently, marked New the first time we have ever stocked an item and left unmarked when it is a restock. It also flags the ones that CANNOT be sold yet because they have no selling price; clicking through opens Products on exactly those items, with the \u201cpriced only\u201d filter already switched off.',
+      'Arriving soon \u2014 what is still on the water, how much, and when it should land. A date the supplier actually gave us is shown plainly; a date we estimated from that supplier\u2019s own past deliveries is marked \u201cest.\u201d, and the panel says how many open POs carry no supplier date at all. An estimate is never dressed up as a promise.',
+      'Buy-side also sees a warning where it matters: purchase orders long past their expected date with nothing ever received against them. Those are either genuinely late or already in the building and never booked in \u2014 the panel says both readings rather than guessing.',
+      'Neither panel shows a cost, a supplier or a purchase-order number to sell-side staff, so both are safe on a salesperson\u2019s dashboard. The Warehouse role gets Arriving soon too \u2014 it is the desk that will receive it.',
+      'Settings \u203a Defaults \u203a \u201cAn item counts as new for (days)\u201d now controls both this panel and the Just arrived filter on Products \u2014 one definition of new, not one per screen. Fourteen days by default; raise it if your containers land quarterly.',
+      'Both panels are switchable and draggable like every other widget \u2014 Customise on the Dashboard.',
+    ],
+  },
+  {
     at: '2026-08-20T09:20:00Z',
     title: 'The Dashboard is yours to arrange \u2014 pick the panels you watch',
     details: [

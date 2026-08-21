@@ -719,6 +719,11 @@ function DefaultsTab({ draft, set, flash }: {
           <input type="number" min={1} className={inputCls} value={draft.quoteValidityDays}
             onChange={(e) => set('quoteValidityDays', Math.max(1, Math.round(Number(e.target.value) || 1)))} />
         </Field>
+        <Field label="An item counts as new for (days)"
+          hint="How long after it lands an item is still NEW: the Dashboard's New arrivals panel and the Just arrived filter on Products both use it. A fortnight suits fast movers; if containers land quarterly, try 90.">
+          <input type="number" min={1} className={inputCls} value={draft.newArrivalDays}
+            onChange={(e) => set('newArrivalDays', Math.max(1, Math.round(Number(e.target.value) || 1)))} />
+        </Field>
         <Field label="Language of the descriptions"
           hint="Menu names, column headings and document numbers always stay English \u2014 they are the words the team already shares with suppliers and customers. This setting changes the text that EXPLAINS: the one-liners under menu entries, the page subtitles, the hints under these fields, and the tooltips people hover. Anything not translated yet simply stays English.">
           <select className={inputCls} value={draft.language}

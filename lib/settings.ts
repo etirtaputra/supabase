@@ -151,6 +151,13 @@ export interface AppSettings {
    * names for one thing.
    */
   language: 'en' | 'id';
+  /**
+   * How many days an item counts as NEW after it lands: the Dashboard's New
+   * Arrivals panel and the "Just arrived" filter on Products both read it.
+   * A judgement, not a fact — a fortnight suits fast movers and is far too
+   * short for a business whose containers land quarterly.
+   */
+  newArrivalDays: number;
   /** Dashboard: an issued invoice older than this with money outstanding is chased. */
   arOverdueDays: number;
   /** Dashboard: a quotation sent this long ago with no answer needs a nudge. */
@@ -259,6 +266,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   costDriftPct:          10,
   aftersalesEntry:    'ticket',
   language:           'en',
+  newArrivalDays:        14,
   arOverdueDays:         30,
   quoteFollowUpDays:     7,
   quoteValidityDays:     30,
@@ -452,6 +460,7 @@ export function coerceSettings(raw: Record<string, unknown>): AppSettings {
     menuItemOrder:      pick('menuItemOrder',      (v) => strListMap(v, d.menuItemOrder), d.menuItemOrder),
     dashboardOrder:     pick('dashboardOrder',     (v) => strList(v, d.dashboardOrder), d.dashboardOrder),
     dashboardHidden:    pick('dashboardHidden',    (v) => strList(v, d.dashboardHidden), d.dashboardHidden),
+    newArrivalDays:     pick('newArrivalDays',     (v) => Math.max(1, Math.round(numOr(v, d.newArrivalDays))), d.newArrivalDays),
     itemScoreWeights:   pick('itemScoreWeights',   (v) => scoreWeights(v, d.itemScoreWeights), d.itemScoreWeights),
   };
 }

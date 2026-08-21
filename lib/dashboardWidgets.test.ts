@@ -31,21 +31,20 @@ const keysFor = (role: UserRole) => visibleWidgets(ROLE_PERMISSIONS[role], HOUSE
  * purpose — a diff here is someone gaining or losing a panel.
  */
 const EXPECTED: Record<UserRole, string[]> = {
-  owner: ['position', 'queue', 'nextStep', 'motion', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'stockAlerts', 'activity', 'quickActions'],
-  buy_admin: ['position', 'queue', 'nextStep', 'motion', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'stockAlerts', 'activity', 'quickActions'],
-  sell_admin: ['position', 'queue', 'nextStep', 'motion', 'activity', 'quickActions'],
-  sales: ['position', 'queue', 'nextStep', 'motion', 'activity', 'quickActions'],
-  engineer: ['position', 'queue', 'nextStep', 'motion', 'activity', 'quickActions'],
-  // The warehouse and the service desk land on their own screen (homeFor), so
-  // the dashboard is a floor, not a home: the way back to their work, nothing
-  // that prices or values anything.
-  warehouse: ['quickActions'],
+  owner: ['position', 'queue', 'nextStep', 'motion', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'newArrivals', 'arriving', 'stockAlerts', 'activity', 'quickActions'],
+  buy_admin: ['position', 'queue', 'nextStep', 'motion', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'newArrivals', 'arriving', 'stockAlerts', 'activity', 'quickActions'],
+  sell_admin: ['position', 'queue', 'nextStep', 'motion', 'newArrivals', 'arriving', 'activity', 'quickActions'],
+  sales: ['position', 'queue', 'nextStep', 'motion', 'newArrivals', 'arriving', 'activity', 'quickActions'],
+  engineer: ['position', 'queue', 'nextStep', 'motion', 'newArrivals', 'arriving', 'activity', 'quickActions'],
+  // The warehouse lands on /stock, but knowing what is on the water is its
+  // job — it is the desk that will receive it. Still no price, still no cost.
+  warehouse: ['arriving', 'quickActions'],
   aftersales: ['quickActions'],
   // Read-only deal lookup and nothing else. An empty dashboard is the honest
   // answer — panels that could only ever say "nothing here" say nothing.
   viewer: [],
-  data_entry: ['position', 'queue', 'nextStep', 'motion', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'stockAlerts', 'activity', 'quickActions'],
-  finance: ['position', 'queue', 'nextStep', 'motion', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'stockAlerts', 'activity', 'quickActions'],
+  data_entry: ['position', 'queue', 'nextStep', 'motion', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'newArrivals', 'arriving', 'stockAlerts', 'activity', 'quickActions'],
+  finance: ['position', 'queue', 'nextStep', 'motion', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'newArrivals', 'arriving', 'stockAlerts', 'activity', 'quickActions'],
 };
 
 test('what each role sees on the dashboard is what we meant it to see', () => {
@@ -76,11 +75,35 @@ test('a widget fed by buy-side data is never offered to a sell-side role', () =>
   }
 });
 
+/**
+ * The two item panels are sell-side safe BY CONSTRUCTION — neither needs a
+ * cost, a supplier or a PO number to answer its question. If either ever
+ * starts reading buy-side data, it must move into BUY_SIDE_DATA above and this
+ * test is where that decision gets made rather than quietly skipped.
+ */
+test('the arrival panels reach the sell side, because they carry no buy-side number', () => {
+  for (const key of ['newArrivals', 'arriving']) {
+    assert.ok(!BUY_SIDE_DATA.includes(key), `${key} is claimed sell-side safe`);
+    assert.ok(keysFor('sales').includes(key), `sales should see ${key}`);
+    assert.ok(keysFor('sell_admin').includes(key), `sell_admin should see ${key}`);
+  }
+  // ...and the source keeps its side of that bargain: the fetcher asks for a
+  // PO number only for buy-side eyes, the /products network-tab rule.
+  const src = readFileSync('lib/catalogSignals.ts', 'utf8');
+  assert.ok(src.includes("opts.buySide ? ', po_number' : ''"),
+    'the arrivals fetch must request po_number conditionally, not for everyone');
+  // Comments stripped first: the file NAMES the columns it refuses to read,
+  // and a promise written in prose must not read as a violation.
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  assert.ok(!code.includes('6.0_po_costs'), 'nothing here may read supplier costs');
+  assert.ok(!code.includes('unit_cost_idr'), 'nor the cost stamped on a stock movement');
+});
+
 test('a saved arrangement cannot smuggle in a widget the role may not have', () => {
   // A hostile (or simply stale) local arrangement naming everything, unhidden.
   const greedy = { order: DASHBOARD_WIDGETS.map((w) => w.key), hidden: [] };
   assert.deepEqual(visibleWidgets(ROLE_PERMISSIONS.sales, greedy), visibleWidgets(ROLE_PERMISSIONS.sales, HOUSE));
-  assert.deepEqual(visibleWidgets(ROLE_PERMISSIONS.warehouse, greedy).map((w) => w.key), ['quickActions']);
+  assert.deepEqual(visibleWidgets(ROLE_PERMISSIONS.warehouse, greedy).map((w) => w.key), ['arriving', 'quickActions']);
 });
 
 test('the profile is not known yet: draw nothing rather than draw and remove', () => {

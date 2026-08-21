@@ -53,19 +53,20 @@ import { successorMap } from '@/lib/successors';
 import { WARRANTY_UNITS, fmtWarranty, warrantyLabel } from '@/lib/warranty';
 // "Just arrived" window: a goods receipt in the last N days makes stock NEW.
 // The item's FIRST-ever receipt inside the window = a brand-new product.
-const NEW_ARRIVAL_DAYS = 14;
-const arrivalCutoffIso = () => {
-  const d = new Date(); d.setDate(d.getDate() - NEW_ARRIVAL_DAYS);
+// The length is Settings › Defaults, shared with the dashboard's New arrivals
+// panel — one definition of "new", not one per screen.
+const arrivalCutoffIso = (days: number) => {
+  const d = new Date(); d.setDate(d.getDate() - days);
   return d.toISOString().slice(0, 10);
 };
 /** 'new' = first stock ever, just landed · 'restock' = fresh stock of a known item. */
-function arrivalTagOf(a: { first: string; last: string } | undefined): 'new' | 'restock' | null {
-  const cutoff = arrivalCutoffIso();
+function arrivalTagOf(a: { first: string; last: string } | undefined, days: number): 'new' | 'restock' | null {
+  const cutoff = arrivalCutoffIso(days);
   if (!a || a.last < cutoff) return null;
   return a.first >= cutoff ? 'new' : 'restock';
 }
-function ArrivalTag({ a }: { a: { first: string; last: string } | undefined }) {
-  const tag = arrivalTagOf(a);
+function ArrivalTag({ a, days }: { a: { first: string; last: string } | undefined; days: number }) {
+  const tag = arrivalTagOf(a, days);
   if (!tag) return null;
   return (
     <span
@@ -164,9 +165,13 @@ function ProductsInner() {
   // Priced only is the DEFAULT view (owner, 2026-08-14): the sales list is for
   // quoting, and an item with no sell price cannot be quoted. Untick to see the
   // rest; "Clear ×" returns to the default (priced) view, not to everything.
-  const [pricedOnly, setPricedOnly] = useState(true);
+  // ?new=1 (the dashboard's New arrivals panel) opens this list on what just
+  // landed — and turns OFF "priced only", because the whole reason to follow
+  // that link is usually the items nobody has priced yet.
+  const arrivedDeepLink = searchParams.get('new') === '1';
+  const [pricedOnly, setPricedOnly] = useState(!arrivedDeepLink);
   const [stockOnly, setStockOnly] = useState(false);
-  const [justArrived, setJustArrived] = useState(false);
+  const [justArrived, setJustArrived] = useState(arrivedDeepLink);
   // First/last goods-receipt date per item (30.0 ledger, GRN in-movements) —
   // powers the "New" / "New stock" tags and the Just-arrived filter.
   const [arrivals, setArrivals] = useState<Record<string, { first: string; last: string }>>({});
@@ -185,6 +190,7 @@ function ProductsInner() {
   const [layout, setLayout] = useListLayout('products');
   const compact = layout === 'compact';
   const settings = useSettings();
+  const newArrivalDays = settings.newArrivalDays;
 
   // ── Table columns: owner enforcement + personal choice ────────────────────
   // The owner's hidden set (Settings › Lists) leaves the table AND the Columns
@@ -468,7 +474,7 @@ function ProductsInner() {
 
   const rows: Row[] = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const cutoff = arrivalCutoffIso();
+    const cutoff = arrivalCutoffIso(newArrivalDays);
     const list = comps
       .map((c) => {
         const phys = physical[c.component_id] ?? 0;
@@ -696,7 +702,7 @@ function ProductsInner() {
             In stock / incoming
           </label>
           <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none whitespace-nowrap"
-            title={`Items whose goods receipt landed in the last ${NEW_ARRIVAL_DAYS} days — new products and fresh stock`}>
+            title={`Items whose goods receipt landed in the last ${newArrivalDays} days — new products and fresh stock`}>
             <input type="checkbox" checked={justArrived} onChange={(e) => setJustArrived(e.target.checked)} className="accent-sky-500 w-4 h-4" />
             Just arrived
           </label>
@@ -801,7 +807,7 @@ function ProductsInner() {
                             screens sane, ceiling stops an absurd column on 4K. */}
                         <span className={`text-sm text-slate-100 font-medium truncate ${descW == null ? 'max-w-[clamp(20rem,42vw,64rem)]' : ''}`}
                           style={descW != null ? { maxWidth: descW } : undefined}>{descOf(r.c)}</span>
-                        <ArrivalTag a={arrivals[r.c.component_id]} />
+                        <ArrivalTag days={newArrivalDays} a={arrivals[r.c.component_id]} />
                         <SupersededTag succId={successors.get(r.c.component_id)} comps={comps} canHub={canHub} />
                         {r.activity > 0 && <span className="px-1 py-0.5 rounded bg-slate-800 text-[9px] text-slate-500 tabular-nums flex-shrink-0" title={`${r.activity} POs / quotes / orders`}>{r.activity}</span>}
                         {canHub && (
@@ -886,7 +892,7 @@ function ProductsInner() {
                     <div className="min-w-0 flex-1">
                       <p className="text-sm text-slate-100 font-medium truncate flex items-center gap-1.5">
                         <span className="truncate">{descOf(r.c)}</span>
-                        <ArrivalTag a={arrivals[r.c.component_id]} />
+                        <ArrivalTag days={newArrivalDays} a={arrivals[r.c.component_id]} />
                       </p>
                       {!compact && (
                         <p className="text-[11px] text-slate-500 truncate">

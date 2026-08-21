@@ -154,6 +154,16 @@ export const ID: Record<string, string> = {
     'Layar tempat peran ini memulai harinya, cukup satu ketuk',
   'Tick what you want to watch, drag a row to move it (the arrows do the same on touch). This is your own arrangement, on this browser \u2014 it does not change anyone else\u2019s.':
     'Centang yang ingin Anda pantau, seret baris untuk memindahkannya (panah melakukan hal yang sama di layar sentuh). Ini susunan Anda sendiri, di peramban ini \u2014 tidak mengubah milik orang lain.',
+  'What landed recently \u2014 and what still has no selling price':
+    'Barang yang baru masuk \u2014 dan mana yang belum ada harga jualnya',
+  'What is on the water and when it should land':
+    'Barang yang masih dalam perjalanan dan perkiraan tibanya',
+  'Nothing has landed in the last':
+    'Tidak ada barang masuk dalam',
+  'days. Settings \u203a Defaults sets how long an item counts as new.':
+    'hari terakhir. Atur lamanya di Settings \u203a Defaults.',
+  'Nothing is on order \u2014 every purchase order has been received or closed.':
+    'Tidak ada pesanan berjalan \u2014 semua PO sudah diterima atau ditutup.',
   'sets the starting point for everyone.':
     'menetapkan titik awal untuk semua orang.',
 

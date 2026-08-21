@@ -17,6 +17,7 @@ import { fetchActionQueue, fetchActivity, type ActionItem, type ActivityRow } fr
 import { fetchPosition, type PositionData, type MotionRow } from '@/lib/position';
 import type { RolePermissions } from '@/constants/roles';
 import { fetchShortages, fetchReorderAlerts, type ShortageAlert, type ReorderAlert } from '@/lib/reorder';
+import { fetchNewArrivals, fetchArrivals, type NewArrival, type ArrivingSummary } from '@/lib/catalogSignals';
 import { fmtInt } from '@/lib/formatters';
 import { useDashboardLayout } from '@/hooks/useDashboardLayout';
 import { WIDTH_SPAN, type DashboardLayout } from '@/constants/dashboardWidgets';
@@ -35,7 +36,7 @@ export default function Home() {
   const supabase = createSupabaseClient();
   const { user, profile, loading: authLoading } = useAuth();
   const { data, loading } = useSupabaseData();
-  const { arOverdueDays, quoteFollowUpDays } = useSettings();
+  const { arOverdueDays, quoteFollowUpDays, newArrivalDays } = useSettings();
   const { t } = useT();
   // Module visibility mirrors the nav: a role only sees panels for flows it
   // can access (nothing sensitive renders until the profile has resolved).
@@ -46,6 +47,8 @@ export default function Home() {
   const [shortages, setShortages] = useState<ShortageAlert[] | null>(null);
   const [reorders, setReorders] = useState<ReorderAlert[] | null>(null);
   const [position, setPosition] = useState<PositionData | null>(null);
+  const [arrivedItems, setArrivedItems] = useState<NewArrival[] | null>(null);
+  const [arriving, setArriving] = useState<ArrivingSummary | null>(null);
 
   // ── Which panels this person watches ──────────────────────────────────────
   // The house layout from Settings › Dashboard, unless they arranged their own.
@@ -64,6 +67,8 @@ export default function Home() {
   const needActivity = shown.has('activity');
   const needAlerts   = shown.has('stockAlerts');
   const needStockVal = shown.has('kpiStockValue');
+  const needArrived  = shown.has('newArrivals');
+  const needArriving = shown.has('arriving');
 
   useEffect(() => { document.title = 'Dashboard — ICAPROC'; }, []);
 
@@ -125,6 +130,27 @@ export default function Home() {
         setStockValue(data.reduce((s, b) => s + (Number(b.qty_on_hand) || 0) * (Number(b.avg_cost_idr) || 0), 0));
       });
   }, [user, perms?.buySide, needStockVal]);
+
+  // ── The item's two ends: what landed, and what is still on the water ──────
+  // Both read the engines /products already uses, so a date here and a date
+  // there can never disagree. Neither asks for a cost or a supplier.
+  useEffect(() => {
+    if (!user || !perms || !needArrived) return;
+    let live = true;
+    fetchNewArrivals(supabase, newArrivalDays)
+      .then((r) => { if (live) setArrivedItems(r); })
+      .catch(() => { if (live) setArrivedItems([]); });
+    return () => { live = false; };
+  }, [user, profile?.role, needArrived, newArrivalDays]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!user || !perms || !needArriving) return;
+    let live = true;
+    fetchArrivals(supabase, { buySide: !!perms.buySide })
+      .then((r) => { if (live) setArriving(r); })
+      .catch(() => { if (live) setArriving({ soon: [], late: [], openPos: 0, posWithoutEta: 0, stalePos: 0, oldestStaleDays: null }); });
+    return () => { live = false; };
+  }, [user, profile?.role, needArriving]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   const poById = useMemo(
     () => new Map(data.pos.map((p) => [String(p.po_id), p])),
@@ -212,6 +238,8 @@ export default function Home() {
                                   sub="not cancelled" color="text-sky-300" ring="ring-sky-500/20" />;
       case 'kpiComponents': return <KpiTile label="Components" value={loading ? '—' : stats.componentCount.toLocaleString('en-US')}
                                   sub="in catalog" color="text-emerald-300" ring="ring-emerald-500/20" />;
+      case 'newArrivals':   return <NewArrivals rows={arrivedItems} days={newArrivalDays} />;
+      case 'arriving':      return <ArrivingSoon data={arriving} buySide={!!perms?.buySide} />;
       case 'stockAlerts':   return <StockAlerts shortages={shortages} reorders={reorders} />;
       case 'activity':      return <ActivityStream rows={activity} />;
       case 'quickActions':  return quickActions.length === 0 ? null : <QuickActions items={quickActions} />;
@@ -408,6 +436,185 @@ function ActionQueue({ items, atStake }: { items: ActionItem[] | null; atStake: 
             </Link>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * What just landed — and what still cannot be sold.
+ *
+ * A newsfeed of arrivals would be pleasant and useless. The useful half is the
+ * gap it exposes: goods sitting on the shelf that nobody has priced, so no
+ * salesperson can quote them. That badge is the reason this panel exists.
+ *
+ * Deliberately free of money and suppliers, so a sell-side login sees exactly
+ * what a buyer sees: what came in, how much of it, and when.
+ */
+function NewArrivals({ rows, days }: { rows: NewArrival[] | null; days: number }) {
+  const { t } = useT();
+  const fresh = rows?.filter((r) => r.brandNew).length ?? 0;
+  const unpriced = rows?.filter((r) => r.needsPrice).length ?? 0;
+  const SHOWN = 6;
+  return (
+    <div className="bg-slate-900/60 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl overflow-hidden">
+      <div className="flex items-center gap-3 px-4 sm:px-5 py-3.5 border-b border-slate-800/70">
+        <h2 className="text-sm font-bold text-white">New arrivals</h2>
+        {rows && rows.length > 0 && (
+          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+            {fresh > 0 ? `${fresh} new` : ''}
+            {fresh > 0 && rows.length > fresh ? ' · ' : ''}
+            {rows.length > fresh ? `${rows.length - fresh} restocked` : ''}
+          </span>
+        )}
+        <Link href="/products?new=1" className="ml-auto text-[11px] text-slate-500 hover:text-emerald-300 transition-colors whitespace-nowrap">
+          Products →
+        </Link>
+      </div>
+
+      {rows === null ? (
+        <div className="p-4 sm:p-5 space-y-2">
+          {[...Array(3)].map((_, i) => <div key={i} className="h-10 bg-slate-800/40 rounded-xl animate-pulse" />)}
+        </div>
+      ) : rows.length === 0 ? (
+        <p className="px-5 py-8 text-center text-xs text-slate-500">
+          {t('Nothing has landed in the last')} {days} {t('days. Settings › Defaults sets how long an item counts as new.')}
+        </p>
+      ) : (
+        <>
+          <div className="divide-y divide-slate-800/50">
+            {rows.slice(0, SHOWN).map((r) => (
+              <Link key={r.component_id} href={`/products?q=${encodeURIComponent(r.name)}`}
+                className="flex items-baseline gap-x-2.5 gap-y-1 flex-wrap px-4 sm:px-5 py-2.5 hover:bg-slate-800/40 transition-colors group">
+                <span className={`w-1.5 h-1.5 rounded-full self-center flex-shrink-0 ${r.brandNew ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+                <span className="text-[13px] font-semibold text-slate-100 group-hover:text-white truncate max-w-[300px]">{r.name}</span>
+                {r.brandNew && (
+                  <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/25"
+                    title="The first time we have ever taken this item into stock">
+                    New
+                  </span>
+                )}
+                <span className="text-[11px] tabular-nums text-slate-400">{fmtInt(r.qty)}{r.unit ? ` ${r.unit}` : ''}</span>
+                {r.needsPrice && (
+                  <span className="text-[10px] font-bold text-amber-300"
+                    title="It is on the shelf but has no selling price, so nobody can quote it">
+                    no selling price
+                  </span>
+                )}
+                <span className="ml-auto flex-shrink-0 text-[10px] tabular-nums text-slate-500">
+                  {r.daysAgo === 0 ? 'today' : `${r.daysAgo}d ago`}
+                </span>
+              </Link>
+            ))}
+          </div>
+          <div className="px-4 sm:px-5 py-2.5 border-t border-slate-800/70 flex items-center gap-3 flex-wrap">
+            {unpriced > 0 ? (
+              <span className="text-[11px] text-amber-300/90">
+                {unpriced} of {rows.length} cannot be quoted yet — no selling price.
+              </span>
+            ) : (
+              <span className="text-[11px] text-slate-600">Everything that landed has a price.</span>
+            )}
+            {rows.length > SHOWN && (
+              <Link href="/products?new=1" className="ml-auto text-[11px] text-slate-500 hover:text-emerald-300 transition-colors">
+                +{rows.length - SHOWN} more →
+              </Link>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * What is on the water, and when it should land.
+ *
+ * The honesty is the design. A date the supplier stamped on the PO and a date
+ * we ESTIMATED from that supplier's own history are not the same promise, so
+ * the panel marks the estimates and counts the POs carrying no date at all.
+ *
+ * And it refuses to pretend about the awkward case: an open PO long past its
+ * expected date with not one receipt booked against it is either a late
+ * shipment or goods that arrived and were never received into the system. The
+ * panel says so and points at the lookup rather than picking one — that count
+ * is buy-side, because it is a purchasing question, not a sales one.
+ */
+function ArrivingSoon({ data, buySide }: { data: ArrivingSummary | null; buySide: boolean }) {
+  const { t } = useT();
+  const SHOWN = 5;
+  const rows = data ? [...data.soon, ...data.late] : null;
+  const when = (r: { expected: string | null; daysAway: number | null; overdue: boolean }) => {
+    if (!r.expected) return 'no date';
+    if (r.overdue) return `${Math.abs(r.daysAway ?? 0)}d late`;
+    return r.daysAway === 0 ? 'today' : `in ${r.daysAway}d`;
+  };
+  return (
+    <div className="bg-slate-900/60 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl overflow-hidden">
+      <div className="flex items-center gap-3 px-4 sm:px-5 py-3.5 border-b border-slate-800/70">
+        <h2 className="text-sm font-bold text-white">Arriving soon</h2>
+        {data && rows!.length > 0 && (
+          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+            {rows!.length} item{rows!.length !== 1 ? 's' : ''}
+            {data.late.length > 0 ? ` · ${data.late.length} late` : ''}
+          </span>
+        )}
+        {buySide && (
+          <Link href="/purchasing?tab=lookup" className="ml-auto text-[11px] text-slate-500 hover:text-sky-300 transition-colors whitespace-nowrap">
+            Deal Lookup →
+          </Link>
+        )}
+      </div>
+
+      {data === null ? (
+        <div className="p-4 sm:p-5 space-y-2">
+          {[...Array(3)].map((_, i) => <div key={i} className="h-10 bg-slate-800/40 rounded-xl animate-pulse" />)}
+        </div>
+      ) : rows!.length === 0 ? (
+        <p className="px-5 py-8 text-center text-xs text-slate-500">
+          {t('Nothing is on order — every purchase order has been received or closed.')}
+        </p>
+      ) : (
+        <>
+          <div className="divide-y divide-slate-800/50">
+            {rows!.slice(0, SHOWN).map((r) => (
+              <div key={r.component_id} className="flex items-baseline gap-x-2.5 gap-y-1 flex-wrap px-4 sm:px-5 py-2.5">
+                <span className={`w-1.5 h-1.5 rounded-full self-center flex-shrink-0 ${r.overdue ? 'bg-amber-400' : 'bg-sky-400'}`} />
+                <span className="text-[13px] font-semibold text-slate-100 truncate max-w-[280px]">{r.name}</span>
+                <span className="text-[11px] tabular-nums text-slate-400">{fmtInt(r.qty)}{r.unit ? ` ${r.unit}` : ''}</span>
+                {/* An estimate never wears the clothes of a promise. */}
+                {r.source && r.source !== 'eta' && (
+                  <span className="text-[10px] text-slate-500"
+                    title="Estimated from this supplier's own measured lead time — the supplier gave us no date">
+                    est.
+                  </span>
+                )}
+                {buySide && r.pos.length > 0 && (
+                  <span className="font-mono text-[10px] text-slate-600 truncate max-w-[140px]">{r.pos.join(' · ')}</span>
+                )}
+                <span className={`ml-auto flex-shrink-0 text-[11px] font-bold tabular-nums ${r.overdue ? 'text-amber-300' : 'text-sky-300'}`}>
+                  {when(r)}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="px-4 sm:px-5 py-2.5 border-t border-slate-800/70 space-y-1">
+            {data.posWithoutEta > 0 && (
+              <p className="text-[11px] text-slate-600">
+                {data.posWithoutEta} of {data.openPos} open PO{data.openPos !== 1 ? 's' : ''} carry no supplier date — those are estimates.
+              </p>
+            )}
+            {buySide && data.stalePos > 0 && (
+              <p className="text-[11px] text-amber-300/90">
+                {data.stalePos} PO{data.stalePos !== 1 ? 's are' : ' is'} past due with nothing received
+                {data.oldestStaleDays != null ? `, the oldest raised ${data.oldestStaleDays} days ago` : ''} — late, or already here and never booked in.
+              </p>
+            )}
+            {rows!.length > SHOWN && (
+              <p className="text-[11px] text-slate-600">+{rows!.length - SHOWN} more on order.</p>
+            )}
+          </div>
+        </>
       )}
     </div>
   );

@@ -87,6 +87,15 @@ export const DASHBOARD_WIDGETS: DashboardWidget[] = [
     section: 'buySide', hint: 'Purchase orders that are not cancelled' },
   { key: 'kpiComponents', label: 'Components', width: 'quarter', defaultOn: true,
     section: 'buySide', hint: 'How many items the catalog carries' },
+  // The item is the pivot, so the two sides of its journey get a panel each:
+  // what has just landed and can be sold, and what is still on the water.
+  // Neither needs a cost or a supplier, so both are safe for sell-side eyes.
+  { key: 'newArrivals', label: 'New arrivals', width: 'half', defaultOn: true,
+    section: null, caps: ['sellSide', 'buySide'],
+    hint: 'What landed recently — and what still has no selling price' },
+  { key: 'arriving', label: 'Arriving soon', width: 'half', defaultOn: true,
+    section: null, caps: ['sellSide', 'buySide', 'canManageStock'],
+    hint: 'What is on the water and when it should land' },
   { key: 'stockAlerts', label: 'Stock alerts', width: 'full', defaultOn: true,
     section: 'buySide', hint: 'Orders that cannot ship, and items at their reorder point' },
   { key: 'activity', label: 'Latest activity', width: 'twoThirds', defaultOn: true,
