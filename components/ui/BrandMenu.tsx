@@ -12,6 +12,8 @@ import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useSettings } from '@/hooks/useSettings';
 import { useTheme } from '@/hooks/useTheme';
 import { THEMES } from '@/lib/theme';
+import { LANGUAGES } from '@/lib/language';
+import { useLanguage } from '@/hooks/useLanguage';
 import { fmtDayTime } from '@/lib/formatters';
 import CommandPalette from './CommandPalette';
 
@@ -156,6 +158,7 @@ export default function BrandMenu({
   // language setting reaches all 27 of them without any of them knowing.
   const { t } = useT();
   const { theme, setTheme } = useTheme();
+  const { lang, setLang } = useLanguage();
   const [open, setOpen] = useState(false);         // caret dropdown (narrow widths)
   const [moreOpen, setMoreOpen] = useState(false); // mobile "More" sheet
   const [deskOpen, setDeskOpen] = useState<number | null>(null); // desktop group dropdown
@@ -317,6 +320,29 @@ export default function BrandMenu({
                 }`}
                 style={{ background: t.swatch.bg }}
               />
+            ))}
+          </div>
+        </div>
+        {/* Language — a personal comfort, so it sits beside the skin rather
+            than in Settings. Settings › Defaults still decides what someone
+            who has never chosen sees; choosing here overrides it for this
+            browser and is never overwritten by a later company change. */}
+        <div className="px-2.5 py-1.5">
+          <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">Language</span>
+          <div className="flex items-center gap-1">
+            {LANGUAGES.map((l) => (
+              <button
+                key={l.value}
+                onClick={() => setLang(l.value)}
+                aria-pressed={lang === l.value}
+                title={l.label}
+                className={`px-2 py-1 rounded-lg text-[11px] font-bold border transition-colors ${
+                  lang === l.value
+                    ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+                    : 'border-slate-700 text-slate-500 hover:text-slate-200 hover:border-slate-500'
+                }`}>
+                {l.short}
+              </button>
             ))}
           </div>
         </div>

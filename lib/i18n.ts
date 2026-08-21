@@ -167,6 +167,43 @@ export const ID: Record<string, string> = {
   'sets the starting point for everyone.':
     'menetapkan titik awal untuk semua orang.',
 
+  // ── Customers ─────────────────────────────────────────────────────────────
+  // Trade words, not dictionary words: piutang (not "AR terutang"), penawaran
+  // for a quotation, pesanan for a confirmed order. Surat Dukungan and Item
+  // Editor keep their names — they ARE the names.
+  'Search code, name, contact person, tier, account manager…':
+    'Cari kode, nama, kontak, tier, account manager…',
+  'All types': 'Semua tipe',
+  'All managers': 'Semua account manager',
+  'All tiers': 'Semua tier',
+  'Duplicates': 'Duplikat',
+  'Find & replace across customer names — like the Item Editor\'s Replace':
+    'Cari & ganti pada nama pelanggan — seperti Replace di Item Editor',
+  'Select shown': 'Pilih yang tampil',
+  'Find…': 'Cari…',
+  'Replace with…': 'Ganti dengan…',
+  'Replacing…': 'Mengganti…',
+  'Replace in {n}': 'Ganti di {n} data',
+  'Received': 'Pembayaran masuk',
+  'all payments': 'seluruh pembayaran',
+  'Outstanding AR': 'Sisa piutang',
+  'on issued invoices': 'dari faktur yang sudah terbit',
+  'Quotes → orders': 'Penawaran → pesanan',
+  '{won} of {total} quotes': '{won} dari {total} penawaran',
+  'Linked customers': 'Pelanggan terkait',
+  'Documents & activity': 'Dokumen & aktivitas',
+  'Accounts receivable': 'Piutang',
+  'Most ordered items': 'Barang paling sering dipesan',
+  'EPC proposals': 'Proposal EPC',
+  'Support letters': 'Surat Dukungan',
+  'No sales documents yet — quotes for this customer will appear here.':
+    'Belum ada dokumen penjualan — penawaran untuk pelanggan ini akan muncul di sini.',
+  'No confirmed orders yet.': 'Belum ada pesanan yang dikonfirmasi.',
+  'No Surat Dukungan issued to this customer yet.':
+    'Belum ada Surat Dukungan untuk pelanggan ini.',
+  'Write one': 'Buat sekarang',
+  'Contacts': 'Kontak',
+
   // ── Page subtitles (BrandMenu) ────────────────────────────────────────────
   'Stock · Warehouse': 'Stock · Gudang',
   'Customers · CRM': 'Customers · Data pelanggan',
@@ -226,7 +263,7 @@ export const ID: Record<string, string> = {
   'This PO has been trued up before — what is shown is what has come in since':
     'PO ini pernah disesuaikan — yang tampil adalah tagihan yang masuk setelahnya',
   'Back to Stock': 'Kembali ke Stock',
-  'Landed-cost correction on': 'Koreksi biaya sampai gudang atas',
+  'Landed-cost correction on {qty} received': 'Koreksi biaya sampai gudang atas {qty} unit yang diterima',
   'One row per service ticket, newest first — start from the serial number':
     'Satu baris per tiket servis, terbaru di atas — mulai dari nomor seri',
   'Grouped by status, the way the desk worked before — start from the sales order':
@@ -260,6 +297,25 @@ const DICTS: Record<Lang, Record<string, string>> = { en: {}, id: ID };
 export function t(en: string, lang: Lang = 'en'): string {
   if (lang === 'en') return en;
   return DICTS[lang]?.[en] ?? en;
+}
+
+/**
+ * A sentence with values dropped into it — `{name}` placeholders, never
+ * concatenation.
+ *
+ *   tf('{n} of {total} quotes', lang, { n, total })
+ *
+ * Concatenating fragments ("of" + n + "quotes") is how a translated screen
+ * ends up with the words in an order nobody says out loud: word order,
+ * plurals and prepositions differ between languages, and a fragment carries
+ * none of that. Keeping the whole sentence as one phrase-book entry lets the
+ * Indonesian put the pieces wherever Indonesian puts them.
+ *
+ * An unknown placeholder is left as written rather than blanked, so a typo
+ * shows itself on screen instead of silently deleting a number.
+ */
+export function tf(en: string, lang: Lang, vars: Record<string, string | number>): string {
+  return t(en, lang).replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
 }
 
 /** How much of the phrase book is filled in — shown in Settings. */

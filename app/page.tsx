@@ -452,7 +452,7 @@ function ActionQueue({ items, atStake }: { items: ActionItem[] | null; atStake: 
  * what a buyer sees: what came in, how much of it, and when.
  */
 function NewArrivals({ rows, days }: { rows: NewArrival[] | null; days: number }) {
-  const { t } = useT();
+  const { tf } = useT();
   const fresh = rows?.filter((r) => r.brandNew).length ?? 0;
   const unpriced = rows?.filter((r) => r.needsPrice).length ?? 0;
   const SHOWN = 6;
@@ -478,7 +478,7 @@ function NewArrivals({ rows, days }: { rows: NewArrival[] | null; days: number }
         </div>
       ) : rows.length === 0 ? (
         <p className="px-5 py-8 text-center text-xs text-slate-500">
-          {t('Nothing has landed in the last')} {days} {t('days. Settings › Defaults sets how long an item counts as new.')}
+          {tf('Nothing has landed in the last {days} days. Settings › Defaults sets how long an item counts as new.', { days })}
         </p>
       ) : (
         <>

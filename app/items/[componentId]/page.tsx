@@ -23,6 +23,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { useT } from '@/hooks/useT';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
@@ -922,6 +923,7 @@ function StockTab({ balances, warehouses, movements, physical, reserved, live, u
   balances: Balance[]; warehouses: Warehouse[]; movements: Movement[];
   physical: number; reserved: number; live: number; unit: string | null;
 }) {
+  const { tf } = useT();
   const dirCls: Record<string, string> = { in: 'text-emerald-400', out: 'text-red-400', adjust: 'text-amber-400', revalue: 'text-amber-300' };
   const held = balances.filter((b) => (Number(b.qty_on_hand) || 0) !== 0).sort((a, b) => Number(b.qty_on_hand) - Number(a.qty_on_hand));
   return (
@@ -992,7 +994,7 @@ function StockTab({ balances, warehouses, movements, physical, reserved, live, u
                       quantity in the Qty column would read as goods arriving. */}
                   <td className="px-3 py-1.5 text-right tabular-nums text-xs text-slate-200">
                     {m.direction === 'revalue'
-                      ? <span className="text-slate-600" title={`Landed-cost correction on ${fmtInt(Number(m.quantity))} received`}>—</span>
+                      ? <span className="text-slate-600" title={tf('Landed-cost correction on {qty} received', { qty: fmtInt(Number(m.quantity)) })}>—</span>
                       : <>{m.direction === 'out' ? '−' : ''}{fmtInt(Number(m.quantity))}</>}
                   </td>
                   <td className="px-3 py-1.5 text-right tabular-nums text-xs text-slate-400">

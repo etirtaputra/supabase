@@ -724,8 +724,8 @@ function DefaultsTab({ draft, set, flash }: {
           <input type="number" min={1} className={inputCls} value={draft.newArrivalDays}
             onChange={(e) => set('newArrivalDays', Math.max(1, Math.round(Number(e.target.value) || 1)))} />
         </Field>
-        <Field label="Language of the descriptions"
-          hint="Menu names, column headings and document numbers always stay English \u2014 they are the words the team already shares with suppliers and customers. This setting changes the text that EXPLAINS: the one-liners under menu entries, the page subtitles, the hints under these fields, and the tooltips people hover. Anything not translated yet simply stays English.">
+        <Field label="Language everyone starts in"
+          hint="The language a person sees until they choose their own \u2014 each account can switch between English and Bahasa Indonesia from the wordmark menu, beside the theme, and that personal choice is never overwritten by a change here. Sentences, buttons, filters, placeholders and hints follow the language. The NAMES of things stay English on purpose \u2014 menu entries, Stock, PO, SO, GRN, Deal Lookup, Surat Jalan and every document number \u2014 because those are the words the team already shares with suppliers and customers. Anything not translated yet simply reads in English.">
           <select className={inputCls} value={draft.language}
             onChange={(e) => set('language', e.target.value === 'id' ? 'id' : 'en')}>
             <option value="en">English</option>

@@ -155,7 +155,7 @@ function CustomersInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, profile, loading: authLoading } = useAuth();
-  const { t } = useT();
+  const { t, tf } = useT();
   // A new customer starts on the house tier (Settings › Pricing; blank = none)
   const { defaultCustomerTier } = useSettings();
   const [layout, setLayout] = useListLayout('customers');
@@ -849,25 +849,25 @@ function CustomersInner() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search code, name, contact person, tier, account manager…"
+              placeholder={t('Search code, name, contact person, tier, account manager…')}
               className="w-full pl-10 pr-4 h-11 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors"
             />
           </div>
           <select value={filterType} onChange={(e) => setFilterType(e.target.value as '' | 'company' | 'individual')} title="Filter by customer type"
             className="text-xs bg-slate-900/80 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60">
-            <option value="">All types</option>
+            <option value="">{t('All types')}</option>
             <option value="company">Companies</option>
             <option value="individual">Individuals</option>
           </select>
           <select value={filterAm} onChange={(e) => setFilterAm(e.target.value)} title="Filter by account manager"
             className="text-xs bg-slate-900/80 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60 max-w-[160px]">
-            <option value="">All managers</option>
+            <option value="">{t('All managers')}</option>
             <option value="unassigned">Unassigned</option>
             {amUsers.map((u) => <option key={u.id} value={u.id}>{u.display_name || u.email}</option>)}
           </select>
           <select value={filterTier} onChange={(e) => setFilterTier(e.target.value)} title="Filter by tier"
             className="text-xs bg-slate-900/80 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60 max-w-[140px]">
-            <option value="">All tiers</option>
+            <option value="">{t('All tiers')}</option>
             <option value="none">No tier</option>
             {tiers.filter((t) => t.is_active !== false).map((t) => <option key={t.tier_code} value={t.tier_code}>{t.name}</option>)}
           </select>
@@ -886,10 +886,10 @@ function CustomersInner() {
                   ? 'bg-slate-900/80 border-slate-700 text-amber-400/90 hover:border-amber-500/40'
                   : 'bg-slate-900/80 border-slate-700 text-slate-500 hover:text-slate-300'
             }`}>
-            Duplicates{dupGroups.length ? ` (${dupGroups.length})` : ''}
+            {t('Duplicates')}{dupGroups.length ? ` (${dupGroups.length})` : ''}
           </button>
           <button onClick={() => setFrOpen((v) => !v)}
-            title="Find & replace across customer names — like the Item Editor's Replace"
+            title={t("Find & replace across customer names — like the Item Editor's Replace")}
             className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
               frOpen ? 'bg-sky-500/15 border-sky-500/40 text-sky-300' : 'bg-slate-900/80 border-slate-700 text-slate-400 hover:text-slate-200'
             }`}>
@@ -900,7 +900,7 @@ function CustomersInner() {
               checked={filtered.length > 0 && filtered.every((c) => selected.has(c.customer_id))}
               onChange={(e) => setSelected(e.target.checked ? new Set(filtered.map((c) => c.customer_id)) : new Set())}
               className="accent-emerald-500 w-3.5 h-3.5" />
-            Select shown
+            {t('Select shown')}
           </label>
           <span className="text-xs text-slate-600 tabular-nums">{filtered.length} of {customers.length}</span>
           <select value={sort} onChange={(e) => { sortTouched.current = true; setSort(e.target.value); setColSort(null); }}
@@ -936,10 +936,10 @@ function CustomersInner() {
         {frOpen && (
           <div className="bg-slate-900/50 border border-sky-500/25 rounded-xl px-4 py-3 space-y-2.5">
             <div className="flex flex-wrap items-center gap-2">
-              <input value={frFind} onChange={(e) => setFrFind(e.target.value)} placeholder="Find…"
+              <input value={frFind} onChange={(e) => setFrFind(e.target.value)} placeholder={t('Find…')}
                 className="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 focus:border-sky-500/60 outline-none text-xs text-white w-44" />
               <span className="text-slate-600 text-xs">→</span>
-              <input value={frReplace} onChange={(e) => setFrReplace(e.target.value)} placeholder="Replace with…"
+              <input value={frReplace} onChange={(e) => setFrReplace(e.target.value)} placeholder={t('Replace with…')}
                 className="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 focus:border-sky-500/60 outline-none text-xs text-white w-44" />
               <select value={frField} onChange={(e) => setFrField(e.target.value as typeof frField)}
                 className="text-xs bg-slate-950 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 outline-none">
@@ -958,7 +958,7 @@ function CustomersInner() {
               </label>
               <button onClick={applyReplace} disabled={frBusy || frTargets.length === 0}
                 className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white transition-colors disabled:opacity-40">
-                {frBusy ? 'Replacing…' : `Replace in ${frTargets.length}`}
+                {frBusy ? t('Replacing…') : tf('Replace in {n}', { n: frTargets.length })}
               </button>
               <span className="text-[11px] text-slate-500">
                 across the {selected.size ? `${frScope.length} selected` : `${frScope.length} filtered`} customer{frScope.length !== 1 ? 's' : ''}
@@ -1215,6 +1215,7 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOp
   onClose: () => void;
   onEdit: () => void;
 }) {
+  const { t, tf } = useT();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -1273,15 +1274,15 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOp
             {/* KPI row */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
               <Kpi label="Total sales (orders)" value={fmtRupiah(totalSales)} sub={`${committed.length} order${committed.length !== 1 ? 's' : ''}`} cls="text-emerald-300" />
-              <Kpi label="Received" value={fmtRupiah(totalReceived)} sub="all payments" cls="text-slate-200" />
-              <Kpi label="Outstanding AR" value={fmtRupiah(outstandingAR)} sub="on issued invoices" cls={outstandingAR > 0 ? 'text-amber-300' : 'text-emerald-400'} />
-              <Kpi label="Quotes → orders" value={winRate != null ? `${winRate.toFixed(0)}%` : '—'} sub={`${committed.length} of ${quoteCount} quotes`} cls="text-slate-200" />
+              <Kpi label={t('Received')} value={fmtRupiah(totalReceived)} sub={t('all payments')} cls="text-slate-200" />
+              <Kpi label={t('Outstanding AR')} value={fmtRupiah(outstandingAR)} sub={t('on issued invoices')} cls={outstandingAR > 0 ? 'text-amber-300' : 'text-emerald-400'} />
+              <Kpi label={t('Quotes → orders')} value={winRate != null ? `${winRate.toFixed(0)}%` : '—'} sub={tf('{won} of {total} quotes', { won: committed.length, total: quoteCount })} cls="text-slate-200" />
             </div>
 
             {/* Related companies — same group / subsidiaries, click to jump */}
             {linked.length > 0 && (
               <section>
-                <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">Linked customers</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">{t('Linked customers')}</h3>
                 <div className="flex flex-wrap gap-1.5">
                   {linked.map((l) => (
                     <button key={l.id} onClick={() => onOpenCustomer(l.id)}
@@ -1295,9 +1296,9 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOp
 
             {/* Documents: every quote/order/invoice/DO, linked */}
             <section>
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">Documents & activity</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">{t('Documents & activity')}</h3>
               {docs.length === 0 ? (
-                <p className="text-xs text-slate-600 italic">No sales documents yet — quotes for this customer will appear here.</p>
+                <p className="text-xs text-slate-600 italic">{t('No sales documents yet — quotes for this customer will appear here.')}</p>
               ) : (
                 <div className="rounded-xl border border-slate-800 divide-y divide-slate-800/60">
                   {docs.map((d) => {
@@ -1374,7 +1375,7 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOp
             {/* Accounts receivable — unpaid / partial invoices */}
             {invoiced.some((d) => paidState(d) !== 'paid') && (
               <section>
-                <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">Accounts receivable</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">{t('Accounts receivable')}</h3>
                 <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.04] divide-y divide-slate-800/60">
                   {invoiced.filter((d) => paidState(d) !== 'paid').map((d) => {
                     const total = Number(d.grand_total) || 0;
@@ -1394,9 +1395,9 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOp
 
             {/* Most ordered items */}
             <section>
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">Most ordered items</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">{t('Most ordered items')}</h3>
               {data.topItems.length === 0 ? (
-                <p className="text-xs text-slate-600 italic">No confirmed orders yet.</p>
+                <p className="text-xs text-slate-600 italic">{t('No confirmed orders yet.')}</p>
               ) : (
                 <div className="rounded-xl border border-slate-800 divide-y divide-slate-800/60">
                   {data.topItems.map((it) => (
@@ -1413,7 +1414,7 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOp
             {/* EPC project quotes (10.x) linked to this customer via customer_id */}
             {showEpc && data.epcQuotes.length > 0 && (
               <section>
-                <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">EPC proposals</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">{t('EPC proposals')}</h3>
                 <div className="rounded-xl border border-violet-500/25 bg-violet-500/[0.04] divide-y divide-slate-800/60">
                   {data.epcQuotes.map((q) => (
                     <a key={q.quote_id} href={`/proposals/${q.quote_id}`}
@@ -1440,14 +1441,14 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOp
             {/* Surat Dukungan — the tenders we are backing this reseller into */}
             <section>
               <div className="flex items-center gap-2 mb-2">
-                <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Support letters</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">{t('Support letters')}</h3>
                 <a href={`/support-letters?q=${encodeURIComponent(customer.display_name || customer.legal_name)}`}
                   className="ml-auto text-[10px] text-slate-500 hover:text-emerald-300 transition-colors">All →</a>
               </div>
               {data.letters.length === 0 ? (
                 <p className="text-xs text-slate-600 italic">
-                  No Surat Dukungan issued to this customer yet.{' '}
-                  <a href="/support-letters" className="text-emerald-500/80 hover:text-emerald-300">Write one →</a>
+                  {t('No Surat Dukungan issued to this customer yet.')}{' '}
+                  <a href="/support-letters" className="text-emerald-500/80 hover:text-emerald-300">{t('Write one')} →</a>
                 </p>
               ) : (
                 <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.03] divide-y divide-slate-800/60">
@@ -1580,6 +1581,7 @@ function Drawer({
   onSetPrimary: (id: string) => void;
   onLinks: (ids: string[]) => void;
 }) {
+  const { t, tf } = useT();
   const isNew = !customer.customer_id;
 
   useEffect(() => {
@@ -1733,7 +1735,7 @@ function Drawer({
           {/* Contacts */}
           <div className="pt-2 border-t border-slate-800">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Contacts</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">{t('Contacts')}</h3>
               <button onClick={onAddContact} className="text-xs text-emerald-400 hover:text-emerald-300 font-semibold transition-colors">+ Add contact</button>
             </div>
             {contacts.length === 0 ? (

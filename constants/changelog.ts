@@ -20,6 +20,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-21T08:30:00Z',
+    title: 'Language is now your own choice \u2014 EN / ID in the wordmark menu',
+    details: [
+      'Open the wordmark menu (top left) and you will find EN / ID sitting beside the theme swatches. It is a personal choice, remembered on your own browser: a buyer who writes to suppliers in English all day keeps English while the warehouse works in Bahasa Indonesia, and neither is switched by the other.',
+      'Settings \u203a Defaults now sets the language a person starts in \u2014 what someone sees until they choose for themselves. Choosing your own is never overwritten by a later change there.',
+      'What actually translates has been widened: not only the one-line hints, but the sentences, empty states, buttons, filters and placeholders on screen. The Customers screen is the first fully done \u2014 its filters, its tiles, its \u201cno documents yet\u201d lines and its search box all follow the language now.',
+      'The NAMES of things stay English on purpose: menu entries, Stock, PO, SO, GRN, Deal Lookup, Surat Jalan, and every document number. Those are the words the team already uses with suppliers and customers, and giving one thing two names costs more than it buys.',
+      'Wording is chosen for the trade, not from a dictionary \u2014 piutang for receivables, penawaran for a quotation, pesanan for a confirmed order. Tell us any word that reads wrong and it changes in one line.',
+      'More screens follow. Anything not translated yet reads in English, never as a blank or a code.',
+    ],
+  },
+  {
     at: '2026-08-20T11:40:00Z',
     title: 'Two new Dashboard panels: New arrivals, and Arriving soon',
     details: [

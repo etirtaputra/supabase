@@ -14,7 +14,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { t, ID, translationCount } from './i18n.ts';
+import { t, tf, ID, translationCount } from './i18n.ts';
 
 const sourceFiles = (dir: string): string[] => {
   const out: string[] = [];
@@ -57,4 +57,46 @@ test('every translation still has an English side that the app renders', () => {
 test('no translation is left as its own English — that is just an untranslated line', () => {
   const lazy = Object.entries(ID).filter(([en, id]) => en === id);
   assert.deepEqual(lazy.map(([en]) => en), []);
+});
+
+/**
+ * The fragment trap, closed.
+ *
+ * Gluing a translated fragment to a value ("of" + n + "quotes") reads fine in
+ * English and falls apart everywhere else: word order, plurals and
+ * prepositions are exactly what differs between languages, and a fragment
+ * carries none of them. Whole sentences with {placeholders} let the
+ * Indonesian put the pieces where Indonesian puts them.
+ */
+const DANGLING = /\b(of|in|for|and|or|to|on|at|by|with|from|the|a|an|is|are|was|were|than|per|into|over|under)$/i;
+
+test('a phrase-book entry is a whole thought, not a fragment glued to a value', () => {
+  const offenders = Object.keys(ID)
+    // A trailing ellipsis is a deliberate prompt ("Replace with…"), not a
+    // fragment; and a long sentence may legitimately end on a preposition
+    // ("the warehouse these goods are received into"). Short ones may not.
+    .filter((en) => !en.trim().endsWith('…'))
+    .map((en) => en.trim().replace(/[.,:;—-]+$/, '').trim())
+    .filter((en) => en.split(/\s+/).length <= 5 && DANGLING.test(en));
+  assert.deepEqual(offenders, [],
+    `these read as sentence fragments — write the whole sentence with {placeholders} and use tf(): ${offenders.join(' | ')}`);
+});
+
+test('values drop into a sentence rather than being concatenated onto it', () => {
+  assert.equal(tf('{won} of {total} quotes', 'en', { won: 3, total: 8 }), '3 of 8 quotes');
+  assert.equal(tf('{won} of {total} quotes', 'id', { won: 3, total: 8 }), '3 dari 8 penawaran');
+  // A placeholder nobody supplied stays visible — a typo must show itself on
+  // screen, not silently delete a number.
+  assert.equal(tf('{a} and {b}', 'en', { a: 1 }), '1 and {b}');
+  // The same value can appear twice, which is exactly why word order matters.
+  assert.equal(tf('{n} of {n}', 'en', { n: 4 }), '4 of 4');
+});
+
+test('every {placeholder} in an English sentence survives into its translation', () => {
+  const holes = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
+  const broken = Object.entries(ID)
+    .filter(([en, id]) => JSON.stringify(holes(en)) !== JSON.stringify(holes(id)))
+    .map(([en]) => en);
+  assert.deepEqual(broken, [],
+    `a translation dropped or invented a placeholder, so it would render a hole or lose a value: ${broken.join(' | ')}`);
 });
