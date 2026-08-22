@@ -96,6 +96,16 @@ export const DASHBOARD_WIDGETS: DashboardWidget[] = [
   { key: 'arriving', label: 'Arriving soon', width: 'half', defaultOn: true,
     section: null, caps: ['sellSide', 'buySide', 'canManageStock'],
     hint: 'What is on the water and when it should land' },
+  // The two league tables. Revenue is a sell-side number, so the sell side may
+  // rank by it; PROFIT needs what the goods cost us, which is why the profit
+  // view is offered only to a role that may already see item economics — and
+  // why the fetch itself never asks for a cost it may not show.
+  { key: 'topProducts', label: 'Top products', width: 'half', defaultOn: true,
+    section: null, caps: ['sellSide', 'canViewEconomics'],
+    hint: 'What earns the most — by revenue, or by gross profit' },
+  { key: 'topCustomers', label: 'Top customers', width: 'half', defaultOn: true,
+    section: null, caps: ['sellSide', 'canViewEconomics'],
+    hint: 'Who earns you the most — by revenue, or by gross profit' },
   { key: 'stockAlerts', label: 'Stock alerts', width: 'full', defaultOn: true,
     section: 'buySide', hint: 'Orders that cannot ship, and items at their reorder point' },
   { key: 'activity', label: 'Latest activity', width: 'twoThirds', defaultOn: true,

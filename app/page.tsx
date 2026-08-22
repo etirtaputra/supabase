@@ -18,6 +18,10 @@ import { fetchPosition, type PositionData, type MotionRow } from '@/lib/position
 import type { RolePermissions } from '@/constants/roles';
 import { fetchShortages, fetchReorderAlerts, type ShortageAlert, type ReorderAlert } from '@/lib/reorder';
 import { fetchNewArrivals, fetchArrivals, type NewArrival, type ArrivingSummary } from '@/lib/catalogSignals';
+import {
+  fetchSalesFacts, fetchLeaderNames, factsInPeriod, rank,
+  type SalesFact, type RankBy, type Leaderboard,
+} from '@/lib/salesFacts';
 import { fmtInt } from '@/lib/formatters';
 import { useDashboardLayout } from '@/hooks/useDashboardLayout';
 import { WIDTH_SPAN, type DashboardLayout } from '@/constants/dashboardWidgets';
@@ -36,7 +40,7 @@ export default function Home() {
   const supabase = createSupabaseClient();
   const { user, profile, loading: authLoading } = useAuth();
   const { data, loading } = useSupabaseData();
-  const { arOverdueDays, quoteFollowUpDays, newArrivalDays } = useSettings();
+  const { arOverdueDays, quoteFollowUpDays, newArrivalDays, economicsPeriod } = useSettings();
   const { t } = useT();
   // Module visibility mirrors the nav: a role only sees panels for flows it
   // can access (nothing sensitive renders until the profile has resolved).
@@ -49,6 +53,24 @@ export default function Home() {
   const [position, setPosition] = useState<PositionData | null>(null);
   const [arrivedItems, setArrivedItems] = useState<NewArrival[] | null>(null);
   const [arriving, setArriving] = useState<ArrivingSummary | null>(null);
+  const [salesFacts, setSalesFacts] = useState<SalesFact[] | null>(null);
+  const [leaderNames, setLeaderNames] = useState<{ products: Map<string, string>; customers: Map<string, string> } | null>(null);
+  // Which measure each board is ranked by — the person's own choice, kept on
+  // this browser. Profit is only ever an option for a role that may see cost.
+  const [rankProducts, setRankProducts] = useState<RankBy>('revenue');
+  const [rankCustomers, setRankCustomers] = useState<RankBy>('revenue');
+  useEffect(() => {
+    try {
+      const p = localStorage.getItem('icaproc:rank-products');
+      const c = localStorage.getItem('icaproc:rank-customers');
+      if (p === 'revenue' || p === 'profit') setRankProducts(p);
+      if (c === 'revenue' || c === 'profit') setRankCustomers(c);
+    } catch { /* private mode */ }
+  }, []);
+  const pickRank = useCallback((which: 'products' | 'customers', by: RankBy) => {
+    (which === 'products' ? setRankProducts : setRankCustomers)(by);
+    try { localStorage.setItem(`icaproc:rank-${which}`, by); } catch { /* private mode */ }
+  }, []);
 
   // ── Which panels this person watches ──────────────────────────────────────
   // The house layout from Settings › Dashboard, unless they arranged their own.
@@ -69,6 +91,7 @@ export default function Home() {
   const needStockVal = shown.has('kpiStockValue');
   const needArrived  = shown.has('newArrivals');
   const needArriving = shown.has('arriving');
+  const needLeaders  = shown.has('topProducts') || shown.has('topCustomers');
 
   useEffect(() => { document.title = 'Dashboard — ICAPROC'; }, []);
 
@@ -151,6 +174,40 @@ export default function Home() {
       .catch(() => { if (live) setArriving({ soon: [], late: [], openPos: 0, posWithoutEta: 0, stalePos: 0, oldestStaleDays: null }); });
     return () => { live = false; };
   }, [user, profile?.role, needArriving]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── What sold, and who bought it ──────────────────────────────────────────
+  // The same delivered-sales engine /profitability uses, so a figure here and
+  // a figure there cannot disagree. Cost is fetched ONLY for a role that may
+  // see item economics — without it the boards rank by revenue and say so.
+  useEffect(() => {
+    if (!user || !perms || !needLeaders) return;
+    let live = true;
+    const withCost = !!perms.canViewEconomics;
+    Promise.all([fetchSalesFacts(supabase, { withCost }), fetchLeaderNames(supabase)])
+      .then(([f, n]) => { if (live) { setSalesFacts(f); setLeaderNames(n); } })
+      .catch(() => { if (live) { setSalesFacts([]); setLeaderNames({ products: new Map(), customers: new Map() }); } });
+    return () => { live = false; };
+  }, [user, profile?.role, needLeaders]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  const periodFacts = useMemo(
+    () => (salesFacts ? factsInPeriod(salesFacts, economicsPeriod, new Date().toISOString()) : null),
+    [salesFacts, economicsPeriod]);
+
+  const productBoard = useMemo<Leaderboard | null>(() => {
+    if (!periodFacts || !leaderNames) return null;
+    return rank(periodFacts, rankProducts, (f) => f.component_id, (key) => ({
+      name: leaderNames.products.get(key) ?? 'Unnamed item',
+      sub: (a) => `${fmtInt(a.qty)} sold · ${a.orders} order${a.orders !== 1 ? 's' : ''}`,
+    }));
+  }, [periodFacts, leaderNames, rankProducts]);
+
+  const customerBoard = useMemo<Leaderboard | null>(() => {
+    if (!periodFacts || !leaderNames) return null;
+    return rank(periodFacts, rankCustomers, (f) => f.customer_id, (key) => ({
+      name: leaderNames.customers.get(key) ?? 'Unnamed customer',
+      sub: (a) => `${a.orders} order${a.orders !== 1 ? 's' : ''} · ${fmtInt(a.qty)} items`,
+    }));
+  }, [periodFacts, leaderNames, rankCustomers]);
 
   const poById = useMemo(
     () => new Map(data.pos.map((p) => [String(p.po_id), p])),
@@ -240,6 +297,12 @@ export default function Home() {
                                   sub="in catalog" color="text-emerald-300" ring="ring-emerald-500/20" />;
       case 'newArrivals':   return <NewArrivals rows={arrivedItems} days={newArrivalDays} />;
       case 'arriving':      return <ArrivingSoon data={arriving} buySide={!!perms?.buySide} />;
+      case 'topProducts':   return <TopBoard title="Top products" board={productBoard} by={rankProducts}
+                                  onPick={(b) => pickRank('products', b)} noun="product" period={economicsPeriod}
+                                  canProfit={!!perms?.canViewEconomics} href="/profitability" />;
+      case 'topCustomers':  return <TopBoard title="Top customers" board={customerBoard} by={rankCustomers}
+                                  onPick={(b) => pickRank('customers', b)} noun="customer" period={economicsPeriod}
+                                  canProfit={!!perms?.canViewEconomics} href="/customers" />;
       case 'stockAlerts':   return <StockAlerts shortages={shortages} reorders={reorders} />;
       case 'activity':      return <ActivityStream rows={activity} />;
       case 'quickActions':  return quickActions.length === 0 ? null : <QuickActions items={quickActions} />;
@@ -612,6 +675,126 @@ function ArrivingSoon({ data, buySide }: { data: ArrivingSummary | null; buySide
             )}
             {rows!.length > SHOWN && (
               <p className="text-[11px] text-slate-600">+{rows!.length - SHOWN} more on order.</p>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * A league table — the ten names that earned the most, and how much of the
+ * whole they are.
+ *
+ * TWO MEASURES, ONE BOARD. Revenue and gross profit answer different
+ * questions and routinely disagree: the biggest seller is often not the
+ * biggest earner, and seeing that flip when you press Profit is the entire
+ * value of putting them on one card. The choice is remembered per person.
+ *
+ * PROFIT IS NOT OFFERED TO EVERYONE. Gross profit is revenue minus what the
+ * goods cost us, so the toggle appears only for a role that may see item
+ * economics — and for anyone else the cost is never even fetched, so the board
+ * ranks by revenue and says which measure it used rather than quietly serving
+ * a different one.
+ *
+ * THE SHARE IS PART OF THE ANSWER. "Top 10" of four names says almost nothing;
+ * the same four with "62% of everything delivered" says whether the business
+ * rests on one customer. The bar is that share, not a bar for its own sake.
+ */
+function TopBoard({ title, board, by, onPick, noun, period, canProfit, href }: {
+  title: string;
+  board: Leaderboard | null;
+  by: RankBy;
+  onPick: (b: RankBy) => void;
+  noun: string;
+  period: string;
+  canProfit: boolean;
+  href: string;
+}) {
+  const { t, tf } = useT();
+  // The toggle needs BOTH: permission to see cost, and cost actually in hand.
+  const profitOffered = canProfit && (board?.profitKnown ?? false);
+  const measure = (r: { revenue: number; profit: number }) => (by === 'profit' ? r.profit : r.revenue);
+  const windowLabel = period === 'all' ? t('all time') : tf('last {days} days', { days: period });
+
+  return (
+    <div className="bg-slate-900/60 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl overflow-hidden">
+      <div className="flex items-center gap-2.5 px-4 sm:px-5 py-3.5 border-b border-slate-800/70 flex-wrap">
+        <h2 className="text-sm font-bold text-white">{title}</h2>
+        <span className="text-[10px] uppercase tracking-widest text-slate-600">{windowLabel}</span>
+        {profitOffered && (
+          <div className="ml-auto flex items-center gap-0.5 p-0.5 rounded-lg border border-slate-800 bg-slate-900/60">
+            {(['revenue', 'profit'] as RankBy[]).map((k) => (
+              <button key={k} onClick={() => onPick(k)} aria-pressed={by === k}
+                className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-colors ${
+                  by === k ? 'bg-emerald-500/15 text-emerald-300' : 'text-slate-500 hover:text-slate-200'}`}>
+                {k === 'revenue' ? t('Revenue') : t('Profit')}
+              </button>
+            ))}
+          </div>
+        )}
+        <Link href={href} className={`${profitOffered ? '' : 'ml-auto'} text-[11px] text-slate-500 hover:text-emerald-300 transition-colors whitespace-nowrap`}>
+          {t('Details')} →
+        </Link>
+      </div>
+
+      {board === null ? (
+        <div className="p-4 sm:p-5 space-y-2">
+          {[...Array(4)].map((_, i) => <div key={i} className="h-7 bg-slate-800/40 rounded-lg animate-pulse" />)}
+        </div>
+      ) : board.rows.length === 0 ? (
+        <p className="px-5 py-8 text-center text-xs text-slate-500">
+          {t('Nothing has been delivered in this period yet. A sale counts from the day the goods ship, not the day the order is signed.')}
+        </p>
+      ) : (
+        <>
+          <ol className="divide-y divide-slate-800/50">
+            {board.rows.map((r, i) => {
+              const v = measure(r);
+              const negative = v < 0;
+              return (
+                <li key={r.key} className="relative px-4 sm:px-5 py-2">
+                  {/* The share, drawn behind the row rather than beside it, so
+                      the numbers stay on one line on a phone. */}
+                  <span aria-hidden className="absolute inset-y-0 left-0 bg-emerald-500/[0.07]"
+                    style={{ width: `${Math.round(r.share * 100)}%` }} />
+                  <div className="relative flex items-baseline gap-2.5">
+                    <span className="text-[10px] font-bold tabular-nums text-slate-600 w-4 flex-shrink-0">{i + 1}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[13px] font-semibold text-slate-100 truncate">{r.name}</span>
+                      <span className="block text-[10px] text-slate-500 truncate">
+                        {r.sub}
+                        {by === 'profit' && r.margin != null && ` · ${r.margin.toFixed(0)}% margin`}
+                        {r.estimated && ` · ${t('cost estimated')}`}
+                      </span>
+                    </span>
+                    <span className={`flex-shrink-0 text-[13px] font-extrabold tabular-nums ${
+                      negative ? 'text-rose-300' : by === 'profit' ? 'text-emerald-300' : 'text-slate-100'}`}>
+                      {fmtIdr(v)}
+                    </span>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+          <div className="px-4 sm:px-5 py-2.5 border-t border-slate-800/70 space-y-1">
+            <p className="text-[11px] text-slate-600">
+              {/* The denominator, always — a top ten of four is not a league
+                  table, and saying so costs one line. */}
+              {board.ranked <= board.rows.length
+                ? tf('All {n} {noun}s that have sold in this period.', { n: board.ranked, noun })
+                : tf('Top {shown} of {n} {noun}s that have sold.', { shown: board.rows.length, n: board.ranked, noun })}
+              {board.total > 0 && ` ${tf('These carry {pct}% of the total.',
+                { pct: Math.round(board.rows.reduce((s, r) => s + r.share, 0) * 100) })}`}
+            </p>
+            {!profitOffered && canProfit && (
+              <p className="text-[11px] text-slate-600">{t('Ranked by revenue — the cost of these goods could not be read.')}</p>
+            )}
+            {board.anyEstimated && by === 'profit' && (
+              <p className="text-[11px] text-amber-300/80">
+                {t('Some of this profit uses today’s average cost, because those deliveries predate the stock ledger.')}
+              </p>
             )}
           </div>
         </>

@@ -28,6 +28,7 @@ import { formatCategory as humanize } from '@/lib/formatCategory';
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 import FitText from '@/components/ui/FitText';
 import { useSettings } from '@/hooks/useSettings';
+import { buildSalesFacts } from '@/lib/salesFacts';
 import PositionPanel from '@/components/profitability/PositionPanel';
 import { ITEM_SCORE_FACTORS, type ItemScoreResult, type ScoreBand } from '@/lib/itemScore';
 import { useItemScores } from '@/hooks/useItemScores';
@@ -203,56 +204,18 @@ function EconomicsInner() {
   useEffect(() => { if (canView) fetchAll(); }, [canView, fetchAll]);
 
   // ── Sales facts: one row per delivered DO × component ────────────────────
-  const facts = useMemo(() => {
-    const soById = soItems;
-    // Net ledger COGS per delivered DO+component: outs − reversal ins
-    const ledger = new Map<string, { qty: number; cost: number }>();
-    for (const m of moves) {
-      if (m.source_type !== 'delivery' || !m.source_id || !m.component_id) continue;
-      const k = `${m.source_id}·${m.component_id}`;
-      const e = ledger.get(k) ?? { qty: 0, cost: 0 };
-      const sign = m.direction === 'out' ? 1 : -1;
-      e.qty += sign * (Number(m.quantity) || 0);
-      e.cost += sign * (Number(m.quantity) || 0) * (Number(m.unit_cost_idr) || 0);
-      ledger.set(k, e);
-    }
-    const out: {
-      component_id: string; do_id: string; date: string;
-      qty: number; revenue: number; cogs: number; cogsEstimated: boolean;
-      customer_id: string | null; rep_id: string | null; quote_id: string;
-    }[] = [];
-    for (const d of dos) {
-      if (d.status !== 'delivered') continue;
-      const date = d.delivered_at ?? '';
-      const order = orders.get(d.quote_id);
-      const cust = order?.customer_id ? customers.get(order.customer_id) : undefined;
-      const rep = order?.sales_rep_id ?? cust?.account_manager_id ?? null;
-      // group this DO's lines by component (COGS in the ledger is per component)
-      const byComp = new Map<string, { qty: number; revenue: number }>();
-      for (const li of doItems) {
-        if (li.do_id !== d.do_id || !li.component_id) continue;
-        const so = li.so_item_id ? soById.get(li.so_item_id) : undefined;
-        const price = Number(so?.unit_price) || 0;
-        const e = byComp.get(li.component_id) ?? { qty: 0, revenue: 0 };
-        e.qty += Number(li.qty) || 0;
-        e.revenue += (Number(li.qty) || 0) * price;
-        byComp.set(li.component_id, e);
-      }
-      for (const [cid, e] of byComp) {
-        const led = ledger.get(`${d.do_id}·${cid}`);
-        let cogs: number; let est = false;
-        if (led && led.qty > 0 && led.cost > 0) {
-          cogs = led.cost * (e.qty / led.qty); // ledger qty should equal line qty; scale defensively
-        } else {
-          // Legacy delivery with no ledger rows — estimate at today's avg cost
-          cogs = e.qty * (bals.get(cid)?.avg ?? 0);
-          est = true;
-        }
-        out.push({ component_id: cid, do_id: d.do_id, date, qty: e.qty, revenue: e.revenue, cogs, cogsEstimated: est, customer_id: order?.customer_id ?? null, rep_id: rep, quote_id: d.quote_id });
-      }
-    }
-    return out;
-  }, [dos, doItems, soItems, moves, orders, customers, bals]);
+  // The maths lives in lib/salesFacts.ts, shared with the dashboard's Top
+  // products / Top customers boards. It used to live here as a private
+  // useMemo, which meant two screens each held their own copy of "what did we
+  // sell and what did it cost" — the exact shape of drift the house rule
+  // exists to prevent.
+  const facts = useMemo(() => buildSalesFacts({
+    dos, doItems, soItems,
+    orders,
+    moves,
+    avgCost: new Map([...bals].map(([cid, b]) => [cid, b.avg])),
+    accountManagerOf: new Map([...customers].map(([id, c]) => [id, c.account_manager_id])),
+  }), [dos, doItems, soItems, moves, orders, customers, bals]);
 
   const nowIso = useMemo(() => new Date().toISOString(), []);
   const cutoff = useMemo(() => {

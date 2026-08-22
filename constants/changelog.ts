@@ -20,6 +20,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-21T18:30:00Z',
+    title: 'Two league tables on the Dashboard: Top products and Top customers',
+    details: [
+      'Both rank the last period\u2019s sales, and both carry a switch: rank by REVENUE, or rank by GROSS PROFIT. They routinely disagree \u2014 the biggest seller is often not the biggest earner \u2014 and watching the order change when you press Profit is the whole point of putting them on one card. Your choice is remembered.',
+      'Each row shows its share of the total, drawn behind the row. A \u201ctop ten\u201d of four names means little on its own; \u201cthese four are 62% of everything delivered\u201d tells you whether the business is resting on one customer.',
+      'A name that LOST money still appears, at the bottom, in red. A league table that only ever shows winners is not a league table.',
+      'A sale counts from the day the goods ship, not the day the order is signed \u2014 the same rule Profitability uses, because both now read the same engine rather than each keeping its own copy of \u201cwhat did we sell and what did it cost\u201d.',
+      'The profit view is only offered where item economics already are. For everyone else the cost is never even fetched, and the board says it is ranked by revenue rather than quietly showing a different measure.',
+      'Where a delivery predates the stock ledger its cost is today\u2019s average rather than the cost of the day, and the board says so instead of presenting the profit as exact.',
+      'Both are switchable and draggable like every other widget \u2014 Customise on the Dashboard. The period follows Settings \u203a Defaults.',
+    ],
+  },
+  {
     at: '2026-08-21T16:20:00Z',
     title: 'Indonesian wording tightened where the space is tight',
     details: [

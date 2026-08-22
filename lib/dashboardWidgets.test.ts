@@ -31,11 +31,13 @@ const keysFor = (role: UserRole) => visibleWidgets(ROLE_PERMISSIONS[role], HOUSE
  * purpose — a diff here is someone gaining or losing a panel.
  */
 const EXPECTED: Record<UserRole, string[]> = {
-  owner: ['position', 'queue', 'nextStep', 'motion', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'newArrivals', 'arriving', 'stockAlerts', 'activity', 'quickActions'],
+  owner: ['position', 'queue', 'nextStep', 'motion', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'newArrivals', 'arriving', 'topProducts', 'topCustomers', 'stockAlerts', 'activity', 'quickActions'],
+  // Buy-side-only roles see no sales league table: revenue by customer is a
+  // sell-side number, and they have no sell-side.
   buy_admin: ['position', 'queue', 'nextStep', 'motion', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'newArrivals', 'arriving', 'stockAlerts', 'activity', 'quickActions'],
-  sell_admin: ['position', 'queue', 'nextStep', 'motion', 'newArrivals', 'arriving', 'activity', 'quickActions'],
-  sales: ['position', 'queue', 'nextStep', 'motion', 'newArrivals', 'arriving', 'activity', 'quickActions'],
-  engineer: ['position', 'queue', 'nextStep', 'motion', 'newArrivals', 'arriving', 'activity', 'quickActions'],
+  sell_admin: ['position', 'queue', 'nextStep', 'motion', 'newArrivals', 'arriving', 'topProducts', 'topCustomers', 'activity', 'quickActions'],
+  sales: ['position', 'queue', 'nextStep', 'motion', 'newArrivals', 'arriving', 'topProducts', 'topCustomers', 'activity', 'quickActions'],
+  engineer: ['position', 'queue', 'nextStep', 'motion', 'newArrivals', 'arriving', 'topProducts', 'topCustomers', 'activity', 'quickActions'],
   // The warehouse lands on /stock, but knowing what is on the water is its
   // job — it is the desk that will receive it. Still no price, still no cost.
   warehouse: ['arriving', 'quickActions'],
@@ -97,6 +99,25 @@ test('the arrival panels reach the sell side, because they carry no buy-side num
   const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
   assert.ok(!code.includes('6.0_po_costs'), 'nothing here may read supplier costs');
   assert.ok(!code.includes('unit_cost_idr'), 'nor the cost stamped on a stock movement');
+});
+
+/**
+ * The league tables rank by revenue for the sell side and by profit only for a
+ * role that may see item economics. The gate is half the promise; the other
+ * half is that the FETCH never asks for a cost it may not show, so a sell-side
+ * reader cannot find one in the network tab either.
+ */
+test('a sell-side reader may rank by revenue, and never sees a cost to rank by', () => {
+  for (const key of ['topProducts', 'topCustomers']) {
+    assert.ok(keysFor('sales').includes(key), `sales should see ${key}`);
+    assert.ok(keysFor('sell_admin').includes(key), `sell_admin should see ${key}`);
+    assert.ok(!keysFor('buy_admin').includes(key), `buy_admin has no sell side and should not see ${key}`);
+  }
+  const src = readFileSync('lib/salesFacts.ts', 'utf8');
+  assert.ok(src.includes("opts.withCost ? ', unit_cost_idr' : ''"),
+    'the sales-facts fetch must request unit cost conditionally, not for everyone');
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  assert.ok(!code.includes('6.0_po_costs'), 'nothing here may read supplier costs');
 });
 
 test('a saved arrangement cannot smuggle in a widget the role may not have', () => {

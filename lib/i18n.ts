@@ -431,6 +431,30 @@ export const ID: Record<string, string> = {
   'Show one warehouse or all of them': 'Tampilkan satu gudang atau semuanya',
   'Move this stock to another warehouse': 'Pindahkan stok ini ke gudang lain',
 
+  // ── Leaderboards ──────────────────────────────────────────────────────────
+  // Short in the toggle (it is a two-button switch), full in the sentences.
+  'Revenue': 'Omzet',
+  'Profit': 'Laba',
+  'Details': 'Rincian',
+  'all time': 'sejak awal',
+  'last {days} days': '{days} hari terakhir',
+  'cost estimated': 'biaya perkiraan',
+  'What earns the most — by revenue, or by gross profit':
+    'Yang paling menghasilkan — berdasarkan omzet atau laba kotor',
+  'Who earns you the most — by revenue, or by gross profit':
+    'Pelanggan yang paling menghasilkan — berdasarkan omzet atau laba kotor',
+  'Nothing has been delivered in this period yet. A sale counts from the day the goods ship, not the day the order is signed.':
+    'Belum ada pengiriman pada periode ini. Penjualan dihitung sejak barang dikirim, bukan sejak pesanan ditandatangani.',
+  'All {n} {noun}s that have sold in this period.':
+    'Semua {n} {noun} yang terjual pada periode ini.',
+  'Top {shown} of {n} {noun}s that have sold.':
+    '{shown} teratas dari {n} {noun} yang terjual.',
+  'These carry {pct}% of the total.': 'Semuanya mencakup {pct}% dari total.',
+  'Ranked by revenue — the cost of these goods could not be read.':
+    'Diurutkan berdasarkan omzet — biaya barang ini tidak bisa dibaca.',
+  'Some of this profit uses today’s average cost, because those deliveries predate the stock ledger.':
+    'Sebagian laba ini memakai biaya rata-rata hari ini, karena pengiriman tersebut terjadi sebelum buku stok ada.',
+
   // ── Page subtitles (BrandMenu) ────────────────────────────────────────────
   'Stock · Warehouse': 'Stock · Gudang',
   'Customers · CRM': 'Customers · Data pelanggan',
