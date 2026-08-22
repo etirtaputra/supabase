@@ -133,7 +133,119 @@ const PAPER_SURFACES = {
 };
 for (const [name, hex] of Object.entries(PAPER_SURFACES)) paper[name] = { DEFAULT: hexToRgb(hex) };
 
-const APP_BG_EXTRA = { dim: hexToRgb('#1e222a'), paper: hexToRgb('#ece6d7') };
+// ── Two more skins: TERMINAL (owner's ask, 2026-08-21) ──────────────────────
+// Design cues taken from a trading terminal the owner works in daily (JTX):
+// near-black flat panels with hairline separators in dark, plain white cards
+// on a soft grey page in light, and a market-standard green/red rather than a
+// brand teal — on a trading screen green means UP, and borrowing it for
+// "primary button" is exactly the confusion an ERP does not need.
+//
+// This is a SKIN, not a rewrite: it moves the neutral ramp, the surfaces and
+// the two semantic accents, and adds a typeface plus tighter geometry (see
+// TERMINAL_SHELL_CSS below). Every one of the four original skins is
+// untouched — the owner picks later.
+const terminal = clone(dark), terminalLight = clone(light);
+
+// DARK: flatter and deeper than the house dark. The surface steps go nearly
+// black and the borders stay a hair above them, which is what gives a
+// terminal its "panels floating on nothing" look rather than stacked cards.
+const TERMINAL_FIX = {
+  slate: {
+    950: '#0a0b0d', 900: '#101114', 800: '#1b1d21', 700: '#2a2d33', 600: '#4b5058',
+    500: '#6e747c', 400: '#9aa0a8', 300: '#c8ccd2', 200: '#e2e5e9', 100: '#f0f1f3', 50: '#f8f9fa',
+  },
+  // Market green: gains, confirmations, the primary action.
+  emerald: {
+    50: '#eafaf3', 100: '#ccf3e1', 200: '#98e7c4', 300: '#5fd9a4', 400: '#22c780',
+    500: '#0ecb81', 600: '#0aa568', 700: '#088452', 800: '#0a6743', 900: '#0a5138', 950: '#052b1e',
+  },
+  // Market red: losses, overdue, destructive.
+  rose: {
+    50: '#fdecee', 100: '#fbd3d7', 200: '#f6a7ae', 300: '#f07b85', 400: '#ea5560',
+    500: '#e5484d', 600: '#c8353c', 700: '#a52a31', 800: '#82232a', 900: '#661d23', 950: '#380f13',
+  },
+};
+for (const [scale, steps] of Object.entries(TERMINAL_FIX)) {
+  for (const [step, hex] of Object.entries(steps)) terminal[scale][step] = hexToRgb(hex);
+}
+const TERMINAL_SURFACES = {
+  chrome: '#0d0e11', canvas: '#0a0b0d', sunken: '#0e1013', raised: '#16181c',
+  rail: '#101114', deep: '#08090b', navy: '#0e1520', moss: '#0a3d2a', moss2: '#0f5738',
+};
+for (const [name, hex] of Object.entries(TERMINAL_SURFACES)) terminal[name] = { DEFAULT: hexToRgb(hex) };
+
+// LIGHT: plain white cards on a soft grey page — the inverse arrangement to
+// the house light skin, which lifts off-white cards off a deeper grey. Here
+// the CARD is the brightest thing and the page recedes, which is what makes a
+// dense table read as a sheet of data rather than a stack of panels.
+const TERMINAL_LIGHT_FIX = {
+  slate: {
+    950: '#ffffff', 900: '#ffffff', 800: '#e6e8eb', 700: '#d3d7dc', 600: '#9ba1a9',
+    500: '#6b7280', 400: '#4b5058', 300: '#343941', 200: '#22262c', 100: '#15181c', 50: '#0d0e11',
+  },
+  emerald: {
+    950: '#eafaf3', 900: '#ccf3e1', 800: '#98e7c4', 700: '#5fd9a4', 600: '#12b981',
+    500: '#089981', 400: '#07836f', 300: '#066a5a', 200: '#055346', 100: '#043c33', 50: '#02231e',
+  },
+  rose: {
+    950: '#fdecee', 900: '#fbd3d7', 800: '#f6a7ae', 700: '#f07b85', 600: '#e5484d',
+    500: '#d13239', 400: '#b02a30', 300: '#8e2228', 200: '#6d1a1f', 100: '#4d1216', 50: '#2b0a0c',
+  },
+};
+for (const [scale, steps] of Object.entries(TERMINAL_LIGHT_FIX)) {
+  for (const [step, hex] of Object.entries(steps)) terminalLight[scale][step] = hexToRgb(hex);
+}
+terminalLight.white = { DEFAULT: hexToRgb('#0d0e11') };
+const TERMINAL_LIGHT_SURFACES = {
+  chrome: '#ffffff', canvas: '#f6f7f9', sunken: '#f0f2f4', raised: '#ffffff',
+  rail: '#fafbfc', deep: '#ffffff', navy: '#eef2f8', moss: '#e6f7f0', moss2: '#c7ecdd',
+};
+for (const [name, hex] of Object.entries(TERMINAL_LIGHT_SURFACES)) terminalLight[name] = { DEFAULT: hexToRgb(hex) };
+
+const APP_BG_EXTRA = {
+  dim: hexToRgb('#1e222a'), paper: hexToRgb('#ece6d7'),
+  terminal: hexToRgb('#0a0b0d'), 'terminal-light': hexToRgb('#f6f7f9'),
+};
+
+// ── Type, as a theme token ──────────────────────────────────────────────────
+// The typeface is part of a skin, not a global constant: the house skins keep
+// Rubik, and only the terminal skins switch to the grotesque + monospaced
+// figures a trading screen uses. One variable, set per theme, read by both the
+// Tailwind config and the body rule.
+const FONTS = {
+  house: {
+    sans: "Rubik, Inter, system-ui, -apple-system, 'Segoe UI', sans-serif",
+    mono: "'Roboto Mono', ui-monospace, SFMono-Regular, monospace",
+  },
+  terminal: {
+    sans: "Inter, 'Inter Tight', system-ui, -apple-system, 'Segoe UI', sans-serif",
+    mono: "'JetBrains Mono', 'Roboto Mono', ui-monospace, SFMono-Regular, monospace",
+  },
+};
+const fontBlock = (f) => `--font-app:${f.sans};--font-mono-app:${f.mono}`;
+
+/**
+ * The terminal skins' GEOMETRY, scoped to those skins alone.
+ *
+ * A trading terminal reads the way it does as much from its edges as its
+ * colours: square-ish corners, hairline separators instead of ringed cards,
+ * and figures that line up in a column because every digit is the same width.
+ * Those live in ~4,200 Tailwind class sites, so they cannot be re-authored per
+ * theme — but they CAN be overridden for one theme from here, which keeps the
+ * other four skins byte-identical to what they were.
+ */
+const TERMINAL_SHELL_CSS = [
+  // Corners: the house look is rounded-2xl cards; a terminal is nearly square.
+  ':root[data-theme="terminal"] .rounded-2xl,:root[data-theme="terminal-light"] .rounded-2xl{border-radius:.5rem}',
+  ':root[data-theme="terminal"] .rounded-xl,:root[data-theme="terminal-light"] .rounded-xl{border-radius:.375rem}',
+  ':root[data-theme="terminal"] .rounded-lg,:root[data-theme="terminal-light"] .rounded-lg{border-radius:.25rem}',
+  // Panels sit flat: the decorative inner ring goes, the hairline border stays.
+  ':root[data-theme="terminal"] [class*="ring-white\\\\/5"],:root[data-theme="terminal-light"] [class*="ring-white\\\\/5"]{--tw-ring-color:transparent}',
+  // Every figure in the app lines up, not only the ones already marked.
+  ':root[data-theme="terminal"],:root[data-theme="terminal-light"]{font-feature-settings:"tnum" 1,"cv01" 1;letter-spacing:-0.006em}',
+  // A light terminal draws its own separators, so shadows would double them.
+  ':root[data-theme="terminal-light"] [class*="shadow-black"]{--tw-shadow-color:rgb(13 14 17 / 0.08);--tw-shadow:var(--tw-shadow-colored)}',
+].join('\n');
 
 const varName = (s, step) => step === 'DEFAULT' ? `--c-${s}` : `--c-${s}-${step}`;
 const block = (map, bg) => {
@@ -150,11 +262,14 @@ const block = (map, bg) => {
 const SHADOW_FIX = ':root[data-theme="light"] [class*="shadow-black"],:root[data-theme="paper"] [class*="shadow-black"]{--tw-shadow-color:rgb(15 23 42 / 0.10);--tw-shadow:var(--tw-shadow-colored)}';
 
 const css = [
-  `:root{${block(dark, APP_BG.dark)}}`,
+  `:root{${block(dark, APP_BG.dark)};${fontBlock(FONTS.house)}}`,
   `:root[data-theme="light"]{${block(light, APP_BG.light)}}`,
   `:root[data-theme="dim"]{${block(dim, APP_BG_EXTRA.dim)}}`,
   `:root[data-theme="paper"]{${block(paper, APP_BG_EXTRA.paper)}}`,
+  `:root[data-theme="terminal"]{${block(terminal, APP_BG_EXTRA.terminal)};${fontBlock(FONTS.terminal)}}`,
+  `:root[data-theme="terminal-light"]{${block(terminalLight, APP_BG_EXTRA['terminal-light'])};${fontBlock(FONTS.terminal)}}`,
   SHADOW_FIX,
+  TERMINAL_SHELL_CSS,
 ].join('\n');
 
 // Colors object for the Tailwind CDN config (raw JS source text).
@@ -189,7 +304,7 @@ export const THEME_VARS_CSS = ${JSON.stringify(css)};
 
 export const TAILWIND_COLORS_JS = ${JSON.stringify(colorsJs)};
 
-export type ThemeName = 'dark' | 'light' | 'dim' | 'paper';
+export type ThemeName = 'dark' | 'light' | 'dim' | 'paper' | 'terminal' | 'terminal-light';
 `;
 fs.writeFileSync(require('path').join(__dirname, '..', 'constants', 'palette.ts'), out);
 console.log('css bytes:', css.length, '| colors js bytes:', colorsJs.length);

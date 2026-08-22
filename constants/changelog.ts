@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-21T22:40:00Z',
+    title: 'Two new skins: Terminal and Terminal Light',
+    details: [
+      'A trading-desk look, in the wordmark menu beside the four you already have. Terminal is flat near-black panels with hairline separators; Terminal Light is plain white cards on a soft grey page. Nothing was replaced \u2014 Dark, Dim, Light and Paper are exactly as they were, down to the pixel.',
+      'Three things change beyond the colours. Green and red become the market pair rather than the house teal, so a rise reads as a rise. Corners go square-ish, the way a dense screen wants them. And the typeface switches to Inter with monospaced figures, so every column of numbers lines up digit under digit.',
+      'The typeface is now part of the skin rather than fixed for the whole app, which is what lets the terminal pair look different without touching a single screen.',
+      'Also fixed on the way past: the Paper skin was still telling the browser to paint dark dropdowns and scrollbars. It now says light, like the rest of its family.',
+      'Try them from the wordmark menu (top left) \u2014 the same place as the other four.',
+    ],
+  },
+  {
     at: '2026-08-21T20:15:00Z',
     title: 'Three new Dashboard feeds: last payments, last deliveries, last service tickets',
     details: [

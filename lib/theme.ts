@@ -47,10 +47,19 @@ export const THEMES: {
     swatch: { bg: '#eaecef', card: '#f8f9fa', ink: '#26272b', accent: '#17937c' } },
   { value: 'paper', label: 'Paper', blurb: 'Warm light — cream, the gentlest for all-day reading',
     swatch: { bg: '#ece6d7', card: '#faf7ef', ink: '#2b2720', accent: '#17937c' } },
+  // The terminal pair (2026-08-21). Cues from a trading screen: flat
+  // near-black panels or plain white cards, hairline separators instead of
+  // ringed edges, market green/red rather than the house teal, squarer
+  // corners, and Inter with monospaced figures so columns of numbers line up.
+  { value: 'terminal', label: 'Terminal', blurb: 'Trading-desk dark — flat black panels, market green, lined-up figures',
+    swatch: { bg: '#0a0b0d', card: '#101114', ink: '#e2e5e9', accent: '#0ecb81' } },
+  { value: 'terminal-light', label: 'Terminal Light', blurb: 'Trading-desk light — white cards on soft grey, the same figures',
+    swatch: { bg: '#f6f7f9', card: '#ffffff', ink: '#0d0e11', accent: '#089981' } },
 ];
 
 export const isTheme = (v: unknown): v is ThemeName =>
-  v === 'dark' || v === 'light' || v === 'dim' || v === 'paper';
+  v === 'dark' || v === 'light' || v === 'dim' || v === 'paper'
+  || v === 'terminal' || v === 'terminal-light';
 
 /**
  * Runs before first paint, inlined in <head>. Written as a plain string
@@ -60,7 +69,7 @@ export const isTheme = (v: unknown): v is ThemeName =>
  * localStorage access; a throw here would blank the page).
  * Mirrors the resolution order above: personal → cached company default.
  */
-export const THEME_BOOT_SCRIPT = `(function(){try{var v=['dark','light','dim','paper'];var l=window.localStorage;var t=l.getItem(${JSON.stringify(
+export const THEME_BOOT_SCRIPT = `(function(){try{var v=['dark','light','dim','paper','terminal','terminal-light'];var l=window.localStorage;var t=l.getItem(${JSON.stringify(
   THEME_STORAGE_KEY,
 )});if(v.indexOf(t)<0){t=l.getItem(${JSON.stringify(
   THEME_DEFAULT_KEY,

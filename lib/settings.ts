@@ -31,6 +31,8 @@ import { DEFAULT_MENU_ORDER } from '@/constants/navigation';
 import { DEFAULT_WIDGET_ORDER, DEFAULT_WIDGET_HIDDEN } from '@/constants/dashboardWidgets';
 import { ENUMS } from '@/constants/enums';
 import { DEFAULT_ITEM_SCORE_WEIGHTS, type ItemScoreWeights } from './itemScore';
+import { isTheme } from './theme';
+import type { ThemeName } from '@/constants/palette';
 
 export const SETTINGS_TABLE = '40.0_settings';
 
@@ -125,7 +127,7 @@ export interface AppSettings {
    * before anyone touches the personal switcher in the nav menu. A personal
    * choice (localStorage) always wins over this; see lib/theme.ts.
    */
-  defaultTheme: 'dark' | 'light' | 'dim' | 'paper';
+  defaultTheme: ThemeName;
   defaultPpnPct: number;          // VAT % prefilled on new sales documents
   defaultPoPaymentTerms: string;  // prefilled on a new PI/PO
   defaultCompanyId: string;       // issuing company prefilled on a new sales doc ('' = first)
@@ -425,7 +427,9 @@ export function coerceSettings(raw: Record<string, unknown>): AppSettings {
     defaultTierStepPct:    pick('defaultTierStepPct',    (v) => Math.max(0, numOr(v, d.defaultTierStepPct)), d.defaultTierStepPct),
     defaultCustomerTier:   pick('defaultCustomerTier',   (v) => str(v, d.defaultCustomerTier), d.defaultCustomerTier),
 
-    defaultTheme:          pick('defaultTheme',          (v) => (v === 'light' || v === 'dim' || v === 'paper' ? v : 'dark'), d.defaultTheme),
+    // The list of skins lives in lib/theme.ts; repeating it here as a
+    // literal union is how a new skin silently fails to be selectable.
+    defaultTheme:          pick('defaultTheme',          (v) => (isTheme(v) ? v : 'dark'), d.defaultTheme),
     defaultPpnPct:         pick('defaultPpnPct',         (v) => numOr(v, d.defaultPpnPct), d.defaultPpnPct),
     defaultPoPaymentTerms: pick('defaultPoPaymentTerms', (v) => str(v, d.defaultPoPaymentTerms), d.defaultPoPaymentTerms),
     defaultCompanyId:      pick('defaultCompanyId',      (v) => str(v, d.defaultCompanyId), d.defaultCompanyId),

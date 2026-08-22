@@ -37,9 +37,12 @@ const TAILWIND_THEME = `
 tailwind.config = {
   theme: {
     extend: {
+      // The typeface is a THEME token, not a constant: the house skins keep
+      // Rubik, the terminal pair switches to Inter with monospaced figures.
+      // Both resolve through one variable set per theme in the palette.
       fontFamily: {
-        sans: ['Rubik', 'Inter', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
-        mono: ['Roboto Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        sans: ['var(--font-app)', 'Rubik', 'Inter', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+        mono: ['var(--font-mono-app)', 'Roboto Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
       colors: ${TAILWIND_COLORS_JS},
     },
@@ -57,7 +60,7 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800&family=Roboto+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800&family=Roboto+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
         {/* The palette must exist before Tailwind's utilities reference it, and
             the stored choice must be applied before the first paint — a flash
             of the wrong theme on every load is worse than no theme at all. */}
@@ -66,11 +69,12 @@ export default function RootLayout({
         <script src="https://cdn.tailwindcss.com"></script>
         <script dangerouslySetInnerHTML={{ __html: TAILWIND_THEME }} />
         <style dangerouslySetInnerHTML={{ __html: `
-          body { background: rgb(var(--c-app-bg)); font-family: Rubik, Inter, system-ui, -apple-system, 'Segoe UI', sans-serif; }
+          body { background: rgb(var(--c-app-bg)); font-family: var(--font-app, Rubik), Rubik, Inter, system-ui, -apple-system, 'Segoe UI', sans-serif; }
           /* Form controls and scrollbars are painted by the browser, not by a
              utility class, so they need telling which skin is in play. */
           :root { color-scheme: dark; }
-          :root[data-theme="light"] { color-scheme: light; }
+          :root[data-theme="light"], :root[data-theme="paper"], :root[data-theme="terminal-light"] { color-scheme: light; }
+          :root[data-theme="terminal"] { color-scheme: dark; }
           /* iOS zooms into any focused field whose text is under 16px. Force
              16px on phones so tapping a search bar / input never zooms. The
              !important is needed to beat Tailwind's text-xs/text-sm utilities. */
