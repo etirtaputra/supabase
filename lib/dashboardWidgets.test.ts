@@ -31,22 +31,24 @@ const keysFor = (role: UserRole) => visibleWidgets(ROLE_PERMISSIONS[role], HOUSE
  * purpose — a diff here is someone gaining or losing a panel.
  */
 const EXPECTED: Record<UserRole, string[]> = {
-  owner: ['position', 'queue', 'nextStep', 'motion', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'newArrivals', 'arriving', 'topProducts', 'topCustomers', 'stockAlerts', 'activity', 'quickActions'],
+  owner: ['position', 'queue', 'nextStep', 'motion', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'newArrivals', 'arriving', 'topProducts', 'topCustomers', 'stockAlerts', 'lastPayments', 'lastDeliveries', 'lastCases', 'activity', 'quickActions'],
   // Buy-side-only roles see no sales league table: revenue by customer is a
   // sell-side number, and they have no sell-side.
-  buy_admin: ['position', 'queue', 'nextStep', 'motion', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'newArrivals', 'arriving', 'stockAlerts', 'activity', 'quickActions'],
-  sell_admin: ['position', 'queue', 'nextStep', 'motion', 'newArrivals', 'arriving', 'topProducts', 'topCustomers', 'activity', 'quickActions'],
-  sales: ['position', 'queue', 'nextStep', 'motion', 'newArrivals', 'arriving', 'topProducts', 'topCustomers', 'activity', 'quickActions'],
-  engineer: ['position', 'queue', 'nextStep', 'motion', 'newArrivals', 'arriving', 'topProducts', 'topCustomers', 'activity', 'quickActions'],
-  // The warehouse lands on /stock, but knowing what is on the water is its
-  // job — it is the desk that will receive it. Still no price, still no cost.
-  warehouse: ['arriving', 'quickActions'],
-  aftersales: ['quickActions'],
+  buy_admin: ['position', 'queue', 'nextStep', 'motion', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'newArrivals', 'arriving', 'stockAlerts', 'lastPayments', 'lastDeliveries', 'activity', 'quickActions'],
+  sell_admin: ['position', 'queue', 'nextStep', 'motion', 'newArrivals', 'arriving', 'topProducts', 'topCustomers', 'lastPayments', 'lastDeliveries', 'lastCases', 'activity', 'quickActions'],
+  sales: ['position', 'queue', 'nextStep', 'motion', 'newArrivals', 'arriving', 'topProducts', 'topCustomers', 'lastPayments', 'lastDeliveries', 'lastCases', 'activity', 'quickActions'],
+  engineer: ['position', 'queue', 'nextStep', 'motion', 'newArrivals', 'arriving', 'topProducts', 'topCustomers', 'lastPayments', 'lastDeliveries', 'lastCases', 'activity', 'quickActions'],
+  // The warehouse lands on /stock, but what is on the water and what has
+  // shipped are both its job. Still no price, still no cost.
+  warehouse: ['arriving', 'lastDeliveries', 'quickActions'],
+  aftersales: ['lastCases', 'quickActions'],
   // Read-only deal lookup and nothing else. An empty dashboard is the honest
   // answer — panels that could only ever say "nothing here" say nothing.
   viewer: [],
-  data_entry: ['position', 'queue', 'nextStep', 'motion', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'newArrivals', 'arriving', 'stockAlerts', 'activity', 'quickActions'],
-  finance: ['position', 'queue', 'nextStep', 'motion', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'newArrivals', 'arriving', 'stockAlerts', 'activity', 'quickActions'],
+  data_entry: ['position', 'queue', 'nextStep', 'motion', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'newArrivals', 'arriving', 'stockAlerts', 'lastPayments', 'lastDeliveries', 'activity', 'quickActions'],
+  // Legacy finance: buy-side money, but no stock and no sell-side, so no
+  // deliveries feed.
+  finance: ['position', 'queue', 'nextStep', 'motion', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'newArrivals', 'arriving', 'stockAlerts', 'lastPayments', 'activity', 'quickActions'],
 };
 
 test('what each role sees on the dashboard is what we meant it to see', () => {
@@ -120,11 +122,30 @@ test('a sell-side reader may rank by revenue, and never sees a cost to rank by',
   assert.ok(!code.includes('6.0_po_costs'), 'nothing here may read supplier costs');
 });
 
+/**
+ * The payments feed is the one card that spans both sides of the money, so it
+ * is the one most able to leak. A sell-side reader must get customer receipts
+ * and nothing else — enforced at the fetch, not merely at the render.
+ */
+test('the payments feed asks only for the directions its reader may see', () => {
+  const src = readFileSync('lib/recentFeeds.ts', 'utf8');
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  // Supplier costs are reached only behind the moneyOut flag...
+  const outIdx = code.indexOf('opts.moneyOut');
+  const costIdx = code.indexOf('6.0_po_costs');
+  assert.ok(outIdx >= 0 && costIdx > outIdx,
+    'supplier payments must sit behind the moneyOut flag, never fetched unconditionally');
+  // ...and the page decides that flag from buySide alone.
+  const page = readFileSync('app/page.tsx', 'utf8');
+  assert.ok(page.includes('moneyOut: !!perms.buySide'),
+    'only a buy-side role may ask for money out');
+});
+
 test('a saved arrangement cannot smuggle in a widget the role may not have', () => {
   // A hostile (or simply stale) local arrangement naming everything, unhidden.
   const greedy = { order: DASHBOARD_WIDGETS.map((w) => w.key), hidden: [] };
   assert.deepEqual(visibleWidgets(ROLE_PERMISSIONS.sales, greedy), visibleWidgets(ROLE_PERMISSIONS.sales, HOUSE));
-  assert.deepEqual(visibleWidgets(ROLE_PERMISSIONS.warehouse, greedy).map((w) => w.key), ['arriving', 'quickActions']);
+  assert.deepEqual(visibleWidgets(ROLE_PERMISSIONS.warehouse, greedy).map((w) => w.key), ['arriving', 'lastDeliveries', 'quickActions']);
 });
 
 test('the profile is not known yet: draw nothing rather than draw and remove', () => {

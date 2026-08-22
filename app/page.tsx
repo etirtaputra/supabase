@@ -22,6 +22,9 @@ import {
   fetchSalesFacts, fetchLeaderNames, factsInPeriod, rank,
   type SalesFact, type RankBy, type Leaderboard,
 } from '@/lib/salesFacts';
+import {
+  fetchRecentPayments, fetchRecentDeliveries, fetchRecentCases, type Feed,
+} from '@/lib/recentFeeds';
 import { fmtInt } from '@/lib/formatters';
 import { useDashboardLayout } from '@/hooks/useDashboardLayout';
 import { WIDTH_SPAN, type DashboardLayout } from '@/constants/dashboardWidgets';
@@ -54,6 +57,9 @@ export default function Home() {
   const [arrivedItems, setArrivedItems] = useState<NewArrival[] | null>(null);
   const [arriving, setArriving] = useState<ArrivingSummary | null>(null);
   const [salesFacts, setSalesFacts] = useState<SalesFact[] | null>(null);
+  const [payments, setPayments] = useState<Feed | null>(null);
+  const [deliveries, setDeliveries] = useState<Feed | null>(null);
+  const [cases, setCases] = useState<Feed | null>(null);
   const [leaderNames, setLeaderNames] = useState<{ products: Map<string, string>; customers: Map<string, string> } | null>(null);
   // Which measure each board is ranked by — the person's own choice, kept on
   // this browser. Profit is only ever an option for a role that may see cost.
@@ -92,6 +98,9 @@ export default function Home() {
   const needArrived  = shown.has('newArrivals');
   const needArriving = shown.has('arriving');
   const needLeaders  = shown.has('topProducts') || shown.has('topCustomers');
+  const needPayments = shown.has('lastPayments');
+  const needDeliv    = shown.has('lastDeliveries');
+  const needCases    = shown.has('lastCases');
 
   useEffect(() => { document.title = 'Dashboard — ICAPROC'; }, []);
 
@@ -188,6 +197,39 @@ export default function Home() {
       .catch(() => { if (live) { setSalesFacts([]); setLeaderNames({ products: new Map(), customers: new Map() }); } });
     return () => { live = false; };
   }, [user, profile?.role, needLeaders]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Three narrow feeds ────────────────────────────────────────────────────
+  // Payments ask for only the directions this role may read: a sell-side
+  // reader's request never mentions supplier costs at all.
+  useEffect(() => {
+    if (!user || !perms || !needPayments) return;
+    let live = true;
+    fetchRecentPayments(supabase, {
+      moneyIn: !!(perms.sellSide || perms.canRecordReceipts || perms.canViewBanks),
+      moneyOut: !!perms.buySide,
+    })
+      .then((r) => { if (live) setPayments(r); })
+      .catch(() => { if (live) setPayments({ rows: [], includes: [] }); });
+    return () => { live = false; };
+  }, [user, profile?.role, needPayments]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!user || !perms || !needDeliv) return;
+    let live = true;
+    fetchRecentDeliveries(supabase)
+      .then((r) => { if (live) setDeliveries(r); })
+      .catch(() => { if (live) setDeliveries({ rows: [], includes: [] }); });
+    return () => { live = false; };
+  }, [user, profile?.role, needDeliv]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!user || !perms || !needCases) return;
+    let live = true;
+    fetchRecentCases(supabase)
+      .then((r) => { if (live) setCases(r); })
+      .catch(() => { if (live) setCases({ rows: [], includes: [] }); });
+    return () => { live = false; };
+  }, [user, profile?.role, needCases]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   const periodFacts = useMemo(
     () => (salesFacts ? factsInPeriod(salesFacts, economicsPeriod, new Date().toISOString()) : null),
@@ -303,6 +345,12 @@ export default function Home() {
       case 'topCustomers':  return <TopBoard title="Top customers" board={customerBoard} by={rankCustomers}
                                   onPick={(b) => pickRank('customers', b)} noun="customer" period={economicsPeriod}
                                   canProfit={!!perms?.canViewEconomics} href="/customers" />;
+      case 'lastPayments':  return <FeedCard title="Last payments" feed={payments} href="/banks"
+                                  empty="No payment has been recorded yet." showMoney />;
+      case 'lastDeliveries': return <FeedCard title="Last deliveries" feed={deliveries} href="/delivery"
+                                  empty="Nothing has shipped yet." />;
+      case 'lastCases':     return <FeedCard title="Last service tickets" feed={cases} href="/aftersales"
+                                  empty="No service ticket has been raised yet." />;
       case 'stockAlerts':   return <StockAlerts shortages={shortages} reorders={reorders} />;
       case 'activity':      return <ActivityStream rows={activity} />;
       case 'quickActions':  return quickActions.length === 0 ? null : <QuickActions items={quickActions} />;
@@ -678,6 +726,88 @@ function ArrivingSoon({ data, buySide }: { data: ArrivingSummary | null; buySide
             )}
           </div>
         </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * One kind of event, five deep — the narrow counterpart to the mixed activity
+ * stream beside it.
+ *
+ * The stream answers "what has everyone been doing"; these answer "show me the
+ * payments", which is a different question and a poor one to answer by
+ * scrolling past everything else. Same rows, same links, different question.
+ *
+ * WHAT IT DOES NOT CONTAIN IS PART OF WHAT IT SAYS. A payments feed for a
+ * sell-side reader holds customer receipts and nothing else, because supplier
+ * payments are the buy price read backwards and buy-side only. A list headed
+ * "Last payments" showing half the payments would read as all of them, so the
+ * card names the directions it carries.
+ */
+function FeedCard({ title, feed, href, empty, showMoney = false }: {
+  title: string;
+  feed: Feed | null;
+  href: string;
+  empty: string;
+  showMoney?: boolean;
+}) {
+  const { t } = useT();
+  const both = feed?.includes.includes('in') && feed?.includes.includes('out');
+  const half = feed && !both && (feed.includes.includes('in') || feed.includes.includes('out'));
+  return (
+    <div className="bg-slate-900/40 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl overflow-hidden h-full flex flex-col">
+      <div className="flex items-center gap-2.5 px-4 py-3 border-b border-slate-800/70">
+        <h2 className="text-sm font-bold text-white flex-1 min-w-0 truncate">{title}</h2>
+        <Link href={href} className="text-[11px] text-slate-500 hover:text-emerald-300 transition-colors whitespace-nowrap">
+          {t('All')} →
+        </Link>
+      </div>
+
+      {feed === null ? (
+        <div className="p-4 space-y-2">
+          {[...Array(4)].map((_, i) => <div key={i} className="h-8 bg-slate-800/40 rounded-lg animate-pulse" />)}
+        </div>
+      ) : feed.rows.length === 0 ? (
+        <p className="px-4 py-8 text-center text-xs text-slate-500 flex-1">{t(empty)}</p>
+      ) : (
+        <div className="divide-y divide-slate-800/50 flex-1">
+          {feed.rows.map((r) => (
+            <Link key={r.key} href={r.href}
+              className="flex items-baseline gap-2 px-4 py-2 hover:bg-slate-800/40 transition-colors group">
+              {/* Direction is the first thing read on a money row: emerald in,
+                  rose out — the colours the rest of the app already uses. */}
+              <span className={`w-1.5 h-1.5 rounded-full self-center flex-shrink-0 ${
+                r.direction === 'in' ? 'bg-emerald-400' : r.direction === 'out' ? 'bg-rose-400' : 'bg-slate-600'}`} />
+              <span className="min-w-0 flex-1">
+                <span className="block text-[12px] font-semibold text-slate-200 group-hover:text-white truncate">{r.title}</span>
+                <span className="block text-[10px] text-slate-500 truncate">
+                  {r.sub}
+                  {r.badge ? ` · ${r.badge}` : ''}
+                </span>
+              </span>
+              <span className="flex-shrink-0 text-right">
+                {showMoney && r.amount != null && (
+                  <span className={`block text-[12px] font-extrabold tabular-nums ${
+                    r.direction === 'out' ? 'text-rose-300' : 'text-emerald-300'}`}>
+                    {fmtIdr(r.amount)}
+                  </span>
+                )}
+                <span className="block text-[10px] tabular-nums text-slate-600">{fmtDate(r.at)}</span>
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {/* Only where it changes the meaning: a feed carrying one direction of
+          the money must not be read as carrying both. */}
+      {half && (
+        <p className="px-4 py-2 border-t border-slate-800/70 text-[10px] text-slate-600">
+          {feed!.includes.includes('in')
+            ? t('Money in only — supplier payments are buy-side.')
+            : t('Money out only — customer receipts are not shown here.')}
+        </p>
       )}
     </div>
   );

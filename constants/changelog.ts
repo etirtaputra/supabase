@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-21T20:15:00Z',
+    title: 'Three new Dashboard feeds: last payments, last deliveries, last service tickets',
+    details: [
+      'Five most recent of each, side by side. The wide Latest activity panel mixes every module together, which answers \u201cwhat has everyone been doing\u201d \u2014 these answer \u201cshow me the payments\u201d without scrolling past everything else. Every row opens the document behind it.',
+      'Last payments carries BOTH directions where you may see both: money in from customers (emerald) and money out to suppliers (rose), newest first, whichever came last. A sell-side login sees only the money in \u2014 supplier payments are the buy price read backwards \u2014 and the card says so at the foot rather than quietly presenting half the payments as all of them.',
+      'Last deliveries is dated by when a delivery actually LANDED where that is known, so the list is not led by one merely raised this morning. It shows the DO number the driver carries, the customer, and the state it is in.',
+      'Last service tickets shows the subject, the customer, the serial, and whether the unit is one we sold \u2014 open tickets first by date.',
+      'All three arrive switched on and can be dragged or switched off like any other widget. The Warehouse sees deliveries, the After-Sales desk sees tickets, and each only what its job needs.',
+    ],
+  },
+  {
     at: '2026-08-21T18:30:00Z',
     title: 'Two league tables on the Dashboard: Top products and Top customers',
     details: [

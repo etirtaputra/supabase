@@ -455,6 +455,21 @@ export const ID: Record<string, string> = {
   'Some of this profit uses today’s average cost, because those deliveries predate the stock ledger.':
     'Sebagian laba ini memakai biaya rata-rata hari ini, karena pengiriman tersebut terjadi sebelum buku stok ada.',
 
+  // ── The three narrow feeds ────────────────────────────────────────────────
+  'All': 'Semua',
+  'The most recent money in and out': 'Uang masuk dan keluar terakhir',
+  'What left the warehouse, and whether it landed':
+    'Barang yang keluar gudang, dan apakah sudah sampai',
+  'What came back, and what is still open':
+    'Barang yang kembali, dan yang masih berjalan',
+  'No payment has been recorded yet.': 'Belum ada pembayaran tercatat.',
+  'Nothing has shipped yet.': 'Belum ada pengiriman.',
+  'No service ticket has been raised yet.': 'Belum ada tiket servis dibuat.',
+  'Money in only — supplier payments are buy-side.':
+    'Hanya uang masuk — pembayaran ke pemasok khusus sisi pembelian.',
+  'Money out only — customer receipts are not shown here.':
+    'Hanya uang keluar — pembayaran dari pelanggan tidak ditampilkan di sini.',
+
   // ── Page subtitles (BrandMenu) ────────────────────────────────────────────
   'Stock · Warehouse': 'Stock · Gudang',
   'Customers · CRM': 'Customers · Data pelanggan',

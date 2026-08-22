@@ -108,6 +108,20 @@ export const DASHBOARD_WIDGETS: DashboardWidget[] = [
     hint: 'Who earns you the most — by revenue, or by gross profit' },
   { key: 'stockAlerts', label: 'Stock alerts', width: 'full', defaultOn: true,
     section: 'buySide', hint: 'Orders that cannot ship, and items at their reorder point' },
+  // Three narrow feeds beside the one wide mixed stream. The stream answers
+  // "what has everyone been doing"; these answer "show me the payments", which
+  // is a different question and a worse one to answer by scrolling.
+  // Payments gate on EITHER side of the money: a buy-side reader sees what
+  // went out, a sell-side reader what came in, and the card says which.
+  { key: 'lastPayments', label: 'Last payments', width: 'third', defaultOn: true,
+    section: null, caps: ['buySide', 'sellSide', 'canViewBanks', 'canRecordReceipts'],
+    hint: 'The most recent money in and out' },
+  { key: 'lastDeliveries', label: 'Last deliveries', width: 'third', defaultOn: true,
+    section: null, caps: ['canEditSalesDocs', 'canManageStock'],
+    hint: 'What left the warehouse, and whether it landed' },
+  { key: 'lastCases', label: 'Last service tickets', width: 'third', defaultOn: true,
+    section: null, cap: 'canHandleService',
+    hint: 'What came back, and what is still open' },
   { key: 'activity', label: 'Latest activity', width: 'twoThirds', defaultOn: true,
     section: null, caps: ['buySide', 'sellSide', 'projects'],
     hint: 'One stream of what everyone saved, across every module' },
