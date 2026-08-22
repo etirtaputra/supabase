@@ -33,6 +33,22 @@ export type Lang = 'en' | 'id';
  *   landed cost → biaya sampai gudang · serial number → nomor seri ·
  *   delivery order → surat jalan · invoice → faktur · payment → pembayaran
  */
+/**
+ * A NOTE ON LENGTH, learned the hard way (2026-08-21).
+ *
+ * Indonesian runs longer than English — often 50% longer for a full sentence,
+ * which is fine in a paragraph and fatal in a button. "Previous landed costs
+ * for this item" became a tooltip that wrapped and left "ini" orphaned on its
+ * own line; "Prev" became "Sebelumnya", two and a half times the width of the
+ * pager button holding it.
+ *
+ * So the slot decides the wording. In a sentence, empty state or hint, say it
+ * properly. In a button, badge, tile label or column heading, say it SHORT —
+ * drop what the surrounding screen already tells the reader ("untuk barang
+ * ini" adds nothing on that item's own row) and prefer the word the trade
+ * already shortens to (transit, eksternal). A translation that gets clipped
+ * communicates less than the English it replaced.
+ */
 export const ID: Record<string, string> = {
   // ── Menu hints (constants/navigation.ts) ──────────────────────────────────
   'Today at a glance — outstanding, paid this month, stock value':
@@ -174,7 +190,7 @@ export const ID: Record<string, string> = {
   'Search code, name, contact person, tier, account manager…':
     'Cari kode, nama, kontak, tier, account manager…',
   'All types': 'Semua tipe',
-  'All managers': 'Semua account manager',
+  'All managers': 'Semua manager',
   'All tiers': 'Semua tier',
   'Duplicates': 'Duplikat',
   'Find & replace across customer names — like the Item Editor\'s Replace':
@@ -184,8 +200,8 @@ export const ID: Record<string, string> = {
   'Replace with…': 'Ganti dengan…',
   'Replacing…': 'Mengganti…',
   'Replace in {n}': 'Ganti di {n} data',
-  'Received': 'Pembayaran masuk',
-  'all payments': 'seluruh pembayaran',
+  'Received': 'Diterima',
+  'all payments': 'semua pembayaran',
   'Outstanding AR': 'Sisa piutang',
   'on issued invoices': 'dari faktur yang sudah terbit',
   'Quotes → orders': 'Penawaran → pesanan',
@@ -218,8 +234,8 @@ export const ID: Record<string, string> = {
   'Showing {from} to {to} of {total} entries':
     'Menampilkan {from}–{to} dari {total} data',
   'First': 'Awal',
-  'Prev': 'Sebelumnya',
-  'Next': 'Berikutnya',
+  'Prev': 'Mundur',
+  'Next': 'Maju',
   'Last': 'Akhir',
   'Search records...': 'Cari data...',
 
@@ -230,7 +246,7 @@ export const ID: Record<string, string> = {
   'All brands': 'Semua merek',
   'Clear ×': 'Hapus ×',
   'Live/Physical': 'Tersedia/Fisik',
-  'Incoming': 'Dalam perjalanan',
+  'Incoming': 'Transit',
   'No products match.': 'Tidak ada barang yang cocok.',
   '↑ Newer version': '↑ Versi lebih baru',
   'Import products — preview': 'Impor barang — pratinjau',
@@ -295,7 +311,7 @@ export const ID: Record<string, string> = {
   'none yet': 'belum ada',
   'no DO yet': 'belum ada DO',
   'No items on this quote.': 'Tidak ada barang pada penawaran ini.',
-  'Grand Total (excl. PPN)': 'Total Keseluruhan (belum termasuk PPN)',
+  'Grand Total (excl. PPN)': 'Total (sebelum PPN)',
   'Owner-only: curated custom line texts that feed the item picker':
     'Khusus pemilik: daftar teks baris pilihan yang mengisi pemilih barang',
   'Search by number, customer, status, product…':
@@ -337,9 +353,9 @@ export const ID: Record<string, string> = {
   // ── After Sales & Serial numbers ──────────────────────────────────────────
   'No after-sales cases yet': 'Belum ada kasus purna jual',
   'No case matches.': 'Tidak ada kasus yang cocok.',
-  'not ours': 'bukan dari kami',
-  'not sold by us': 'bukan penjualan kami',
-  'not sold by us — out of our warranty': 'bukan penjualan kami — di luar garansi kami',
+  'not ours': 'eksternal',
+  'not sold by us': 'bukan dari kami',
+  'not sold by us — out of our warranty': 'bukan dari kami — di luar garansi kami',
   'none linked': 'belum ditautkan',
   'none': 'tidak ada',
   'preparing': 'disiapkan',
@@ -485,8 +501,7 @@ export const ID: Record<string, string> = {
     'Gudang tempat barang ini diterima',
   'Landed unit cost (IDR) — feeds the moving average':
     'Biaya sampai gudang per unit (IDR) — dipakai untuk rata-rata bergerak',
-  'Previous landed costs for this item':
-    'Biaya sampai gudang sebelumnya untuk barang ini',
+  'Previous landed costs for this item': 'Biaya sampai gudang sebelumnya',
   'Freight, duty or the final payment recorded after today? True up the cost of what you just received.':
     'Ada ongkos kirim, bea masuk atau pelunasan yang dicatat setelah hari ini? Sesuaikan biaya barang yang baru diterima.',
   'Back to Deal Lookup — the PI → PO → payment record':

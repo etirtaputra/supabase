@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-21T16:20:00Z',
+    title: 'Indonesian wording tightened where the space is tight',
+    details: [
+      'The tooltip on the landed-cost history button wrapped onto two lines and left one word stranded below. Indonesian runs longer than English \u2014 fine in a sentence, not in a button \u2014 so the wording now depends on the space it has to live in.',
+      'Checked every phrase, not just that one: ten short labels were running well past their slot. The pager buttons said \u201cSebelumnya / Berikutnya\u201d in a space built for \u201cPrev / Next\u201d and now say \u201cMundur / Maju\u201d; the Incoming column says \u201cTransit\u201d; a unit we did not sell is tagged \u201ceksternal\u201d; the totals row says \u201cTotal (sebelum PPN)\u201d.',
+      'And one wording made consistent: a unit from outside is \u201cbukan dari kami\u201d everywhere now, rather than that in one place and \u201cbukan penjualan kami\u201d in the next.',
+      'Sentences, hints and empty states keep their full wording \u2014 they have the room, and shortening those would only make them curt.',
+    ],
+  },
+  {
     at: '2026-08-21T15:10:00Z',
     title: 'Bahasa Indonesia reaches nine more screens',
     details: [
