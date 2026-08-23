@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-22T08:05:00Z',
+    title: 'The donut labels are readable again, and the At Stake total lines up',
+    details: [
+      'Hovering a slice on Spend & Cash showed the vendor name and its share as a pile of overlapping letters. The Terminal skin tightens the spacing between letters very slightly \u2014 a fraction of a pixel, which is right for text on a page. Inside a chart the drawing is scaled up, so that same fraction became roughly half a letter of overlap on every character. Charts are now left out of the tightening.',
+      'On the Dashboard, \u201cAt Stake\u201d sat about 25 pixels further right than the figures underneath it, because each row below ends with an arrow and the total did not. The heading now reserves exactly the arrow\u2019s width, so the money reads down one straight edge.',
+    ],
+  },
+  {
     at: '2026-08-22T04:30:00Z',
     title: 'Spend & Cash donuts are back, and the EPC header lines up',
     details: [

@@ -252,6 +252,15 @@ const TERMINAL_SHELL_CSS = [
   `${T} [class*="ring-white/5"],${TL} [class*="ring-white/5"],${TT} [class*="ring-white/5"]{--tw-ring-color:transparent}`,
   // Every figure in the app lines up, not only the ones already marked.
   `${T},${TL},${TT}{font-feature-settings:"tnum" 1,"cv01" 1;letter-spacing:-0.006em}`,
+  // ...but NOT inside an SVG. `-0.006em` is resolved once, here, against the
+  // root's 16px — so it inherits everywhere as the computed length -0.096px.
+  // In HTML at 12-16px that is the hair of tightening it was meant to be. In
+  // an SVG with a scaled viewBox the user unit is ~130 screen pixels, so
+  // -0.096 USER UNITS against a 0.2-unit font is half a character of negative
+  // tracking per letter: the donut's centre label collapsed into a pile of
+  // overlapping glyphs. Measured, not guessed — "Northwind Po…" reported a
+  // bounding box 0.576 units wide where ~1.3 was due.
+  `${T} svg text,${TL} svg text,${TT} svg text{letter-spacing:normal}`,
   // A light terminal draws its own separators, so shadows would double them.
   ':root[data-theme="terminal-light"] [class*="shadow-black"]{--tw-shadow-color:rgb(13 14 17 / 0.08);--tw-shadow:var(--tw-shadow-colored)}',
   // Sticky headers are translucent-with-blur, which reads as depth on the

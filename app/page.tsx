@@ -518,10 +518,19 @@ function ActionQueue({ items, atStake }: { items: ActionItem[] | null; atStake: 
           </span>
         )}
         {atStake > 0 && (
-          <span className="ml-auto text-right">
-            <span className="block text-[10px] uppercase tracking-widest text-slate-500 leading-none">At stake</span>
-            <span className="block text-sm font-extrabold tabular-nums text-amber-300 mt-1 leading-none">{fmtIdr(atStake)}</span>
-          </span>
+          <>
+            <span className="ml-auto text-right">
+              <span className="block text-[10px] uppercase tracking-widest text-slate-500 leading-none">At stake</span>
+              <span className="block text-sm font-extrabold tabular-nums text-amber-300 mt-1 leading-none">{fmtIdr(atStake)}</span>
+            </span>
+            {/* Every row below ends with a "→", so a total flush to the card's
+                padding sits further right than the figures it totals. This
+                reserves the arrow's exact width — the arrow itself, hidden,
+                rather than a guessed padding — so the money column shares one
+                right edge and stays aligned whatever the font does to the
+                glyph. Same fix as the customer list header, 2026-08-19. */}
+            <span aria-hidden className="flex-shrink-0 invisible" >→</span>
+          </>
         )}
       </div>
 
