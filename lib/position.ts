@@ -135,6 +135,37 @@ export function computeAp(pos: PoRow[], costs: CostRow[]): ApPosition {
 export interface CccPosition {
   dio: number | null; dso: number | null; dpo: number | null; ccc: number | null;
   stockValue: number; windowDays: number;
+  /** The evidence DIO was computed from, so a refusal can say WHY it refused. */
+  cogs: number; outMoves: number; uncostedOutMoves: number;
+}
+
+/**
+ * How many window-lengths of DIO we are still willing to call a measurement.
+ *
+ * DIO is "days of stock at the rate we are currently shipping". Divide a full
+ * warehouse by a handful of deliveries and the arithmetic still answers — it
+ * just stops meaning anything. On 2026-08-23 the dashboard showed
+ * **1,702,958 days**: Rp 24.7bn of stock against Rp 1.3m of delivered COGS in
+ * 90 days, three of the five delivery movements carrying no unit cost at all.
+ * A number like that is not a runway, it is a division artifact, and the AI
+ * advisor was reading it too ("a cash conversion cycle essentially broken").
+ *
+ * Twenty windows — five years on the 90-day basis — is far past any real
+ * distribution business and nowhere near the artifacts. Beyond it we say we
+ * cannot measure, which is the honest answer and points at the actual fix:
+ * cost the delivery movements.
+ */
+export const DIO_MAX_WINDOWS = 20;
+
+/**
+ * Days of inventory, or null when the window is too thin to imply a rate.
+ * Shared with `/profitability`, which measures the same thing over the
+ * period the user picked — one rule, not two that drift apart.
+ */
+export function measuredDio(stockValue: number, cogs: number, windowDays: number): number | null {
+  if (!(cogs > 0) || !(windowDays > 0)) return null;
+  const dio = stockValue / (cogs / windowDays);
+  return dio > windowDays * DIO_MAX_WINDOWS ? null : dio;
 }
 
 export interface CccInputs {
@@ -155,7 +186,8 @@ export interface CccInputs {
 export function computeCcc(i: CccInputs): CccPosition {
   const stockValue = i.balances.reduce((s, b) => s + Math.max(0, Number(b.qty_on_hand) || 0) * (Number(b.avg_cost_idr) || 0), 0);
   const cogs = i.deliveryOuts.reduce((s, m) => s + (Number(m.quantity) || 0) * (Number(m.unit_cost_idr) || 0), 0);
-  const dio = cogs > 0 ? stockValue / (cogs / i.windowDays) : null;
+  const uncostedOutMoves = i.deliveryOuts.filter((m) => !(Number(m.unit_cost_idr) > 0)).length;
+  const dio = measuredDio(stockValue, cogs, i.windowDays);
 
   const from = new Date(`${i.nowIso.slice(0, 10)}T00:00:00`);
   from.setDate(from.getDate() - i.windowDays);
@@ -189,7 +221,8 @@ export function computeCcc(i: CccInputs): CccPosition {
   const dpo = dpoW > 0 ? dpoSum / dpoW : null;
 
   const ccc = dio != null ? dio + (dso ?? 0) - (dpo ?? 0) : null;
-  return { dio, dso, dpo, ccc, stockValue, windowDays: i.windowDays };
+  return { dio, dso, dpo, ccc, stockValue, windowDays: i.windowDays,
+    cogs, outMoves: i.deliveryOuts.length, uncostedOutMoves };
 }
 
 // ── Month in motion ──────────────────────────────────────────────────────────

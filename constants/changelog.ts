@@ -20,6 +20,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-23T11:15:00Z',
+    title: 'The Dashboard reads properly on a phone \u2014 and the cash cycle stops printing a nonsense number',
+    details: [
+      'CCC showed 1.702.981 days. The arithmetic was right and the answer was meaningless: it divides everything on the shelf (Rp 24,7 miliar) by what we have actually delivered in the last 90 days (Rp 1.304.228 \u2014 five delivery movements, three of them booked with no cost at all). Dividing a full warehouse by that gives 4.600 years.',
+      'The tile now refuses to answer instead, and says why: \u201c5 deliveries in 90d, 3 with no cost \u2014 too little to measure\u201d. That also points at the fix: cost those delivery movements and the number becomes real. The same guard is on the Profitability screen, which was computing the same figure.',
+      'The AI \u201cNext best step\u201d was reading that same broken number and opening with \u201ca cash conversion cycle essentially broken by prepayment\u201d. It no longer receives a figure we cannot stand behind.',
+      'Where the cycle CAN be measured and we pay suppliers before the goods arrive, the line used to read \u201c\u2212 DPO -23d\u201d, a double negative that looks like a typo. It now reads \u201c+ 23d prepaid\u201d \u2014 same maths, plain words.',
+      'On a phone, panel headings were breaking mid-phrase: \u201cNeeds you / today\u201d, \u201c4 / ITEMS\u201d, \u201cIDR / 2.816.173.107\u201d, \u201cNew / arrivals\u201d. Headings now break between their parts and never inside one.',
+      'Also on a phone, the New arrivals and Arriving soon rows wrapped wherever the item name happened to end, so six rows had six different shapes and the NEW badge jumped between lines. Every row now has one shape: the item name on the first line, the badges and quantity on the second, the age on the right. Stock alerts got the same treatment.',
+      'In \u201cNeeds you today\u201d the amount no longer squeezes the title on a phone \u2014 \u201c23 POs costing mo\u2026\u201d now reads in full, with the rupiah figure on its own line beneath it. On a laptop nothing moved: the money still sits in one column under the At-stake total, to the pixel.',
+    ],
+  },
+  {
     at: '2026-08-23T09:30:00Z',
     title: 'Your Dashboard now opens on the work your role actually does',
     details: [

@@ -82,6 +82,36 @@ const DOMAIN_TEXT: Record<string, string> = {
   sell: 'text-emerald-300', buy: 'text-sky-300', cash: 'text-amber-300', epc: 'text-violet-300',
 };
 
+
+/**
+ * The head of a list card: a title, an optional count, an optional link.
+ *
+ * FOUR panels had hand-copied this row, and all four broke the same way on a
+ * phone (owner's screenshots, 2026-08-23): one flex line with no wrapping rule,
+ * so the browser broke INSIDE the phrases — "Needs you / today", "4 / ITEMS",
+ * "IDR / 2.816.173.107", "New / arrivals". A head that must wrap should wrap
+ * BETWEEN its parts and never inside one, which is one rule, so it lives in
+ * one place.
+ */
+function CardHead({ title, meta, right }: {
+  title: string;
+  meta?: React.ReactNode;
+  right?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-x-3 gap-y-1 flex-wrap px-4 sm:px-5 py-3.5 border-b border-slate-800/70">
+      <h2 className="text-sm font-bold text-white whitespace-nowrap">{title}</h2>
+      {meta != null && meta !== '' && (
+        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 whitespace-nowrap">{meta}</span>
+      )}
+      {/* gap-x-3 — the SAME gap the rows below put between their last figure
+          and their arrow, so a spacer placed here lands the head's total on
+          exactly the column the rows use. */}
+      {right && <div className="ml-auto flex items-baseline gap-x-3 whitespace-nowrap">{right}</div>}
+    </div>
+  );
+}
+
 /**
  * The queue is the point of the dashboard: what is stuck, what it is worth,
  * and one tap to the screen that unsticks it. Ranked by money, not recency.
@@ -89,18 +119,14 @@ const DOMAIN_TEXT: Record<string, string> = {
 export function ActionQueue({ items, atStake }: { items: ActionItem[] | null; atStake: number }) {
   return (
     <div className="bg-slate-900/60 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl overflow-hidden">
-      <div className="flex items-center gap-3 px-4 sm:px-5 py-3.5 border-b border-slate-800/70">
-        <h2 className="text-sm font-bold text-white">Needs you today</h2>
-        {items && items.length > 0 && (
-          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-            {items.length} item{items.length !== 1 ? 's' : ''}
-          </span>
-        )}
-        {atStake > 0 && (
+      <CardHead
+        title="Needs you today"
+        meta={items && items.length > 0 ? `${items.length} item${items.length !== 1 ? 's' : ''}` : ''}
+        right={atStake > 0 && (
           <>
-            <span className="ml-auto text-right">
-              <span className="block text-[10px] uppercase tracking-widest text-slate-500 leading-none">At stake</span>
-              <span className="block text-sm font-extrabold tabular-nums text-amber-300 mt-1 leading-none">{fmtIdr(atStake)}</span>
+            <span className="flex items-baseline gap-2">
+              <span className="text-[10px] uppercase tracking-widest text-slate-500">At stake</span>
+              <span className="text-sm font-extrabold tabular-nums text-amber-300">{fmtIdr(atStake)}</span>
             </span>
             {/* Every row below ends with a "→", so a total flush to the card's
                 padding sits further right than the figures it totals. This
@@ -108,10 +134,10 @@ export function ActionQueue({ items, atStake }: { items: ActionItem[] | null; at
                 rather than a guessed padding — so the money column shares one
                 right edge and stays aligned whatever the font does to the
                 glyph. Same fix as the customer list header, 2026-08-19. */}
-            <span aria-hidden className="flex-shrink-0 invisible" >→</span>
+            <span aria-hidden className="flex-shrink-0 invisible">→</span>
           </>
         )}
-      </div>
+      />
 
       {items === null ? (
         <div className="p-4 sm:p-5 space-y-2">
@@ -124,19 +150,25 @@ export function ActionQueue({ items, atStake }: { items: ActionItem[] | null; at
       ) : (
         <div className="divide-y divide-slate-800/50">
           {items.map((it) => (
+            /* On a phone the money takes its own line under the title rather
+               than squeezing it: "23 POs costing mo…" told you nothing, and a
+               rupiah figure is the one thing here that must never be clipped.
+               The `order` classes put it back beside the arrow from `sm` up,
+               where the whole row fits — and BEFORE the arrow, which is what
+               keeps this column under the header's At-stake total. */
             <Link key={it.key} href={it.href}
-              className="flex items-center gap-3 px-4 sm:px-5 py-3 hover:bg-slate-800/40 transition-colors group">
-              <span className={`rounded-full flex-shrink-0 ${DOMAIN_DOT[it.domain]} ${it.tone === 'urgent' ? 'w-2 h-2' : 'w-1.5 h-1.5 opacity-60'}`} />
-              <div className="min-w-0 flex-1">
+              className="flex items-center gap-x-3 gap-y-1 flex-wrap px-4 sm:px-5 py-3 hover:bg-slate-800/40 transition-colors group">
+              <span className={`order-1 rounded-full flex-shrink-0 ${DOMAIN_DOT[it.domain]} ${it.tone === 'urgent' ? 'w-2 h-2' : 'w-1.5 h-1.5 opacity-60'}`} />
+              <div className="order-2 min-w-0 flex-1">
                 <p className={`text-[13px] font-semibold truncate ${it.tone === 'urgent' ? 'text-white' : 'text-slate-200'}`}>{it.title}</p>
                 <p className="text-[11px] text-slate-500 truncate mt-0.5">{it.detail}</p>
               </div>
               {it.amount > 0 && (
-                <span className={`flex-shrink-0 text-sm font-extrabold tabular-nums ${it.tone === 'urgent' ? 'text-amber-300' : DOMAIN_TEXT[it.domain]}`}>
+                <span className={`order-4 sm:order-3 w-full sm:w-auto pl-5 sm:pl-0 flex-shrink-0 text-sm font-extrabold tabular-nums whitespace-nowrap ${it.tone === 'urgent' ? 'text-amber-300' : DOMAIN_TEXT[it.domain]}`}>
                   {fmtIdr(it.amount)}
                 </span>
               )}
-              <span className="flex-shrink-0 text-slate-700 group-hover:text-slate-400 transition-colors">→</span>
+              <span className="order-3 sm:order-4 flex-shrink-0 text-slate-700 group-hover:text-slate-400 transition-colors">→</span>
             </Link>
           ))}
         </div>
@@ -162,19 +194,17 @@ export function NewArrivals({ rows, days }: { rows: NewArrival[] | null; days: n
   const SHOWN = 6;
   return (
     <div className="bg-slate-900/60 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl overflow-hidden">
-      <div className="flex items-center gap-3 px-4 sm:px-5 py-3.5 border-b border-slate-800/70">
-        <h2 className="text-sm font-bold text-white">New arrivals</h2>
-        {rows && rows.length > 0 && (
-          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-            {fresh > 0 ? `${fresh} new` : ''}
-            {fresh > 0 && rows.length > fresh ? ' · ' : ''}
-            {rows.length > fresh ? `${rows.length - fresh} restocked` : ''}
-          </span>
+      <CardHead
+        title="New arrivals"
+        meta={rows && rows.length > 0
+          ? [fresh > 0 ? `${fresh} new` : '', rows.length > fresh ? `${rows.length - fresh} restocked` : ''].filter(Boolean).join(' · ')
+          : ''}
+        right={(
+          <Link href="/products?new=1" className="text-[11px] text-slate-500 hover:text-emerald-300 transition-colors">
+            Products →
+          </Link>
         )}
-        <Link href="/products?new=1" className="ml-auto text-[11px] text-slate-500 hover:text-emerald-300 transition-colors whitespace-nowrap">
-          Products →
-        </Link>
-      </div>
+      />
 
       {rows === null ? (
         <div className="p-4 sm:p-5 space-y-2">
@@ -188,10 +218,19 @@ export function NewArrivals({ rows, days }: { rows: NewArrival[] | null; days: n
         <>
           <div className="divide-y divide-slate-800/50">
             {rows.slice(0, SHOWN).map((r) => (
+              /* One shape at every width. On a phone this row used to wrap
+                 wherever the item name happened to end — the New badge on line
+                 one for a short name, on line two for a long one, so six rows
+                 made six different shapes (owner's screenshot, 2026-08-23).
+                 The zero-height `basis-full` spacer is a deliberate line break
+                 below `sm`: the NAME gets the first line to itself, the badges
+                 the second. Above `sm` the break is display:none and the row
+                 is exactly what it always was. */
               <Link key={r.component_id} href={`/products?q=${encodeURIComponent(r.name)}`}
-                className="flex items-baseline gap-x-2.5 gap-y-1 flex-wrap px-4 sm:px-5 py-2.5 hover:bg-slate-800/40 transition-colors group">
-                <span className={`w-1.5 h-1.5 rounded-full self-center flex-shrink-0 ${r.brandNew ? 'bg-emerald-400' : 'bg-slate-600'}`} />
-                <span className="text-[13px] font-semibold text-slate-100 group-hover:text-white truncate max-w-[300px]">{r.name}</span>
+                className="flex items-center gap-x-2.5 gap-y-1 flex-wrap px-4 sm:px-5 py-2.5 hover:bg-slate-800/40 transition-colors group">
+                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${r.brandNew ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+                <span className="min-w-0 flex-1 sm:flex-none sm:max-w-[300px] text-[13px] font-semibold text-slate-100 group-hover:text-white truncate">{r.name}</span>
+                <span aria-hidden className="basis-full h-0 sm:hidden" />
                 {r.brandNew && (
                   <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/25"
                     title="The first time we have ever taken this item into stock">
@@ -255,20 +294,17 @@ export function ArrivingSoon({ data, buySide }: { data: ArrivingSummary | null; 
   };
   return (
     <div className="bg-slate-900/60 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl overflow-hidden">
-      <div className="flex items-center gap-3 px-4 sm:px-5 py-3.5 border-b border-slate-800/70">
-        <h2 className="text-sm font-bold text-white">Arriving soon</h2>
-        {data && rows!.length > 0 && (
-          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-            {rows!.length} item{rows!.length !== 1 ? 's' : ''}
-            {data.late.length > 0 ? ` · ${data.late.length} late` : ''}
-          </span>
-        )}
-        {buySide && (
-          <Link href="/purchasing?tab=lookup" className="ml-auto text-[11px] text-slate-500 hover:text-sky-300 transition-colors whitespace-nowrap">
+      <CardHead
+        title="Arriving soon"
+        meta={data && rows!.length > 0
+          ? `${rows!.length} item${rows!.length !== 1 ? 's' : ''}${data.late.length > 0 ? ` · ${data.late.length} late` : ''}`
+          : ''}
+        right={buySide && (
+          <Link href="/purchasing?tab=lookup" className="text-[11px] text-slate-500 hover:text-sky-300 transition-colors">
             Deal Lookup →
           </Link>
         )}
-      </div>
+      />
 
       {data === null ? (
         <div className="p-4 sm:p-5 space-y-2">
@@ -282,9 +318,11 @@ export function ArrivingSoon({ data, buySide }: { data: ArrivingSummary | null; 
         <>
           <div className="divide-y divide-slate-800/50">
             {rows!.slice(0, SHOWN).map((r) => (
-              <div key={r.component_id} className="flex items-baseline gap-x-2.5 gap-y-1 flex-wrap px-4 sm:px-5 py-2.5">
-                <span className={`w-1.5 h-1.5 rounded-full self-center flex-shrink-0 ${r.overdue ? 'bg-amber-400' : 'bg-sky-400'}`} />
-                <span className="text-[13px] font-semibold text-slate-100 truncate max-w-[280px]">{r.name}</span>
+              <div key={r.component_id} className="flex items-center gap-x-2.5 gap-y-1 flex-wrap px-4 sm:px-5 py-2.5">
+                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${r.overdue ? 'bg-amber-400' : 'bg-sky-400'}`} />
+                <span className="min-w-0 flex-1 sm:flex-none sm:max-w-[280px] text-[13px] font-semibold text-slate-100 truncate">{r.name}</span>
+                {/* The phone line break — see New arrivals above. */}
+                <span aria-hidden className="basis-full h-0 sm:hidden" />
                 <span className="text-[11px] tabular-nums text-slate-400">{fmtInt(r.qty)}{r.unit ? ` ${r.unit}` : ''}</span>
                 {/* An estimate never wears the clothes of a promise. */}
                 {r.source && r.source !== 'eta' && (
@@ -538,19 +576,17 @@ export function StockAlerts({ shortages, reorders }: { shortages: ShortageAlert[
   const quiet = !loading && shortages.length === 0 && reorders.length === 0;
   return (
     <div className="bg-slate-900/60 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl overflow-hidden">
-      <div className="flex items-center gap-3 px-4 sm:px-5 py-3.5 border-b border-slate-800/70">
-        <h2 className="text-sm font-bold text-white">Stock alerts</h2>
-        {!loading && (shortages.length > 0 || reorders.length > 0) && (
-          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-            {shortages.length > 0 ? `${shortages.length} short` : ''}
-            {shortages.length > 0 && reorders.length > 0 ? ' · ' : ''}
-            {reorders.length > 0 ? `${reorders.length} to reorder` : ''}
-          </span>
+      <CardHead
+        title="Stock alerts"
+        meta={!loading
+          ? [shortages.length > 0 ? `${shortages.length} short` : '', reorders.length > 0 ? `${reorders.length} to reorder` : ''].filter(Boolean).join(' · ')
+          : ''}
+        right={(
+          <Link href="/stock" className="text-[11px] text-slate-500 hover:text-sky-300 transition-colors">
+            Stock →
+          </Link>
         )}
-        <Link href="/stock" className="ml-auto text-[11px] text-slate-500 hover:text-sky-300 transition-colors whitespace-nowrap">
-          Stock →
-        </Link>
-      </div>
+      />
 
       {loading ? (
         <div className="p-4 sm:p-5 space-y-2">
@@ -565,9 +601,12 @@ export function StockAlerts({ shortages, reorders }: { shortages: ShortageAlert[
           {/* Shortages first — these are blocking revenue TODAY */}
           {shortages.map((sh) => (
             <div key={`sh-${sh.component_id}`} className="px-4 sm:px-5 py-3">
-              <div className="flex items-baseline gap-x-2.5 gap-y-1 flex-wrap">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-400 self-center flex-shrink-0" />
-                <span className="text-[13px] font-semibold text-white truncate max-w-[340px]">{sh.name}</span>
+              {/* Same phone shape as the arrival rows: the item gets the first
+                  line, everything measuring it the second. */}
+              <div className="flex items-center gap-x-2.5 gap-y-1 flex-wrap">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400 flex-shrink-0" />
+                <span className="min-w-0 flex-1 sm:flex-none sm:max-w-[340px] text-[13px] font-semibold text-white truncate">{sh.name}</span>
+                <span aria-hidden className="basis-full h-0 sm:hidden" />
                 <span className="text-[11px] tabular-nums text-red-300 font-bold">
                   short {fmtInt(sh.short)}{sh.unit ? ` ${sh.unit}` : ''}
                 </span>
@@ -590,9 +629,10 @@ export function StockAlerts({ shortages, reorders }: { shortages: ShortageAlert[
           {/* Then the reorder points — the shortages that haven't happened yet */}
           {reorders.map((a) => (
             <div key={`ro-${a.component_id}`} className="px-4 sm:px-5 py-3">
-              <div className="flex items-baseline gap-x-2.5 gap-y-1 flex-wrap">
-                <span className={`w-1.5 h-1.5 rounded-full self-center flex-shrink-0 ${a.urgent ? 'bg-red-400' : 'bg-amber-400 opacity-80'}`} />
-                <span className="text-[13px] font-semibold text-slate-200 truncate max-w-[340px]">{a.name}</span>
+              <div className="flex items-center gap-x-2.5 gap-y-1 flex-wrap">
+                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${a.urgent ? 'bg-red-400' : 'bg-amber-400 opacity-80'}`} />
+                <span className="min-w-0 flex-1 sm:flex-none sm:max-w-[340px] text-[13px] font-semibold text-slate-200 truncate">{a.name}</span>
+                <span aria-hidden className="basis-full h-0 sm:hidden" />
                 <span className="text-[11px] tabular-nums text-amber-300 font-bold">
                   order ~{fmtInt(a.suggestedQty)}{a.unit ? ` ${a.unit}` : ''}
                 </span>
@@ -687,12 +727,25 @@ export function PositionStrip({ data, perms }: { data: PositionData | null; perm
   }
   if (perms.canViewEconomics) {
     const ccc = data?.ccc;
+    // Why we cannot measure, in the words of the thing that would fix it. A
+    // panel that says "needs delivered COGS" when five deliveries DID happen —
+    // three of them booked with no unit cost — sends the reader looking in the
+    // wrong place.
+    const cannot = (c: NonNullable<typeof ccc>) =>
+      c.outMoves === 0
+        ? 'nothing delivered in the last 90d to measure against'
+        : `${c.outMoves} deliver${c.outMoves === 1 ? 'y' : 'ies'} in 90d${
+            c.uncostedOutMoves > 0 ? `, ${c.uncostedOutMoves} with no cost` : ''} — too little to measure`;
+    // A negative DPO means we paid before the goods arrived, which LENGTHENS
+    // the cycle. "− DPO −23d" is arithmetically right and reads as a typo.
+    const cycle = (c: NonNullable<typeof ccc>) =>
+      `DIO ${d(c.dio)} + DSO ${d(c.dso)} ${
+        c.dpo != null && c.dpo < 0 ? `+ ${d(-c.dpo)} prepaid` : `− DPO ${d(c.dpo)}`} · 90-day basis`;
     tiles.push({
       key: 'ccc', label: 'CCC · the runway', color: 'text-slate-100', ring: 'ring-white/10',
       value: dashOr(!!ccc, () => (ccc!.ccc == null ? '—' : `${Math.round(ccc!.ccc)}d`)),
       sub: !ccc ? (loading ? 'cash out → cash back, in days' : 'unavailable right now')
-        : ccc.ccc == null ? 'needs delivered COGS in the last 90d'
-        : `DIO ${d(ccc.dio)} + DSO ${d(ccc.dso)} − DPO ${d(ccc.dpo)} · 90-day basis`,
+        : ccc.ccc == null ? cannot(ccc) : cycle(ccc),
     });
   }
 

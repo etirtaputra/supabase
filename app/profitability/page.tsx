@@ -29,6 +29,7 @@ import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 import FitText from '@/components/ui/FitText';
 import { useSettings } from '@/hooks/useSettings';
 import { buildSalesFacts } from '@/lib/salesFacts';
+import { measuredDio } from '@/lib/position';
 import PositionPanel from '@/components/profitability/PositionPanel';
 import { ITEM_SCORE_FACTORS, type ItemScoreResult, type ScoreBand } from '@/lib/itemScore';
 import { useItemScores } from '@/hooks/useItemScores';
@@ -288,7 +289,10 @@ function EconomicsInner() {
   const ccc = useMemo(() => {
     const stockValue = itemRows.reduce((s, r) => s + r.stockValue, 0);
     const cogsPeriod = periodFacts.reduce((s, f) => s + f.cogs, 0);
-    const dio = cogsPeriod > 0 ? stockValue / (cogsPeriod / periodDays) : null;
+    // The same guard the dashboard uses, from the same function: a period that
+    // shipped almost nothing cannot imply a turnover rate, and the arithmetic
+    // that says otherwise produced 1,702,958 days on 2026-08-23.
+    const dio = measuredDio(stockValue, cogsPeriod, periodDays);
 
     // DSO: paid invoices (Σ receipts ≥ total), issued→last payment, value-weighted
     const paidByInv = new Map<string, { paid: number; last: string }>();
@@ -467,7 +471,7 @@ function EconomicsInner() {
                   <p className={`text-xl font-bold tabular-nums mt-0.5 ${ccc.ccc == null ? 'text-slate-600' : 'text-emerald-300'}`}>
                     {ccc.ccc == null ? '—' : `${Math.round(ccc.ccc)}d`}
                   </p>
-                  <p className="text-[10px] text-slate-500 mt-0.5">{ccc.ccc == null ? 'needs delivered COGS in period' : 'cash out → cash back, per rupiah cycled'}</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">{ccc.ccc == null ? 'too little delivered in the period to measure' : 'cash out → cash back, per rupiah cycled'}</p>
                 </div>
               </div>
             </div>

@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  computeCashPosition, computeAr, computeAp, computeCcc, computeMonthMotion, motionWindows,
+  computeCashPosition, computeAr, computeAp, computeCcc, computeMonthMotion, motionWindows, measuredDio,
   type AccountRow, type ReceiptRow, type CostRow, type TxnRow, type InvoiceRow, type PoRow,
 } from './position.ts';
 
@@ -172,6 +172,53 @@ test('CCC: no COGS in the window means no DIO and no CCC (never a fake zero)', (
   const r = computeCcc(i);
   assert.equal(r.dio, null);
   assert.equal(r.ccc, null);
+  assert.equal(r.outMoves, 0);
+});
+
+/**
+ * The 2026-08-23 fault, in a test.
+ *
+ * The owner's phone showed **CCC 1702981d** — Rp 24.7bn of stock divided by
+ * Rp 1.3m of delivered COGS in 90 days, three of the five delivery movements
+ * booked with no unit cost at all. Every step of that arithmetic is correct
+ * and the answer is meaningless: a rate needs a sample. The AI advisor read
+ * the same number and opened with "a cash conversion cycle essentially
+ * broken", so the artifact was not confined to one tile.
+ */
+test('CCC: a warehouse divided by a handful of deliveries is not a runway', () => {
+  const i = cccBase();
+  i.balances = [{ qty_on_hand: 1, avg_cost_idr: 24_678_281_687 }];          // Rp 24.7bn on the shelf
+  i.deliveryOuts = [{ quantity: 1, unit_cost_idr: 1_304_228, moved_at: '2026-08-01' }];   // Rp 1.3m shipped
+  const r = computeCcc(i);
+  assert.equal(r.dio, null, 'DIO must refuse rather than answer 1.7 million days');
+  assert.equal(r.ccc, null, 'and the cycle it feeds refuses with it');
+  // The refusal still hands the panel the evidence, so it can say WHY.
+  assert.equal(r.outMoves, 1);
+  assert.equal(Math.round(r.cogs), 1_304_228);
+});
+
+test('CCC: a movement booked with no unit cost is counted, and named', () => {
+  const i = cccBase();
+  i.deliveryOuts = [
+    { quantity: 30, unit_cost_idr: 300_000, moved_at: '2026-08-01' },
+    { quantity: 5, unit_cost_idr: 0, moved_at: '2026-08-02' },
+    { quantity: 5, unit_cost_idr: null as unknown as number, moved_at: '2026-08-03' },
+  ];
+  const r = computeCcc(i);
+  assert.equal(r.outMoves, 3);
+  assert.equal(r.uncostedOutMoves, 2, 'the panel says "3 with no cost" only if we count them');
+  assert.equal(r.dio, 90, 'the costed movement still measures normally');
+});
+
+test('DIO: the guard is a ceiling in WINDOWS, so it scales with the period', () => {
+  // Exactly at the ceiling still answers; a hair past it refuses.
+  assert.equal(measuredDio(20, 1, 90), 90 * 20);
+  assert.equal(measuredDio(21, 1, 90), null);
+  assert.equal(measuredDio(20, 1, 30), 30 * 20);   // a 30-day period, same rule
+  // The ordinary cases are untouched.
+  assert.equal(measuredDio(9_000_000, 9_000_000, 90), 90);
+  assert.equal(measuredDio(9_000_000, 0, 90), null);
+  assert.equal(measuredDio(0, 9_000_000, 90), 0);   // nothing on the shelf is a real zero
 });
 
 // ── Month in motion ──────────────────────────────────────────────────────────

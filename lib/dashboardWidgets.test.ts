@@ -382,3 +382,43 @@ test('a shortcut never leads to a door that throws you out', () => {
     ['/stock/receive', '/stock', '/serials']);
   assert.deepEqual(quickActionsFor(null, 'owner'), [], 'profile unknown: offer nothing yet');
 });
+
+/**
+ * The card head is ONE rule (2026-08-23).
+ *
+ * Four panels had hand-copied the same header row, and all four broke the same
+ * way on the owner's phone: a single flex line with no wrapping rule, so the
+ * browser broke inside the phrases — "Needs you / today", "4 / ITEMS",
+ * "IDR / 2.816.173.107", "New / arrivals". Fixing four copies is how three of
+ * them quietly drift back. There is one `CardHead` now, and this fails the
+ * build if a fifth copy appears.
+ */
+test('no dashboard panel hand-rolls its own card head', () => {
+  const src = readFileSync('components/dashboard/Widgets.tsx', 'utf8');
+  const handRolled = src.split('flex items-center gap-3 px-4 sm:px-5 py-3.5 border-b').length - 1;
+  assert.equal(handRolled, 0, 'a panel is building the old non-wrapping header row again');
+  assert.ok(src.split('<CardHead').length - 1 >= 4, 'the panels should be using the shared head');
+  // The head must be allowed to wrap BETWEEN its parts and never inside one.
+  assert.ok(src.includes('flex items-center gap-x-3 gap-y-1 flex-wrap px-4 sm:px-5 py-3.5'),
+    'the shared head must wrap');
+  assert.ok(src.includes('text-sm font-bold text-white whitespace-nowrap'),
+    'a card title must never break mid-phrase');
+});
+
+/**
+ * On a phone, a row that wraps wherever its text happens to end gives six rows
+ * six different shapes. Both arrival panels lay the name on the first line and
+ * the badges on the second, using a zero-height `basis-full` spacer that is
+ * display:none from `sm` up — so the desktop row is untouched.
+ */
+test('the arrival rows break in the same place on every phone row', () => {
+  const src = readFileSync('components/dashboard/Widgets.tsx', 'utf8');
+  assert.equal(src.split('basis-full h-0 sm:hidden').length - 1, 4,
+    'New arrivals, Arriving soon and both Stock alert rows need the phone line break');
+  assert.equal(src.split('items-baseline gap-x-2.5 gap-y-1 flex-wrap').length - 1, 0,
+    'the old free-wrapping arrival row is back');
+  // The queue's money moves to its own line on a phone, and back BEFORE the
+  // arrow from sm up — which is what keeps it under the head's At-stake total.
+  assert.ok(src.includes('order-4 sm:order-3 w-full sm:w-auto pl-5 sm:pl-0'),
+    'the queue amount must stack on a phone and sit before the arrow on a desktop');
+});
