@@ -731,6 +731,27 @@ CRM (1) and the Stock ledger (3) are the agreed starting points; do CRM first.
   Fixed with it: the editor's physical-stock map assigned instead of summing
   across warehouses.
 
+- **Role-relevant dashboard defaults (SHIPPED 2026-08-23)**: `defaultOn` was one
+  GLOBAL flag, so every un-customised login opened on the same eighteen panels
+  minus whatever its role gated out — tailoring that was purely subtractive.
+  `ROLE_DASHBOARDS` in `constants/dashboardWidgets.ts` now declares, per role,
+  the panels it opens on (`lead`), any it starts switched off (`off`), and the
+  screens it starts its day on (`starts`) — ONE map behind the dashboard order,
+  the Customise panel's "For your role" group, and the Quick Actions card
+  (which had kept its own second list inside `app/page.tsx`). Resolution is
+  `layoutForRole(role, house)`: the role's panels float to the top of the HOUSE
+  order (owner's call — layered, not replaced, so one nudge in Settings cannot
+  flatten every role back to identical), and `off` ADDS to what the house hid
+  rather than fighting it. Precedence: role default → house → personal, with
+  the role layer inside the personal arrangement's `base` pin, so retuning a
+  role dissolves stale personal copies exactly as a house change does.
+  Settings › Dashboard gained **"What each role opens on"** — a per-role
+  preview rendered through the same resolver, so the owner can see why two
+  people differ. Nine new cases in `lib/dashboardWidgets.test.ts` fail the
+  build if a role leads with (or switches off) a panel its permissions never
+  let it see, if a role's start silently changes, if the house's switch-off
+  stops winning, or if the page grows a second shortcut list again.
+
 - **Dashboard slice 2 — position strip + month-in-motion + AI next step
   (SHIPPED 2026-08-09)**: the dashboard opens with the POSITION —
   `lib/position.ts` (pure computations + one capability-gated fetch pass;

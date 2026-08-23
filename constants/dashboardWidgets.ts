@@ -1,8 +1,8 @@
-import type { RolePermissions } from './roles';
+import type { RolePermissions, UserRole } from './roles';
 import type { NavSection } from './navigation';
 // Extension-qualified: `node --test` type-strips this module for
 // lib/dashboardWidgets.test.ts and needs the specifier to resolve as written.
-import { sectionAllowed } from './navigation.ts';
+import { sectionAllowed, canOpenPath } from './navigation.ts';
 
 /**
  * Every panel the Dashboard can show — the single list behind BOTH what the
@@ -232,3 +232,196 @@ export const visibleWidgets = (
   perms: RolePermissions | null,
   layout: Partial<DashboardLayout> | null | undefined,
 ): DashboardWidget[] => arrangeWidgets(perms, layout).filter((r) => r.shown).map((r) => r.widget);
+
+// ── What each role's day starts with ──────────────────────────────────────────
+
+/**
+ * The per-role starting arrangement — the answer to "make the dashboard
+ * relevant to each user".
+ *
+ * Until now `defaultOn` was a single global flag: everyone who had never
+ * customised opened on the same eighteen panels in the same order, minus
+ * whatever their role gated out. The tailoring was purely SUBTRACTIVE —
+ * permissions removed things — and nothing was ever ordered or emphasised for
+ * the job someone actually does. A warehouse picker and the owner got the same
+ * dashboard with different holes in it.
+ *
+ * A role now declares three things, and this map is the ONLY place they are
+ * declared. It drives the dashboard's starting order, the "For your role"
+ * group in the Customise panel, AND the Quick Actions card — which used to
+ * carry its own second list of the screens a role starts its day on, i.e. the
+ * same rule written twice and therefore a rule that drifts (standing rule #1).
+ *
+ * A `lead` is a PROMISE, not a wish: `lib/dashboardWidgets.test.ts` fails the
+ * build if a role leads with a widget its permissions never let it see.
+ *
+ * ONE LAYOUT RULE when editing a lead: do not split a row. The four KPI tiles
+ * are `quarter`s that fill one row together and the paired panels are `half`s,
+ * so promoting a single quarter (or an odd half) leaves a hole in the grid
+ * where the rest of its row used to be. Promote full-width panels, or halves
+ * in pairs, or the whole quartet.
+ */
+export interface RoleDashboard {
+  /** The panels this role opens on, in the order it wants them. */
+  lead: string[];
+  /** Panels switched OFF for this role by default. Still offered in Customise. */
+  off?: string[];
+  /** The screens this role starts its day on — Quick Actions, same source. */
+  starts?: string[];
+}
+
+export const ROLE_DASHBOARDS: Record<UserRole, RoleDashboard> = {
+  // The owner watches all of it, so nothing is removed — the money story just
+  // stays first. The shipped order was written for this reader, which is why
+  // the lead reads like it: the position, what needs a human, the read of it.
+  owner: {
+    lead: ['position', 'queue', 'nextStep', 'motion'],
+    starts: ['/purchasing?tab=financials', '/banks', '/sales/new'],
+  },
+  // Procurement's day is not the cash position, it is the blockage: what is
+  // stuck, what cannot ship, what is on the water, what just landed.
+  buy_admin: {
+    lead: ['queue', 'stockAlerts', 'arriving', 'newArrivals'],
+    starts: ['/purchasing?tab=quoting', '/purchasing?tab=financials', '/stock/receive', '/purchasing?tab=lookup'],
+  },
+  // Runs the whole sell side including receipts, so the position earns its
+  // place — then who and what is earning it.
+  sell_admin: {
+    lead: ['queue', 'position', 'topCustomers', 'topProducts'],
+    starts: ['/sales/new', '/customers', '/aftersales'],
+  },
+  // A salesperson sells what is on the shelf: what needs chasing, what landed
+  // and can be quoted today, and who buys it.
+  sales: {
+    lead: ['queue', 'newArrivals', 'topCustomers'],
+    starts: ['/sales/new', '/customers'],
+  },
+  // EPC specifies kit rather than working a catalog leaderboard: what is in
+  // and what is coming lead, and the two sales league tables start switched
+  // off — offered in Customise, one tick away for anyone who wants them.
+  engineer: {
+    lead: ['queue', 'newArrivals', 'arriving'],
+    off: ['topProducts', 'topCustomers'],
+    starts: ['/proposals', '/sales/new', '/customers'],
+  },
+  // The goods themselves. It sees three panels at all, and they are already
+  // the right three — the tailoring here is the shortcuts.
+  warehouse: {
+    lead: ['arriving', 'lastDeliveries'],
+    starts: ['/stock/receive', '/stock'],
+  },
+  // The service desk: the tickets, then the register, then the customer behind
+  // the machine — which it may open, and which its shortcuts never offered.
+  aftersales: {
+    lead: ['lastCases'],
+    starts: ['/aftersales', '/serials', '/customers'],
+  },
+  // Read-only deal lookup: no dashboard panel exists for it, and inventing a
+  // lead for an empty dashboard would be a lie the test would catch.
+  viewer: { lead: [] },
+  // ── Legacy roles (reassign to buy_admin) — mirrored, not designed ──
+  data_entry: {
+    lead: ['queue', 'stockAlerts', 'arriving', 'newArrivals'],
+    starts: ['/purchasing?tab=quoting', '/stock/receive', '/purchasing?tab=lookup'],
+  },
+  finance: {
+    lead: ['position', 'queue'],
+    starts: ['/purchasing?tab=financials', '/banks', '/purchasing?tab=lookup'],
+  },
+};
+
+/** The panels this role is recommended, filtered to what it may actually see. */
+export const roleLeadFor = (perms: RolePermissions | null, role: UserRole | null): Set<string> => {
+  if (!role || !perms) return new Set();
+  return new Set(ROLE_DASHBOARDS[role].lead.filter((k) => {
+    const w = WIDGET_BY_KEY.get(k);
+    return !!w && widgetAllowed(perms, w);
+  }));
+};
+
+/**
+ * The house layout as this ROLE receives it — the middle link of the chain
+ * role default → house → personal.
+ *
+ * LAYERED, not replaced (the owner's call, 2026-08-23): the house edits still
+ * count — what Settings switches off stays off for everyone, and the owner's
+ * ordering of everything else is preserved — but each role's own panels float
+ * to the top of that order. The alternative, "the moment the owner nudges one
+ * widget everyone snaps back to one identical dashboard", would have let a
+ * single click in Settings quietly undo the whole feature.
+ *
+ * `off` ADDS to what the house hid rather than fighting it, so a role-off
+ * panel is switched on by the person who needs it (Customise lists it,
+ * unticked), not by the house. Settings › Dashboard shows exactly this
+ * resolved layout per role, so the owner can see why two people differ.
+ */
+export function layoutForRole(
+  role: UserRole | null,
+  house: Partial<DashboardLayout> | null | undefined,
+): DashboardLayout {
+  const order = orderedWidgetKeys(house?.order);
+  const hidden = hiddenWidgetKeys(house?.order, house?.hidden);
+  const rd = role ? ROLE_DASHBOARDS[role] : undefined;
+  if (!rd) return { order, hidden: [...hidden] };
+  for (const k of rd.off ?? []) if (WIDGET_BY_KEY.has(k)) hidden.add(k);
+  const lead: string[] = [];
+  for (const k of rd.lead) if (WIDGET_BY_KEY.has(k) && !lead.includes(k)) lead.push(k);
+  const leading = new Set(lead);
+  return { order: [...lead, ...order.filter((k) => !leading.has(k))], hidden: [...hidden] };
+}
+
+// ── Quick Actions ─────────────────────────────────────────────────────────────
+
+/**
+ * The shortcut catalogue behind the Quick Actions card.
+ *
+ * It lives here, beside `ROLE_DASHBOARDS`, because the card's own hint says it
+ * shows "the screens this role starts its day on" — and until 2026-08-23 that
+ * claim was backed by a second hand-maintained list inside `app/page.tsx`.
+ * Same rule, two places. Now the ROLE map orders it and the gate below is the
+ * SAME gate its destination carries in `constants/navigation.ts`, checked
+ * again by `canOpenPath` so a shortcut can never lead to a door that throws
+ * you out.
+ */
+export interface QuickAction {
+  href: string;
+  label: string;
+  /** Domain colour: buy = blue, sell = emerald, money = rose/amber, EPC = violet. */
+  accent: string;
+  section?: NavSection;
+  cap?: keyof RolePermissions;
+  caps?: (keyof RolePermissions)[];
+}
+
+export const QUICK_ACTIONS: QuickAction[] = [
+  { href: '/sales/new',                 label: 'New Sales Quotation', accent: 'emerald', section: 'sellSide', cap: 'canEditSalesDocs' },
+  { href: '/customers',                 label: 'Customers',           accent: 'emerald', cap: 'canManageCustomers' },
+  { href: '/purchasing?tab=quoting',    label: 'New Deal — PI / PO',  accent: 'blue',    section: 'buySide' },
+  { href: '/purchasing?tab=financials', label: 'Log Payment',         accent: 'rose',    section: 'buySide', cap: 'canViewBankFees' },
+  { href: '/purchasing?tab=lookup',     label: 'Deal Lookup',         accent: 'blue',    section: 'buySide' },
+  { href: '/stock/receive',             label: 'Receive Goods',       accent: 'blue',    cap: 'canManageStock' },
+  { href: '/stock',                     label: 'Stock',               accent: 'blue',    caps: ['buySide', 'canManageStock'] },
+  { href: '/aftersales',                label: 'After Sales',         accent: 'violet',  cap: 'canHandleService' },
+  { href: '/serials',                   label: 'Serial Numbers',      accent: 'violet',  caps: ['canManageStock', 'canEditSalesDocs', 'canHandleService'] },
+  { href: '/proposals',                 label: 'New EPC Proposal',    accent: 'violet',  section: 'projects' },
+  { href: '/banks',                     label: 'Bank Accounts',       accent: 'amber',   cap: 'canViewBanks' },
+];
+
+/**
+ * The shortcuts this person gets, in the order their role starts its day.
+ * Anything the role did not name keeps the catalogue's order behind those.
+ */
+export function quickActionsFor(perms: RolePermissions | null, role: UserRole | null): QuickAction[] {
+  if (!perms) return [];
+  const starts = (role ? ROLE_DASHBOARDS[role].starts ?? [] : []);
+  const rank = (a: QuickAction) => {
+    const i = starts.indexOf(a.href);
+    return i < 0 ? starts.length : i;
+  };
+  return QUICK_ACTIONS
+    .filter((a) => sectionAllowed(perms, a.section ?? null)
+      && (!a.cap || !!perms[a.cap])
+      && (!a.caps || a.caps.some((c) => !!perms[c]))
+      && canOpenPath(perms, a.href))
+    .sort((x, y) => rank(x) - rank(y));   // stable: ties keep catalogue order
+}

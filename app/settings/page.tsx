@@ -35,7 +35,7 @@ import { LIST_SPECS } from '@/constants/listDefaults';
 import { PRODUCT_COLS } from '@/constants/productColumns';
 import { orderedNavGroups, orderedGroupItems, DEFAULT_MENU_ORDER, DESTINATIONS } from '@/constants/navigation';
 import {
-  orderedWidgetKeys, hiddenWidgetKeys, WIDGET_BY_KEY,
+  orderedWidgetKeys, hiddenWidgetKeys, WIDGET_BY_KEY, arrangeWidgets, layoutForRole, roleLeadFor,
   DEFAULT_WIDGET_ORDER, DEFAULT_WIDGET_HIDDEN, type DashboardLayout,
 } from '@/constants/dashboardWidgets';
 import WidgetArranger from '@/components/ui/WidgetArranger';
@@ -884,6 +884,77 @@ function DashboardTab({ draft, set }: { draft: AppSettings; set: <K extends keyo
           {off === 0 ? 'Every widget is on.' : `${off} widget${off !== 1 ? 's' : ''} switched off for everyone.`}
         </p>
       </div>
+
+      <RoleStartPreview house={{ order: draft.dashboardOrder, hidden: draft.dashboardHidden }} />
+    </div>
+  );
+}
+
+/**
+ * What each ROLE actually opens on, given the house layout above.
+ *
+ * Without this the owner has no way to understand why two people see two
+ * different dashboards — the house arranger shows one list, and everybody's
+ * screen shows something else. This renders the real resolution
+ * (`layoutForRole` + the widget gate), so the answer here and the answer on
+ * the person's screen come out of the same function, not out of a description
+ * of it. Read-only on purpose: a role's own defaults ship with the build and
+ * are covered by `lib/dashboardWidgets.test.ts`.
+ */
+function RoleStartPreview({ house }: { house: DashboardLayout }) {
+  const [role, setRole] = useState<UserRole>('warehouse');
+  const perms = ROLE_PERMISSIONS[role];
+  const lead = roleLeadFor(perms, role);
+  const rows = arrangeWidgets(perms, layoutForRole(role, house));
+  const on = rows.filter((r) => r.shown).length;
+
+  return (
+    <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 space-y-3.5">
+      <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">What each role opens on</p>
+      <p className="text-[11px] text-slate-500 leading-snug">
+        The order above is the house starting point; each role floats its own panels to the top of it, so a
+        warehouse login and the finance lead do not open on the same screen. A role never sees a panel it may
+        not read, whatever the house says — and anyone can still arrange their own from the Dashboard.
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {ASSIGNABLE_ROLES.map((r) => (
+          <button key={r} onClick={() => setRole(r)}
+            className={`text-[11px] font-semibold px-2.5 py-1.5 rounded-lg border transition-colors ${
+              r === role ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+                         : 'border-slate-800 text-slate-400 hover:text-white hover:border-slate-600'}`}>
+            {ROLE_LABELS[r]}
+          </button>
+        ))}
+      </div>
+      {rows.length === 0 ? (
+        <p className="text-[11px] text-slate-500">
+          {ROLE_LABELS[role]} has no dashboard panel at all — its work lives in the menu.
+        </p>
+      ) : (
+        <ol className="space-y-1">
+          {rows.map((r, i) => (
+            <li key={r.widget.key}
+              className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg border ${
+                lead.has(r.widget.key) ? 'bg-slate-950/50 border-emerald-500/25 border-l-2 border-l-emerald-500/70'
+                                       : 'bg-slate-950/30 border-slate-800/70'}`}>
+              <span className="text-[11px] font-bold tabular-nums text-slate-600 w-4 text-center flex-shrink-0">{i + 1}</span>
+              <span className={`text-[12px] font-semibold truncate ${r.shown ? 'text-slate-200' : 'text-slate-600 line-through'}`}>
+                {r.widget.label}
+              </span>
+              {lead.has(r.widget.key) && (
+                <span className="ml-auto flex-shrink-0 text-[9px] font-bold uppercase tracking-widest text-emerald-300/90">Opens on</span>
+              )}
+              {!r.shown && (
+                <span className="ml-auto flex-shrink-0 text-[9px] font-bold uppercase tracking-widest text-slate-600">Off</span>
+              )}
+            </li>
+          ))}
+        </ol>
+      )}
+      <p className="text-[11px] text-slate-600">
+        {ROLE_LABELS[role]} opens on {on} of {rows.length} panel{rows.length !== 1 ? 's' : ''} it may see.
+        A panel switched off is still offered, unticked, in that person&rsquo;s own Customise panel.
+      </p>
     </div>
   );
 }

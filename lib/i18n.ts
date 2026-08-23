@@ -182,6 +182,12 @@ export const ID: Record<string, string> = {
     'Tidak ada pesanan berjalan \u2014 semua PO sudah diterima atau ditutup.',
   'sets the starting point for everyone.':
     'menetapkan titik awal untuk semua orang.',
+  // Role-relevant defaults (2026-08-23). Short in the divider and the chip —
+  // they sit in a 10px uppercase slot that clips anything longer.
+  'For your role': 'Untuk peran Anda',
+  'Everything else': 'Selebihnya',
+  'The panels marked for your role are the ones {role} opens on.':
+    'Panel yang ditandai untuk peran Anda adalah panel yang dibuka {role} setiap hari.',
 
   // ── Customers ─────────────────────────────────────────────────────────────
   // Trade words, not dictionary words: piutang (not "AR terutang"), penawaran

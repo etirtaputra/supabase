@@ -20,6 +20,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-23T09:30:00Z',
+    title: 'Your Dashboard now opens on the work your role actually does',
+    details: [
+      'Until today everyone who had never rearranged their Dashboard got the same panels in the same order, with whatever their role may not see simply missing. A warehouse login and the finance lead opened on the same screen with different holes in it.',
+      'Each role now opens on its own panels first. Purchasing starts with what is stuck, what cannot ship, what is on the water and what has just landed. The sell-side desk starts with what needs chasing, the cash position, then who and what is earning. A salesperson starts with what needs chasing, what has just landed and can be quoted today, and who buys it. The warehouse and the service desk keep their three and two panels — there was never anything to reorder there, so their shortcuts were tailored instead.',
+      'Nothing was taken away from the Owner: all eighteen panels, in the money-first order they were already in. Project Engineers start with the two sales league tables switched OFF — they are one tick away in Customise for anyone who wants them.',
+      'Press Customise on the Dashboard and the panels your role opens on are grouped at the top, marked “For your role”. Everything else sits below the line, exactly as before — you can still tick, untick and drag anything into any order, and your arrangement is still yours alone, on this browser.',
+      'The Quick Actions card is ordered by the same rule now, instead of by a second list kept by hand: the screens your role starts its day on come first. Along the way the service desk gained the Customers shortcut it could always open but was never offered, and the warehouse gained Serial Numbers.',
+      'Settings › Dashboard gained “What each role opens on”: pick a role and see the exact screen that role gets from the house layout above it. Your house arrangement still counts — what you switch off stays off for everyone, and your ordering is kept underneath each role’s own panels.',
+    ],
+  },
+  {
     at: '2026-08-23T02:55:00Z',
     title: 'Tighter header and page margins \u2014 more of every screen is your data',
     details: [

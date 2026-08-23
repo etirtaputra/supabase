@@ -9,7 +9,7 @@ import { useSettings } from '@/hooks/useSettings';
 import { useT } from '@/hooks/useT';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
-import { ROLE_PERMISSIONS } from '@/constants/roles';
+import { ROLE_PERMISSIONS, ROLE_LABELS } from '@/constants/roles';
 import { fmtIdr } from '@/lib/formatters';
 import { fetchActionQueue, fetchActivity, type ActionItem, type ActivityRow } from '@/lib/dashboard';
 import { fetchPosition, type PositionData } from '@/lib/position';
@@ -28,8 +28,7 @@ import {
 } from '@/lib/recentFeeds';
 import { fmtInt } from '@/lib/formatters';
 import { useDashboardLayout } from '@/hooks/useDashboardLayout';
-import { WIDTH_SPAN, type DashboardLayout } from '@/constants/dashboardWidgets';
-import { canOpenPath } from '@/constants/navigation';
+import { WIDTH_SPAN, quickActionsFor, type DashboardLayout } from '@/constants/dashboardWidgets';
 import WidgetArranger from '@/components/ui/WidgetArranger';
 
 function thisMonth() { return new Date().toISOString().slice(0, 7); }
@@ -40,7 +39,7 @@ export default function Home() {
   const { user, profile, loading: authLoading } = useAuth();
   const { data, loading } = useSupabaseData();
   const { arOverdueDays, quoteFollowUpDays, newArrivalDays, economicsPeriod } = useSettings();
-  const { t } = useT();
+  const { t, tf } = useT();
   // Module visibility mirrors the nav: a role only sees panels for flows it
   // can access (nothing sensitive renders until the profile has resolved).
   const perms = profile ? ROLE_PERMISSIONS[profile.role] : null;
@@ -79,7 +78,7 @@ export default function Home() {
   // `visible` is the whole answer: role gate, house default and personal
   // arrangement resolved in one place (constants/dashboardWidgets.ts), so a
   // panel can never render for a role that may not read what feeds it.
-  const { visible, arranged, isPersonal, save, reset } = useDashboardLayout(perms);
+  const { visible, arranged, recommended, isPersonal, save, reset } = useDashboardLayout(perms, profile?.role ?? null);
   const shown = useMemo(() => new Set(visible.map((w) => w.key)), [visible]);
   const [customising, setCustomising] = useState(false);
 
@@ -271,38 +270,15 @@ export default function Home() {
 
   const atStake = useMemo(() => (queue ?? []).reduce((s, i) => s + i.amount, 0), [queue]);
 
-  // The screens this role starts its day on. Computed here rather than inside
-  // the card so the widget can be skipped entirely when a role has none — an
-  // empty panel headed "Quick Actions" is a broken panel.
-  const quickActions = useMemo(() => [
-    ...(perms?.sellSide ? [
-      { href: '/sales/new',  label: 'New Sales Quotation', accent: 'emerald' },
-      { href: '/customers',  label: 'Customers',           accent: 'emerald' },
-    ] : []),
-    ...(perms?.buySide ? [
-      { href: '/purchasing?tab=quoting',    label: 'New Deal — PI / PO',        accent: 'blue' },
-      { href: '/purchasing?tab=financials', label: 'Log Payment',                accent: 'rose' },
-      { href: '/purchasing?tab=lookup',     label: 'Deal Lookup',                accent: 'blue' },
-    ] : []),
-    ...(perms?.canManageStock ? [
-      { href: '/stock/receive',             label: 'Receive Goods',              accent: 'blue' },
-      { href: '/stock',                     label: 'Stock',                      accent: 'blue' },
-    ] : []),
-    // The service desk and the warehouse have a dashboard too — without this
-    // their Quick Actions card had nothing in it at all.
-    ...(perms?.canHandleService ? [
-      { href: '/aftersales',                label: 'After Sales',                accent: 'violet' },
-      { href: '/serials',                   label: 'Serial Numbers',             accent: 'violet' },
-    ] : []),
-    ...(perms?.projects ? [
-      { href: '/proposals',              label: 'New EPC Proposal',          accent: 'violet' },
-    ] : []),
-    ...(perms?.canViewBanks ? [
-      { href: '/banks',                  label: 'Bank Accounts',             accent: 'amber' },
-    ] : []),
-    // Last word to the shared access rule: a shortcut may never lead to a door
-    // that throws you out, whatever the capability above suggested.
-  ].filter((a) => canOpenPath(perms, a.href)), [perms]);
+  // The screens this role starts its day on — ORDERED BY THE ROLE, and read
+  // from the same map that orders its dashboard panels
+  // (constants/dashboardWidgets.ts). This list used to live here, which made
+  // the card's own promise ("the screens this role starts its day on") a
+  // second rule kept by hand beside the first. Skipped entirely when a role
+  // has none: an empty panel headed "Quick Actions" is a broken panel.
+  const quickActions = useMemo(
+    () => quickActionsFor(perms, profile?.role ?? null),
+    [perms, profile?.role]);
 
   if (authLoading || !user) {
     return (
@@ -396,6 +372,9 @@ export default function Home() {
                 <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">Your dashboard</p>
                 <p className="text-[11px] text-slate-500 leading-snug mt-1 max-w-2xl">
                   {t('Tick what you want to watch, drag a row to move it (the arrows do the same on touch). This is your own arrangement, on this browser — it does not change anyone else’s.')}
+                  {recommended.size > 0 && profile?.role && (
+                    <> {tf('The panels marked for your role are the ones {role} opens on.', { role: ROLE_LABELS[profile.role] })}</>
+                  )}
                   {perms?.canManageUsers && (
                     <> <Link href="/settings?tab=dashboard" className="text-slate-400 hover:text-emerald-300 font-semibold transition-colors">Settings › Dashboard</Link>{' '}
                       {t('sets the starting point for everyone.')}</>
@@ -405,7 +384,7 @@ export default function Home() {
               <div className="flex items-center gap-2 flex-shrink-0">
                 <button onClick={reset} disabled={!isPersonal}
                   className="text-[11px] font-semibold text-slate-400 hover:text-white disabled:text-slate-700 disabled:hover:text-slate-700 transition-colors">
-                  Reset to house default
+                  Reset to my role’s default
                 </button>
                 <button onClick={() => setCustomising(false)}
                   className="text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-slate-800/60 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
@@ -413,7 +392,8 @@ export default function Home() {
                 </button>
               </div>
             </div>
-            <WidgetArranger rows={arranged} onChange={(next: DashboardLayout) => save(next)} />
+            <WidgetArranger rows={arranged} recommended={recommended}
+              onChange={(next: DashboardLayout) => save(next)} />
             {visible.length === 0 && (
               <p className="text-[11px] text-amber-300/80">Everything is switched off — the dashboard below is empty until you tick something.</p>
             )}

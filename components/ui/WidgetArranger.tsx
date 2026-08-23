@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { useT } from '@/hooks/useT';
 import type { DashboardLayout, DashboardWidget } from '@/constants/dashboardWidgets';
 
@@ -18,11 +18,17 @@ import type { DashboardLayout, DashboardWidget } from '@/constants/dashboardWidg
  * library.
  */
 export default function WidgetArranger({
-  rows, onChange, footer,
+  rows, onChange, footer, recommended,
 }: {
   rows: { widget: DashboardWidget; shown: boolean }[];
   onChange: (next: DashboardLayout) => void;
   footer?: React.ReactNode;
+  /**
+   * The panels this person's ROLE opens on. They are marked here rather than
+   * listed somewhere else, because the same rows are the thing being arranged —
+   * a second "recommended" list would be a second list to drift.
+   */
+  recommended?: Set<string>;
 }) {
   const { t } = useT();
   const [drag, setDrag] = useState<string | null>(null);
@@ -55,6 +61,20 @@ export default function WidgetArranger({
   const toggle = (key: string) =>
     emit(rows.map((r) => (r.widget.key === key ? { ...r, shown: !r.shown } : r)));
 
+  /**
+   * How many rows at the TOP are role-recommended, so the group can be drawn
+   * as a group. Only a run at the top counts: once someone has dragged their
+   * own panel above them the block is no longer a block, and pretending
+   * otherwise would draw a heading over rows it does not describe. The chips
+   * survive either way, so nothing is lost — only the divider goes.
+   */
+  const leadRun = (() => {
+    if (!recommended?.size) return 0;
+    let n = 0;
+    while (n < rows.length && recommended.has(rows[n].widget.key)) n++;
+    return n >= 2 && n < rows.length ? n : 0;
+  })();
+
   const dropIsAfter = (e: React.DragEvent) => {
     const r = e.currentTarget.getBoundingClientRect();
     return e.clientY > r.top + r.height / 2;
@@ -63,18 +83,27 @@ export default function WidgetArranger({
   return (
     <div className="space-y-1.5">
       <ol className="space-y-1.5">
+        {leadRun > 0 && (
+          <li aria-hidden className="flex items-center gap-2 px-1 pt-0.5">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-300/90">{t('For your role')}</span>
+            <span className="h-px flex-1 bg-emerald-500/20" />
+          </li>
+        )}
         {rows.map((r, i) => {
           const { widget: w } = r;
           const dragging = drag === w.key;
+          const forRole = !!recommended?.has(w.key);
           return (
-            <li key={w.key}
+            <Fragment key={w.key}>
+            <li
               draggable
               onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDrag(w.key); }}
               onDragOver={(e) => { if (drag && drag !== w.key) { e.preventDefault(); setOver(w.key); } }}
               onDragLeave={() => setOver((o) => (o === w.key ? null : o))}
               onDrop={(e) => { e.preventDefault(); if (drag) move(drag, w.key, dropIsAfter(e)); endDrag(); }}
               onDragEnd={endDrag}
-              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-slate-950/50 border border-slate-800 cursor-grab active:cursor-grabbing transition-shadow ${
+              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-slate-950/50 border cursor-grab active:cursor-grabbing transition-shadow ${
+                forRole ? 'border-emerald-500/30 border-l-2 border-l-emerald-500/70' : 'border-slate-800'} ${
                 over === w.key ? 'ring-2 ring-emerald-500/60' : ''} ${dragging ? 'opacity-40' : ''}`}>
               <Grip className="w-2.5 h-4 text-slate-600 flex-shrink-0" />
               <span className="text-[11px] font-bold tabular-nums text-slate-600 w-4 text-center flex-shrink-0">{i + 1}</span>
@@ -92,13 +121,32 @@ export default function WidgetArranger({
               </button>
 
               <button onClick={() => toggle(w.key)} className="min-w-0 flex-1 text-left">
-                <span className={`block text-[13px] font-semibold truncate ${r.shown ? 'text-white' : 'text-slate-500'}`}>{w.label}</span>
+                <span className={`flex items-center gap-1.5 min-w-0 text-[13px] font-semibold ${r.shown ? 'text-white' : 'text-slate-500'}`}>
+                  <span className="truncate">{w.label}</span>
+                  {/* Only where the divider is not already saying it — and
+                      never on a phone, where the chip is wider than the space
+                      the LABEL needs (measured 2026-08-23: "Needs you today"
+                      truncated to "Need…" at 390px). The emerald edge on the
+                      row says the same thing and costs no width. */}
+                  {forRole && leadRun === 0 && (
+                    <span className="hidden sm:inline-flex flex-shrink-0 text-[9px] font-bold uppercase tracking-widest text-emerald-300/90 px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/25">
+                      {t('For your role')}
+                    </span>
+                  )}
+                </span>
                 <span className={`block text-[11px] truncate ${r.shown ? 'text-slate-500' : 'text-slate-600'}`}>{t(w.hint)}</span>
               </button>
 
               <MoveArrows label={w.label} onUp={() => nudge(i, -1)} onDown={() => nudge(i, 1)}
                 upDisabled={i === 0} downDisabled={i === rows.length - 1} />
             </li>
+            {leadRun > 0 && i === leadRun - 1 && (
+              <li aria-hidden className="flex items-center gap-2 px-1 pt-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-600">{t('Everything else')}</span>
+                <span className="h-px flex-1 bg-slate-800" />
+              </li>
+            )}
+            </Fragment>
           );
         })}
       </ol>

@@ -2,10 +2,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { useSettings } from './useSettings';
 import {
-  arrangeWidgets, orderedWidgetKeys, hiddenWidgetKeys,
+  arrangeWidgets, orderedWidgetKeys, hiddenWidgetKeys, layoutForRole, roleLeadFor,
   type DashboardLayout, type DashboardWidget,
 } from '@/constants/dashboardWidgets';
-import type { RolePermissions } from '@/constants/roles';
+import type { RolePermissions, UserRole } from '@/constants/roles';
 
 const STORE_KEY = 'icaproc.dashboard.v1';
 
@@ -28,16 +28,24 @@ const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffec
  * is what makes "the house switched this off, but I need it" possible: the
  * customise panel lists every widget the role may see, house-hidden ones
  * included, unticked.
+ *
+ * The chain has THREE links since 2026-08-23: role default → house → personal.
+ * `layoutForRole` floats this role's own panels to the top of the house order
+ * (constants/dashboardWidgets.ts owns which), so a warehouse login and the
+ * finance lead no longer open on the same arrangement with different holes in
+ * it. The role layer is inside `base` deliberately — retune a role's defaults
+ * and every stale personal arrangement dissolves exactly as a house change
+ * does, instead of the new default never reaching the person it was for.
  */
-export function useDashboardLayout(perms: RolePermissions | null) {
+export function useDashboardLayout(perms: RolePermissions | null, role: UserRole | null) {
   const { dashboardOrder, dashboardHidden } = useSettings();
 
-  // The house layout, normalised — this is also the `base` a personal
-  // arrangement is pinned to, so a settings change invalidates it.
-  const house = useMemo<DashboardLayout>(() => ({
-    order: orderedWidgetKeys(dashboardOrder),
-    hidden: [...hiddenWidgetKeys(dashboardOrder, dashboardHidden)],
-  }), [dashboardOrder, dashboardHidden]);
+  // The house layout as THIS ROLE receives it, normalised — this is also the
+  // `base` a personal arrangement is pinned to, so a settings change (or a
+  // change to the role's own defaults) invalidates it.
+  const house = useMemo<DashboardLayout>(
+    () => layoutForRole(role, { order: dashboardOrder, hidden: dashboardHidden }),
+    [role, dashboardOrder, dashboardHidden]);
   const base = useMemo(() => JSON.stringify(house), [house]);
 
   const [personal, setPersonal] = useState<DashboardLayout | null>(null);
@@ -88,10 +96,13 @@ export function useDashboardLayout(perms: RolePermissions | null) {
   const arranged = useMemo(() => arrangeWidgets(perms, layout), [perms, layout]);
   const visible = useMemo<DashboardWidget[]>(
     () => arranged.filter((r) => r.shown).map((r) => r.widget), [arranged]);
+  const recommended = useMemo(() => roleLeadFor(perms, role), [perms, role]);
 
   return {
     /** What to draw, in order. */
     visible,
+    /** The panels this role is recommended — the Customise panel's top group. */
+    recommended,
     /** What the customise panel lists — including what is switched off. */
     arranged,
     layout,
