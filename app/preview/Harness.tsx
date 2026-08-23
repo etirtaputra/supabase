@@ -3,10 +3,17 @@ import { useEffect, useState } from 'react';
 import SpendOverview from '@/components/ui/SpendOverview';
 import CategoryPositioningMap from '@/components/ui/CategoryPositioningMap';
 import { PALETTE_SCALES, PALETTE_STEPS, type ThemeName } from '@/constants/palette';
+import { mockMotion } from '@/lib/dev/mockChartData';
 import { THEMES } from '@/lib/theme';
 import {
   mockComponents, mockSuppliers, mockPos, mockPoItems, mockPoCosts, mockQuotes, mockQuoteItems,
+  mockQueue, mockActivity, mockNewArrivals, mockArriving, mockBoard, mockPayments, mockPosition,
 } from '@/lib/dev/mockChartData';
+import {
+  ActionQueue, NewArrivals, ArrivingSoon, TopBoard, FeedCard, StockAlerts,
+  PositionStrip, MonthMotion, ActivityStream, KpiTile, QuickActions,
+} from '@/components/dashboard/Widgets';
+import { ROLE_PERMISSIONS } from '@/constants/roles';
 
 /**
  * Flip every skin against the same fabricated data and look.
@@ -80,6 +87,41 @@ export default function Harness() {
               </div>
             </div>
           </div>
+        </section>
+
+        {/* The Dashboard's widgets. They take their rows as props, so every
+            one of them renders here with no database — which is the whole
+            reason they were lifted out of app/page.tsx. */}
+        <section className="space-y-3">
+          <h2 className="text-sm font-bold text-white">Dashboard widgets</h2>
+          <PositionStrip data={mockPosition as never} perms={ROLE_PERMISSIONS.owner} />
+          <ActionQueue items={mockQueue as never} atStake={2_816_173_107} />
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            <TopBoard title="Top products" board={mockBoard as never} by="revenue"
+              onPick={() => {}} noun="product" period="365" canProfit href="/profitability" />
+            <MonthMotion rows={mockMotion as never} />
+          </div>
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            <NewArrivals rows={mockNewArrivals as never} days={14} />
+            <ArrivingSoon data={mockArriving as never} buySide />
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <KpiTile label="Paid This Month" value="Rp 1.138.500.000" sub="August" color="text-rose-300" ring="ring-rose-500/20" />
+            <KpiTile label="Stock Value" value="Rp 3.100.000.000" sub="on-hand × avg landed cost" color="text-violet-300" ring="ring-violet-500/20" />
+            <KpiTile label="Active POs" value="174" sub="not cancelled" color="text-sky-300" ring="ring-sky-500/20" />
+            <KpiTile label="Components" value="990" sub="in catalog" color="text-emerald-300" ring="ring-emerald-500/20" />
+          </div>
+          <StockAlerts shortages={[] as never} reorders={[] as never} />
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+            <div className="xl:col-span-2"><ActivityStream rows={mockActivity as never} /></div>
+            <FeedCard title="Last payments" feed={mockPayments as never} href="/banks"
+              empty="No payment has been recorded yet." showMoney />
+          </div>
+          <QuickActions items={[
+            { href: '/sales/new', label: 'New Sales Quotation', accent: 'emerald' },
+            { href: '/purchasing?tab=quoting', label: 'New Deal — PI / PO', accent: 'blue' },
+            { href: '/banks', label: 'Bank Accounts', accent: 'amber' },
+          ]} />
         </section>
 
         {/* The two components whose colours are theme tokens — the ones that

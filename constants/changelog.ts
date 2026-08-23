@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-22T09:40:00Z',
+    title: 'Groundwork: the Dashboard panels can now be inspected before they ship',
+    details: [
+      'Nothing changes on your Dashboard \u2014 every panel is the same code, moved to its own file so it can be opened and looked at outside the app.',
+      'This follows the run of visual faults this week: a chart colour that resolved to nothing, letter spacing that collapsed a label, a total that did not line up with the figures under it. None of those could fail a test, and none of the Dashboard panels could be rendered anywhere a person might see them first. Now all eleven can, in every skin, driven by made-up numbers.',
+      'The sample data is deliberately awkward \u2014 a customer who lost money, a cost that is only an estimate, a name too long for its space, a missing date. Those are the cases where a panel actually breaks.',
+    ],
+  },
+  {
     at: '2026-08-22T08:05:00Z',
     title: 'The donut labels are readable again, and the At Stake total lines up',
     details: [
