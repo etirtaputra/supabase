@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-08-23** · head of `main` at that point: `c48e997`
+**Last updated: 2026-08-23** · head of `main` at that point: `f5192c9`
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -89,7 +89,7 @@ item/price/spec data eventually feed a public website.
 
 ```bash
 npx tsc --noEmit     # must be clean
-npm test             # node --test "lib/**/*.test.ts" — 229 tests at handoff, all pass
+npm test             # node --test "lib/**/*.test.ts" — 238 tests at handoff, all pass
 npx eslint           # ~294 pre-existing errors repo-wide; just don't ADD any
 npm run build        # next build must be green
 ```
@@ -97,7 +97,26 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 
 ---
 
-## 4. What the previous thread did (for context, all shipped to main)
+## 4. What the previous threads did (for context, all shipped to main)
+
+- `f5192c9` **Role-relevant dashboard defaults** — the module §6 used to
+  describe, now shipped. `ROLE_DASHBOARDS` in `constants/dashboardWidgets.ts`
+  declares per role: `lead` (the panels it opens on), `off` (panels it starts
+  switched off) and `starts` (the screens its Quick Actions card leads with).
+  ONE map behind the dashboard order, the Customise panel's "For your role"
+  group AND Quick Actions — which had kept a second hand-maintained list inside
+  `app/page.tsx`. Resolution is `layoutForRole(role, house)`: the role's panels
+  float to the top of the HOUSE order rather than replacing it (the owner's
+  call — layered, so one nudge in Settings cannot flatten every role back to
+  identical), and `off` adds to what the house hid rather than fighting it.
+  Precedence: role default → house → personal, with the role layer INSIDE the
+  personal arrangement's `base` pin, so retuning a role dissolves stale personal
+  copies exactly as a house change does. Settings › Dashboard gained
+  **"What each role opens on"** (per-role preview through the same resolver).
+  Nine new cases in `lib/dashboardWidgets.test.ts`; 238 tests at this handoff.
+  Measured in Chromium: the "For your role" chip truncated "Needs you today" to
+  "Need…" at 390px, so it is `sm`-and-up only and the emerald row edge carries
+  the signal on a phone.
 
 - `d2d8e36` **Top products / Top customers** dashboard widgets, ranked by revenue or
   gross profit (profit view gated on `canViewEconomics`; the fetch never asks for a
@@ -152,92 +171,45 @@ has not decided.
   components, and drive it with Playwright:
   `chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })`.
   Do NOT run `playwright install`. Keep all of this in the scratchpad dir.
+  `node_modules` is EMPTY on a fresh sandbox — `npm install` first, or tsc will
+  report thousands of "Cannot find module 'react'" errors that are not yours.
+  Playwright itself is not a dependency: `npm i --no-save playwright-core` in
+  the scratchpad, and drive the pre-installed Chromium with it. The Tailwind
+  binary lives at `node_modules/.bin/tailwindcss` (`npx tailwindcss` fails).
 - A replica is only as honest as its markup — the previous thread reported a wrong
   header height once because the replica invented three page buttons the Dashboard
   does not have. Copy the real page's actions markup.
 
 ---
 
-## 6. NEXT MODULE — role-relevant dashboard customisation
+## 6. NEXT MODULE — not chosen yet
 
-**The ask (owner, verbatim):** *"Make the dashboard customization more relevant to
-each user. Maybe make a section of the widget relevant to the roles of each user."*
+The module this section used to hold (role-relevant dashboard customisation)
+shipped as `f5192c9`; see §4. **Nothing has been decided for the next thread.**
 
-### Where things stand today
+That is not a blocked start — **go to §7 and run it**: read the ground truth,
+COUNT THE LIVE DATA with `mcp__Supabase__execute_sql` before proposing anything,
+then come back with three ranked candidates and a recommendation, and let the
+owner pick. Do not start building on your own recommendation, and update this
+section with whatever he picks so the next thread inherits the decision.
 
-`constants/dashboardWidgets.ts` is the single list behind both what `/` renders and
-what the "Customise" panel offers. Each widget declares:
-
-```ts
-interface DashboardWidget {
-  key: string; label: string; hint: string;
-  section: NavSection;               // flow gate
-  cap?: keyof RolePermissions;       // extra capability (must pass)
-  caps?: (keyof RolePermissions)[];  // "any one of these"
-  width: 'full'|'twoThirds'|'half'|'third'|'quarter';
-  defaultOn: boolean;                // on for someone who never customised
-}
-```
-
-18 widgets ship today: `position`, `queue`, `nextStep`, `motion`, `kpiPaid`,
-`kpiStockValue`, `kpiActivePos`, `kpiComponents`, `newArrivals`, `arriving`,
-`topProducts`, `topCustomers`, `stockAlerts`, `lastPayments`, `lastDeliveries`,
-`lastCases`, `activity`, `quickActions`.
-
-Roles in `constants/roles.ts` → `ROLE_PERMISSIONS`: `owner`, `buy_admin`,
-`sell_admin`, `sales`, `engineer`, `warehouse`, `aftersales`, `viewer`,
-`data_entry`, `finance`.
-
-`hooks/useDashboardLayout.ts` resolves the arrangement:
-- **House layout** from Settings › Dashboard (`dashboardOrder` / `dashboardHidden`).
-- **Personal layout** in `localStorage['icaproc.dashboard.v1']` stored as
-  `{order, hidden, base}` — the **`{v, base}` dissolve precedent**: a personal pin
-  stores the house default it diverged from, so changing the house layout dissolves
-  every stale personal arrangement instead of leaving Settings looking dead.
-  Arranging back to exactly the house layout clears the personal copy.
-- `orderedWidgetKeys()` puts a newly-shipped widget back in its **shipped position**,
-  not at the end. `hiddenWidgetKeys()` keeps a `defaultOn: false` widget off for
-  people who saved an arrangement before it existed.
-- `widgetsFor(perms)` filters to what the role may see — **a widget a role may not
-  have is never offered, never ordered, never rendered.**
-
-### The gap this module closes
-
-Right now `defaultOn` is a **single global flag**. Everyone who has never customised
-sees the same 18 widgets in the same order, minus whatever their role gates out.
-A warehouse picker and the finance lead get the same starting dashboard. The
-per-role tailoring today is purely *subtractive* (permissions remove things);
-nothing is *ordered* or *emphasised* for the job someone actually does.
-
-### Design questions to settle with the owner early
-
-1. **Per-role default arrangement vs. a "For your role" section.** Two shapes:
-   (a) `defaultOn` / default order becomes per-role — `warehouse` opens on
-   `stockAlerts` + `arriving` + `lastDeliveries`; `finance` on `position` +
-   `kpiPaid` + `lastPayments`. Or (b) keep one order but add a visually distinct
-   **"Recommended for your role"** group at the top of the Customise panel.
-   These are not exclusive — (a) is the dashboard, (b) is the customise panel.
-   Recommend doing both, with one source of truth.
-2. **Where does the per-role default live?** In-code map in `dashboardWidgets.ts`
-   (`ROLE_DEFAULTS: Record<UserRole, {order: string[], hidden: string[]}>`) is the
-   obvious first move — it is testable, ships with the build, and needs no schema.
-   A Supabase table only earns its place if the owner wants to edit it from
-   Settings without a deploy. **Ask before adding a table.**
-3. **How does this interact with the house layout and the dissolve rule?** The
-   precedence chain becomes role default → house override → personal. The `base`
-   pin must include the role default, or changing a role's defaults will not
-   dissolve stale personal arrangements. This is the subtle part — get it right and
-   write the test.
-4. **Multi-role / owner.** `owner` sees everything; what does "relevant" mean for a
-   role that legitimately watches all of it?
-
-### Interconnection check (rule #1) for this module
-- `quickActions` already claims to show "the screens this role starts its day on" —
-  it should be driven by the same role map, not a second list.
-- Settings › Dashboard (house layout) needs to show which widgets are role defaults,
-  or the owner will not understand why two people see different things.
-- `lib/dashboardWidgets.test.ts` must gain cases: every role's default set is a
-  subset of what that role may see; no role defaults to an empty dashboard.
+### Decisions this last module made that the owner may want to revisit
+- **Project Engineers open with Top products / Top customers switched OFF** —
+  the EPC job is specifying kit, not working a catalog leaderboard. They are one
+  tick away in Customise. If the owner disagrees, it is one line in
+  `ROLE_DASHBOARDS.engineer.off` plus its case in `lib/dashboardWidgets.test.ts`.
+- **Every role's `lead` is deliberately conservative about widths.** Promoting a
+  single `quarter` (one KPI tile) or an odd `half` leaves a hole in the grid
+  where the rest of its row used to be, so leads promote full-width panels, or
+  halves in pairs, or the whole KPI quartet. Read the comment above
+  `ROLE_DASHBOARDS` before retuning one.
+- **The `owner` role's start is unchanged** — all eighteen panels, in the
+  money-first order they were already in. The shipped order was written for that
+  reader; nothing was removed, per the owner's answer.
+- **Quick Actions gained two shortcuts** by taking each destination's own gate
+  from `constants/navigation.ts` instead of a hand-written one: the service desk
+  now gets **Customers** (it could always open it — half of any service call)
+  and the warehouse gets **Serial Numbers**.
 
 ### Long-standing items still awaiting the owner (raise once, don't re-litigate)
 - Indonesian glossary review: Mundur/Maju, Transit, eksternal, Sisa piutang,
@@ -249,10 +221,9 @@ nothing is *ordered* or *emphasised* for the job someone actually does.
   customers carry no `external_ref` — an import would match on code/name.
 - A `canViewSpend` capability split; reassigning staff to warehouse/aftersales
   roles; retiring the legacy `canEditQuotes`.
-
-**Start by reading `docs/ERP_ROADMAP.md`, `constants/dashboardWidgets.ts`,
-`constants/roles.ts` and `hooks/useDashboardLayout.ts`, then put questions 1–4 to
-the owner before writing code.**
+- The nav-label shortening question from the header work (`63fa4b7`): the seven
+  labels need 720px, and only shortening them buys 1366/1440 laptops the 66px
+  that 1536 already got. Still a wording call.
 
 ---
 
