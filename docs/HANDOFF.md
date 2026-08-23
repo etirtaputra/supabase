@@ -1,4 +1,11 @@
-# ICAPROC — thread handoff (2026-08-23)
+# ICAPROC — thread handoff
+
+**Last updated: 2026-08-23** · head of `main` at that point: `f7d8b23`
+
+> This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
+> start a second copy. Every thread opens by reading it, and every thread that
+> ships a module updates it before finishing: refresh §4 (what shipped) and
+> replace §6 with the next module. Git history keeps the dated versions.
 
 ## 0. What this is
 

@@ -7,6 +7,18 @@
   Vercel preview deploys. Pushing to main is the whole release — production
   deploys from main automatically.
 
+## Thread handoff (owner's rule, 2026-08-23)
+
+- **`docs/HANDOFF.md` is the single, permanent handoff file.** Read it FIRST in
+  every new thread, before this file and before `docs/ERP_ROADMAP.md` — it holds
+  the backend specifics (GitHub/Vercel/Supabase and how each behaves in the
+  sandbox), what shipped recently, what was left alone on purpose, and the
+  kickoff for the next module.
+- **Every thread that ships a module updates it before finishing**: refresh §4
+  (what shipped, with commit SHAs), replace §6 with the next module, and bump
+  the "Last updated" line. Never date the filename and never start a second
+  copy — git history keeps the dated versions.
+
 ## Mission (why ICAPROC exists)
 
 ICAPROC is the company's bid to **own its own operating system** — a full ERP
