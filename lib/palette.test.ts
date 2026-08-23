@@ -63,3 +63,33 @@ test('the default skin is a real skin, not an empty block', () => {
     'the unattributed default should be the terminal skin');
   assert.ok(def!.body.includes('--font-app:Inter'), 'and it should carry the terminal typeface');
 });
+
+/**
+ * A colour TOKEN is not a colour.
+ *
+ * `SpendOverview` and the positioning map hold their series colours as
+ * variable NAMES ('--c-indigo-400') so a call site can ask for the ink or a
+ * tint of the same hue. Hand one of those straight to an SVG `fill` and it is
+ * not an error — SVG shrugs and paints black. That is precisely how the Spend
+ * & Cash donuts became black discs the day the palette was tokenised, and it
+ * type-checked, built, and passed every other test on the way there.
+ *
+ * The two legitimate shapes are `ink(PALETTE[…])` / `tint(PALETTE[…], a)` and
+ * `const x = PALETTE[…]` (whose uses are then wrapped). Anything else is the
+ * bug.
+ */
+test('a series colour is never handed over as a bare token', () => {
+  const src = readFileSync('components/ui/SpendOverview.tsx', 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  const offenders: string[] = [];
+  for (const m of src.matchAll(/PALETTE\[/g)) {
+    const before = src.slice(Math.max(0, m.index! - 40), m.index!);
+    const wrapped = /(ink|tint)\($/.test(before);
+    const declared = /=\s*$/.test(before);
+    if (!wrapped && !declared) {
+      offenders.push(src.slice(Math.max(0, m.index! - 60), m.index! + 30).replace(/\s+/g, ' ').trim());
+    }
+  }
+  assert.deepEqual(offenders, [],
+    `these pass a variable NAME where a colour is expected, which renders black: ${offenders.join(' | ')}`);
+});

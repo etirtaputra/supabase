@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-22T04:30:00Z',
+    title: 'Spend & Cash donuts are back, and the EPC header lines up',
+    details: [
+      'The two donut charts on Spend & Cash had turned into black discs. That was our doing yesterday: moving the chart colours onto the theme so they would work on a light background, and then handing the donut the NAME of a colour instead of the colour. The legend dots kept working, which is why it looked like only the charts had broken.',
+      'While fixing it: the text in the middle of the donut was hard-coded white, which would have been invisible on the light skins the moment you hovered a slice. It follows the skin now.',
+      'The EPC Proposals header had your email, Set password and Sign out stacked in a two-line block wedged between single-line buttons, which is what made that row look crooked. The wordmark menu already shows who is signed in and signs you out on every page, so only Set password stays there \u2014 as a normal button, level with Directory and Library.',
+    ],
+  },
+  {
     at: '2026-08-22T02:10:00Z',
     title: 'Tidier header on phones \u2014 one date, one row, no smudge',
     details: [

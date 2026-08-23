@@ -17,6 +17,12 @@ import FitText from './FitText';
  *
  * Stored as the variable NAME so a call site can ask for either the ink or a
  * tint of it; `color + '22'` cannot append alpha to a var() expression.
+ *
+ * THEREFORE EVERY USE MUST GO THROUGH `ink()` OR `tint()`. A bare
+ * `PALETTE[i]` is the string "--c-indigo-400", which is not a colour: as an
+ * SVG `fill` it silently falls back to black, which is exactly how the donut
+ * charts turned into black discs on 2026-08-21. lib/palette.test.ts now fails
+ * the build on a bare use.
  */
 const PALETTE = [
   '--c-indigo-400', '--c-emerald-400', '--c-amber-400', '--c-blue-400', '--c-rose-400',
@@ -81,15 +87,15 @@ function DonutChart({ slices }: { slices: DonutSlice[] }) {
       {paths}
       {hs ? (
         <>
-          <text x="0" y="-0.12" textAnchor="middle" fill="white" fontSize="0.2" fontWeight="bold">
+          <text x="0" y="-0.12" textAnchor="middle" fill="rgb(var(--c-white))" fontSize="0.2" fontWeight="bold">
             {hs.label.length > 13 ? hs.label.slice(0, 12) + '…' : hs.label}
           </text>
-          <text x="0" y="0.17" textAnchor="middle" fill="#94a3b8" fontSize="0.19">
+          <text x="0" y="0.17" textAnchor="middle" fill="rgb(var(--c-slate-400))" fontSize="0.19">
             {((hs.value / total) * 100).toFixed(1)}%
           </text>
         </>
       ) : (
-        <text x="0" y="0.06" textAnchor="middle" fill="#374151" fontSize="0.17">hover a slice</text>
+        <text x="0" y="0.06" textAnchor="middle" fill="rgb(var(--c-slate-600))" fontSize="0.17">hover a slice</text>
       )}
     </svg>
   );
@@ -355,8 +361,8 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
   const fmtPrice = (p: number, cur: string) =>
     p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + cur;
 
-  const vendorSlices: DonutSlice[] = topVendors.map((v, i) => ({ label: v.name, value: v.committed, color: PALETTE[i % PALETTE.length] }));
-  const catSlices: DonutSlice[] = topCats.map((c, i) => ({ label: c.name, value: c.committed, color: PALETTE[i % PALETTE.length] }));
+  const vendorSlices: DonutSlice[] = topVendors.map((v, i) => ({ label: v.name, value: v.committed, color: ink(PALETTE[i % PALETTE.length]) }));
+  const catSlices: DonutSlice[] = topCats.map((c, i) => ({ label: c.name, value: c.committed, color: ink(PALETTE[i % PALETTE.length]) }));
 
   const maxVendor = topVendors[0]?.committed ?? 1;
   const maxCat = topCats[0]?.committed ?? 1;
@@ -444,7 +450,7 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
                       </div>
                       <span className="text-[11px] font-bold text-slate-100 tabular-nums flex-shrink-0">{fmtIDR(v.committed)}</span>
                     </div>
-                    <Bar pct={(v.committed / maxVendor) * 100} color={PALETTE[i % PALETTE.length]} />
+                    <Bar pct={(v.committed / maxVendor) * 100} color={ink(PALETTE[i % PALETTE.length])} />
                     <div className="flex gap-2 mt-0.5 text-[10px] text-slate-600">
                       <span>{v.poCount} PO{v.poCount !== 1 ? 's' : ''}</span>
                       <span>·</span>
@@ -482,7 +488,7 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
                       </div>
                       <span className="text-[11px] font-bold text-slate-100 tabular-nums flex-shrink-0">{fmtIDR(c.committed)}</span>
                     </div>
-                    <Bar pct={(c.committed / maxCat) * 100} color={PALETTE[i % PALETTE.length]} />
+                    <Bar pct={(c.committed / maxCat) * 100} color={ink(PALETTE[i % PALETTE.length])} />
                     <div className="flex gap-2 mt-0.5 text-[10px] text-slate-600">
                       <span>{c.poCount} PO{c.poCount !== 1 ? 's' : ''}</span>
                       <span>·</span>

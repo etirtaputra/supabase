@@ -444,20 +444,21 @@ export default function QuotesListPage() {
                 </Link>
               </>
             )}
-            {/* The account block duplicates what the wordmark menu already
-                shows; it only earns its width on a genuinely wide screen. */}
+            {/* Only the part the wordmark menu does NOT already carry.
+                This used to be a two-line block — email above, Set password
+                and Sign out below — wedged between single-line buttons, which
+                is what made the row read as ragged. The menu shows who is
+                signed in and signs them out on every page; setting a password
+                is the one thing it cannot do, so that is all that stays, at
+                the same height as its neighbours. */}
             {gate.profile && (
-              <div className="text-right hidden 2xl:block">
-                <p className="text-[11px] text-slate-400 leading-tight">{gate.profile.email}</p>
-                <div className="flex items-center gap-2 justify-end">
-                  <button onClick={() => { setPwOpen(true); setPw1(''); setPw2(''); setPwMsg(''); }} className="text-[10px] text-slate-600 hover:text-slate-300 transition-colors">
-                    Set password
-                  </button>
-                  <button onClick={() => gate.signOut()} className="text-[10px] text-slate-600 hover:text-slate-300 transition-colors">
-                    Sign out
-                  </button>
-                </div>
-              </div>
+              <button
+                onClick={() => { setPwOpen(true); setPw1(''); setPw2(''); setPwMsg(''); }}
+                title={`Set a password for ${gate.profile.email}`}
+                className="hidden xl:inline-block px-3 py-1.5 rounded-xl border border-white/[0.08] text-slate-400 hover:text-white hover:bg-white/10 text-xs font-semibold transition-all whitespace-nowrap"
+              >
+                Set password
+              </button>
             )}
           <button
             onClick={createNew}
