@@ -363,7 +363,7 @@ export default function Home() {
             this header carries one small toggle, so stacking it only produced
             a third, ragged, left-hung row. BrandMenu reports its true minimum
             width, so if it ever stops fitting the button wraps by itself. */}
-        <div className="max-w-[1800px] 2xl:max-w-[2460px] mx-auto px-3 sm:px-4 md:px-6 xl:px-8 py-3 sm:py-4 flex flex-row items-center justify-between flex-wrap gap-x-3 gap-y-2 sm:gap-4">
+        <div className="max-w-[1800px] 2xl:max-w-[2460px] mx-auto px-3 sm:px-4 md:px-6 xl:px-8 py-2.5 sm:py-3 flex flex-row items-center justify-between flex-wrap gap-x-3 gap-y-2 sm:gap-x-4 sm:gap-y-2.5">
           <BrandMenu
             wordmarkClass="text-xl md:text-2xl font-extrabold"
             subtitle={new Date().toLocaleDateString('en-GB', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
@@ -383,7 +383,7 @@ export default function Home() {
         </div>
       </div>
 
-      <main className="max-w-[1800px] 2xl:max-w-[2460px] mx-auto px-3 sm:px-4 md:px-6 xl:px-8 py-6 xl:py-8 space-y-6 xl:space-y-7">
+      <main className="max-w-[1800px] 2xl:max-w-[2460px] mx-auto px-3 sm:px-4 md:px-6 xl:px-8 py-4 sm:py-5 xl:py-6 space-y-6 xl:space-y-7">
 
         {/* ── Customise: what this person watches, and in what order ──
                Personal and per-device. The house layout stays in

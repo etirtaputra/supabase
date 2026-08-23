@@ -471,7 +471,7 @@ export default function BrandMenu({
     // buttons to a second row rather than letting anything overlap. The
     // measured squeeze below is only the backstop for when even a whole row is
     // not enough.
-    <div ref={barRef} className="relative flex-1 flex items-center gap-1 lg:gap-3">
+    <div ref={barRef} className="relative flex-1 flex items-center gap-1 lg:gap-2">
       <div
         className="relative min-w-0 flex-shrink-0"
         onMouseEnter={() => setOpen(true)}
@@ -544,7 +544,7 @@ export default function BrandMenu({
           the flexible element (flex-1, min 140px); the nav never shrinks, and
           the suffix below is capped so the nav's natural width stays bounded. */}
       {squeeze < 2 && (
-      <nav className="hidden xl:flex items-center gap-1 flex-shrink-0">
+      <nav className="hidden xl:flex items-center gap-0.5 flex-shrink-0">
         {groups.map((group, gi) => {
           const acc = accentOf(group.section, group.title);
           const activeApp = group.apps.find((a) => isActive(a.href));
@@ -556,7 +556,7 @@ export default function BrandMenu({
             const label = group.title && a.label !== group.title ? `${GROUP_SHORT[group.title] ?? group.title} ${a.label}` : a.label;
             return (
               <Link key={gi} href={a.href}
-                className={`px-3 py-1.5 rounded-lg text-[13px] font-medium whitespace-nowrap transition-colors ${
+                className={`px-2.5 py-1.5 rounded-lg text-[13px] font-medium whitespace-nowrap transition-colors ${
                   activeApp ? acc.active : 'text-slate-400 hover:text-white hover:bg-white/[0.07]'
                 }`}>
                 {label}
@@ -571,7 +571,7 @@ export default function BrandMenu({
               <button
                 onClick={() => setDeskOpen((o) => (o === gi ? null : gi))}
                 aria-expanded={isOpen}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium whitespace-nowrap transition-colors ${
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[13px] font-medium whitespace-nowrap transition-colors ${
                   activeApp ? acc.active : isOpen ? 'text-white bg-white/[0.07]' : 'text-slate-400 hover:text-white hover:bg-white/[0.07]'
                 }`}>
                 {group.title ? (GROUP_SHORT[group.title] ?? group.title) : ''}

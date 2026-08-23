@@ -58,7 +58,7 @@ export default function Harness() {
         </div>
       </div>
 
-      <main className="max-w-[1800px] mx-auto px-4 py-6 space-y-8">
+      <main className="max-w-[1800px] mx-auto px-4 py-4 sm:py-5 space-y-8">
         {/* The whole palette, every scale and step. A variable that no skin
             defines renders as a transparent hole here, which is how the
             missing --c-pink-400 would have announced itself. */}

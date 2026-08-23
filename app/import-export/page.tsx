@@ -183,7 +183,7 @@ export default function DataPage() {
   return (
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
-        <div className="max-w-[1400px] mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5">
+        <div className="max-w-[1400px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5">
           <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Import & Export · bulk data in and out" />
           <Link href="/settings" className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors self-start sm:self-auto">
             Settings →
@@ -191,7 +191,7 @@ export default function DataPage() {
         </div>
       </div>
 
-      <main className="max-w-[1400px] mx-auto px-3 sm:px-4 md:px-6 py-6 space-y-5">
+      <main className="max-w-[1400px] mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-5 space-y-5">
         {msg && <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-xs text-emerald-200">{msg}</div>}
 
         <div className="flex items-center gap-1 border-b border-slate-800/80">

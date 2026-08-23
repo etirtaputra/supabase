@@ -117,7 +117,7 @@ export default function ProposalDirectoryPage() {
         </div>
       </div>
 
-      <main className="max-w-5xl mx-auto px-3 sm:px-6 py-6 space-y-5">
+      <main className="max-w-5xl mx-auto px-3 sm:px-6 py-4 sm:py-5 space-y-5">
         {!isOwner && (
           <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-2.5 text-xs text-amber-200">
             You can review duplicates here; merging &amp; renaming is owner-only.

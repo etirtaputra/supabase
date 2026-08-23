@@ -294,7 +294,7 @@ function ReceivePage() {
         </div>
       </div>
 
-      <main className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-6 space-y-5">
+      <main className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-5 space-y-5">
         {schemaMissing && (
           <div className="bg-amber-500/10 border border-amber-500/40 rounded-2xl p-4 text-sm">
             <span className="text-amber-300 font-semibold">Goods-receipt tables are behind the app.</span>

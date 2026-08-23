@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-23T02:55:00Z',
+    title: 'Tighter header and page margins \u2014 more of every screen is your data',
+    details: [
+      'The bar at the top of every page, and the gap beneath it, are slimmer. Nothing moved and nothing was removed \u2014 the menu, the search field, the clock and the buttons all sit exactly where they did, just with less air around them.',
+      'On a laptop the chrome above the first row of a list drops from 147px to 121px; on a 1920 monitor at the usual 125% zoom, from 147px to 81px \u2014 the header stops needing a second row there, so it halves. On a phone a list page gives back 20px, and the Dashboard 12px.',
+      'That is roughly one extra table row on a laptop and two on a wide monitor, on every list in the system, for free.',
+      'On screens between 1280 and about 1530 wide, list pages still push their page buttons onto a second header row: the seven menu items alone need 720px, and with the search field and the buttons there is genuinely not enough width. Shortening the menu labels is the only remaining lever \u2014 say the word and we will look at it.',
+    ],
+  },
+  {
     at: '2026-08-22T09:40:00Z',
     title: 'Groundwork: the Dashboard panels can now be inspected before they ship',
     details: [

@@ -664,7 +664,7 @@ export default function DescriptionLibraryPage() {
         </div>
       </div>
 
-      <main className="max-w-6xl 2xl:max-w-[1760px] mx-auto px-4 sm:px-6 py-6 space-y-4">
+      <main className="max-w-6xl 2xl:max-w-[1760px] mx-auto px-4 sm:px-6 py-4 sm:py-5 space-y-4">
         {libMissing && (
           <div className="bg-amber-500/10 border border-amber-500/40 rounded-2xl px-4 py-3 text-sm text-amber-300">
             The <span className="font-mono">10.4_description_library</span> table doesn&apos;t exist yet — creating new entries needs it.

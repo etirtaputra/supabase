@@ -403,7 +403,7 @@ function EconomicsInner() {
   return (
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
-        <div className="max-w-[1600px] 2xl:max-w-[2120px] mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-4">
+        <div className="max-w-[1600px] 2xl:max-w-[2120px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-x-4 sm:gap-y-2.5">
           <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Profitability · Item margin, position & cash cycle" />
           <div className="flex items-center gap-1.5 flex-wrap justify-end">
             {/* Period only means something for the flow tab — a position is all-time */}
@@ -424,7 +424,7 @@ function EconomicsInner() {
         </div>
       </div>
 
-      <main className="max-w-[1600px] 2xl:max-w-[2120px] mx-auto px-3 sm:px-4 md:px-6 py-6 space-y-5">
+      <main className="max-w-[1600px] 2xl:max-w-[2120px] mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-5 space-y-5">
         <div className="flex items-center gap-1 border-b border-slate-800/80 -mt-1">
           {([['flow', 'Profitability'], ['position', 'Position']] as [Tab, string][]).map(([k, label]) => (
             <button key={k} onClick={() => setTab(k)}

@@ -477,7 +477,7 @@ export default function QuotesListPage() {
         </div>
       </div>
 
-      <main className="max-w-6xl 2xl:max-w-[1760px] mx-auto px-3 sm:px-6 py-6 sm:py-8 space-y-6">
+      <main className="max-w-6xl 2xl:max-w-[1760px] mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-6">
         <MobileNotice variant="edit" />
         <MigrationBanner />
         {createError && (

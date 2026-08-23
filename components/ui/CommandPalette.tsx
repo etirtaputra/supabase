@@ -995,7 +995,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
       // Width comes from the slot this is dropped into (the nav bar), so the
       // field grows with the monitor without knowing anything about the header.
       <div className="relative w-full">
-        <div className="relative flex items-center gap-2.5 px-3.5 h-9 rounded-full bg-slate-900/70 border border-slate-700/80 focus-within:border-emerald-500/60 hover:border-emerald-500/40 transition-colors">
+        <div className="relative flex items-center gap-2.5 px-3.5 h-8 rounded-full bg-slate-900/70 border border-slate-700/80 focus-within:border-emerald-500/60 hover:border-emerald-500/40 transition-colors">
           {drill ? (
             <button onClick={() => { setDrill(null); inputRef.current?.focus(); }} onMouseDown={(e) => e.preventDefault()} className="flex items-center gap-1.5 min-w-0 text-slate-400 hover:text-white text-xs flex-shrink transition-colors">
               <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
