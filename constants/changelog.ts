@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-21T23:55:00Z',
+    title: 'Terminal is now the default look \u2014 and your dark or light choice came with you',
+    details: [
+      'ICAPROC opens in the Terminal skin: flat panels, market green and red, and Inter with monospaced figures so columns of numbers line up digit under digit.',
+      'Nobody has to re-choose. If you were on Dark or Dim you are now on Terminal; if you were on Light or Paper you are on Terminal Light. It happens once \u2014 pick anything you like afterwards and it sticks.',
+      'The wordmark menu now offers two skins instead of six, because two is a switch people use and six is a decision they postpone. Dark, Dim, Light and Paper are all still there, unchanged, in Settings \u203a Appearance.',
+      'Charts follow the skin properly now. The category tiles on Spend & Cash and the brand dots on the positioning map were painted in fixed colours picked against a black screen \u2014 amber on white is barely a colour \u2014 so they now take their colour from whichever skin is on. One of them was even naming a colour that does not exist, and had been rendering as nothing at all.',
+    ],
+  },
+  {
     at: '2026-08-21T22:40:00Z',
     title: 'Two new skins: Terminal and Terminal Light',
     details: [

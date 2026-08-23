@@ -234,15 +234,24 @@ const fontBlock = (f) => `--font-app:${f.sans};--font-mono-app:${f.mono}`;
  * theme — but they CAN be overridden for one theme from here, which keeps the
  * other four skins byte-identical to what they were.
  */
+// `:root:not([data-theme])` is the default terminal skin — without it the
+// geometry below would apply to every skin EXCEPT the one most people see.
+const T = ':root:not([data-theme])';
+const TL = ':root[data-theme="terminal"]';
+const TT = ':root[data-theme="terminal-light"]';
 const TERMINAL_SHELL_CSS = [
   // Corners: the house look is rounded-2xl cards; a terminal is nearly square.
-  ':root[data-theme="terminal"] .rounded-2xl,:root[data-theme="terminal-light"] .rounded-2xl{border-radius:.5rem}',
-  ':root[data-theme="terminal"] .rounded-xl,:root[data-theme="terminal-light"] .rounded-xl{border-radius:.375rem}',
-  ':root[data-theme="terminal"] .rounded-lg,:root[data-theme="terminal-light"] .rounded-lg{border-radius:.25rem}',
+  `${T} .rounded-2xl,${TL} .rounded-2xl,${TT} .rounded-2xl{border-radius:.5rem}`,
+  `${T} .rounded-xl,${TL} .rounded-xl,${TT} .rounded-xl{border-radius:.375rem}`,
+  `${T} .rounded-lg,${TL} .rounded-lg,${TT} .rounded-lg{border-radius:.25rem}`,
   // Panels sit flat: the decorative inner ring goes, the hairline border stays.
-  ':root[data-theme="terminal"] [class*="ring-white\\\\/5"],:root[data-theme="terminal-light"] [class*="ring-white\\\\/5"]{--tw-ring-color:transparent}',
+  // NB: this is an ATTRIBUTE substring match, so the value is the literal
+  // class name as written in the HTML — `ring-white/5`, with no CSS escaping.
+  // Escaping it the way a class SELECTOR needs (.ring-white\\/5) makes the
+  // rule match a backslash that is not there, and it silently never applies.
+  `${T} [class*="ring-white/5"],${TL} [class*="ring-white/5"],${TT} [class*="ring-white/5"]{--tw-ring-color:transparent}`,
   // Every figure in the app lines up, not only the ones already marked.
-  ':root[data-theme="terminal"],:root[data-theme="terminal-light"]{font-feature-settings:"tnum" 1,"cv01" 1;letter-spacing:-0.006em}',
+  `${T},${TL},${TT}{font-feature-settings:"tnum" 1,"cv01" 1;letter-spacing:-0.006em}`,
   // A light terminal draws its own separators, so shadows would double them.
   ':root[data-theme="terminal-light"] [class*="shadow-black"]{--tw-shadow-color:rgb(13 14 17 / 0.08);--tw-shadow:var(--tw-shadow-colored)}',
 ].join('\n');
@@ -261,13 +270,19 @@ const block = (map, bg) => {
 // attribute selector so it catches every opacity suffix without listing them.
 const SHADOW_FIX = ':root[data-theme="light"] [class*="shadow-black"],:root[data-theme="paper"] [class*="shadow-black"]{--tw-shadow-color:rgb(15 23 42 / 0.10);--tw-shadow:var(--tw-shadow-colored)}';
 
+// TERMINAL IS THE UNATTRIBUTED DEFAULT (owner's call, 2026-08-21). The skin
+// that costs nothing to render is the one most people see, so the house dark
+// hands that position over and takes an attribute of its own. Every legacy
+// block now re-states the house typeface, because :root no longer carries it —
+// without that, choosing Dark would keep the terminal's Inter.
 const css = [
-  `:root{${block(dark, APP_BG.dark)};${fontBlock(FONTS.house)}}`,
-  `:root[data-theme="light"]{${block(light, APP_BG.light)}}`,
-  `:root[data-theme="dim"]{${block(dim, APP_BG_EXTRA.dim)}}`,
-  `:root[data-theme="paper"]{${block(paper, APP_BG_EXTRA.paper)}}`,
+  `:root{${block(terminal, APP_BG_EXTRA.terminal)};${fontBlock(FONTS.terminal)}}`,
   `:root[data-theme="terminal"]{${block(terminal, APP_BG_EXTRA.terminal)};${fontBlock(FONTS.terminal)}}`,
   `:root[data-theme="terminal-light"]{${block(terminalLight, APP_BG_EXTRA['terminal-light'])};${fontBlock(FONTS.terminal)}}`,
+  `:root[data-theme="dark"]{${block(dark, APP_BG.dark)};${fontBlock(FONTS.house)}}`,
+  `:root[data-theme="light"]{${block(light, APP_BG.light)};${fontBlock(FONTS.house)}}`,
+  `:root[data-theme="dim"]{${block(dim, APP_BG_EXTRA.dim)};${fontBlock(FONTS.house)}}`,
+  `:root[data-theme="paper"]{${block(paper, APP_BG_EXTRA.paper)};${fontBlock(FONTS.house)}}`,
   SHADOW_FIX,
   TERMINAL_SHELL_CSS,
 ].join('\n');

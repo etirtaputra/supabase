@@ -20,7 +20,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#0f1012',
+  // The default skin's page colour — what a phone paints around the app.
+  themeColor: '#0a0b0d',
 };
 
 /**

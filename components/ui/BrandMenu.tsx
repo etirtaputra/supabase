@@ -11,7 +11,7 @@ import { DESTINATIONS, orderedNavGroups, orderedGroupItems, sectionAllowed, menu
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useSettings } from '@/hooks/useSettings';
 import { useTheme } from '@/hooks/useTheme';
-import { THEMES } from '@/lib/theme';
+import { THEMES, MENU_THEME_VALUES } from '@/lib/theme';
 import { LANGUAGES } from '@/lib/language';
 import { useLanguage } from '@/hooks/useLanguage';
 import { fmtDayTime } from '@/lib/formatters';
@@ -368,7 +368,17 @@ export default function BrandMenu({
           rather than in Settings (which holds company-wide defaults). */}
       <div className="mt-1 pt-1.5 border-t border-slate-800/70">
         <div className="px-2.5 py-1.5">
-          <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">Appearance</span>
+          <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+            Appearance
+            {/* The other four skins live in Settings, where a house-wide look
+                belongs. Only offered to someone who can actually open it. */}
+            {perms?.canManageUsers && (
+              <Link href="/settings?tab=appearance" onClick={() => setOpen(false)}
+                className="ml-auto font-semibold normal-case tracking-normal text-slate-500 hover:text-emerald-300 transition-colors">
+                More →
+              </Link>
+            )}
+          </span>
           {/* Four skins since 2026-08-01 (dark · dim · light · paper) — one
               SOLID circle each, painted the skin's main canvas colour, on
               their own row BELOW the label (owner's call: cleaner, and the
@@ -376,7 +386,7 @@ export default function BrandMenu({
               whole menu a sideways scroll that clipped every item's first
               letters). The name lives in the tooltip. */}
           <div className="flex items-center gap-2">
-            {THEMES.map((t) => (
+            {THEMES.filter((t) => MENU_THEME_VALUES.includes(t.value)).map((t) => (
               <button
                 key={t.value}
                 onClick={() => setTheme(t.value)}

@@ -6,10 +6,26 @@ import type { Component, Supplier, PriceQuote, PurchaseOrder, PurchaseLineItem, 
 import { fmtRupiah } from '../../lib/formatters';
 import FitText from './FitText';
 
+/**
+ * The categorical chart colours, as THEME TOKENS rather than hex.
+ *
+ * These were literal mid-tones picked against a near-black canvas (#818cf8,
+ * #fbbf24 …). They survive a dark skin and wash out on a light one — amber on
+ * white is barely a colour. Naming the variable instead of the value means
+ * each skin supplies its own end of the ramp, so the same series stays legible
+ * whichever canvas it lands on.
+ *
+ * Stored as the variable NAME so a call site can ask for either the ink or a
+ * tint of it; `color + '22'` cannot append alpha to a var() expression.
+ */
 const PALETTE = [
-  '#818cf8', '#34d399', '#fbbf24', '#60a5fa', '#fb7185',
-  '#a78bfa', '#f97316', '#22d3ee', '#a3e635', '#e879f9',
+  '--c-indigo-400', '--c-emerald-400', '--c-amber-400', '--c-blue-400', '--c-rose-400',
+  '--c-violet-400', '--c-orange-400', '--c-cyan-400', '--c-lime-400', '--c-purple-400',
 ];
+/** The colour itself. */
+const ink = (v: string) => `rgb(var(${v}))`;
+/** The same colour as a wash behind it. */
+const tint = (v: string, alpha: number) => `rgb(var(${v}) / ${alpha})`;
 
 type Period = 'all' | '12m' | '6m' | '3m';
 type TrendPeriod = 'all' | 'ytd' | '1y' | '6m' | '3m' | '1m' | '1w';
@@ -423,7 +439,7 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
                   <div key={v.id}>
                     <div className="flex items-center justify-between gap-2 mb-0.5">
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: PALETTE[i % PALETTE.length] }} />
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: ink(PALETTE[i % PALETTE.length]) }} />
                         <span className="text-[11px] text-slate-200 truncate">{v.name}</span>
                       </div>
                       <span className="text-[11px] font-bold text-slate-100 tabular-nums flex-shrink-0">{fmtIDR(v.committed)}</span>
@@ -461,7 +477,7 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
                   <div key={c.name}>
                     <div className="flex items-center justify-between gap-2 mb-0.5">
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: PALETTE[i % PALETTE.length] }} />
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: ink(PALETTE[i % PALETTE.length]) }} />
                         <span className="text-[11px] text-slate-200 truncate">{c.name}</span>
                       </div>
                       <span className="text-[11px] font-bold text-slate-100 tabular-nums flex-shrink-0">{fmtIDR(c.committed)}</span>
@@ -514,13 +530,13 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
               const isUp   = ct.hasData && ct.avgDeltaPct >  0.5;
               const isDown = ct.hasData && ct.avgDeltaPct < -0.5;
               const color  = PALETTE[ct.colorIndex % PALETTE.length];
-              const deltaColor = !ct.hasData ? '#475569' : isUp ? '#f87171' : isDown ? '#34d399' : '#94a3b8';
+              const deltaColor = ink(!ct.hasData ? '--c-slate-600' : isUp ? '--c-red-400' : isDown ? '--c-emerald-400' : '--c-slate-400');
               const arrow  = isUp ? '↑' : isDown ? '↓' : '→';
               const initials = ct.category.split(' ').map((w) => w[0] ?? '').join('').slice(0, 2).toUpperCase();
               return (
                 <div key={ct.category} className={`bg-slate-900/70 border border-slate-800 rounded-xl p-4 text-center hover:border-slate-700 transition-colors ${!ct.hasData ? 'opacity-35' : ''}`}>
                   <div className="w-10 h-10 rounded-full mx-auto mb-2 flex items-center justify-center text-[11px] font-bold"
-                    style={{ background: color + '22', color }}>
+                    style={{ background: tint(color, 0.13), color: ink(color) }}>
                     {initials}
                   </div>
                   <p className="text-[11px] font-bold text-slate-200 leading-tight mb-2">{ct.category}</p>
@@ -549,14 +565,14 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
               const isUp   = ct.hasData && ct.avgDeltaPct >  0.5;
               const isDown = ct.hasData && ct.avgDeltaPct < -0.5;
               const color  = PALETTE[ct.colorIndex % PALETTE.length];
-              const deltaColor = !ct.hasData ? '#475569' : isUp ? '#f87171' : isDown ? '#34d399' : '#94a3b8';
-              const headerBg   = !ct.hasData ? 'rgba(71,85,105,0.04)' : isUp ? 'rgba(248,113,113,0.07)' : isDown ? 'rgba(52,211,153,0.07)' : 'rgba(148,163,184,0.04)';
+              const deltaColor = ink(!ct.hasData ? '--c-slate-600' : isUp ? '--c-red-400' : isDown ? '--c-emerald-400' : '--c-slate-400');
+              const headerBg   = !ct.hasData ? tint('--c-slate-600', 0.04) : isUp ? tint('--c-red-400', 0.07) : isDown ? tint('--c-emerald-400', 0.07) : tint('--c-slate-400', 0.04);
               return (
                 <div key={ct.category} className={`bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden ${!ct.hasData ? 'opacity-35' : ''}`}>
                   {/* Card header */}
                   <div className="px-4 py-3 border-b border-slate-800/60 flex items-center gap-3" style={{ background: headerBg }}>
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold flex-shrink-0"
-                      style={{ background: color + '22', color }}>
+                      style={{ background: tint(color, 0.13), color: ink(color) }}>
                       {ct.category.split(' ').map((w) => w[0] ?? '').join('').slice(0, 2).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -578,7 +594,7 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
                         const itemUp   = item.deltaPct >  0.2;
                         const itemDown = item.deltaPct < -0.2;
                         const itemCol  = itemUp ? 'text-red-400' : itemDown ? 'text-emerald-400' : 'text-slate-500';
-                        const itemBadgeBg = itemUp ? 'rgba(248,113,113,0.12)' : itemDown ? 'rgba(52,211,153,0.12)' : 'rgba(148,163,184,0.08)';
+                        const itemBadgeBg = itemUp ? tint('--c-red-400', 0.12) : itemDown ? tint('--c-emerald-400', 0.12) : tint('--c-slate-400', 0.08);
                         return (
                           <div key={item.id} className="px-4 py-2.5 flex items-center gap-3">
                             <span className="text-[10px] text-slate-700 font-mono w-3 flex-shrink-0">{rank + 1}</span>

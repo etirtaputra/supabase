@@ -257,7 +257,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaultMarginFloorPct: 15,
   defaultCustomerTier:   '',
 
-  defaultTheme:          'dark',
+  defaultTheme:          'terminal',
   defaultPpnPct:         11,
   defaultPoPaymentTerms: '100% in advance',
   defaultCompanyId:      '',

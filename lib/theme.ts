@@ -27,7 +27,31 @@ export type { ThemeName };
 export const THEME_STORAGE_KEY = 'icaproc_theme';
 /** Cached copy of Settings › Appearance's company default (for the boot script). */
 export const THEME_DEFAULT_KEY = 'icaproc_theme_default';
-export const DEFAULT_THEME: ThemeName = 'dark';
+export const DEFAULT_THEME: ThemeName = 'terminal';
+
+/**
+ * The skins offered in the wordmark menu (owner's call, 2026-08-21): the
+ * terminal pair and nothing else. Two choices is a switch people use; six is
+ * a decision they postpone. The other four are still real, still selectable —
+ * they moved to Settings › Appearance, where a house-wide look belongs.
+ */
+export const MENU_THEME_VALUES: ThemeName[] = ['terminal', 'terminal-light'];
+
+/**
+ * What a browser that chose a skin BEFORE the terminal pair existed should
+ * see now. The owner's rule: everyone lands on the terminal skin, but whether
+ * it is the dark or the light one follows what they already preferred.
+ *
+ * Applied ONCE, guarded by a marker, because it must not fight the person: if
+ * someone deliberately picks Paper from Settings tomorrow, that is a choice,
+ * not a stale preference, and re-mapping it every load would make the setting
+ * look broken.
+ */
+export const LEGACY_THEME_MIGRATION: Record<string, ThemeName> = {
+  dark: 'terminal', dim: 'terminal',
+  light: 'terminal-light', paper: 'terminal-light',
+};
+export const THEME_MIGRATED_KEY = 'icaproc_theme_migrated_v2';
 
 /**
  * Order = the Appearance switcher's order: the two darks, then the two lights.
@@ -69,20 +93,23 @@ export const isTheme = (v: unknown): v is ThemeName =>
  * localStorage access; a throw here would blank the page).
  * Mirrors the resolution order above: personal → cached company default.
  */
-export const THEME_BOOT_SCRIPT = `(function(){try{var v=['dark','light','dim','paper','terminal','terminal-light'];var l=window.localStorage;var t=l.getItem(${JSON.stringify(
+export const THEME_BOOT_SCRIPT = `(function(){try{var v=['dark','light','dim','paper','terminal','terminal-light'];var l=window.localStorage;var K=${JSON.stringify(
   THEME_STORAGE_KEY,
-)});if(v.indexOf(t)<0){t=l.getItem(${JSON.stringify(
+)};var t=l.getItem(K);var M=${JSON.stringify(THEME_MIGRATED_KEY)};if(!l.getItem(M)){var m=${JSON.stringify(
+  LEGACY_THEME_MIGRATION,
+)};if(t&&m[t]){t=m[t];l.setItem(K,t);}l.setItem(M,'1');}if(v.indexOf(t)<0){t=l.getItem(${JSON.stringify(
   THEME_DEFAULT_KEY,
-)});}if(v.indexOf(t)>=0&&t!=='dark'){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();`;
+)});}if(v.indexOf(t)>=0&&t!==${JSON.stringify(DEFAULT_THEME)}){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();`;
 
 let current: ThemeName = DEFAULT_THEME;
 const listeners = new Set<(t: ThemeName) => void>();
 
 const paint = (theme: ThemeName): void => {
   if (typeof document === 'undefined') return;
-  // Dark is the absence of the attribute, so the default costs nothing and
-  // a browser that never stored a preference renders the original skin.
-  if (theme === 'dark') document.documentElement.removeAttribute('data-theme');
+  // The DEFAULT is the absence of the attribute, so the skin most people see
+  // costs nothing to render. That used to be the house dark; since 2026-08-21
+  // it is the terminal skin, and dark carries an attribute like any other.
+  if (theme === DEFAULT_THEME) document.documentElement.removeAttribute('data-theme');
   else document.documentElement.setAttribute('data-theme', theme);
 };
 
@@ -91,10 +118,27 @@ export function getTheme(): ThemeName {
   return current;
 }
 
-/** Resolve the stored preference: personal → company default → dark. */
+/**
+ * Migrate a pre-terminal preference, once. The boot script does this before
+ * first paint; this is the same rule for any path that reaches storage first
+ * (SSR hydration, a tab opened while the script was blocked). Sharing the
+ * marker means whichever runs first wins and the other is a no-op.
+ */
+function migrateLegacyChoice(): void {
+  try {
+    if (window.localStorage.getItem(THEME_MIGRATED_KEY)) return;
+    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+    const mapped = stored ? LEGACY_THEME_MIGRATION[stored] : undefined;
+    if (mapped) window.localStorage.setItem(THEME_STORAGE_KEY, mapped);
+    window.localStorage.setItem(THEME_MIGRATED_KEY, '1');
+  } catch { /* private mode — the default simply applies */ }
+}
+
+/** Resolve the stored preference: personal → company default → terminal. */
 export function readStoredTheme(): ThemeName {
   if (typeof window === 'undefined') return DEFAULT_THEME;
   try {
+    migrateLegacyChoice();
     const personal = window.localStorage.getItem(THEME_STORAGE_KEY);
     if (isTheme(personal)) return personal;
     const fallback = window.localStorage.getItem(THEME_DEFAULT_KEY);

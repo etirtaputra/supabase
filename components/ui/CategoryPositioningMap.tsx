@@ -35,11 +35,18 @@ interface DotData {
 }
 
 // Stable color palette per brand
+/**
+ * Brand series colours as THEME TOKENS, not literals — same reason as
+ * SpendOverview's palette: these were chosen against a near-black canvas, and
+ * yellow-400 on white is not a colour anyone can point at. Each skin supplies
+ * its own end of the ramp. Returned ready to use as an SVG `fill` or a CSS
+ * background, which `rgb(var(…))` satisfies in both.
+ */
 const BRAND_COLORS = [
-  '#38bdf8', '#a78bfa', '#fb923c', '#34d399', '#f472b6',
-  '#facc15', '#60a5fa', '#f87171', '#4ade80', '#e879f9',
+  '--c-sky-400', '--c-violet-400', '--c-orange-400', '--c-emerald-400', '--c-rose-400',
+  '--c-yellow-400', '--c-blue-400', '--c-red-400', '--c-green-400', '--c-purple-400',
 ];
-function brandColor(brand: string, idx: number) { return BRAND_COLORS[idx % BRAND_COLORS.length]; }
+function brandColor(brand: string, idx: number) { return `rgb(var(${BRAND_COLORS[idx % BRAND_COLORS.length]}))`; }
 
 // Rough USD→IDR and CNY→IDR for normalizing to IDR
 const FX: Record<string, number> = { USD: 16000, CNY: 2200, IDR: 1 };
