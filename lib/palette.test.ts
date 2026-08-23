@@ -93,3 +93,20 @@ test('a series colour is never handed over as a bare token', () => {
   assert.deepEqual(offenders, [],
     `these pass a variable NAME where a colour is expected, which renders black: ${offenders.join(' | ')}`);
 });
+
+/**
+ * The component preview is a development tool and must stay one.
+ *
+ * It renders fabricated vendors and categories. Reaching it in production
+ * would show a stranger invented company data on a page that looks like the
+ * real thing — so the guard is not a nicety, and a route is exactly the kind
+ * of thing that gets un-gated during a refactor and never noticed.
+ */
+test('the component preview is refused outside development', () => {
+  const src = readFileSync('app/preview/page.tsx', 'utf8');
+  assert.ok(/process\.env\.NODE_ENV === 'production'/.test(src) && /notFound\(\)/.test(src),
+    'app/preview must 404 when NODE_ENV is production');
+  // And it must not be reachable from the app: no menu entry, no link.
+  const nav = readFileSync('constants/navigation.ts', 'utf8');
+  assert.ok(!nav.includes("'/preview'"), 'the preview must never be a registered destination');
+});

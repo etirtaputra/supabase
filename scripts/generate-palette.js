@@ -326,6 +326,15 @@ export const THEME_VARS_CSS = ${JSON.stringify(css)};
 export const TAILWIND_COLORS_JS = ${JSON.stringify(colorsJs)};
 
 export type ThemeName = 'dark' | 'light' | 'dim' | 'paper' | 'terminal' | 'terminal-light';
+
+/**
+ * The scales and steps this palette actually defines. Emitted so anything that
+ * wants to WALK the palette — the component preview's swatch wall, a contrast
+ * audit — stays in step with the generator instead of keeping its own copy of
+ * the list and quietly missing a scale that was added later.
+ */
+export const PALETTE_SCALES = ${JSON.stringify(SCALES)} as const;
+export const PALETTE_STEPS = ${JSON.stringify(STEPS)} as const;
 `;
 fs.writeFileSync(require('path').join(__dirname, '..', 'constants', 'palette.ts'), out);
 console.log('css bytes:', css.length, '| colors js bytes:', colorsJs.length);
