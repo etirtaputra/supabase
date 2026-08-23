@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-22T02:10:00Z',
+    title: 'Tidier header on phones \u2014 one date, one row, no smudge',
+    details: [
+      'The date was printed twice in two different formats \u2014 \u201cSun, 23 Aug 2026\u201d under the wordmark and \u201c23 Aug 26, 07:13\u201d beside it. Where the page already prints the date, the clock now shows only the time.',
+      'On the Dashboard the Customise button had a whole row to itself, hanging off the left edge under the date. It now sits on the same line as the wordmark, and only drops to its own line if there is genuinely no room.',
+      'Sticky headers are solid in the Terminal skins instead of frosted. A translucent near-black header over a near-black page let whatever you scrolled past ghost through it, which is what made the top of the screen look smeared. Fixed on every page at once. The older skins keep their frosted look.',
+    ],
+  },
+  {
     at: '2026-08-21T23:55:00Z',
     title: 'Terminal is now the default look \u2014 and your dark or light choice came with you',
     details: [

@@ -101,7 +101,7 @@ const GROUP_SHORT: Record<string, string> = { Projects: 'EPC' };
  * mount (the server can't know the visitor's clock), ticks every second but
  * only re-renders when the visible minute actually changes.
  */
-function HeaderClock() {
+function HeaderClock({ dateElsewhere = false }: { dateElsewhere?: boolean }) {
   const [now, setNow] = useState('');
   useEffect(() => {
     const tick = () => setNow(fmtDayTime(new Date().toISOString()));
@@ -118,9 +118,13 @@ function HeaderClock() {
       className="ml-auto flex-shrink-0 text-[10px] sm:text-xs tabular-nums whitespace-nowrap text-slate-500 hover:text-emerald-300 transition-colors print:hidden">
       {/* Phones (no nav groups) and wide desktops fit the full stamp; between
           lg and xl the nav + search already fill the bar, so the clock drops
-          to time-only instead of painting over its neighbours. */}
-      <span className="lg:hidden xl:inline">{now}</span>
-      <span className="hidden lg:inline xl:hidden">{timeOnly}</span>
+          to time-only instead of painting over its neighbours.
+          And where the PAGE already prints the date under the wordmark — which
+          is exactly where a phone shows a subtitle — the stamp drops its date
+          too. Two dates in one header, in two different formats, was the
+          reported mis-alignment: "Sun, 23 Aug 2026" beside "23 Aug 26, 07:13". */}
+      <span className={dateElsewhere ? 'hidden xl:inline' : 'lg:hidden xl:inline'}>{now}</span>
+      <span className={dateElsewhere ? 'xl:hidden' : 'hidden lg:inline xl:hidden'}>{timeOnly}</span>
     </Link>
   );
 }
@@ -618,7 +622,7 @@ export default function BrandMenu({
           right-aligns beside the wordmark, on desktop after the search. A page
           that shows its own status stamp (e.g. Spend & Cash's "Updated…")
           hides these to avoid two clocks colliding in a cramped header. */}
-      {showStatus && squeeze < 1 && <HeaderClock />}
+      {showStatus && squeeze < 1 && <HeaderClock dateElsewhere={!!subtitle} />}
       {/* Who else is in the system right now, and on which screen */}
       {showStatus && <OnlineUsers />}
 

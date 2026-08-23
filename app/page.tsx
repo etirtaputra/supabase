@@ -362,14 +362,19 @@ export default function Home() {
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
       {/* ── Header ── */}
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
-        <div className="max-w-[1800px] 2xl:max-w-[2460px] mx-auto px-3 sm:px-4 md:px-6 xl:px-8 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-4">
+        {/* One row at every width. The other pages stack on phones because
+            they carry three action buttons that would squeeze the wordmark;
+            this header carries one small toggle, so stacking it only produced
+            a third, ragged, left-hung row. BrandMenu reports its true minimum
+            width, so if it ever stops fitting the button wraps by itself. */}
+        <div className="max-w-[1800px] 2xl:max-w-[2460px] mx-auto px-3 sm:px-4 md:px-6 xl:px-8 py-3 sm:py-4 flex flex-row items-center justify-between flex-wrap gap-x-3 gap-y-2 sm:gap-4">
           <BrandMenu
             wordmarkClass="text-xl md:text-2xl font-extrabold"
             subtitle={new Date().toLocaleDateString('en-GB', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
           />
           {arranged.length > 0 && (
             <button onClick={() => setCustomising((v) => !v)} aria-expanded={customising}
-              className={`self-start sm:self-auto flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-colors ${
+              className={`flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-colors ${
                 customising ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
                             : 'border-slate-800 text-slate-400 hover:text-white hover:border-slate-600'}`}>
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">

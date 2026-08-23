@@ -254,6 +254,12 @@ const TERMINAL_SHELL_CSS = [
   `${T},${TL},${TT}{font-feature-settings:"tnum" 1,"cv01" 1;letter-spacing:-0.006em}`,
   // A light terminal draws its own separators, so shadows would double them.
   ':root[data-theme="terminal-light"] [class*="shadow-black"]{--tw-shadow-color:rgb(13 14 17 / 0.08);--tw-shadow:var(--tw-shadow-colored)}',
+  // Sticky headers are translucent-with-blur, which reads as depth on the
+  // house skins and as a SMUDGE here: a near-black chrome at 80% over a
+  // near-black page lets whatever is scrolling underneath ghost through the
+  // header. A trading screen's chrome is solid, so make it solid. (Attribute
+  // substring match, so the value is the literal class name — no escaping.)
+  `${T} [class*="bg-chrome/80"],${TL} [class*="bg-chrome/80"],${TT} [class*="bg-chrome/80"]{background-color:rgb(var(--c-chrome));backdrop-filter:none}`,
 ].join('\n');
 
 const varName = (s, step) => step === 'DEFAULT' ? `--c-${s}` : `--c-${s}-${step}`;
