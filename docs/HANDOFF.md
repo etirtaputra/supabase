@@ -1,11 +1,12 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-08-23** · head of `main` at that point: `f7d8b23`
+**Last updated: 2026-08-23** · head of `main` at that point: `c48e997`
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
 > ships a module updates it before finishing: refresh §4 (what shipped) and
 > replace §6 with the next module. Git history keeps the dated versions.
+> **No next module decided? Go to §7** — it says what to do.
 
 ## 0. What this is
 
@@ -252,3 +253,41 @@ nothing is *ordered* or *emphasised* for the job someone actually does.
 **Start by reading `docs/ERP_ROADMAP.md`, `constants/dashboardWidgets.ts`,
 `constants/roles.ts` and `hooks/useDashboardLayout.ts`, then put questions 1–4 to
 the owner before writing code.**
+
+---
+
+## 7. If no next module has been chosen
+
+Sometimes the owner hands off without a module in mind. **That is a valid start,
+not a blocked one** — and it is the doctrine working as intended: *"the old era
+was telling the AI what to do; the new era is asking the AI what it thinks we
+should do next."*
+
+Do not ask "what would you like to work on?" — that hands the question back. Do
+this instead, in one turn:
+
+1. **Read the ground truth**, in this order: §4 and §6 above; `docs/ERP_ROADMAP.md`
+   (especially the **Build sequence** and **Status** sections — Status is the list
+   of what is actually done); `constants/changelog.ts` (the last ~10 entries show
+   where momentum is); and the "Long-standing items" list at the end of §6.
+2. **Look at the live data before proposing anything.** Use the
+   `mcp__Supabase__execute_sql` tool (direct HTTPS to Supabase is blocked in this
+   sandbox — see §1). Count what actually exists: how many rows in the sell-side
+   tables, how many POs sit unreceived, how many customers carry no contact, how
+   many items have never been priced. A module that looks important on the roadmap
+   and touches 4 rows of real data is not the next module. This step has changed
+   the answer before — "Never sold" was declined as a feature because the sell side
+   had only been live since 2026-07-18.
+3. **Come back with 3 candidates, ranked, and a recommendation.** For each, in two
+   or three sentences: what it is, why now, roughly how big, what it unblocks, and
+   what it costs to defer. Score them against the mission in `CLAUDE.md` — the cash
+   conversion cycle is the spine, and "everything connects" means a module that
+   makes three existing screens talk to each other often beats a new screen.
+   At least one candidate should be a small, finishable one — not every thread
+   should be a module-sized commitment.
+4. **Then stop and let the owner pick.** Do not start building on your own
+   recommendation. Once he picks, put your design questions to him before writing
+   code, the same as §6.
+
+If he picks something not on your list, take it without re-litigating — and update
+§6 with it so the next thread inherits the decision.
