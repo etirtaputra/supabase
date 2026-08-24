@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-24T05:10:00Z',
+    title: 'A PO whose total disagrees with its own line items now says so',
+    details: [
+      'PO-149-MBS-08-2026 showed \u201cIDR 1.619.460 committed \u00b7 50% paid \u00b7 IDR 809.730 outstanding\u201d while its single line item said IDR 809.730 and the bank had paid exactly that, in full. The deal was settled; the screen said half of it was still owed.',
+      'The line-item sum was already on screen next to the total \u2014 in grey, looking like a footnote rather than a contradiction. A gap that freight explains and a gap that nothing explains were drawn identically. Now an unexplained gap is amber and states the size of it: \u201c\u26a0 over by IDR 809.730 \u00b7 lines IDR 809.730\u201d. A freight gap still just shows its workings, because it is not a fault.',
+      'It catches the opposite error too: eleven POs carry a total that is SHORT by exactly their freight, which under-states what we owe the supplier. Those now read \u201c\u26a0 short by \u2026\u201d.',
+      'Across 222 POs with line items: 207 agree with their lines, 3 are over by exactly the lines counted twice, 11 are short by their freight, 1 is otherwise over. Outstanding, the paid percentage and the Dashboard\u2019s \u201cWe owe\u201d all come from the PO total, so those 15 were quietly distorting what the company thinks it owes \u2014 they can now be seen and corrected.',
+    ],
+  },
+  {
     at: '2026-08-24T03:20:00Z',
     title: 'EPC editor: the quote number is readable on a phone, and Save is on screen',
     details: [

@@ -15,6 +15,7 @@ import type {
   PurchaseOrder, PurchaseLineItem, POCost,
   Supplier, Company, Component,
 } from '@/types/database';
+import { checkPoTotal, totalDisagrees } from '@/lib/poTotals';
 import { buildDealGroups, type DealGroup } from '@/lib/dealGroups';
 import { PRINCIPAL_CATS, BANK_FEE_CATS, TAX_CATS } from '@/constants/costCategories';
 import { fmtIdr, fmtCcy, fmtDate } from '@/lib/formatters';
@@ -1296,20 +1297,38 @@ export default function DealLookupTab({
                     {/* PO value. The DOCUMENT total leads (total_value is the committed
                         obligation — freight included when the supplier bills it); the
                         items sum is detail, shown when it differs so the same line never
-                        mixes two bases (the 57,980-vs-60,765 mismatch, 2026-08-14). */}
+                        mixes two bases (the 57,980-vs-60,765 mismatch, 2026-08-14).
+
+                        A gap freight explains and a gap nothing explains used to be
+                        drawn identically, in the same grey — so PO-149-MBS-08-2026
+                        could sit there committed at TWICE its own lines, with
+                        "items …" beside it reading as a footnote rather than a
+                        contradiction (owner, 2026-08-24). The arithmetic lives in
+                        lib/poTotals.ts now, and a disagreement is amber. */}
                     {(items.length > 0 || po.total_value) && (() => {
                       const itemsSum = items.reduce((s, i) => s + Number(i.quantity) * Number(i.unit_cost), 0);
                       const docTotal = Number(po.total_value) || itemsSum;
                       const freight = Number((po as any).freight_charges_intl) || 0;
-                      const gapIsFreight = freight > 0 && Math.abs(docTotal - (itemsSum + freight)) < 1;
+                      const verdict = checkPoTotal({ docTotal, itemsSum, freight });
+                      const off = items.length > 0 && totalDisagrees(verdict);
                       return (
                       <div className="flex items-center gap-3 text-xs flex-wrap">
-                        <span className="font-semibold text-white tabular-nums">{fmtCcy(docTotal, po.currency)}</span>
-                        {items.length > 0 && Math.abs(docTotal - itemsSum) >= 1 && (
-                          <span className="text-slate-600 tabular-nums" title={gapIsFreight ? 'The document total = line items + freight' : 'The document total differs from the line-item sum'}>
-                            {gapIsFreight
-                              ? `items ${fmtCcy(itemsSum, po.currency)} + freight ${fmtCcy(freight, po.currency)}`
-                              : `items ${fmtCcy(itemsSum, po.currency)}`}
+                        <span className={`font-semibold tabular-nums ${off ? 'text-amber-300' : 'text-white'}`}>{fmtCcy(docTotal, po.currency)}</span>
+                        {items.length > 0 && verdict.state === 'freight' && (
+                          <span className="text-slate-600 tabular-nums" title="The document total = line items + freight">
+                            items {fmtCcy(itemsSum, po.currency)} + freight {fmtCcy(freight, po.currency)}
+                          </span>
+                        )}
+                        {off && (
+                          <span className="flex items-center gap-1.5 text-amber-300 tabular-nums font-medium"
+                            title={verdict.state === 'over'
+                              ? 'The PO total is higher than its own line items, and no freight on this PO accounts for the difference. Outstanding, the paid percentage and "We owe" are all computed from this total, so they are wrong until it is corrected.'
+                              : 'The PO total is lower than its line items plus freight, so this PO under-states what we owe the supplier.'}>
+                            <span aria-hidden>⚠</span>
+                            {verdict.state === 'over' ? 'over by' : 'short by'} {fmtCcy(verdict.gap, po.currency)}
+                            <span className="text-amber-300/70 font-normal">
+                              · lines {fmtCcy(itemsSum, po.currency)}{freight > 0 ? ` + freight ${fmtCcy(freight, po.currency)}` : ''}
+                            </span>
                           </span>
                         )}
                         {po.currency !== 'IDR' && po.exchange_rate && (
