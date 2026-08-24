@@ -1846,8 +1846,19 @@ export default function QuoteEditorPage() {
 
       {/* ── Sticky header ── */}
       <div className="sticky top-0 z-40 bg-canvas/95 backdrop-blur-xl border-b border-white/[0.07]">
-        <div className="max-w-[1600px] 2xl:max-w-[2120px] mx-auto px-3 sm:px-6 py-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
+        {/* Two rows on a phone, one from `sm` up (owner's screenshot,
+            2026-08-24: "buttons clashing here"). Seven controls and the quote
+            number cannot share 390px, and the toolbar's horizontal scroll hid
+            the thing people actually came to press — SAVE was off-screen with
+            nothing to say so. The identity, the status and Save keep the first
+            row; the occasional tools drop to their own. `order` does it, so
+            the desktop row is exactly the order it always was.
+
+            The tools rejoin at `lg`, not `sm`: measured across widths, a
+            single row at 640 crushed the quote number to NOTHING and at 768
+            still clipped it. A 42px second row is the cheaper price. */}
+        <div className="max-w-[1600px] 2xl:max-w-[2120px] mx-auto px-3 sm:px-6 py-3 flex items-center justify-between gap-x-3 gap-y-2 flex-wrap">
+          <div className="order-1 flex-1 flex items-center gap-3 min-w-0">
             <Link
               href="/proposals"
               title="Back to the proposals list — unsaved changes are saved first"
@@ -1891,21 +1902,33 @@ export default function QuoteEditorPage() {
               />
             )}
           </div>
-          {/* Scrolls horizontally on phones so the toolbar never runs off-screen */}
-          <div className="flex items-center gap-2 min-w-0 overflow-x-auto scrollbar-none [&>*]:flex-shrink-0">
-            {/* Status selector */}
-            <select
-              value={quote.status}
-              disabled={locked}
-              title={locked ? 'SENT — only an Owner can change the status' : undefined}
-              onChange={(e) => { statusTouchedRef.current = true; setQuoteField('status', e.target.value as ProjectQuote['status']); }}
-              /* appearance-none: the native stepper made this pill wide enough
-                 to squeeze the quote number off a phone header. Clamped on
-                 small screens, intrinsic width from sm up. */
-              className={`appearance-none text-center px-2.5 py-1 max-w-[92px] sm:max-w-none rounded-full text-[11px] font-semibold uppercase tracking-wider border-0 outline-none cursor-pointer disabled:cursor-not-allowed ${STATUS_COLORS[quote.status]}`}
-            >
-              {STATUS_OPTS.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
+          {/* Status stays beside the name at every width: it is what says
+              whether this quote can still be edited at all. */}
+          <select
+            value={quote.status}
+            disabled={locked}
+            title={locked ? 'SENT — only an Owner can change the status' : undefined}
+            onChange={(e) => { statusTouchedRef.current = true; setQuoteField('status', e.target.value as ProjectQuote['status']); }}
+            /* appearance-none: the native stepper made this pill wide enough
+               to squeeze the quote number off a phone header. Clamped on
+               small screens, intrinsic width from sm up. */
+            className={`order-2 flex-shrink-0 appearance-none text-center px-2.5 py-1 max-w-[92px] sm:max-w-none rounded-full text-[11px] font-semibold uppercase tracking-wider border-0 outline-none cursor-pointer disabled:cursor-not-allowed ${STATUS_COLORS[quote.status]}`}
+          >
+            {STATUS_OPTS.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+
+          {/* Save — the one thing that must never sit behind a scroll. */}
+          <button onClick={save} disabled={saving || !dirty || locked}
+            title={locked ? 'SENT quotes can only be edited by an Owner' : 'Ctrl+S / Cmd+S'}
+            className="order-3 lg:order-5 flex-shrink-0 flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-semibold bg-violet-600 hover:bg-violet-500 text-white transition-all disabled:opacity-40">
+            {saving ? 'Saving…' : 'Save'}
+            <span className="hidden sm:inline text-white/50 text-[9px] font-normal">⌘S</span>
+          </button>
+
+          {/* The occasional tools. Their own row on a phone, and they still
+              scroll there if the row runs out — but nothing essential is in
+              here to be scrolled away. */}
+          <div className="order-4 lg:order-3 w-full lg:w-auto flex items-center gap-2 min-w-0 overflow-x-auto scrollbar-none [&>*]:flex-shrink-0">
             {quote.sent_at && (
               <span className="text-[11px] text-blue-300/70 hidden md:inline" title="Stamped by the database when the status was set to SENT">
                 sent {fmtDateTime(quote.sent_at)}
@@ -1979,12 +2002,6 @@ export default function QuoteEditorPage() {
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
               Excel
-            </button>
-            <button onClick={save} disabled={saving || !dirty || locked}
-              title={locked ? 'SENT quotes can only be edited by an Owner' : 'Ctrl+S / Cmd+S'}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-semibold bg-violet-600 hover:bg-violet-500 text-white transition-all disabled:opacity-40">
-              {saving ? 'Saving…' : 'Save'}
-              <span className="hidden sm:inline text-white/50 text-[9px] font-normal">⌘S</span>
             </button>
           </div>
         </div>

@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-24T03:20:00Z',
+    title: 'EPC editor: the quote number is readable on a phone, and Save is on screen',
+    details: [
+      'The proposal editor\u2019s top bar put the customer, the quote number, the status and six buttons in one row that scrolled sideways. On a phone that left \u201cAYANA Ko\u2026 / Q-20\u2026\u201d wedged against the DRAFT pill \u2014 and pushed \u2018Save\u2019 clean off the screen, with nothing to show it was there.',
+      'The first row now carries what you need at a glance and the one thing you came to press: the customer, the full quote number, the status, and Save. Undo, redo, Columns, Costs, PDF and Excel move to their own row underneath (they still scroll there, but nothing essential is hidden in them any more).',
+      'Measured across seven widths: the quote number goes from 78 pixels and cut off to 188 pixels and whole on a phone, and Save is visible at every size. Nothing changes on a laptop \u2014 the bar is the same single row it always was.',
+    ],
+  },
+  {
     at: '2026-08-24T00:30:00Z',
     title: 'On a phone, the At-stake total now lines up with the amounts it totals',
     details: [
