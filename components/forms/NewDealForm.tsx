@@ -22,6 +22,7 @@
  */
 import React, { useState, useEffect, useMemo, useRef, useId } from 'react';
 import FieldRenderer from './FieldRenderer';
+import { useDragReorder, DRAGGING_ROW, REORDER_ROW } from '@/components/ui/dragReorder';
 import RichDropdown from '../ui/RichDropdown';
 import { Spinner } from '../ui/LoadingSkeleton';
 import { fmtInt } from '@/lib/formatters';
@@ -226,10 +227,7 @@ export default function NewDealForm({
 
   // ── Reorder line items: drag the grip on desktop, ▲▼ on touch. Only rows
   // with content move; the always-empty trailing row stays put at the end. ──
-  const [dragKey, setDragKey] = useState<string | null>(null);
-  const [overKey, setOverKey] = useState<string | null>(null);
-
-  const reorder = (fromKey: string, toKey: string) => {
+  const reorder = (fromKey: string, toKey: string, after: boolean) => {
     if (!fromKey || fromKey === toKey) return;
     setLines((prev) => {
       const from = prev.findIndex((l) => l.key === fromKey);
@@ -237,11 +235,22 @@ export default function NewDealForm({
       if (from < 0 || to < 0 || !hasContent(prev[from]) || !hasContent(prev[to])) return prev;
       const arr = [...prev];
       const [moved] = arr.splice(from, 1);
-      arr.splice(arr.findIndex((l) => l.key === toKey), 0, moved);   // insert before the drop target
+      // Land on the seam the line was drawn in: above the target, or below it.
+      let at = arr.findIndex((l) => l.key === toKey);
+      if (after) at += 1;
+      arr.splice(at, 0, moved);
       persist(header, arr);
       return arr;
     });
   };
+
+  const drag = useDragReorder<string>(reorder, {
+    // The always-empty trailing row is not a place to land.
+    canDrop: (_from, to) => {
+      const row = lines.find((l) => l.key === to);
+      return !!row && hasContent(row);
+    },
+  });
 
   const nudge = (key: string, dir: -1 | 1) => {
     setLines((prev) => {
@@ -362,16 +371,13 @@ export default function NewDealForm({
             const total = (Number(l.quantity) || 0) * (Number(l.unit_price) || 0);
             const movable = hasContent(l);
             return (
-              <div key={l.key} data-row
-                onDragOver={(e) => { if (dragKey && movable && l.key !== dragKey) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (overKey !== l.key) setOverKey(l.key); } }}
-                onDrop={(e) => { if (!dragKey) return; e.preventDefault(); reorder(dragKey, l.key); setDragKey(null); setOverKey(null); }}
-                className={`grid grid-cols-6 md:grid-cols-[18px_minmax(0,2.2fr)_minmax(0,1.6fr)_70px_110px_84px_100px_24px] gap-2 items-center bg-slate-950/40 border rounded-xl px-2.5 py-2.5 md:bg-transparent md:px-1 md:py-0.5 transition-colors ${
-                  overKey === l.key ? 'border-violet-500/60 md:border-transparent md:ring-1 md:ring-violet-500/50 md:rounded-md' : 'border-slate-800/60 md:border-0'
-                } ${dragKey === l.key ? 'opacity-40' : ''}`}>
+              <div key={l.key} data-drag-row
+                {...drag.rowProps(l.key)}
+                className={`grid grid-cols-6 md:grid-cols-[18px_minmax(0,2.2fr)_minmax(0,1.6fr)_70px_110px_84px_100px_24px] gap-2 items-center bg-slate-950/40 border rounded-xl px-2.5 py-2.5 md:bg-transparent md:px-1 md:py-0.5 md:rounded-md ${REORDER_ROW} border-slate-800/60 md:border-0 ${
+                  drag.lineAt(l.key)} ${drag.dragKey === l.key ? DRAGGING_ROW : ''}`}>
                 {/* Drag handle (desktop) — grip; reorders on drop. Blank row: no grip. */}
-                <button type="button" tabIndex={-1} draggable={movable}
-                  onDragStart={(e) => { if (!movable) return; setDragKey(l.key); e.dataTransfer.effectAllowed = 'move'; const row = (e.currentTarget.closest('[data-row]') as HTMLElement | null); if (row) e.dataTransfer.setDragImage(row, 24, 16); }}
-                  onDragEnd={() => { setDragKey(null); setOverKey(null); }}
+                <button type="button" tabIndex={-1}
+                  {...drag.handleProps(l.key, { enabled: movable, rowImage: true })}
                   title={movable ? 'Drag to reorder' : undefined}
                   className={`hidden md:flex items-center justify-center col-span-1 ${movable ? 'text-slate-600 hover:text-slate-300 cursor-grab active:cursor-grabbing' : 'opacity-0 pointer-events-none'}`}>
                   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="1.6"/><circle cx="15" cy="5" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="19" r="1.6"/><circle cx="15" cy="19" r="1.6"/></svg>

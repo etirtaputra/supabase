@@ -39,6 +39,7 @@ import {
   DEFAULT_WIDGET_ORDER, DEFAULT_WIDGET_HIDDEN, type DashboardLayout,
 } from '@/constants/dashboardWidgets';
 import WidgetArranger from '@/components/ui/WidgetArranger';
+import { useDragReorder, DRAGGING_ROW, REORDER_ROW } from '@/components/ui/dragReorder';
 import { ITEM_SCORE_FACTORS, DEFAULT_ITEM_SCORE_WEIGHTS, type ItemScoreWeights } from '@/lib/itemScore';
 import { PRESET_LABELS, type RangePreset } from '@/lib/dateRange';
 import { accountLabel, type BankAccount } from '@/lib/banks';
@@ -1003,13 +1004,6 @@ function MenuOrderTab({ draft, set }: { draft: AppSettings; set: <K extends keyo
   const order = orderedNavGroups(draft.menuOrder).filter((g) => g !== 'Home');
   const [openGroup, setOpenGroup] = useState<string | null>(null);
 
-  // Drag state: a group being dragged, or an entry (scoped to its group).
-  const [dragG, setDragG] = useState<string | null>(null);
-  const [overG, setOverG] = useState<string | null>(null);
-  const [dragItem, setDragItem] = useState<{ group: string; href: string } | null>(null);
-  const [overItem, setOverItem] = useState<string | null>(null);
-  const endDrag = () => { setDragG(null); setOverG(null); setDragItem(null); setOverItem(null); };
-
   // A group's entries as they'll appear, honouring the stored sub-order.
   const shippedItems = (g: string) => DESTINATIONS.filter((d) => d.group === g && d.inNav);
   const itemsOf = (g: string) => orderedGroupItems(shippedItems(g), draft.menuItemOrder[g]);
@@ -1024,10 +1018,21 @@ function MenuOrderTab({ draft, set }: { draft: AppSettings; set: <K extends keyo
     out.splice(idx, 0, from);
     return out;
   };
-  const dropIsAfter = (e: React.DragEvent) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    return e.clientY > r.top + r.height / 2;
-  };
+  // Two independent drags — a group, or an entry inside one — each drawing the
+  // same landing line as every other reorderable list (components/ui/dragReorder).
+  // An entry key carries its group ("Sales\u0000/customers") so an entry can never
+  // be dropped into a different group's list.
+  const groupDrag = useDragReorder<string>((from, to, after) => set('menuOrder', reorder(order, from, to, after)));
+  const itemKey = (g: string, href: string) => `${g}\u0000${href}`;
+  const itemDrag = useDragReorder<string>(
+    (from, to, after) => {
+      const [g, fromHref] = from.split('\u0000');
+      const toHref = to.split('\u0000')[1];
+      const hrefs = itemsOf(g).map((x) => x.href);
+      set('menuItemOrder', { ...draft.menuItemOrder, [g]: reorder(hrefs, fromHref, toHref, after) });
+    },
+    { canDrop: (from, to) => from.split('\u0000')[0] === to.split('\u0000')[0] },
+  );
 
   const moveGroup = (i: number, dir: -1 | 1) => {
     const j = i + dir;
@@ -1080,14 +1085,10 @@ function MenuOrderTab({ draft, set }: { draft: AppSettings; set: <K extends keyo
                 {/* Group header — a drag handle for the whole row (the sub-list
                     below is NOT part of it, so entry drags never conflict). */}
                 <div
-                  draggable
-                  onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDragG(g); }}
-                  onDragOver={(e) => { if (dragG && dragG !== g) { e.preventDefault(); setOverG(g); } }}
-                  onDragLeave={() => setOverG((o) => (o === g ? null : o))}
-                  onDrop={(e) => { e.preventDefault(); if (dragG) set('menuOrder', reorder(order, dragG, g, dropIsAfter(e))); endDrag(); }}
-                  onDragEnd={endDrag}
-                  className={`flex items-center gap-2 px-3 py-2.5 cursor-grab active:cursor-grabbing transition-shadow ${
-                    overG === g ? 'ring-2 ring-emerald-500/60' : ''} ${dragG === g ? 'opacity-40' : ''}`}>
+                  {...groupDrag.handleProps(g)}
+                  {...groupDrag.rowProps(g)}
+                  className={`flex items-center gap-2 px-3 py-2.5 cursor-grab active:cursor-grabbing ${REORDER_ROW} ${
+                    groupDrag.lineAt(g)} ${groupDrag.dragKey === g ? DRAGGING_ROW : ''}`}>
                   <Grip className="w-2.5 h-4 text-slate-600 flex-shrink-0" />
                   <span className="text-[11px] font-bold tabular-nums text-slate-600 w-4 text-center flex-shrink-0">{i + 1}</span>
                   <button onClick={() => canExpand && setOpenGroup(isOpen ? null : g)} disabled={!canExpand}
@@ -1106,21 +1107,13 @@ function MenuOrderTab({ draft, set }: { draft: AppSettings; set: <K extends keyo
                 {isOpen && canExpand && (
                   <ol className="border-t border-slate-800/70 bg-slate-950/40 px-3 py-2 space-y-1">
                     {items.map((d, k) => {
-                      const dragging = dragItem?.group === g && dragItem.href === d.href;
+                      const key = itemKey(g, d.href);
                       return (
                         <li key={d.href}
-                          draggable
-                          onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDragItem({ group: g, href: d.href }); }}
-                          onDragOver={(e) => { if (dragItem?.group === g && dragItem.href !== d.href) { e.preventDefault(); setOverItem(d.href); } }}
-                          onDragLeave={() => setOverItem((o) => (o === d.href ? null : o))}
-                          onDrop={(e) => {
-                            e.preventDefault();
-                            if (dragItem?.group === g) set('menuItemOrder', { ...draft.menuItemOrder, [g]: reorder(items.map((x) => x.href), dragItem.href, d.href, dropIsAfter(e)) });
-                            endDrag();
-                          }}
-                          onDragEnd={endDrag}
-                          className={`flex items-center gap-2 pl-3 pr-1 py-1.5 rounded-lg cursor-grab active:cursor-grabbing transition-shadow ${
-                            overItem === d.href ? 'ring-2 ring-emerald-500/50' : ''} ${dragging ? 'opacity-40' : ''}`}>
+                          {...itemDrag.handleProps(key)}
+                          {...itemDrag.rowProps(key)}
+                          className={`flex items-center gap-2 pl-3 pr-1 py-1.5 rounded-lg cursor-grab active:cursor-grabbing ${REORDER_ROW} ${
+                            itemDrag.lineAt(key)} ${itemDrag.dragKey === key ? DRAGGING_ROW : ''}`}>
                           <Grip className="w-2.5 h-4 text-slate-700 flex-shrink-0" />
                           <span className="min-w-0 flex-1 text-[13px] text-slate-300 truncate">{d.label}</span>
                           <MoveArrows small label={d.label} onUp={() => moveItem(g, k, -1)} onDown={() => moveItem(g, k, 1)}

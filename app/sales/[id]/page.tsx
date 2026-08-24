@@ -12,6 +12,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter, useParams } from 'next/navigation';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
+import { useDragReorder, DRAGGING_ROW, REORDER_ROW, DROP_ZONE } from '@/components/ui/dragReorder';
 import BrandMenu from '@/components/ui/BrandMenu';
 import SalesMilestones from '@/components/ui/SalesMilestones';
 import FulfillmentPanel, { type SoLine, type Invoice, type InvItem, type DeliveryOrder, type DoItem } from '@/components/ui/FulfillmentPanel';
@@ -523,11 +524,11 @@ export default function SalesQuotePage() {
   const addSection = () => setLines((ls) => [...ls, { ...blankLine(), is_section: true }]);
 
   // ── Drag & drop reordering ─────────────────────────────────────────────────
-  // Native HTML5 DnD. Dropping on a line inserts before it; a section drags as
-  // a block (header + its items, up to the next section). Order persists via
+  // The landing seam is drawn as a line by components/ui/dragReorder, the same
+  // one every reorderable list in the app draws. A section drags as a BLOCK
+  // (header + its items, up to the next section). Order persists via
   // sort_order on save.
-  const [dragKey, setDragKey] = useState<string | null>(null);
-  const [dropKey, setDropKey] = useState<string | null>(null); // line key or '__end__'
+  const [dropEnd, setDropEnd] = useState(false);   // the "move to the end" zone
 
   function blockOf(ls: EditLine[], key: string): [number, number] {
     const i = ls.findIndex((l) => l.key === key);
@@ -538,19 +539,27 @@ export default function SalesQuotePage() {
     return [i, j];
   }
 
-  function moveLines(fromKey: string, toKey: string) {
+  function moveLines(fromKey: string, toKey: string, after = false) {
     setLines((ls) => {
       const [s, e] = blockOf(ls, fromKey);
       if (s < 0) return ls;
       const block = ls.slice(s, e);
       const rest = [...ls.slice(0, s), ...ls.slice(e)];
-      const insert = toKey === '__end__' ? rest.length : rest.findIndex((l) => l.key === toKey);
+      if (toKey === '__end__') return [...rest, ...block];
+      let insert = rest.findIndex((l) => l.key === toKey);
       if (insert < 0) return ls; // target was inside the dragged block
+      // Below the midline means below the WHOLE target block, not just its
+      // header — dropping under a section lands after its last item.
+      if (after) {
+        const [, te] = blockOf(rest, toKey);
+        insert = te;
+      }
       return [...rest.slice(0, insert), ...block, ...rest.slice(insert)];
     });
   }
 
-  const endDrag = () => { setDragKey(null); setDropKey(null); };
+  const drag = useDragReorder<string>((from, to, after) => moveLines(from, to, after));
+  const endDrag = () => { drag.end(); setDropEnd(false); };
 
   function pickComponent(key: string, comp: Comp) {
     const price = priceFor(comp.component_id);
@@ -1127,10 +1136,8 @@ export default function SalesQuotePage() {
           {lines.map((l) => (
             <div
               key={l.key}
-              onDragOver={(e) => { if (dragKey && dragKey !== l.key) { e.preventDefault(); setDropKey(l.key); } }}
-              onDragLeave={() => setDropKey((k) => (k === l.key ? null : k))}
-              onDrop={(e) => { e.preventDefault(); if (dragKey) moveLines(dragKey, l.key); endDrag(); }}
-              className={`rounded-xl transition-shadow ${dropKey === l.key ? 'ring-1 ring-violet-500/70' : ''} ${dragKey === l.key ? 'opacity-50' : ''}`}
+              {...drag.rowProps(l.key)}
+              className={`rounded-xl ${REORDER_ROW} ${drag.lineAt(l.key)} ${drag.dragKey === l.key ? DRAGGING_ROW : ''}`}
             >
               <LineCard line={l} comps={comps} extras={sortedExtras} canHub={canHub} available={availableOf(l.component_id)}
                 unitCost={canGP && l.component_id ? unitCost[l.component_id] ?? null : null}
@@ -1145,15 +1152,15 @@ export default function SalesQuotePage() {
                 leadSuggestion={l.component_id && !l.is_section ? suggestLeadFor(l.component_id, num(l.quantity)) : null}
                 onPick={(c) => pickComponent(l.key, c)} onPickExtra={(x) => pickExtra(l.key, x)}
                 onField={(patch) => setLine(l.key, patch)} onRemove={() => removeLine(l.key)}
-                onDragStart={() => setDragKey(l.key)} onDragEnd={endDrag} />
+                dragHandle={drag.handleProps(l.key)} />
             </div>
           ))}
-          {dragKey && (
+          {drag.isDragging && (
             <div
-              onDragOver={(e) => { e.preventDefault(); setDropKey('__end__'); }}
-              onDragLeave={() => setDropKey((k) => (k === '__end__' ? null : k))}
-              onDrop={(e) => { e.preventDefault(); if (dragKey) moveLines(dragKey, '__end__'); endDrag(); }}
-              className={`h-9 rounded-xl border border-dashed flex items-center justify-center text-[10px] transition-colors ${dropKey === '__end__' ? 'border-violet-500 bg-violet-500/10 text-violet-300' : 'border-slate-800 text-slate-600'}`}
+              onDragOver={(e) => { e.preventDefault(); setDropEnd(true); }}
+              onDragLeave={() => setDropEnd(false)}
+              onDrop={(e) => { e.preventDefault(); if (drag.dragKey) moveLines(drag.dragKey, '__end__'); endDrag(); }}
+              className={`h-9 rounded-xl border border-dashed flex items-center justify-center text-[10px] transition-colors ${dropEnd ? DROP_ZONE.over : DROP_ZONE.idle}`}
             >
               Drop here to move to the end
             </div>
@@ -1355,7 +1362,7 @@ const GRIP = (
   <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" /><circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" /><circle cx="9" cy="18" r="1.5" /><circle cx="15" cy="18" r="1.5" /></svg>
 );
 
-function LineCard({ line, comps, extras, available, linkedName, canHub, unitCost, successor, tierOptions, history, customerTier, leadSuggestion, onPick, onPickExtra, onField, onRemove, onDragStart, onDragEnd }: {
+function LineCard({ line, comps, extras, available, linkedName, canHub, unitCost, successor, tierOptions, history, customerTier, leadSuggestion, onPick, onPickExtra, onField, onRemove, dragHandle }: {
   line: EditLine; comps: Comp[]; extras: Extra[]; available: number | null; linkedName: string; canHub: boolean;
   /** Owner-only moving-average landed cost — null hides the GP chip entirely. */
   unitCost: number | null;
@@ -1364,7 +1371,8 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, unitCost
   tierOptions: TierOption[]; history: PriceHistEntry[]; customerTier: string;
   leadSuggestion: { value: string; why: string } | null;
   onPick: (c: Comp) => void; onPickExtra: (x: Extra) => void; onField: (patch: Partial<EditLine>) => void; onRemove: () => void;
-  onDragStart: () => void; onDragEnd: () => void;
+  /** Everything the grip needs to start a drag — from useDragReorder. */
+  dragHandle: React.DOMAttributes<HTMLElement> & { draggable: boolean };
 }) {
   // Price-intel popover, EPC-style: HOVER opens it when this customer has
   // bought/quoted the item before (the nudge that matters); FOCUS opens it
@@ -1399,9 +1407,7 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, unitCost
   ) : null);
   const grip = (title: string) => (
     <span
-      draggable
-      onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
-      onDragEnd={onDragEnd}
+      {...dragHandle}
       title={title}
       className="cursor-grab active:cursor-grabbing text-slate-600 hover:text-slate-300 flex-shrink-0 select-none -ml-1"
     >

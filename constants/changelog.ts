@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-23T14:20:00Z',
+    title: 'Dragging to reorder now shows a LINE where the row will land',
+    details: [
+      'Every list you can reorder by dragging \u2014 the Dashboard\u2019s Customise panel, Settings \u203a Menu (groups and their entries), the deal lines on a PI/PO, the lines on a sales quotation, and the sections and items in an EPC proposal \u2014 used to answer the wrong question while you dragged. It drew a ring around the row your pointer was over, which tells you what you are hovering, not where the thing you are carrying will end up.',
+      'Now a bright green line is drawn on the exact seam it will land in, and it flips to the other side of the row the moment you cross that row\u2019s middle. The row you picked up fades so you can see it is in the air.',
+      'It is also the same everywhere now. Three of those six lists always dropped the row ABOVE the one you were pointing at, while the other three read which half you were in \u2014 so the same gesture did different things on different screens and nothing told you which. One rule now, one line, all six.',
+      'Two consequences worth knowing: you can drop a row at the very bottom of a list by aiming at the lower half of the last row, and on an EPC proposal a row dropped below a section lands after that section\u2019s last item rather than inside it.',
+      'The \u25b2\u25bc arrows are untouched \u2014 they are still how this works on a phone and on a keyboard.',
+    ],
+  },
+  {
     at: '2026-08-23T11:15:00Z',
     title: 'The Dashboard reads properly on a phone \u2014 and the cash cycle stops printing a nonsense number',
     details: [

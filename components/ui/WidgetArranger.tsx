@@ -1,6 +1,7 @@
 'use client';
-import { Fragment, useState } from 'react';
+import { Fragment } from 'react';
 import { useT } from '@/hooks/useT';
+import { useDragReorder, DRAGGING_ROW, REORDER_ROW } from '@/components/ui/dragReorder';
 import type { DashboardLayout, DashboardWidget } from '@/constants/dashboardWidgets';
 
 /**
@@ -11,11 +12,10 @@ import type { DashboardLayout, DashboardWidget } from '@/constants/dashboardWidg
  * itself are the same job, and a second copy of it is a second set of bugs.
  * The caller supplies the rows and decides what saving means.
  *
- * Reorder by DRAGGING (the whole row is the handle, dropped where the pointer
- * sits — top half before, bottom half after, so any position is reachable);
- * the arrows do the same for touch and keyboard, where native drag isn't
- * available. Native HTML5 DnD, the same mechanism Settings › Menu uses — no
- * library.
+ * Reorder by DRAGGING (the whole row is the handle); the arrows do the same
+ * for touch and keyboard, where native drag isn't available. The seam it will
+ * land in is drawn as a LINE while you drag — `components/ui/dragReorder`
+ * owns that, and every reorderable list in the app now shows the same one.
  */
 export default function WidgetArranger({
   rows, onChange, footer, recommended,
@@ -31,9 +31,6 @@ export default function WidgetArranger({
   recommended?: Set<string>;
 }) {
   const { t } = useT();
-  const [drag, setDrag] = useState<string | null>(null);
-  const [over, setOver] = useState<string | null>(null);
-  const endDrag = () => { setDrag(null); setOver(null); };
 
   const emit = (list: { widget: DashboardWidget; shown: boolean }[]) =>
     onChange({
@@ -61,6 +58,8 @@ export default function WidgetArranger({
   const toggle = (key: string) =>
     emit(rows.map((r) => (r.widget.key === key ? { ...r, shown: !r.shown } : r)));
 
+  const drag = useDragReorder<string>((from, to, after) => move(from, to, after));
+
   /**
    * How many rows at the TOP are role-recommended, so the group can be drawn
    * as a group. Only a run at the top counts: once someone has dragged their
@@ -75,11 +74,6 @@ export default function WidgetArranger({
     return n >= 2 && n < rows.length ? n : 0;
   })();
 
-  const dropIsAfter = (e: React.DragEvent) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    return e.clientY > r.top + r.height / 2;
-  };
-
   return (
     <div className="space-y-1.5">
       <ol className="space-y-1.5">
@@ -91,20 +85,16 @@ export default function WidgetArranger({
         )}
         {rows.map((r, i) => {
           const { widget: w } = r;
-          const dragging = drag === w.key;
+          const dragging = drag.dragKey === w.key;
           const forRole = !!recommended?.has(w.key);
           return (
             <Fragment key={w.key}>
             <li
-              draggable
-              onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDrag(w.key); }}
-              onDragOver={(e) => { if (drag && drag !== w.key) { e.preventDefault(); setOver(w.key); } }}
-              onDragLeave={() => setOver((o) => (o === w.key ? null : o))}
-              onDrop={(e) => { e.preventDefault(); if (drag) move(drag, w.key, dropIsAfter(e)); endDrag(); }}
-              onDragEnd={endDrag}
-              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-slate-950/50 border cursor-grab active:cursor-grabbing transition-shadow ${
+              {...drag.handleProps(w.key)}
+              {...drag.rowProps(w.key)}
+              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-slate-950/50 border cursor-grab active:cursor-grabbing ${REORDER_ROW} ${
                 forRole ? 'border-emerald-500/30 border-l-2 border-l-emerald-500/70' : 'border-slate-800'} ${
-                over === w.key ? 'ring-2 ring-emerald-500/60' : ''} ${dragging ? 'opacity-40' : ''}`}>
+                drag.lineAt(w.key)} ${dragging ? DRAGGING_ROW : ''}`}>
               <Grip className="w-2.5 h-4 text-slate-600 flex-shrink-0" />
               <span className="text-[11px] font-bold tabular-nums text-slate-600 w-4 text-center flex-shrink-0">{i + 1}</span>
 

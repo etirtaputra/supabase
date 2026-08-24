@@ -10,6 +10,7 @@ import { deriveExchangeRates } from '@/lib/exchangeRates';
 import { fetchUsedEntries, quoteContext, QUOTE_CONTEXT_COLS, type QuoteContextRow } from '@/lib/usedPrices';
 import { DEFAULT_EXPORT_COLS, EXPORT_COL_KEYS, EXPORT_COL_LABELS, loadExportCols, saveExportCols, type ExportCols } from '@/lib/exportCols';
 import { quoteFileName } from '@/lib/quoteFilename';
+import { useDragReorder, DRAGGING_ROW, REORDER_ROW } from '@/components/ui/dragReorder';
 import { lineWp, wpPerModule } from '@/lib/quoteWp';
 import MigrationBanner from '@/components/ui/MigrationBanner';
 import MobileNotice from '@/components/ui/MobileNotice';
@@ -493,34 +494,45 @@ export default function QuoteEditorPage() {
   // Native HTML5 DnD. Dropping on a target inserts before it; dropping a
   // section on a group header appends to that group; dropping a sub-item on a
   // main item re-parents it.
-  const [drag, setDrag] = useState<
-    | { kind: 'section'; sectionId: string }
-    | { kind: 'item'; sectionId: string; itemId: string }
-    | null
-  >(null);
-  const [dropHint, setDropHint] = useState<string | null>(null);
+  // Two reorderable things, each drawing the landing seam as a LINE the way
+  // every other list in the app does (components/ui/dragReorder): sections,
+  // and the items inside them. An item key carries its section so the move
+  // knows where the row came from. A section dropped on a GROUP header is a
+  // different gesture — "put it in this group" rather than "land it here" — so
+  // that target keeps a ring around the container it means.
+  const [groupHint, setGroupHint] = useState<SectionGroup | null>(null);
+  const itemKey = (sectionId: string, itemId: string) => `${sectionId}\u0000${itemId}`;
+  const splitItemKey = (k: string) => { const [sectionId, itemId] = k.split('\u0000'); return { sectionId, itemId }; };
 
-  function endDrag() { setDrag(null); setDropHint(null); }
+  const sectionDrag = useDragReorder<string>((from, to, after) => dropSectionOn(from, to, after));
+  const itemDrag = useDragReorder<string>((from, to, after) => {
+    const f = splitItemKey(from), t = splitItemKey(to);
+    dropItemOn(f.sectionId, f.itemId, t.sectionId, t.itemId, after);
+  });
+  function endDrag() { sectionDrag.end(); itemDrag.end(); setGroupHint(null); }
 
-  function dropSectionOn(targetSectionId: string) {
-    if (!drag || drag.kind !== 'section' || drag.sectionId === targetSectionId) return;
+  function dropSectionOn(draggedId: string, targetSectionId: string, after: boolean) {
+    if (draggedId === targetSectionId) return;
     setSections((prev) => {
       const next = [...prev];
-      const from = next.findIndex((s) => s.section_id === drag.sectionId);
+      const from = next.findIndex((s) => s.section_id === draggedId);
       if (from < 0) return prev;
       const [moved] = next.splice(from, 1);
-      const to = next.findIndex((s) => s.section_id === targetSectionId);
+      let to = next.findIndex((s) => s.section_id === targetSectionId);
       if (to < 0) return prev;
-      next.splice(to, 0, { ...moved, group_key: next[to].group_key });
+      const group = next[to].group_key;
+      if (after) to += 1;
+      next.splice(to, 0, { ...moved, group_key: group });
       return next;
     });
     markDirty();
   }
 
   function dropSectionOnGroup(group: SectionGroup) {
-    if (!drag || drag.kind !== 'section') return;
+    const draggedId = sectionDrag.dragKey;
+    if (!draggedId) return;
     setSections((prev) => {
-      const from = prev.findIndex((s) => s.section_id === drag.sectionId);
+      const from = prev.findIndex((s) => s.section_id === draggedId);
       if (from < 0) return prev;
       const next = [...prev];
       const [moved] = next.splice(from, 1);
@@ -530,8 +542,9 @@ export default function QuoteEditorPage() {
     markDirty();
   }
 
-  function dropItemOn(targetSectionId: string, targetItemId: string) {
-    if (!drag || drag.kind !== 'item' || drag.itemId === targetItemId) return;
+  function dropItemOn(draggedSectionId: string, draggedItemId: string, targetSectionId: string, targetItemId: string, after: boolean) {
+    const drag = { sectionId: draggedSectionId, itemId: draggedItemId };
+    if (drag.itemId === targetItemId) return;
     setSections((prev) => {
       const next = prev.map((s) => ({ ...s, items: [...s.items] }));
       const src = next.find((s) => s.section_id === drag.sectionId);
@@ -549,7 +562,13 @@ export default function QuoteEditorPage() {
         if (targetMainId === dragged.item_id) return prev;
         const subs = src.items.filter((i) => i.parent_item_id === dragged.item_id);
         src.items = src.items.filter((i) => i.item_id !== dragged.item_id && i.parent_item_id !== dragged.item_id);
-        const insertAt = dst.items.findIndex((i) => i.item_id === targetMainId);
+        let insertAt = dst.items.findIndex((i) => i.item_id === targetMainId);
+        // Below the midline lands below the target's WHOLE block — its own
+        // sub-items included, or the row would jump inside them.
+        if (insertAt >= 0 && after) {
+          insertAt += 1;
+          while (insertAt < dst.items.length && dst.items[insertAt].parent_item_id === targetMainId) insertAt += 1;
+        }
         if (insertAt < 0) dst.items.push(dragged, ...subs);
         else dst.items.splice(insertAt, 0, dragged, ...subs);
       } else {
@@ -557,8 +576,8 @@ export default function QuoteEditorPage() {
         // item to become its sub.
         src.items = src.items.filter((i) => i.item_id !== dragged.item_id);
         if (tgt.parent_item_id) {
-          const insertAt = dst.items.findIndex((i) => i.item_id === tgt.item_id);
-          dst.items.splice(insertAt, 0, { ...dragged, parent_item_id: tgt.parent_item_id });
+          const at = dst.items.findIndex((i) => i.item_id === tgt.item_id);
+          dst.items.splice(after ? at + 1 : at, 0, { ...dragged, parent_item_id: tgt.parent_item_id });
         } else {
           const tgtIdx = dst.items.findIndex((i) => i.item_id === tgt.item_id);
           dst.items.splice(tgtIdx + 1, 0, { ...dragged, parent_item_id: tgt.item_id });
@@ -2197,9 +2216,9 @@ export default function QuoteEditorPage() {
               <div key={group.key}>
                 {/* Group header — also a drop zone: sections dropped here go to the end of this group */}
                 <div
-                  className={`flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mb-3 px-3 sm:px-4 py-2.5 rounded-xl transition-colors ${dropHint === `group:${group.key}` ? 'bg-violet-600/30 ring-1 ring-violet-500' : 'bg-moss hover:bg-moss2'}`}
-                  onDragOver={(e) => { if (drag?.kind === 'section') { e.preventDefault(); setDropHint(`group:${group.key}`); } }}
-                  onDragLeave={() => setDropHint((h) => h === `group:${group.key}` ? null : h)}
+                  className={`flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mb-3 px-3 sm:px-4 py-2.5 rounded-xl transition-colors ${groupHint === group.key ? 'bg-emerald-600/25 ring-2 ring-emerald-500' : 'bg-moss hover:bg-moss2'}`}
+                  onDragOver={(e) => { if (sectionDrag.isDragging) { e.preventDefault(); setGroupHint(group.key); } }}
+                  onDragLeave={() => setGroupHint((h) => (h === group.key ? null : h))}
                   onDrop={(e) => { e.preventDefault(); dropSectionOnGroup(group.key); endDrag(); }}
                 >
                   <h2 className="text-sm font-extrabold uppercase tracking-widest text-white">
@@ -2240,17 +2259,14 @@ export default function QuoteEditorPage() {
             return (
               <div
                 key={sec.section_id}
-                className={`bg-slate-900/50 hover:bg-slate-900/80 border rounded-2xl overflow-hidden transition-colors ${dropHint === sec.section_id ? 'border-violet-500 ring-1 ring-violet-500/50' : 'border-slate-800 hover:border-slate-600'}`}
-                onDragOver={(e) => { if (drag?.kind === 'section' && drag.sectionId !== sec.section_id) { e.preventDefault(); setDropHint(sec.section_id); } }}
-                onDragLeave={() => setDropHint((h) => h === sec.section_id ? null : h)}
-                onDrop={(e) => { e.preventDefault(); dropSectionOn(sec.section_id); endDrag(); }}
+                className={`bg-slate-900/50 hover:bg-slate-900/80 border border-slate-800 hover:border-slate-600 rounded-2xl overflow-hidden ${REORDER_ROW} ${
+                  sectionDrag.lineAt(sec.section_id)} ${sectionDrag.dragKey === sec.section_id ? DRAGGING_ROW : ''}`}
+                {...sectionDrag.rowProps(sec.section_id)}
               >
                 {/* Section header */}
                 <div className="flex items-center gap-3 px-4 py-3 bg-moss/25 hover:bg-moss/45 border-b border-moss/50 transition-colors">
                   <span
-                    draggable
-                    onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDrag({ kind: 'section', sectionId: sec.section_id }); }}
-                    onDragEnd={endDrag}
+                    {...sectionDrag.handleProps(sec.section_id)}
                     className="cursor-grab active:cursor-grabbing text-slate-600 hover:text-slate-300 flex-shrink-0 -ml-1"
                     title="Drag to reorder / move to another group"
                   >
@@ -2375,16 +2391,14 @@ export default function QuoteEditorPage() {
                           <React.Fragment key={item.item_id}>
                             {/* Main item row */}
                             <tr
-                              className={`transition-colors hover:bg-white/[0.06] ${dropHint === item.item_id ? 'bg-violet-500/10' : itemIdx % 2 === 1 ? 'bg-white/[0.015]' : ''}`}
-                              onDragOver={(e) => { if (drag?.kind === 'item' && drag.itemId !== item.item_id) { e.preventDefault(); setDropHint(item.item_id); } }}
-                              onDragLeave={() => setDropHint((h) => h === item.item_id ? null : h)}
-                              onDrop={(e) => { e.preventDefault(); e.stopPropagation(); dropItemOn(sec.section_id, item.item_id); endDrag(); }}
+                              className={`transition-colors hover:bg-white/[0.06] ${itemIdx % 2 === 1 ? 'bg-white/[0.015]' : ''} ${
+                                itemDrag.lineAt(itemKey(sec.section_id, item.item_id), { table: true })} ${
+                                itemDrag.dragKey === itemKey(sec.section_id, item.item_id) ? DRAGGING_ROW : ''}`}
+                              {...itemDrag.rowProps(itemKey(sec.section_id, item.item_id), { stopPropagation: true })}
                             >
                               <td className="pl-2 py-2">
                                 <span
-                                  draggable
-                                  onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDrag({ kind: 'item', sectionId: sec.section_id, itemId: item.item_id }); }}
-                                  onDragEnd={endDrag}
+                                  {...itemDrag.handleProps(itemKey(sec.section_id, item.item_id))}
                                   className="cursor-grab active:cursor-grabbing text-slate-700 hover:text-slate-400 inline-block"
                                   title="Drag to reorder or move to another section"
                                 >
@@ -2825,16 +2839,14 @@ export default function QuoteEditorPage() {
                             {subItems.map((sub) => (
                               <tr
                                 key={sub.item_id}
-                                className={`transition-colors hover:bg-white/[0.05] ${dropHint === sub.item_id ? 'bg-violet-500/10' : 'bg-slate-900/20'}`}
-                                onDragOver={(e) => { if (drag?.kind === 'item' && drag.itemId !== sub.item_id) { e.preventDefault(); setDropHint(sub.item_id); } }}
-                                onDragLeave={() => setDropHint((h) => h === sub.item_id ? null : h)}
-                                onDrop={(e) => { e.preventDefault(); e.stopPropagation(); dropItemOn(sec.section_id, sub.item_id); endDrag(); }}
+                                className={`transition-colors hover:bg-white/[0.05] bg-slate-900/20 ${
+                                  itemDrag.lineAt(itemKey(sec.section_id, sub.item_id), { table: true })} ${
+                                  itemDrag.dragKey === itemKey(sec.section_id, sub.item_id) ? DRAGGING_ROW : ''}`}
+                                {...itemDrag.rowProps(itemKey(sec.section_id, sub.item_id), { stopPropagation: true })}
                               >
                                 <td className="pl-2 py-1.5">
                                   <span
-                                    draggable
-                                    onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDrag({ kind: 'item', sectionId: sec.section_id, itemId: sub.item_id }); }}
-                                    onDragEnd={endDrag}
+                                    {...itemDrag.handleProps(itemKey(sec.section_id, sub.item_id))}
                                     className="cursor-grab active:cursor-grabbing text-slate-700 hover:text-slate-400 inline-block"
                                     title="Drag to reorder or move under another item"
                                   >

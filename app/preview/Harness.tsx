@@ -14,6 +14,8 @@ import {
   PositionStrip, MonthMotion, ActivityStream, KpiTile, QuickActions,
 } from '@/components/dashboard/Widgets';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
+import WidgetArranger from '@/components/ui/WidgetArranger';
+import { arrangeWidgets, layoutForRole, roleLeadFor, type DashboardLayout } from '@/constants/dashboardWidgets';
 
 /**
  * Flip every skin against the same fabricated data and look.
@@ -137,7 +139,34 @@ export default function Harness() {
           <CategoryPositioningMap components={r.components} quoteItems={r.quoteItems} quotes={r.quotes}
             pos={r.pos} poItems={r.poItems} poCosts={r.poCosts} isLoading={false} />
         </section>
+
+        {/* Drag to reorder — the one interaction in the app that cannot be
+            judged from a screenshot, and the one the owner reported as
+            "not enough indication" (2026-08-23). Pick a row up here and the
+            landing line is the same one every list in the app draws. */}
+        <section className="space-y-2">
+          <h2 className="text-sm font-bold text-white">Drag to reorder — the landing line</h2>
+          <p className="text-[11px] text-slate-500">
+            Drag a row: the line shows the seam it lands in, above or below whichever half you are over.
+          </p>
+          <div className="max-w-2xl bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4">
+            <ArrangerDemo />
+          </div>
+        </section>
       </main>
     </div>
+  );
+}
+
+/** The real arranger, on the real widget registry, with local state. */
+function ArrangerDemo() {
+  const perms = ROLE_PERMISSIONS.owner;
+  const [layout, setLayout] = useState<DashboardLayout>(() => layoutForRole('owner', null));
+  return (
+    <WidgetArranger
+      rows={arrangeWidgets(perms, layout)}
+      recommended={roleLeadFor(perms, 'owner')}
+      onChange={setLayout}
+    />
   );
 }
