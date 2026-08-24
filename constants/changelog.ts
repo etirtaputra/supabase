@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-24T05:45:00Z',
+    title: 'Three PO totals corrected \u2014 PO-149 now shows what was really paid',
+    details: [
+      'PO-149-MBS-08-2026 is settled, not half-owed: its total was IDR 1.619.460 against one line item of IDR 809.730, and the bank had paid IDR 809.729,73 \u2014 the lines, to the rupiah. The total is now IDR 809.730 and the deal reads 100% paid.',
+      'Two more were carrying exactly twice their own line items: EB.42277 (1.357.440 \u2192 678.720) and EB.42324 (268.800 \u2192 134.400). Neither has any payment recorded, so only the committed figure moves. Between them, IDR 1.622.850 of accounts payable that we never actually owed has come off the books.',
+      'Of 222 purchase orders with line items, 210 now agree with their own lines. The remaining 11 are the older foreign POs whose total leaves out the freight \u2014 left as they are on purpose, since several are long closed, and they are flagged on the deal card instead.',
+      'The correction is recorded in migrations/fix_doubled_po_totals.sql with the before and after of every row, and it re-proves the fault before touching anything \u2014 so it can never fire twice, or touch a PO someone has corrected by hand.',
+    ],
+  },
+  {
     at: '2026-08-24T05:10:00Z',
     title: 'A PO whose total disagrees with its own line items now says so',
     details: [
