@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-24T00:30:00Z',
+    title: 'On a phone, the At-stake total now lines up with the amounts it totals',
+    details: [
+      'In \u201cNeeds you today\u201d the total sat 24 pixels inside the column of figures beneath it \u2014 close enough to look like a mistake, which it was. Every row on a desktop ends with an arrow, so the total reserves the arrow\u2019s width to stay level with the money; on a phone the amount drops to its own line with no arrow beside it, so that reserved space was pushing the total off the column.',
+      'The total and every amount below it now share one right edge \u2014 measured at 360, 390, 430, 768, 1440 and 1920 wide.',
+    ],
+  },
+  {
     at: '2026-08-23T14:20:00Z',
     title: 'Dragging to reorder now shows a LINE where the row will land',
     details: [

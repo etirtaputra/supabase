@@ -128,13 +128,16 @@ export function ActionQueue({ items, atStake }: { items: ActionItem[] | null; at
               <span className="text-[10px] uppercase tracking-widest text-slate-500">At stake</span>
               <span className="text-sm font-extrabold tabular-nums text-amber-300">{fmtIdr(atStake)}</span>
             </span>
-            {/* Every row below ends with a "→", so a total flush to the card's
-                padding sits further right than the figures it totals. This
-                reserves the arrow's exact width — the arrow itself, hidden,
-                rather than a guessed padding — so the money column shares one
-                right edge and stays aligned whatever the font does to the
-                glyph. Same fix as the customer list header, 2026-08-19. */}
-            <span aria-hidden className="flex-shrink-0 invisible">→</span>
+            {/* From `sm` up every row ends with a "→", so a total flush to the
+                card's padding would sit further right than the figures it
+                totals. This reserves the arrow's exact width — the arrow
+                itself, hidden, rather than a guessed padding — so the money
+                column shares one right edge whatever the font does to the
+                glyph. Same fix as the customer list header, 2026-08-19.
+                NOT on a phone: there the amount drops to its own line with no
+                arrow beside it, so reserving the width pushed the total 24px
+                inside the column it totals (owner's screenshot, 2026-08-24). */}
+            <span aria-hidden className="hidden sm:inline flex-shrink-0 invisible">→</span>
           </>
         )}
       />
@@ -164,7 +167,7 @@ export function ActionQueue({ items, atStake }: { items: ActionItem[] | null; at
                 <p className="text-[11px] text-slate-500 truncate mt-0.5">{it.detail}</p>
               </div>
               {it.amount > 0 && (
-                <span className={`order-4 sm:order-3 w-full sm:w-auto pl-5 sm:pl-0 flex-shrink-0 text-sm font-extrabold tabular-nums whitespace-nowrap ${it.tone === 'urgent' ? 'text-amber-300' : DOMAIN_TEXT[it.domain]}`}>
+                <span className={`order-4 sm:order-3 w-full sm:w-auto text-right sm:text-left pl-5 sm:pl-0 flex-shrink-0 text-sm font-extrabold tabular-nums whitespace-nowrap ${it.tone === 'urgent' ? 'text-amber-300' : DOMAIN_TEXT[it.domain]}`}>
                   {fmtIdr(it.amount)}
                 </span>
               )}

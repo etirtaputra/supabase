@@ -419,6 +419,10 @@ test('the arrival rows break in the same place on every phone row', () => {
     'the old free-wrapping arrival row is back');
   // The queue's money moves to its own line on a phone, and back BEFORE the
   // arrow from sm up — which is what keeps it under the head's At-stake total.
-  assert.ok(src.includes('order-4 sm:order-3 w-full sm:w-auto pl-5 sm:pl-0'),
+  assert.ok(src.includes('order-4 sm:order-3 w-full sm:w-auto text-right sm:text-left'),
     'the queue amount must stack on a phone and sit before the arrow on a desktop');
+  // The head's spacer exists to clear the rows' arrow; on a phone there is no
+  // arrow beside the amount, so reserving it pushes the total off the column.
+  assert.ok(src.includes('hidden sm:inline flex-shrink-0 invisible'),
+    'the At-stake spacer must not apply where the rows carry no arrow');
 });
