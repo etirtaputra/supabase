@@ -85,6 +85,35 @@ export const isKeeper = (en: string): boolean => KEEPERS.includes(en);
  * communicates less than the English it replaced.
  */
 export const ID: Record<string, string> = {
+  // ── Document statuses ─────────────────────────────────────────────────────
+  // Stored in the database in ENGLISH (constants/enums.ts, lib/salesStatus.ts)
+  // and translated only where they are SHOWN — never where they are written,
+  // compared or sent to Supabase. A dropdown keeps the English in its `value`
+  // and translates only the option text.
+  //
+  // Both cases appear: sales and purchase documents store Title Case
+  // ("Fully Received"), EPC proposals store lower case ("draft"). Same word,
+  // two keys, because the phrase book is keyed by the exact string rendered.
+  'Draft': 'Konsep',
+  'Validated': 'Tervalidasi',
+  'Sent': 'Dikirim',
+  'Accepted': 'Diterima',
+  'Confirmed Order': 'Dipesan',
+  'Preparing Items': 'Disiapkan',
+  'Cancelled': 'Dibatalkan',
+  'Rejected': 'Ditolak',
+  'Confirmed': 'Dikonfirmasi',
+  'Replaced': 'Diganti',
+  'Partially Received': 'Diterima Sebagian',
+  'Fully Received': 'Diterima Penuh',
+  'draft': 'konsep',
+  'sent': 'dikirim',
+  'accepted': 'diterima',
+  'rejected': 'ditolak',
+  'cancelled': 'dibatalkan',
+  'This document was {status}. Reopen it to continue the milestone flow.':
+    'Dokumen ini {status}. Buka kembali untuk melanjutkan alur milestone.',
+
   // ══ THE DASHBOARD ═════════════════════════════════════════════════════════
   // English picks between a singular and a plural template; Indonesian has
   // neither, so the two English forms map to the same Indonesian line. That is

@@ -679,7 +679,7 @@ function AfterSalesPage() {
                                 {so ? (
                                   <>
                                     <a href={`/sales/${so.quote_id}`} target="_blank" rel="noopener noreferrer" className={docLink}>{displayDocNumber(so)}</a>
-                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${SALES_STATUS[so.status]?.cls ?? ''}`}>{SALES_STATUS[so.status]?.label ?? so.status}</span>
+                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${SALES_STATUS[so.status]?.cls ?? ''}`}>{t(SALES_STATUS[so.status]?.label ?? so.status)}</span>
                                   </>
                                 ) : <span className="text-slate-600 italic">{t('none linked')}</span>}
                               </p>
@@ -751,7 +751,7 @@ function AfterSalesPage() {
                                   {svcQuotes.map((q) => (
                                     <span key={q.quote_id} className="inline-flex items-center gap-1.5">
                                       <a href={`/sales/${q.quote_id}`} target="_blank" rel="noopener noreferrer" className={docLink}>{displayDocNumber(q)}</a>
-                                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${SALES_STATUS[q.status]?.cls ?? ''}`}>{SALES_STATUS[q.status]?.label ?? q.status}</span>
+                                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${SALES_STATUS[q.status]?.cls ?? ''}`}>{t(SALES_STATUS[q.status]?.label ?? q.status)}</span>
                                     </span>
                                   ))}
                                 </p>
@@ -1057,7 +1057,7 @@ function AfterSalesPage() {
                       <a key={q.quote_id} href={`/sales/${q.quote_id}`} target="_blank" rel="noopener noreferrer"
                         className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] hover:bg-slate-800/40 transition-colors">
                         <span className="font-mono text-slate-300">{displayDocNumber(q)}</span>
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${SALES_STATUS[q.status]?.cls ?? ''}`}>{SALES_STATUS[q.status]?.label ?? q.status}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${SALES_STATUS[q.status]?.cls ?? ''}`}>{t(SALES_STATUS[q.status]?.label ?? q.status)}</span>
                         <span className="ml-auto tabular-nums text-slate-200 font-semibold">{fmtInt(Number(q.grand_total) || 0)}</span>
                       </a>
                     ))}

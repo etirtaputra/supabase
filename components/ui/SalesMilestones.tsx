@@ -1,5 +1,6 @@
 'use client';
 import { milestoneIndex } from '@/lib/salesStatus';
+import { useT } from '@/hooks/useT';
 import { fmtDay, fmtDayTime } from '@/lib/formatters';
 
 /**
@@ -31,10 +32,11 @@ export default function SalesMilestones({ q, received, billTotal, invoices = [],
   q: MilestoneQuote; received: number; billTotal: number;
   invoices?: MilestoneInvoice[]; dos?: MilestoneDo[];
 }) {
+  const { t, tf } = useT();
   if (['cancelled', 'rejected'].includes(q.status)) {
     return (
       <div className="rounded-xl border border-red-500/25 bg-red-500/[0.06] px-4 py-2.5 text-xs text-red-300">
-        This document was {q.status}. Reopen it to continue the milestone flow.
+        {tf('This document was {status}. Reopen it to continue the milestone flow.', { status: t(q.status) })}
       </div>
     );
   }

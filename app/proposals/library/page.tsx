@@ -15,6 +15,7 @@ import Link from 'next/link';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useQuotesGate } from '@/hooks/useQuotesGate';
 import { fmtRp } from '@/lib/formatters';
+import { useT } from '@/hooks/useT';
 import { SECTION_GROUPS, STANDARD_SECTIONS, QUOTE_UNITS, type SectionGroup } from '@/types/quotes';
 
 const STATUS_STYLES: Record<string, string> = {
@@ -90,6 +91,7 @@ function similarity(a: Set<string>, b: Set<string>): number {
 const LIB_TABLE = '10.4_description_library';
 
 export default function DescriptionLibraryPage() {
+  const { t } = useT();
   const supabase = createSupabaseClient();
   const gate = useQuotesGate(false, '/proposals/library');
   const isOwner = gate.profile?.role === 'owner';
@@ -600,7 +602,7 @@ export default function DescriptionLibraryPage() {
                       {u.isSub && <span className="ml-1.5 text-[9px] text-slate-600">sub-item</span>}
                     </td>
                     <td className="py-1.5 pr-4 text-slate-500 whitespace-nowrap">{u.quote_date || '—'}</td>
-                    <td className="py-1.5 pr-4"><span className={`px-1.5 py-0.5 rounded-full text-[9px] font-semibold uppercase ${STATUS_STYLES[u.status] ?? STATUS_STYLES.draft}`}>{u.status}</span></td>
+                    <td className="py-1.5 pr-4"><span className={`px-1.5 py-0.5 rounded-full text-[9px] font-semibold uppercase ${STATUS_STYLES[u.status] ?? STATUS_STYLES.draft}`}>{t(u.status)}</span></td>
                     <td className="py-1.5 pr-4 text-slate-400">{u.section_title}</td>
                     <td className="py-1.5 pr-4 text-slate-500">{u.unit || '—'}</td>
                     <td className={`py-1.5 pr-4 ${u.raw !== e.display ? 'text-red-300' : 'text-slate-500'}`}>{u.raw !== e.display ? u.raw : '〃'}</td>

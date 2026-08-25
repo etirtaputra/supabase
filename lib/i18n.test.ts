@@ -18,6 +18,8 @@ import { t, tf, ID, KEEPERS, isKeeper, translationCount } from './i18n.ts';
 import { DESTINATIONS } from '../constants/navigation.ts';
 import { DASHBOARD_WIDGETS, QUICK_ACTIONS } from '../constants/dashboardWidgets.ts';
 import { ROLE_LABELS, ROLE_DESCRIPTIONS } from '../constants/roles.ts';
+import { SALES_STATUS } from './salesStatus.ts';
+import { ENUMS } from '../constants/enums.ts';
 
 const sourceFiles = (dir: string): string[] => {
   const out: string[] = [];
@@ -158,4 +160,14 @@ test('a keeper is left OUT of the phrase book, never translated to itself', () =
   const listed = KEEPERS.filter((k) => k in ID);
   assert.deepEqual(listed, [],
     `a keeper stays English by being absent from ID, not by having an entry: ${listed.join(' | ')}`);
+});
+
+test('every document status a screen can show reads in Indonesian', () => {
+  // Statuses are STORED in English and translated only where they are shown,
+  // so a new status added to the ladder must gain a translation with it —
+  // otherwise one badge in a list of ten quietly stays English.
+  assert.deepEqual(untranslated([
+    ...Object.values(SALES_STATUS).map((s) => s.label),
+    ...ENUMS.purchases_status,
+  ]), []);
 });

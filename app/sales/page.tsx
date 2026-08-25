@@ -437,7 +437,7 @@ export default function SalesListPage() {
                               Partly Delivered
                             </span>
                           ) : (
-                            <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS[q.status]?.cls ?? ''}`}>{STATUS[q.status]?.label ?? q.status}</span>
+                            <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS[q.status]?.cls ?? ''}`}>{t(STATUS[q.status]?.label ?? q.status)}</span>
                           )}
                           {isExpired(q) && <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/15 text-amber-300" title={`Offer expired ${fmtDay(q.valid_until!)}`}>{t('Expired')}</span>}
                         </span>

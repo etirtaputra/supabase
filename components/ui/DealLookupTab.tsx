@@ -20,6 +20,7 @@ import { buildDealGroups, type DealGroup } from '@/lib/dealGroups';
 import { PRINCIPAL_CATS, BANK_FEE_CATS, TAX_CATS } from '@/constants/costCategories';
 import { fmtIdr, fmtCcy, fmtDate } from '@/lib/formatters';
 import DateRangeFilter from './DateRangeFilter';
+import { useT } from '@/hooks/useT';
 import LayoutToggle from './LayoutToggle';
 import { useListLayout } from '@/hooks/useListLayout';
 import { useListDefaults } from '@/hooks/useListDefaults';
@@ -414,6 +415,7 @@ export default function DealLookupTab({
   onDeletePoLineItem, onDeleteQuoteLineItem,
   initialSearch,
 }: Props) {
+  const { t } = useT();
 
   const [viewMode, setViewMode]               = useState<'all' | 'by-vendor' | 'by-company'>('all');
   const [search, setSearch]                   = useState(initialSearch ?? '');
@@ -1838,7 +1840,7 @@ export default function DealLookupTab({
                   <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Line Items</span>
                   <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-white/10 text-white text-[11px] font-mono font-semibold leading-none">{po.po_number || `PO ${po.po_id}`}</span>
                   {po.po_date && <span className="text-[10px] text-slate-500 tabular-nums">{fmtDate(po.po_date)}</span>}
-                  {po.status && <span className={`text-[10px] font-medium ${poColor(po.status)}`}>{po.status}</span>}
+                  {po.status && <span className={`text-[10px] font-medium ${poColor(po.status)}`}>{t(po.status)}</span>}
                   {g.pos.length > 1 && <span className="text-[10px] text-slate-600">· 1 of {g.pos.length} POs on this quote</span>}
                 </div>
                 <div className="overflow-x-auto">

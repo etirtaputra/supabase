@@ -325,7 +325,7 @@ function SupplierProfile({ supplier, stats, poItems, components, poPaidIdr, poId
                       {d.kind === 'quote' ? 'QUOTE' : 'PO'}
                     </span>
                     <span className="font-mono text-[11px] text-slate-200 truncate">{d.number}</span>
-                    {d.status && <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 text-[10px] flex-shrink-0">{d.status}</span>}
+                    {d.status && <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 text-[10px] flex-shrink-0">{t(d.status)}</span>}
                     {d.paidPct != null && (
                       <span className={`text-[10px] font-semibold flex-shrink-0 ${d.paidPct >= 100 ? 'text-emerald-400' : d.paidPct > 0 ? 'text-amber-300' : 'text-slate-600'}`}>
                         {d.paidPct >= 100 ? '✓ paid' : `${d.paidPct.toFixed(0)}% paid`}

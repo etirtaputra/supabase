@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useQuotesGate } from '@/hooks/useQuotesGate';
+import { useT } from '@/hooks/useT';
 import { computeTUCMap, getComponentCost, fxFromHistory, type TUCResult, type CostEntry } from '@/lib/computeTUC';
 import { deriveExchangeRates } from '@/lib/exchangeRates';
 import { fetchUsedEntries } from '@/lib/usedPrices';
@@ -65,6 +66,7 @@ function nextRevisionNumber(base: string): string {
 }
 
 export default function QuotesListPage() {
+  const { t: tr } = useT();
   const supabase = createSupabaseClient();
   const router = useRouter();
   const gate = useQuotesGate();
@@ -543,7 +545,7 @@ export default function QuotesListPage() {
                     /* One line: who, what state, what it's worth, which number */
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="font-semibold text-slate-100 text-[13px] truncate flex-shrink-0 max-w-[38%]">{q.customer_name || 'No customer'}</span>
-                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider whitespace-nowrap flex-shrink-0 ${STATUS_STYLES[q.status] ?? STATUS_STYLES.draft}`}>{q.status}</span>
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider whitespace-nowrap flex-shrink-0 ${STATUS_STYLES[q.status] ?? STATUS_STYLES.draft}`}>{tr(q.status)}</span>
                       {driftByQuote.has(q.quote_id) && (
                         <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold whitespace-nowrap flex-shrink-0 bg-amber-500/15 text-amber-300"
                           title={`${driftByQuote.get(q.quote_id)} item${driftByQuote.get(q.quote_id)! > 1 ? 's' : ''} priced >${costDriftPct}% away from today's cost`}>

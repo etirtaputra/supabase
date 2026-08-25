@@ -1322,7 +1322,7 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOp
                             onClick={(e) => e.stopPropagation()}
                             className={`font-mono text-[11px] ${docNumberCls(d.status)} hover:text-emerald-300 transition-colors`}>{displayDocNumber(d)}</a>
                           {(d.revision ?? 0) > 0 && <span className="text-[9px] font-bold text-sky-400">R{d.revision}</span>}
-                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${SALES_STATUS[d.status]?.cls ?? ''}`}>{SALES_STATUS[d.status]?.label ?? d.status}</span>
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${SALES_STATUS[d.status]?.cls ?? ''}`}>{t(SALES_STATUS[d.status]?.label ?? d.status)}</span>
                           {['invoiced', 'preparing', 'delivered'].includes(d.status) && (
                             <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${payChip(quotePay)}`}>{quotePay}</span>
                           )}
@@ -1426,7 +1426,7 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOp
                           : q.status === 'sent' ? 'bg-sky-500/15 text-sky-300'
                           : q.status === 'rejected' ? 'bg-red-500/10 text-red-400/90'
                           : 'bg-slate-700/50 text-slate-300'
-                        }`}>{q.status}</span>
+                        }`}>{t(q.status)}</span>
                         <span className="ml-auto text-[10px] text-slate-600 tabular-nums">{fmtDay(q.updated_at || q.quote_date)}</span>
                       </div>
                       {q.project_description && (
@@ -1461,7 +1461,7 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOp
                           l.status === 'issued' ? 'bg-emerald-500/20 text-emerald-300'
                           : l.status === 'cancelled' ? 'bg-red-500/10 text-red-400/90'
                           : 'bg-slate-700/50 text-slate-300'
-                        }`}>{l.status}</span>
+                        }`}>{t(l.status)}</span>
                         {!l.fee_paid_at && <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/15 text-amber-300">fee unpaid</span>}
                         <span className="ml-auto text-[10px] text-slate-600 tabular-nums">{fmtDay(l.letter_date)}</span>
                       </div>

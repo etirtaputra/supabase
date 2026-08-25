@@ -12,6 +12,7 @@ import SimpleForm from '@/components/forms/SimpleForm';
 import BatchLineItemsForm from '@/components/forms/BatchLineItemsForm';
 import NewDealForm, { blankDealLine, type DealLine } from '@/components/forms/NewDealForm';
 import ComponentEditor from '@/components/ui/ComponentEditor';
+import { useT } from '@/hooks/useT';
 import BrandMenu from '@/components/ui/BrandMenu';
 import MobileNotice from '@/components/ui/MobileNotice';
 import CompetitorPriceForm from '@/components/forms/CompetitorPriceForm';
@@ -54,6 +55,7 @@ const MENU_ITEMS: MenuItem[] = [
 ];
 
 function MasterInsertPage() {
+  const { t } = useT();
   const supabase = createSupabaseClient();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1525,7 +1527,7 @@ function MasterInsertPage() {
                                       po.status === 'Partially Received' ? 'bg-amber-500/20 text-amber-300' :
                                       po.status === 'Confirmed' ? 'bg-indigo-500/20 text-indigo-300' :
                                       'bg-slate-700 text-slate-400'
-                                    }`}>{po.status}</span>
+                                    }`}>{t(po.status ?? '')}</span>
                                   </div>
                                   <div className="text-right flex-shrink-0">
                                     {out > 0

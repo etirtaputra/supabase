@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-25T13:10:00Z',
+    title: 'Document statuses read in Indonesian, on every list that shows one',
+    details: [
+      'A status badge is the same handful of words repeated across Sales, Invoices, Delivery, Deal Lookup, Purchasing, the customer and supplier profiles, After Sales, EPC Proposals and the dashboard’s activity feed — so translating them once turns a piece of every list screen at the same time. Konsep, Tervalidasi, Dikirim, Diterima, Dipesan, Ditagih, Disiapkan, Terkirim, Dibatalkan, Ditolak on the sell side; Dikonfirmasi, Diganti, Diterima Sebagian, Diterima Penuh on the buy side.',
+      'The status is translated only where it is SHOWN. What is stored in the database, compared against, or written back stays English exactly as before — so nothing about filtering, sorting or saving changes, in either language.',
+      'Two of them were deliberately shortened. “Confirmed Order” reads properly as “Pesanan Dikonfirmasi”, but that is 135 pixels in a badge column English sizes at 112, and “Preparing Items” the same. They are “Dipesan” and “Disiapkan” — the words the badge has room for. The widest badge now grows by 4 pixels going into Indonesian instead of 31.',
+      'The build now fails if a new status is added to the sell-side ladder or the purchase-order ladder without an Indonesian word for it.',
+      'Not yet turned: the proforma-invoice statuses, which share a word with a button elsewhere and need a decision rather than a translation.',
+    ],
+  },
+  {
     at: '2026-08-25T11:40:00Z',
     title: 'The Dashboard reads in Indonesian — every panel, down to the sentences with numbers in them',
     details: [
