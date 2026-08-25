@@ -118,15 +118,18 @@ function CardHead({ title, meta, right }: {
  * and one tap to the screen that unsticks it. Ranked by money, not recency.
  */
 export function ActionQueue({ items, atStake }: { items: ActionItem[] | null; atStake: number }) {
+  const { t, tf } = useT();
   return (
     <div className="bg-slate-900/60 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl overflow-hidden">
       <CardHead
-        title="Needs you today"
-        meta={items && items.length > 0 ? `${items.length} item${items.length !== 1 ? 's' : ''}` : ''}
+        title={t('Needs you today')}
+        meta={items && items.length > 0
+          ? tf(items.length === 1 ? '{n} item' : '{n} items', { n: items.length })
+          : ''}
         right={atStake > 0 && (
           <>
             <span className="flex items-baseline gap-2">
-              <span className="text-[10px] uppercase tracking-widest text-slate-500">At stake</span>
+              <span className="text-[10px] uppercase tracking-widest text-slate-500">{t('At stake')}</span>
               <span className="text-sm font-extrabold tabular-nums text-amber-300">{fmtIdr(atStake)}</span>
             </span>
             {/* From `sm` up every row ends with a "→", so a total flush to the
@@ -149,7 +152,7 @@ export function ActionQueue({ items, atStake }: { items: ActionItem[] | null; at
         </div>
       ) : items.length === 0 ? (
         <p className="px-5 py-8 text-center text-xs text-slate-500">
-          Nothing is blocked — every confirmed order can ship, and no invoice or quotation is waiting on a chase.
+          {t('Nothing is blocked — every confirmed order can ship, and no invoice or quotation is waiting on a chase.')}
         </p>
       ) : (
         <div className="divide-y divide-slate-800/50">
@@ -164,8 +167,8 @@ export function ActionQueue({ items, atStake }: { items: ActionItem[] | null; at
               className="flex items-center gap-x-3 gap-y-1 flex-wrap px-4 sm:px-5 py-3 hover:bg-slate-800/40 transition-colors group">
               <span className={`order-1 rounded-full flex-shrink-0 ${DOMAIN_DOT[it.domain]} ${it.tone === 'urgent' ? 'w-2 h-2' : 'w-1.5 h-1.5 opacity-60'}`} />
               <div className="order-2 min-w-0 flex-1">
-                <p className={`text-[13px] font-semibold truncate ${it.tone === 'urgent' ? 'text-white' : 'text-slate-200'}`}>{it.title}</p>
-                <p className="text-[11px] text-slate-500 truncate mt-0.5">{it.detail}</p>
+                <p className={`text-[13px] font-semibold truncate ${it.tone === 'urgent' ? 'text-white' : 'text-slate-200'}`}>{tf(it.title, it.titleVars ?? {})}</p>
+                <p className="text-[11px] text-slate-500 truncate mt-0.5">{tf(it.detail, it.detailVars ?? {})}</p>
               </div>
               {it.amount > 0 && (
                 <span className={`order-4 sm:order-3 w-full sm:w-auto text-right sm:text-left pl-5 sm:pl-0 flex-shrink-0 text-sm font-extrabold tabular-nums whitespace-nowrap ${it.tone === 'urgent' ? 'text-amber-300' : DOMAIN_TEXT[it.domain]}`}>
@@ -192,20 +195,21 @@ export function ActionQueue({ items, atStake }: { items: ActionItem[] | null; at
  * what a buyer sees: what came in, how much of it, and when.
  */
 export function NewArrivals({ rows, days }: { rows: NewArrival[] | null; days: number }) {
-  const { tf } = useT();
+  const { t, tf } = useT();
   const fresh = rows?.filter((r) => r.brandNew).length ?? 0;
   const unpriced = rows?.filter((r) => r.needsPrice).length ?? 0;
   const SHOWN = 6;
   return (
     <div className="bg-slate-900/60 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl overflow-hidden">
       <CardHead
-        title="New arrivals"
+        title={t('New arrivals')}
         meta={rows && rows.length > 0
-          ? [fresh > 0 ? `${fresh} new` : '', rows.length > fresh ? `${rows.length - fresh} restocked` : ''].filter(Boolean).join(' · ')
+          ? [fresh > 0 ? tf('{n} new', { n: fresh }) : '',
+             rows.length > fresh ? tf('{n} restocked', { n: rows.length - fresh }) : ''].filter(Boolean).join(' · ')
           : ''}
         right={(
           <Link href="/products?new=1" className="text-[11px] text-slate-500 hover:text-emerald-300 transition-colors">
-            Products →
+            {t('Products →')}
           </Link>
         )}
       />
@@ -237,19 +241,19 @@ export function NewArrivals({ rows, days }: { rows: NewArrival[] | null; days: n
                 <span aria-hidden className="basis-full h-0 sm:hidden" />
                 {r.brandNew && (
                   <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/25"
-                    title="The first time we have ever taken this item into stock">
-                    New
+                    title={t('The first time we have ever taken this item into stock')}>
+                    {t('New')}
                   </span>
                 )}
                 <span className="text-[11px] tabular-nums text-slate-400">{fmtInt(r.qty)}{r.unit ? ` ${r.unit}` : ''}</span>
                 {r.needsPrice && (
                   <span className="text-[10px] font-bold text-amber-300"
-                    title="It is on the shelf but has no selling price, so nobody can quote it">
-                    no selling price
+                    title={t('It is on the shelf but has no selling price, so nobody can quote it')}>
+                    {t('no selling price')}
                   </span>
                 )}
                 <span className="ml-auto flex-shrink-0 text-[10px] tabular-nums text-slate-500">
-                  {r.daysAgo === 0 ? 'today' : `${r.daysAgo}d ago`}
+                  {r.daysAgo === 0 ? t('today') : tf('{n}d ago', { n: r.daysAgo })}
                 </span>
               </Link>
             ))}
@@ -257,14 +261,14 @@ export function NewArrivals({ rows, days }: { rows: NewArrival[] | null; days: n
           <div className="px-4 sm:px-5 py-2.5 border-t border-slate-800/70 flex items-center gap-3 flex-wrap">
             {unpriced > 0 ? (
               <span className="text-[11px] text-amber-300/90">
-                {unpriced} of {rows.length} cannot be quoted yet — no selling price.
+                {tf('{n} of {all} cannot be quoted yet — no selling price.', { n: unpriced, all: rows.length })}
               </span>
             ) : (
-              <span className="text-[11px] text-slate-600">Everything that landed has a price.</span>
+              <span className="text-[11px] text-slate-600">{t('Everything that landed has a price.')}</span>
             )}
             {rows.length > SHOWN && (
               <Link href="/products?new=1" className="ml-auto text-[11px] text-slate-500 hover:text-emerald-300 transition-colors">
-                +{rows.length - SHOWN} more →
+                {tf('+{n} more →', { n: rows.length - SHOWN })}
               </Link>
             )}
           </div>
@@ -288,24 +292,25 @@ export function NewArrivals({ rows, days }: { rows: NewArrival[] | null; days: n
  * is buy-side, because it is a purchasing question, not a sales one.
  */
 export function ArrivingSoon({ data, buySide }: { data: ArrivingSummary | null; buySide: boolean }) {
-  const { t } = useT();
+  const { t, tf } = useT();
   const SHOWN = 5;
   const rows = data ? [...data.soon, ...data.late] : null;
   const when = (r: { expected: string | null; daysAway: number | null; overdue: boolean }) => {
-    if (!r.expected) return 'no date';
-    if (r.overdue) return `${Math.abs(r.daysAway ?? 0)}d late`;
-    return r.daysAway === 0 ? 'today' : `in ${r.daysAway}d`;
+    if (!r.expected) return t('no date');
+    if (r.overdue) return tf('{n}d late', { n: Math.abs(r.daysAway ?? 0) });
+    return r.daysAway === 0 ? t('today') : tf('in {n}d', { n: r.daysAway ?? 0 });
   };
   return (
     <div className="bg-slate-900/60 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl overflow-hidden">
       <CardHead
-        title="Arriving soon"
+        title={t('Arriving soon')}
         meta={data && rows!.length > 0
-          ? `${rows!.length} item${rows!.length !== 1 ? 's' : ''}${data.late.length > 0 ? ` · ${data.late.length} late` : ''}`
+          ? [tf(rows!.length === 1 ? '{n} item' : '{n} items', { n: rows!.length }),
+             data.late.length > 0 ? tf('{n} late', { n: data.late.length }) : ''].filter(Boolean).join(' · ')
           : ''}
         right={buySide && (
           <Link href="/purchasing?tab=lookup" className="text-[11px] text-slate-500 hover:text-sky-300 transition-colors">
-            Deal Lookup →
+            {t('Deal Lookup')} →
           </Link>
         )}
       />
@@ -331,8 +336,8 @@ export function ArrivingSoon({ data, buySide }: { data: ArrivingSummary | null; 
                 {/* An estimate never wears the clothes of a promise. */}
                 {r.source && r.source !== 'eta' && (
                   <span className="text-[10px] text-slate-500"
-                    title="Estimated from this supplier's own measured lead time — the supplier gave us no date">
-                    est.
+                    title={t('Estimated from this supplier’s own measured lead time — the supplier gave us no date')}>
+                    {t('est.')}
                   </span>
                 )}
                 {buySide && r.pos.length > 0 && (
@@ -347,17 +352,27 @@ export function ArrivingSoon({ data, buySide }: { data: ArrivingSummary | null; 
           <div className="px-4 sm:px-5 py-2.5 border-t border-slate-800/70 space-y-1">
             {data.posWithoutEta > 0 && (
               <p className="text-[11px] text-slate-600">
-                {data.posWithoutEta} of {data.openPos} open PO{data.openPos !== 1 ? 's' : ''} carry no supplier date — those are estimates.
+                {tf(data.openPos === 1
+                  ? '{n} of {all} open PO carries no supplier date — those are estimates.'
+                  : '{n} of {all} open POs carry no supplier date — those are estimates.',
+                  { n: data.posWithoutEta, all: data.openPos })}
               </p>
             )}
             {buySide && data.stalePos > 0 && (
               <p className="text-[11px] text-amber-300/90">
-                {data.stalePos} PO{data.stalePos !== 1 ? 's are' : ' is'} past due with nothing received
-                {data.oldestStaleDays != null ? `, the oldest raised ${data.oldestStaleDays} days ago` : ''} — late, or already here and never booked in.
+                {data.oldestStaleDays != null
+                  ? tf(data.stalePos === 1
+                      ? '{n} PO is past due with nothing received, the oldest raised {days} days ago — late, or already here and never booked in.'
+                      : '{n} POs are past due with nothing received, the oldest raised {days} days ago — late, or already here and never booked in.',
+                      { n: data.stalePos, days: data.oldestStaleDays })
+                  : tf(data.stalePos === 1
+                      ? '{n} PO is past due with nothing received — late, or already here and never booked in.'
+                      : '{n} POs are past due with nothing received — late, or already here and never booked in.',
+                      { n: data.stalePos })}
               </p>
             )}
             {rows!.length > SHOWN && (
-              <p className="text-[11px] text-slate-600">+{rows!.length - SHOWN} more on order.</p>
+              <p className="text-[11px] text-slate-600">{tf('+{n} more on order.', { n: rows!.length - SHOWN })}</p>
             )}
           </div>
         </>
@@ -393,7 +408,7 @@ export function FeedCard({ title, feed, href, empty, showMoney = false }: {
   return (
     <div className="bg-slate-900/40 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl overflow-hidden h-full flex flex-col">
       <div className="flex items-center gap-2.5 px-4 py-3 border-b border-slate-800/70">
-        <h2 className="text-sm font-bold text-white flex-1 min-w-0 truncate">{title}</h2>
+        <h2 className="text-sm font-bold text-white flex-1 min-w-0 truncate">{t(title)}</h2>
         <Link href={href} className="text-[11px] text-slate-500 hover:text-emerald-300 transition-colors whitespace-nowrap">
           {t('All')} →
         </Link>
@@ -482,11 +497,14 @@ export function TopBoard({ title, board, by, onPick, noun, period, canProfit, hr
   const profitOffered = canProfit && (board?.profitKnown ?? false);
   const measure = (r: { revenue: number; profit: number }) => (by === 'profit' ? r.profit : r.revenue);
   const windowLabel = period === 'all' ? t('all time') : tf('last {days} days', { days: period });
+  // The plural lives in the noun itself, not glued on as an "s" — Indonesian
+  // has no plural form to glue.
+  const nounText = t(noun);
 
   return (
     <div className="bg-slate-900/60 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl overflow-hidden">
       <div className="flex items-center gap-2.5 px-4 sm:px-5 py-3.5 border-b border-slate-800/70 flex-wrap">
-        <h2 className="text-sm font-bold text-white">{title}</h2>
+        <h2 className="text-sm font-bold text-white">{t(title)}</h2>
         <span className="text-[10px] uppercase tracking-widest text-slate-600">{windowLabel}</span>
         {profitOffered && (
           <div className="ml-auto flex items-center gap-0.5 p-0.5 rounded-lg border border-slate-800 bg-slate-900/60">
@@ -530,7 +548,7 @@ export function TopBoard({ title, board, by, onPick, noun, period, canProfit, hr
                       <span className="block text-[13px] font-semibold text-slate-100 truncate">{r.name}</span>
                       <span className="block text-[10px] text-slate-500 truncate">
                         {r.sub}
-                        {by === 'profit' && r.margin != null && ` · ${r.margin.toFixed(0)}% margin`}
+                        {by === 'profit' && r.margin != null && ` · ${tf('{pct}% margin', { pct: r.margin.toFixed(0) })}`}
                         {r.estimated && ` · ${t('cost estimated')}`}
                       </span>
                     </span>
@@ -548,8 +566,8 @@ export function TopBoard({ title, board, by, onPick, noun, period, canProfit, hr
               {/* The denominator, always — a top ten of four is not a league
                   table, and saying so costs one line. */}
               {board.ranked <= board.rows.length
-                ? tf('All {n} {noun}s that have sold in this period.', { n: board.ranked, noun })
-                : tf('Top {shown} of {n} {noun}s that have sold.', { shown: board.rows.length, n: board.ranked, noun })}
+                ? tf('All {n} {noun} that have sold in this period.', { n: board.ranked, noun: nounText })
+                : tf('Top {shown} of {n} {noun} that have sold.', { shown: board.rows.length, n: board.ranked, noun: nounText })}
               {board.total > 0 && ` ${tf('These carry {pct}% of the total.',
                 { pct: Math.round(board.rows.reduce((s, r) => s + r.share, 0) * 100) })}`}
             </p>
@@ -576,18 +594,20 @@ export function TopBoard({ title, board, by, onPick, noun, period, canProfit, hr
  * this section is the daily glance.
  */
 export function StockAlerts({ shortages, reorders }: { shortages: ShortageAlert[] | null; reorders: ReorderAlert[] | null }) {
+  const { t, tf } = useT();
   const loading = shortages === null || reorders === null;
   const quiet = !loading && shortages.length === 0 && reorders.length === 0;
   return (
     <div className="bg-slate-900/60 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl overflow-hidden">
       <CardHead
-        title="Stock alerts"
+        title={t('Stock alerts')}
         meta={!loading
-          ? [shortages.length > 0 ? `${shortages.length} short` : '', reorders.length > 0 ? `${reorders.length} to reorder` : ''].filter(Boolean).join(' · ')
+          ? [shortages.length > 0 ? tf('{n} short', { n: shortages.length }) : '',
+             reorders.length > 0 ? tf('{n} to reorder', { n: reorders.length }) : ''].filter(Boolean).join(' · ')
           : ''}
         right={(
           <Link href="/stock" className="text-[11px] text-slate-500 hover:text-sky-300 transition-colors">
-            Stock →
+            {t('Stock')} →
           </Link>
         )}
       />
@@ -598,7 +618,7 @@ export function StockAlerts({ shortages, reorders }: { shortages: ShortageAlert[
         </div>
       ) : quiet ? (
         <p className="px-5 py-6 text-center text-xs text-slate-500">
-          Nothing to flag — every committed order can ship, and no item is at its reorder point.
+          {t('Nothing to flag — every committed order can ship, and no item is at its reorder point.')}
         </p>
       ) : (
         <div className="divide-y divide-slate-800/50">
@@ -612,15 +632,18 @@ export function StockAlerts({ shortages, reorders }: { shortages: ShortageAlert[
                 <span className="min-w-0 flex-1 sm:flex-none sm:max-w-[340px] text-[13px] font-semibold text-white truncate">{sh.name}</span>
                 <span aria-hidden className="basis-full h-0 sm:hidden" />
                 <span className="text-[11px] tabular-nums text-red-300 font-bold">
-                  short {fmtInt(sh.short)}{sh.unit ? ` ${sh.unit}` : ''}
+                  {tf('short {qty}', { qty: `${fmtInt(sh.short)}${sh.unit ? ` ${sh.unit}` : ''}` })}
                 </span>
                 <span className="text-[10px] tabular-nums text-slate-500">
-                  have {fmtInt(sh.physical)} · committed {fmtInt(sh.committed)}
+                  {tf('have {have} · committed {committed}', { have: fmtInt(sh.physical), committed: fmtInt(sh.committed) })}
                 </span>
                 <span className="ml-auto flex flex-wrap gap-1.5">
                   {sh.orders.slice(0, 3).map((o) => (
                     <Link key={`${o.quote_id}-${o.number}`} href={`/sales/${o.quote_id}`}
-                      title={`${o.customer || 'No customer'} — waiting on ${fmtInt(o.qty)}${sh.unit ? ` ${sh.unit}` : ''}`}
+                      title={tf('{customer} — waiting on {qty}', {
+                        customer: o.customer || t('No customer'),
+                        qty: `${fmtInt(o.qty)}${sh.unit ? ` ${sh.unit}` : ''}`,
+                      })}
                       className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-slate-800/70 hover:bg-slate-700 transition-colors font-mono text-[10px] text-violet-300">
                       {o.number}
                     </Link>
@@ -638,20 +661,26 @@ export function StockAlerts({ shortages, reorders }: { shortages: ShortageAlert[
                 <span className="min-w-0 flex-1 sm:flex-none sm:max-w-[340px] text-[13px] font-semibold text-slate-200 truncate">{a.name}</span>
                 <span aria-hidden className="basis-full h-0 sm:hidden" />
                 <span className="text-[11px] tabular-nums text-amber-300 font-bold">
-                  order ~{fmtInt(a.suggestedQty)}{a.unit ? ` ${a.unit}` : ''}
+                  {tf('order ~{qty}', { qty: `${fmtInt(a.suggestedQty)}${a.unit ? ` ${a.unit}` : ''}` })}
                 </span>
                 {a.urgent && (
                   <span className="text-[10px] font-bold text-red-300 uppercase tracking-wide"
-                    title="At the current demand rate, stock runs out before a PO raised today could arrive">
-                    stock-out before replenishment
+                    title={t('At the current demand rate, stock runs out before a PO raised today could arrive')}>
+                    {t('stock-out before replenishment')}
                   </span>
                 )}
                 <span className="text-[10px] tabular-nums text-slate-500">
-                  live {fmtInt(a.live)}{a.incoming > 0 ? ` + ${fmtInt(a.incoming)} incoming` : ''} · covers {Math.round(a.coverDays)}d · lead {Math.round(a.leadDays)}d{a.leadMeasured ? '' : ' (est.)'}
+                  {(a.incoming > 0
+                    ? tf('live {live} + {incoming} incoming · covers {cover}d · lead {lead}d', {
+                        live: fmtInt(a.live), incoming: fmtInt(a.incoming),
+                        cover: Math.round(a.coverDays), lead: Math.round(a.leadDays) })
+                    : tf('live {live} · covers {cover}d · lead {lead}d', {
+                        live: fmtInt(a.live), cover: Math.round(a.coverDays), lead: Math.round(a.leadDays) })
+                  ) + (a.leadMeasured ? '' : ` ${t('(est.)')}`)}
                 </span>
                 <Link href="/purchasing?tab=quoting"
                   className="ml-auto text-[10px] px-2 py-0.5 rounded-lg bg-sky-500/10 text-sky-300 ring-1 ring-sky-500/25 hover:bg-sky-500/20 transition-colors whitespace-nowrap self-center">
-                  New PO →
+                  {t('New PO →')}
                 </Link>
               </div>
             </div>
@@ -673,6 +702,7 @@ export function StockAlerts({ shortages, reorders }: { shortages: ShortageAlert[
  * to come back. Tiles gate individually by capability, exactly like the nav.
  */
 export function PositionStrip({ data, perms }: { data: PositionData | null; perms: RolePermissions }) {
+  const { t, tf } = useT();
   const loading = data === null;
   const dashOr = (ready: boolean, v: () => string) => (loading ? '—' : ready ? v() : '—');
   const d = (n: number | null | undefined) => (n == null ? '—' : `${Math.round(n)}d`);
@@ -684,10 +714,10 @@ export function PositionStrip({ data, perms }: { data: PositionData | null; perm
     const idrEntry = cash?.byCurrency.find((c) => c.currency === 'IDR');
     const others = (cash?.byCurrency ?? []).filter((c) => c.currency !== 'IDR');
     tiles.push({
-      key: 'cash', label: 'Cash', color: 'text-amber-300', ring: 'ring-amber-500/20',
+      key: 'cash', label: t('Cash'), color: 'text-amber-300', ring: 'ring-amber-500/20',
       value: dashOr(!!cash, () => (idrEntry || !others.length ? fmtIdr(idrEntry?.total ?? 0) : `${others[0].currency} ${fmtInt(others[0].total)}`)),
-      sub: !cash ? (loading ? 'across all bank accounts' : 'unavailable right now') : (
-        <>{cash.accounts} account{cash.accounts !== 1 ? 's' : ''}
+      sub: !cash ? (loading ? t('across all bank accounts') : t('unavailable right now')) : (
+        <>{tf(cash.accounts === 1 ? '{n} account' : '{n} accounts', { n: cash.accounts })}
           {others.length > 0 && idrEntry ? ` · + ${others.map((c) => `${c.currency} ${fmtInt(c.total)}`).join(' · ')}` : ''}</>
       ),
     });
@@ -695,11 +725,12 @@ export function PositionStrip({ data, perms }: { data: PositionData | null; perm
   if (perms.sellSide) {
     const ar = data?.ar;
     tiles.push({
-      key: 'ar', label: 'Owed to us', color: 'text-emerald-300', ring: 'ring-emerald-500/20',
+      key: 'ar', label: t('Owed to us'), color: 'text-emerald-300', ring: 'ring-emerald-500/20',
       value: dashOr(!!ar, () => fmtIdr(ar!.outstanding)),
-      sub: !ar ? (loading ? 'open customer invoices' : 'unavailable right now') : ar.openCount === 0 ? 'every invoice is settled' : (
-        <>{ar.openCount} open invoice{ar.openCount !== 1 ? 's' : ''}
-          {ar.overdue > 0 && <span className="text-amber-400"> · {fmtIdr(ar.overdue)} overdue</span>}</>
+      sub: !ar ? (loading ? t('open customer invoices') : t('unavailable right now'))
+        : ar.openCount === 0 ? t('every invoice is settled') : (
+        <>{tf(ar.openCount === 1 ? '{n} open invoice' : '{n} open invoices', { n: ar.openCount })}
+          {ar.overdue > 0 && <span className="text-amber-400"> · {tf('{amount} overdue', { amount: fmtIdr(ar.overdue) })}</span>}</>
       ),
     });
   }
@@ -710,19 +741,19 @@ export function PositionStrip({ data, perms }: { data: PositionData | null; perm
     // which is exactly what pushes DPO negative. Shown beside "we owe", never in it.
     const transit = it && it.paidIdr > 0 ? (
       <span className="block text-slate-500 mt-0.5">
-        {fmtIdr(it.paidIdr)} on the water
-        {it.overdueCount > 0 && <span className="text-amber-400"> · {it.overdueCount} overdue</span>}
+        {tf('{amount} on the water', { amount: fmtIdr(it.paidIdr) })}
+        {it.overdueCount > 0 && <span className="text-amber-400"> · {tf('{n} overdue', { n: it.overdueCount })}</span>}
       </span>
     ) : null;
     tiles.push({
-      key: 'ap', label: 'We owe', color: 'text-sky-300', ring: 'ring-sky-500/20',
+      key: 'ap', label: t('We owe'), color: 'text-sky-300', ring: 'ring-sky-500/20',
       value: dashOr(!!ap, () => fmtIdr(ap!.outstanding)),
-      sub: !ap ? (loading ? 'unpaid across active POs' : 'unavailable right now') : (
+      sub: !ap ? (loading ? t('unpaid across active POs') : t('unavailable right now')) : (
         <>
-          {ap.openCount === 0 ? 'every active PO is paid' : (
-            <>{ap.openCount} PO{ap.openCount !== 1 ? 's' : ''}
-              {ap.receivedOwed > 0 && <span className="text-amber-400"> · {fmtIdr(ap.receivedOwed)} for goods received</span>}
-              {ap.excludedNoRate > 0 ? ` · ${ap.excludedNoRate} unrated excl.` : ''}</>
+          {ap.openCount === 0 ? t('every active PO is paid') : (
+            <>{tf(ap.openCount === 1 ? '{n} PO' : '{n} POs', { n: ap.openCount })}
+              {ap.receivedOwed > 0 && <span className="text-amber-400"> · {tf('{amount} for goods received', { amount: fmtIdr(ap.receivedOwed) })}</span>}
+              {ap.excludedNoRate > 0 ? ` · ${tf('{n} unrated excl.', { n: ap.excludedNoRate })}` : ''}</>
           )}
           {transit}
         </>
@@ -737,18 +768,28 @@ export function PositionStrip({ data, perms }: { data: PositionData | null; perm
     // wrong place.
     const cannot = (c: NonNullable<typeof ccc>) =>
       c.outMoves === 0
-        ? 'nothing delivered in the last 90d to measure against'
-        : `${c.outMoves} deliver${c.outMoves === 1 ? 'y' : 'ies'} in 90d${
-            c.uncostedOutMoves > 0 ? `, ${c.uncostedOutMoves} with no cost` : ''} — too little to measure`;
+        ? t('nothing delivered in the last 90d to measure against')
+        : c.uncostedOutMoves > 0
+          ? tf(c.outMoves === 1
+              ? '{n} delivery in 90d, {uncosted} with no cost — too little to measure'
+              : '{n} deliveries in 90d, {uncosted} with no cost — too little to measure',
+              { n: c.outMoves, uncosted: c.uncostedOutMoves })
+          : tf(c.outMoves === 1
+              ? '{n} delivery in 90d — too little to measure'
+              : '{n} deliveries in 90d — too little to measure',
+              { n: c.outMoves });
     // A negative DPO means we paid before the goods arrived, which LENGTHENS
     // the cycle. "− DPO −23d" is arithmetically right and reads as a typo.
     const cycle = (c: NonNullable<typeof ccc>) =>
-      `DIO ${d(c.dio)} + DSO ${d(c.dso)} ${
-        c.dpo != null && c.dpo < 0 ? `+ ${d(-c.dpo)} prepaid` : `− DPO ${d(c.dpo)}`} · 90-day basis`;
+      c.dpo != null && c.dpo < 0
+        ? tf('DIO {dio} + DSO {dso} + {prepaid} prepaid · 90-day basis',
+            { dio: d(c.dio), dso: d(c.dso), prepaid: d(-c.dpo) })
+        : tf('DIO {dio} + DSO {dso} − DPO {dpo} · 90-day basis',
+            { dio: d(c.dio), dso: d(c.dso), dpo: d(c.dpo) });
     tiles.push({
-      key: 'ccc', label: 'CCC · the runway', color: 'text-slate-100', ring: 'ring-white/10',
+      key: 'ccc', label: t('CCC · the runway'), color: 'text-slate-100', ring: 'ring-white/10',
       value: dashOr(!!ccc, () => (ccc!.ccc == null ? '—' : `${Math.round(ccc!.ccc)}d`)),
-      sub: !ccc ? (loading ? 'cash out → cash back, in days' : 'unavailable right now')
+      sub: !ccc ? (loading ? t('cash out → cash back, in days') : t('unavailable right now'))
         : ccc.ccc == null ? cannot(ccc) : cycle(ccc),
     });
   }
@@ -757,11 +798,12 @@ export function PositionStrip({ data, perms }: { data: PositionData | null; perm
   const cols = ({ 1: 'lg:grid-cols-1', 2: 'lg:grid-cols-2', 3: 'lg:grid-cols-3', 4: 'lg:grid-cols-4' } as Record<number, string>)[tiles.length];
   return (
     <div className={`grid grid-cols-1 sm:grid-cols-2 ${cols} gap-4 xl:gap-5`}>
-      {tiles.map((t) => (
-        <div key={t.key} className={`bg-slate-900/60 border border-slate-800/80 ring-1 ${t.ring} rounded-2xl p-4 xl:p-5`}>
-          <p className="text-[10px] xl:text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">{t.label}</p>
-          <p className={`text-2xl xl:text-3xl font-extrabold tabular-nums ${t.color} leading-none`}><FitText text={t.value} /></p>
-          <p className="text-[11px] text-slate-600 mt-1.5">{t.sub}</p>
+      {/* `tile`, not `t` — the map parameter used to shadow the translator. */}
+      {tiles.map((tile) => (
+        <div key={tile.key} className={`bg-slate-900/60 border border-slate-800/80 ring-1 ${tile.ring} rounded-2xl p-4 xl:p-5`}>
+          <p className="text-[10px] xl:text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">{tile.label}</p>
+          <p className={`text-2xl xl:text-3xl font-extrabold tabular-nums ${tile.color} leading-none`}><FitText text={tile.value} /></p>
+          <p className="text-[11px] text-slate-600 mt-1.5">{tile.sub}</p>
         </div>
       ))}
     </div>
@@ -774,12 +816,13 @@ export function PositionStrip({ data, perms }: { data: PositionData | null; perm
  * "are we ahead or behind?" is honest on any day of the month.
  */
 export function MonthMotion({ rows }: { rows: MotionRow[] | null }) {
+  const { t, tf } = useT();
   if (rows !== null && rows.length === 0) return null;
   return (
     <div className="bg-slate-900/40 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl p-5">
       <div className="flex items-baseline gap-2.5 mb-3">
-        <h2 className="text-sm font-bold text-white">Month in motion</h2>
-        <span className="text-[10px] uppercase tracking-widest text-slate-600">vs same days last month</span>
+        <h2 className="text-sm font-bold text-white">{t('Month in motion')}</h2>
+        <span className="text-[10px] uppercase tracking-widest text-slate-600">{t('vs same days last month')}</span>
       </div>
       {rows === null ? (
         <div className="space-y-1.5">{[...Array(3)].map((_, i) => <div key={i} className="h-10 bg-slate-800/40 rounded-xl animate-pulse" />)}</div>
@@ -792,11 +835,11 @@ export function MonthMotion({ rows }: { rows: MotionRow[] | null }) {
               : r.deltaPct == null ? 'text-slate-500' : up ? 'text-emerald-400' : 'text-rose-400';
             return (
               <div key={r.key} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-slate-800/20">
-                <span className="text-xs font-semibold text-slate-300 w-[4.5rem] flex-shrink-0">{r.label}</span>
+                <span className="text-xs font-semibold text-slate-300 w-[4.5rem] flex-shrink-0">{t(r.label)}</span>
                 <span className="text-[13px] font-extrabold tabular-nums text-slate-100 truncate">{fmtIdr(r.now)}</span>
                 <span className={`ml-auto flex-shrink-0 text-[11px] font-bold tabular-nums ${tone}`}
-                  title={`Same days last month: ${fmtIdr(r.prev)}`}>
-                  {r.deltaPct == null ? (r.now > 0 ? 'no base' : '—') : `${up ? '▲' : '▼'} ${Math.abs(Math.round(r.deltaPct))}%`}
+                  title={tf('Same days last month: {amount}', { amount: fmtIdr(r.prev) })}>
+                  {r.deltaPct == null ? (r.now > 0 ? t('no base') : '—') : `${up ? '▲' : '▼'} ${Math.abs(Math.round(r.deltaPct))}%`}
                 </span>
               </div>
             );
@@ -815,6 +858,7 @@ export function MonthMotion({ rows }: { rows: MotionRow[] | null }) {
 const NEXT_STEP_CACHE = 'icaproc_nextstep_v1';
 
 export function NextStepCard({ position, queue, role }: { position: PositionData | null; queue: ActionItem[] | null; role: string }) {
+  const { t } = useT();
   const supabase = createSupabaseClient();
   const [state, setState] = useState<{ s: 'idle' | 'loading' | 'done' | 'error'; text?: string }>({ s: 'idle' });
   const ready = position !== null && queue !== null;
@@ -861,46 +905,55 @@ export function NextStepCard({ position, queue, role }: { position: PositionData
   return (
     <div className="bg-slate-900/60 border border-slate-800/80 ring-1 ring-violet-500/20 rounded-2xl p-5">
       <div className="flex items-center gap-2.5 mb-2.5">
-        <h2 className="text-sm font-bold text-white">Next best step</h2>
+        <h2 className="text-sm font-bold text-white">{t('Next best step')}</h2>
         <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-md bg-violet-500/15 text-violet-300 ring-1 ring-violet-500/25">AI</span>
         <button onClick={() => void load(true)} disabled={state.s === 'loading' || !ready}
-          title="Ask again with today's numbers"
+          title={t('Ask again with today’s numbers')}
           className="ml-auto text-[11px] text-slate-500 hover:text-violet-300 transition-colors disabled:opacity-40">
-          ↻ refresh
+          ↻ {t('refresh')}
         </button>
       </div>
       {state.s === 'done' ? (
         <p className="text-[13px] leading-relaxed text-slate-200">{state.text}</p>
       ) : state.s === 'error' ? (
-        <p className="text-xs text-slate-500">The advisor is unavailable right now — the queue above still ranks what matters by money at stake.</p>
+        <p className="text-xs text-slate-500">{t('The advisor is unavailable right now — the queue above still ranks what matters by money at stake.')}</p>
       ) : (
         <div className="space-y-1.5">{[...Array(2)].map((_, i) => <div key={i} className="h-4 bg-slate-800/40 rounded-lg animate-pulse" />)}</div>
       )}
-      <p className="text-[10px] text-slate-600 mt-2.5">Reads the same numbers this page shows. It proposes — you decide.</p>
+      <p className="text-[10px] text-slate-600 mt-2.5">{t('Reads the same numbers this page shows. It proposes — you decide.')}</p>
     </div>
   );
 }
 
 export function ActivityStream({ rows }: { rows: ActivityRow[] | null }) {
+  const { t } = useT();
   return (
     <div className="bg-slate-900/40 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl p-5 h-full">
       <div className="flex items-center gap-2.5 mb-3">
-        <h2 className="text-sm font-bold text-white flex-1">Latest activity</h2>
-        <span className="text-[10px] uppercase tracking-widest text-slate-600">across every module</span>
+        <h2 className="text-sm font-bold text-white flex-1">{t('Latest activity')}</h2>
+        <span className="text-[10px] uppercase tracking-widest text-slate-600">{t('across every module')}</span>
       </div>
       {rows === null ? (
         <div className="space-y-1.5">{[...Array(8)].map((_, i) => <div key={i} className="h-10 bg-slate-800/40 rounded-xl animate-pulse" />)}</div>
       ) : rows.length === 0 ? (
-        <p className="text-slate-600 text-xs italic py-8 text-center">Nothing recent.</p>
+        <p className="text-slate-600 text-xs italic py-8 text-center">{t('Nothing recent.')}</p>
       ) : (
         <div className="space-y-1">
           {rows.map((r) => (
             <Link key={r.key} href={r.href}
               className="flex items-center gap-3 px-3 py-2 rounded-xl bg-slate-800/20 hover:bg-slate-800/50 transition-colors group">
               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${DOMAIN_DOT[r.domain]}`} />
-              <span className={`flex-shrink-0 w-[4.5rem] text-[10px] font-bold uppercase tracking-wider ${DOMAIN_TEXT[r.domain]}`}>{r.kind}</span>
+              {/* 5.5rem, not 4.5 (2026-08-25): the badge column was sized for
+                  English, where the widest kind is "RECEIVED" at 60px. In
+                  Indonesian "PENAWARAN" measures 77px (Rubik 10px/700,
+                  tracking-wider) and there is no space in it to wrap on, so at
+                  72px it ran out of its own box and over the title beside it.
+                  The title truncates, so the 16px comes out of the truncation,
+                  not out of the layout. */}
+              <span className={`flex-shrink-0 w-[5.5rem] text-[10px] font-bold uppercase tracking-wider ${DOMAIN_TEXT[r.domain]}`}>{t(r.kind)}</span>
               <span className="text-xs font-semibold text-slate-100 group-hover:text-white transition-colors truncate">{r.title}</span>
-              <span className="text-[11px] text-slate-500 truncate hidden sm:block">{r.sub}</span>
+              {/* A DB status falls back to itself until constants/enums.ts is translated. */}
+              <span className="text-[11px] text-slate-500 truncate hidden sm:block">{t(r.sub)}</span>
               <span className="ml-auto flex-shrink-0 text-[10px] text-slate-500 tabular-nums">{fmtDate(r.at)}</span>
             </Link>
           ))}

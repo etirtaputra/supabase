@@ -85,6 +85,218 @@ export const isKeeper = (en: string): boolean => KEEPERS.includes(en);
  * communicates less than the English it replaced.
  */
 export const ID: Record<string, string> = {
+  // ══ THE DASHBOARD ═════════════════════════════════════════════════════════
+  // English picks between a singular and a plural template; Indonesian has
+  // neither, so the two English forms map to the same Indonesian line. That is
+  // not duplication to tidy away — it is the whole reason the template is
+  // chosen in the code rather than glued together with an "s".
+
+  // ── The customise panel (app/page.tsx) ────────────────────────────────────
+  'Customise': 'Sesuaikan',
+  'Your dashboard': 'Dasbor Anda',
+  'Reset to my role’s default': 'Kembalikan ke bawaan peran saya',
+  'Done': 'Selesai',
+  'Everything is switched off — the dashboard below is empty until you tick something.':
+    'Semua panel dimatikan — dasbor di bawah kosong sampai Anda mencentang sesuatu.',
+  'There is no dashboard panel for this role — your work lives in the menu above.':
+    'Tidak ada panel dasbor untuk peran ini — pekerjaan Anda ada di menu di atas.',
+  'Nothing is switched on yet.': 'Belum ada yang dinyalakan.',
+  'Every panel is switched off — press Customise to bring one back.':
+    'Semua panel dimatikan — tekan Sesuaikan untuk menampilkannya lagi.',
+
+  // ── KPI tiles ─────────────────────────────────────────────────────────────
+  'on-hand × avg landed cost': 'stok × biaya sampai gudang rata-rata',
+  'not cancelled': 'belum dibatalkan',
+  'in catalog': 'di katalog',
+
+  // ── Needs you today (the queue) ───────────────────────────────────────────
+  'At stake': 'Nilai tertahan',
+  '{n} item': '{n} barang',
+  '{n} items': '{n} barang',
+  'Nothing is blocked — every confirmed order can ship, and no invoice or quotation is waiting on a chase.':
+    'Tidak ada yang tertahan — semua pesanan yang dikonfirmasi bisa dikirim, dan tidak ada faktur atau penawaran yang menunggu ditagih.',
+  '{n} order cannot ship': '{n} pesanan tidak bisa dikirim',
+  '{n} orders cannot ship': '{n} pesanan tidak bisa dikirim',
+  '{n} item short of confirmed demand': '{n} barang kurang dari permintaan yang sudah pasti',
+  '{n} items short of confirmed demand': '{n} barang kurang dari permintaan yang sudah pasti',
+  '{n} invoice past {days} days': '{n} faktur lewat {days} hari',
+  '{n} invoices past {days} days': '{n} faktur lewat {days} hari',
+  'oldest {oldest} days — cash already earned, not collected':
+    'terlama {oldest} hari — uang sudah didapat, belum tertagih',
+  '{n} quotation awaiting an answer': '{n} penawaran menunggu jawaban',
+  '{n} quotations awaiting an answer': '{n} penawaran menunggu jawaban',
+  'sent over {sent} days ago — oldest {oldest} days':
+    'dikirim lebih dari {sent} hari lalu — terlama {oldest} hari',
+  'sent over {sent} days ago — oldest {oldest} days · {expired} past validity':
+    'dikirim lebih dari {sent} hari lalu — terlama {oldest} hari · {expired} lewat masa berlaku',
+  '{n} received PO still unpaid': '{n} PO diterima belum dibayar',
+  '{n} received POs still unpaid': '{n} PO diterima belum dibayar',
+  'goods are in the warehouse; the supplier is waiting':
+    'barang sudah di gudang; pemasok menunggu',
+  '{n} PO overdue': '{n} PO terlambat',
+  '{n} POs overdue': '{n} PO terlambat',
+  'past expected arrival — oldest {late} days late; chase the supplier':
+    'lewat perkiraan kedatangan — terlama {late} hari; tagih pemasok',
+  'paid for, past expected arrival — oldest {late} days late; chase the supplier':
+    'sudah dibayar, lewat perkiraan kedatangan — terlama {late} hari; tagih pemasok',
+  '{n} PO costing more than stock says': '{n} PO berbiaya lebih tinggi dari catatan stok',
+  '{n} POs costing more than stock says': '{n} PO berbiaya lebih tinggi dari catatan stok',
+  'bills landed after the goods did — post the correction and stock value catches up':
+    'tagihan datang setelah barangnya — catat koreksinya dan nilai stok menyusul',
+  'bills landed after the goods were sold — the margin on them was overstated':
+    'tagihan datang setelah barangnya terjual — marginnya tercatat terlalu tinggi',
+  '{n} item at reorder point': '{n} barang di titik pemesanan ulang',
+  '{n} items at reorder point': '{n} barang di titik pemesanan ulang',
+  '{n} projected to stock out before a PO raised today could arrive':
+    '{n} diperkirakan habis sebelum PO yang dibuat hari ini bisa tiba',
+  'live + incoming at or below demand over lead time + safety buffer':
+    'tersedia + dalam perjalanan sama atau di bawah permintaan selama lead time + cadangan aman',
+  '{n} movement not on a bank account': '{n} mutasi belum terhubung ke rekening bank',
+  '{n} movements not on a bank account': '{n} mutasi belum terhubung ke rekening bank',
+  'until they are tagged, no statement reconciles':
+    'selama belum ditandai, tidak ada rekening koran yang cocok',
+
+  // ── New arrivals ──────────────────────────────────────────────────────────
+  '{n} new': '{n} baru',
+  '{n} restocked': '{n} diisi ulang',
+  'Products →': 'Produk →',
+  'Nothing has landed in the last {days} days. Settings › Defaults sets how long an item counts as new.':
+    'Tidak ada barang masuk dalam {days} hari terakhir. Pengaturan › Bawaan menentukan berapa lama sebuah barang dihitung baru.',
+  'The first time we have ever taken this item into stock':
+    'Pertama kalinya barang ini masuk ke stok kita',
+  'New': 'Baru',
+  'It is on the shelf but has no selling price, so nobody can quote it':
+    'Barangnya ada di gudang tapi belum punya harga jual, jadi belum bisa ditawarkan',
+  'no selling price': 'tanpa harga jual',
+  'today': 'hari ini',
+  '{n}d ago': '{n}h lalu',
+  '{n} of {all} cannot be quoted yet — no selling price.':
+    '{n} dari {all} belum bisa ditawarkan — tanpa harga jual.',
+  'Everything that landed has a price.': 'Semua yang masuk sudah berharga.',
+  '+{n} more →': '+{n} lagi →',
+
+  // ── Arriving soon ─────────────────────────────────────────────────────────
+  'no date': 'tanpa tanggal',
+  '{n}d late': '{n}h terlambat',
+  'in {n}d': '{n}h lagi',
+  '{n} late': '{n} terlambat',
+  'Nothing is on order — every purchase order has been received or closed.':
+    'Tidak ada pesanan berjalan — semua PO sudah diterima atau ditutup.',
+  'Estimated from this supplier’s own measured lead time — the supplier gave us no date':
+    'Diperkirakan dari lead time terukur pemasok ini — pemasok tidak memberi tanggal',
+  'est.': 'perk.',
+  '(est.)': '(perk.)',
+  '{n} of {all} open PO carries no supplier date — those are estimates.':
+    '{n} dari {all} PO berjalan tidak punya tanggal dari pemasok — itu perkiraan.',
+  '{n} of {all} open POs carry no supplier date — those are estimates.':
+    '{n} dari {all} PO berjalan tidak punya tanggal dari pemasok — itu perkiraan.',
+  '{n} PO is past due with nothing received — late, or already here and never booked in.':
+    '{n} PO lewat jatuh tempo tanpa penerimaan — terlambat, atau sudah tiba tapi belum dicatat masuk.',
+  '{n} POs are past due with nothing received — late, or already here and never booked in.':
+    '{n} PO lewat jatuh tempo tanpa penerimaan — terlambat, atau sudah tiba tapi belum dicatat masuk.',
+  '{n} PO is past due with nothing received, the oldest raised {days} days ago — late, or already here and never booked in.':
+    '{n} PO lewat jatuh tempo tanpa penerimaan, yang terlama dibuat {days} hari lalu — terlambat, atau sudah tiba tapi belum dicatat masuk.',
+  '{n} POs are past due with nothing received, the oldest raised {days} days ago — late, or already here and never booked in.':
+    '{n} PO lewat jatuh tempo tanpa penerimaan, yang terlama dibuat {days} hari lalu — terlambat, atau sudah tiba tapi belum dicatat masuk.',
+  '+{n} more on order.': '+{n} lagi dalam pesanan.',
+
+  // ── Stock alerts ──────────────────────────────────────────────────────────
+  '{n} short': '{n} kurang',
+  '{n} to reorder': '{n} perlu dipesan ulang',
+  'Nothing to flag — every committed order can ship, and no item is at its reorder point.':
+    'Tidak ada yang perlu ditandai — semua pesanan yang sudah pasti bisa dikirim, dan tidak ada barang di titik pemesanan ulang.',
+  'short {qty}': 'kurang {qty}',
+  'have {have} · committed {committed}': 'ada {have} · dipesan {committed}',
+  '{customer} — waiting on {qty}': '{customer} — menunggu {qty}',
+  'No customer': 'Tanpa pelanggan',
+  'order ~{qty}': 'pesan ~{qty}',
+  'At the current demand rate, stock runs out before a PO raised today could arrive':
+    'Dengan laju permintaan saat ini, stok habis sebelum PO yang dibuat hari ini bisa tiba',
+  'stock-out before replenishment': 'habis sebelum barang tiba',
+  'live {live} · covers {cover}d · lead {lead}d':
+    'tersedia {live} · cukup {cover}h · lead time {lead}h',
+  'live {live} + {incoming} incoming · covers {cover}d · lead {lead}d':
+    'tersedia {live} + {incoming} dalam perjalanan · cukup {cover}h · lead time {lead}h',
+  'New PO →': 'PO baru →',
+
+  // ── Position strip ────────────────────────────────────────────────────────
+  'Cash': 'Kas',
+  'across all bank accounts': 'di seluruh rekening bank',
+  'unavailable right now': 'tidak tersedia saat ini',
+  '{n} account': '{n} rekening',
+  '{n} accounts': '{n} rekening',
+  'Owed to us': 'Sisa piutang',
+  'open customer invoices': 'faktur pelanggan yang belum lunas',
+  'every invoice is settled': 'semua faktur sudah lunas',
+  '{n} open invoice': '{n} faktur berjalan',
+  '{n} open invoices': '{n} faktur berjalan',
+  '{amount} overdue': '{amount} lewat jatuh tempo',
+  'We owe': 'Sisa utang',
+  'unpaid across active POs': 'belum dibayar di PO aktif',
+  'every active PO is paid': 'semua PO aktif sudah dibayar',
+  // '{n} PO' is omitted deliberately: PO is a keeper, so the English form is
+  // already the Indonesian one and an entry for it would equal itself.
+  '{n} POs': '{n} PO',
+  '{amount} for goods received': '{amount} untuk barang yang sudah diterima',
+  '{n} unrated excl.': '{n} tanpa kurs, dikecualikan',
+  '{amount} on the water': '{amount} dalam perjalanan',
+  '{n} overdue': '{n} lewat jatuh tempo',
+  'CCC · the runway': 'CCC · masa perputaran',
+  'cash out → cash back, in days': 'kas keluar → kas kembali, dalam hari',
+  'nothing delivered in the last 90d to measure against':
+    'tidak ada pengiriman dalam 90 hari terakhir sebagai pembanding',
+  '{n} delivery in 90d — too little to measure':
+    '{n} pengiriman dalam 90 hari — terlalu sedikit untuk diukur',
+  '{n} deliveries in 90d — too little to measure':
+    '{n} pengiriman dalam 90 hari — terlalu sedikit untuk diukur',
+  '{n} delivery in 90d, {uncosted} with no cost — too little to measure':
+    '{n} pengiriman dalam 90 hari, {uncosted} tanpa biaya — terlalu sedikit untuk diukur',
+  '{n} deliveries in 90d, {uncosted} with no cost — too little to measure':
+    '{n} pengiriman dalam 90 hari, {uncosted} tanpa biaya — terlalu sedikit untuk diukur',
+  'DIO {dio} + DSO {dso} − DPO {dpo} · 90-day basis':
+    'DIO {dio} + DSO {dso} − DPO {dpo} · basis 90 hari',
+  'DIO {dio} + DSO {dso} + {prepaid} prepaid · 90-day basis':
+    'DIO {dio} + DSO {dso} + {prepaid} dibayar di muka · basis 90 hari',
+
+  // ── Month in motion ───────────────────────────────────────────────────────
+  'vs same days last month': 'vs hari yang sama bulan lalu',
+  'Same days last month: {amount}': 'Hari yang sama bulan lalu: {amount}',
+  'no base': 'tanpa pembanding',
+  'Invoiced': 'Ditagih',
+  'Collected': 'Diterima',
+
+  // ── Next best step ────────────────────────────────────────────────────────
+  'Ask again with today’s numbers': 'Tanya ulang dengan angka hari ini',
+  'refresh': 'muat ulang',
+  'The advisor is unavailable right now — the queue above still ranks what matters by money at stake.':
+    'Penasihat tidak tersedia saat ini — daftar di atas tetap mengurutkan yang penting berdasarkan nilai tertahan.',
+  'Reads the same numbers this page shows. It proposes — you decide.':
+    'Membaca angka yang sama dengan halaman ini. Ia mengusulkan — Anda yang memutuskan.',
+
+  // ── Latest activity ───────────────────────────────────────────────────────
+  'across every module': 'dari semua modul',
+  'Nothing recent.': 'Belum ada aktivitas.',
+  'Invoice': 'Faktur',
+  'Order': 'Pesanan',
+  'Quote': 'Penawaran',
+  'Received': 'Diterima',
+  'Paid out': 'Dibayar',
+  'customer payment': 'pembayaran pelanggan',
+  '(no number)': '(tanpa nomor)',
+
+  // ── Leaderboards ──────────────────────────────────────────────────────────
+  'Unnamed item': 'Barang tanpa nama',
+  'Unnamed customer': 'Pelanggan tanpa nama',
+  'products': 'produk',
+  'customers': 'pelanggan',
+  '{qty} sold · {orders} order': '{qty} terjual · {orders} pesanan',
+  '{qty} sold · {orders} orders': '{qty} terjual · {orders} pesanan',
+  '{orders} order · {qty} items': '{orders} pesanan · {qty} barang',
+  '{orders} orders · {qty} items': '{orders} pesanan · {qty} barang',
+  '{pct}% margin': 'margin {pct}%',
+  'All {n} {noun} that have sold in this period.': 'Semua {n} {noun} yang terjual pada periode ini.',
+  'Top {shown} of {n} {noun} that have sold.': '{shown} teratas dari {n} {noun} yang terjual.',
+
   // ── Arranging the menu and the dashboard (Settings + Customise) ───────────
   'Hide {name}': 'Sembunyikan {name}',
   'Show {name}': 'Tampilkan {name}',
@@ -348,12 +560,6 @@ export const ID: Record<string, string> = {
     'Barang yang baru masuk \u2014 dan mana yang belum ada harga jualnya',
   'What is on the water and when it should land':
     'Barang yang masih dalam perjalanan dan perkiraan tibanya',
-  'Nothing has landed in the last':
-    'Tidak ada barang masuk dalam',
-  'days. Settings \u203a Defaults sets how long an item counts as new.':
-    'hari terakhir. Atur lamanya di Settings \u203a Defaults.',
-  'Nothing is on order \u2014 every purchase order has been received or closed.':
-    'Tidak ada pesanan berjalan \u2014 semua PO sudah diterima atau ditutup.',
   'sets the starting point for everyone.':
     'menetapkan titik awal untuk semua orang.',
   // Role-relevant defaults (2026-08-23). Short in the divider and the chip —
@@ -380,7 +586,6 @@ export const ID: Record<string, string> = {
   'Replace with…': 'Ganti dengan…',
   'Replacing…': 'Mengganti…',
   'Replace in {n}': 'Ganti di {n} data',
-  'Received': 'Diterima',
   'all payments': 'semua pembayaran',
   'Outstanding AR': 'Sisa piutang',
   'on issued invoices': 'dari faktur yang sudah terbit',
@@ -407,7 +612,6 @@ export const ID: Record<string, string> = {
   'Year': 'Tahun',
   'Custom range': 'Rentang sendiri',
   'Clear': 'Hapus',
-  'Done': 'Selesai',
   'Clear the date filter': 'Hapus filter tanggal',
   'Rows per page:': 'Baris per halaman:',
   'No matching records found.': 'Tidak ada data yang cocok.',
@@ -434,7 +638,6 @@ export const ID: Record<string, string> = {
   'New products': 'Barang baru',
   'Cancel': 'Batal',
   'Expected arrival': 'Perkiraan tiba',
-  'no date': 'tanpa tanggal',
   'No net price —': 'Belum ada harga net —',
   'set it in Catalog': 'atur di Katalog',
   'Datasheet URL (Drive or web)': 'Tautan datasheet (Drive atau web)',
@@ -486,7 +689,6 @@ export const ID: Record<string, string> = {
   'Drafts': 'Draf',
   'unfinished quotes — not in the totals until validated':
     'penawaran yang belum selesai — belum masuk total sampai divalidasi',
-  'No customer': 'Tanpa pelanggan',
   'Expired': 'Kedaluwarsa',
   'none yet': 'belum ada',
   'no DO yet': 'belum ada DO',
@@ -593,7 +795,6 @@ export const ID: Record<string, string> = {
   'understated by {amount}': 'kurang dicatat sebesar {amount}',
   'True up ↗': 'Sesuaikan ↗',
   'item ↗': 'barang ↗',
-  'New PO →': 'PO baru →',
   'All warehouses': 'Semua gudang',
   '⇄ move': '⇄ pindah',
   'Move stock': 'Pindahkan stok',
@@ -601,8 +802,6 @@ export const ID: Record<string, string> = {
     'Dipindahkan pada biaya rata-rata gudang asal — total nilai persediaan tidak berubah.',
   'The default warehouse — the one preselected when receiving, adjusting or shipping — is set in Settings':
     'Gudang bawaan — yang otomatis terpilih saat menerima, menyesuaikan, atau mengirim — diatur di Settings',
-  'At the current demand rate, stock runs out before a PO raised today could arrive':
-    'Dengan laju permintaan saat ini, stok habis sebelum PO yang dibuat hari ini bisa tiba',
   'Open the item hub — buy history, lead times, demand':
     'Buka Pusat Barang — riwayat pembelian, lead time, permintaan',
   'Raise the next deal — New Deal, Quote + PO':
@@ -625,10 +824,6 @@ export const ID: Record<string, string> = {
     'Pelanggan yang paling menghasilkan — berdasarkan omzet atau laba kotor',
   'Nothing has been delivered in this period yet. A sale counts from the day the goods ship, not the day the order is signed.':
     'Belum ada pengiriman pada periode ini. Penjualan dihitung sejak barang dikirim, bukan sejak pesanan ditandatangani.',
-  'All {n} {noun}s that have sold in this period.':
-    'Semua {n} {noun} yang terjual pada periode ini.',
-  'Top {shown} of {n} {noun}s that have sold.':
-    '{shown} teratas dari {n} {noun} yang terjual.',
   'These carry {pct}% of the total.': 'Semuanya mencakup {pct}% dari total.',
   'Ranked by revenue — the cost of these goods could not be read.':
     'Diurutkan berdasarkan omzet — biaya barang ini tidak bisa dibaca.',

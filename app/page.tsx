@@ -39,7 +39,7 @@ export default function Home() {
   const { user, profile, loading: authLoading } = useAuth();
   const { data, loading } = useSupabaseData();
   const { arOverdueDays, quoteFollowUpDays, newArrivalDays, economicsPeriod } = useSettings();
-  const { t, tf } = useT();
+  const { t, tf, lang } = useT();
   // Module visibility mirrors the nav: a role only sees panels for flows it
   // can access (nothing sensitive renders until the profile has resolved).
   const perms = profile ? ROLE_PERMISSIONS[profile.role] : null;
@@ -97,7 +97,9 @@ export default function Home() {
   const needDeliv    = shown.has('lastDeliveries');
   const needCases    = shown.has('lastCases');
 
-  useEffect(() => { document.title = 'Dashboard — ICAPROC'; }, []);
+  // Keyed on `lang`, not on `t` — `t` is a new function every render, and
+  // the tab title should be rewritten when the language changes, not always.
+  useEffect(() => { document.title = `${t('Dashboard')} — ICAPROC`; }, [lang]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // PO values and payment status are sensitive — sign-in required
   useEffect(() => {
@@ -233,18 +235,20 @@ export default function Home() {
   const productBoard = useMemo<Leaderboard | null>(() => {
     if (!periodFacts || !leaderNames) return null;
     return rank(periodFacts, rankProducts, (f) => f.component_id, (key) => ({
-      name: leaderNames.products.get(key) ?? 'Unnamed item',
-      sub: (a) => `${fmtInt(a.qty)} sold · ${a.orders} order${a.orders !== 1 ? 's' : ''}`,
+      name: leaderNames.products.get(key) ?? t('Unnamed item'),
+      sub: (a) => tf(a.orders === 1 ? '{qty} sold · {orders} order' : '{qty} sold · {orders} orders',
+        { qty: fmtInt(a.qty), orders: a.orders }),
     }));
-  }, [periodFacts, leaderNames, rankProducts]);
+  }, [periodFacts, leaderNames, rankProducts, t, tf]);
 
   const customerBoard = useMemo<Leaderboard | null>(() => {
     if (!periodFacts || !leaderNames) return null;
     return rank(periodFacts, rankCustomers, (f) => f.customer_id, (key) => ({
-      name: leaderNames.customers.get(key) ?? 'Unnamed customer',
-      sub: (a) => `${a.orders} order${a.orders !== 1 ? 's' : ''} · ${fmtInt(a.qty)} items`,
+      name: leaderNames.customers.get(key) ?? t('Unnamed customer'),
+      sub: (a) => tf(a.orders === 1 ? '{orders} order · {qty} items' : '{orders} orders · {qty} items',
+        { orders: a.orders, qty: fmtInt(a.qty) }),
     }));
-  }, [periodFacts, leaderNames, rankCustomers]);
+  }, [periodFacts, leaderNames, rankCustomers, t, tf]);
 
   const poById = useMemo(
     () => new Map(data.pos.map((p) => [String(p.po_id), p])),
@@ -300,22 +304,24 @@ export default function Home() {
       case 'nextStep':   return <NextStepCard position={position} queue={queue} role={profile?.role ?? ''} />;
       case 'motion':     return position && position.motion.length === 0 ? null
                                 : <MonthMotion rows={position === null ? null : position.motion} />;
-      case 'kpiPaid':    return <KpiTile label="Paid This Month" value={loading ? '—' : fmtIdr(stats.paidThisMonthIdr)}
-                                  sub={new Date().toLocaleDateString('en-GB', { month: 'long' })}
+      // The month NAME follows the language too — an Indonesian dashboard
+      // saying "August" under a translated tile is the seam showing.
+      case 'kpiPaid':    return <KpiTile label={t('Paid This Month')} value={loading ? '—' : fmtIdr(stats.paidThisMonthIdr)}
+                                  sub={new Date().toLocaleDateString(lang === 'id' ? 'id-ID' : 'en-GB', { month: 'long' })}
                                   color="text-rose-300" ring="ring-rose-500/20" />;
-      case 'kpiStockValue': return <KpiTile label="Stock Value" value={stockValue == null ? '—' : fmtIdr(stockValue)}
-                                  sub="on-hand × avg landed cost" color="text-violet-300" ring="ring-violet-500/20" />;
-      case 'kpiActivePos':  return <KpiTile label="Active POs" value={loading ? '—' : stats.activePOs.toString()}
-                                  sub="not cancelled" color="text-sky-300" ring="ring-sky-500/20" />;
-      case 'kpiComponents': return <KpiTile label="Components" value={loading ? '—' : stats.componentCount.toLocaleString('en-US')}
-                                  sub="in catalog" color="text-emerald-300" ring="ring-emerald-500/20" />;
+      case 'kpiStockValue': return <KpiTile label={t('Stock Value')} value={stockValue == null ? '—' : fmtIdr(stockValue)}
+                                  sub={t('on-hand × avg landed cost')} color="text-violet-300" ring="ring-violet-500/20" />;
+      case 'kpiActivePos':  return <KpiTile label={t('Active POs')} value={loading ? '—' : stats.activePOs.toString()}
+                                  sub={t('not cancelled')} color="text-sky-300" ring="ring-sky-500/20" />;
+      case 'kpiComponents': return <KpiTile label={t('Components')} value={loading ? '—' : stats.componentCount.toLocaleString('en-US')}
+                                  sub={t('in catalog')} color="text-emerald-300" ring="ring-emerald-500/20" />;
       case 'newArrivals':   return <NewArrivals rows={arrivedItems} days={newArrivalDays} />;
       case 'arriving':      return <ArrivingSoon data={arriving} buySide={!!perms?.buySide} />;
       case 'topProducts':   return <TopBoard title="Top products" board={productBoard} by={rankProducts}
-                                  onPick={(b) => pickRank('products', b)} noun="product" period={economicsPeriod}
+                                  onPick={(b) => pickRank('products', b)} noun="products" period={economicsPeriod}
                                   canProfit={!!perms?.canViewEconomics} href="/profitability" />;
       case 'topCustomers':  return <TopBoard title="Top customers" board={customerBoard} by={rankCustomers}
-                                  onPick={(b) => pickRank('customers', b)} noun="customer" period={economicsPeriod}
+                                  onPick={(b) => pickRank('customers', b)} noun="customers" period={economicsPeriod}
                                   canProfit={!!perms?.canViewEconomics} href="/customers" />;
       case 'lastPayments':  return <FeedCard title="Last payments" feed={payments} href="/banks"
                                   empty="No payment has been recorded yet." showMoney />;
@@ -342,7 +348,7 @@ export default function Home() {
         <div className="max-w-[1800px] 2xl:max-w-[2460px] mx-auto px-3 sm:px-4 md:px-6 xl:px-8 py-2.5 sm:py-3 flex flex-row items-center justify-between flex-wrap gap-x-3 gap-y-2 sm:gap-x-4 sm:gap-y-2.5">
           <BrandMenu
             wordmarkClass="text-xl md:text-2xl font-extrabold"
-            subtitle={new Date().toLocaleDateString('en-GB', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
+            subtitle={new Date().toLocaleDateString(lang === 'id' ? 'id-ID' : 'en-GB', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
           />
           {arranged.length > 0 && (
             <button onClick={() => setCustomising((v) => !v)} aria-expanded={customising}
@@ -353,7 +359,7 @@ export default function Home() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h10M18 6h2M4 12h2M10 12h10M4 18h8M16 18h4" />
                 <circle cx="16" cy="6" r="2" /><circle cx="8" cy="12" r="2" /><circle cx="14" cy="18" r="2" />
               </svg>
-              Customise
+              {t('Customise')}
             </button>
           )}
         </div>
@@ -369,14 +375,14 @@ export default function Home() {
           <div className="bg-slate-900/60 border border-slate-800/80 ring-1 ring-emerald-500/15 rounded-2xl p-4 sm:p-5 space-y-3.5">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="min-w-0">
-                <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">Your dashboard</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">{t('Your dashboard')}</p>
                 <p className="text-[11px] text-slate-500 leading-snug mt-1 max-w-2xl">
                   {t('Tick what you want to watch, drag a row to move it (the arrows do the same on touch). This is your own arrangement, on this browser — it does not change anyone else’s.')}
                   {recommended.size > 0 && profile?.role && (
                     <> {tf('The panels marked for your role are the ones {role} opens on.', { role: t(ROLE_LABELS[profile.role]) })}</>
                   )}
                   {perms?.canManageUsers && (
-                    <> <Link href="/settings?tab=dashboard" className="text-slate-400 hover:text-emerald-300 font-semibold transition-colors">Settings › Dashboard</Link>{' '}
+                    <> <Link href="/settings?tab=dashboard" className="text-slate-400 hover:text-emerald-300 font-semibold transition-colors">{t('Settings · Dashboard')}</Link>{' '}
                       {t('sets the starting point for everyone.')}</>
                   )}
                 </p>
@@ -384,18 +390,18 @@ export default function Home() {
               <div className="flex items-center gap-2 flex-shrink-0">
                 <button onClick={reset} disabled={!isPersonal}
                   className="text-[11px] font-semibold text-slate-400 hover:text-white disabled:text-slate-700 disabled:hover:text-slate-700 transition-colors">
-                  Reset to my role’s default
+                  {t('Reset to my role’s default')}
                 </button>
                 <button onClick={() => setCustomising(false)}
                   className="text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-slate-800/60 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                  Done
+                  {t('Done')}
                 </button>
               </div>
             </div>
             <WidgetArranger rows={arranged} recommended={recommended}
               onChange={(next: DashboardLayout) => save(next)} />
             {visible.length === 0 && (
-              <p className="text-[11px] text-amber-300/80">Everything is switched off — the dashboard below is empty until you tick something.</p>
+              <p className="text-[11px] text-amber-300/80">{t('Everything is switched off — the dashboard below is empty until you tick something.')}</p>
             )}
           </div>
         )}
@@ -411,10 +417,10 @@ export default function Home() {
         ) : visible.length === 0 ? (
           <p className="text-center text-xs text-slate-500 py-16">
             {arranged.length === 0
-              ? 'There is no dashboard panel for this role — your work lives in the menu above.'
+              ? t('There is no dashboard panel for this role — your work lives in the menu above.')
               : customising
-                ? 'Nothing is switched on yet.'
-                : 'Every panel is switched off — press Customise to bring one back.'}
+                ? t('Nothing is switched on yet.')
+                : t('Every panel is switched off — press Customise to bring one back.')}
           </p>
         ) : (
           <div className="grid grid-cols-2 lg:grid-cols-12 gap-x-4 xl:gap-x-5 gap-y-6 xl:gap-y-7">

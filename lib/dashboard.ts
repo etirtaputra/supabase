@@ -25,10 +25,20 @@ export type ActionDomain = 'sell' | 'buy' | 'cash';
 export interface ActionItem {
   key: string;
   domain: ActionDomain;
-  /** What is wrong, in the fewest words that still name the thing. */
+  /**
+   * What is wrong, in the fewest words that still name the thing.
+   *
+   * An ENGLISH TEMPLATE with `{placeholders}`, not a finished sentence — the
+   * dashboard renders it through `tf()`, so Indonesian can put the number,
+   * the noun and the verb where Indonesian puts them. English chooses between
+   * a singular and a plural template here (Indonesian has neither, and both
+   * templates map to the same Indonesian line).
+   */
   title: string;
-  /** The consequence — what it costs to leave it. */
+  titleVars?: Record<string, string | number>;
+  /** The consequence — what it costs to leave it. Same contract as `title`. */
   detail: string;
+  detailVars?: Record<string, string | number>;
   /** Money at stake, used to rank; 0 for signals that are counts only. */
   amount: number;
   count: number;
@@ -46,6 +56,9 @@ export interface ActivityRow {
   at: string;               // ISO-ish, for ordering
   href: string;
 }
+
+/** English needs two templates where Indonesian needs one. */
+const plural = (n: number, one: string, many: string): string => (n === 1 ? one : many);
 
 const daysAgo = (n: number): string => {
   const d = new Date();
@@ -119,8 +132,10 @@ export async function fetchActionQueue(
         const value = [...blockedQuotes.values()].reduce((s, v) => s + v, 0);
         items.push({
           key: 'shortage', domain: 'sell', tone: 'urgent',
-          title: `${blockedQuotes.size} order${blockedQuotes.size !== 1 ? 's' : ''} cannot ship`,
-          detail: `${short.size} item${short.size !== 1 ? 's' : ''} short of confirmed demand`,
+          title: plural(blockedQuotes.size, '{n} order cannot ship', '{n} orders cannot ship'),
+          titleVars: { n: blockedQuotes.size },
+          detail: plural(short.size, '{n} item short of confirmed demand', '{n} items short of confirmed demand'),
+          detailVars: { n: short.size },
           amount: value, count: blockedQuotes.size, href: '/stock',
         });
       }
@@ -144,8 +159,10 @@ export async function fetchActionQueue(
       if (n > 0) {
         items.push({
           key: 'ar-overdue', domain: 'cash', tone: 'urgent',
-          title: `${n} invoice${n !== 1 ? 's' : ''} past ${opts.arOverdueDays} days`,
-          detail: `oldest ${oldest} days — cash already earned, not collected`,
+          title: plural(n, '{n} invoice past {days} days', '{n} invoices past {days} days'),
+          titleVars: { n, days: opts.arOverdueDays },
+          detail: 'oldest {oldest} days — cash already earned, not collected',
+          detailVars: { oldest },
           amount: owed, count: n, href: '/invoices',
         });
       }
@@ -167,8 +184,12 @@ export async function fetchActionQueue(
         const expired = stale.filter(lapsed).length;
         items.push({
           key: 'quote-followup', domain: 'sell', tone: 'watch',
-          title: `${stale.length} quotation${stale.length !== 1 ? 's' : ''} awaiting an answer`,
-          detail: `sent over ${opts.quoteFollowUpDays} days ago — oldest ${oldest} days${expired ? ` · ${expired} past validity` : ''}`,
+          title: plural(stale.length, '{n} quotation awaiting an answer', '{n} quotations awaiting an answer'),
+          titleVars: { n: stale.length },
+          detail: expired
+            ? 'sent over {sent} days ago — oldest {oldest} days · {expired} past validity'
+            : 'sent over {sent} days ago — oldest {oldest} days',
+          detailVars: { sent: opts.quoteFollowUpDays, oldest, expired },
           amount: value, count: stale.length, href: '/sales',
         });
       }
@@ -201,7 +222,8 @@ export async function fetchActionQueue(
       if (n > 0) {
         items.push({
           key: 'po-unpaid', domain: 'buy', tone: 'watch',
-          title: `${n} received PO${n !== 1 ? 's' : ''} still unpaid`,
+          title: plural(n, '{n} received PO still unpaid', '{n} received POs still unpaid'),
+          titleVars: { n },
           detail: 'goods are in the warehouse; the supplier is waiting',
           amount: owed, count: n, href: '/purchasing?tab=lookup',
         });
@@ -220,8 +242,12 @@ export async function fetchActionQueue(
       if (it.overdueCount > 0) {
         items.push({
           key: 'po-overdue', domain: 'buy', tone: 'urgent',
-          title: `${it.overdueCount} PO${it.overdueCount !== 1 ? 's' : ''} overdue`,
-          detail: `${it.overduePaidIdr > 0 ? 'paid for, ' : ''}past expected arrival — oldest ${it.maxDaysLate} day${it.maxDaysLate !== 1 ? 's' : ''} late; chase the supplier`,
+          title: plural(it.overdueCount, '{n} PO overdue', '{n} POs overdue'),
+          titleVars: { n: it.overdueCount },
+          detail: it.overduePaidIdr > 0
+            ? 'paid for, past expected arrival — oldest {late} days late; chase the supplier'
+            : 'past expected arrival — oldest {late} days late; chase the supplier',
+          detailVars: { late: it.maxDaysLate },
           amount: it.overduePaidIdr || it.overdueValueIdr, count: it.overdueCount, href: '/purchasing?tab=lookup',
         });
       }
@@ -236,7 +262,8 @@ export async function fetchActionQueue(
       if (landed.ready.length > 0) {
         items.push({
           key: 'landed-variance', domain: 'buy', tone: 'watch',
-          title: `${landed.ready.length} PO${landed.ready.length !== 1 ? 's' : ''} costing more than stock says`,
+          title: plural(landed.ready.length, '{n} PO costing more than stock says', '{n} POs costing more than stock says'),
+          titleVars: { n: landed.ready.length },
           detail: landed.readyInventoryDelta !== 0
             ? 'bills landed after the goods did — post the correction and stock value catches up'
             : 'bills landed after the goods were sold — the margin on them was overstated',
@@ -254,10 +281,12 @@ export async function fetchActionQueue(
         const urgent = alerts.filter((a) => a.urgent).length;
         items.push({
           key: 'reorder', domain: 'buy', tone: urgent ? 'urgent' : 'watch',
-          title: `${alerts.length} item${alerts.length !== 1 ? 's' : ''} at reorder point`,
+          title: plural(alerts.length, '{n} item at reorder point', '{n} items at reorder point'),
+          titleVars: { n: alerts.length },
           detail: urgent
-            ? `${urgent} projected to stock out before a PO raised today could arrive`
+            ? '{n} projected to stock out before a PO raised today could arrive'
             : 'live + incoming at or below demand over lead time + safety buffer',
+          detailVars: { n: urgent },
           amount: 0, count: alerts.length, href: '/stock',
         });
       }
@@ -275,7 +304,8 @@ export async function fetchActionQueue(
     if (n > 0) {
       items.push({
         key: 'bank-untagged', domain: 'cash', tone: 'watch',
-        title: `${n} movement${n !== 1 ? 's' : ''} not on a bank account`,
+        title: plural(n, '{n} movement not on a bank account', '{n} movements not on a bank account'),
+        titleVars: { n },
         detail: 'until they are tagged, no statement reconciles',
         amount: 0, count: n, href: '/banks',
       });
@@ -336,7 +366,11 @@ export async function fetchActivity(supabase: SupabaseClient, perms: RolePermiss
     }
     for (const c of (costRes.data ?? []) as { cost_id: string; po_id: string; amount: number; currency: string; payment_date: string; cost_category: string }[]) {
       rows.push({
-        key: `cost-${c.cost_id}`, domain: 'buy', kind: 'Paid',
+        // 'Paid out', not 'Paid': the activity stream reports an EVENT, and
+        // 'Paid' is a settlement STATUS elsewhere in the app (Indonesian
+        // "Lunas"). One word, one meaning — and it matches the Month-in-motion
+        // row that counts the same money.
+        key: `cost-${c.cost_id}`, domain: 'buy', kind: 'Paid out',
         title: `${c.currency} ${Math.round(Number(c.amount) || 0).toLocaleString('en-US')}`,
         sub: (c.cost_category ?? '').replace(/_/g, ' '),
         at: c.payment_date ?? '', href: '/purchasing?tab=financials',

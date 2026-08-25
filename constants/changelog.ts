@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-25T11:40:00Z',
+    title: 'The Dashboard reads in Indonesian — every panel, down to the sentences with numbers in them',
+    details: [
+      'Everything on the dashboard turns with the language now: the four position tiles (Kas, Sisa piutang, Sisa utang, CCC · masa perputaran), Perlu tindakan hari ini and every line in it, Barang baru masuk, Segera tiba, Peringatan stok, Pergerakan bulan ini, Langkah terbaik berikutnya, Aktivitas terbaru, the leaderboards and the Sesuaikan panel.',
+      'The hard part was the sentences that carry numbers. “3 POs are past due with nothing received, the oldest raised 214 days ago” was being assembled in English word order, with the “s” glued on by a rule that only English has. Those sentences are now written out whole, with the numbers dropped into place — so the Indonesian says it the way Indonesian says it, instead of reading like an English sentence with the words swapped.',
+      'The month name under Paid This Month and the date beside the wordmark follow the language too. They were pinned to English, which left “August” sitting under a translated tile.',
+      'Two words were quietly wrong before this and are now fixed: the activity feed labelled a supplier payment “Paid”, which the phrase book translates as “Lunas” — settled — when it meant money going out. It says “Paid out” / “Dibayar” now, matching the row in Month in motion that counts the same money.',
+      'One measured layout change: the activity feed’s left-hand badge column was 72 pixels, sized for English, where the widest word is RECEIVED at 60. PENAWARAN is 77 and has nowhere to break, so it ran over the description beside it. The column is 88 pixels now.',
+    ],
+  },
+  {
     at: '2026-08-25T09:20:00Z',
     title: 'Bahasa Indonesia now turns the menus too, not just the explanations',
     details: [
