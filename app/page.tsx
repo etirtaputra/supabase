@@ -373,7 +373,7 @@ export default function Home() {
                 <p className="text-[11px] text-slate-500 leading-snug mt-1 max-w-2xl">
                   {t('Tick what you want to watch, drag a row to move it (the arrows do the same on touch). This is your own arrangement, on this browser — it does not change anyone else’s.')}
                   {recommended.size > 0 && profile?.role && (
-                    <> {tf('The panels marked for your role are the ones {role} opens on.', { role: ROLE_LABELS[profile.role] })}</>
+                    <> {tf('The panels marked for your role are the ones {role} opens on.', { role: t(ROLE_LABELS[profile.role]) })}</>
                   )}
                   {perms?.canManageUsers && (
                     <> <Link href="/settings?tab=dashboard" className="text-slate-400 hover:text-emerald-300 font-semibold transition-colors">Settings › Dashboard</Link>{' '}

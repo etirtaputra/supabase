@@ -1663,7 +1663,7 @@ function Drawer({
                 <option value="">Unassigned</option>
                 {amUsers.map((u) => (
                   <option key={u.id} value={u.id}>
-                    {(u.display_name || u.email)} — {ROLE_LABELS[u.role]}
+                    {(u.display_name || u.email)} — {t(ROLE_LABELS[u.role])}
                   </option>
                 ))}
               </select>

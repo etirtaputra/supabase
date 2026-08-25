@@ -1,12 +1,16 @@
 /**
- * Bahasa Indonesia for the text that EXPLAINS the app.
+ * Bahasa Indonesia for ICAPROC — the whole app, menus included.
  *
- * The owner's rule (2026-08-19): menu labels stay English — "Stock", "Deal
- * Lookup", "Landed Cost" are the vocabulary the team already shares with
- * suppliers and customers, and translating them would give one thing two
- * names. What gets translated is everything that explains: the one-liners
- * under menu entries, the page subtitles, the hints under Settings fields, and
- * the tooltips people hover for.
+ * THE 2026-08-19 RULE IS WITHDRAWN. It used to read "menu labels stay English
+ * — 'Stock', 'Deal Lookup', 'Landed Cost' are the vocabulary the team already
+ * shares with suppliers and customers". The owner reversed it on 2026-08-25:
+ * *"Make the Indonesia language settings, fully Bahasa Indonesia, including
+ * the menus."* Choosing Indonesian now turns the navigation, the group
+ * headers, the dashboard panel names, the quick actions and the role names,
+ * not only the sentences that explain them.
+ *
+ * What survives the reversal is the reason behind it, narrowed to the words
+ * that are not words at all — see KEEPERS below.
  *
  * KEYED BY THE ENGLISH STRING, deliberately. A phrase book, not a key
  * namespace:
@@ -23,6 +27,37 @@
  * no longer appears anywhere in the app.
  */
 export type Lang = 'en' | 'id';
+
+/**
+ * The words that stay English in BOTH languages (owner's call, 2026-08-25:
+ * "codes and units only").
+ *
+ * These are not English words competing with Indonesian ones — they are codes
+ * and units. They are printed on the documents suppliers and customers hold,
+ * typed into Spotlight, and said aloud unchanged in an Indonesian sentence
+ * ("PO-nya sudah keluar"). Translating a code invents a second name for one
+ * thing, which is the fault the old menus-stay-English rule was really aimed
+ * at.
+ *
+ * A keeper CANNOT be listed in the phrase book: an entry whose Indonesian
+ * equals its English is an untranslated line, and `lib/i18n.test.ts` rejects
+ * it. So a keeper is registered HERE and omitted THERE — and the guard test
+ * reads this list to decide whether a menu label is allowed to have no
+ * translation.
+ */
+export const KEEPERS: readonly string[] = [
+  // Documents, by the code that is stamped on them
+  'PO', 'PI', 'GRN', 'DO', 'SO', 'SQ', 'INV', 'RCPT',
+  // Item and trade vocabulary that is already a code
+  'SKU', 'kWp', 'PPN', 'EPC', 'FOB', 'CIF',
+  // Words Indonesian spells identically — a phrase-book entry for one of
+  // these would equal its own English and fail the test, so it lives here
+  // instead of being a translation that translates nothing.
+  'Admin', 'Menu',
+];
+
+/** Is this string left in English on purpose, rather than simply untranslated? */
+export const isKeeper = (en: string): boolean => KEEPERS.includes(en);
 
 /**
  * English → Bahasa Indonesia.
@@ -50,6 +85,145 @@ export type Lang = 'en' | 'id';
  * communicates less than the English it replaced.
  */
 export const ID: Record<string, string> = {
+  // ── Arranging the menu and the dashboard (Settings + Customise) ───────────
+  'Hide {name}': 'Sembunyikan {name}',
+  'Show {name}': 'Tampilkan {name}',
+  'Move {name} up': 'Naikkan {name}',
+  'Move {name} down': 'Turunkan {name}',
+  'Opens here': 'Panel awal',
+  'Off': 'Mati',
+  '{role} has no dashboard panel at all — its work lives in the menu.':
+    '{role} tidak punya panel dasbor sama sekali — pekerjaannya ada di menu.',
+  '{role} opens on {on} of {all} panels it may see.':
+    '{role} membuka {on} dari {all} panel yang boleh dilihatnya.',
+  'A panel switched off is still offered, unticked, in that person’s own Customise panel.':
+    'Panel yang dimatikan tetap ditawarkan, tanpa centang, di panel Sesuaikan orang tersebut.',
+  '{email} can now sign in as {role}': '{email} kini bisa masuk sebagai {role}',
+
+  // ── Menu labels (constants/navigation.ts) ─────────────────────────────────
+  // The 2026-08-25 reversal: these used to be deliberately English. Kept
+  // SHORT — a nav label lives in a 192px dropdown and, on the desktop bar,
+  // in a row that already needs 720px of header in English.
+  'Dashboard': 'Dasbor',
+  "What's New": 'Yang Baru',
+  'Item Editor': 'Editor Barang',
+  'New Deal': 'Transaksi Baru',
+  'Payments': 'Pembayaran',
+  'Deal Lookup': 'Telusur Transaksi',
+  'Suppliers': 'Pemasok',
+  'Stock': 'Stok',
+  'Receive Goods': 'Terima Barang',
+  'Landed Cost': 'Biaya Sampai Gudang',
+  'Purchasing': 'Pembelian',
+  'Customers': 'Pelanggan',
+  'Products': 'Produk',
+  'Sales Orders': 'Pesanan Penjualan',
+  'New Quotation': 'Penawaran Baru',
+  'Sales · Description Library': 'Penjualan · Pustaka Deskripsi',
+  'Invoices': 'Faktur',
+  'Delivery': 'Pengiriman',
+  'Serial Numbers': 'Nomor Seri',
+  'After Sales': 'Purna Jual',
+  'Support Letters': 'Surat Dukungan',
+  'Finance': 'Keuangan',
+  'Spend & Cash': 'Belanja & Kas',
+  'Profitability': 'Profitabilitas',
+  'Item Hub': 'Pusat Barang',
+  'Spec Readiness': 'Kesiapan Spesifikasi',
+  'Market Intel': 'Intel Pasar',
+  'Pricing Tiers': 'Tingkat Harga',
+  'Ask ICAPROC': 'Tanya ICAPROC',
+  'Proposals': 'Proposal',
+  'Proposals · Description Library': 'Proposal · Pustaka Deskripsi',
+  'Proposals · Directory': 'Proposal · Direktori',
+  'Settings': 'Pengaturan',
+  'Settings · Formatting': 'Pengaturan · Format',
+  'Settings · Appearance': 'Pengaturan · Tampilan',
+  'Settings · Menu': 'Pengaturan · Menu',
+  'Settings · Dashboard': 'Pengaturan · Dasbor',
+  'Settings · Lists': 'Pengaturan · Daftar',
+  'Settings · Pricing': 'Pengaturan · Harga',
+  'Settings · Defaults': 'Pengaturan · Bawaan',
+  'Settings · Terms': 'Pengaturan · Ketentuan',
+  'Settings · Company': 'Pengaturan · Perusahaan',
+  'Settings · Banks': 'Pengaturan · Bank',
+  'Settings · Users': 'Pengaturan · Pengguna',
+  'Import & Export': 'Impor & Ekspor',
+
+  // ── Menu group headers (BrandMenu's GROUP_TITLE) ──────────────────────────
+  // 'Admin' is a KEEPER — Indonesian spells it the same way.
+  'Home': 'Beranda',
+  'Sales': 'Penjualan',
+  'Insights': 'Wawasan',
+  'Catalog': 'Katalog',
+  'Projects': 'Proyek',
+
+  // ── The rest of the nav menu's own furniture ──────────────────────────────
+  'Appearance': 'Tampilan',
+  'Language': 'Bahasa',
+  'More': 'Lainnya',
+  'More →': 'Lainnya →',
+  'Sign out': 'Keluar',
+
+  // ── Dashboard panels (constants/dashboardWidgets.ts) ──────────────────────
+  'Position': 'Posisi',
+  'Needs you today': 'Perlu tindakan hari ini',
+  'Next best step': 'Langkah terbaik berikutnya',
+  'Month in motion': 'Pergerakan bulan ini',
+  'Paid This Month': 'Dibayar Bulan Ini',
+  'Stock Value': 'Nilai Stok',
+  'Active POs': 'PO Aktif',
+  'Components': 'Komponen',
+  'New arrivals': 'Barang baru masuk',
+  'Arriving soon': 'Segera tiba',
+  'Top products': 'Produk teratas',
+  'Top customers': 'Pelanggan teratas',
+  'Stock alerts': 'Peringatan stok',
+  'Last payments': 'Pembayaran terakhir',
+  'Last deliveries': 'Pengiriman terakhir',
+  'Last service tickets': 'Tiket servis terakhir',
+  'Latest activity': 'Aktivitas terbaru',
+
+  // ── Quick Actions (constants/dashboardWidgets.ts) ─────────────────────────
+  'Quick Actions': 'Aksi Cepat',
+  'New Sales Quotation': 'Penawaran Penjualan Baru',
+  'New Deal — PI / PO': 'Transaksi Baru — PI / PO',
+  'Log Payment': 'Catat Pembayaran',
+  'New EPC Proposal': 'Proposal EPC Baru',
+  'Bank Accounts': 'Rekening Bank',
+
+  // ── Roles (constants/roles.ts) ────────────────────────────────────────────
+  'Owner': 'Pemilik',
+  'Buy-side Admin': 'Admin Pembelian',
+  'Sell-side Admin': 'Admin Penjualan',
+  'Sell-side Sales': 'Staf Penjualan',
+  'Project Engineer': 'Insinyur Proyek',
+  'Warehouse': 'Gudang',
+  'After-Sales Desk': 'Meja Purna Jual',
+  'Viewer': 'Pengamat',
+  'Data Entry (legacy)': 'Entri Data (lama)',
+  'Finance (legacy)': 'Keuangan (lama)',
+  'Full access to everything, including user management':
+    'Akses penuh ke semuanya, termasuk pengelolaan pengguna',
+  'Buy-side modules (Catalog, Insights) — can edit; sees costs & brands':
+    'Modul pembelian (Katalog, Wawasan) — bisa mengubah; melihat biaya & merek',
+  'Sell-side modules — can edit customers, pricing, stock, invoices & receipts':
+    'Modul penjualan — bisa mengubah pelanggan, harga, stok, faktur & penerimaan',
+  'Sell-side sales — customers, products, sales & invoices; no back-end editing':
+    'Penjualan — pelanggan, produk, penjualan & faktur; tanpa akses ubah data induk',
+  'Project Quotes plus sell-side sales access':
+    'Penawaran proyek ditambah akses penjualan',
+  'Goods in, stock, serial numbers and shipping — no prices, no money':
+    'Barang masuk, stok, nomor seri dan pengiriman — tanpa harga, tanpa uang',
+  'Service tickets, serial lookup and warranty — no pricing or invoicing':
+    'Tiket servis, telusur nomor seri dan garansi — tanpa harga atau faktur',
+  'Read-only access to deal lookup':
+    'Akses baca-saja ke telusur transaksi',
+  'Legacy buy-side editor — reassign to Buy-side Admin':
+    'Editor pembelian lama — pindahkan ke Admin Pembelian',
+  'Legacy buy-side finance — reassign to Buy-side Admin':
+    'Keuangan pembelian lama — pindahkan ke Admin Pembelian',
+
   // ── Menu hints (constants/navigation.ts) ──────────────────────────────────
   'Today at a glance — outstanding, paid this month, stock value':
     'Ringkasan hari ini — tagihan berjalan, pembayaran bulan ini, nilai stok',
@@ -262,11 +436,11 @@ export const ID: Record<string, string> = {
   'Expected arrival': 'Perkiraan tiba',
   'no date': 'tanpa tanggal',
   'No net price —': 'Belum ada harga net —',
-  'set it in Catalog': 'atur di Catalog',
+  'set it in Catalog': 'atur di Katalog',
   'Datasheet URL (Drive or web)': 'Tautan datasheet (Drive atau web)',
   'Open': 'Buka',
   'Open datasheet': 'Buka datasheet',
-  'Open the item hub': 'Buka Item Hub',
+  'Open the item hub': 'Buka Pusat Barang',
   'Last Customer Orders': 'Pesanan pelanggan terakhir',
   'Last Deliveries': 'Pengiriman terakhir',
   'Download the filtered list as CSV (opens in Excel)':
@@ -281,7 +455,7 @@ export const ID: Record<string, string> = {
   'Drag to set the Description width — double-click to reset':
     'Geser untuk mengatur lebar kolom Description — klik dua kali untuk mengembalikan',
   'Open the item hub — buy, sell, stock, specs on one page':
-    'Buka Item Hub — pembelian, penjualan, stok, dan spesifikasi dalam satu halaman',
+    'Buka Pusat Barang — pembelian, penjualan, stok, dan spesifikasi dalam satu halaman',
   'Everything about this item — buy, sell, stock, specs — on one page':
     'Semua tentang barang ini — pembelian, penjualan, stok, spesifikasi — dalam satu halaman',
   'Performance warranty — PV output guarantee':
@@ -350,7 +524,7 @@ export const ID: Record<string, string> = {
   'quotes / POs': 'penawaran / PO',
   'No supplier quotes or POs yet.': 'Belum ada penawaran pemasok atau PO.',
   'Click any document to open it in Deal Lookup.':
-    'Klik dokumen mana pun untuk membukanya di Deal Lookup.',
+    'Klik dokumen mana pun untuk membukanya di Telusur Transaksi.',
   'Most purchased items': 'Barang paling sering dibeli',
   'No PO lines yet.': 'Belum ada baris PO.',
   'Search supplier name, code, location…': 'Cari nama pemasok, kode, lokasi…',
@@ -430,7 +604,7 @@ export const ID: Record<string, string> = {
   'At the current demand rate, stock runs out before a PO raised today could arrive':
     'Dengan laju permintaan saat ini, stok habis sebelum PO yang dibuat hari ini bisa tiba',
   'Open the item hub — buy history, lead times, demand':
-    'Buka Item Hub — riwayat pembelian, lead time, permintaan',
+    'Buka Pusat Barang — riwayat pembelian, lead time, permintaan',
   'Raise the next deal — New Deal, Quote + PO':
     'Buat transaksi berikutnya — New Deal, penawaran + PO',
   'Search item, brand, category…': 'Cari barang, merek, kategori…',
@@ -477,13 +651,13 @@ export const ID: Record<string, string> = {
     'Hanya uang keluar — pembayaran dari pelanggan tidak ditampilkan di sini.',
 
   // ── Page subtitles (BrandMenu) ────────────────────────────────────────────
-  'Stock · Warehouse': 'Stock · Gudang',
+  'Stock · Warehouse': 'Stok · Gudang',
   'Customers · CRM': 'Customers · Data pelanggan',
   'Delivery · Orders out the door': 'Delivery · Barang keluar',
   'Invoices · Accounts receivable': 'Invoices · Piutang',
-  'After Sales · Service & warranty cases': 'After Sales · Servis & garansi',
+  'After Sales · Service & warranty cases': 'Purna Jual · Servis & garansi',
   'Banks · Accounts & cash position': 'Banks · Rekening & posisi kas',
-  'Serial Numbers · Unit register': 'Serial Numbers · Daftar unit',
+  'Serial Numbers · Unit register': 'Nomor Seri · Daftar unit',
 
   // ── Settings hints ────────────────────────────────────────────────────────
   'The dashboard chases an issued invoice this old that still has money outstanding.':
@@ -497,7 +671,7 @@ export const ID: Record<string, string> = {
 
   // ── Tooltips people hover ─────────────────────────────────────────────────
   'Open Deal Lookup to review open purchase orders':
-    'Buka Deal Lookup untuk meninjau PO yang masih berjalan',
+    'Buka Telusur Transaksi untuk meninjau PO yang masih berjalan',
   'Review the difference per PO and post the correction':
     'Tinjau selisih per PO lalu posting koreksinya',
   'What posting would add to the value of stock still on hand':
@@ -534,7 +708,7 @@ export const ID: Record<string, string> = {
     'Pelunasan belum tercatat — masih ada tagihan yang akan datang',
   'This PO has been trued up before — what is shown is what has come in since':
     'PO ini pernah disesuaikan — yang tampil adalah tagihan yang masuk setelahnya',
-  'Back to Stock': 'Kembali ke Stock',
+  'Back to Stock': 'Kembali ke Stok',
   'Landed-cost correction on {qty} received': 'Koreksi biaya sampai gudang atas {qty} unit yang diterima',
   'One row per service ticket, newest first — start from the serial number':
     'Satu baris per tiket servis, terbaru di atas — mulai dari nomor seri',
@@ -550,7 +724,7 @@ export const ID: Record<string, string> = {
   'Freight, duty or the final payment recorded after today? True up the cost of what you just received.':
     'Ada ongkos kirim, bea masuk atau pelunasan yang dicatat setelah hari ini? Sesuaikan biaya barang yang baru diterima.',
   'Back to Deal Lookup — the PI → PO → payment record':
-    'Kembali ke Deal Lookup — catatan PI → PO → pembayaran',
+    'Kembali ke Telusur Transaksi — catatan PI → PO → pembayaran',
 };
 
 const DICTS: Record<Lang, Record<string, string>> = { en: {}, id: ID };

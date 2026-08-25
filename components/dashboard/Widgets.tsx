@@ -50,15 +50,16 @@ export function KpiTile({ label, value, sub, color, ring }: {
 
 /** Where this role starts its day — text only, no emoji (owner's rule). */
 export function QuickActions({ items }: { items: { href: string; label: string; accent: string }[] }) {
+  const { t } = useT();
   return (
     <div className="bg-slate-900/40 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl p-5">
-      <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-3">Quick Actions</p>
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-3">{t('Quick Actions')}</p>
       <div className="space-y-2">
         {items.map(({ href, label, accent }) => (
           <Link key={href} href={href}
             className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-800/30 hover:bg-slate-800/60 border border-transparent hover:border-slate-700 transition-colors group">
             <span className={`w-1.5 h-1.5 rounded-full ${DOT[accent]}`} />
-            <span className="text-sm text-slate-300 group-hover:text-white transition-colors">{label}</span>
+            <span className="text-sm text-slate-300 group-hover:text-white transition-colors">{t(label)}</span>
             <span className="ml-auto text-slate-700 group-hover:text-slate-400 transition-colors">→</span>
           </Link>
         ))}

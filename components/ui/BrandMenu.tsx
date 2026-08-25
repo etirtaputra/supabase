@@ -331,7 +331,7 @@ export default function BrandMenu({
     <>
       {groups.map((group, gi) => (
         <div key={gi} className={gi > 0 ? 'mt-0.5 pt-0.5 border-t border-slate-800/70' : ''}>
-          {group.title && <p className={`px-2.5 pt-1 pb-0.5 text-[9px] uppercase tracking-widest ${accentOf(group.section, group.title).label}`}>{group.title}</p>}
+          {group.title && <p className={`px-2.5 pt-1 pb-0.5 text-[9px] uppercase tracking-widest ${accentOf(group.section, group.title).label}`}>{t(group.title)}</p>}
           {group.apps.map((a) => {
             const active = isActive(a.href);
             const acc = accentOf(group.section, group.title);
@@ -344,7 +344,7 @@ export default function BrandMenu({
                   active ? acc.active : 'text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
               >
-                {a.label}
+                {t(a.label)}
                 {active && <span className={`w-1.5 h-1.5 rounded-full ${acc.dot}`} />}
               </Link>
             );
@@ -356,13 +356,13 @@ export default function BrandMenu({
           from everyone who doesn't run them. */}
       {adminLinks.length > 0 && (
         <div className="mt-0.5 pt-0.5 border-t border-slate-800/70">
-          <p className="px-2.5 pt-1 pb-0.5 text-[9px] uppercase tracking-widest text-slate-600">Admin</p>
+          <p className="px-2.5 pt-1 pb-0.5 text-[9px] uppercase tracking-widest text-slate-600">{t('Admin')}</p>
           {adminLinks.map((d) => (
             <Link key={d.href} href={d.href} onClick={() => { setOpen(false); setMoreOpen(false); }}
               className={`flex items-center justify-between px-2.5 py-1 rounded-lg text-[13px] leading-5 transition-colors ${
                 isActive(d.href) ? 'bg-emerald-500/15 text-emerald-300' : 'text-slate-300 hover:bg-white/10 hover:text-white'
               }`}>
-              {d.label}
+              {t(d.label)}
               {isActive(d.href) && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
             </Link>
           ))}
@@ -373,13 +373,13 @@ export default function BrandMenu({
       <div className="mt-1 pt-1.5 border-t border-slate-800/70">
         <div className="px-2.5 py-1.5">
           <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-            Appearance
+            {t('Appearance')}
             {/* The other four skins live in Settings, where a house-wide look
                 belongs. Only offered to someone who can actually open it. */}
             {perms?.canManageUsers && (
               <Link href="/settings?tab=appearance" onClick={() => setOpen(false)}
                 className="ml-auto font-semibold normal-case tracking-normal text-slate-500 hover:text-emerald-300 transition-colors">
-                More →
+                {t('More →')}
               </Link>
             )}
           </span>
@@ -412,7 +412,7 @@ export default function BrandMenu({
             who has never chosen sees; choosing here overrides it for this
             browser and is never overwritten by a later company change. */}
         <div className="px-2.5 py-1.5">
-          <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">Language</span>
+          <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">{t('Language')}</span>
           <div className="flex items-center gap-1">
             {LANGUAGES.map((l) => (
               <button
@@ -446,7 +446,7 @@ export default function BrandMenu({
               onClick={() => { setOpen(false); setMoreOpen(false); signOut().then(() => router.replace('/login')); }}
               className="text-[10px] text-slate-500 hover:text-red-400 font-semibold px-1.5 py-1 transition-colors flex-shrink-0"
             >
-              Sign out
+              {t('Sign out')}
             </button>
           </div>
         </div>
@@ -553,7 +553,12 @@ export default function BrandMenu({
             const a = group.apps[0];
             // A group whose entry already carries its name shows it once
             // ("Finance"); otherwise the group prefixes ("EPC Proposals").
-            const label = group.title && a.label !== group.title ? `${GROUP_SHORT[group.title] ?? group.title} ${a.label}` : a.label;
+            // Compare in ENGLISH (the label is data), translate for display:
+            // "Finance" must still recognise its own entry once both sides are
+            // Indonesian, and the prefix is a name, not a sentence fragment.
+            const label = group.title && a.label !== group.title
+              ? `${t(GROUP_SHORT[group.title] ?? group.title)} ${t(a.label)}`
+              : t(a.label);
             return (
               <Link key={gi} href={a.href}
                 className={`px-2.5 py-1.5 rounded-lg text-[13px] font-medium whitespace-nowrap transition-colors ${
@@ -574,14 +579,22 @@ export default function BrandMenu({
                 className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[13px] font-medium whitespace-nowrap transition-colors ${
                   activeApp ? acc.active : isOpen ? 'text-white bg-white/[0.07]' : 'text-slate-400 hover:text-white hover:bg-white/[0.07]'
                 }`}>
-                {group.title ? (GROUP_SHORT[group.title] ?? group.title) : ''}
-                {activeApp && <span className="font-normal opacity-80 truncate max-w-[120px]">· {activeApp.label}</span>}
+                {group.title ? t(GROUP_SHORT[group.title] ?? group.title) : ''}
+                {/* 150px, not 120 (2026-08-25): the cap existed to bound the bar's
+                    natural width, and no ENGLISH nav label ever reached it —
+                    the widest, "Import & Export", is 105px. Indonesian pushes
+                    two past it, "Biaya Sampai Gudang" at 145px and "Pesanan
+                    Penjualan" at 122px (measured in Rubik 13px/500), so at 120
+                    the bar would clip a name English never clipped. Only ONE
+                    group is active at a time, so this costs at most 25px of
+                    header, and only on the screen whose name is that long. */}
+                {activeApp && <span className="font-normal opacity-80 truncate max-w-[150px]">· {t(activeApp.label)}</span>}
                 <svg className={`w-3 h-3 transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
               </button>
               {isOpen && (
                 <div className="absolute left-0 top-full pt-1.5 z-50">
                   <div className="w-48 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-1.5">
-                    {group.title && <p className={`px-2.5 pt-1 pb-1 text-[9px] uppercase tracking-widest ${acc.label}`}>{group.title}</p>}
+                    {group.title && <p className={`px-2.5 pt-1 pb-1 text-[9px] uppercase tracking-widest ${acc.label}`}>{t(group.title)}</p>}
                     {group.apps.map((a) => {
                       const active = isActive(a.href);
                       return (
@@ -589,7 +602,7 @@ export default function BrandMenu({
                           className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-colors ${
                             active ? acc.active : 'text-slate-300 hover:bg-white/10 hover:text-white'
                           }`}>
-                          {a.label}
+                          {t(a.label)}
                           {active && <span className={`ml-auto w-1.5 h-1.5 rounded-full ${acc.dot}`} />}
                         </Link>
                       );
@@ -641,14 +654,14 @@ export default function BrandMenu({
                 <Link key={a.href} href={a.href}
                   className={`flex-1 flex flex-col items-center gap-0.5 pt-2 pb-1.5 transition-colors ${active ? acc.tab : 'text-slate-500 active:text-slate-300'}`}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">{NAV_ICONS[a.href] ?? NAV_ICONS['/']}</svg>
-                  <span className="text-[10px] font-medium">{a.label}</span>
+                  <span className="text-[10px] font-medium">{t(a.label)}</span>
                 </Link>
               );
             })}
             <button onClick={() => setMoreOpen(true)}
               className={`flex-1 flex flex-col items-center gap-0.5 pt-2 pb-1.5 transition-colors ${moreOpen ? 'text-emerald-300' : 'text-slate-500 active:text-slate-300'}`}>
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8"><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
-              <span className="text-[10px] font-medium">More</span>
+              <span className="text-[10px] font-medium">{t('More')}</span>
             </button>
           </div>
         </div>,

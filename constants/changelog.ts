@@ -20,6 +20,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-25T09:20:00Z',
+    title: 'Bahasa Indonesia now turns the menus too, not just the explanations',
+    details: [
+      'Until today, switching to Indonesian translated everything that EXPLAINS the app — the one-liners under menu entries, the page subtitles, the hints in Settings — while every menu name itself stayed in English. Choosing Indonesian now turns the navigation: Dasbor, Editor Barang, Transaksi Baru, Pembayaran, Telusur Transaksi, Pemasok, Stok, Terima Barang, Biaya Sampai Gudang, Pelanggan, Faktur, Pengiriman, Nomor Seri, Purna Jual, Keuangan, Belanja & Kas, Pengaturan.',
+      'It is the whole navigation, not one menu: the group headers, the dropdowns on a wide screen, the bottom bar on a phone, the More sheet, and the page results in Spotlight. The dashboard’s panel names and its Quick Actions turn with it, and so do the ten role names and the description of what each role may do.',
+      'Codes stay English in both languages — PO, PI, GRN, DO, SO, SQ, INV, RCPT, SKU, kWp, PPN, EPC, FOB, CIF. These are printed on the documents suppliers and customers hold and said aloud unchanged in an Indonesian sentence; translating one would give a single document two names, which is the fault the old English-only menu rule was really aimed at.',
+      'Spotlight still answers to the English. Type “Deal Lookup” with the app in Indonesian and it finds Telusur Transaksi, so nobody has to relearn a search they already know.',
+      'Six older translations still carried an English menu name inside them — “Kembali ke Stock”, “Buka Item Hub”, “Serial Numbers · Daftar unit” — because those names were deliberately left in English before. They read as one language now.',
+      'One measured layout change came with it: the wide-screen menu bar shows the open module’s name beside its group, and clipped it at 120 pixels. No English name has ever reached that — the longest is 105 — but “Biaya Sampai Gudang” is 145, so it would have arrived truncated. The cap is 150 now, which costs at most 25 pixels of the bar and only on the one screen with a name that long.',
+      'A new check in the test suite fails the build if a screen is ever added with a menu entry, a dashboard panel or a role that has no Indonesian name — unless it is written down as a code that stays English on purpose. “I forgot” and “this stays English deliberately” look identical on screen; now they do not look identical to the build.',
+    ],
+  },
+  {
     at: '2026-08-24T09:40:00Z',
     title: 'The \u22ef menu opens beside its row again, and the Curr field stops shouting',
     details: [

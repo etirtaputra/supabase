@@ -17,6 +17,7 @@
  * source of truth per fact, no shadow copies.
  */
 'use client';
+import { useT } from '@/hooks/useT';
 import { Fragment, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
@@ -903,6 +904,7 @@ function DashboardTab({ draft, set }: { draft: AppSettings; set: <K extends keyo
  * are covered by `lib/dashboardWidgets.test.ts`.
  */
 function RoleStartPreview({ house }: { house: DashboardLayout }) {
+  const { t, tf } = useT();
   const [role, setRole] = useState<UserRole>('warehouse');
   const perms = ROLE_PERMISSIONS[role];
   const lead = roleLeadFor(perms, role);
@@ -923,13 +925,13 @@ function RoleStartPreview({ house }: { house: DashboardLayout }) {
             className={`text-[11px] font-semibold px-2.5 py-1.5 rounded-lg border transition-colors ${
               r === role ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
                          : 'border-slate-800 text-slate-400 hover:text-white hover:border-slate-600'}`}>
-            {ROLE_LABELS[r]}
+            {t(ROLE_LABELS[r])}
           </button>
         ))}
       </div>
       {rows.length === 0 ? (
         <p className="text-[11px] text-slate-500">
-          {ROLE_LABELS[role]} has no dashboard panel at all — its work lives in the menu.
+          {tf('{role} has no dashboard panel at all — its work lives in the menu.', { role: t(ROLE_LABELS[role]) })}
         </p>
       ) : (
         <ol className="space-y-1">
@@ -940,21 +942,21 @@ function RoleStartPreview({ house }: { house: DashboardLayout }) {
                                        : 'bg-slate-950/30 border-slate-800/70'}`}>
               <span className="text-[11px] font-bold tabular-nums text-slate-600 w-4 text-center flex-shrink-0">{i + 1}</span>
               <span className={`text-[12px] font-semibold truncate ${r.shown ? 'text-slate-200' : 'text-slate-600 line-through'}`}>
-                {r.widget.label}
+                {t(r.widget.label)}
               </span>
               {lead.has(r.widget.key) && (
-                <span className="ml-auto flex-shrink-0 text-[9px] font-bold uppercase tracking-widest text-emerald-300/90">Opens on</span>
+                <span className="ml-auto flex-shrink-0 text-[9px] font-bold uppercase tracking-widest text-emerald-300/90">{t('Opens here')}</span>
               )}
               {!r.shown && (
-                <span className="ml-auto flex-shrink-0 text-[9px] font-bold uppercase tracking-widest text-slate-600">Off</span>
+                <span className="ml-auto flex-shrink-0 text-[9px] font-bold uppercase tracking-widest text-slate-600">{t('Off')}</span>
               )}
             </li>
           ))}
         </ol>
       )}
       <p className="text-[11px] text-slate-600">
-        {ROLE_LABELS[role]} opens on {on} of {rows.length} panel{rows.length !== 1 ? 's' : ''} it may see.
-        A panel switched off is still offered, unticked, in that person&rsquo;s own Customise panel.
+        {tf('{role} opens on {on} of {all} panels it may see.', { role: t(ROLE_LABELS[role]), on, all: rows.length })}{' '}
+        {t('A panel switched off is still offered, unticked, in that person’s own Customise panel.')}
       </p>
     </div>
   );
@@ -963,14 +965,15 @@ function RoleStartPreview({ house }: { house: DashboardLayout }) {
 function MoveArrows({ onUp, onDown, upDisabled, downDisabled, label, small }: {
   onUp: () => void; onDown: () => void; upDisabled: boolean; downDisabled: boolean; label: string; small?: boolean;
 }) {
+  const { tf } = useT();
   const cls = `${small ? 'w-6 h-6' : 'w-7 h-7'} flex items-center justify-center rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent transition-colors`;
   const icon = small ? 'w-3 h-3' : 'w-3.5 h-3.5';
   return (
     <div className="flex items-center gap-1 flex-shrink-0">
-      <button onClick={onUp} disabled={upDisabled} aria-label={`Move ${label} up`} className={cls}>
+      <button onClick={onUp} disabled={upDisabled} aria-label={tf('Move {name} up', { name: label })} className={cls}>
         <svg className={icon} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" /></svg>
       </button>
-      <button onClick={onDown} disabled={downDisabled} aria-label={`Move ${label} down`} className={cls}>
+      <button onClick={onDown} disabled={downDisabled} aria-label={tf('Move {name} down', { name: label })} className={cls}>
         <svg className={icon} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
       </button>
     </div>
@@ -1000,6 +1003,7 @@ function Grip({ className = '' }: { className?: string }) {
  * same mechanism the sales editor uses — no library.
  */
 function MenuOrderTab({ draft, set }: { draft: AppSettings; set: <K extends keyof AppSettings>(k: K, v: AppSettings[K]) => void }) {
+  const { t } = useT();
   // orderedNavGroups leads with Home; the reorderable rows are what follows.
   const order = orderedNavGroups(draft.menuOrder).filter((g) => g !== 'Home');
   const [openGroup, setOpenGroup] = useState<string | null>(null);
@@ -1094,14 +1098,14 @@ function MenuOrderTab({ draft, set }: { draft: AppSettings; set: <K extends keyo
                   <button onClick={() => canExpand && setOpenGroup(isOpen ? null : g)} disabled={!canExpand}
                     className="min-w-0 flex-1 flex items-center gap-2 text-left disabled:cursor-grab">
                     <span className="min-w-0">
-                      <span className="block text-sm font-semibold text-white">{g}</span>
-                      {items.length > 0 && <span className="block text-[11px] text-slate-500 truncate">{items.map((d) => d.label).join(' · ')}</span>}
+                      <span className="block text-sm font-semibold text-white">{t(g)}</span>
+                      {items.length > 0 && <span className="block text-[11px] text-slate-500 truncate">{items.map((d) => t(d.label)).join(' · ')}</span>}
                     </span>
                     {canExpand && (
                       <svg className={`w-3.5 h-3.5 flex-shrink-0 text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
                     )}
                   </button>
-                  <MoveArrows label={g} onUp={() => moveGroup(i, -1)} onDown={() => moveGroup(i, 1)}
+                  <MoveArrows label={t(g)} onUp={() => moveGroup(i, -1)} onDown={() => moveGroup(i, 1)}
                     upDisabled={i === 0} downDisabled={i === order.length - 1} />
                 </div>
                 {isOpen && canExpand && (
@@ -1115,8 +1119,8 @@ function MenuOrderTab({ draft, set }: { draft: AppSettings; set: <K extends keyo
                           className={`flex items-center gap-2 pl-3 pr-1 py-1.5 rounded-lg cursor-grab active:cursor-grabbing ${REORDER_ROW} ${
                             itemDrag.lineAt(key)} ${itemDrag.dragKey === key ? DRAGGING_ROW : ''}`}>
                           <Grip className="w-2.5 h-4 text-slate-700 flex-shrink-0" />
-                          <span className="min-w-0 flex-1 text-[13px] text-slate-300 truncate">{d.label}</span>
-                          <MoveArrows small label={d.label} onUp={() => moveItem(g, k, -1)} onDown={() => moveItem(g, k, 1)}
+                          <span className="min-w-0 flex-1 text-[13px] text-slate-300 truncate">{t(d.label)}</span>
+                          <MoveArrows small label={t(d.label)} onUp={() => moveItem(g, k, -1)} onDown={() => moveItem(g, k, 1)}
                             upDisabled={k === 0} downDisabled={k === items.length - 1} />
                         </li>
                       );
@@ -1569,6 +1573,7 @@ function BanksTab({ flash, email }: { flash: (m: string) => void; email: string 
 interface AllowRow { email: string; role: UserRole }
 
 function UsersTab({ myId, flash }: { myId: string; flash: (m: string) => void }) {
+  const { t, tf } = useT();
   const supabase = createSupabaseClient();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [allow, setAllow] = useState<AllowRow[]>([]);
@@ -1633,7 +1638,7 @@ function UsersTab({ myId, flash }: { myId: string; flash: (m: string) => void })
     if (error) { flash(`Could not add — ${error.message}`); return; }
     setNewEmail('');
     await load();
-    flash(`${email} can now sign in as ${ROLE_LABELS[newRole]}`);
+    flash(tf('{email} can now sign in as {role}', { email, role: t(ROLE_LABELS[newRole]) }));
   };
 
   // Mirrors updateRole: the header promises that changing an allowlisted role
@@ -1668,8 +1673,8 @@ function UsersTab({ myId, flash }: { myId: string; flash: (m: string) => void })
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
         {ASSIGNABLE_ROLES.map((role) => (
           <div key={role} className="bg-slate-900/60 border border-slate-800 rounded-xl p-3">
-            <p className="text-xs font-bold text-slate-200 mb-0.5">{ROLE_LABELS[role]}</p>
-            <p className="text-[11px] text-slate-500 leading-snug">{ROLE_DESCRIPTIONS[role]}</p>
+            <p className="text-xs font-bold text-slate-200 mb-0.5">{t(ROLE_LABELS[role])}</p>
+            <p className="text-[11px] text-slate-500 leading-snug">{t(ROLE_DESCRIPTIONS[role])}</p>
           </div>
         ))}
       </div>
@@ -1687,7 +1692,7 @@ function UsersTab({ myId, flash }: { myId: string; flash: (m: string) => void })
               <tr className="border-b border-slate-800 text-[10px] uppercase tracking-widest text-slate-500">
                 <th className="text-left px-4 py-2 font-semibold min-w-[16rem]">Capability</th>
                 {ASSIGNABLE_ROLES.map((r) => (
-                  <th key={r} className="px-2 py-2 font-semibold text-center whitespace-nowrap" title={ROLE_DESCRIPTIONS[r]}>{ROLE_LABELS[r]}</th>
+                  <th key={r} className="px-2 py-2 font-semibold text-center whitespace-nowrap" title={t(ROLE_DESCRIPTIONS[r])}>{t(ROLE_LABELS[r])}</th>
                 ))}
               </tr>
             </thead>
@@ -1759,7 +1764,7 @@ function UsersTab({ myId, flash }: { myId: string; flash: (m: string) => void })
                   >
                     {/* A legacy role stays listed while someone still carries it */}
                     {(ASSIGNABLE_ROLES.includes(u.role) ? ASSIGNABLE_ROLES : [...ASSIGNABLE_ROLES, u.role]).map((r) => (
-                      <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                      <option key={r} value={r}>{t(ROLE_LABELS[r])}</option>
                     ))}
                   </select>
                   {savingUser === u.id && <div className="w-3.5 h-3.5 border border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />}
@@ -1785,7 +1790,7 @@ function UsersTab({ myId, flash }: { myId: string; flash: (m: string) => void })
             onKeyDown={(e) => { if (e.key === 'Enter') addAllow(); }}
             placeholder="name@company.com" className={`${inputCls} sm:flex-1`} />
           <select value={newRole} onChange={(e) => setNewRole(e.target.value as UserRole)} className={`${inputCls} sm:w-56`}>
-            {ASSIGNABLE_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+            {ASSIGNABLE_ROLES.map((r) => <option key={r} value={r}>{t(ROLE_LABELS[r])}</option>)}
           </select>
           <button onClick={addAllow} disabled={!newEmail.trim() || adding}
             className="text-xs font-bold px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-600 text-white transition-colors whitespace-nowrap">
@@ -1811,7 +1816,7 @@ function UsersTab({ myId, flash }: { myId: string; flash: (m: string) => void })
                   onChange={(e) => setAllowRole(a.email, e.target.value as UserRole)}
                   className="text-xs bg-slate-800 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 cursor-pointer ml-auto">
                   {(ASSIGNABLE_ROLES.includes(a.role) ? ASSIGNABLE_ROLES : [...ASSIGNABLE_ROLES, a.role]).map((r) => (
-                    <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                    <option key={r} value={r}>{t(ROLE_LABELS[r])}</option>
                   ))}
                 </select>
                 <button onClick={() => removeAllow(a.email)}

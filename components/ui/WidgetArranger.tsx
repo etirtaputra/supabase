@@ -30,7 +30,7 @@ export default function WidgetArranger({
    */
   recommended?: Set<string>;
 }) {
-  const { t } = useT();
+  const { t, tf } = useT();
 
   const emit = (list: { widget: DashboardWidget; shown: boolean }[]) =>
     onChange({
@@ -101,7 +101,7 @@ export default function WidgetArranger({
               {/* The tick IS the show/hide switch — one control, not a row of
                   buttons that each mean something slightly different. */}
               <button onClick={() => toggle(w.key)} role="switch" aria-checked={r.shown}
-                aria-label={`${r.shown ? 'Hide' : 'Show'} ${w.label}`}
+                aria-label={r.shown ? tf('Hide {name}', { name: t(w.label) }) : tf('Show {name}', { name: t(w.label) })}
                 className={`w-4 h-4 rounded-[5px] border flex items-center justify-center flex-shrink-0 transition-colors ${
                   r.shown ? 'bg-emerald-500/20 border-emerald-500/60 text-emerald-300'
                           : 'bg-slate-900 border-slate-700 text-transparent hover:border-slate-500'}`}>
@@ -112,7 +112,7 @@ export default function WidgetArranger({
 
               <button onClick={() => toggle(w.key)} className="min-w-0 flex-1 text-left">
                 <span className={`flex items-center gap-1.5 min-w-0 text-[13px] font-semibold ${r.shown ? 'text-white' : 'text-slate-500'}`}>
-                  <span className="truncate">{w.label}</span>
+                  <span className="truncate">{t(w.label)}</span>
                   {/* Only where the divider is not already saying it — and
                       never on a phone, where the chip is wider than the space
                       the LABEL needs (measured 2026-08-23: "Needs you today"
@@ -127,7 +127,7 @@ export default function WidgetArranger({
                 <span className={`block text-[11px] truncate ${r.shown ? 'text-slate-500' : 'text-slate-600'}`}>{t(w.hint)}</span>
               </button>
 
-              <MoveArrows label={w.label} onUp={() => nudge(i, -1)} onDown={() => nudge(i, 1)}
+              <MoveArrows label={t(w.label)} onUp={() => nudge(i, -1)} onDown={() => nudge(i, 1)}
                 upDisabled={i === 0} downDisabled={i === rows.length - 1} />
             </li>
             {leadRun > 0 && i === leadRun - 1 && (
@@ -148,13 +148,14 @@ export default function WidgetArranger({
 function MoveArrows({ onUp, onDown, upDisabled, downDisabled, label }: {
   onUp: () => void; onDown: () => void; upDisabled: boolean; downDisabled: boolean; label: string;
 }) {
+  const { tf } = useT();
   const cls = 'w-6 h-6 flex items-center justify-center rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent transition-colors';
   return (
     <div className="flex items-center gap-1 flex-shrink-0">
-      <button onClick={onUp} disabled={upDisabled} aria-label={`Move ${label} up`} className={cls}>
+      <button onClick={onUp} disabled={upDisabled} aria-label={tf('Move {name} up', { name: label })} className={cls}>
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" /></svg>
       </button>
-      <button onClick={onDown} disabled={downDisabled} aria-label={`Move ${label} down`} className={cls}>
+      <button onClick={onDown} disabled={downDisabled} aria-label={tf('Move {name} down', { name: label })} className={cls}>
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
       </button>
     </div>

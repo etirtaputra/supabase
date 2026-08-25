@@ -645,12 +645,14 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
       ...destinationsFor(perms).map((d) => ({
         kind: 'page' as const,
         id: d.href,
-        title: d.label,
-        // The one-liner under a page result is explanatory text, so it follows
-        // the language setting; the page's own name does not.
-        sub: d.hint ? tr(d.hint) : d.group,
+        title: tr(d.label),
+        // Both the page's name and its one-liner follow the language setting
+        // (the menus-stay-English rule was withdrawn 2026-08-25). The ENGLISH
+        // stays in `keywords` alongside it, so someone who learned the app in
+        // English still finds "Deal Lookup" after switching to Indonesian.
+        sub: d.hint ? tr(d.hint) : tr(d.group),
         href: d.href,
-        keywords: [d.group, d.keywords, d.href.replace(/[/?=]/g, ' ')].filter(Boolean).join(' '),
+        keywords: [d.label, d.group, tr(d.group), d.keywords, d.href.replace(/[/?=]/g, ' ')].filter(Boolean).join(' '),
       })),
       ...(suppliers.data ?? []).map((s) => ({
         kind: 'supplier' as const,
