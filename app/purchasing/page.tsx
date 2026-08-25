@@ -515,6 +515,37 @@ function MasterInsertPage() {
   // quote and copies the carried-items panel onto the new PO, as before.
   // Returns false on a failed insert so the form KEEPS the typed draft.
   const submitDeal = async (d: any, items: DealLine[]): Promise<boolean> => {
+    /**
+     * The PO's stated total is written LAST — after its line items exist.
+     *
+     * `5.1_purchase_line_items` carries a database trigger,
+     * `recalculate_po_total()`, which keeps `5.0_purchases.total_value` in step
+     * with the lines while PRESERVING whatever the total exceeds them by — the
+     * freight the supplier bills on top. It measures that delta against the
+     * lines present at the time:
+     *
+     *     delta = total_value - (items sum before this row)
+     *     total_value = (items sum after this row) + delta
+     *
+     * Write the total onto a PO that has no lines yet and the delta is computed
+     * against ZERO — so the whole stated total is read as freight, and the first
+     * line insert then stacks the goods on top of it. The total lands at exactly
+     * twice the goods. That is how PO-149-MBS-08-2026 came to say IDR 1.619.460
+     * over IDR 809.730 of line items, and EB.42277 / EB.42324 the same
+     * (owner, 2026-08-24; reproduced against the live trigger before this fix).
+     *
+     * Lines first, total last, and the trigger's assumption holds: the delta is
+     * then measured against the real goods and freight survives every later
+     * edit, which is what it was written for.
+     */
+    const stampPoTotal = async (poId: string, total: unknown) => {
+      const n = total === '' || total == null ? null : Number(total);
+      // No stated total: the trigger already set it to the line items, which is
+      // the right answer — don't overwrite it with a guess.
+      if (n === null || !Number.isFinite(n)) return;
+      const { error } = await supabase.from('5.0_purchases').update({ total_value: n }).eq('po_id', poId);
+      if (error) showToast(`PO saved, but its total could not be set: ${error.message}`, 'error');
+    };
     // PO-only keys may linger in the shared draft after a mode switch — a
     // quote-only save must never try to write them into 4.0.
     const { po_number, po_date, exchange_rate, existing_quote_id, existing_po_id, replaces_po_id,
@@ -570,16 +601,19 @@ function MasterInsertPage() {
       const sameNumber = String(po_number).trim() === String(src.po_number).trim();
 
       if (sameNumber) {
-        // Amend in place: update the header and replace the line items wholesale.
+        // Amend in place: replace the line items wholesale, THEN the header —
+        // the total goes on last, for the reason above (every delete and insert
+        // below moves total_value through the trigger, so a total written first
+        // would be shuffled by them).
         setLoading(true);
-        const { error: upErr } = await supabase.from('5.0_purchases').update(header).eq('po_id', src.po_id);
-        if (upErr) { setLoading(false); showToast(`Error: ${upErr.message}`, 'error'); return false; }
         await supabase.from('5.1_purchase_line_items').delete().eq('po_id', src.po_id);
         if (poLineRows.length) {
           const { error: liErr } = await supabase.from('5.1_purchase_line_items')
             .insert(poLineRows.map((r) => ({ ...r, po_id: src.po_id })));
           if (liErr) { setLoading(false); showToast(`Error: ${liErr.message}`, 'error'); return false; }
         }
+        const { error: upErr } = await supabase.from('5.0_purchases').update(header).eq('po_id', src.po_id);
+        if (upErr) { setLoading(false); showToast(`Error: ${upErr.message}`, 'error'); return false; }
         setLoading(false);
         refetch();
         setStoredPoSel(''); setPendingStoredPo(''); setPoNumberChanged(false);
@@ -593,7 +627,7 @@ function MasterInsertPage() {
         quote_id: src.quote_id,
         supplier_id: quote.supplier_id ?? src.supplier_id, company_id: quote.company_id ?? src.company_id,
         pi_number: quote.pi_number ?? src.pi_number, pi_date: quote.quote_date ?? src.pi_date, pi_status: 'Accepted',
-        po_number, status: 'Confirmed', ...header,
+        po_number, status: 'Confirmed', ...header, total_value: null,
         payment_terms: poTerms || settings.defaultPoPaymentTerms || null,
         replaces_po_id: supersede ? src.po_id : null,
       });
@@ -602,6 +636,7 @@ function MasterInsertPage() {
       if (poLineRows.length) {
         await handleInsert('5.1_purchase_line_items', poLineRows.map((r) => ({ ...r, po_id: newPoId })));
       }
+      await stampPoTotal(newPoId, totalVal);
       if (supersede) {
         await supabase.from('5.0_purchases').update({ status: 'Replaced' }).eq('po_id', src.po_id);
         refetch();
@@ -647,7 +682,8 @@ function MasterInsertPage() {
       pi_number: quote.pi_number, pi_date: quote.quote_date, pi_status: 'Accepted',
       po_number, po_date: po_date || quote.quote_date,
       currency: quote.currency, exchange_rate: rate,
-      total_value: quote.total_value, status: 'Confirmed',
+      // Stated last, once the lines exist — see stampPoTotal above.
+      total_value: null, status: 'Confirmed',
       incoterms: incoterms || null,
       method_of_shipment: method_of_shipment || null,
       freight_charges_intl: freightVal,
@@ -664,6 +700,7 @@ function MasterInsertPage() {
         quantity: qi.quantity, unit_cost: qi.unit_price, currency: qi.currency,
       })));
     }
+    await stampPoTotal(poId, quote.total_value);
     // Marking the superseded PO Replaced is what makes the link a real hand-off,
     // not just a note — Deal Lookup then shows the lineage on both cards.
     let replacedNote = '';

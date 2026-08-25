@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-24T07:05:00Z',
+    title: 'Fixed the cause: New Deal \u2192 Quote + PO was doubling the PO total',
+    details: [
+      'The owner\u2019s hunch was right \u2014 it was the Quote + PO save. The second tally was not in the form, though: the database keeps the PO total in step with its line items, and it preserves whatever the total is ABOVE those lines, because that gap is the freight a supplier bills on top of the goods.',
+      'The save wrote the PO with its total already filled in, before its line items existed. With no lines to compare against, the database read the WHOLE total as freight \u2014 and then added the goods on top of it. The PO came out at exactly twice its own items. One line or eight, same result.',
+      'It now saves the line items first and the total last, which is all the calculation ever needed. Verified against the live database, before and after: a PO stated at 809.730 with one line of 809.730 used to store 1.619.460 and now stores 809.730 \u2014 and freight still works, a PO of 45.371 goods plus 1.065 freight stays 46.436, and still keeps that 1.065 when a line is edited later.',
+      'This only ever affected purchase orders raised through New Deal, which is why 207 of 222 POs were unaffected. The three that were wrong have already been corrected, and the deal card now flags any total that disagrees with its own lines.',
+    ],
+  },
+  {
     at: '2026-08-24T05:45:00Z',
     title: 'Three PO totals corrected \u2014 PO-149 now shows what was really paid',
     details: [
