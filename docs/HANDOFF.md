@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-08-24** · head of `main` at that point: `25d3df2`
+**Last updated: 2026-08-25** · head of `main` at that point: `c2ebefa`
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -32,7 +32,7 @@ item/price/spec data eventually feed a public website.
 - Do **not** open a pull request unless explicitly asked.
 - No `gh` CLI in this sandbox — use the `mcp__github__*` MCP tools if you need
   the GitHub API. Plain `git` over HTTPS works fine for fetch/push.
-- Head of `main` at handoff: `25d3df2` — "Portal the row menu out of the blurred card, and quieten the Curr field".
+- Head of `main` at handoff: `c2ebefa` — "Document statuses in Bahasa Indonesia — one vocabulary, every list screen".
 
 ### Vercel — https://vercel.com/etirtaputras-projects/supabase/deployments
 - Production deploys **automatically from `main`**. Pushing to main IS the release.
@@ -44,12 +44,18 @@ item/price/spec data eventually feed a public website.
 
 ### Supabase — project ref `xijgplktpnpnstgeolfa`
 - Client is created in `lib/supabase.ts` from `NEXT_PUBLIC_SUPABASE_URL` /
-  `NEXT_PUBLIC_SUPABASE_ANON_KEY`; `.env.local` exists in the sandbox.
+  `NEXT_PUBLIC_SUPABASE_ANON_KEY`. **`.env.local` does NOT exist on a fresh
+  container** — `/preview` 500s without those two variables, and placeholders
+  are enough (it queries nothing).
 - **The sandbox proxy returns 403 on CONNECT to `xijgplktpnpnstgeolfa.supabase.co:443`,
   so `fetch`/`curl` against Supabase from a script will fail.** Use the
   `mcp__Supabase__execute_sql` / `list_tables` / `apply_migration` MCP tools instead —
   those work. Do not try to disable TLS verification or unset `HTTPS_PROXY`.
 - `cdn.tailwindcss.com` is also blocked by the proxy — see §5 for the workaround.
+  **`fonts.googleapis.com` and `fonts.gstatic.com` ARE reachable**, so a measuring
+  replica can load the real Rubik rather than guessing with a fallback face
+  (verified 2026-08-25 — check `document.fonts.check('500 13px Rubik')` in the
+  page and print it, so a wrong-font measurement can never be reported as fact).
 - Table-prefix convention: buy-side `1–9`, project quotes `10.x`, CRM `20.x`,
   pricing `21.x`, sales quote/SO/DO/invoice/receipt `22–26.x`, inventory `30.x`.
 - **THERE ARE TRIGGERS. The app is not the only writer.** `5.1_purchase_line_items`
@@ -92,13 +98,18 @@ item/price/spec data eventually feed a public website.
    earlier number of yours was wrong.
 8. **Indonesian i18n is a phrase book keyed by the English string.** Use `tf()` for
    whole sentences with `{placeholders}` — never concatenate translated fragments,
-   and check the translated string still fits its slot.
+   and check the translated string still fits its slot. **The app is FULLY
+   Indonesian, menus included** (owner reversed the menus-stay-English rule on
+   2026-08-25). Only the codes in `KEEPERS` (`lib/i18n.ts`) stay English, and a
+   keeper is declared there rather than translated to itself. `lib/i18n.test.ts`
+   fails the build if a nav label, group header, dashboard panel, quick action,
+   role or document status ships with no Indonesian word and no keeper entry.
 
 ## 3. Definition of done (run all four before committing)
 
 ```bash
 npx tsc --noEmit     # must be clean
-npm test             # node --test "lib/**/*.test.ts" — 264 tests at handoff, all pass
+npm test             # node --test "lib/**/*.test.ts" — 270 tests at handoff, all pass
 npx eslint           # ~294 pre-existing errors repo-wide; just don't ADD any
 npm run build        # next build must be green
 ```
@@ -107,6 +118,65 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 ---
 
 ## 4. What the previous threads did (for context, all shipped to main)
+
+### 2026-08-25 — full Bahasa Indonesia, menus included (three commits)
+
+**The 2026-08-19 rule is WITHDRAWN and the comment at the top of `lib/i18n.ts`
+now says so.** The owner's four decisions, taken before any code was written:
+keepers are **codes and units only**; translation happens with **`t(label)` at
+the render site**, not a parallel `labelId` field; order is **menus → Dashboard
+→ Purchasing**; glossary uses the **short trade forms**.
+
+- `cbee282` **The menus.** All 45 nav labels + 8 group headers, everywhere they
+  render (brand panel, desktop dropdowns, phone bottom bar, More sheet,
+  Spotlight's page results, Settings › Menu), plus the 29 dashboard panel
+  names, 11 Quick Actions, `ROLE_LABELS` and `ROLE_DESCRIPTIONS`.
+  **`KEEPERS` is new in `lib/i18n.ts`** — the codes that stay English in both
+  languages (PO, PI, GRN, DO, SO, SQ, INV, RCPT, SKU, kWp, PPN, EPC, FOB, CIF,
+  plus Admin and Menu, which Indonesian spells identically). A keeper cannot be
+  listed in the book (an entry equal to its own English already fails), so it is
+  **declared in KEEPERS and omitted from ID** — and the guard test reads that
+  list to tell "deliberate" from "forgotten".
+  Spotlight keeps the English label in `keywords`, so "Deal Lookup" still finds
+  *Telusur Transaksi*. Six older translations still carried English menu names
+  inside them ("Kembali ke Stock", "Buka Item Hub"); fixed.
+  *Measured:* owner's nav bar 642px EN → 661px ID at rest, 993 → 1052 with an
+  active-module suffix. No English nav label reaches the suffix's 120px cap
+  (widest "Import & Export", 105px) but "Biaya Sampai Gudang" is 145px, so the
+  cap is **150px** now — only one group is active at a time, so it costs ≤25px.
+- `54ff736` **The Dashboard.** Every widget, both files, plus the queue built in
+  `lib/dashboard.ts`. **`ActionItem` now carries an English TEMPLATE and its
+  vars** (`title` + `titleVars`, `detail` + `detailVars`) rendered with `tf()`
+  at the row, because the lib was assembling English word order plus an "s"
+  plural rule no other language has. English picks a singular or plural template
+  in the lib; Indonesian maps both to one line. `TopBoard`'s `noun` was
+  pluralised by gluing an "s" — callers pass the plural noun now.
+  `useT()` **memoises `t`/`tf` on `lang`**: they are dependencies of any memo or
+  effect that translates, and rebuilding themevery render made those recompute
+  every render (eslint's `preserve-manual-memoization` caught it).
+  *Two corrections:* the activity feed's `'Paid'` collided with the payment
+  STATUS `'Paid' → 'Lunas'` (settled) — it is `'Paid out'` now; and a dead
+  FRAGMENT pair from before `tf()` existed ("Nothing has landed in the last" +
+  "days. Settings › Defaults sets…") was removed. **The orphan test cannot see
+  that class** — it matches substrings, and both halves are substrings of the
+  whole sentence.
+  *Measured:* activity kind badge was `w-[4.5rem]` (72px), sized for English
+  ("RECEIVED", 60px); "PENAWARAN" is 77px with nowhere to break and ran over the
+  title. Now `w-[5.5rem]`.
+- `c2ebefa` **Document statuses.** One vocabulary, 17 render sites, 11 files —
+  Sales, Invoices, Delivery, Deal Lookup, Purchasing, customer and supplier
+  profiles, After Sales, EPC Proposals, the dashboard activity feed. Translated
+  ONLY where shown; the DB values stay English, so nothing compares, filters,
+  sorts or writes against a translated string.
+  *Measured:* "Confirmed Order" → "Pesanan Dikonfirmasi" is 135px against an
+  English badge column sized at 112, so the badges say it short — **Dipesan**
+  and **Disiapkan**. Widest Indonesian badge now +4px, not +31px.
+
+**The guard, in `lib/i18n.test.ts` (6 new tests, 270 total).** The build fails
+if a nav label, group header, menu hint, dashboard panel, quick action, role
+name/description or document status ships with no Indonesian and no keeper
+entry. **Verified it bites** by deleting two entries — it named both.
+
 
 ### 2026-08-24 — a day of owner-reported faults, all found by screenshot
 
@@ -240,79 +310,100 @@ has not decided.
 - A replica is only as honest as its markup — the previous thread reported a wrong
   header height once because the replica invented three page buttons the Dashboard
   does not have. Copy the real page's actions markup.
+- **Use the REAL font.** `fonts.googleapis.com` and `fonts.gstatic.com` are
+  reachable through the proxy, so link the same Google Fonts stylesheet
+  `app/layout.tsx` uses, `await page.evaluate(() => document.fonts.ready)`, and
+  then **print `document.fonts.check('500 13px Rubik')`** with the numbers. A
+  measurement taken in a fallback face is a wrong number reported as a fact, and
+  it is invisible unless you check.
+- `playwright-core` installs into the repo's `node_modules`, but a script kept in
+  the scratchpad cannot resolve it from there — import it by absolute path
+  (`/home/user/supabase/node_modules/playwright-core/index.mjs`).
+- Chromium's first launch takes over two minutes here. Run the measuring script
+  with `run_in_background: true` and wait on its output file, rather than
+  watching a foreground command time out.
 
 ---
 
-## 6. NEXT MODULE — full Bahasa Indonesia, menus included
+## 6. NEXT MODULE — finish the Bahasa Indonesia sweep: Purchasing, then Sales
 
-**The ask (owner, verbatim, 2026-08-24):** *"Make the Indonesia language
-settings, fully Bahasa Indonesia, including the menus."*
+The owner's ask ("fully Bahasa Indonesia, including the menus") is **honoured
+for everything he navigates by and everything on the screen he lands on.** What
+is left is the INSIDE of the big working screens. This is a continuation, not a
+new module — the decisions are made, the mechanism is proven, and the guard is
+in place. Do not re-litigate any of it with him.
 
-### ⚠️ This REVERSES a standing rule. Read this first.
+### The four decisions, already taken (2026-08-25) — inherit, don't re-ask
 
-`lib/i18n.ts` opens with: *"The owner's rule (2026-08-19): menu labels stay
-English — 'Stock', 'Deal Lookup', 'Landed Cost' are the vocabulary the team
-already shares with suppliers and customers, and translating them would give
-one thing two names."* **That rule is now withdrawn by the owner.** Update that
-comment as part of the work, or the next thread after you will follow the
-stale rule. Standing rule #8 in §2 (the phrase-book mechanics) still holds —
-only the menus-stay-English part is gone.
+1. **Keepers are codes and units only** — the `KEEPERS` list in `lib/i18n.ts`.
+2. **`t(label)` at the render site**, never a parallel `labelId` field.
+3. **Order: menus → Dashboard → Purchasing/Item Editor → Sales → Deal Lookup.**
+   The first two are shipped; you are on Purchasing.
+4. **Short trade forms** in any control (button, badge, tile label, column
+   heading); full sentences only where there is room. The note near the top of
+   `lib/i18n.ts` explains this and it has already saved two layouts.
 
-Ask the owner early which trade words keep their English even in ID: PO, PI,
-GRN, DO, SKU, kWp are near-certain keepers, and `lib/i18n.test.ts` FAILS on any
-entry whose Indonesian equals its English, so a keeper cannot simply be listed
-in the phrase book — it has to be left out of it.
+### Where it stands — measured 2026-08-25, at `c2ebefa`
 
-### How i18n works today
+- **562** phrase-book entries (310 at the start of the day).
+- **26 of 126** `.tsx` files under `app/` + `components/` call `useT()` (was 20).
+- Fully translated: the whole menu system, Spotlight's page results, the
+  Dashboard, role names and descriptions, and every document status badge.
 
-- `lib/i18n.ts` — `ID: Record<string,string>`, **keyed by the English string**
-  (a phrase book, not a key namespace). `t(en, lang)`; `tf(en, lang, vars)` for
-  whole sentences with `{placeholders}`. **310 entries** today.
-- `hooks/useT.ts` → `{ t, tf, lang }`, bound to `hooks/useLanguage.ts`
-  (personal pick → company default from Settings › Defaults → English).
-  `lib/language.ts` holds the storage; the EN/ID toggle is in `BrandMenu`.
-- `lib/settings.ts`: `language: 'en' | 'id'`, default `'en'`.
-- `lib/i18n.test.ts` enforces three things, and they WILL bite:
-  1. every ID entry's English must still appear somewhere in `app/`,
-     `components/`, `constants/` or `lib/` (edit the English, orphan the entry);
-  2. no entry may equal its own English;
-  3. no entry ≤5 words may end on a preposition (the fragment trap) — build
-     whole sentences with `tf()` instead of gluing fragments.
+### The job, in the owner's order
 
-### The size of the job — measured, 2026-08-24
+**A. Purchasing** — `app/purchasing/page.tsx` (1,628 lines) is the shell: four
+tabs (Item Editor, New Deal, Payments, Deal Lookup), the header, the tab
+buttons, empty states. Start there; it is the frame the owner sees first.
 
-- **262** `t()`/`tf()` call sites, in **20** files.
-- **106 of 126** `.tsx` files under `app/` + `components/` never call `useT()`
-  at all. That is the untranslated surface, and it is most of the app.
-- `constants/navigation.ts`: **44 labels** (untranslated — the reversed rule)
-  and **45 hints** (already translated).
-- `constants/dashboardWidgets.ts`: **29** labels/hints — hints translated,
-  labels not.
-- Other English-in-constants worth a pass: `ROLE_LABELS` /
-  `ROLE_DESCRIPTIONS` / `PERMISSION_MATRIX` in `constants/roles.ts`, status
-  enums in `constants/enums.ts`, `constants/productColumns.ts` headers,
-  `constants/listDefaults.ts`.
+**B. Item Editor** — `components/ui/ComponentEditor.tsx` is **5,674 lines and
+the single biggest untranslated file in the app.** Give it its own commit, and
+consider giving it its own THREAD. Column headings and row actions are controls:
+short forms.
 
-### Suggested shape (put it to the owner before building)
+**C. Sales** — `app/sales/[id]/page.tsx` (2,050) then `app/sales/page.tsx`.
+`SalesMilestones` already has `useT`.
 
-1. **Decide the keeper list** (trade words that stay English in both languages)
-   and write it down in `lib/i18n.ts` — it is a rule, so it belongs in one file.
-2. **Menus first**, since that is what the owner asked for: `label` in
-   `constants/navigation.ts` + `ROLE_LABELS` + widget labels. The label is data
-   in a constant, so either translate at the render site with `t(label)` or add
-   a parallel `labelId`. **Recommend `t(label)`** — it keeps one source of
-   truth and the phrase book stays the only dictionary.
-3. **Then the screens the owner uses daily**, in this order: Dashboard →
-   Purchasing/Item Editor → Sales → Deal Lookup. Do NOT try all 106 files in
-   one thread; ship a screen at a time with its changelog entry.
-4. **Guard it**: extend `lib/i18n.test.ts` with a check that every registered
-   nav label and widget label has an ID entry (or is on the keeper list), so
-   the next new screen cannot ship English-only by accident.
+**D. Deal Lookup** — `components/ui/DealLookupTab.tsx`; already has `useT` and
+its status badges.
+
+### Traps this thread hit, so you don't
+
+- **A duplicate key silently wins.** Adding `'Paid': 'Dibayar keluar'` when
+  `'Paid': 'Lunas'` already existed replaced a translation used on a different
+  screen. `tsc` catches literal duplicates (TS1117) — *including* one written
+  with a `\uXXXX` escape and one written literally — but only if you LOOK at the
+  error instead of deduping mechanically. **Before committing an i18n change,
+  diff the parsed map against `HEAD` and check nothing was LOST or CHANGED**;
+  that check found the one entry this thread nearly dropped.
+- **The orphan test matches SUBSTRINGS**, so an entry that is a fragment of a
+  longer entry can never be looked up and will never be reported. Two such
+  fragments had been dead in the file for days.
+- **A map parameter named `t` shadows the translator** (`tiles.map((t) => …)`,
+  `const t = totalsByQuote.get(…)`). Rename the parameter, or bind the
+  translator as `tr` — both patterns are in the tree now.
+- **`t`/`tf` are dependencies.** They are memoised on `lang` in `hooks/useT.ts`,
+  so list them in any `useMemo`/`useEffect` that translates; eslint's
+  `preserve-manual-memoization` is an ERROR, not a warning.
+- **Never translate a value that is written, compared or filtered.** Statuses
+  are stored in English; a dropdown keeps English in `value` and translates only
+  the option text.
+
+### Still English on purpose, and why
+
+- `ENUMS.proforma_status` — its `'Open'` collides with the verb `'Open'`
+  already in the book (`'Buka'`). A PI that is still open is not a button; that
+  needs a wording decision from the owner, not a translation.
+- `constants/productColumns.ts`, `constants/listDefaults.ts`,
+  `PERMISSION_MATRIX` in `constants/roles.ts` — untouched, no decision needed,
+  just work.
+- `ActivityRow.sub` on the dashboard renders a raw DB status through `t()`, so
+  the statuses now resolve and anything else falls back to English.
 
 ### Long-standing items still awaiting the owner (raise once, don't re-litigate)
-- Indonesian glossary review: Mundur/Maju, Transit, eksternal, Sisa piutang,
-  Pembayaran masuk, "Penawaran → pesanan". **This module is the moment to
-  settle them.**
+- **SETTLED 2026-08-25:** the Indonesian glossary. Short trade forms, per the
+  owner's pick — Mundur/Maju, Transit, eksternal, Sisa piutang (used for the
+  "Owed to us" tile), Pembayaran masuk, Penawaran → pesanan.
 - 11 POs whose total is SHORT by exactly their freight (older foreign PIOs,
   several Fully Received). Flagged in amber on the deal card; owner chose to
   leave the data alone on 2026-08-24.
@@ -328,6 +419,10 @@ in the phrase book — it has to be left out of it.
 - Delivery movements booked with **no `unit_cost_idr`** (3 of 5 in the last
   90 days) — until they carry cost, item GP and the cash cycle measure against
   a hole.
+- On 1366/1440-wide laptops, list pages still wrap their page buttons to a
+  second header row. Shortening the nav labels would close it — and note the
+  Indonesian labels are only **19px wider** than the English at rest, so the
+  language did not make this worse.
 
 ---
 
