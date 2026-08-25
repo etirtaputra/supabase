@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-08-23** · head of `main` at that point: `f5192c9`
+**Last updated: 2026-08-24** · head of `main` at that point: `25d3df2`
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -32,8 +32,7 @@ item/price/spec data eventually feed a public website.
 - Do **not** open a pull request unless explicitly asked.
 - No `gh` CLI in this sandbox — use the `mcp__github__*` MCP tools if you need
   the GitHub API. Plain `git` over HTTPS works fine for fetch/push.
-- Head of `main` at handoff: `63fa4b7` — "Tighten header and page margins so more
-  of the screen is data".
+- Head of `main` at handoff: `25d3df2` — "Portal the row menu out of the blurred card, and quieten the Curr field".
 
 ### Vercel — https://vercel.com/etirtaputras-projects/supabase/deployments
 - Production deploys **automatically from `main`**. Pushing to main IS the release.
@@ -53,6 +52,16 @@ item/price/spec data eventually feed a public website.
 - `cdn.tailwindcss.com` is also blocked by the proxy — see §5 for the workaround.
 - Table-prefix convention: buy-side `1–9`, project quotes `10.x`, CRM `20.x`,
   pricing `21.x`, sales quote/SO/DO/invoice/receipt `22–26.x`, inventory `30.x`.
+- **THERE ARE TRIGGERS. The app is not the only writer.** `5.1_purchase_line_items`
+  runs `recalculate_po_total()`, which rewrites `5.0_purchases.total_value` on
+  every line insert/update/delete — it cost a day on 2026-08-24 because nothing
+  in the app code mentioned it. Before trusting any column the app also writes,
+  check: `select c.relname, pg_get_triggerdef(t.oid) from pg_trigger t join
+  pg_class c on c.oid=t.tgrelid where not t.tgisinternal;`
+- To EXPERIMENT against production safely, wrap inserts in a `DO $$ … $$` block
+  that ends in `RAISE EXCEPTION` — the message comes back as the error and the
+  whole block rolls back. That is how the doubling was proved and the fix
+  verified, with no residue.
 
 ---
 
@@ -89,7 +98,7 @@ item/price/spec data eventually feed a public website.
 
 ```bash
 npx tsc --noEmit     # must be clean
-npm test             # node --test "lib/**/*.test.ts" — 238 tests at handoff, all pass
+npm test             # node --test "lib/**/*.test.ts" — 264 tests at handoff, all pass
 npx eslint           # ~294 pre-existing errors repo-wide; just don't ADD any
 npm run build        # next build must be green
 ```
@@ -98,6 +107,58 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 ---
 
 ## 4. What the previous threads did (for context, all shipped to main)
+
+### 2026-08-24 — a day of owner-reported faults, all found by screenshot
+
+Every one of these started as a phone screenshot from the owner. Two were real
+bugs behind a cosmetic complaint; read them as evidence that "it looks off"
+usually means something IS off.
+
+- `7456fa6` **Phone dashboard + the CCC division artifact.** CCC read
+  **1.702.981d** — Rp 24,7bn of stock ÷ Rp 1,3m of delivered COGS in 90 days
+  (five delivery movements, **three booked with no unit cost at all**).
+  `measuredDio()` in `lib/position.ts` now refuses past twenty window-lengths
+  and the tile says why. `/profitability` had its own copy of the formula and
+  the same fault; both use the one function now. The AI next-step advisor was
+  reading the broken figure too. Phone layout: one shared `CardHead` (four
+  panels had hand-copied it and all four broke the same way), and the arrival
+  rows now break in the same place on every row.
+- `f79f024` **Drag-to-reorder: one mechanism, `components/ui/dragReorder.tsx`.**
+  Six lists had their own copy and all drew a ring around the hovered row —
+  which answers "what am I over", not "where will this land". Three of the six
+  ignored the pointer's half. Now a 3px line marks the exact seam.
+  **Verified with real DragEvents in Chromium against `/preview`**, which
+  gained the real arranger for that purpose.
+- `d1faa73` **At-stake total** — sat 24px inside the column it totals on a
+  phone (my own regression from `7456fa6`; the arrow spacer is `sm`-and-up now).
+- `9fd8bbf` **EPC editor header** — seven controls in one `overflow-x-auto` row
+  meant **Save was off-screen on a phone**, with no scrollbar to admit it. Two
+  rows below `lg`, measured across seven widths.
+- `57fc5ad` + `ffe6241` + `c73a02f` **The PO total bug — the important one.**
+  A PO showed committed IDR 1.619.460 over one line item of IDR 809.730 that
+  the bank had already paid in full. **Root cause, found by the OWNER's hunch,
+  not mine:** `5.1_purchase_line_items` carries a DB trigger,
+  `recalculate_po_total()`, which preserves the gap between the total and the
+  lines (freight). `app/purchasing` wrote the PO's total *before* its line
+  items existed, so the delta was measured against ZERO, the whole total was
+  read as freight, and the goods were stacked on top → **exactly 2× the lines**.
+  Reproduced against the live trigger in a `DO` block that raises at the end
+  (so the probe rolls itself back). Fix is an ORDER: lines first, total last
+  (`stampPoTotal`). Three rows corrected in
+  `migrations/fix_doubled_po_totals.sql`; the trigger's precondition is now a
+  `COMMENT ON FUNCTION` (`migrations/document_po_total_trigger.sql`).
+  `lib/poTotals.ts` flags any total that disagrees with its own lines — 11 POs
+  are still SHORT by exactly their freight, left alone by the owner's decision.
+- `7f0d05e` + `25d3df2` **Item Editor action column** — seven icon buttons
+  (252–288px, ragged 5/6/7 per row) folded to Specs + Edit + a named ⋯ menu
+  (104px, fixed). **Two self-inflicted bugs worth remembering:** moving Inspect
+  orphaned the 450ms hover peek (only three unused-variable warnings betrayed
+  it), and the menu was rendered inside the table's `backdrop-blur-sm` card —
+  **a backdrop-filter makes an element a containing block for `position:fixed`**,
+  so the menu opened 301px too low. Everything else in that file portals to
+  `document.body`; now this does too.
+
+### Earlier
 
 - `f5192c9` **Role-relevant dashboard defaults** — the module §6 used to
   describe, now shipped. `ROLE_DASHBOARDS` in `constants/dashboardWidgets.ts`
@@ -182,48 +243,91 @@ has not decided.
 
 ---
 
-## 6. NEXT MODULE — not chosen yet
+## 6. NEXT MODULE — full Bahasa Indonesia, menus included
 
-The module this section used to hold (role-relevant dashboard customisation)
-shipped as `f5192c9`; see §4. **Nothing has been decided for the next thread.**
+**The ask (owner, verbatim, 2026-08-24):** *"Make the Indonesia language
+settings, fully Bahasa Indonesia, including the menus."*
 
-That is not a blocked start — **go to §7 and run it**: read the ground truth,
-COUNT THE LIVE DATA with `mcp__Supabase__execute_sql` before proposing anything,
-then come back with three ranked candidates and a recommendation, and let the
-owner pick. Do not start building on your own recommendation, and update this
-section with whatever he picks so the next thread inherits the decision.
+### ⚠️ This REVERSES a standing rule. Read this first.
 
-### Decisions this last module made that the owner may want to revisit
-- **Project Engineers open with Top products / Top customers switched OFF** —
-  the EPC job is specifying kit, not working a catalog leaderboard. They are one
-  tick away in Customise. If the owner disagrees, it is one line in
-  `ROLE_DASHBOARDS.engineer.off` plus its case in `lib/dashboardWidgets.test.ts`.
-- **Every role's `lead` is deliberately conservative about widths.** Promoting a
-  single `quarter` (one KPI tile) or an odd `half` leaves a hole in the grid
-  where the rest of its row used to be, so leads promote full-width panels, or
-  halves in pairs, or the whole KPI quartet. Read the comment above
-  `ROLE_DASHBOARDS` before retuning one.
-- **The `owner` role's start is unchanged** — all eighteen panels, in the
-  money-first order they were already in. The shipped order was written for that
-  reader; nothing was removed, per the owner's answer.
-- **Quick Actions gained two shortcuts** by taking each destination's own gate
-  from `constants/navigation.ts` instead of a hand-written one: the service desk
-  now gets **Customers** (it could always open it — half of any service call)
-  and the warehouse gets **Serial Numbers**.
+`lib/i18n.ts` opens with: *"The owner's rule (2026-08-19): menu labels stay
+English — 'Stock', 'Deal Lookup', 'Landed Cost' are the vocabulary the team
+already shares with suppliers and customers, and translating them would give
+one thing two names."* **That rule is now withdrawn by the owner.** Update that
+comment as part of the work, or the next thread after you will follow the
+stale rule. Standing rule #8 in §2 (the phrase-book mechanics) still holds —
+only the menus-stay-English part is gone.
+
+Ask the owner early which trade words keep their English even in ID: PO, PI,
+GRN, DO, SKU, kWp are near-certain keepers, and `lib/i18n.test.ts` FAILS on any
+entry whose Indonesian equals its English, so a keeper cannot simply be listed
+in the phrase book — it has to be left out of it.
+
+### How i18n works today
+
+- `lib/i18n.ts` — `ID: Record<string,string>`, **keyed by the English string**
+  (a phrase book, not a key namespace). `t(en, lang)`; `tf(en, lang, vars)` for
+  whole sentences with `{placeholders}`. **310 entries** today.
+- `hooks/useT.ts` → `{ t, tf, lang }`, bound to `hooks/useLanguage.ts`
+  (personal pick → company default from Settings › Defaults → English).
+  `lib/language.ts` holds the storage; the EN/ID toggle is in `BrandMenu`.
+- `lib/settings.ts`: `language: 'en' | 'id'`, default `'en'`.
+- `lib/i18n.test.ts` enforces three things, and they WILL bite:
+  1. every ID entry's English must still appear somewhere in `app/`,
+     `components/`, `constants/` or `lib/` (edit the English, orphan the entry);
+  2. no entry may equal its own English;
+  3. no entry ≤5 words may end on a preposition (the fragment trap) — build
+     whole sentences with `tf()` instead of gluing fragments.
+
+### The size of the job — measured, 2026-08-24
+
+- **262** `t()`/`tf()` call sites, in **20** files.
+- **106 of 126** `.tsx` files under `app/` + `components/` never call `useT()`
+  at all. That is the untranslated surface, and it is most of the app.
+- `constants/navigation.ts`: **44 labels** (untranslated — the reversed rule)
+  and **45 hints** (already translated).
+- `constants/dashboardWidgets.ts`: **29** labels/hints — hints translated,
+  labels not.
+- Other English-in-constants worth a pass: `ROLE_LABELS` /
+  `ROLE_DESCRIPTIONS` / `PERMISSION_MATRIX` in `constants/roles.ts`, status
+  enums in `constants/enums.ts`, `constants/productColumns.ts` headers,
+  `constants/listDefaults.ts`.
+
+### Suggested shape (put it to the owner before building)
+
+1. **Decide the keeper list** (trade words that stay English in both languages)
+   and write it down in `lib/i18n.ts` — it is a rule, so it belongs in one file.
+2. **Menus first**, since that is what the owner asked for: `label` in
+   `constants/navigation.ts` + `ROLE_LABELS` + widget labels. The label is data
+   in a constant, so either translate at the render site with `t(label)` or add
+   a parallel `labelId`. **Recommend `t(label)`** — it keeps one source of
+   truth and the phrase book stays the only dictionary.
+3. **Then the screens the owner uses daily**, in this order: Dashboard →
+   Purchasing/Item Editor → Sales → Deal Lookup. Do NOT try all 106 files in
+   one thread; ship a screen at a time with its changelog entry.
+4. **Guard it**: extend `lib/i18n.test.ts` with a check that every registered
+   nav label and widget label has an ID entry (or is on the keeper list), so
+   the next new screen cannot ship English-only by accident.
 
 ### Long-standing items still awaiting the owner (raise once, don't re-litigate)
 - Indonesian glossary review: Mundur/Maju, Transit, eksternal, Sisa piutang,
-  Pembayaran masuk, "Penawaran → pesanan".
+  Pembayaran masuk, "Penawaran → pesanan". **This module is the moment to
+  settle them.**
+- 11 POs whose total is SHORT by exactly their freight (older foreign PIOs,
+  several Fully Received). Flagged in amber on the deal card; owner chose to
+  leave the data alone on 2026-08-24.
 - 25 Confirmed POs with zero receipts, ETAs ~9 months past.
-- Whether the `sales` role should see margin (would light up the Profit toggle on
-  `topProducts` / `topCustomers`).
-- The Dolibarr delivery-document import, so history feeds the leaderboards. 489
-  customers carry no `external_ref` — an import would match on code/name.
-- A `canViewSpend` capability split; reassigning staff to warehouse/aftersales
-  roles; retiring the legacy `canEditQuotes`.
-- The nav-label shortening question from the header work (`63fa4b7`): the seven
-  labels need 720px, and only shortening them buys 1366/1440 laptops the 66px
-  that 1536 already got. Still a wording call.
+- Whether the `sales` role should see margin (would light up the Profit toggle
+  on `topProducts` / `topCustomers`).
+- The Dolibarr delivery-document import, so history feeds the leaderboards.
+- Three of the five ⋯ menu actions overlap (Stock, Inspect, Item hub — the hub
+  contains the other two). Worth removing one; needs the owner's usage.
+- **A latent bug class, unswept:** any `position: fixed` overlay rendered
+  inside a `backdrop-blur` container is mispositioned (see `25d3df2`). Nobody
+  has swept the app for others.
+- Delivery movements booked with **no `unit_cost_idr`** (3 of 5 in the last
+  90 days) — until they carry cost, item GP and the cash cycle measure against
+  a hole.
 
 ---
 
