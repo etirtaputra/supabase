@@ -666,6 +666,44 @@ const linkMetaFor = (link: any, inspectId: string | null): { label: string; colo
 // --- Main Component Editor ---
 const EMPTY_ADD = { supplier_model: '', internal_description: '', brand: '', category: '', unit: '', specifications: '', datasheet_url: '', norm_value: '' };
 
+/**
+ * One entry in a row's ⋯ menu — an icon, its name, and what it does.
+ *
+ * The names are the point. These five actions lived as bare icons in the row
+ * (a cube, a magnifier, an arrow, a clipboard, a bin) and could only be
+ * identified by hovering each one in turn; the menu costs a click and hands
+ * back what they are.
+ */
+function RowMenuItem({ label, hint, icon, onClick, href, external, tone }: {
+  label: string;
+  hint?: string;
+  icon: React.ReactNode;
+  onClick?: () => void;
+  href?: string;
+  external?: boolean;
+  tone?: 'good' | 'bad';
+}) {
+  const colour = tone === 'bad'
+    ? 'text-red-400/90 hover:bg-red-500/10 hover:text-red-300'
+    : tone === 'good'
+      ? 'text-emerald-400 hover:bg-slate-800/70'
+      : 'text-slate-300 hover:bg-slate-800/70 hover:text-white';
+  const inner = (
+    <>
+      <svg className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden="true">{icon}</svg>
+      <span className="min-w-0">
+        <span className="block text-xs font-medium leading-tight">{label}</span>
+        {hint && <span className="block text-[10px] text-slate-500 leading-tight mt-0.5">{hint}</span>}
+      </span>
+    </>
+  );
+  const cls = `w-full flex items-start gap-2.5 px-3 py-1.5 text-left transition-colors ${colour}`;
+  return href
+    ? <a href={href} onClick={onClick} role="menuitem" className={cls}
+        {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>{inner}</a>
+    : <button type="button" onClick={onClick} role="menuitem" className={cls}>{inner}</button>;
+}
+
 export default function ComponentEditor({ components, brandSuggestions, initialSearch = '', quoteItems = [], quotes = [], pos = [], poItems = [], suppliers = [], poCosts = [], componentHistory, competitorPrices, onSave, onAdd, onAddSupplier, onDelete, onSaveLineItem, onDeleteLineItem, onDeleteCompetitorPrice, onUpdateCompetitorPrice, componentLinks, onAddComponentLink, onDeleteComponentLink }: ComponentEditorProps) {
   const [searchInput, setSearchInput] = useState(initialSearch);
   const [search, setSearch] = useState(initialSearch);
@@ -779,6 +817,15 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
   const [pending, setPending] = useState<PendingEdits>({});
   const [saving, setSaving] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  /**
+   * The open row's ⋯ menu, anchored to the button that opened it. `anchor` is
+   * that button's rect, which the stock panel needs to place itself — it used
+   * to get the rect of its own button, and now inherits the menu's.
+   */
+  const [rowMenu, setRowMenu] = useState<{
+    id: string; top: number; right: number;
+    anchor: { top: number; bottom: number; left: number; right: number };
+  } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -3634,68 +3681,20 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                             </svg>
                           </a>
                         ) : null}
-                        {/* While editing, only the datasheet input + Done show — keeps the row inside the table */}
-                        {!isEditing && (<>
-                        {/* Stock — Physical/Reserved/Live + receive/adjust */}
-                        <button
-                          onClick={(e) => {
-                            const r = e.currentTarget.getBoundingClientRect();
-                            setStockPanel({ id: c.component_id, rect: { top: r.top, bottom: r.bottom, left: r.left, right: r.right } });
-                          }}
-                          title="Stock — Physical / Reserved / Live, receive & adjust"
-                          className="px-2 py-1 text-xs text-slate-600 bg-transparent border border-transparent rounded-lg hover:bg-emerald-500/10 hover:border-emerald-500/30 hover:text-emerald-300 transition-all"
-                        >
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-                        </button>
-                        {/* Inspect panel */}
-                        <button
-                          onClick={() => { setInspectId(c.component_id); setInspectTab('costs'); }}
-                          onMouseEnter={(e) => {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-                            hoverTimerRef.current = setTimeout(() => {
-                              setHoverPreviewId(c.component_id);
-                              setHoverRect(rect);
-                            }, 450);
-                          }}
-                          onMouseLeave={() => {
-                            if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-                            setHoverPreviewId(null);
-                          }}
-                          title="Inspect component — quotes, POs, market intel, change log"
-                          className="px-2 py-1 text-xs text-slate-600 bg-transparent border border-transparent rounded-lg hover:bg-blue-500/10 hover:border-blue-500/30 hover:text-blue-300 transition-all"
-                        >
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                            <circle cx="11" cy="11" r="8" /><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35" />
-                          </svg>
-                        </button>
-                        {/* Item hub — the one page assembling buy/sell/stock/specs */}
-                        {canHub && (
-                        <a
-                          href={`/items/${c.component_id}`}
-                          title="Open the item hub — buy, sell, stock, specs on one page"
-                          className="px-2 py-1 text-xs rounded-lg border text-slate-600 bg-transparent border-transparent hover:bg-slate-800/60 hover:border-slate-700/60 hover:text-slate-300 transition-all"
-                        >
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                        </a>
-                        )}
-                        {/* Copy row to clipboard */}
-                        <button
-                          onClick={() => copyRow(c)}
-                          title="Copy row to clipboard (tab-separated, paste into Excel)"
-                          className={`px-2 py-1 text-xs rounded-lg border transition-all ${
-                            copiedRowId === c.component_id
-                              ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30'
-                              : 'text-slate-600 bg-transparent border-transparent hover:bg-slate-800/60 hover:border-slate-700/60 hover:text-slate-300'
-                          }`}
-                        >
-                          {copiedRowId === c.component_id
-                            ? <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                            : <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path strokeLinecap="round" d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>
-                          }
-                        </button>
-                        {/* Change log button removed — accessible via inspect panel (magnifying glass) */}
-                        {showSpecsButton && (
+                        {/* ── Row actions ────────────────────────────────────
+                            Seven icon buttons used to sit here, 252px of every
+                            row (288 when the item had a datasheet), and the
+                            count changed from row to row — 5, 6 or 7 — so the
+                            column was ragged as well as wide (owner,
+                            2026-08-24: "taking too much horizontal space").
+
+                            Only two of the seven said anything at a glance:
+                            Specs carries the calculator-readiness colour and
+                            Edit turns amber when the row is dirty. The other
+                            five were unlabelled icons you had to hover to
+                            identify. Those move into ⋯, where they get their
+                            names — 104px now, fixed whatever the row holds. */}
+                        {!isEditing && showSpecsButton && (
                           <button
                             onClick={() => toggleSpecs(c.component_id)}
                             className={`px-2 py-1 text-xs font-semibold rounded-lg border transition-all ${
@@ -3717,7 +3716,6 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                             </svg>
                           </button>
                         )}
-                        </>)}
                         {isEditing ? (
                           <button
                             onClick={() => toggleEdit(c.component_id)}
@@ -3748,35 +3746,132 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                             ✕
                           </button>
                         )}
-                        {onDelete && (
-                          confirmDeleteId === c.component_id ? (
-                            <div className="flex gap-1 items-center">
-                              <span className="text-[11px] text-red-400">Delete?</span>
-                              <button
-                                onClick={() => handleDelete(c.component_id)}
-                                disabled={deleting}
-                                className="px-2 py-1 text-xs font-bold text-white bg-red-600 hover:bg-red-500 rounded-lg transition-all disabled:opacity-50"
-                                title="Confirm delete"
-                              >
-                                {deleting ? '…' : 'Yes'}
-                              </button>
-                              <button
-                                onClick={() => setConfirmDeleteId(null)}
-                                disabled={deleting}
-                                className="px-2 py-1 text-xs font-semibold text-slate-400 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-all disabled:opacity-50"
-                              >
-                                No
-                              </button>
-                            </div>
-                          ) : (
+                        {/* The confirm stays IN the row, not in the menu: a
+                            destructive question belongs next to the thing it
+                            would destroy. */}
+                        {onDelete && confirmDeleteId === c.component_id ? (
+                          <div className="flex gap-1 items-center">
+                            <span className="text-[11px] text-red-400">Delete?</span>
                             <button
-                              onClick={() => setConfirmDeleteId(c.component_id)}
-                              className="px-2.5 py-1 text-xs font-semibold text-red-400/70 bg-transparent border border-transparent rounded-lg hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400 transition-all"
-                              title="Delete component"
+                              onClick={() => handleDelete(c.component_id)}
+                              disabled={deleting}
+                              className="px-2 py-1 text-xs font-bold text-white bg-red-600 hover:bg-red-500 rounded-lg transition-all disabled:opacity-50"
+                              title="Confirm delete"
                             >
-                              🗑
+                              {deleting ? '…' : 'Yes'}
                             </button>
-                          )
+                            <button
+                              onClick={() => setConfirmDeleteId(null)}
+                              disabled={deleting}
+                              className="px-2 py-1 text-xs font-semibold text-slate-400 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-all disabled:opacity-50"
+                            >
+                              No
+                            </button>
+                          </div>
+                        ) : null}
+                        {!isEditing && (
+                          <button
+                            data-row-menu
+                            onClick={(e) => {
+                              const r = e.currentTarget.getBoundingClientRect();
+                              setRowMenu((m) => m?.id === c.component_id ? null : {
+                                id: c.component_id,
+                                top: r.bottom + 6,
+                                right: Math.max(8, window.innerWidth - r.right),
+                                anchor: { top: r.top, bottom: r.bottom, left: r.left, right: r.right },
+                              });
+                            }}
+                            /* The 450ms peek — landed cost, last quote, usage,
+                               competitor prices — used to hang off the Inspect
+                               magnifier. That moved into the menu, and the peek
+                               would have gone with it, so it lives on ⋯ now:
+                               hover for the summary, click for the actions. The
+                               card places itself to the LEFT of its anchor, and
+                               ⋯ sits where the magnifier did, so it still lands
+                               where it always did. */
+                            onMouseEnter={(e) => {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                              hoverTimerRef.current = setTimeout(() => {
+                                setHoverPreviewId(c.component_id);
+                                setHoverRect(rect);
+                              }, 450);
+                            }}
+                            onMouseLeave={() => {
+                              if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                              setHoverPreviewId(null);
+                            }}
+                            title="More — stock, inspect, item hub, copy, delete"
+                            aria-haspopup="menu"
+                            aria-expanded={rowMenu?.id === c.component_id}
+                            className={`px-2 py-1 text-xs rounded-lg border transition-all ${
+                              rowMenu?.id === c.component_id
+                                ? 'text-slate-200 bg-slate-800 border-slate-700'
+                                : 'text-slate-600 bg-transparent border-transparent hover:bg-slate-800/60 hover:border-slate-700/60 hover:text-slate-300'
+                            }`}
+                          >
+                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                              <circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" />
+                            </svg>
+                          </button>
+                        )}
+                        {rowMenu?.id === c.component_id && (
+                          <>
+                            <div className="fixed inset-0 z-40" onClick={() => setRowMenu(null)} />
+                            <div role="menu"
+                              style={{ position: 'fixed', top: rowMenu.top, right: rowMenu.right }}
+                              className="z-50 w-52 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1.5 text-left">
+                              <RowMenuItem
+                                label="Stock"
+                                hint="Physical · reserved · live"
+                                onClick={() => { setStockPanel({ id: c.component_id, rect: rowMenu.anchor }); setRowMenu(null); }}
+                                icon={<path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />}
+                              />
+                              <RowMenuItem
+                                label="Inspect"
+                                hint="Quotes, POs, market intel"
+                                onClick={() => { setInspectId(c.component_id); setInspectTab('costs'); setRowMenu(null); }}
+                                icon={<><circle cx="11" cy="11" r="8" /><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35" /></>}
+                              />
+                              {canHub && (
+                                <RowMenuItem
+                                  label="Item hub"
+                                  hint="Buy, sell, stock, specs"
+                                  href={`/items/${c.component_id}`}
+                                  onClick={() => setRowMenu(null)}
+                                  icon={<path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />}
+                                />
+                              )}
+                              {c.datasheet_url && (
+                                <RowMenuItem
+                                  label="Datasheet"
+                                  hint="Open the linked file"
+                                  href={c.datasheet_url}
+                                  external
+                                  onClick={() => setRowMenu(null)}
+                                  icon={<path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />}
+                                />
+                              )}
+                              <RowMenuItem
+                                label={copiedRowId === c.component_id ? 'Copied' : 'Copy row'}
+                                hint="Tab-separated, for Excel"
+                                onClick={() => { copyRow(c); setRowMenu(null); }}
+                                tone={copiedRowId === c.component_id ? 'good' : undefined}
+                                icon={<><rect x="9" y="9" width="13" height="13" rx="2" /><path strokeLinecap="round" d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></>}
+                              />
+                              {onDelete && (
+                                <>
+                                  <div className="my-1 border-t border-slate-800" />
+                                  <RowMenuItem
+                                    label="Delete component"
+                                    tone="bad"
+                                    onClick={() => { setConfirmDeleteId(c.component_id); setRowMenu(null); }}
+                                    icon={<path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />}
+                                  />
+                                </>
+                              )}
+                            </div>
+                          </>
                         )}
                       </div>
                     </td>

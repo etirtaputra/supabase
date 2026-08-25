@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-24T08:30:00Z',
+    title: 'Item Editor: the action column gives back 148 pixels of every row',
+    details: [
+      'Each row carried seven icon buttons \u2014 252 pixels of width, 288 on items with a datasheet \u2014 and the number changed from row to row depending on whether the item takes specs or has a file, so the column was ragged as well as wide.',
+      'Two of the seven actually tell you something at a glance: the specs button is amber when a spec the calculator needs is missing and green when it is ready, and the pencil turns amber when the row has unsaved changes. Those stay in the row. Stock, Inspect, Item hub, Copy row and Delete now sit behind a \u22ef button \u2014 104 pixels, and the same 104 on every row.',
+      'The five moved actions gained something in the move: names. A cube, a magnifier, an arrow, a clipboard and a bin could only be told apart by hovering each one; the menu says \u201cStock \u00b7 physical, reserved, live\u201d, \u201cInspect \u00b7 quotes, POs, market intel\u201d, \u201cItem hub \u00b7 buy, sell, stock, specs\u201d and so on. A datasheet link appears there too when the item has one.',
+      'Deleting still asks first, and still asks inside the row itself rather than in the menu \u2014 the question belongs next to the thing it would delete.',
+      'The quick peek is still there: rest on the \u22ef button for a moment and you get the same card as before \u2014 landed cost, last quote, where the item is used, competitor prices. It used to hang off the magnifying glass, and it moved with the job rather than being lost with the button.',
+    ],
+  },
+  {
     at: '2026-08-24T07:05:00Z',
     title: 'Fixed the cause: New Deal \u2192 Quote + PO was doubling the PO total',
     details: [
