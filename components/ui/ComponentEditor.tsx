@@ -4,7 +4,7 @@
  */
 'use client';
 
-import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Spinner } from './LoadingSkeleton';
 import SpecRenderer from './SpecRenderer';
@@ -667,6 +667,59 @@ const linkMetaFor = (link: any, inspectId: string | null): { label: string; colo
 const EMPTY_ADD = { supplier_model: '', internal_description: '', brand: '', category: '', unit: '', specifications: '', datasheet_url: '', norm_value: '' };
 
 /**
+ * The shell a row's ⋯ menu is drawn in.
+ *
+ * PORTALLED TO THE BODY, and that is the whole reason it exists. The table
+ * lives inside a card with `backdrop-blur-sm`, and a backdrop-filter makes its
+ * element a CONTAINING BLOCK for `position: fixed` descendants — so a menu
+ * rendered inside the row was positioned against the card rather than the
+ * viewport and opened exactly the card's own offset too low. Measured in
+ * Chromium: a button whose bottom sits at 347px got a menu at 648px, adrift by
+ * 301px, the card's distance from the top of the page (owner, 2026-08-24:
+ * "the pop up menu is far below the row it should be").
+ *
+ * Every other overlay in this file already portals for this reason — the hover
+ * peek, the inspect drawer, the import wizard. This one now does too.
+ *
+ * It also flips ABOVE its button when there is no room below, measured from
+ * the menu's own height rather than a guessed constant.
+ */
+function RowActionsMenu({ anchor, onClose, children }: {
+  anchor: { top: number; bottom: number; left: number; right: number };
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  // Measured and written straight onto the node, pre-paint. No state: the
+  // height is a fact about the DOM, and routing it through a render only buys
+  // a second pass (and the cascading-render lint rule is right about that).
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const h = el.getBoundingClientRect().height;
+    const below = anchor.bottom + 6;
+    // Below the button unless that runs off the bottom of the window; then
+    // above it, and never off the top either.
+    el.style.top = `${below + h <= window.innerHeight - 8 ? below : Math.max(8, anchor.top - 6 - h)}px`;
+  }, [anchor]);
+  if (typeof document === 'undefined') return null;
+  return createPortal(
+    <>
+      <div className="fixed inset-0 z-40" onClick={onClose} />
+      <div
+        ref={ref}
+        role="menu"
+        style={{ position: 'fixed', top: anchor.bottom + 6, right: Math.max(8, window.innerWidth - anchor.right) }}
+        className="z-50 w-52 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1.5 text-left"
+      >
+        {children}
+      </div>
+    </>,
+    document.body,
+  );
+}
+
+/**
  * One entry in a row's ⋯ menu — an icon, its name, and what it does.
  *
  * The names are the point. These five actions lived as bare icons in the row
@@ -823,7 +876,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
    * to get the rect of its own button, and now inherits the menu's.
    */
   const [rowMenu, setRowMenu] = useState<{
-    id: string; top: number; right: number;
+    id: string;
     anchor: { top: number; bottom: number; left: number; right: number };
   } | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -3776,8 +3829,6 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                               const r = e.currentTarget.getBoundingClientRect();
                               setRowMenu((m) => m?.id === c.component_id ? null : {
                                 id: c.component_id,
-                                top: r.bottom + 6,
-                                right: Math.max(8, window.innerWidth - r.right),
                                 anchor: { top: r.top, bottom: r.bottom, left: r.left, right: r.right },
                               });
                             }}
@@ -3816,11 +3867,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                           </button>
                         )}
                         {rowMenu?.id === c.component_id && (
-                          <>
-                            <div className="fixed inset-0 z-40" onClick={() => setRowMenu(null)} />
-                            <div role="menu"
-                              style={{ position: 'fixed', top: rowMenu.top, right: rowMenu.right }}
-                              className="z-50 w-52 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1.5 text-left">
+                          <RowActionsMenu anchor={rowMenu.anchor} onClose={() => setRowMenu(null)}>
                               <RowMenuItem
                                 label="Stock"
                                 hint="Physical · reserved · live"
@@ -3870,8 +3917,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                                   />
                                 </>
                               )}
-                            </div>
-                          </>
+                          </RowActionsMenu>
                         )}
                       </div>
                     </td>

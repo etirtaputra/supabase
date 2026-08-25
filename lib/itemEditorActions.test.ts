@@ -59,15 +59,17 @@ test('deleting still asks first, and asks inside the row', () => {
     'the menu entry must arm the confirm, not delete');
   assert.ok(src.includes('<span className="text-[11px] text-red-400">Delete?</span>'),
     'the Delete? confirm belongs in the row, beside the thing it would destroy');
+  // Compare against where the menu is USED, not where it is defined — the
+  // shell component sits above the table in the file.
   const confirmAt = src.indexOf('text-[11px] text-red-400">Delete?');
-  const menuAt = src.indexOf('role="menu"');
+  const menuAt = src.indexOf('<RowActionsMenu anchor=');
   assert.ok(confirmAt > 0 && menuAt > 0 && confirmAt < menuAt,
     'the confirm renders in the strip itself, before the menu');
 });
 
 test('the menu is anchored, dismissable, and passes its rect to the stock panel', () => {
   const src = readFileSync(EDITOR, 'utf8');
-  assert.ok(src.includes('<div className="fixed inset-0 z-40" onClick={() => setRowMenu(null)} />'),
+  assert.ok(src.includes('<div className="fixed inset-0 z-40" onClick={onClose} />'),
     'a click anywhere else must close the menu');
   assert.ok(src.includes('aria-haspopup="menu"') && src.includes('role="menuitem"'),
     'the ⋯ control and its entries need their roles');
@@ -99,4 +101,34 @@ test('hovering a row still opens the peek, from the control that replaced Inspec
   assert.ok(menuBtn > 0 && enter > menuBtn && enter < closes,
     'the peek belongs on the ⋯ button — hover for the summary, click for the actions');
   assert.ok(src.includes('setHoverPreviewId(null)'), 'and it must close when the pointer leaves');
+});
+
+/**
+ * The menu must be PORTALLED, or it opens in the wrong place.
+ *
+ * The table sits in a card with `backdrop-blur-sm`, and a backdrop-filter makes
+ * that element a containing block for `position: fixed` descendants. A menu
+ * rendered inside the row was therefore positioned against the CARD, not the
+ * viewport, and opened exactly the card's own offset too low — measured in
+ * Chromium: a button whose bottom was at 347px produced a menu at 648px, adrift
+ * by the card's 301px (owner: "the pop up menu is far below the row it should
+ * be"). Every other overlay in this file portals for the same reason.
+ */
+test('the row menu escapes the blurred card it is drawn inside', () => {
+  const src = readFileSync(EDITOR, 'utf8');
+  const shell = src.indexOf('function RowActionsMenu');
+  assert.ok(shell > 0, 'the menu needs its own shell so the portal lives in one place');
+  const portal = src.indexOf('createPortal(', shell);
+  const end = src.indexOf('function RowMenuItem', shell);
+  assert.ok(portal > shell && portal < end,
+    'RowActionsMenu must portal — fixed positioning inside the backdrop-blur card is measured against the card');
+  assert.ok(src.slice(shell, end).includes('document.body'), 'the portal target is the body');
+  // The row hands over an anchor rect and nothing else: the menu decides where
+  // it can fit, so a row near the bottom flips above its button.
+  assert.ok(/below \+ h <= window\.innerHeight - 8 \? below : Math\.max\(8, anchor\.top - 6 - h\)/.test(src),
+    'the menu must flip above its button when there is no room below');
+  assert.ok(/el\.style\.top = /.test(src),
+    'the measured position is written to the node, not pushed through a render');
+  assert.ok(!/top: r\.bottom \+ 6,\n\s+right:/.test(src),
+    'the row should no longer pre-compute the menu position');
 });

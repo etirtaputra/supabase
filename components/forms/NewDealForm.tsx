@@ -326,7 +326,14 @@ export default function NewDealForm({
     clearDraft();
   };
 
-  const lineInp = 'w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 focus:border-emerald-500/60 focus:outline-none text-xs text-white placeholder:text-slate-600 transition-colors';
+  // The line-input skin, split from its text colour: the currency SELECT needs
+  // a different one while it is empty. A <select> has no placeholder — its
+  // empty "Curr" option is a real option and renders in the element's own text
+  // colour, so it came out WHITE beside three grey placeholders (owner,
+  // 2026-08-24). Empty now reads slate-600, the same grey as the rest; a chosen
+  // currency reads white, the same as a filled field.
+  const lineInpBase = 'w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 focus:border-emerald-500/60 focus:outline-none text-xs placeholder:text-slate-600 transition-colors';
+  const lineInp = `${lineInpBase} text-white`;
 
   return (
     <form onSubmit={handleSubmit}
@@ -417,7 +424,8 @@ export default function NewDealForm({
                   title="Type = for a formula, e.g. =20.45*0.98" placeholder="Price" inputMode="decimal"
                   className={`${lineInp} col-span-2 md:col-span-1 text-right tabular-nums`} />
                 <select value={l.currency || header.currency || ''} onChange={(e) => setLine(l.key, { currency: e.target.value })}
-                  title="Line currency" className={`${lineInp} col-span-2 md:col-span-1 appearance-none`}>
+                  title="Line currency"
+                  className={`${lineInpBase} ${l.currency || header.currency ? 'text-white' : 'text-slate-600'} col-span-2 md:col-span-1 appearance-none`}>
                   <option value="">Curr</option>
                   {currencies.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>

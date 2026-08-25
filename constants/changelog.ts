@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-24T09:40:00Z',
+    title: 'The \u22ef menu opens beside its row again, and the Curr field stops shouting',
+    details: [
+      'The row menu was opening well below the row you clicked \u2014 far enough that it looked like it belonged to a different item. The table sits inside a card with a blurred background, and a blurred background quietly changes what \u201cfixed to the screen\u201d means for anything inside it: the menu was being positioned against the card instead of the window, so it fell by exactly the card\u2019s own distance down the page. Measured at 301 pixels out. It now draws outside the card, where it lands where it should.',
+      'It also flips above the button when the row is near the bottom of the screen, so the last rows in a long list no longer open a menu that runs off the edge.',
+      'On New Deal, the Curr box wrote its \u201cCurr\u201d prompt in white while Supplier description, Qty and Price wrote theirs in grey. A dropdown has no real placeholder \u2014 the word is an ordinary option, so it took the box\u2019s own text colour. Empty now reads the same grey as its neighbours, and turns white the moment you pick a currency, like every other filled field.',
+    ],
+  },
+  {
     at: '2026-08-24T08:30:00Z',
     title: 'Item Editor: the action column gives back 148 pixels of every row',
     details: [
