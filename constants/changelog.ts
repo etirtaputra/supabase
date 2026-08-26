@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-26T02:20:00Z',
+    title: 'The EN / ID switch now actually switches the app',
+    details: [
+      'Pressing EN or ID lit up the button and changed nothing else — the page stayed in whichever language it had loaded in, so the switch looked broken and the app could sit there highlighting EN while every word on screen was Indonesian. That is exactly what it was doing in the owner’s screenshot.',
+      'The cause: the language choice was being kept separately by each part of the screen that needed it. The switch kept its own copy, and so did every panel. Pressing the switch updated the switch’s copy and nobody else’s, so only a full page reload — where everything starts fresh and re-reads the saved choice — appeared to work.',
+      'There is one copy now, and everything watches it. Verified in a browser against six panels at once (Needs you today, Position, Stock alerts, Month in motion, Latest activity, Quick Actions): before the fix, pressing ID moved the button and left all six in English; after it, all six turn together, both directions, and the choice still survives a reload.',
+      'The choice remains personal to the browser you are on, and still falls back to the company default in Settings › Defaults for anyone who has never picked one.',
+    ],
+  },
+  {
     at: '2026-08-25T13:10:00Z',
     title: 'Document statuses read in Indonesian, on every list that shows one',
     details: [

@@ -5,6 +5,8 @@ import CategoryPositioningMap from '@/components/ui/CategoryPositioningMap';
 import { PALETTE_SCALES, PALETTE_STEPS, type ThemeName } from '@/constants/palette';
 import { mockMotion } from '@/lib/dev/mockChartData';
 import { THEMES } from '@/lib/theme';
+import { LANGUAGES } from '@/lib/language';
+import { useLanguage } from '@/hooks/useLanguage';
 import {
   mockComponents, mockSuppliers, mockPos, mockPoItems, mockPoCosts, mockQuotes, mockQuoteItems,
   mockQueue, mockActivity, mockNewArrivals, mockArriving, mockBoard, mockPayments, mockPosition,
@@ -26,6 +28,11 @@ import { arrangeWidgets, layoutForRole, roleLeadFor, type DashboardLayout } from
  */
 export default function Harness() {
   const [skin, setSkin] = useState<ThemeName>('terminal');
+  // The REAL switch, not a copy of it — every widget below is an independent
+  // useT() consumer, so this page answers the question the skin buttons
+  // cannot: does changing the language move the whole screen, or only the
+  // control you pressed? (It only moved the control until 2026-08-25.)
+  const { lang, setLang } = useLanguage();
 
   useEffect(() => {
     const el = document.documentElement;
@@ -54,6 +61,16 @@ export default function Harness() {
                   skin === t.value ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
                                    : 'border-slate-800 text-slate-500 hover:text-white hover:border-slate-600'}`}>
                 {t.label}
+              </button>
+            ))}
+            <span className="w-px h-4 bg-slate-800 mx-1" />
+            {LANGUAGES.map((l) => (
+              <button key={l.value} onClick={() => setLang(l.value)} aria-pressed={lang === l.value}
+                title={l.label}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors ${
+                  lang === l.value ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+                                   : 'border-slate-800 text-slate-500 hover:text-white hover:border-slate-600'}`}>
+                {l.short}
               </button>
             ))}
           </div>
