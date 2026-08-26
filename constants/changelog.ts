@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-26T06:30:00Z',
+    title: 'The arrow on every dropdown now sits properly inside its box',
+    details: [
+      'The little arrow on the right of a dropdown was almost touching the border — measured at under 5 pixels of clearance, against the 12 pixels the text gets on the other side. It now sits 12.7 pixels in, so both edges of the box read the same.',
+      'It could not be fixed by padding: the browser draws that arrow itself and pins it a fixed distance from the edge no matter what the page asks for (checked at four different paddings — the arrow did not move once). So the app draws the arrow now instead of the browser, which is also why it finally looks the same on an iPhone as it does on a desktop.',
+      'Done in one place, so it applies to every dropdown on every screen — all 141 of them — and to any screen added later. It also follows the colour scheme, so it stays readable on the light skins.',
+      'Two stragglers came along: the three dropdowns on the competitor-price form had no arrow at all and read as plain text boxes, and the form builder was drawing its own with a different symbol. Both use the same arrow as everything else now.',
+      'Left alone on purpose: the status pill on an EPC proposal and the currency box on a New Deal line, which both deliberately have no arrow because the space is too tight for one.',
+    ],
+  },
+  {
     at: '2026-08-26T04:05:00Z',
     title: 'Colour and language now sit at the top of the menu, on one line',
     details: [

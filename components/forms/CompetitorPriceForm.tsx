@@ -255,7 +255,10 @@ function Field({ label, req, children }: { label: string; req?: boolean; childre
 }
 
 const inputCls = 'w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all';
-const selectCls = inputCls + ' appearance-none cursor-pointer';
+// No `appearance-none`: these had it without ever drawing a chevron, so they
+// read as text inputs. The global select rule in app/layout.tsx gives them
+// the same chevron as every other dropdown.
+const selectCls = inputCls + ' cursor-pointer';
 
 // ─── Comparison panel ───────────────────────────────────────────────────────
 

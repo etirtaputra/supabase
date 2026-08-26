@@ -67,7 +67,7 @@ export default function FieldRenderer({
         <div className="relative">
           <select
             id={datalistId}
-            className={`${baseInputClasses} appearance-none`}
+            className={baseInputClasses}
             value={value || ''}
             onChange={(e) => onChange(field.name, e.target.value)}
             required={field.req}
@@ -86,9 +86,6 @@ export default function FieldRenderer({
               )
             )}
           </select>
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 text-xs">
-            ▼
-          </div>
         </div>
       ) : field.type === 'textarea' ? (
         <textarea

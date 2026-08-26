@@ -76,6 +76,51 @@ export default function RootLayout({
           :root { color-scheme: dark; }
           :root[data-theme="light"], :root[data-theme="paper"], :root[data-theme="terminal-light"] { color-scheme: light; }
           :root[data-theme="terminal"] { color-scheme: dark; }
+
+          /* ── The dropdown chevron (owner, 2026-08-26: "too close to the
+                border, for all dropdown menus") ──────────────────────────────
+
+             Chrome pins its own arrow FIVE pixels from the border and ignores
+             padding-right entirely — measured at px-3, pr-7, pr-8 and pr-9,
+             the arrow ended 5px from the edge in all four. Padding moves the
+             text, never the arrow. So the only way to give it room is to take
+             the arrow off the browser and draw it ourselves.
+
+             Done HERE rather than in 141 places: there are 141 select
+             elements across ~20 locally-defined class constants, with no
+             shared select class to edit. One rule covers every one of them,
+             every screen that gets added later, and Safari/iOS too — where
+             the native arrow was a different shape from Chrome's anyway.
+
+             ":not(.appearance-none)" leaves alone the handful that already
+             opt out and arrange their own (the EPC status pill is
+             "appearance-none text-center" and wants NO chevron at all). The
+             specificity — element + class — beats Tailwind's px-* utilities,
+             which is what lets one rule override every authored padding.
+
+             The colour is a variable so the chevron follows the skin; a
+             data-URI cannot interpolate a var(), so the whole url() is the
+             variable. */
+          :root { --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 9l-7 7-7-7'/%3E%3C/svg%3E"); }
+          :root[data-theme="light"], :root[data-theme="paper"], :root[data-theme="terminal-light"] {
+            --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+          }
+          select:not([multiple]):not([size]):not(.appearance-none) {
+            -webkit-appearance: none;
+            appearance: none;
+            background-image: var(--select-chevron);
+            background-repeat: no-repeat;
+            /* The chevron path fills only the middle 14/24 of its own box, so
+               the BOX is 15px to draw a glyph ~8.8px wide — the same visual
+               weight as the 8.5px arrow Chrome was drawing. Offsetting the box
+               by 9px lands the glyph's right edge 12px from the border, which
+               is the inset the text gets on the other side. */
+            background-position: right 9px center;
+            background-size: 15px 15px;
+            /* The glyph's LEFT edge lands 21px in; 28px keeps 7px of air
+               between it and the longest option text. */
+            padding-right: 1.75rem;
+          }
           /* iOS zooms into any focused field whose text is under 16px. Force
              16px on phones so tapping a search bar / input never zooms. The
              !important is needed to beat Tailwind's text-xs/text-sm utilities. */
