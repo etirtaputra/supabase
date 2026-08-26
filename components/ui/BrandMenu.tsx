@@ -329,6 +329,89 @@ export default function BrandMenu({
   // density is the feature here; the whole list should fit in one glance.
   const menuPanel = (
     <>
+      {/* ── Skin + language: ONE row, and the FIRST one ────────────────────
+             Two personal switches that between them are two circles and two
+             two-letter buttons. They used to sit at the very bottom of the
+             panel under four rows of chrome — a heading, a row of circles,
+             a second heading, a row of buttons — which on a phone meant
+             scrolling the whole menu to change the colour (owner, 2026-08-26).
+
+             The headings are what cost the rows, and they were the least
+             useful thing here: a filled circle and "EN / ID" say what they
+             are. They survive as `aria-label` on the two groups, so a screen
+             reader still hears "Appearance" and "Language" without either
+             costing a pixel.
+
+             `overflow-x-hidden` on the panel means a row that outgrows it is
+             CLIPPED, not scrolled — which is why the circles were put on their
+             own row in the first place. Measured inside the real w-56 panel
+             (212px of usable width, Rubik):
+
+               row as it stands          161px   51px spare
+               with a "More →" link      202px   10px spare
+               with "Lainnya →" (ID)     217px   OVER by 5px
+               ...and a third skin       243px   OVER by 31px, clipped
+
+             So the link to Settings › Appearance is an ICON, not words. A
+             text link fitted in English and did not fit in Indonesian — the
+             exact trap this menu is full of — and the icon is the same width
+             in both, with room left for a third skin. Its name lives in the
+             tooltip, like the circles beside it. */}
+      <div className="flex items-center gap-2 px-2.5 pt-1 pb-2 mb-0.5 border-b border-slate-800/70">
+        {/* Two skins in the menu; the other four live in Settings. One SOLID
+            circle each, painted the skin's own canvas colour, name in the
+            tooltip. */}
+        <div role="group" aria-label={t('Appearance')} className="flex items-center gap-1.5">
+          {THEMES.filter((th) => MENU_THEME_VALUES.includes(th.value)).map((th) => (
+            <button
+              key={th.value}
+              onClick={() => setTheme(th.value)}
+              aria-pressed={theme === th.value}
+              aria-label={th.label}
+              title={`${th.label} — ${th.blurb}`}
+              className={`w-5 h-5 rounded-full flex-shrink-0 transition-shadow ${
+                theme === th.value
+                  ? 'ring-2 ring-emerald-400'
+                  : 'ring-1 ring-slate-600 hover:ring-slate-400'
+              }`}
+              style={{ background: th.swatch.bg }}
+            />
+          ))}
+        </div>
+        <span aria-hidden className="w-px h-4 bg-slate-800 flex-shrink-0" />
+        {/* Settings › Defaults still decides what someone who has never chosen
+            sees; choosing here overrides it for this browser and is never
+            overwritten by a later company change. */}
+        <div role="group" aria-label={t('Language')} className="flex items-center gap-1">
+          {LANGUAGES.map((l) => (
+            <button
+              key={l.value}
+              onClick={() => setLang(l.value)}
+              aria-pressed={lang === l.value}
+              title={l.label}
+              className={`px-2 py-0.5 rounded-lg text-[11px] font-bold border transition-colors ${
+                lang === l.value
+                  ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+                  : 'border-slate-700 text-slate-500 hover:text-slate-200 hover:border-slate-500'
+              }`}>
+              {l.short}
+            </button>
+          ))}
+        </div>
+        {/* The other four skins live in Settings, where a house-wide look
+            belongs. Only offered to someone who can actually open it. */}
+        {perms?.canManageUsers && (
+          <Link href="/settings?tab=appearance" onClick={() => { setOpen(false); setMoreOpen(false); }}
+            aria-label={t('More skins and the company default')}
+            title={t('More skins and the company default')}
+            className="ml-auto flex-shrink-0 p-0.5 -m-0.5 text-slate-600 hover:text-emerald-300 transition-colors">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </Link>
+        )}
+      </div>
       {groups.map((group, gi) => (
         <div key={gi} className={gi > 0 ? 'mt-0.5 pt-0.5 border-t border-slate-800/70' : ''}>
           {group.title && <p className={`px-2.5 pt-1 pb-0.5 text-[9px] uppercase tracking-widest ${accentOf(group.section, group.title).label}`}>{t(group.title)}</p>}
@@ -368,69 +451,6 @@ export default function BrandMenu({
           ))}
         </div>
       )}
-      {/* Appearance — a personal preference, so it sits with the account
-          rather than in Settings (which holds company-wide defaults). */}
-      <div className="mt-1 pt-1.5 border-t border-slate-800/70">
-        <div className="px-2.5 py-1.5">
-          <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-            {t('Appearance')}
-            {/* The other four skins live in Settings, where a house-wide look
-                belongs. Only offered to someone who can actually open it. */}
-            {perms?.canManageUsers && (
-              <Link href="/settings?tab=appearance" onClick={() => setOpen(false)}
-                className="ml-auto font-semibold normal-case tracking-normal text-slate-500 hover:text-emerald-300 transition-colors">
-                {t('More →')}
-              </Link>
-            )}
-          </span>
-          {/* Four skins since 2026-08-01 (dark · dim · light · paper) — one
-              SOLID circle each, painted the skin's main canvas colour, on
-              their own row BELOW the label (owner's call: cleaner, and the
-              row can never outgrow the panel — a too-wide row once gave the
-              whole menu a sideways scroll that clipped every item's first
-              letters). The name lives in the tooltip. */}
-          <div className="flex items-center gap-2">
-            {THEMES.filter((t) => MENU_THEME_VALUES.includes(t.value)).map((t) => (
-              <button
-                key={t.value}
-                onClick={() => setTheme(t.value)}
-                aria-pressed={theme === t.value}
-                aria-label={t.label}
-                title={`${t.label} — ${t.blurb}`}
-                className={`w-5 h-5 rounded-full flex-shrink-0 transition-shadow ${
-                  theme === t.value
-                    ? 'ring-2 ring-emerald-400'
-                    : 'ring-1 ring-slate-600 hover:ring-slate-400'
-                }`}
-                style={{ background: t.swatch.bg }}
-              />
-            ))}
-          </div>
-        </div>
-        {/* Language — a personal comfort, so it sits beside the skin rather
-            than in Settings. Settings › Defaults still decides what someone
-            who has never chosen sees; choosing here overrides it for this
-            browser and is never overwritten by a later company change. */}
-        <div className="px-2.5 py-1.5">
-          <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">{t('Language')}</span>
-          <div className="flex items-center gap-1">
-            {LANGUAGES.map((l) => (
-              <button
-                key={l.value}
-                onClick={() => setLang(l.value)}
-                aria-pressed={lang === l.value}
-                title={l.label}
-                className={`px-2 py-1 rounded-lg text-[11px] font-bold border transition-colors ${
-                  lang === l.value
-                    ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
-                    : 'border-slate-700 text-slate-500 hover:text-slate-200 hover:border-slate-500'
-                }`}>
-                {l.short}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
       {/* Signed-in user + sign out — lives here so headers stay clean */}
       {profile && (
         <div className="mt-1 pt-1.5 border-t border-slate-800/70">

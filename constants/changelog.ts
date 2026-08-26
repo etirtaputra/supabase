@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-26T04:05:00Z',
+    title: 'Colour and language now sit at the top of the menu, on one line',
+    details: [
+      'Changing the colour or the language meant opening the menu and scrolling to the very bottom of it, past every module — on a phone that is the whole list. Both switches are now the first thing in the menu, before the modules.',
+      'They are also one line instead of four. Between them they are two coloured circles and two two-letter buttons; what was taking up the room was the two headings above them, and a filled circle and “EN / ID” already say what they are. The headings are still there for screen readers, they just no longer cost a row. The block went from 110 pixels tall to 36.',
+      'The link through to the other colour schemes is now the small gear at the end of the row. As words it read “Lainnya →” in Indonesian, which was 5 pixels too wide for the menu — and the menu clips rather than scrolls, so it would have been cut off. The gear is the same width in either language.',
+    ],
+  },
+  {
     at: '2026-08-26T02:20:00Z',
     title: 'The EN / ID switch now actually switches the app',
     details: [

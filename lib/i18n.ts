@@ -403,7 +403,7 @@ export const ID: Record<string, string> = {
   'Appearance': 'Tampilan',
   'Language': 'Bahasa',
   'More': 'Lainnya',
-  'More →': 'Lainnya →',
+  'More skins and the company default': 'Lebih banyak tampilan dan bawaan perusahaan',
   'Sign out': 'Keluar',
 
   // ── Dashboard panels (constants/dashboardWidgets.ts) ──────────────────────
