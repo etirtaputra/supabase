@@ -85,12 +85,16 @@ export const THEMES: {
     swatch: { bg: '#eaecef', card: '#f8f9fa', ink: '#26272b', accent: '#17937c' } },
   { value: 'paper', label: 'Paper', blurb: 'Warm light — cream, the gentlest for all-day reading',
     swatch: { bg: '#ece6d7', card: '#faf7ef', ink: '#2b2720', accent: '#17937c' } },
-  // The terminal pair (2026-08-21). Cues from a trading screen: flat
-  // near-black panels or plain white cards, hairline separators instead of
-  // ringed edges, market green/red rather than the house teal, squarer
-  // corners, and Inter with monospaced figures so columns of numbers line up.
-  { value: 'terminal', label: 'Terminal', blurb: 'Trading-desk dark — flat black panels, market green, lined-up figures',
-    swatch: { bg: '#0a0b0d', card: '#101114', ink: '#e2e5e9', accent: '#0ecb81' } },
+  // The terminal pair (2026-08-21). Cues from a trading screen: flat panels or
+  // plain white cards, hairline separators instead of ringed edges, market
+  // green/red rather than the house teal, squarer corners, and Inter with
+  // monospaced figures so columns of numbers line up.
+  // The dark one moved off near-black onto Dim's graphite on 2026-08-28 —
+  // near-black smears on the cheap panels the office runs. These swatches are
+  // painted with the REAL values, so they track TERMINAL_SURFACES in
+  // scripts/generate-palette.js and must be changed with it.
+  { value: 'terminal', label: 'Terminal', blurb: 'Trading-desk dark on graphite — kinder to office monitors, market green, lined-up figures',
+    swatch: { bg: '#1e222a', card: '#232730', ink: '#e8eaee', accent: '#0ecb81' } },
   { value: 'terminal-light', label: 'Terminal Light', blurb: 'Trading-desk light — white cards on soft grey, the same figures',
     swatch: { bg: '#f6f7f9', card: '#ffffff', ink: '#0d0e11', accent: '#089981' } },
 ];

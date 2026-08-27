@@ -55,12 +55,19 @@ test('every colour variable a screen names is defined by every skin', () => {
     `these resolve to nothing, so whatever they colour renders invisible: ${missing.join(', ')}`);
 });
 
-test('the default skin is a real skin, not an empty block', () => {
-  const def = blocks().find((b) => b.name === '(default)');
+test('the default skin is a real skin, and it is the terminal one', () => {
+  const all = blocks();
+  const def = all.find((b) => b.name === '(default)');
+  const term = all.find((b) => b.name === 'terminal');
   assert.ok(def, 'there must be an unattributed :root block — it is what most people see');
-  // The terminal page colour, which is what the default is meant to be.
-  assert.ok(def!.body.includes('--c-app-bg:10 11 13'),
-    'the unattributed default should be the terminal skin');
+  assert.ok(term, 'and a terminal block for it to agree with');
+  // Compared against the terminal block rather than a literal colour: this
+  // assertion used to hardcode the near-black page (--c-app-bg:10 11 13) and
+  // went red the moment the skin legitimately moved to graphite on
+  // 2026-08-28. What it is really guarding is that the two AGREE.
+  const appBg = (b: string) => /--c-app-bg:([^;}]*)/.exec(b)?.[1];
+  assert.equal(appBg(def!.body), appBg(term!.body),
+    'the unattributed default must be the terminal skin, whatever colour that is');
   assert.ok(def!.body.includes('--font-app:Inter'), 'and it should carry the terminal typeface');
 });
 

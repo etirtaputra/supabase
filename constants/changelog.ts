@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-28T00:20:00Z',
+    title: 'Terminal Dark is graphite now, not near-black',
+    details: [
+      'The dark skin sat on a true near-black page, which smears and bands on the cheaper monitors around the office. It now uses the same graphite the old Dim skin used — that skin was built for exactly this problem in August, so there was no reason to invent a second answer to it.',
+      'Everything else about Terminal is untouched: the same Inter typeface with monospaced figures so columns line up, the same market green and red, the same hairline panel edges. Only the surfaces moved.',
+      'The small grey text did NOT get harder to read, which is what usually happens when a dark background is lightened. The three working greys were lifted to hold exactly the contrast they had before — a plain copy of Dim would have dropped body text from 7.5:1 to 5.9:1 and the smallest print from 2.4:1 to 1.9:1. The red used for overdue and negative figures was lifted too, so it stays legible on a highlighted row.',
+      'If you prefer the old near-black, nothing is lost — but it is not on the skin list; say the word and it comes back as its own choice.',
+    ],
+  },
+  {
     at: '2026-08-27T23:25:00Z',
     title: 'Settings › Appearance now offers the two Terminal skins only',
     details: [

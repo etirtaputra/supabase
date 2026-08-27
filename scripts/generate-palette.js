@@ -146,13 +146,32 @@ for (const [name, hex] of Object.entries(PAPER_SURFACES)) paper[name] = { DEFAUL
 // untouched — the owner picks later.
 const terminal = clone(dark), terminalLight = clone(light);
 
-// DARK: flatter and deeper than the house dark. The surface steps go nearly
-// black and the borders stay a hair above them, which is what gives a
-// terminal its "panels floating on nothing" look rather than stacked cards.
+// DARK: GRAPHITE, not near-black (owner, 2026-08-28: "the dark color is hard
+// for some monitors"). It shipped at #0a0b0d — a true near-black, which is
+// exactly what smears and bands on the cheap panels the office runs. The
+// surface steps are now DIM's, verbatim: this repo already solved that problem
+// on 2026-08-01 and there is no reason to invent a second answer to it.
+//
+// What did NOT come from Dim is the ink. Dim let contrast fall from the
+// background side alone, deliberately — it was the gentler sibling of a skin
+// nobody had to use. Terminal is the DEFAULT now, so a straight copy would
+// have cost every reader legibility: measured, white 19.69→15.94, slate-400
+// 7.47→5.87, slate-500 4.17→3.26, slate-600 2.43→1.86. So the working range
+// of the ramp (600/500/400) is lifted to hold its CURRENT ratio against the
+// new canvas — 2.44 / 4.18 / 7.47 — and only the top (white, 300, 200) is
+// allowed to relax, where it still sits at 11–16:1.
+//
+// The borders still sit a hair above the surface, so the "panels floating on
+// nothing" arrangement survives the lift; it is the same skin on a lighter
+// desk, not a different one.
 const TERMINAL_FIX = {
   slate: {
-    950: '#0a0b0d', 900: '#101114', 800: '#1b1d21', 700: '#2a2d33', 600: '#4b5058',
-    500: '#6e747c', 400: '#9aa0a8', 300: '#c8ccd2', 200: '#e2e5e9', 100: '#f0f1f3', 50: '#f8f9fa',
+    // 950–700: Dim's surface steps, unchanged from DIM_FIX above
+    950: '#1a1d23', 900: '#232730', 800: '#2f343e', 700: '#3d434e',
+    // 600–400: lifted to hold today's contrast against the graphite canvas
+    600: '#595e65', 500: '#7e838a', 400: '#adb2b9',
+    // 300–50: allowed to relax; all still far above AA
+    300: '#d2d6db', 200: '#e8eaee', 100: '#f0f1f3', 50: '#f8f9fa',
   },
   // Market green: gains, confirmations, the primary action.
   emerald: {
@@ -161,16 +180,24 @@ const TERMINAL_FIX = {
   },
   // Market red: losses, overdue, destructive.
   rose: {
-    50: '#fdecee', 100: '#fbd3d7', 200: '#f6a7ae', 300: '#f07b85', 400: '#ea5560',
+    50: '#fdecee', 100: '#fbd3d7', 200: '#f6a7ae', 300: '#f07b85',
+    // 400 lifted #ea5560 → #ec6771: on the graphite surfaces the old value fell
+    // to 3.98 on a raised row, under AA. It clears 4.5 on all four now.
+    400: '#ec6771',
     500: '#e5484d', 600: '#c8353c', 700: '#a52a31', 800: '#82232a', 900: '#661d23', 950: '#380f13',
   },
 };
 for (const [scale, steps] of Object.entries(TERMINAL_FIX)) {
   for (const [step, hex] of Object.entries(steps)) terminal[scale][step] = hexToRgb(hex);
 }
+// Surfaces: Dim's graphite for the neutrals; moss/moss2/navy lifted to sit on
+// it but keeping TERMINAL's market green rather than borrowing Dim's house
+// teal — the accents are the skin's identity and were never the complaint.
+// (moss white-contrast 9.29, moss2 6.49, navy 13.73; navy-vs-canvas 1.16,
+// matching the 1.15 separation it had on near-black.)
 const TERMINAL_SURFACES = {
-  chrome: '#0d0e11', canvas: '#0a0b0d', sunken: '#0e1013', raised: '#16181c',
-  rail: '#101114', deep: '#08090b', navy: '#0e1520', moss: '#0a3d2a', moss2: '#0f5738',
+  chrome: '#181b21', canvas: '#1e222a', sunken: '#1a1e25', raised: '#272c35',
+  rail: '#20242c', deep: '#171a20', navy: '#1e2d4a', moss: '#10513a', moss2: '#166b4a',
 };
 for (const [name, hex] of Object.entries(TERMINAL_SURFACES)) terminal[name] = { DEFAULT: hexToRgb(hex) };
 
@@ -204,7 +231,7 @@ for (const [name, hex] of Object.entries(TERMINAL_LIGHT_SURFACES)) terminalLight
 
 const APP_BG_EXTRA = {
   dim: hexToRgb('#1e222a'), paper: hexToRgb('#ece6d7'),
-  terminal: hexToRgb('#0a0b0d'), 'terminal-light': hexToRgb('#f6f7f9'),
+  terminal: hexToRgb('#1e222a'), 'terminal-light': hexToRgb('#f6f7f9'),
 };
 
 // ── Type, as a theme token ──────────────────────────────────────────────────

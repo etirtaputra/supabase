@@ -21,7 +21,9 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   // The default skin's page colour — what a phone paints around the app.
-  themeColor: '#0a0b0d',
+  // Graphite since 2026-08-28; it must track TERMINAL_SURFACES.canvas in
+  // scripts/generate-palette.js or a phone frames the app in the wrong shade.
+  themeColor: '#1e222a',
 };
 
 /**
