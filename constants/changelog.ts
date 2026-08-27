@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-27T07:15:00Z',
+    title: 'Follow-up notes moved to the top of the proposal',
+    details: [
+      'The notes panel was near the bottom, under the totals and the energy figures — so answering “what is this one waiting on?” meant scrolling the whole proposal past every item group first. It is now the first thing on the page, above the proposal’s own fields.',
+      'To keep it from pushing the proposal down, settled notes fold away: you see what is still open, and “Show 3 settled notes” brings the history back when you want it. A note you tick off stays on screen, struck through, for the rest of that sitting — a tick should read as settled, not as deleted — and folds away with the others next time you open the page.',
+    ],
+  },
+  {
     at: '2026-08-27T04:10:00Z',
     title: 'EPC proposals can now carry follow-up notes, and the list shows what each one is waiting on',
     details: [

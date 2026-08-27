@@ -2034,6 +2034,21 @@ export default function QuoteEditorPage() {
           </p>
         )}
 
+        {/* ── Follow-up notes ──
+               FIRST, above the proposal's own fields (owner, 2026-08-27: "should
+               be at the top part"). It was under Energy Economics, which meant
+               scrolling the whole proposal past the item groups to answer "what
+               is this one waiting on?" — the question people open the page for.
+
+               It stays compact up there because SETTLED notes fold away behind
+               a count: what is still open is the state, the rest is history and
+               is one click from view.
+
+               NOT wrapped in the `locked` opacity/pointer-events the rest of
+               this page uses — a SENT proposal is precisely the one you need to
+               note "awaiting answer" against, and a note is never printed. */}
+        <QuoteNoteThread quoteId={id} authorEmail={gate.profile?.email ?? null} />
+
         {/* ── Header form ── */}
         <div className={`bg-slate-900/50 border border-slate-800 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-2 gap-4 ${locked ? 'pointer-events-none opacity-70' : ''}`}>
           <div>
@@ -3021,15 +3036,6 @@ export default function QuoteEditorPage() {
             locked={locked}
           />
         )}
-
-        {/* ── Follow-up notes ──
-               Above Terms & Conditions on purpose: this is the internal panel
-               someone opens the proposal to update, and Terms is the
-               customer-facing block underneath it. NOT wrapped in the `locked`
-               opacity/pointer-events the rest of the page uses — a SENT
-               proposal is precisely the one you need to note "awaiting answer"
-               against. */}
-        <QuoteNoteThread quoteId={id} authorEmail={gate.profile?.email ?? null} />
 
         {/* ── Terms & Conditions ── */}
         <div className={`bg-slate-900/50 border border-slate-800 rounded-2xl p-5 ${locked ? 'pointer-events-none opacity-70' : ''}`}>

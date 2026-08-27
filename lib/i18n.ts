@@ -86,6 +86,11 @@ export const isKeeper = (en: string): boolean => KEEPERS.includes(en);
  */
 export const ID: Record<string, string> = {
   // ── Follow-up notes on an EPC proposal (10.5_quote_notes) ────────────────
+  'Nothing open — this proposal is not waiting on anything.':
+    'Tidak ada yang terbuka — proposal ini tidak sedang menunggu apa pun.',
+  'Hide settled': 'Sembunyikan yang selesai',
+  'Show {n} settled note': 'Tampilkan {n} catatan selesai',
+  'Show {n} settled notes': 'Tampilkan {n} catatan selesai',
   'Follow-up notes': 'Catatan tindak lanjut',
   'internal — never shown to the customer': 'internal — tidak pernah ditampilkan ke pelanggan',
   '{n} open': '{n} terbuka',

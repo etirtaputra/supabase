@@ -34,6 +34,15 @@ export default function QuoteNoteThread({ quoteId, authorEmail }: {
   const [notes, setNotes] = useState<QuoteNote[] | null>(null);
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
+  // Settled notes stay folded. This panel now sits ABOVE the proposal's own
+  // fields, so a thread with a year of history would push the whole document
+  // down the page every time someone opened it. What is open is the state;
+  // the rest is the record, one click away.
+  const [showSettled, setShowSettled] = useState(false);
+  // A note ticked in this sitting stays on screen, struck through, rather than
+  // vanishing under the cursor — the tick should read as "settled", not as
+  // "deleted". It folds away with the rest next time the panel is opened.
+  const [justToggled, setJustToggled] = useState<number[]>([]);
 
   const load = useCallback(() => {
     fetchThread(supabase, quoteId).then((rows) => setNotes(threadOrder(rows))).catch(() => setNotes([]));
@@ -53,6 +62,7 @@ export default function QuoteNoteThread({ quoteId, authorEmail }: {
 
   const toggle = async (n: QuoteNote) => {
     const next = isOpen(n);
+    setJustToggled((prev) => (prev.includes(n.note_id) ? prev : [...prev, n.note_id]));
     // Optimistic: ticking is the most-repeated action here, and a round trip
     // before the line greys out makes it feel broken.
     setNotes((prev) => (prev ?? []).map((x) => (x.note_id === n.note_id
@@ -63,6 +73,11 @@ export default function QuoteNoteThread({ quoteId, authorEmail }: {
   };
 
   const open = (notes ?? []).filter(isOpen);
+  const settled = (notes ?? []).filter((n) => !isOpen(n));
+  const hiddenSettled = settled.filter((n) => !justToggled.includes(n.note_id)).length;
+  const shown = showSettled
+    ? (notes ?? [])
+    : (notes ?? []).filter((n) => isOpen(n) || justToggled.includes(n.note_id));
 
   return (
     <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5">
@@ -101,9 +116,13 @@ export default function QuoteNoteThread({ quoteId, authorEmail }: {
         <p className="text-[11px] text-slate-600 py-2">
           {t('Nothing noted yet. Anything written here shows on the EPC Proposals list until it is ticked off.')}
         </p>
+      ) : shown.length === 0 ? (
+        <p className="text-[11px] text-slate-600 py-2">
+          {t('Nothing open — this proposal is not waiting on anything.')}
+        </p>
       ) : (
         <ol className="space-y-1.5">
-          {notes.map((n) => {
+          {shown.map((n) => {
             const live = isOpen(n);
             return (
               <li key={n.note_id}
@@ -136,6 +155,15 @@ export default function QuoteNoteThread({ quoteId, authorEmail }: {
             );
           })}
         </ol>
+      )}
+
+      {hiddenSettled > 0 && (
+        <button onClick={() => setShowSettled((v) => !v)}
+          className="mt-2 text-[11px] font-semibold text-slate-500 hover:text-slate-300 transition-colors">
+          {showSettled
+            ? t('Hide settled')
+            : tf(hiddenSettled === 1 ? 'Show {n} settled note' : 'Show {n} settled notes', { n: hiddenSettled })}
+        </button>
       )}
     </div>
   );
