@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-08-27** · head of `main` at that point: `3cb809c`
+**Last updated: 2026-08-27** · head of `main` at that point: `e6a9b23`
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -32,7 +32,7 @@ item/price/spec data eventually feed a public website.
 - Do **not** open a pull request unless explicitly asked.
 - No `gh` CLI in this sandbox — use the `mcp__github__*` MCP tools if you need
   the GitHub API. Plain `git` over HTTPS works fine for fetch/push.
-- Head of `main` at handoff: `3cb809c` — "EPC section header: the title collapsed to 0px on a phone".
+- Head of `main` at handoff: `e6a9b23` — "Filter bar: one control height instead of five".
 
 ### Vercel — https://vercel.com/etirtaputras-projects/supabase/deployments
 - Production deploys **automatically from `main`**. Pushing to main IS the release.
@@ -120,6 +120,25 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 ## 4. What the previous threads did (for context, all shipped to main)
 
 ### 2026-08-27 (later) — the Products filter bar, and one bug found by screenshot
+
+- `e6a9b23` **Filter bars: one control height instead of five.** Owner, on the
+  shipped Products bar: *"why are the box or menu border of different size?"*
+  Measured: 44 (the h-11 fields) / 30.5 (Show, View) / 30 (date) / 26.5 (Text
+  quote) / 24.5 (Clear). The fields have an explicit height; every button was
+  sized by `py-*` plus font-size alone, each authored at a different time —
+  **there was no shared height token for the bar.** Not a new fault; folding
+  the bar to one line in `1e1c748` is what exposed it, because fields and
+  buttons used to wrap onto separate rows and read as two bands.
+  Now `h-11 sm:h-9` on all nine — 44px on phones (a text field under 44 is a
+  worse tap target, and the buttons gain one), 36px from sm up, and the row
+  gives back 8px. Buttons needed `inline-flex items-center` once their height
+  stopped coming from padding. Widths unmoved: still 1,267px for one line.
+  `DateRangeFilter` is shared by **eight** screens — checked first that their
+  own fields are h-11 (Sales, Invoices, Delivery) or h-10 (After Sales,
+  Support Letters), so 30 → 36 moves each toward its own fields, never away.
+  **Still ragged across screens, not raised as a task:** those field heights
+  are three different values (44 / 40 / padding-sized on Banks and Deal
+  Lookup). One height token for form controls would settle it app-wide.
 
 - `3cb809c` **EPC section header: the title field collapsed to 0px on a phone.**
   Owner screenshot, reported as "the pencil button is still too close to the
