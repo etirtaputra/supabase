@@ -38,6 +38,20 @@ export const DEFAULT_THEME: ThemeName = 'terminal';
 export const MENU_THEME_VALUES: ThemeName[] = ['terminal', 'terminal-light'];
 
 /**
+ * The skins Settings › Appearance OFFERS as a house default (owner, 2026-08-28:
+ * "do not delete but just hide the original 4 colors").
+ *
+ * Hidden, not removed. The four house skins still exist in THEMES, still have
+ * their palette blocks, still migrate (LEGACY_THEME_MIGRATION) and a browser
+ * already sitting on one keeps it — they are simply no longer offered as a NEW
+ * choice. Settings still SHOWS a legacy skin when it is the current default,
+ * because a setting you cannot see is worse than one you cannot pick.
+ *
+ * This is the same list the wordmark menu offers, so both places now agree.
+ */
+export const OFFERED_THEME_VALUES: ThemeName[] = ['terminal', 'terminal-light'];
+
+/**
  * What a browser that chose a skin BEFORE the terminal pair existed should
  * see now. The owner's rule: everyone lands on the terminal skin, but whether
  * it is the dark or the light one follows what they already preferred.

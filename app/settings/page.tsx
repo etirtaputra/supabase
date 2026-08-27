@@ -44,7 +44,7 @@ import { useDragReorder, DRAGGING_ROW, REORDER_ROW } from '@/components/ui/dragR
 import { ITEM_SCORE_FACTORS, DEFAULT_ITEM_SCORE_WEIGHTS, type ItemScoreWeights } from '@/lib/itemScore';
 import { PRESET_LABELS, type RangePreset } from '@/lib/dateRange';
 import { accountLabel, type BankAccount } from '@/lib/banks';
-import { THEMES, previewTheme, endThemePreview } from '@/lib/theme';
+import { THEMES, OFFERED_THEME_VALUES, previewTheme, endThemePreview } from '@/lib/theme';
 import Autocomplete from '@/components/ui/Autocomplete';
 import { fmtRupiah } from '@/lib/formatters';
 import Link from 'next/link';
@@ -419,8 +419,11 @@ function AppearanceTab({ draft, set }: { draft: AppSettings; set: <K extends key
             this default there, and is never overwritten by it.
           </p>
         </div>
-        <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
-          {THEMES.map((t) => {
+        {/* The terminal pair only — plus whatever the current default is, so a
+            company still sitting on a house skin can SEE its own setting even
+            though it is no longer on the menu. */}
+        <div className="grid sm:grid-cols-2 gap-3 max-w-3xl">
+          {THEMES.filter((t) => OFFERED_THEME_VALUES.includes(t.value) || t.value === draft.defaultTheme).map((t) => {
             const p = t.swatch;
             const active = draft.defaultTheme === t.value;
             return (
@@ -447,8 +450,9 @@ function AppearanceTab({ draft, set }: { draft: AppSettings; set: <K extends key
           })}
         </div>
         <p className="text-[11px] text-slate-600 leading-snug max-w-2xl">
-          For office monitors: <span className="text-slate-400">Dim</span> keeps the dark look without the harsh
-          near-black, and <span className="text-slate-400">Paper</span> is the gentlest for reading all day.
+          Both skins use <span className="text-slate-400">Inter</span> with monospaced figures, so columns of numbers
+          line up whichever one you pick — Terminal for a dim room, Terminal Light for a bright one. The older skins
+          (Dark, Dim, Light, Paper) are no longer offered; a browser already on one keeps it until its person changes.
         </p>
       </div>
     </div>

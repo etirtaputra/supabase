@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-27T23:25:00Z',
+    title: 'Settings › Appearance now offers the two Terminal skins only',
+    details: [
+      'Dark, Dim, Light and Paper are no longer offered as the company default — the choice is Terminal or Terminal Light, the same two the ICAPROC menu offers, so both places finally agree.',
+      'Nothing was deleted. The four older skins still exist and still render; a browser already on one keeps it until its person changes it, and if your company default is still one of them it is shown here so you can see what you are on.',
+      'Both Terminal skins use Inter with monospaced figures, which is what makes columns of numbers line up under each other.',
+    ],
+  },
+  {
     at: '2026-08-27T23:10:00Z',
     title: 'Header: the online-users pill and the header buttons now match',
     details: [
