@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-27T21:15:00Z',
+    title: 'Deal Lookup was hiding 207 of your 287 deals',
+    details: [
+      'The list stopped at the 80 most recent deals and said nothing about it. Everything older was invisible unless you searched for it by number — including eleven purchase orders that are Confirmed and still waiting on goods. All 287 deals are reachable now: each section shows its first 25 and a button that says exactly how many more it is holding back.',
+      'The counts were wrong for the same reason. The chip at the top counted every deal and said “Active (173)”, while the heading directly beneath it counted only what survived the cut and said “In process 39”. Both numbers are the real ones now.',
+      'A Draft purchase order is no longer counted as running money. 148 of your 222 POs are Drafts — never sent to a supplier, no goods coming — and every one is more than 90 days old, 125 of them more than a year. They were sitting in “In process”, the section whose job is showing what is actually moving. They have their own section now, and the “Ordered” tile counts the 25 POs that genuinely are.',
+    ],
+  },
+  {
     at: '2026-08-27T19:45:00Z',
     title: 'Filter bars: every box and button is the same height now',
     details: [

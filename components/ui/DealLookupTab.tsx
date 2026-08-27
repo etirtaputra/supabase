@@ -28,6 +28,11 @@ import { inRange, isOpenRange, type DateRange } from '@/lib/dateRange';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
+/** Rows a section renders before it offers "show all". Paging, not truncation:
+ *  the count beside the heading is always the true one. */
+const SECTION_PAGE = 25;
+const FLAT_PAGE = 50;
+
 const QUOTE_STATUSES = ['Open', 'Accepted', 'Replaced', 'Rejected', 'Expired'] as const;
 const PO_STATUSES    = ['Draft', 'Sent', 'Confirmed', 'Replaced', 'Partially Received', 'Fully Received', 'Cancelled'] as const;
 
@@ -330,12 +335,18 @@ function detectGroupMismatches(
 
 // ── Deal stage (module-level so useMemos can reference it) ────────────────────
 
-function dealStage(g: DealGroup): 'quote' | 'active' | 'received' | 'completed' | 'superseded' {
+function dealStage(g: DealGroup): 'quote' | 'draft' | 'active' | 'received' | 'completed' | 'superseded' {
   if (g.pos.length === 0) return 'quote';
   if (g.poStatus === 'Cancelled' || g.poStatus === 'Replaced') return 'superseded';
   if (g.poStatus === 'Fully Received') {
     return (g.totalIdr > 0 && g.outstandingIdr === 0) ? 'completed' : 'received';
   }
+  // A DRAFT PO has not been issued to anybody — no money is running against it
+  // and no goods are coming. Counting it as "active" put 148 unissued POs into
+  // the section whose whole job is showing the running money (measured
+  // 2026-08-27: 148 Drafts against 25 genuinely Confirmed, 125 of the Drafts
+  // over a year old, the newest from 2025-11-18).
+  if (g.poStatus === 'Draft') return 'draft';
   return 'active';
 }
 
@@ -343,10 +354,11 @@ function dealStage(g: DealGroup): 'quote' | 'active' | 'received' | 'completed' 
  *  an OPEN quote is a decision waiting to be made and must not drown between
  *  running POs. An ACCEPTED quote is already in motion even before its PO
  *  exists; a rejected/expired one is dead weight and sinks to the bottom. */
-type DealSection = 'open' | 'process' | 'received' | 'completed' | 'void';
+type DealSection = 'open' | 'process' | 'draft' | 'received' | 'completed' | 'void';
 function dealSection(g: DealGroup): DealSection {
   const stage = dealStage(g);
   if (stage === 'active') return 'process';
+  if (stage === 'draft') return 'draft';
   if (stage === 'received') return 'received';
   if (stage === 'completed') return 'completed';
   if (stage === 'superseded') return 'void';
@@ -361,6 +373,7 @@ const DEAL_SECTIONS: { key: DealSection; label: string; accent: string; hint: st
   // the decision pile right under it.
   { key: 'process',   label: 'In process',                  accent: 'text-indigo-300',  hint: 'Accepted quotes and active POs — ordered or about to be, goods not fully in.' },
   { key: 'open',      label: 'Quotes — awaiting an answer', accent: 'text-emerald-300', hint: 'No PO yet and not accepted — decide, negotiate, or let them lapse.' },
+  { key: 'draft',     label: 'Drafts — never issued',       accent: 'text-slate-500',   hint: 'Purchase orders still in Draft: not sent to the supplier, no goods coming, no money running. Issue one or let it go.' },
   { key: 'received',  label: 'Received — balance open',     accent: 'text-emerald-400', hint: 'Goods fully received, supplier not fully paid.' },
   { key: 'completed', label: 'Completed',                   accent: 'text-slate-400',   hint: 'Received and settled.' },
   { key: 'void',      label: 'Void / replaced',             accent: 'text-slate-600',   hint: 'Cancelled, replaced, rejected or expired.' },
@@ -419,7 +432,7 @@ export default function DealLookupTab({
 
   const [viewMode, setViewMode]               = useState<'all' | 'by-vendor' | 'by-company'>('all');
   const [search, setSearch]                   = useState(initialSearch ?? '');
-  const [stageFilter, setStageFilter]         = useState<'all' | 'quote' | 'active' | 'received' | 'completed' | 'superseded'>('all');
+  const [stageFilter, setStageFilter]         = useState<'all' | 'quote' | 'draft' | 'active' | 'received' | 'completed' | 'superseded'>('all');
   const [filterMismatch, setFilterMismatch]   = useState(false);
   // Deals filter on latestDate = max(quote date, PO date) — the date the deal
   // last moved, which is what "POs this month" means on the buy side.
@@ -431,6 +444,10 @@ export default function DealLookupTab({
   const [layout, setLayout]                   = useListLayout('deals');
   const tableView = layout === 'compact';
   const [expandedKey, setExpandedKey]         = useState<string | null>(null);
+  // Which sections the user has asked to see in full. A section renders its
+  // first PAGE rows and says how many it is holding back — never a silent cut.
+  const [fullSections, setFullSections]       = useState<Set<DealSection>>(new Set());
+  const [flatShowAll, setFlatShowAll]         = useState(false);
   // Column-header sort for the table view: click a title to sort by it, click
   // again to flip. Text columns start A→Z; date and money start biggest-first.
   const [colSort, setColSort] = useState<{ key: 'pi' | 'supplier' | 'date' | 'stage' | 'total' | 'paid' | 'outstanding'; dir: 'asc' | 'desc' } | null>(null);
@@ -543,17 +560,18 @@ export default function DealLookupTab({
 
   // ── Portfolio summary counts ──────────────────────────────────────────────
   const summary = useMemo(() => {
-    let openQuotes = 0, activePOs = 0, received = 0, completed = 0, superseded = 0, outstandingTotal = 0;
+    let openQuotes = 0, activePOs = 0, drafts = 0, received = 0, completed = 0, superseded = 0, outstandingTotal = 0;
     for (const g of allGroups) {
       const s = dealStage(g);
       if (s === 'quote')          openQuotes++;
+      else if (s === 'draft')     drafts++;
       else if (s === 'active')    activePOs++;
       else if (s === 'received')  received++;
       else if (s === 'completed') completed++;
       else if (s === 'superseded') superseded++;
       outstandingTotal += g.outstandingIdr;
     }
-    return { openQuotes, activePOs, received, completed, superseded, outstandingTotal, total: allGroups.length };
+    return { openQuotes, activePOs, drafts, received, completed, superseded, outstandingTotal, total: allGroups.length };
   }, [allGroups]);
 
   // ── Groups with quote↔PO mismatches ──────────────────────────────────────
@@ -575,7 +593,14 @@ export default function DealLookupTab({
     let base = stageFilter === 'all' ? allGroups : allGroups.filter((g) => dealStage(g) === stageFilter);
     if (!isOpenRange(range)) base = base.filter((g) => inRange(g.latestDate, range));
     if (filterMismatch) base = base.filter((g) => mismatchGroupIds.has(g.key) && !acknowledgedDealMismatches.has(g.key));
-    if (!q) return base.slice(0, 80);
+    // NOT capped. This used to be `base.slice(0, 80)`, which silently hid 207
+    // of 287 deals — including ELEVEN Confirmed POs, ordered and unreceived,
+    // findable only by typing their number (measured 2026-08-27). It also made
+    // the section headings disagree with the chips above them: the chip counted
+    // every deal and read "Active (173)" while the heading counted the capped
+    // 80 and read "In process 39". Rendering is paged per section instead, and
+    // the page says what it is holding back.
+    if (!q) return base;
     return base.filter((g) => {
       const code = g.supplier?.supplier_code?.toLowerCase() ?? '';
       const name = g.supplier?.supplier_name?.toLowerCase() ?? '';
@@ -2118,6 +2143,8 @@ export default function DealLookupTab({
 
   const STAGE_CLS = {
     quote:      { row: 'border-white/10 hover:bg-white/5',                               open: 'bg-white/5 border-white/15' },
+    // Draft reads quieter than active on purpose — it is paperwork, not money
+    draft:      { row: 'border-white/5 hover:bg-white/5',                                open: 'bg-white/5 border-white/10' },
     active:     { row: 'bg-blue-500/5 border-blue-500/10 hover:bg-blue-500/10',          open: 'bg-blue-500/10 border-blue-500/20' },
     received:   { row: 'bg-emerald-500/5 border-emerald-500/10 hover:bg-emerald-500/10', open: 'bg-emerald-500/10 border-emerald-500/15' },
     completed:  { row: 'bg-emerald-500/10 border-emerald-500/15 hover:bg-emerald-500/15', open: 'bg-emerald-500/15 border-emerald-500/25' },
@@ -2288,7 +2315,7 @@ export default function DealLookupTab({
 
   const renderDealTable = (groups: DealGroup[]) => {
     // Header sort overrides the incoming order until cleared by another click
-    const STAGE_ORDER = ['quote', 'active', 'received', 'completed', 'superseded'];
+    const STAGE_ORDER = ['quote', 'draft', 'active', 'received', 'completed', 'superseded'];
     const refOf = (g: DealGroup) => g.piNumber ?? (g.quotes[0] ? `Q#${g.quotes[0].quote_id}` : `PO#${g.pos[0]?.po_number ?? g.key}`);
     const sortedGroups = !colSort ? groups : [...groups].sort((a, b) => {
       let cmp = 0;
@@ -2332,10 +2359,10 @@ export default function DealLookupTab({
             const dealRef = g.piNumber ?? (g.quotes[0] ? `Q#${g.quotes[0].quote_id}` : `PO#${g.pos[0]?.po_number ?? g.key}`);
             const paidPct = g.totalIdr > 0 ? Math.min(100, (g.paidIdr / g.totalIdr) * 100) : 0;
             const stageLabel: Record<string, string> = {
-              quote: 'Quote', active: 'Active PO', received: 'Received', completed: 'Completed', superseded: 'Void',
+              quote: 'Quote', draft: 'Draft PO', active: 'Active PO', received: 'Received', completed: 'Completed', superseded: 'Void',
             };
             const stageTxtCls: Record<string, string> = {
-              quote: 'text-slate-400', active: 'text-indigo-300', received: 'text-emerald-300', completed: 'text-emerald-400', superseded: 'text-slate-600',
+              quote: 'text-slate-400', draft: 'text-slate-500', active: 'text-indigo-300', received: 'text-emerald-300', completed: 'text-emerald-400', superseded: 'text-slate-600',
             };
             return (
               <Fragment key={g.key}>
@@ -2514,7 +2541,7 @@ export default function DealLookupTab({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
             {[
               { label: 'Open Quotes', value: summary.openQuotes, color: 'text-slate-300' },
-              { label: 'Active POs',  value: summary.activePOs,  color: 'text-blue-300'  },
+              { label: 'Ordered',     value: summary.activePOs,  color: 'text-blue-300'  },
               { label: 'Received',    value: summary.received,   color: 'text-emerald-300' },
               { label: 'Completed',   value: summary.completed,  color: 'text-emerald-400' },
             ].map(({ label, value, color }) => (
@@ -2537,6 +2564,7 @@ export default function DealLookupTab({
           <div className="flex flex-wrap items-center gap-3 mb-4 text-[11px] text-slate-600">
             {[
               { label: 'Quote',     cls: 'bg-white/15' },
+              { label: 'Draft PO',  cls: 'bg-white/8' },
               { label: 'Active PO', cls: 'bg-blue-500/50' },
               { label: 'Received',  cls: 'bg-emerald-500/40' },
               { label: 'Completed', cls: 'bg-emerald-500/70' },
@@ -2556,6 +2584,7 @@ export default function DealLookupTab({
                 { key: 'all' as const,        label: `All (${summary.total})` },
                 { key: 'quote' as const,      label: `Quotes (${summary.openQuotes})` },
                 { key: 'active' as const,     label: `Active (${summary.activePOs})` },
+                { key: 'draft' as const,      label: `Drafts (${summary.drafts})` },
                 { key: 'received' as const,   label: `Received (${summary.received})` },
                 { key: 'completed' as const,  label: `Done (${summary.completed})` },
                 { key: 'superseded' as const, label: `Void (${summary.superseded})` },
@@ -2606,14 +2635,28 @@ export default function DealLookupTab({
           {filtered.length === 0 ? (
             <p className="text-xs text-slate-600 italic py-6 text-center">No deals found</p>
           ) : stageFilter !== 'all' ? (
-            tableView ? renderDealTable(filtered) : (
-              <div className="space-y-1.5">{filtered.map((g) => renderDealRow(g))}</div>
-            )
+            (() => {
+              const shown = flatShowAll ? filtered : filtered.slice(0, FLAT_PAGE);
+              return (
+                <>
+                  {tableView ? renderDealTable(shown) : (
+                    <div className="space-y-1.5">{shown.map((g) => renderDealRow(g))}</div>
+                  )}
+                  {filtered.length > shown.length && (
+                    <button onClick={() => setFlatShowAll(true)}
+                      className="mt-2 w-full py-2 rounded-lg border border-slate-800 text-[11px] text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors">
+                      Show all {filtered.length} — {filtered.length - shown.length} more not shown
+                    </button>
+                  )}
+                </>
+              );
+            })()
           ) : (
             <div className="space-y-5">
               {DEAL_SECTIONS.map(({ key, label, accent, hint }) => {
                 const rows = filtered.filter((g) => dealSection(g) === key);
                 if (!rows.length) return null;
+                const shown = fullSections.has(key) ? rows : rows.slice(0, SECTION_PAGE);
                 const out = key === 'process' || key === 'received'
                   ? rows.reduce((s, g) => s + (g.outstandingIdr || 0), 0) : 0;
                 return (
@@ -2625,8 +2668,14 @@ export default function DealLookupTab({
                         <span className="ml-auto text-[10px] text-slate-500 tabular-nums">outstanding {fmtIdr(out)}</span>
                       )}
                     </div>
-                    {tableView ? renderDealTable(rows) : (
-                      <div className="space-y-1.5">{rows.map((g) => renderDealRow(g))}</div>
+                    {tableView ? renderDealTable(shown) : (
+                      <div className="space-y-1.5">{shown.map((g) => renderDealRow(g))}</div>
+                    )}
+                    {rows.length > shown.length && (
+                      <button onClick={() => setFullSections((prev) => new Set(prev).add(key))}
+                        className="mt-2 w-full py-2 rounded-lg border border-slate-800 text-[11px] text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors">
+                        Show all {rows.length} — {rows.length - shown.length} more not shown
+                      </button>
                     )}
                   </div>
                 );
