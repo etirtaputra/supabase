@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-08-27** · head of `main` at that point: `e6a9b23`
+**Last updated: 2026-08-27** · head of `main` at that point: `4aeba7f`
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -32,7 +32,7 @@ item/price/spec data eventually feed a public website.
 - Do **not** open a pull request unless explicitly asked.
 - No `gh` CLI in this sandbox — use the `mcp__github__*` MCP tools if you need
   the GitHub API. Plain `git` over HTTPS works fine for fetch/push.
-- Head of `main` at handoff: `e6a9b23` — "Filter bar: one control height instead of five".
+- Head of `main` at handoff: `4aeba7f` — "Deal Lookup: stop hiding 207 deals".
 
 ### Vercel — https://vercel.com/etirtaputras-projects/supabase/deployments
 - Production deploys **automatically from `main`**. Pushing to main IS the release.
@@ -120,6 +120,45 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 ## 4. What the previous threads did (for context, all shipped to main)
 
 ### 2026-08-27 (later) — the Products filter bar, and one bug found by screenshot
+
+- `4aeba7f` **Deal Lookup: a silent 80-row cap, and Drafts counted as running
+  money.** Owner asked "what would you improve here?" — answered by counting
+  production, not by reading the screen.
+  **The cap:** `filtered` ended in `base.slice(0, 80)` whenever search was
+  empty. 287 deals exist; **207 were unreachable**, including **11 Confirmed
+  POs** (ordered, unreceived). It also made the screen disagree with itself —
+  chips are computed from the full set ("Active (173)"), section headings from
+  the capped 80 ("In process 39"), eight pixels apart. Uncapped now; each
+  section pages at 25 with a button naming what it holds back.
+  **The stage:** `dealStage` returned `'active'` for anything not
+  Cancelled/Replaced/Fully Received, so 148 Draft POs sat in the section whose
+  job is the running money. Every Draft is >90 days old, 125 >1 year, newest
+  2025-11-18. New `'draft'` stage + "Drafts — never issued" section; the tile
+  is "Ordered" and counts 25.
+
+  **STILL OPEN, owner said leave it for now (2026-08-27): four POs carry a USD
+  exchange rate on a CNY amount.** PIO-2026013 (17,881), EB.42277 (17,822),
+  EB.42278 (17,882), PIO-2026011 (17,822) — all Shenzhen Kstar, all raised
+  7–12 Aug 2026. The same supplier's other CNY POs use 2,427 / 2,502 / 2,643,
+  and every other CNY PO in the book sits between 2,244 and 2,658, so the
+  currency is right and the RATE is wrong. Overstates committed value by
+  **Rp 24.76bn**, in the four largest Confirmed POs on the board. Data not
+  touched. The durable fix is a per-currency plausibility band held as DATA
+  (like margin profiles) plus a row flag, riding the mismatch machinery
+  Deal Lookup already renders via `checkPoTotal`/`totalDisagrees`.
+
+  **Two SQL traps that cost me wrong numbers out loud — inherit these:**
+  `sum(x) filter (where …)` returns NULL when nothing matches, and NULL + n is
+  NULL, so a two-branch sum silently reports 0. And **a `6.0_po_costs` row can
+  be `currency='IDR'` AND carry an `exchange_rate`** — the amount is already in
+  rupiah and the rate is provenance, not a multiplier. Re-applying it gave me
+  Rp 45 *trillion* on one row. `costToIdr` in `lib/dealGroups.ts` gets this
+  right; copy its rule, do not write your own.
+
+  **Other findings, not acted on:** 157 of 222 POs have neither a PI number nor
+  a quote link, so the quote→PO→payment chain the screen is built around is
+  unavailable for 71% of them; 15 Confirmed POs are >90 days old (avg 131,
+  oldest 315); 42 Open quotes are >90 days old, oldest 2025-04-23.
 
 - `e6a9b23` **Filter bars: one control height instead of five.** Owner, on the
   shipped Products bar: *"why are the box or menu border of different size?"*
