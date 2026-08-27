@@ -812,6 +812,11 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
   const [filterHasLeadTime, setFilterHasLeadTime] = useState(false);
   const [filterHasCashCycle, setFilterHasCashCycle] = useState(false);
   const [filterLowMargin, setFilterLowMargin] = useState(false);
+  // THE AUDIT: items whose real margin (sell price vs TUC) sits outside the
+  // band their own profile sets. Distinct from Low Margin, which measures every
+  // item against one number the user types — this measures each item against
+  // what IT is supposed to earn, which is the whole point of having tiers.
+  const [filterOffTarget, setFilterOffTarget] = useState(false);
   const [marginThreshold, setMarginThreshold] = useState(20);
   const [filterBelowMarket, setFilterBelowMarket] = useState(false);
   const [visibleCols, setVisibleCols] = useState<Record<ColKey, boolean>>(() => {
@@ -864,6 +869,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
         if (f.filterHasLeadTime) setFilterHasLeadTime(f.filterHasLeadTime);
         if (f.filterHasCashCycle) setFilterHasCashCycle(f.filterHasCashCycle);
         if (f.filterLowMargin) setFilterLowMargin(f.filterLowMargin);
+        if (f.filterOffTarget) setFilterOffTarget(f.filterOffTarget);
         if (f.marginThreshold != null) setMarginThreshold(f.marginThreshold);
         if (f.filterBelowMarket) setFilterBelowMarket(f.filterBelowMarket);
       }
@@ -874,10 +880,10 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
   useEffect(() => {
     try {
       localStorage.setItem('componentEditor_filters', JSON.stringify({
-        searchInput, filterBrand, filterCategory, filterPI, filterPO, filterSupplier, filterUnused, filterReorder, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs, filterHasLeadTime, filterHasCashCycle, filterLowMargin, marginThreshold, filterBelowMarket,
+        searchInput, filterBrand, filterCategory, filterPI, filterPO, filterSupplier, filterUnused, filterReorder, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs, filterHasLeadTime, filterHasCashCycle, filterLowMargin, marginThreshold, filterBelowMarket, filterOffTarget,
       }));
     } catch {}
-  }, [searchInput, filterBrand, filterCategory, filterPI, filterPO, filterSupplier, filterUnused, filterReorder, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs, filterHasLeadTime, filterHasCashCycle, filterLowMargin, marginThreshold, filterBelowMarket]);
+  }, [searchInput, filterBrand, filterCategory, filterPI, filterPO, filterSupplier, filterUnused, filterReorder, filterDuplicates, filterHasIntel, filterLinked, filterHasSpecs, filterHasLeadTime, filterHasCashCycle, filterLowMargin, marginThreshold, filterBelowMarket, filterOffTarget]);
 
   // ── Persist column visibility ─────────────────────────────────────────────
   useEffect(() => {
@@ -1410,6 +1416,16 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
       const gm = marginByComponent.get(c.component_id);
       return gm != null && gm < marginThreshold;
     });
+    if (filterOffTarget) result = result.filter((c) => {
+      const tid = tierIdOf(c);
+      const prof = tid ? profileById.get(tid) : null;
+      const st = marginStandingOf(marginByComponent.get(c.component_id), prof ?? null);
+      // Only 'below' and 'above' — an unclassified item, or one with no
+      // sell price or no settled PO to cost against, is not evidence of a
+      // pricing fault. It is a different gap, and the Unclassified filter and
+      // the blank GM already show it.
+      return st === 'below' || st === 'above';
+    });
     if (filterBelowMarket) result = result.filter((c) => {
       if (!c.selling_price_idr) return false;
       const mktIdr = marketAvgIdrByComponent.get(c.component_id);
@@ -1449,7 +1465,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
       const bv = ((b[sortCol as keyof Component] as string) || '').toLowerCase();
       return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
     });
-  }, [components, search, filterBrand, filterCategory, filterTier, tierIdOf, filterPI, filterPO, filterSupplier, filterUnused, filterReorder, filterDuplicates, filterHasIntel, filterTucHidden, optimistic, filterLinked, filterHasSpecs, filterHasLeadTime, filterHasCashCycle, filterLowMargin, marginThreshold, filterBelowMarket, sortCol, sortDir, usageMap, supplierNamesByComponent, duplicateModels, intelComponentIds, linkedComponentIds, compIdsWithLeadTime, compIdsWithCashCycle, sparklineLinesByComponent, marginByComponent, marketAvgIdrByComponent, lastPoByComponent, externalUsedIds, reorderById]);
+  }, [components, search, filterBrand, filterCategory, filterTier, tierIdOf, filterOffTarget, profileById, filterPI, filterPO, filterSupplier, filterUnused, filterReorder, filterDuplicates, filterHasIntel, filterTucHidden, optimistic, filterLinked, filterHasSpecs, filterHasLeadTime, filterHasCashCycle, filterLowMargin, marginThreshold, filterBelowMarket, sortCol, sortDir, usageMap, supplierNamesByComponent, duplicateModels, intelComponentIds, linkedComponentIds, compIdsWithLeadTime, compIdsWithCashCycle, sparklineLinesByComponent, marginByComponent, marketAvgIdrByComponent, lastPoByComponent, externalUsedIds, reorderById]);
 
   const toggleSort = (col: SortCol) => {
     if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -1719,7 +1735,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
     setSearchInput(''); setSearch('');
     setFilterBrand(''); setFilterCategory(''); setFilterTier(''); setFilterPI(''); setFilterPO(''); setFilterSupplier('');
     setFilterUnused(false); setFilterReorder(false); setFilterDuplicates(false); setFilterHasIntel(false); setFilterLinked(false); setFilterHasSpecs(false);
-    setFilterLowMargin(false); setFilterBelowMarket(false);
+    setFilterLowMargin(false); setFilterBelowMarket(false); setFilterOffTarget(false);
   };
 
   // ── Find & Replace logic ──────────────────────────────────────────────────
@@ -2798,6 +2814,19 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
             >
               Below Mkt{filterBelowMarket ? ` (${filtered.length})` : ''}
             </button>
+            {marginProfiles.length > 0 && (
+              <button
+                onClick={() => setFilterOffTarget((v) => !v)}
+                className={`py-1.5 px-2.5 md:py-2 md:px-3 rounded-lg text-xs md:text-sm font-semibold border transition-all flex-shrink-0 ${
+                  filterOffTarget
+                    ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+                    : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-amber-300 hover:border-amber-500/30'
+                }`}
+                title="Audit: items priced outside their own margin tier's target band (sell price vs TUC)"
+              >
+                Off Target{filterOffTarget ? ` (${filtered.length})` : ''}
+              </button>
+            )}
             <div className="flex items-center gap-1 flex-shrink-0">
               <button
                 onClick={() => setFilterLowMargin((v) => !v)}
@@ -3086,11 +3115,12 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
       </div>
 
       {/* Active filter chips */}
-      {(search || filterBrand || filterCategory || filterPI || filterPO || filterSupplier || filterUnused || filterDuplicates || filterHasIntel || filterLinked || filterHasSpecs || filterHasLeadTime || filterHasCashCycle || filterLowMargin || filterBelowMarket) && (
+      {(search || filterBrand || filterCategory || filterPI || filterPO || filterSupplier || filterUnused || filterDuplicates || filterHasIntel || filterLinked || filterHasSpecs || filterHasLeadTime || filterHasCashCycle || filterLowMargin || filterBelowMarket || filterOffTarget) && (
         <div className="px-4 md:px-5 py-2.5 border-b border-slate-800/60 flex flex-wrap items-center gap-1.5 bg-slate-950/30">
           {search && <ActiveChip label="Search" value={search} onClear={() => { setSearchInput(''); setSearch(''); }} />}
           {filterBrand && <ActiveChip label="Brand" value={filterBrand} onClear={() => setFilterBrand('')} />}
           {filterCategory && <ActiveChip label="Category" value={filterCategory} onClear={() => setFilterCategory('')} />}
+          {filterOffTarget && <ActiveChip label="Audit" value="Off target vs tier" onClear={() => setFilterOffTarget(false)} />}
           {filterTier && <ActiveChip label="Margin tier"
             value={filterTier === 'none' ? 'Unclassified' : (profileById.get(filterTier)?.label ?? filterTier)}
             onClear={() => setFilterTier('')} />}

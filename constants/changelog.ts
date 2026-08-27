@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-27T14:20:00Z',
+    title: 'Audit which items are priced outside their margin tier',
+    details: [
+      'The Item Editor has an Off Target button beside Low Margin. It shows every item whose real margin — selling price against TUC — sits outside the band its own tier sets, with the count on the button. Sort by margin to work down the worst first.',
+      'It is a different question from Low Margin, which measures every item against one percentage you type. Off Target measures each item against what THAT item is supposed to earn: 18% passes a Low Margin check at 15%, is comfortably on target for a Loss Leader, and is well short for Value Capture. Only the tier knows which.',
+      'Items with no tier, no selling price, or no settled purchase order to cost against are deliberately left out of the audit — none of those is evidence of a pricing fault, and the Unclassified filter already shows the first.',
+      'The cost basis is TUC, the same figure the GM column beside it shows: settled purchase orders only, each line carrying its share of freight, duty and bank fees, taxes excluded.',
+    ],
+  },
+  {
     at: '2026-08-27T12:40:00Z',
     title: 'Margin tiers — every item now says what margin it is supposed to earn',
     details: [
