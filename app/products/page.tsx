@@ -12,6 +12,7 @@
  */
 'use client';
 import { useState, useEffect, useMemo, useCallback, useRef, Fragment, Suspense } from 'react';
+import { createPortal } from 'react-dom';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -42,7 +43,6 @@ import { fmtDay, fmtDate, fmtInt, fmtRupiah } from '@/lib/formatters';
 import { INCOMING_PO_STATUSES, itemArrivals, itemArrivalDetails, type ItemArrival, type ArrivalDetail, type OpenPo, type ReceivedPo } from '@/lib/inTransit';
 import { useSettings } from '@/hooks/useSettings';
 import { PRODUCT_COLS } from '@/constants/productColumns';
-import LayoutToggle from '@/components/ui/LayoutToggle';
 import QuoteBasket, { useQuoteBasket } from '@/components/ui/QuoteBasket';
 import { buildQuoteMessage, shareOrCopy } from '@/lib/whatsappQuote';
 import { useListLayout } from '@/hooks/useListLayout';
@@ -132,7 +132,7 @@ export default function ProductsPage() {
 }
 
 function ProductsInner() {
-  const { t } = useT();
+  const { t, tf } = useT();
   const supabase = createSupabaseClient();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -214,7 +214,6 @@ function ProductsInner() {
       return next;
     });
   };
-  const [colsOpen, setColsOpen] = useState(false);
   const enforcedHidden = useMemo(() => new Set(settings.productHiddenColumns), [settings.productHiddenColumns]);
   const colOffered = useCallback((k: string) =>
     !enforcedHidden.has(k) && (k !== 'brand' || (!!profile && ROLE_PERMISSIONS[profile.role].canViewBrand)),
@@ -526,6 +525,14 @@ function ProductsInner() {
   };
 
   const hasFilters = !!(search.trim() || filterCategory || filterBrand || stockOnly || justArrived);
+  // What the "Show" button says. Named, not counted: "Priced" is on by
+  // default, and a default nobody can see is a narrowed list passing for the
+  // whole catalogue. Short forms here — the menu carries the full wording.
+  const showOn = useMemo(() => [
+    pricedOnly ? t('Priced') : null,
+    stockOnly ? t('In stock') : null,
+    justArrived ? t('New') : null,
+  ].filter(Boolean) as string[], [pricedOnly, stockOnly, justArrived, t]);
 
   async function saveMeta(componentId: string, patch: Partial<Pick<Comp, 'warranty' | 'datasheet_url' | 'warranty_value' | 'warranty_unit' | 'perf_warranty_value' | 'perf_warranty_unit'>>) {
     const { error } = await supabase.from('3.0_components').update(patch).eq('component_id', componentId);
@@ -669,12 +676,22 @@ function ProductsInner() {
       </div>
 
       <main className="max-w-[1600px] 2xl:max-w-[2120px] mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-5 space-y-4">
-        {/* Search + filters */}
+        {/* Search + filters ─────────────────────────────────────────────
+            Thirteen controls in one wrapping row needed 1,724px to sit on a
+            line; a 1536 laptop gives the row 1,488px and a 1366 gives 1,318,
+            so it wrapped to two rows on every machine except a 1920 monitor
+            (measured 2026-08-27). Grouping the three tick-boxes under "Show",
+            density + columns under "View", and moving the count inside the
+            search field takes it to eight controls and 1,251px — one line
+            from 1366 up. */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[200px]">
             <svg className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={canViewBrand ? 'Search model, description, brand, category…' : 'Search description, category…'}
-              className="w-full pl-10 pr-4 h-11 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors" />
+              className="w-full pl-10 pr-24 h-11 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors" />
+            {/* The count belongs to the search that produced it. As its own
+                ml-auto slot it cost the row 64px it could not spare. */}
+            <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-slate-600 tabular-nums pointer-events-none">{rows.length} of {comps.length}</span>
           </div>
           <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className={selCls}>
             <option value="">{t('All categories')}</option>
@@ -695,25 +712,28 @@ function ProductsInner() {
               </Fragment>
             ))}
           </select>
-          <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none whitespace-nowrap"
-            title={t('Only items with a sell price set — the default view; untick to include unpriced items')}>
-            <input type="checkbox" checked={pricedOnly} onChange={(e) => setPricedOnly(e.target.checked)} className="accent-emerald-500 w-4 h-4" />
-            Priced
-          </label>
-          <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none whitespace-nowrap">
-            <input type="checkbox" checked={stockOnly} onChange={(e) => setStockOnly(e.target.checked)} className="accent-emerald-500 w-4 h-4" />
-            In stock / incoming
-          </label>
-          <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none whitespace-nowrap"
-            title={`Items whose goods receipt landed in the last ${newArrivalDays} days — new products and fresh stock`}>
-            <input type="checkbox" checked={justArrived} onChange={(e) => setJustArrived(e.target.checked)} className="accent-sky-500 w-4 h-4" />
-            Just arrived
-          </label>
+          {/* Show — Priced, In stock and New under one control. The button
+              NAMES what is on rather than counting it: "Priced" is on by
+              default, and a default you cannot see is a filtered list passing
+              for the whole catalogue. Same reason the date button always
+              states its range. */}
+          <BarMenu width={256} active={showOn.length > 0}
+            title={t('Choose which items the list shows')}
+            label={showOn.length ? tf('Show · {list}', { list: showOn.join(', ') }) : t('Show')}>
+            <MenuCheck checked={pricedOnly} onChange={setPricedOnly} label={t('Priced')}
+              title={t('Only items with a sell price set — the default view; untick to include unpriced items')} />
+            <MenuCheck checked={stockOnly} onChange={setStockOnly} label={t('In stock / incoming')} />
+            {/* "New", not "Just arrived" (owner, 2026-08-27). The window is
+                Settings › Defaults › newArrivalDays, the same one the
+                dashboard's New arrivals panel uses — the tooltip carries the
+                meaning the shorter label sheds. */}
+            <MenuCheck checked={justArrived} onChange={setJustArrived} accent="sky" label={t('New')}
+              title={tf('Items whose goods receipt landed in the last {days} days — new products and fresh stock', { days: newArrivalDays })} />
+          </BarMenu>
           {hasFilters && (
             <button onClick={() => { setSearch(''); setFilterCategory(''); setFilterBrand(''); setStockOnly(false); setJustArrived(false); setPricedOnly(true); }}
               className="text-[11px] text-slate-500 hover:text-white px-2 py-1 transition-colors">{t('Clear ×')}</button>
           )}
-          <span className="text-xs text-slate-600 tabular-nums ml-auto">{rows.length} of {comps.length}</span>
           {/* "Text quote", not "Quote" — this builds a WhatsApp MESSAGE, it
               never creates a Sales Quotation document (owner, 2026-08-06). */}
           <button onClick={() => setMulti((m) => !m)}
@@ -726,35 +746,40 @@ function ProductsInner() {
             {multi ? `Text quote mode · ${basket.items.length}` : 'Text quote mode'}
           </button>
           <DateRangeFilter value={range} onChange={(r) => { listTouched.current = true; setRange(r); }} label="Order date" />
-          <LayoutToggle value={layout} onChange={setLayout} />
-          {/* Column picker (desktop table only). Owner-hidden columns are not
-              offered at all — a personal toggle can never reveal them. */}
-          <div className="relative hidden md:block">
-            <button onClick={() => setColsOpen((v) => !v)}
-              className="px-2.5 py-1.5 rounded-lg border border-slate-800 bg-slate-900/60 text-[11px] font-medium text-slate-400 hover:text-slate-200 transition-colors"
-              title={t('Choose which columns the table shows')}>
-              ▦ Columns
-            </button>
-            {colsOpen && (
-              <>
-                <div className="fixed inset-0 z-30" onClick={() => setColsOpen(false)} />
-                <div className="absolute right-0 top-full mt-1 z-40 w-48 rounded-xl border border-slate-700 bg-deep shadow-2xl p-2">
-                  {PRODUCT_COLS.filter((c) => colOffered(c.key)).map((c) => (
-                    <label key={c.key} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer text-xs text-slate-300">
-                      <input type="checkbox" checked={!userHiddenCols.has(c.key)} onChange={() => toggleCol(c.key)}
-                        className="accent-emerald-500" />
-                      {c.label}
-                    </label>
-                  ))}
-                  {settings.productHiddenColumns.length > 0 && (
-                    <p className="px-2 pt-1.5 mt-1 border-t border-slate-800 text-[10px] text-slate-600">
-                      {settings.productHiddenColumns.length} column{settings.productHiddenColumns.length !== 1 ? 's' : ''} hidden for everyone in Settings › Lists.
-                    </p>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
+          {/* View — how dense the list is, and which columns it shows. Owner-
+              hidden columns are not offered at all: a personal toggle can never
+              reveal what Settings › Lists hid. */}
+          <BarMenu width={208} title={t('List density and which columns the table shows')} label={t('View')}>
+            <p className="px-2 pb-1 text-[10px] uppercase tracking-widest text-slate-600">{t('Density')}</p>
+            {([['compact', t('Compact')], ['card', t('Card')]] as const).map(([v, lbl]) => (
+              <button key={v} onClick={() => setLayout(v)}
+                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${
+                  layout === v ? 'bg-emerald-500/15 text-emerald-300' : 'text-slate-300 hover:bg-white/5'
+                }`}>
+                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+                  {v === 'compact'
+                    ? <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                    : <path strokeLinecap="round" strokeLinejoin="round" d="M4 5h16v6H4zM4 13h16v6H4z" />}
+                </svg>
+                {lbl}
+              </button>
+            ))}
+            <div className="hidden md:block">
+              <p className="px-2 pt-1.5 mt-1 border-t border-slate-800 text-[10px] uppercase tracking-widest text-slate-600">{t('Columns')}</p>
+              {PRODUCT_COLS.filter((c) => colOffered(c.key)).map((c) => (
+                <label key={c.key} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer text-xs text-slate-300">
+                  <input type="checkbox" checked={!userHiddenCols.has(c.key)} onChange={() => toggleCol(c.key)}
+                    className="accent-emerald-500" />
+                  {c.label}
+                </label>
+              ))}
+              {settings.productHiddenColumns.length > 0 && (
+                <p className="px-2 pt-1.5 mt-1 border-t border-slate-800 text-[10px] text-slate-600">
+                  {settings.productHiddenColumns.length} column{settings.productHiddenColumns.length !== 1 ? 's' : ''} hidden for everyone in Settings › Lists.
+                </p>
+              )}
+            </div>
+          </BarMenu>
         </div>
 
         <p className="hidden md:block text-[11px] text-slate-600">
@@ -1035,6 +1060,83 @@ function ProductsInner() {
 }
 
 // ── Pieces ──────────────────────────────────────────────────────────────────
+/**
+ * The Products bar's dropdowns (Show, View).
+ *
+ * The panel is PORTALED to <body> and its left edge clamped to the viewport,
+ * the way DateRangeFilter does it. The column picker this grew out of used a
+ * plain `absolute right-0`, which was safe only because it was `md:`-and-up
+ * and last in the row. "Show" is on phones and sits mid-row, where a 256px
+ * panel anchored to either edge runs off the screen.
+ */
+function BarMenu({ label, title, active, width, children }: {
+  label: string; title: string; active?: boolean; width: number; children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  const place = useCallback(() => {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (!r) return;
+    const w = Math.min(width, window.innerWidth - 16);
+    // Hang from the button's right edge, then pull back inside the viewport
+    setPos({ top: r.bottom + 6, left: Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8)) });
+  }, [width]);
+
+  // Measured in the click, not in an effect: an effect that sets state on open
+  // costs a second render before the panel can paint, and eslint's
+  // set-state-in-effect rule is an error in this repo.
+  const toggle = useCallback(() => {
+    setOpen((v) => { if (!v) place(); return !v; });
+  }, [place]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [open, place]);
+
+  return (
+    <>
+      <button ref={btnRef} onClick={toggle} title={title}
+        className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-medium whitespace-nowrap transition-colors ${
+          active ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:text-slate-200'
+        }`}>
+        {label} ▾
+      </button>
+      {open && pos && createPortal(
+        <>
+          <div className="fixed inset-0 z-[130]" onClick={() => setOpen(false)} />
+          <div className="fixed z-[131] max-w-[calc(100vw-16px)] max-h-[70vh] overflow-y-auto rounded-xl border border-slate-700 bg-deep shadow-2xl p-2"
+            style={{ top: pos.top, left: pos.left, width }}>
+            {children}
+          </div>
+        </>, document.body)}
+    </>
+  );
+}
+
+/** One tick-item inside a BarMenu. */
+function MenuCheck({ checked, onChange, label, title, accent = 'emerald' }: {
+  checked: boolean; onChange: (v: boolean) => void; label: string; title?: string; accent?: 'emerald' | 'sky';
+}) {
+  return (
+    <label title={title} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer text-xs text-slate-300">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)}
+        className={`w-4 h-4 ${accent === 'sky' ? 'accent-sky-500' : 'accent-emerald-500'}`} />
+      {label}
+    </label>
+  );
+}
+
 const selCls = 'h-11 px-3 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-slate-300 text-xs transition-colors cursor-pointer';
 
 function CenterSpinner() {

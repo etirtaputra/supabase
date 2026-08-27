@@ -728,7 +728,21 @@ export const ID: Record<string, string> = {
     'Harga diatur di Purchasing › Items (Item Editor) — kolom Sell Price → Tiers',
   'Only items with a sell price set — the default view; untick to include unpriced items':
     'Hanya barang yang sudah ada harga jualnya — tampilan bawaan; hilangkan centang untuk memasukkan yang belum ada harganya',
-  'Choose which columns the table shows': 'Pilih kolom yang ditampilkan',
+  // The Products filter bar's two dropdowns (2026-08-27).
+  'Show': 'Tampilkan',
+  'Show · {list}': 'Tampilkan · {list}',
+  'Choose which items the list shows': 'Pilih barang mana yang ditampilkan daftar ini',
+  'Priced': 'Ada harga',
+  'In stock': 'Ada stok',
+  'In stock / incoming': 'Ada stok / dalam perjalanan',
+  'Items whose goods receipt landed in the last {days} days — new products and fresh stock':
+    'Barang yang penerimaannya masuk dalam {days} hari terakhir — produk baru maupun stok baru datang',
+  'View': 'Tampilan',
+  'List density and which columns the table shows': 'Kerapatan daftar dan kolom mana yang ditampilkan tabel',
+  'Density': 'Kerapatan',
+  'Compact': 'Ringkas',
+  'Card': 'Kartu',
+  'Columns': 'Kolom',
   'Drag to set the Description width — double-click to reset':
     'Geser untuk mengatur lebar kolom Description — klik dua kali untuk mengembalikan',
   'Open the item hub — buy, sell, stock, specs on one page':

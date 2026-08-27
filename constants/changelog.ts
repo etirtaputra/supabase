@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-27T17:30:00Z',
+    title: 'Products: “Just arrived” is now “New”, and the filter bar fits on one line',
+    details: [
+      '“Just arrived” is called “New” — the same word the tag on the row already uses, so the filter and the thing it finds finally match. It still means what it meant: a goods receipt inside the window set in Settings › Defaults, shared with the dashboard’s New arrivals panel. Hover it for the days.',
+      'The row had thirteen controls competing for one line and needed 1,724 pixels to hold them. A 1536 laptop gives it 1,488 and a 1366 gives 1,318, so it wrapped onto a second row on every machine except a 1920 monitor.',
+      'Priced, In stock / incoming and New now sit under one Show button, and the button says which of them are on rather than just counting them — a list narrowed by a default nobody can see is a list pretending to be the whole catalogue.',
+      'Compact / Card and the column picker sit under one View button, and the “91 of 990” count moved inside the search box where it belongs. Eight controls instead of thirteen, 1,268 pixels instead of 1,724 — one clean line from a 1366 laptop upwards, and one row shorter on a phone.',
+      'In Indonesian the words are longer and the row needs 1,349 pixels, so a 1366 screen still wraps; 1440 and up is one line.',
+    ],
+  },
+  {
     at: '2026-08-27T16:05:00Z',
     title: 'Item Editor: the Margin Tier column heading was the wrong size',
     details: [
