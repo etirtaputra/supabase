@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-27T23:10:00Z',
+    title: 'Header: the online-users pill and the header buttons now match',
+    details: [
+      'The green “who is online” pill and the button beside it were built differently — one a filled box with no outline at 11px, the other an outlined box with no fill at 10px — so they read as two different kinds of thing sitting together. Both are the same height, the same text size and the same box now, and they share one centre line.',
+    ],
+  },
+  {
     at: '2026-08-27T21:15:00Z',
     title: 'Deal Lookup was hiding 207 of your 287 deals',
     details: [

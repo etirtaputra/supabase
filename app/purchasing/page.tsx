@@ -1001,9 +1001,13 @@ function MasterInsertPage() {
           <BrandMenu wordmarkClass="text-lg md:text-xl xl:text-2xl font-bold" subtitle={`Purchasing${activeItem?.label ? ` · ${activeItem.label}` : ''}`} />
           {/* User badge + sign out — desktop only; mobile signs out via the ICAPROC menu */}
           {/* Account + Sign out live in the ICAPROC menu — headers stay clean. */}
+          {/* sm:self-center, not the header's items-end plus a pb nudge: this
+              cluster has to share a centre line with the online pill, which
+              BrandMenu centres in its own row. Bottom-aligning it left the two
+              boxes 2px apart once they were the same height (2026-08-27). */}
           {profile && perms?.canManageUsers && (
-            <div className="hidden sm:flex items-center gap-2 pb-1">
-              <Link href="/admin" className="hidden sm:inline-block text-[10px] px-2 py-1 border border-slate-700 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors">
+            <div className="hidden sm:flex items-center gap-2 sm:self-center">
+              <Link href="/admin" className="hidden sm:inline-flex items-center h-7 px-2 border border-slate-700 rounded-lg text-[11px] text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors">
                 Manage users
               </Link>
             </div>

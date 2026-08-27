@@ -7,6 +7,12 @@ import { initials, firstName } from '@/lib/presence';
 
 /**
  * "Who is online, looking at what" — the header pill next to the clock.
+ *
+ * h-7 and a TRANSPARENT border, not padding alone: this pill sits beside page
+ * header buttons that are 1px-bordered boxes, and a padding-sized box matches
+ * one only by luck of the font metrics (measured 2026-08-27: 24.5px against
+ * "Manage users" at 25px, agreeing to within half a pixel by accident). The
+ * transparent border keeps it quiet while giving it the same geometry.
  * Green dot + count; click opens a panel listing every signed-in colleague
  * and the screen they are on right now (live, via app-wide presence).
  * Clicking a person's location opens that screen for you too.
@@ -40,8 +46,8 @@ export default function OnlineUsers() {
     <div ref={boxRef} className="relative flex-shrink-0 print:hidden">
       <button onClick={() => setOpen((v) => !v)} aria-expanded={open}
         title={`${onlineCount} online — click to see who is looking at what`}
-        className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] tabular-nums transition-colors ${
-          open ? 'bg-slate-800 text-slate-200' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/60'}`}>
+        className={`flex items-center gap-1.5 h-7 px-2 rounded-lg border text-[11px] tabular-nums transition-colors ${
+          open ? 'bg-slate-800 border-slate-700 text-slate-200' : 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-slate-800/60'}`}>
         <span className="relative flex w-2 h-2">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-40" />
           <span className="relative inline-flex rounded-full w-2 h-2 bg-emerald-400" />
