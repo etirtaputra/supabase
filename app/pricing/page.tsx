@@ -27,6 +27,10 @@ import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { computeTierChain, roundUpToStep } from '@/lib/tierPricing';
+import {
+  fetchMarginProfiles, saveMarginProfile, createMarginProfile, deleteMarginProfile,
+  rangeError, type MarginProfile,
+} from '@/lib/marginProfiles';
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
 
@@ -59,7 +63,7 @@ const minPriceFor = (cost: number, floorPct: number): number | null => {
   return roundUpToStep(cost / (1 - floorPct / 100));
 };
 
-type Tab = 'tiers' | 'audit' | 'overrides';
+type Tab = 'tiers' | 'audit' | 'overrides' | 'profiles';
 
 interface Violation {
   comp: Comp; tier: Tier; price: number; cost: number; gp: number;
@@ -83,6 +87,24 @@ export default function PricingPage() {
   const [loading, setLoading] = useState(true);
   const [schemaMissing, setSchemaMissing] = useState(false);
   const [tab, setTab] = useState<Tab>('tiers');
+  const [marginProfiles, setMarginProfiles] = useState<MarginProfile[]>([]);
+  // How many items sit on each profile, and how many on none — the number that
+  // tells the owner whether the classification is actually finished.
+  const [profileCounts, setProfileCounts] = useState<Map<string, number>>(new Map());
+  const loadMarginProfiles = useCallback(async () => {
+    const [profiles, tally] = await Promise.all([
+      fetchMarginProfiles(supabase),
+      supabase.from('3.0_components').select('margin_profile_id').limit(20000),
+    ]);
+    setMarginProfiles(profiles);
+    const counts = new Map<string, number>();
+    for (const r of ((tally.data ?? []) as { margin_profile_id: string | null }[])) {
+      const k = r.margin_profile_id ?? 'none';
+      counts.set(k, (counts.get(k) ?? 0) + 1);
+    }
+    setProfileCounts(counts);
+  }, []);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { void loadMarginProfiles(); }, [loadMarginProfiles]);
   const [toast, setToast] = useState<string | null>(null);
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2600); };
 
@@ -386,7 +408,7 @@ export default function PricingPage() {
           <>
             {/* Tab bar — text-only underline, sell-side emerald */}
             <div className="flex items-center gap-5 border-b border-slate-800/80">
-              {([['tiers', 'Tiers'], ['audit', `Floor Audit${violations.length ? ` (${violations.length})` : ''}`], ['overrides', `Overrides${overrides.length ? ` (${overrides.length})` : ''}`]] as [Tab, string][]).map(([k, label]) => (
+              {([['tiers', 'Tiers'], ['audit', `Floor Audit${violations.length ? ` (${violations.length})` : ''}`], ['overrides', `Overrides${overrides.length ? ` (${overrides.length})` : ''}`], ['profiles', `Margin Profiles${marginProfiles.length ? ` (${marginProfiles.length})` : ''}`]] as [Tab, string][]).map(([k, label]) => (
                 <button key={k} onClick={() => setTab(k)}
                   className={`pb-2.5 -mb-px text-[13px] transition-colors border-b-2 ${tab === k ? 'border-emerald-400 text-white font-bold' : 'border-transparent text-slate-500 hover:text-slate-300 font-medium'}`}>
                   {label}
@@ -405,6 +427,8 @@ export default function PricingPage() {
                 itemsNoCost={itemsNoCost} tiers={orderedTiers.filter((t) => t.is_active)}
                 search={auditSearch} setSearch={setAuditSearch} tierFilter={auditTier} setTierFilter={setAuditTier}
                 bulkBusy={bulkBusy} onRaise={raiseToFloor} onClear={clearOverride} onBulkRaise={bulkRaise} />
+            ) : tab === 'profiles' ? (
+              <MarginProfilesTab profiles={marginProfiles} counts={profileCounts} onChanged={loadMarginProfiles} notify={setToast} />
             ) : (
               <OverridesTab rows={overrideRows} search={ovSearch} setSearch={setOvSearch} onClear={clearOverride} costOf={costOf} />
             )}
@@ -789,6 +813,165 @@ function OverridesTab({ rows, search, setSearch, onClear, costOf }: {
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Margin Profiles — what each tier is SUPPOSED to earn.
+ *
+ * The targets live here and nowhere else: no screen in the app hardcodes
+ * 10–15 or 20–25, so moving a band moves every judgement that depends on it
+ * without a deploy. That was an explicit requirement.
+ *
+ * Built as a LIST over whatever rows exist, plus an Add — not two hardcoded
+ * cards — because the owner expects to add a middle "Standard" tier later.
+ */
+function MarginProfilesTab({ profiles, counts, onChanged, notify }: {
+  profiles: MarginProfile[];
+  counts: Map<string, number>;
+  onChanged: () => Promise<void> | void;
+  notify: (m: string) => void;
+}) {
+  const supabase = createSupabaseClient();
+  const [draft, setDraft] = useState<Record<string, Partial<MarginProfile>>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+  const val = <K extends keyof MarginProfile>(p: MarginProfile, k: K): MarginProfile[K] =>
+    (draft[p.id]?.[k] ?? p[k]) as MarginProfile[K];
+  const dirty = (p: MarginProfile) => Object.keys(draft[p.id] ?? {}).length > 0;
+  const set = (id: string, k: keyof MarginProfile, v: unknown) =>
+    setDraft((d) => ({ ...d, [id]: { ...(d[id] ?? {}), [k]: v } }));
+
+  const save = async (p: MarginProfile) => {
+    const min = Number(val(p, 'margin_target_min'));
+    const max = Number(val(p, 'margin_target_max'));
+    const bad = rangeError(min, max);
+    if (bad) { notify(bad); return; }
+    setBusy(p.id);
+    const ok = await saveMarginProfile(supabase, p.id, {
+      label: String(val(p, 'label')).trim() || p.label,
+      margin_target_min: min, margin_target_max: max,
+      description: (val(p, 'description') as string | null) ?? null,
+    });
+    setBusy(null);
+    if (!ok) { notify('Could not save that profile.'); return; }
+    setDraft((d) => { const n = { ...d }; delete n[p.id]; return n; });
+    await onChanged();
+    notify(`${String(val(p, 'label'))} saved`);
+  };
+
+  const add = async () => {
+    setAdding(true);
+    const created = await createMarginProfile(supabase, {
+      code: `profile_${Date.now().toString(36)}`,
+      label: 'New profile', margin_target_min: 15, margin_target_max: 20,
+      description: null,
+    });
+    setAdding(false);
+    if (!created) { notify('Could not add a profile — owner or sell-side admin only.'); return; }
+    await onChanged();
+  };
+
+  const remove = async (p: MarginProfile) => {
+    setBusy(p.id);
+    const ok = await deleteMarginProfile(supabase, p.id);
+    setBusy(null);
+    setConfirmDelete(null);
+    if (!ok) { notify('Could not delete — items may still be on this profile.'); return; }
+    await onChanged();
+    notify(`${p.label} removed`);
+  };
+
+  const unclassified = counts.get('none') ?? 0;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <p className="text-[12px] text-slate-400 max-w-2xl leading-relaxed">
+          What each tier of item is expected to earn. These bands are the only place the targets
+          live — change one here and every screen that judges a margin follows, with no code change.
+        </p>
+        <button onClick={() => void add()} disabled={adding}
+          className="flex-shrink-0 px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 disabled:opacity-40 transition-colors">
+          {adding ? 'Adding…' : '+ Add profile'}
+        </button>
+      </div>
+
+      {unclassified > 0 && (
+        <p className="text-[12px] text-amber-300/90 bg-amber-500/[0.07] border border-amber-500/20 rounded-xl px-3.5 py-2.5">
+          <span className="font-semibold tabular-nums">{fmtInt(unclassified)}</span> items have no margin profile yet.
+          They are shown as <span className="font-semibold">Unclassified</span> in the Item Editor — filter to them there
+          and set the tier in bulk.
+        </p>
+      )}
+
+      <div className="space-y-3">
+        {profiles.map((p) => (
+          <div key={p.id} className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4">
+            <div className="flex items-start gap-3 flex-wrap">
+              <div className="min-w-[200px] flex-1">
+                <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Label</label>
+                <input value={String(val(p, 'label') ?? '')} onChange={(e) => set(p.id, 'label', e.target.value)}
+                  className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 focus:border-emerald-500/60 outline-none text-white text-sm" />
+                <p className="text-[10px] text-slate-500 mt-1 font-mono">{p.code}</p>
+              </div>
+              <div className="w-[110px]">
+                <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Target min %</label>
+                <input type="number" step="0.5" min="0" max="100"
+                  value={String(val(p, 'margin_target_min') ?? '')}
+                  onChange={(e) => set(p.id, 'margin_target_min', e.target.value)}
+                  className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 focus:border-emerald-500/60 outline-none text-white text-sm tabular-nums" />
+              </div>
+              <div className="w-[110px]">
+                <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Target max %</label>
+                <input type="number" step="0.5" min="0" max="100"
+                  value={String(val(p, 'margin_target_max') ?? '')}
+                  onChange={(e) => set(p.id, 'margin_target_max', e.target.value)}
+                  className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 focus:border-emerald-500/60 outline-none text-white text-sm tabular-nums" />
+              </div>
+              <div className="w-[120px]">
+                <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Items</label>
+                <p className="px-2.5 py-1.5 text-sm text-slate-300 tabular-nums">{fmtInt(counts.get(p.id) ?? 0)}</p>
+              </div>
+            </div>
+            <div className="mt-3">
+              <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Description</label>
+              <textarea rows={2} value={String(val(p, 'description') ?? '')}
+                onChange={(e) => set(p.id, 'description', e.target.value)}
+                placeholder="What kind of item belongs in this tier, and why"
+                className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 focus:border-emerald-500/60 outline-none text-slate-300 text-xs leading-relaxed placeholder:text-slate-500 resize-y" />
+            </div>
+            <div className="flex items-center gap-2 mt-3">
+              <button onClick={() => void save(p)} disabled={!dirty(p) || busy === p.id}
+                className="px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 disabled:opacity-30 transition-colors">
+                {busy === p.id ? 'Saving…' : 'Save'}
+              </button>
+              {dirty(p) && (
+                <button onClick={() => setDraft((d) => { const n = { ...d }; delete n[p.id]; return n; })}
+                  className="text-[12px] font-semibold text-slate-400 hover:text-white transition-colors">Cancel</button>
+              )}
+              <span className="ml-auto">
+                {confirmDelete === p.id ? (
+                  <span className="flex items-center gap-2">
+                    <span className="text-[11px] text-red-400">Remove {p.label}?</span>
+                    <button onClick={() => void remove(p)} className="text-[11px] font-semibold text-red-400 hover:text-red-300">Remove</button>
+                    <button onClick={() => setConfirmDelete(null)} className="text-[11px] text-slate-400 hover:text-white">Keep</button>
+                  </span>
+                ) : (
+                  <button onClick={() => setConfirmDelete(p.id)}
+                    className="text-[11px] text-slate-500 hover:text-red-400 transition-colors">Remove</button>
+                )}
+              </span>
+            </div>
+          </div>
+        ))}
+        {profiles.length === 0 && (
+          <p className="text-[12px] text-slate-400 py-6 text-center">No margin profiles yet. Add one to start classifying items.</p>
+        )}
+      </div>
     </div>
   );
 }

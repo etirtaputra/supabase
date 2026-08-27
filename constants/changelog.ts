@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-27T12:40:00Z',
+    title: 'Margin tiers — every item now says what margin it is supposed to earn',
+    details: [
+      'Items are classified into pricing profiles: Loss Leader (commodity, wins the deal, 10–15%) and Value Capture (technical, funds the margin and pays for after-sales, 20–25%). 297 items are classified on day one — solar panels, batteries, cables and mounting as Loss Leader; all four inverter types and charge controllers as Value Capture.',
+      'The Item Editor has a Margin Tier column with a coloured tag, and you can filter the list by tier. Change an item’s tier in the row itself, or select a batch and set them all at once from the bulk bar — the same way brand and category already work, so it saves with the normal Save and shows the normal before/after.',
+      'The remaining 693 items show as Unclassified rather than being quietly counted as one tier or the other. Filter to them in the Item Editor to work through the pile — 603 of them are non-stock, so the real gap is smaller than it looks.',
+      'Pricing has a new Margin Profiles tab where the target percentages live. Change 10–15 to something else and every screen follows immediately — the numbers are not written into the app anywhere. You can add a profile too, for a middle "Standard" tier later.',
+      'Where an item’s margin falls outside its own tier’s target, the Item Editor now says so beside the GM figure — a note, not a block. This matters because the colour on that figure uses fixed thresholds: 18% looks fine on any item, but it is comfortably on target for a Loss Leader and well short for Value Capture, and only the tier knows which.',
+    ],
+  },
+  {
     at: '2026-08-27T09:30:00Z',
     title: 'Follow-up notes can be edited — and the panel’s small print is readable in the dark skin',
     details: [

@@ -9,6 +9,7 @@ import { createPortal } from 'react-dom';
 import { Spinner } from './LoadingSkeleton';
 import SpecRenderer from './SpecRenderer';
 import TierPricingModal from './TierPricingModal';
+import { fetchMarginProfiles, byId as marginById, bandOf as marginBandOf, standingOf as marginStandingOf, type MarginProfile } from '@/lib/marginProfiles';
 import StockModal from './StockModal';
 import StockSummaryCard from './StockSummaryCard';
 import CostBasisControl, { type QuoteCostMode } from './CostBasisControl';
@@ -534,9 +535,41 @@ function PriceDelta({ lines }: { lines: TooltipQuoteLine[] }) {
 }
 
 // ── Column visibility ─────────────────────────────────────────────────────
-type ColKey = 'model' | 'description' | 'brand' | 'category' | 'unit' | 'normValue' | 'lastPrice' | 'usage' | 'updated' | 'sellPrice';
-const COL_LABELS: Record<ColKey, string> = { model: 'Model/SKU', description: 'Description', brand: 'Brand', category: 'Category', unit: 'Unit', normValue: 'Capacity', lastPrice: 'Last Price', usage: 'Usage', updated: 'Updated', sellPrice: 'Sell Price' };
-const DEFAULT_COLS: Record<ColKey, boolean> = { model: true, description: true, brand: true, category: true, unit: true, normValue: false, lastPrice: true, usage: true, updated: true, sellPrice: false };
+type ColKey = 'model' | 'description' | 'brand' | 'category' | 'marginTier' | 'unit' | 'normValue' | 'lastPrice' | 'usage' | 'updated' | 'sellPrice';
+/**
+ * The margin-tier chip.
+ *
+ * Colour carries the meaning at a glance: amber for the thin-margin commodity
+ * tier, emerald for the tier that funds the business, and a deliberately plain
+ * outline for Unclassified — which must look like an unanswered question, not
+ * like a third tier. The band comes off the row, so an edited target shows the
+ * new numbers in the tooltip without a deploy.
+ */
+function MarginTierChip({ profile }: { profile: MarginProfile | null }) {
+  if (!profile) {
+    return (
+      <span title="No margin profile set — this item has no target margin yet"
+        className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap border border-dashed border-slate-600 text-slate-400">
+        Unclassified
+      </span>
+    );
+  }
+  const tone = profile.code === 'loss_leader'
+    ? 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/25'
+    : profile.code === 'value_capture'
+      ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/25'
+      // A profile added later gets a neutral tone rather than no chip at all.
+      : 'bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/25';
+  return (
+    <span title={`${profile.label} — target ${marginBandOf(profile)}${profile.description ? `\n${profile.description}` : ''}`}
+      className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap ${tone}`}>
+      {profile.label}
+    </span>
+  );
+}
+
+const COL_LABELS: Record<ColKey, string> = { model: 'Model/SKU', description: 'Description', brand: 'Brand', category: 'Category', marginTier: 'Margin Tier', unit: 'Unit', normValue: 'Capacity', lastPrice: 'Last Price', usage: 'Usage', updated: 'Updated', sellPrice: 'Sell Price' };
+const DEFAULT_COLS: Record<ColKey, boolean> = { model: true, description: true, brand: true, category: true, marginTier: true, unit: true, normValue: false, lastPrice: true, usage: true, updated: true, sellPrice: false };
 
 // ── CSV export fields ─────────────────────────────────────────────────────
 // One entry per column the export CAN produce. The CSV always emits in THIS
@@ -770,6 +803,10 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
   const [filterDuplicates, setFilterDuplicates] = useState(false);
   const [filterHasIntel, setFilterHasIntel] = useState(false);
   const [filterTucHidden, setFilterTucHidden] = useState(false); // TUC hidden from Project Quotes
+  // Margin tiers. '' = every tier, 'none' = the Unclassified pile — which is
+  // the filter that matters, since it is how the gap gets closed.
+  const [filterTier, setFilterTier] = useState('');
+  const [marginProfiles, setMarginProfiles] = useState<MarginProfile[]>([]);
   const [filterLinked, setFilterLinked] = useState(false);
   const [filterHasSpecs, setFilterHasSpecs] = useState(false);
   const [filterHasLeadTime, setFilterHasLeadTime] = useState(false);
@@ -906,7 +943,15 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
     fetchReorderAlerts(supabase)
       .then((as) => setReorderById(new Map(as.map((a) => [a.component_id, a]))))
       .catch(() => {});
+    // The tier LABELS and bands are data, so they are fetched, never assumed.
+    fetchMarginProfiles(supabase).then(setMarginProfiles).catch(() => setMarginProfiles([]));
   }, [supabase]);
+  const profileById = useMemo(() => marginById(marginProfiles), [marginProfiles]);
+  /** The tier a row is showing right now, staged edits included. */
+  const tierIdOf = useCallback((c: Component): string | null => {
+    const staged = pending[rowKey(c)]?.margin_profile_id;
+    return (staged !== undefined ? staged : c.margin_profile_id) ?? null;
+  }, [pending]);
   const isOwner = profile?.role === 'owner';
   const [bulkCostBusy, setBulkCostBusy] = useState<QuoteCostMode | null>(null);
   const [bulkBuffer, setBulkBuffer] = useState('');
@@ -1327,6 +1372,11 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
     }
     if (filterBrand) result = result.filter((c) => c.brand?.trim() === filterBrand);
     if (filterCategory) result = result.filter((c) => c.category === filterCategory);
+    // 'none' is the Unclassified pile — the one worth filtering to, because it
+    // is the list of items nobody has decided a target margin for yet.
+    if (filterTier) result = result.filter((c) => (filterTier === 'none'
+      ? tierIdOf(c) === null
+      : tierIdOf(c) === filterTier));
     if (filterPI) result = result.filter((c) => usageMap.get(String(c.component_id))?.piNumbers.includes(filterPI));
     if (filterPO) result = result.filter((c) => usageMap.get(String(c.component_id))?.poNumbers.includes(filterPO));
     if (filterSupplier) result = result.filter((c) => supplierNamesByComponent.get(String(c.component_id))?.has(filterSupplier));
@@ -1399,7 +1449,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
       const bv = ((b[sortCol as keyof Component] as string) || '').toLowerCase();
       return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
     });
-  }, [components, search, filterBrand, filterCategory, filterPI, filterPO, filterSupplier, filterUnused, filterReorder, filterDuplicates, filterHasIntel, filterTucHidden, optimistic, filterLinked, filterHasSpecs, filterHasLeadTime, filterHasCashCycle, filterLowMargin, marginThreshold, filterBelowMarket, sortCol, sortDir, usageMap, supplierNamesByComponent, duplicateModels, intelComponentIds, linkedComponentIds, compIdsWithLeadTime, compIdsWithCashCycle, sparklineLinesByComponent, marginByComponent, marketAvgIdrByComponent, lastPoByComponent, externalUsedIds, reorderById]);
+  }, [components, search, filterBrand, filterCategory, filterTier, tierIdOf, filterPI, filterPO, filterSupplier, filterUnused, filterReorder, filterDuplicates, filterHasIntel, filterTucHidden, optimistic, filterLinked, filterHasSpecs, filterHasLeadTime, filterHasCashCycle, filterLowMargin, marginThreshold, filterBelowMarket, sortCol, sortDir, usageMap, supplierNamesByComponent, duplicateModels, intelComponentIds, linkedComponentIds, compIdsWithLeadTime, compIdsWithCashCycle, sparklineLinesByComponent, marginByComponent, marketAvgIdrByComponent, lastPoByComponent, externalUsedIds, reorderById]);
 
   const toggleSort = (col: SortCol) => {
     if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -1628,7 +1678,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
     }
   };
 
-  const applyBatchField = (field: 'brand' | 'category', value: string) => {
+  const applyBatchField = (field: 'brand' | 'category' | 'margin_profile_id', value: string) => {
     filtered.forEach((c) => {
       if (selectedIds.has(c.component_id)) setField(c, field, value || null);
     });
@@ -1667,7 +1717,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
 
   const clearAllFilters = () => {
     setSearchInput(''); setSearch('');
-    setFilterBrand(''); setFilterCategory(''); setFilterPI(''); setFilterPO(''); setFilterSupplier('');
+    setFilterBrand(''); setFilterCategory(''); setFilterTier(''); setFilterPI(''); setFilterPO(''); setFilterSupplier('');
     setFilterUnused(false); setFilterReorder(false); setFilterDuplicates(false); setFilterHasIntel(false); setFilterLinked(false); setFilterHasSpecs(false);
     setFilterLowMargin(false); setFilterBelowMarket(false);
   };
@@ -2616,6 +2666,17 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
             )}
             {/* Category filter */}
             <FilterCombobox options={ENUMS.product_category} value={filterCategory} onChange={setFilterCategory} placeholder="All Categories" minWidth={180} className="min-w-[160px] flex-shrink-0" />
+            {/* Margin tier. Offered only once profiles exist, so the control
+                cannot appear on an install that has none. */}
+            {marginProfiles.length > 0 && (
+              <select value={filterTier} onChange={(e) => setFilterTier(e.target.value)}
+                title="Filter by margin tier"
+                className="py-1.5 px-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-sky-500 min-w-[150px] flex-shrink-0">
+                <option value="">All Margin Tiers</option>
+                {marginProfiles.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+                <option value="none">Unclassified</option>
+              </select>
+            )}
             {/* PI filter */}
             {uniquePINumbers.length > 0 && (
               <FilterCombobox options={uniquePINumbers} value={filterPI} onChange={setFilterPI} placeholder="All PIs" minWidth={150} className="min-w-[150px] flex-shrink-0" />
@@ -2953,6 +3014,27 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
               <option value="" disabled>Category…</option>
               {ENUMS.product_category.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
             </select>
+            {/* Mass-assign the margin tier (owner's ask, 2026-08-27). Rides the
+                SAME staging buffer as the Brand and Category bulk selects above
+                — the change lands in the normal Save, with the normal
+                before/after diff, rather than writing straight to the database
+                behind the editor's back. "Unclassified" is offered as a real
+                choice so a wrong bulk assignment can be undone the same way. */}
+            {marginProfiles.length > 0 && (
+              <select
+                defaultValue=""
+                onChange={(e) => {
+                  if (!e.target.value) return;
+                  applyBatchField('margin_profile_id', e.target.value === 'none' ? '' : e.target.value);
+                  e.currentTarget.value = '';
+                }}
+                className="py-1.5 px-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-sky-500 min-w-[150px]"
+              >
+                <option value="" disabled>Margin tier…</option>
+                {marginProfiles.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+                <option value="none">Unclassified</option>
+              </select>
+            )}
             {isOwner && (
               <span className="flex items-center gap-1.5 pl-2 ml-0.5 border-l border-white/10">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600">In quotes</span>
@@ -3009,6 +3091,9 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
           {search && <ActiveChip label="Search" value={search} onClear={() => { setSearchInput(''); setSearch(''); }} />}
           {filterBrand && <ActiveChip label="Brand" value={filterBrand} onClear={() => setFilterBrand('')} />}
           {filterCategory && <ActiveChip label="Category" value={filterCategory} onClear={() => setFilterCategory('')} />}
+          {filterTier && <ActiveChip label="Margin tier"
+            value={filterTier === 'none' ? 'Unclassified' : (profileById.get(filterTier)?.label ?? filterTier)}
+            onClear={() => setFilterTier('')} />}
           {filterPI && <ActiveChip label="PI" value={filterPI} onClear={() => setFilterPI('')} />}
           {filterPO && <ActiveChip label="PO" value={filterPO} onClear={() => setFilterPO('')} />}
           {filterSupplier && <ActiveChip label="Supplier" value={filterSupplier} onClear={() => setFilterSupplier('')} />}
@@ -3123,6 +3208,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                 {visibleCols.description && <SortTh col="internal_description" label="Description" />}
                 {visibleCols.brand && <SortTh col="brand" label="Brand" className="hidden md:table-cell min-w-[160px]" />}
                 {visibleCols.category && <SortTh col="category" label="Category" className="hidden md:table-cell" />}
+                {visibleCols.marginTier && <th className="hidden md:table-cell px-3 py-2 text-left font-semibold whitespace-nowrap">Margin Tier</th>}
                 {visibleCols.unit && <th className="hidden md:table-cell px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 min-w-[80px]">Unit</th>}
                 {visibleCols.normValue && <th className="hidden md:table-cell px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 min-w-[90px]">Capacity</th>}
                 {visibleCols.lastPrice && <SortTh col="priceDelta" label="Last Price" className="min-w-[120px]" />}
@@ -3334,6 +3420,52 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                             {c.category || <span className="text-slate-600">—</span>}
                           </span>
                         )}
+                      </td>
+                    )}
+
+                    {/* Margin Tier — what this item is SUPPOSED to earn.
+                        A chip when reading, a dropdown when editing, and it
+                        stages into the same pending-edit buffer as every other
+                        field, so it saves with the normal Save and shows the
+                        normal before/after diff.
+
+                        "Unclassified" is rendered, not blank: the owner's
+                        acceptance criterion is that a gap in the classification
+                        is VISIBLE rather than silently treated as a tier. */}
+                    {visibleCols.marginTier && (
+                      <td className="hidden md:table-cell px-3 py-1.5 align-middle">
+                        {(() => {
+                          const tid = tierIdOf(c);
+                          const prof = tid ? profileById.get(tid) : null;
+                          const dirty = isDirtyField(c, 'margin_profile_id');
+                          if (isEditing && marginProfiles.length > 0) {
+                            return (
+                              <div>
+                                <select
+                                  value={tid ?? ''}
+                                  onChange={(e) => setField(c, 'margin_profile_id', e.target.value || null)}
+                                  className={`w-full px-2 py-1 rounded-lg text-xs text-white focus:outline-none focus:ring-2 transition-all ${
+                                    dirty
+                                      ? 'bg-amber-500/10 border border-amber-500/50 focus:ring-amber-500/30'
+                                      : 'bg-slate-950 border border-slate-700 focus:ring-sky-500/20 focus:border-sky-500'
+                                  }`}
+                                >
+                                  <option value="">— Unclassified —</option>
+                                  {marginProfiles.map((p) => (
+                                    <option key={p.id} value={p.id}>{p.label}</option>
+                                  ))}
+                                </select>
+                                {dirty && <DirtyBadge original={profileById.get(String(c.margin_profile_id ?? ''))?.label ?? 'Unclassified'} />}
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="flex items-center gap-1.5">
+                              <MarginTierChip profile={prof ?? null} />
+                              {dirty && <DirtyBadge original={profileById.get(String(c.margin_profile_id ?? ''))?.label ?? 'Unclassified'} />}
+                            </div>
+                          );
+                        })()}
                       </td>
                     )}
 
@@ -3571,6 +3703,28 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                                     GM {gm >= 0 ? '+' : ''}{gm.toFixed(1)}%
                                   </span>
                                 )}
+                                {/* Soft flag against THIS item's own target band
+                                    (spec, 2026-08-27: flag, never block). The GM
+                                    colour beside it runs on fixed 10/20/30
+                                    thresholds, which is precisely what a tier
+                                    system replaces: 18% is good for a Loss
+                                    Leader and short for Value Capture, and only
+                                    the profile knows which. Unclassified items
+                                    are not flagged — we do not know what they
+                                    should earn, so we cannot call them wrong. */}
+                                {(() => {
+                                  const prof = (() => { const tid = tierIdOf(c); return tid ? profileById.get(tid) ?? null : null; })();
+                                  const standing = marginStandingOf(gm, prof);
+                                  if (!prof || standing === 'unclassified' || standing === 'within') return null;
+                                  const short = standing === 'below';
+                                  return (
+                                    <span
+                                      title={`${gm!.toFixed(1)}% is ${short ? 'under' : 'over'} the ${prof.label} target of ${marginBandOf(prof)}`}
+                                      className={`text-[10px] font-semibold tabular-nums ${short ? 'text-amber-400' : 'text-emerald-500/80'}`}>
+                                      {short ? '▼' : '▲'} {marginBandOf(prof)}
+                                    </span>
+                                  );
+                                })()}
                                 {mktIdr != null && (
                                   <span className={`text-[10px] tabular-nums ${sp < mktIdr ? 'text-rose-400' : 'text-slate-500'}`}>
                                     {sp < mktIdr ? '▼' : '▲'} mkt

@@ -85,6 +85,19 @@ export const isKeeper = (en: string): boolean => KEEPERS.includes(en);
  * communicates less than the English it replaced.
  */
 export const ID: Record<string, string> = {
+  // ── Margin tiers (21.2_margin_profiles) ──────────────────────────────────
+  // The tier LABELS are data an admin types, so they are NOT translated here —
+  // "Loss Leader" is whatever the owner named it on /pricing. Only the app's
+  // own words around them are.
+  'Margin Tier': 'Tingkat Margin',
+  'Unclassified': 'Belum Dikelompokkan',
+  'All Margin Tiers': 'Semua Tingkat Margin',
+  'Margin Profiles': 'Profil Margin',
+  'Margin tier': 'Tingkat margin',
+  'No margin profile set — this item has no target margin yet':
+    'Belum ada profil margin — barang ini belum punya target margin',
+  'Filter by margin tier': 'Saring berdasarkan tingkat margin',
+
   // ── Follow-up notes on an EPC proposal (10.5_quote_notes) ────────────────
   'Edit': 'Ubah',
   'Save': 'Simpan',

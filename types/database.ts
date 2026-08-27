@@ -86,6 +86,12 @@ export interface Component extends BaseEntity {
   show_tuc_in_quotes?: boolean;        // legacy boolean, superseded by quote_cost_mode
   quote_cost_mode?: 'tuc' | 'buffered' | 'hidden'; // what Project Quotes show as cost (default 'buffered' = Cost Basis)
   quote_cost_buffer_pct?: number | null;           // per-item buffer override; NULL = global app_settings value
+  /**
+   * Which margin band this item is SUPPOSED to earn — `21.2_margin_profiles`.
+   * NULL is "Unclassified" and means exactly that: not a silent default into
+   * either tier (the owner's acceptance criterion, 2026-08-27).
+   */
+  margin_profile_id?: string | null;
 }
 
 // 4.0 Price Quotes
