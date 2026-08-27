@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-08-27** · head of `main` at that point: `2bb0921`
+**Last updated: 2026-08-27** · head of `main` at that point: `1e1c748`
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -32,7 +32,7 @@ item/price/spec data eventually feed a public website.
 - Do **not** open a pull request unless explicitly asked.
 - No `gh` CLI in this sandbox — use the `mcp__github__*` MCP tools if you need
   the GitHub API. Plain `git` over HTTPS works fine for fetch/push.
-- Head of `main` at handoff: `2bb0921` — "Off Target: audit items priced outside their own margin tier's band".
+- Head of `main` at handoff: `1e1c748` — "Products: rename Just arrived to New and fold the filter bar to one line".
 
 ### Vercel — https://vercel.com/etirtaputras-projects/supabase/deployments
 - Production deploys **automatically from `main`**. Pushing to main IS the release.
@@ -118,6 +118,48 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 ---
 
 ## 4. What the previous threads did (for context, all shipped to main)
+
+### 2026-08-27 (later) — the Products filter bar, and one bug found by screenshot
+
+- `b97d6ea` **Item Editor: the Margin Tier column heading.** Owner screenshot,
+  reported as "lines during loading". It was not a loading artifact — the `<th>`
+  I shipped in `1fcd177` carried only `font-semibold` and none of the
+  `text-[10px] font-bold uppercase tracking-wider text-slate-400` that `SortTh`
+  and every hand-written header beside it use, so it rendered at the table's
+  inherited size in bright text, permanently.
+  **The other half of that screenshot IS a loading flash, and it is systemic:**
+  there is no compiled CSS in this repo at all — no `tailwind.config`, no
+  `postcss.config`, no CSS entry. Tailwind is only
+  `<script src="https://cdn.tailwindcss.com">` in `app/layout.tsx:70`, and the
+  Play CDN generates styles by scanning the DOM *after* it mounts, so every
+  client-rendered element is briefly unstyled — worst on the heaviest screen,
+  which is the Item Editor with 990 rows. **Not reproducible in this sandbox**
+  (that CDN is blocked by the proxy), so the diagnosis rests on source, not on
+  a measurement. Compiling Tailwind at build time is the durable fix and is the
+  owner's call — raised, not done.
+- `1e1c748` **Products filter bar: thirteen controls → eight.**
+  Measured before anything was built (§5 rig, real Inter, class strings
+  asserted against the source). The row needed **1,724px** to sit on one line;
+  1536 gives it 1,488 and 1366 gives 1,318, so it wrapped to two rows on every
+  machine except a 1920 monitor. The rename alone was worth 41.3px
+  ("Just arrived" 91.2 → "New" 49.9) and changed no layout — worth saying out
+  loud, because it is the part that *looks* like the fix.
+  Four shapes were priced and put to the owner; he picked **Show + View menus**
+  with the Show button NAMING what is on rather than counting it.
+  Result: **1,268px, one line from 1366 up**, 83px instead of 85 below that,
+  five rows instead of six on a phone. **In Indonesian it is 1,349px**, so 1366
+  still wraps and 1440 is the threshold — he was told that before choosing.
+  Widths, for the next person who touches this row: date 198.8 · category 181 ·
+  sort 163 · Show 103.6 (151 in ID) · quote 124.4 · brand 119 · Clear 56.8 ·
+  View 56.5.
+  Two things worth inheriting: **`BarMenu` portals to `<body>` and clamps its
+  left edge**, because the column picker it grew out of used a plain
+  `absolute right-0` and got away with it only by being `md:`-and-up and last
+  in the row — "Show" is on phones and sits mid-row. And **`setState` inside a
+  `useEffect` is an eslint ERROR here**, so the panel is positioned in the
+  click handler, not in an effect (that mistake cost the only two lint errors
+  this thread added, both caught by the baseline comparison).
+
 
 ### 2026-08-26 → 27 — owner-driven fixes, then two features
 
@@ -370,55 +412,52 @@ has not decided.
 
 ---
 
-## 6. NEXT MODULE — tidy the Products filter bar (and rename "Just arrived")
+## 6. NEXT MODULE — compile Tailwind at build time (or pick from §7)
 
-**The ask (owner, 2026-08-27):** *"'Just arrived' in Products could just be
-'New', and think of ways to make the menu for Products neater."*
+**Why this one is on the table:** the owner reported it himself on 2026-08-27,
+as "there's this lines during loading in Item Editor" with a screenshot. Half
+of that screenshot was a real bug (fixed, `b97d6ea`); the other half is that
+**this app has no compiled CSS**. There is no `tailwind.config`, no
+`postcss.config`, no CSS entry file — styling comes entirely from
+`<script src="https://cdn.tailwindcss.com">` in `app/layout.tsx:70`. The Play
+CDN builds the stylesheet by scanning the DOM after it mounts, so every
+client-rendered screen has a window where the markup is up but its classes are
+not. On the Item Editor's 990 rows that window is long enough to photograph.
 
-Small, visual, and entirely in `app/products/page.tsx` — a good thread to take
-on its own. It is a LAYOUT problem, so **measure it** (§5) rather than
-redesigning by eye.
+**Why it is worth a thread, not a patch:**
+- it is on the critical path of *every* screen's first paint, and it is the
+  only remaining runtime dependency the app cannot serve itself — which sits
+  badly against "own the data, own the tooling";
+- the Play CDN also prints a "should not be used in production" console warning
+  on every load, which the owner will eventually screenshot too;
+- `constants/palette.ts` is GENERATED (`scripts/generate-palette.js`) and feeds
+  Tailwind through `TAILWIND_COLORS_JS` as a string. A build-time config has to
+  consume the same generator output, or the six skins silently diverge.
 
-### What is actually there — counted 2026-08-27
+**What it involves:** a `tailwind.config.js` whose `theme.extend` mirrors the
+inline `TAILWIND_THEME` in `app/layout.tsx` verbatim (`fontFamily` +
+`TAILWIND_COLORS_JS`), a CSS entry with the three `@tailwind` directives plus
+the existing global `<style>` block moved into it, `postcss.config.js`, and
+deleting the two `<script>` tags. **The measuring rig in §5 already does
+exactly this** — `scripts`-free, in the scratchpad, driven by
+`node_modules/.bin/tailwindcss` — so the config ismostly written; lift it
+from there.
 
-One wrapping flex row, `flex flex-wrap items-center gap-2`, holding **13
-controls**:
+**Traps to expect:**
+- **Any class composed at runtime stops working.** The CDN scans the live DOM,
+  a build scans the SOURCE. Every template-literal class in the app has to
+  resolve to literal strings the scanner can see, or be safelisted. This is the
+  whole risk of the change and it fails *silently* — an unstyled element, not
+  an error. Diff a built stylesheet's class list against the app's class sites
+  before believing it.
+- `cdn.tailwindcss.com` is blocked by the sandbox proxy, so the BEFORE state
+  cannot be reproduced here. The AFTER state can be, completely.
+- Arbitrary values (`w-[5.5rem]`, `max-w-[190px]`, `z-[131]`) are everywhere and
+  are fine, but only when written literally.
 
-| # | control | kind | note |
-|---|---------|------|------|
-| 1 | Search | input, `flex-1 min-w-[200px]` | placeholder changes with `canViewBrand` |
-| 2 | All categories | select | |
-| 3 | All brands | select | gated on `canViewBrand` |
-| 4 | Sort ("Last updated ↓") | select | 2 options per key (asc + desc) |
-| 5 | **Priced** | checkbox | **defaults ON** (owner, 2026-08-14) |
-| 6 | In stock / incoming | checkbox | |
-| 7 | **Just arrived** | checkbox | ← rename to **New** |
-| 8 | Clear × | button | only when `hasFilters` |
-| 9 | "91 of 990" | count | `ml-auto` |
-| 10 | Text quote mode | button | builds a WhatsApp MESSAGE, never a Sales Quotation (owner, 2026-08-06) — the wording is deliberate |
-| 11 | Date range | `DateRangeFilter` | |
-| 12 | Compact / Card | `LayoutToggle` | |
-| 13 | Columns | button | |
-
-Three checkboxes, three selects, three buttons and a count all competing in one
-line is the actual complaint. Ideas worth measuring, not a prescription:
-group the three checkboxes into one "Show" dropdown with tick items; fold
-Compact/Card + Columns into a single view control; move the count next to the
-search. **Put the shape to the owner with widths before building it** — he
-answers layout questions well when given measured options.
-
-### The rename
-
-`Just arrived` → `New`. Three things to keep straight:
-- the window is **Settings › Defaults** (`newArrivalDays`), shared with the
-  dashboard's **New arrivals** panel — one definition of "new", not one per
-  screen. Do not fork it.
-- the tooltip explains it ("goods receipt in the last N days"); keep that, it
-  is doing the work the shorter label sheds.
-- there is a **deep link** (`?new=1` / `arrivedDeepLink`) from the dashboard's
-  New arrivals widget — check it still lands with the filter on.
-- `'Just arrived'` may need a phrase-book entry; `/products` **does** call
-  `useT()`, so this screen is partly translated already.
+**Alternative if the owner would rather not:** §7 has the procedure for picking
+a module, and the sell-side roadmap in `docs/ERP_ROADMAP.md` still has CRM as
+the next unbuilt module in the sequence.
 
 ### Then, still open from the margin-tier work
 
