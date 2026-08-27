@@ -2296,8 +2296,23 @@ export default function QuoteEditorPage() {
                   sectionDrag.lineAt(sec.section_id)} ${sectionDrag.dragKey === sec.section_id ? DRAGGING_ROW : ''}`}
                 {...sectionDrag.rowProps(sec.section_id)}
               >
-                {/* Section header */}
-                <div className="flex items-center gap-3 px-4 py-3 bg-moss/25 hover:bg-moss/45 border-b border-moss/50 transition-colors">
+                {/* Section header.
+                    WRAPS, and the title field has a FLOOR below sm. It used to
+                    be one nowrap line whose title was `flex-1 min-w-0`: on a
+                    phone the lead-time select and the nowrap subtotal took
+                    more room than the row had, so the title collapsed to
+                    literally 0px — the pencil ended up overlapping the select
+                    by 2px and the section name could not be seen or tapped at
+                    all, while the row's overflow scrolled the whole page
+                    sideways (owner screenshot, 2026-08-27; measured at 360,
+                    390, 402 and 430).
+                    9rem is the largest floor that still keeps it to two rows
+                    at 360 — 10rem pushes the select onto its own line and
+                    makes three. `sm:min-w-0` hands the old behaviour back at
+                    640 and up, where the row already fitted. Same
+                    flex-wrap/gap-x/gap-y shape the GROUP header above already
+                    uses. */}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 bg-moss/25 hover:bg-moss/45 border-b border-moss/50 transition-colors">
                   <span
                     {...sectionDrag.handleProps(sec.section_id)}
                     className="cursor-grab active:cursor-grabbing text-slate-600 hover:text-slate-300 flex-shrink-0 -ml-1"
@@ -2305,7 +2320,7 @@ export default function QuoteEditorPage() {
                   >
                     {GRIP}
                   </span>
-                  <div className="flex-1 flex items-center gap-2 group/title min-w-0 relative">
+                  <div className="flex-1 flex items-center gap-2 group/title min-w-[9rem] sm:min-w-0 relative">
                     <svg className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                     <input
                       value={sec.title}

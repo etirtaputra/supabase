@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-27T18:40:00Z',
+    title: 'EPC proposals: the section name was invisible on a phone',
+    details: [
+      'On a phone the section header had no room for the section title, so the field shrank to nothing — the pencil ended up sitting on top of the lead-time dropdown and the name could be neither read nor tapped. The header now wraps: the name and its lead time on the first line, the subtotal, share and Rp/Wp underneath.',
+      'That row was also 43 pixels wider than the screen, which is what dragged the whole page sideways and pushed Save, Export and the Qty column off the right edge. Nothing runs over now.',
+      'On a tablet or a laptop the header is unchanged — still one line, with the title taking whatever room is spare.',
+    ],
+  },
+  {
     at: '2026-08-27T17:30:00Z',
     title: 'Products: “Just arrived” is now “New”, and the filter bar fits on one line',
     details: [
