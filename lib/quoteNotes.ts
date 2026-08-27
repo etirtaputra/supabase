@@ -32,12 +32,29 @@ export interface QuoteNote {
   created_at: string;
   cleared_at: string | null;
   cleared_by_email: string | null;
+  edited_at: string | null;
+  edited_by_email: string | null;
 }
 
-const COLS = 'note_id, quote_id, body, author_email, created_at, cleared_at, cleared_by_email';
+const COLS = 'note_id, quote_id, body, author_email, created_at, cleared_at, cleared_by_email, edited_at, edited_by_email';
 
 /** A note counts as OPEN until somebody ticks it off. */
 export const isOpen = (n: QuoteNote): boolean => !n.cleared_at;
+
+/** Has this note been rewritten since it was posted? */
+export const wasEdited = (n: QuoteNote): boolean => !!n.edited_at;
+
+/**
+ * Is this actually a change worth writing to the database?
+ *
+ * Opening a note, touching nothing and pressing Save must NOT stamp it as
+ * edited — a time log that says "edited" when nothing was edited is a time log
+ * nobody trusts. Trailing whitespace is not a change either.
+ */
+export const isRealEdit = (n: QuoteNote, next: string): boolean => {
+  const t = next.trim();
+  return t.length > 0 && t !== n.body.trim();
+};
 
 /** Newest first — the same order every other feed in the app reads in. */
 export const threadOrder = (notes: QuoteNote[]): QuoteNote[] =>
@@ -107,6 +124,27 @@ export async function addNote(
     .select(COLS).single();
   if (error) return null;
   return data as unknown as QuoteNote;
+}
+
+/**
+ * Rewrite a note's text.
+ *
+ * The edit is STAMPED. This panel exists to be a time log, and a line that can
+ * change without saying so stops being a record — so `edited_at` and who did
+ * it are written alongside, and the note shows "edited <when>". The original
+ * `created_at` never moves: the date a point was first raised is the fact the
+ * thread is keeping.
+ */
+export async function editNote(
+  supabase: SupabaseClient, noteId: number, body: string, byEmail: string | null,
+): Promise<boolean> {
+  const text = body.trim();
+  if (!text) return false;
+  const { error } = await supabase
+    .from('10.5_quote_notes')
+    .update({ body: text, edited_at: new Date().toISOString(), edited_by_email: byEmail })
+    .eq('note_id', noteId);
+  return !error;
 }
 
 /**

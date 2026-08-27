@@ -4,7 +4,8 @@ import { useT } from '@/hooks/useT';
 import { createSupabaseClient } from '@/lib/supabase';
 import { fmtDayTime } from '@/lib/formatters';
 import {
-  fetchThread, addNote, setNoteCleared, threadOrder, isOpen, type QuoteNote,
+  fetchThread, addNote, setNoteCleared, editNote, threadOrder, isOpen, wasEdited,
+  isRealEdit, type QuoteNote,
 } from '@/lib/quoteNotes';
 
 /**
@@ -43,6 +44,9 @@ export default function QuoteNoteThread({ quoteId, authorEmail }: {
   // vanishing under the cursor — the tick should read as "settled", not as
   // "deleted". It folds away with the rest next time the panel is opened.
   const [justToggled, setJustToggled] = useState<number[]>([]);
+  // Which note is being rewritten, and the draft of it.
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [draft, setDraft] = useState('');
 
   const load = useCallback(() => {
     fetchThread(supabase, quoteId).then((rows) => setNotes(threadOrder(rows))).catch(() => setNotes([]));
@@ -58,6 +62,21 @@ export default function QuoteNoteThread({ quoteId, authorEmail }: {
     if (!saved) return;
     setBody('');
     setNotes((prev) => threadOrder([saved, ...(prev ?? [])]));
+  };
+
+  const beginEdit = (n: QuoteNote) => { setEditingId(n.note_id); setDraft(n.body); };
+  const cancelEdit = () => { setEditingId(null); setDraft(''); };
+
+  const saveEdit = async (n: QuoteNote) => {
+    // Saving an untouched note must not stamp it "edited" — see isRealEdit.
+    if (!isRealEdit(n, draft)) { cancelEdit(); return; }
+    const text = draft.trim();
+    setNotes((prev) => (prev ?? []).map((x) => (x.note_id === n.note_id
+      ? { ...x, body: text, edited_at: new Date().toISOString(), edited_by_email: authorEmail }
+      : x)));
+    cancelEdit();
+    const ok = await editNote(supabase, n.note_id, text, authorEmail);
+    if (!ok) load();   // the database said no — show what it actually holds
   };
 
   const toggle = async (n: QuoteNote) => {
@@ -84,7 +103,7 @@ export default function QuoteNoteThread({ quoteId, authorEmail }: {
       <div className="flex items-center gap-2.5 mb-3 flex-wrap">
         <label className="block text-[10px] uppercase tracking-widest text-slate-500">
           {t('Follow-up notes')}
-          <span className="ml-2 normal-case tracking-normal text-slate-600">{t('internal — never shown to the customer')}</span>
+          <span className="ml-2 normal-case tracking-normal text-slate-400">{t('internal — never shown to the customer')}</span>
         </label>
         {open.length > 0 && (
           <span className="ml-auto text-[10px] font-bold uppercase tracking-widest text-amber-300/90">
@@ -102,7 +121,7 @@ export default function QuoteNoteThread({ quoteId, authorEmail }: {
           onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void post(); } }}
           rows={2}
           placeholder={t('e.g. Awaiting answer from the customer on the revised scope')}
-          className="flex-1 bg-transparent border border-slate-800 focus:border-violet-500 rounded-xl outline-none text-slate-300 p-3 text-xs leading-relaxed placeholder:text-slate-700 transition-colors resize-y"
+          className="flex-1 bg-transparent border border-slate-800 focus:border-violet-500 rounded-xl outline-none text-slate-300 p-3 text-xs leading-relaxed placeholder:text-slate-500 transition-colors resize-y"
         />
         <button onClick={() => void post()} disabled={!body.trim() || busy}
           className="flex-shrink-0 px-3 py-2 rounded-xl text-[11px] font-semibold bg-violet-500/15 text-violet-300 ring-1 ring-violet-500/30 hover:bg-violet-500/25 disabled:opacity-30 disabled:hover:bg-violet-500/15 transition-colors">
@@ -113,11 +132,11 @@ export default function QuoteNoteThread({ quoteId, authorEmail }: {
       {notes === null ? (
         <div className="space-y-2">{[...Array(2)].map((_, i) => <div key={i} className="h-10 bg-slate-800/40 rounded-xl animate-pulse" />)}</div>
       ) : notes.length === 0 ? (
-        <p className="text-[11px] text-slate-600 py-2">
+        <p className="text-[11px] text-slate-400 py-2">
           {t('Nothing noted yet. Anything written here shows on the EPC Proposals list until it is ticked off.')}
         </p>
       ) : shown.length === 0 ? (
-        <p className="text-[11px] text-slate-600 py-2">
+        <p className="text-[11px] text-slate-400 py-2">
           {t('Nothing open — this proposal is not waiting on anything.')}
         </p>
       ) : (
@@ -139,15 +158,56 @@ export default function QuoteNoteThread({ quoteId, authorEmail }: {
                   </svg>
                 </button>
                 <span className="min-w-0 flex-1">
+                  {editingId === n.note_id ? (
+                    <span className="block">
+                      <textarea
+                        value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
+                          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void saveEdit(n); }
+                        }}
+                        autoFocus
+                        rows={2}
+                        className="w-full bg-slate-950 border border-violet-500/50 focus:border-violet-500 rounded-lg outline-none text-slate-200 p-2 text-xs leading-relaxed resize-y"
+                      />
+                      <span className="flex items-center gap-2 mt-1.5">
+                        <button onClick={() => void saveEdit(n)}
+                          className="px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-violet-500/15 text-violet-300 ring-1 ring-violet-500/30 hover:bg-violet-500/25 transition-colors">
+                          {t('Save')}
+                        </button>
+                        <button onClick={cancelEdit}
+                          className="text-[11px] font-semibold text-slate-400 hover:text-white transition-colors">
+                          {t('Cancel')}
+                        </button>
+                      </span>
+                    </span>
+                  ) : (
                   <span className={`block text-xs leading-relaxed whitespace-pre-wrap break-words ${
-                    live ? 'text-slate-200' : 'text-slate-500 line-through decoration-slate-700'}`}>
+                    live ? 'text-slate-200' : 'text-slate-400 line-through decoration-slate-600'}`}>
                     {n.body}
                   </span>
-                  {/* The time log: raised when, by whom — and settled when. */}
-                  <span className="block text-[10px] text-slate-600 mt-0.5">
+                  )}
+                  {/* The time log: raised when, by whom — edited when, settled
+                      when. `created_at` never moves, so the date a point was
+                      first raised survives any rewrite. */}
+                  {/* slate-400, not slate-600: measured 2.38:1 against this
+                      card in the terminal skin, where AA wants 4.5 for text
+                      this size. This line IS the time log — the reason the
+                      panel exists — so it has to be legible, not decorative. */}
+                  <span className="block text-[10px] text-slate-400 mt-0.5">
                     {tf('{who} · {when}', { who: n.author_email ?? t('someone'), when: fmtDayTime(n.created_at) })}
+                    {wasEdited(n) && n.edited_at && (
+                      <span> · {tf('edited {when}', { when: fmtDayTime(n.edited_at) })}</span>
+                    )}
                     {!live && n.cleared_at && (
                       <span className="text-emerald-500/70"> · {tf('ticked off {when}', { when: fmtDayTime(n.cleared_at) })}</span>
+                    )}
+                    {editingId !== n.note_id && (
+                      <button onClick={() => beginEdit(n)}
+                        className="ml-2 font-semibold text-slate-400 hover:text-violet-300 transition-colors">
+                        {t('Edit')}
+                      </button>
                     )}
                   </span>
                 </span>
@@ -159,7 +219,7 @@ export default function QuoteNoteThread({ quoteId, authorEmail }: {
 
       {hiddenSettled > 0 && (
         <button onClick={() => setShowSettled((v) => !v)}
-          className="mt-2 text-[11px] font-semibold text-slate-500 hover:text-slate-300 transition-colors">
+          className="mt-2 text-[11px] font-semibold text-slate-400 hover:text-white transition-colors">
           {showSettled
             ? t('Hide settled')
             : tf(hiddenSettled === 1 ? 'Show {n} settled note' : 'Show {n} settled notes', { n: hiddenSettled })}

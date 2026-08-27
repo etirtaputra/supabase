@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-27T09:30:00Z',
+    title: 'Follow-up notes can be edited — and the panel’s small print is readable in the dark skin',
+    details: [
+      'A note can be rewritten in place: press Edit under it, fix the wording, Save. Handy for a typo in a line that is showing on the proposals list — better than clearing it and retyping, which would lose the date the point was first raised.',
+      'An edit says so. The note shows “edited” with the time, and the original date it was raised never moves. A panel whose job is to keep a time log cannot let lines change quietly. Opening a note and saving it untouched is not treated as an edit.',
+      'Escape cancels, Ctrl/Cmd+Enter saves — the same keys as the box you post with.',
+      'The small print in that panel was nearly invisible on the dark skin, which is what prompted this: the “for example…” prompt in the writing box measured 1.4:1 against its background where 4.5:1 is the readable threshold, and the who-and-when line under each note measured 2.4:1. They are now 4.1:1 and 7.4:1. The who-and-when line is the time log itself, so it had to be legible rather than decorative.',
+    ],
+  },
+  {
     at: '2026-08-27T07:15:00Z',
     title: 'Follow-up notes moved to the top of the proposal',
     details: [

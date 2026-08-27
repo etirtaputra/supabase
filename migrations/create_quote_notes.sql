@@ -65,3 +65,15 @@ CREATE POLICY "quote notes clear" ON "10.5_quote_notes"
 
 COMMENT ON TABLE "10.5_quote_notes" IS
   'Internal follow-up thread per EPC proposal. Never printed. cleared_at takes a note off the list without losing it.';
+
+-- ── 2026-08-27 · notes can be edited ────────────────────────────────────────
+-- The owner asked for editing ("allow user to edit the notes") — a typo in a
+-- line that shows on the proposals list is worth fixing in place rather than
+-- clearing and retyping, which would lose the date the point was first raised.
+--
+-- An edit is STAMPED, not silent. The panel's whole purpose is a time log, and
+-- a record that can change without saying so is not a record. The note shows
+-- "edited <when>" once it has been.
+ALTER TABLE "10.5_quote_notes"
+  ADD COLUMN IF NOT EXISTS edited_at       timestamptz,
+  ADD COLUMN IF NOT EXISTS edited_by_email text;

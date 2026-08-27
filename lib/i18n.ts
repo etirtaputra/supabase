@@ -86,6 +86,9 @@ export const isKeeper = (en: string): boolean => KEEPERS.includes(en);
  */
 export const ID: Record<string, string> = {
   // ── Follow-up notes on an EPC proposal (10.5_quote_notes) ────────────────
+  'Edit': 'Ubah',
+  'Save': 'Simpan',
+  'edited {when}': 'diubah {when}',
   'Nothing open — this proposal is not waiting on anything.':
     'Tidak ada yang terbuka — proposal ini tidak sedang menunggu apa pun.',
   'Hide settled': 'Sembunyikan yang selesai',

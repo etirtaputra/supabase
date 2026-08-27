@@ -9,12 +9,12 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isOpen, threadOrder, newestOpenByQuote, openCountByQuote, type QuoteNote } from './quoteNotes.ts';
+import { isOpen, wasEdited, isRealEdit, threadOrder, newestOpenByQuote, openCountByQuote, type QuoteNote } from './quoteNotes.ts';
 
 let seq = 0;
 const note = (o: Partial<QuoteNote> & { quote_id: string; created_at: string }): QuoteNote => ({
   note_id: ++seq, body: 'note', author_email: 'eric@ica.id',
-  cleared_at: null, cleared_by_email: null, ...o,
+  cleared_at: null, cleared_by_email: null, edited_at: null, edited_by_email: null, ...o,
 });
 
 test('a note is open until somebody ticks it off', () => {
@@ -92,4 +92,24 @@ test('the count is of what is still open', () => {
   ];
   assert.equal(openCountByQuote(rows).get('a'), 2);
   assert.equal(openCountByQuote(rows).get('b'), 1);
+});
+
+/**
+ * Editing has to stay honest, because the panel's whole claim is that it is a
+ * record. These two guard the claim: an edit is visible, and a non-edit is not
+ * recorded as one.
+ */
+test('a note says so once it has been rewritten', () => {
+  const fresh = note({ quote_id: 'a', created_at: '2026-08-27T09:00:00Z' });
+  assert.equal(wasEdited(fresh), false);
+  assert.equal(wasEdited({ ...fresh, edited_at: '2026-08-27T11:00:00Z' }), true);
+});
+
+test('opening a note and saving it unchanged is not an edit', () => {
+  const n = note({ quote_id: 'a', created_at: '2026-08-27T09:00:00Z', body: 'Awaiting answer' });
+  assert.equal(isRealEdit(n, 'Awaiting answer'), false, 'nothing changed');
+  assert.equal(isRealEdit(n, '  Awaiting answer  '), false, 'whitespace is not a change');
+  assert.equal(isRealEdit(n, ''), false, 'blanking a note is not an edit — the DB refuses it too');
+  assert.equal(isRealEdit(n, '   '), false);
+  assert.equal(isRealEdit(n, 'Awaiting answer from their engineer'), true);
 });
