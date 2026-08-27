@@ -3238,7 +3238,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                 {visibleCols.description && <SortTh col="internal_description" label="Description" />}
                 {visibleCols.brand && <SortTh col="brand" label="Brand" className="hidden md:table-cell min-w-[160px]" />}
                 {visibleCols.category && <SortTh col="category" label="Category" className="hidden md:table-cell" />}
-                {visibleCols.marginTier && <th className="hidden md:table-cell px-3 py-2 text-left font-semibold whitespace-nowrap">Margin Tier</th>}
+                {visibleCols.marginTier && <th className="hidden md:table-cell px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">Margin Tier</th>}
                 {visibleCols.unit && <th className="hidden md:table-cell px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 min-w-[80px]">Unit</th>}
                 {visibleCols.normValue && <th className="hidden md:table-cell px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 min-w-[90px]">Capacity</th>}
                 {visibleCols.lastPrice && <SortTh col="priceDelta" label="Last Price" className="min-w-[120px]" />}

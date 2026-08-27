@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-27T16:05:00Z',
+    title: 'Item Editor: the Margin Tier column heading was the wrong size',
+    details: [
+      'The Margin Tier heading rendered large and bright while every heading beside it — Brand, Category, Unit, Capacity — is small grey capitals. It was missing the styling the rest of the row carries, so it read as a title sitting inside the table rather than as another column. It now matches its neighbours.',
+    ],
+  },
+  {
     at: '2026-08-27T14:20:00Z',
     title: 'Audit which items are priced outside their margin tier',
     details: [
