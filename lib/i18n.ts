@@ -85,6 +85,30 @@ export const isKeeper = (en: string): boolean => KEEPERS.includes(en);
  * communicates less than the English it replaced.
  */
 export const ID: Record<string, string> = {
+  // ── Follow-up notes on an EPC proposal (10.5_quote_notes) ────────────────
+  'Follow-up notes': 'Catatan tindak lanjut',
+  'internal — never shown to the customer': 'internal — tidak pernah ditampilkan ke pelanggan',
+  '{n} open': '{n} terbuka',
+  'e.g. Awaiting answer from the customer on the revised scope':
+    'mis. Menunggu jawaban pelanggan atas lingkup yang direvisi',
+  'Saving…': 'Menyimpan…',
+  'Post': 'Kirim',
+  'Nothing noted yet. Anything written here shows on the EPC Proposals list until it is ticked off.':
+    'Belum ada catatan. Apa pun yang ditulis di sini tampil di daftar EPC Proposal sampai dicentang selesai.',
+  'Tick off: {body}': 'Tandai selesai: {body}',
+  'Reopen: {body}': 'Buka lagi: {body}',
+  'Tick off — takes it off the list, keeps it here':
+    'Tandai selesai — hilang dari daftar, tetap tersimpan di sini',
+  'Put this back on the list': 'Kembalikan ke daftar',
+  'someone': 'seseorang',
+  'ticked off {when}': 'diselesaikan {when}',
+  '{body} — {n} notes open, newest {date}': '{body} — {n} catatan terbuka, terbaru {date}',
+  '{body} — raised {date}': '{body} — dibuat {date}',
+  'Proposals with a follow-up note still open': 'Proposal yang catatan tindak lanjutnya masih terbuka',
+  'All notes': 'Semua catatan',
+  'Open note ({n})': 'Catatan terbuka ({n})',
+  'Nothing open': 'Tidak ada yang terbuka',
+
   // ── Document statuses ─────────────────────────────────────────────────────
   // Stored in the database in ENGLISH (constants/enums.ts, lib/salesStatus.ts)
   // and translated only where they are SHOWN — never where they are written,

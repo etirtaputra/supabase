@@ -6,6 +6,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useQuotesGate } from '@/hooks/useQuotesGate';
 import { useT } from '@/hooks/useT';
+import { fetchOpenNotes, newestOpenByQuote, openCountByQuote, type QuoteNote } from '@/lib/quoteNotes';
 import { computeTUCMap, getComponentCost, fxFromHistory, type TUCResult, type CostEntry } from '@/lib/computeTUC';
 import { deriveExchangeRates } from '@/lib/exchangeRates';
 import { fetchUsedEntries } from '@/lib/usedPrices';
@@ -66,7 +67,7 @@ function nextRevisionNumber(base: string): string {
 }
 
 export default function QuotesListPage() {
-  const { t: tr } = useT();
+  const { t: tr, tf } = useT();
   const supabase = createSupabaseClient();
   const router = useRouter();
   const gate = useQuotesGate();
@@ -77,6 +78,26 @@ export default function QuotesListPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('');   // '' = all project types
+  const [noteFilter, setNoteFilter] = useState('');    // '' = all · open · none
+  // Every OPEN follow-up note, in one query for the whole list.
+  const [openNotes, setOpenNotes] = useState<QuoteNote[]>([]);
+  // `supabase` is rebuilt every render (line 71), so it is deliberately not a
+  // dependency here — the same call the other fetches in this file make.
+  const reloadNotes = useCallback(() => { fetchOpenNotes(supabase).then(setOpenNotes).catch(() => setOpenNotes([])); }, []);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { reloadNotes(); }, [reloadNotes]);
+  const noteByQuote = useMemo(() => newestOpenByQuote(openNotes), [openNotes]);
+  const noteCountByQuote = useMemo(() => openCountByQuote(openNotes), [openNotes]);
+  /** Hover text for the note on a row: how many are open, and since when. */
+  const noteThreadTitle = useCallback((quoteId: string): string => {
+    const n = noteByQuote.get(quoteId);
+    if (!n) return '';
+    const count = noteCountByQuote.get(quoteId) ?? 1;
+    const when = fmtDate(n.created_at);
+    return count > 1
+      ? tf('{body} — {n} notes open, newest {date}', { body: n.body, n: count, date: when })
+      : tf('{body} — raised {date}', { body: n.body, date: when });
+  }, [noteByQuote, noteCountByQuote, tf]);
+
   useEffect(() => { document.title = 'EPC Proposals — ICAPROC'; }, []);
 
   // Live presence: who else is in the EPC area and on which proposal. This page
@@ -253,13 +274,15 @@ export default function QuotesListPage() {
   const visibleQuotes = useMemo(() => {
     return quotes.filter((q) => {
       if (filterType && (q.project_type || 'custom') !== filterType) return false;
+      if (noteFilter === 'open' && !noteByQuote.has(q.quote_id)) return false;
+      if (noteFilter === 'none' && noteByQuote.has(q.quote_id)) return false;
       if (!searchLc) return true;
       const headerHit = [q.quote_number, q.customer_name, q.project_description, q.location,
         PROJECT_TYPES.find((t) => t.key === q.project_type)?.label]
         .filter(Boolean).join(' ').toLowerCase().includes(searchLc);
       return headerHit || itemMatchByQuote.has(q.quote_id);
     });
-  }, [quotes, searchLc, filterType, itemMatchByQuote]);
+  }, [quotes, searchLc, filterType, itemMatchByQuote, noteFilter, noteByQuote]);
 
   // Project types actually present, so the dropdown never offers empty options
   const availableTypes = useMemo(() => {
@@ -503,6 +526,17 @@ export default function QuotesListPage() {
               <option value="">All project types</option>
               {availableTypes.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
             </select>
+            {/* Only offered once a note exists — an empty filter on a feature
+                nobody has used yet is a control that can only disappoint. */}
+            {noteByQuote.size > 0 && (
+              <select value={noteFilter} onChange={(e) => setNoteFilter(e.target.value)}
+                title={tr('Proposals with a follow-up note still open')}
+                className="h-11 px-3 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-violet-500/60 outline-none text-slate-300 text-xs">
+                <option value="">{tr('All notes')}</option>
+                <option value="open">{tf('Open note ({n})', { n: noteByQuote.size })}</option>
+                <option value="none">{tr('Nothing open')}</option>
+              </select>
+            )}
             <LayoutToggle value={layout} onChange={setLayout} accent="violet" />
           </div>
         )}
@@ -552,9 +586,19 @@ export default function QuotesListPage() {
                           ⚠ {driftByQuote.get(q.quote_id)}
                         </span>
                       )}
-                      {q.project_description && (
+                      {/* An OPEN note takes the description's place (owner's
+                          call, 2026-08-27). A live "waiting on the customer"
+                          is worth more than a description you wrote yourself
+                          and already know, and the row does not grow to say
+                          it. The description is still there in Card view. */}
+                      {noteByQuote.has(q.quote_id) ? (
+                        <span className="text-[11px] text-amber-300/90 truncate hidden md:inline"
+                          title={noteThreadTitle(q.quote_id)}>
+                          <span aria-hidden className="mr-1">●</span>{noteByQuote.get(q.quote_id)!.body}
+                        </span>
+                      ) : q.project_description ? (
                         <span className="text-[11px] text-slate-500 truncate hidden md:inline">{q.project_description}</span>
-                      )}
+                      ) : null}
                       {/* Money and date are FIXED-WIDTH and last (from sm up), so
                           every row's amount shares a right edge and the column can
                           be read as a column. On a PHONE the fixed widths would

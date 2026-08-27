@@ -11,6 +11,7 @@ import { fetchUsedEntries, quoteContext, QUOTE_CONTEXT_COLS, type QuoteContextRo
 import { DEFAULT_EXPORT_COLS, EXPORT_COL_KEYS, EXPORT_COL_LABELS, loadExportCols, saveExportCols, type ExportCols } from '@/lib/exportCols';
 import { quoteFileName } from '@/lib/quoteFilename';
 import { useDragReorder, DRAGGING_ROW, REORDER_ROW } from '@/components/ui/dragReorder';
+import QuoteNoteThread from '@/components/ui/QuoteNoteThread';
 import { lineWp, wpPerModule } from '@/lib/quoteWp';
 import MigrationBanner from '@/components/ui/MigrationBanner';
 import MobileNotice from '@/components/ui/MobileNotice';
@@ -3020,6 +3021,15 @@ export default function QuoteEditorPage() {
             locked={locked}
           />
         )}
+
+        {/* ── Follow-up notes ──
+               Above Terms & Conditions on purpose: this is the internal panel
+               someone opens the proposal to update, and Terms is the
+               customer-facing block underneath it. NOT wrapped in the `locked`
+               opacity/pointer-events the rest of the page uses — a SENT
+               proposal is precisely the one you need to note "awaiting answer"
+               against. */}
+        <QuoteNoteThread quoteId={id} authorEmail={gate.profile?.email ?? null} />
 
         {/* ── Terms & Conditions ── */}
         <div className={`bg-slate-900/50 border border-slate-800 rounded-2xl p-5 ${locked ? 'pointer-events-none opacity-70' : ''}`}>

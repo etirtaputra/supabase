@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-27T04:10:00Z',
+    title: 'EPC proposals can now carry follow-up notes, and the list shows what each one is waiting on',
+    details: [
+      'Open a proposal and there is a Follow-up notes panel: write a line like “Awaiting answer from the customer on the revised scope” and it appears on the EPC Proposals list, in amber, on that proposal’s row — so the list finally says what each job is waiting on instead of only what it is worth.',
+      'It works as a thread rather than a single box. Every line keeps who wrote it and when, and you tick lines off one at a time as they get settled. A ticked line does not disappear — it stays in the thread, greyed, with both dates, so you can read back “chased them on the 21st, they answered on the 26th”. Ticked by mistake? Tick it again to put it back.',
+      'On the list, the row shows the newest line still open, in the place the project description used to sit — no row got taller. Once every line on a proposal is ticked off, the row goes quiet and the description comes back. Card view still shows the description as before.',
+      'A filter appears beside the project types once anything is noted, so you can pull up just the proposals waiting on somebody.',
+      'Notes work on a proposal that has already been SENT. Everything else on a sent proposal is locked, which is right — the customer has that document — but “awaiting answer” is exactly the note a sent proposal needs. These notes are internal and are never printed on anything a customer sees.',
+    ],
+  },
+  {
     at: '2026-08-26T06:30:00Z',
     title: 'The arrow on every dropdown now sits properly inside its box',
     details: [
