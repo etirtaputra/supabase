@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-08-25** · head of `main` at that point: `c2ebefa`
+**Last updated: 2026-08-27** · head of `main` at that point: `2bb0921`
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -32,7 +32,7 @@ item/price/spec data eventually feed a public website.
 - Do **not** open a pull request unless explicitly asked.
 - No `gh` CLI in this sandbox — use the `mcp__github__*` MCP tools if you need
   the GitHub API. Plain `git` over HTTPS works fine for fetch/push.
-- Head of `main` at handoff: `c2ebefa` — "Document statuses in Bahasa Indonesia — one vocabulary, every list screen".
+- Head of `main` at handoff: `2bb0921` — "Off Target: audit items priced outside their own margin tier's band".
 
 ### Vercel — https://vercel.com/etirtaputras-projects/supabase/deployments
 - Production deploys **automatically from `main`**. Pushing to main IS the release.
@@ -109,7 +109,7 @@ item/price/spec data eventually feed a public website.
 
 ```bash
 npx tsc --noEmit     # must be clean
-npm test             # node --test "lib/**/*.test.ts" — 270 tests at handoff, all pass
+npm test             # node --test "lib/**/*.test.ts" — 295 tests at handoff, all pass
 npx eslint           # ~294 pre-existing errors repo-wide; just don't ADD any
 npm run build        # next build must be green
 ```
@@ -118,6 +118,51 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 ---
 
 ## 4. What the previous threads did (for context, all shipped to main)
+
+### 2026-08-26 → 27 — owner-driven fixes, then two features
+
+- `3fd36f3` **THE EN/ID SWITCH DID NOTHING.** `useLanguage()` kept the pick in
+  a `useState`, so every caller held its OWN copy — `useT()` is a caller and so
+  is the switch in `BrandMenu`. Pressing EN updated the switch's copy and
+  nothing else's; only a reload appeared to work. It is a module-level store
+  with subscribers now (`lib/language.ts`, the shape `lib/settings.ts` uses),
+  read via `useSyncExternalStore`. **Proved with the same rig either side:**
+  before, clicking ID moved the button and left all six dashboard widgets in
+  English; after, all six turn together. `/preview` gained the real switch —
+  it is the one page that can answer "did the whole screen move?".
+  `lib/language.test.ts` is new (8 tests).
+- `09233b4` **Skin + language moved to the TOP of the brand menu, on ONE row.**
+  They were the last thing under every module. The two uppercase headings were
+  what cost the rows; they survive as `aria-label`. 110px → 36px. The
+  Settings link is a GEAR because a text link fitted in English ("More →",
+  202px of 212) and did NOT in Indonesian ("Lainnya →", 217px — over).
+- `e268aed` **Dropdown chevrons.** Chrome pins its native arrow 5px from the
+  border and IGNORES padding-right — measured at px-3/pr-7/pr-8/pr-9, all
+  4.7px. So the app draws the arrow now: one rule in `app/layout.tsx`'s global
+  block covering all **141 `<select>`s across ~20 local class constants**,
+  12.7px in, `select:not(.appearance-none)` so the two deliberate opt-outs
+  (EPC status pill, New Deal currency) keep their behaviour.
+- `e2f085e` + `c9f9354` + `5bda547` **EPC follow-up notes** — `10.5_quote_notes`.
+  A thread per proposal: who, when, ticked off one at a time, cleared never
+  deleted, editable with an "edited" stamp. The newest OPEN note shows on the
+  EPC Proposals list in place of the description; a filter finds proposals with
+  one open. **Writes are `can_view_epc()`, NOT `can_edit_quote()`** — the
+  latter locks a SENT proposal to owners, and a sent proposal is exactly the
+  one needing "awaiting answer". Panel sits above the header form; settled
+  notes fold. Contrast fixed on the dark skin (placeholder was **1.40:1**).
+- `1fcd177` + `2bb0921` **MARGIN TIERS** — `21.2_margin_profiles` +
+  `3.0_components.margin_profile_id`. Loss Leader 10–15% (123 items),
+  Value Capture 20–25% (174), **Unclassified 693** (603 of them `non_stock`).
+  Targets are DATA — a Margin Profiles tab on `/pricing` edits them, adds
+  profiles, removes them; nothing in app code contains 10–15 or 20–25.
+  Item Editor: tier column + chip, inline dropdown, tier filter, and **bulk
+  assign riding the existing `applyBatchField`** so it stages into the normal
+  Save with the normal diff. **"Off Target" filter** audits sell-price-vs-TUC
+  against each item's own band — deliberately NOT SQL, because TUC is settled
+  POs only, line share of PO value, taxes excluded, floored at the weighted
+  average (`lib/computeTUC.ts`); it runs where `computeTUCMap` runs so it
+  agrees with the GM figure beside it.
+
 
 ### 2026-08-25 — full Bahasa Indonesia, menus included (three commits)
 
@@ -325,104 +370,106 @@ has not decided.
 
 ---
 
-## 6. NEXT MODULE — finish the Bahasa Indonesia sweep: Purchasing, then Sales
+## 6. NEXT MODULE — tidy the Products filter bar (and rename "Just arrived")
 
-The owner's ask ("fully Bahasa Indonesia, including the menus") is **honoured
-for everything he navigates by and everything on the screen he lands on.** What
-is left is the INSIDE of the big working screens. This is a continuation, not a
-new module — the decisions are made, the mechanism is proven, and the guard is
-in place. Do not re-litigate any of it with him.
+**The ask (owner, 2026-08-27):** *"'Just arrived' in Products could just be
+'New', and think of ways to make the menu for Products neater."*
 
-### The four decisions, already taken (2026-08-25) — inherit, don't re-ask
+Small, visual, and entirely in `app/products/page.tsx` — a good thread to take
+on its own. It is a LAYOUT problem, so **measure it** (§5) rather than
+redesigning by eye.
 
-1. **Keepers are codes and units only** — the `KEEPERS` list in `lib/i18n.ts`.
-2. **`t(label)` at the render site**, never a parallel `labelId` field.
-3. **Order: menus → Dashboard → Purchasing/Item Editor → Sales → Deal Lookup.**
-   The first two are shipped; you are on Purchasing.
-4. **Short trade forms** in any control (button, badge, tile label, column
-   heading); full sentences only where there is room. The note near the top of
-   `lib/i18n.ts` explains this and it has already saved two layouts.
+### What is actually there — counted 2026-08-27
 
-### Where it stands — measured 2026-08-25, at `c2ebefa`
+One wrapping flex row, `flex flex-wrap items-center gap-2`, holding **13
+controls**:
 
-- **562** phrase-book entries (310 at the start of the day).
-- **26 of 126** `.tsx` files under `app/` + `components/` call `useT()` (was 20).
-- Fully translated: the whole menu system, Spotlight's page results, the
-  Dashboard, role names and descriptions, and every document status badge.
+| # | control | kind | note |
+|---|---------|------|------|
+| 1 | Search | input, `flex-1 min-w-[200px]` | placeholder changes with `canViewBrand` |
+| 2 | All categories | select | |
+| 3 | All brands | select | gated on `canViewBrand` |
+| 4 | Sort ("Last updated ↓") | select | 2 options per key (asc + desc) |
+| 5 | **Priced** | checkbox | **defaults ON** (owner, 2026-08-14) |
+| 6 | In stock / incoming | checkbox | |
+| 7 | **Just arrived** | checkbox | ← rename to **New** |
+| 8 | Clear × | button | only when `hasFilters` |
+| 9 | "91 of 990" | count | `ml-auto` |
+| 10 | Text quote mode | button | builds a WhatsApp MESSAGE, never a Sales Quotation (owner, 2026-08-06) — the wording is deliberate |
+| 11 | Date range | `DateRangeFilter` | |
+| 12 | Compact / Card | `LayoutToggle` | |
+| 13 | Columns | button | |
 
-### The job, in the owner's order
+Three checkboxes, three selects, three buttons and a count all competing in one
+line is the actual complaint. Ideas worth measuring, not a prescription:
+group the three checkboxes into one "Show" dropdown with tick items; fold
+Compact/Card + Columns into a single view control; move the count next to the
+search. **Put the shape to the owner with widths before building it** — he
+answers layout questions well when given measured options.
 
-**A. Purchasing** — `app/purchasing/page.tsx` (1,628 lines) is the shell: four
-tabs (Item Editor, New Deal, Payments, Deal Lookup), the header, the tab
-buttons, empty states. Start there; it is the frame the owner sees first.
+### The rename
 
-**B. Item Editor** — `components/ui/ComponentEditor.tsx` is **5,674 lines and
-the single biggest untranslated file in the app.** Give it its own commit, and
-consider giving it its own THREAD. Column headings and row actions are controls:
-short forms.
+`Just arrived` → `New`. Three things to keep straight:
+- the window is **Settings › Defaults** (`newArrivalDays`), shared with the
+  dashboard's **New arrivals** panel — one definition of "new", not one per
+  screen. Do not fork it.
+- the tooltip explains it ("goods receipt in the last N days"); keep that, it
+  is doing the work the shorter label sheds.
+- there is a **deep link** (`?new=1` / `arrivedDeepLink`) from the dashboard's
+  New arrivals widget — check it still lands with the filter on.
+- `'Just arrived'` may need a phrase-book entry; `/products` **does** call
+  `useT()`, so this screen is partly translated already.
 
-**C. Sales** — `app/sales/[id]/page.tsx` (2,050) then `app/sales/page.tsx`.
-`SalesMilestones` already has `useT`.
+### Then, still open from the margin-tier work
 
-**D. Deal Lookup** — `components/ui/DealLookupTab.tsx`; already has `useT` and
-its status badges.
+- **The soft margin flag on quote/order LINE items.** Shipped for the Item
+  Editor only. The spec (2026-08-27) asks for it on sales/EPC quote lines too;
+  it needs the line-margin path in two editors and was deliberately left out
+  rather than half-built. Not one of the six acceptance criteria, all of which
+  are met.
+- **A standalone Tier Audit report** on `/pricing` beside Floor Audit — totals
+  and money-at-stake per tier. The Item Editor filter answers "which items";
+  a report would answer "how much is this costing us". Offered, not asked for.
+- **693 Unclassified items.** 603 are `non_stock`. Filter to Unclassified in
+  the Item Editor and bulk-assign; the tooling for it shipped.
 
-### Traps this thread hit, so you don't
+### The Bahasa Indonesia sweep — still the standing backlog
 
-- **A duplicate key silently wins.** Adding `'Paid': 'Dibayar keluar'` when
-  `'Paid': 'Lunas'` already existed replaced a translation used on a different
-  screen. `tsc` catches literal duplicates (TS1117) — *including* one written
-  with a `\uXXXX` escape and one written literally — but only if you LOOK at the
-  error instead of deduping mechanically. **Before committing an i18n change,
-  diff the parsed map against `HEAD` and check nothing was LOST or CHANGED**;
-  that check found the one entry this thread nearly dropped.
-- **The orphan test matches SUBSTRINGS**, so an entry that is a fragment of a
-  longer entry can never be looked up and will never be reported. Two such
-  fragments had been dead in the file for days.
+Menus, Dashboard and document statuses are done (§4, 2026-08-25). What is left
+is the INSIDE of the big screens, in the owner's order: Purchasing shell →
+**`components/ui/ComponentEditor.tsx` (5,674 lines, the largest untranslated
+file — probably its own thread)** → Sales → Deal Lookup. The four decisions
+are settled and must not be re-litigated: keepers are codes and units only;
+`t(label)` at the render site; that order; short trade forms in any control.
+`lib/i18n.test.ts` fails the build if a nav label, group header, panel, quick
+action, role or document status ships with no Indonesian and no keeper entry.
+
+### Traps this run hit — inherit these
+
+- **A duplicate phrase-book key silently wins.** Adding `'Paid'` when it
+  already existed replaced a translation used on another screen. `tsc` catches
+  it (TS1117) *including* one written with a `\uXXXX` escape — but only if you
+  read the error. Before committing an i18n change, diff the parsed map against
+  `HEAD` and check nothing was LOST or CHANGED.
+- **The orphan test matches SUBSTRINGS**, so a fragment of a longer entry can
+  never be looked up and is never reported.
+- **An entry that is only placeholders** (`'{who} · {when}'`) equals its own
+  English and fails the suite — omit it, `tf()` fills it from the fallback.
 - **A map parameter named `t` shadows the translator** (`tiles.map((t) => …)`,
-  `const t = totalsByQuote.get(…)`). Rename the parameter, or bind the
-  translator as `tr` — both patterns are in the tree now.
-- **`t`/`tf` are dependencies.** They are memoised on `lang` in `hooks/useT.ts`,
-  so list them in any `useMemo`/`useEffect` that translates; eslint's
+  `const t = totalsByQuote.get(…)`). Rename it, or bind as `tr`.
+- **`t`/`tf` are real dependencies** now they are memoised on `lang`;
   `preserve-manual-memoization` is an ERROR, not a warning.
-- **Never translate a value that is written, compared or filtered.** Statuses
-  are stored in English; a dropdown keeps English in `value` and translates only
-  the option text.
-
-### Still English on purpose, and why
-
-- `ENUMS.proforma_status` — its `'Open'` collides with the verb `'Open'`
-  already in the book (`'Buka'`). A PI that is still open is not a button; that
-  needs a wording decision from the owner, not a translation.
-- `constants/productColumns.ts`, `constants/listDefaults.ts`,
-  `PERMISSION_MATRIX` in `constants/roles.ts` — untouched, no decision needed,
-  just work.
-- `ActivityRow.sub` on the dashboard renders a raw DB status through `t()`, so
-  the statuses now resolve and anything else falls back to English.
-
-### Long-standing items still awaiting the owner (raise once, don't re-litigate)
-- **SETTLED 2026-08-25:** the Indonesian glossary. Short trade forms, per the
-  owner's pick — Mundur/Maju, Transit, eksternal, Sisa piutang (used for the
-  "Owed to us" tile), Pembayaran masuk, Penawaran → pesanan.
-- 11 POs whose total is SHORT by exactly their freight (older foreign PIOs,
-  several Fully Received). Flagged in amber on the deal card; owner chose to
-  leave the data alone on 2026-08-24.
-- 25 Confirmed POs with zero receipts, ETAs ~9 months past.
-- Whether the `sales` role should see margin (would light up the Profit toggle
-  on `topProducts` / `topCustomers`).
-- The Dolibarr delivery-document import, so history feeds the leaderboards.
-- Three of the five ⋯ menu actions overlap (Stock, Inspect, Item hub — the hub
-  contains the other two). Worth removing one; needs the owner's usage.
-- **A latent bug class, unswept:** any `position: fixed` overlay rendered
-  inside a `backdrop-blur` container is mispositioned (see `25d3df2`). Nobody
-  has swept the app for others.
-- Delivery movements booked with **no `unit_cost_idr`** (3 of 5 in the last
-  90 days) — until they carry cost, item GP and the cash cycle measure against
-  a hole.
-- On 1366/1440-wide laptops, list pages still wrap their page buttons to a
-  second header row. Shortening the nav labels would close it — and note the
-  Indonesian labels are only **19px wider** than the English at rest, so the
-  language did not make this worse.
+- **Postgres `now()` is transaction time**, so two rows inserted in one
+  transaction share a timestamp and any `ORDER BY created_at` is a coin flip.
+  Break the tie on the id, in BOTH the SQL and the client sort.
+- **`text-slate-600` is 2.38:1 on the terminal skin** — fails WCAG AA (4.5)
+  and the app uses it **768 times across 67 files** for small print. Raised
+  with the owner as a systemic fix (lighten the token in the palette
+  generator); NOT done, because slate-600 is also a border and background
+  colour. His call.
+- **Vercel is slow and its `state` field LAGS the build logs badly** — a
+  deployment can read QUEUED/BUILDING for 10+ minutes after the logs say
+  "Build Completed". Read `get_deployment_build_logs`, not just `state`.
 
 ---
 
