@@ -688,7 +688,7 @@ function ProductsInner() {
           <div className="relative flex-1 min-w-[200px]">
             <svg className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={canViewBrand ? 'Search model, description, brand, category…' : 'Search description, category…'}
-              className="w-full pl-10 pr-24 h-11 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors" />
+              className="w-full pl-10 pr-24 h-11 sm:h-9 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors" />
             {/* The count belongs to the search that produced it. As its own
                 ml-auto slot it cost the row 64px it could not spare. */}
             <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-slate-600 tabular-nums pointer-events-none">{rows.length} of {comps.length}</span>
@@ -732,7 +732,7 @@ function ProductsInner() {
           </BarMenu>
           {hasFilters && (
             <button onClick={() => { setSearch(''); setFilterCategory(''); setFilterBrand(''); setStockOnly(false); setJustArrived(false); setPricedOnly(true); }}
-              className="text-[11px] text-slate-500 hover:text-white px-2 py-1 transition-colors">{t('Clear ×')}</button>
+              className="h-11 sm:h-9 inline-flex items-center text-[11px] text-slate-500 hover:text-white px-2 transition-colors">{t('Clear ×')}</button>
           )}
           {/* "Text quote", not "Quote" — this builds a WhatsApp MESSAGE, it
               never creates a Sales Quotation document (owner, 2026-08-06). */}
@@ -740,7 +740,7 @@ function ProductsInner() {
             title={multi
               ? 'Tapping a price adds the item to the WhatsApp text quote at that price. Tap again to remove, tap another tier to move it. This never creates a Sales Quotation document.'
               : 'Collect several products into one WhatsApp text message — no Sales Quotation document is created'}
-            className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-colors whitespace-nowrap ${
+            className={`h-11 sm:h-9 inline-flex items-center text-[11px] font-semibold px-2.5 rounded-lg border transition-colors whitespace-nowrap ${
               multi ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800'
             }`}>
             {multi ? `Text quote mode · ${basket.items.length}` : 'Text quote mode'}
@@ -1107,7 +1107,7 @@ function BarMenu({ label, title, active, width, children }: {
   return (
     <>
       <button ref={btnRef} onClick={toggle} title={title}
-        className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-medium whitespace-nowrap transition-colors ${
+        className={`h-11 sm:h-9 px-2.5 inline-flex items-center rounded-lg border text-[11px] font-medium whitespace-nowrap transition-colors ${
           active ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:text-slate-200'
         }`}>
         {label} ▾
@@ -1137,7 +1137,7 @@ function MenuCheck({ checked, onChange, label, title, accent = 'emerald' }: {
   );
 }
 
-const selCls = 'h-11 px-3 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-slate-300 text-xs transition-colors cursor-pointer';
+const selCls = 'h-11 sm:h-9 px-3 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-slate-300 text-xs transition-colors cursor-pointer';
 
 function CenterSpinner() {
   return <div className="min-h-screen bg-chrome flex items-center justify-center"><div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" /></div>;

@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-27T19:45:00Z',
+    title: 'Filter bars: every box and button is the same height now',
+    details: [
+      'The Products filter bar had five different control heights sitting side by side — the search box and the three dropdowns were 44 pixels tall, while Show, View, the date button, Text quote mode and Clear were 30½, 30, 26½ and 24½. The boxes had a set height; the buttons were only ever as tall as their text plus padding, and no two had been given the same padding.',
+      'They are all one height now: 36 pixels on a laptop, which also gives the row 8 pixels back, and 44 on a phone so nothing gets harder to tap.',
+      'The date button is shared, so Sales, Invoices, Delivery, After Sales, Support Letters, Banks and Deal Lookup line up better too.',
+    ],
+  },
+  {
     at: '2026-08-27T18:40:00Z',
     title: 'EPC proposals: the section name was invisible on a phone',
     details: [

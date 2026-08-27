@@ -149,7 +149,7 @@ export default function DateRangeFilter({
     <>
       <button ref={btnRef} onClick={() => setOpen((o) => !o)}
         title={`${label}: ${summary}`}
-        className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border whitespace-nowrap transition-colors ${
+        className={`flex items-center gap-1.5 text-xs h-11 sm:h-9 px-3 rounded-lg border whitespace-nowrap transition-colors ${
           active ? tone : 'border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800'
         }`}>
         <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
