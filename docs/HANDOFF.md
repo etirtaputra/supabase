@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-08-27** · head of `main` at that point: `1e1c748`
+**Last updated: 2026-08-27** · head of `main` at that point: `3cb809c`
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -32,7 +32,7 @@ item/price/spec data eventually feed a public website.
 - Do **not** open a pull request unless explicitly asked.
 - No `gh` CLI in this sandbox — use the `mcp__github__*` MCP tools if you need
   the GitHub API. Plain `git` over HTTPS works fine for fetch/push.
-- Head of `main` at handoff: `1e1c748` — "Products: rename Just arrived to New and fold the filter bar to one line".
+- Head of `main` at handoff: `3cb809c` — "EPC section header: the title collapsed to 0px on a phone".
 
 ### Vercel — https://vercel.com/etirtaputras-projects/supabase/deployments
 - Production deploys **automatically from `main`**. Pushing to main IS the release.
@@ -120,6 +120,26 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 ## 4. What the previous threads did (for context, all shipped to main)
 
 ### 2026-08-27 (later) — the Products filter bar, and one bug found by screenshot
+
+- `3cb809c` **EPC section header: the title field collapsed to 0px on a phone.**
+  Owner screenshot, reported as "the pencil button is still too close to the
+  lead time selection". Measured at 360/390/402/430: the title input is
+  **0.0px** at all four and the pencil **overlaps** the select by 2px — the
+  section name could not be read or tapped at all. The row was
+  `flex items-center gap-3` with the title `flex-1 min-w-0` between a
+  fixed-width select and a `whitespace-nowrap` subtotal; its content measures
+  **419px and never shrinks**, so on a 402px phone (376px row) `min-w-0` took
+  the title to zero AND the row still overflowed by 43px.
+  **That overflow is why the same screenshot clipped Save, Export, Qty and the
+  Rp/Wp figure** — one row wider than the viewport widens the document and
+  everything else scrolls with it. Worth remembering as a diagnosis: a page
+  that is scrolled sideways on a phone has ONE culprit element, and it is
+  usually a nowrap flex row, not the thing that looks clipped.
+  Now `flex flex-wrap gap-x-3 gap-y-2` + `min-w-[9rem] sm:min-w-0` — the shape
+  the GROUP header above already used. 9rem is the largest floor that still
+  fits two rows at 360 (10rem makes three); `sm:min-w-0` leaves 640+ exactly as
+  it was. The sales quote editor's equivalent row already wraps, so this was
+  EPC-only.
 
 - `b97d6ea` **Item Editor: the Margin Tier column heading.** Owner screenshot,
   reported as "lines during loading". It was not a loading artifact — the `<th>`
