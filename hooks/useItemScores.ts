@@ -17,6 +17,7 @@
  */
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { fetchAllComponents } from '@/lib/fetchAllRows';
 import { computeItemScores, type ItemScoreInput, type ItemScoreResult } from '@/lib/itemScore';
 import { useSettings } from './useSettings';
 
@@ -43,6 +44,13 @@ interface Raw {
   poReceived: Map<string, string>;
   poComps: { po_id: string; component_id: string }[];
   superseded: Set<string>;
+  /**
+   * When this snapshot was READ, in ms. The 90/180/360-day windows below are
+   * anchored to it rather than to `Date.now()` at render time: a score is a
+   * reading of the data as of the moment it was fetched, and a window that
+   * slides on every re-render makes the same data produce different answers.
+   */
+  readAt: number;
 }
 
 export function useItemScores(supabase: SupabaseClient, enabled: boolean): { scores: Map<string, ItemScoreResult>; metrics: Map<string, ItemMetrics>; loading: boolean } {
@@ -52,17 +60,8 @@ export function useItemScores(supabase: SupabaseClient, enabled: boolean): { sco
 
   const load = useCallback(async () => {
     setLoading(true);
-    const fetchAllComps = async () => {
-      const PAGE = 1000; let all: { component_id: string; category: string | null }[] = []; let from = 0;
-      for (;;) {
-        const { data } = await supabase.from('3.0_components').select('component_id, category').range(from, from + PAGE - 1);
-        if (!data || data.length === 0) break;
-        all = all.concat(data as { component_id: string; category: string | null }[]);
-        if (data.length < PAGE) break;
-        from += PAGE;
-      }
-      return all;
-    };
+    const fetchAllComps = () =>
+      fetchAllComponents<{ component_id: string; category: string | null }>(supabase, 'component_id, category');
     const [comps, balRes, movRes, doRes, doiRes, soiRes, poRes, poiRes, linkRes] = await Promise.all([
       fetchAllComps(),
       supabase.from('30.1_stock_balances').select('component_id, qty_on_hand, avg_cost_idr'),
@@ -101,6 +100,7 @@ export function useItemScores(supabase: SupabaseClient, enabled: boolean): { sco
       poReceived,
       poComps: (((poiRes.data as { po_id: unknown; component_id: string | null }[]) ?? []).filter((r) => r.component_id).map((r) => ({ po_id: String(r.po_id), component_id: r.component_id! }))),
       superseded,
+      readAt: Date.now(),
     });
     setLoading(false);
   }, [supabase]);
@@ -147,11 +147,11 @@ export function useItemScores(supabase: SupabaseClient, enabled: boolean): { sco
     const recent = new Map<string, number>(), prior = new Map<string, number>(), events = new Map<string, number>();
     const rev90 = new Map<string, number>(), revBaselineWin = new Map<string, number>();
     let firstDate = '';
-    const d90 = new Date(Date.now() - 90 * 86400000).toISOString();
-    const d180 = new Date(Date.now() - 180 * 86400000).toISOString();
+    const d90 = new Date(raw.readAt - 90 * 86400000).toISOString();
+    const d180 = new Date(raw.readAt - 180 * 86400000).toISOString();
     // The baseline window is the 270 days BEFORE the recent quarter — three
     // 90-day periods, averaged, so a single lumpy order doesn't set the bar.
-    const d360 = new Date(Date.now() - 360 * 86400000).toISOString();
+    const d360 = new Date(raw.readAt - 360 * 86400000).toISOString();
     for (const f of facts) {
       rev.set(f.component_id, (rev.get(f.component_id) ?? 0) + f.revenue);
       cogsAll.set(f.component_id, (cogsAll.get(f.component_id) ?? 0) + f.cogs);

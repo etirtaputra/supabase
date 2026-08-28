@@ -11,6 +11,7 @@
  */
 import { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
+import { fetchAllComponents } from '@/lib/fetchAllRows';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -138,24 +139,10 @@ function ItemsInner() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const fetchAllComponents = async () => {
-      const PAGE = 1000;
-      let all: Comp[] = [];
-      let from = 0;
-      for (;;) {
-        // Brand is buy-side sensitive — not selected for sell-side roles.
-        const cols = `component_id, supplier_model, internal_description, category, unit, selling_price_idr, datasheet_url, updated_at${canBrand ? ', brand' : ''}`;
-        const { data: page } = await supabase.from('3.0_components')
-          .select(cols).order('supplier_model').range(from, from + PAGE - 1);
-        if (!page || page.length === 0) break;
-        all = all.concat(page as unknown as Comp[]);
-        if (page.length < PAGE) break;
-        from += PAGE;
-      }
-      return all;
-    };
+    // Brand is buy-side sensitive — not selected for sell-side roles.
+    const cols = `component_id, supplier_model, internal_description, category, unit, selling_price_idr, datasheet_url, updated_at${canBrand ? ', brand' : ''}`;
     const [allComps, balRes, movRes, piiRes, poiRes, sqiRes, pqRes, poRes, costRes, supRes, linkRes] = await Promise.all([
-      fetchAllComponents(),
+      fetchAllComponents<Comp>(supabase, cols),
       // avg cost only for buy-side roles — never let landed cost reach a
       // sell-side browser's network tab (the /products leak, not repeated)
       supabase.from('30.1_stock_balances').select(`component_id, location, qty_on_hand${canBuy ? ', avg_cost_idr' : ''}`),

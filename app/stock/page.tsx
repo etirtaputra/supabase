@@ -13,6 +13,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseClient } from '@/lib/supabase';
+import { fetchAllComponents } from '@/lib/fetchAllRows';
 import { useAuth } from '@/hooks/useAuth';
 import { useT } from '@/hooks/useT';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
@@ -82,21 +83,6 @@ export default function StockPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const fetchAllComponents = async () => {
-      const PAGE = 1000;
-      let all: Comp[] = [];
-      let from = 0;
-      for (;;) {
-        const { data: page } = await supabase.from('3.0_components')
-          .select('component_id, supplier_model, internal_description, brand, category, unit')
-          .order('supplier_model').range(from, from + PAGE - 1);
-        if (!page || page.length === 0) break;
-        all = all.concat(page as unknown as Comp[]);
-        if (page.length < PAGE) break;
-        from += PAGE;
-      }
-      return all;
-    };
     // Reorder alerts fetch their own tables — independent, never blocks the page
     fetchReorderAlerts(supabase).then(setReorders).catch(() => setReorders([]));
     // Goods on the water — paid/ordered, not yet received — read the same way
@@ -104,7 +90,7 @@ export default function StockPage() {
     // Bills that landed after the goods did — stock value still carrying the guess
     fetchLandedVariances(supabase).then(setLanded).catch(() => setLanded(null));
     const [allComps, balRes, movRes, whs, sqRes, sqiRes, custRes, deliveredMap] = await Promise.all([
-      fetchAllComponents(),
+      fetchAllComponents<Comp>(supabase, 'component_id, supplier_model, internal_description, brand, category, unit'),
       supabase.from('30.1_stock_balances').select('component_id, location, qty_on_hand, avg_cost_idr, updated_at'),
       supabase.from('30.0_stock_movements').select('component_id, direction, source_type, moved_at').order('moved_at', { ascending: false }).limit(2000),
       fetchWarehouses(supabase),

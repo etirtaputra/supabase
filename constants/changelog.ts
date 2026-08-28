@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-28T07:10:00Z',
+    title: 'The row-limit fix is now the only way the app reads a long table',
+    details: [
+      'Nothing on screen changes today. This removes a trap: ten different screens each carried their own copy of the code that reads a table longer than the database will return in one go, and every copy had the same flaw \u2014 it decided it had reached the end of the table whenever the database handed back fewer rows than it asked for. That is only true while the row limit is exactly 1,000. Lower it and Items, Products, Pricing, Stock, Profitability, Spotlight search, the serial register and the landed-cost report would all have started quietly showing partial data.',
+      'They all use the one shared, tested reader now, which counts what actually came back. The limit setting can be changed to anything without any screen silently under-reporting.',
+      'Item scores also stop drifting: the 90/180/360-day sales windows are now anchored to the moment the data was read, instead of being re-measured against the clock every time the screen redrew.',
+    ],
+  },
+  {
     at: '2026-08-28T06:20:00Z',
     title: 'Two people can now edit the same sales order without losing each other\u2019s work',
     details: [

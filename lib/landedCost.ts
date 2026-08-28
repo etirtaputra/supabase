@@ -30,6 +30,7 @@
  */
 // Relative import keeps this runnable under `node --test` (no @/ alias there)
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { fetchAllRows, type PageResult } from './fetchAllRows.ts';
 import { TAX_CATS, BALANCE_CATS } from '../constants/costCategories.ts';
 
 /**
@@ -404,15 +405,9 @@ export function revaluationRows(v: PoVariance, movedAt?: string): RevaluationRow
 // ── Fetch wrapper ────────────────────────────────────────────────────────────
 /** Page past PostgREST's default 1,000-row ceiling — the ledger is long. */
 async function pageAll<T>(supabase: SupabaseClient, table: string, cols: string): Promise<T[]> {
-  const PAGE = 1000;
-  let all: T[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supabase.from(table).select(cols).range(from, from + PAGE - 1);
-    if (error || !data || data.length === 0) break;
-    all = all.concat(data as unknown as T[]);
-    if (data.length < PAGE) break;
-  }
-  return all;
+  const { rows } = await fetchAllRows<T>((from, to) =>
+    supabase.from(table).select(cols).range(from, to) as unknown as PromiseLike<PageResult<T>>);
+  return rows;
 }
 
 export async function fetchLandedVariances(supabase: SupabaseClient): Promise<LandedSummary> {

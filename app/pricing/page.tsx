@@ -20,6 +20,7 @@
 'use client';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
+import { fetchAllComponents } from '@/lib/fetchAllRows';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -117,25 +118,10 @@ export default function PricingPage() {
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
-    const fetchAllComponents = async () => {
-      const PAGE = 1000;
-      let all: Comp[] = [];
-      let from = 0;
-      for (;;) {
-        const { data: page } = await supabase.from('3.0_components')
-          .select('component_id, supplier_model, internal_description, category, unit, selling_price_idr')
-          .order('supplier_model').range(from, from + PAGE - 1);
-        if (!page || page.length === 0) break;
-        all = all.concat(page as unknown as Comp[]);
-        if (page.length < PAGE) break;
-        from += PAGE;
-      }
-      return all;
-    };
     const [tierRes, ovRes, allComps, balRes, custRes] = await Promise.all([
       supabase.from('21.0_price_tiers').select('*').order('sort_order'),
       supabase.from('21.1_item_tier_prices').select('price_id, component_id, tier_id, override_price_idr, override_discount_pct, updated_at, updated_by_email'),
-      fetchAllComponents(),
+      fetchAllComponents<Comp>(supabase, 'component_id, supplier_model, internal_description, category, unit, selling_price_idr'),
       supabase.from('30.1_stock_balances').select('component_id, qty_on_hand, avg_cost_idr'),
       supabase.from('20.0_customers').select('customer_id, tier'),
     ]);

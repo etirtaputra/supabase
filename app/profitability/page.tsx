@@ -18,6 +18,7 @@
 'use client';
 import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
+import { fetchAllComponents } from '@/lib/fetchAllRows';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -140,23 +141,8 @@ function EconomicsInner() {
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
-    const fetchAllComponents = async () => {
-      const PAGE = 1000;
-      let all: Comp[] = [];
-      let from = 0;
-      for (;;) {
-        const { data: page } = await supabase.from('3.0_components')
-          .select('component_id, supplier_model, internal_description, category, unit, selling_price_idr')
-          .order('supplier_model').range(from, from + PAGE - 1);
-        if (!page || page.length === 0) break;
-        all = all.concat(page as unknown as Comp[]);
-        if (page.length < PAGE) break;
-        from += PAGE;
-      }
-      return all;
-    };
     const [allComps, balRes, movRes, doRes, doiRes, ordRes, soiRes, custRes, userRes, invRes, rcptRes, poRes, costRes] = await Promise.all([
-      fetchAllComponents(),
+      fetchAllComponents<Comp>(supabase, 'component_id, supplier_model, internal_description, category, unit, selling_price_idr'),
       supabase.from('30.1_stock_balances').select('component_id, qty_on_hand, avg_cost_idr'),
       supabase.from('30.0_stock_movements').select('component_id, direction, quantity, unit_cost_idr, source_type, source_id, moved_at').limit(20000),
       supabase.from('24.0_delivery_orders').select('do_id, quote_id, do_number, status, delivered_at'),

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
+import { fetchAllComponents } from '@/lib/fetchAllRows';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS, type RolePermissions } from '@/constants/roles';
 import { destinationsFor } from '@/constants/navigation';
@@ -280,28 +281,16 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
     const canProjects = perms.projects && prefs.groups.epc;
     const showBrand = perms.canViewBrand;
 
-    const fetchAllComponents = async () => {
-      const PAGE = 1000;
-      const cols = `component_id, supplier_model, internal_description, category${showBrand ? ', brand' : ''}`;
-      let all: { component_id: string; supplier_model: string; internal_description: string | null; brand?: string | null; category: string | null }[] = [];
-      let from = 0;
-      for (;;) {
-        const { data: page } = await supabase.from('3.0_components')
-          .select(cols)
-          .order('supplier_model').range(from, from + PAGE - 1);
-        if (!page || page.length === 0) break;
-        all = all.concat(page as unknown as typeof all);
-        if (page.length < PAGE) break;
-        from += PAGE;
-      }
-      return all;
-    };
+    // Brand is buy-side sensitive — not selected for roles that cannot see it.
+    const compCols = `component_id, supplier_model, internal_description, category${showBrand ? ', brand' : ''}`;
 
     // Role-scoped fetches: skipped tables resolve to empty — the data never
     // reaches a client whose role can't see it.
     const none = Promise.resolve({ data: [] as any[] });
     const [comps, projectQuotes, suppliers, companies, customers, pis, pos, piLines, poLines, quoteLineItems, salesDocs, salesLines, receipts, childInvoices, childDos, grns, cases, serialUnits, custContacts] = await Promise.all([
-      (canBuy || canSell) ? fetchAllComponents() : Promise.resolve([]),
+      (canBuy || canSell)
+        ? fetchAllComponents<{ component_id: string; supplier_model: string; internal_description: string | null; brand?: string | null; category: string | null }>(supabase, compCols)
+        : Promise.resolve([]),
       canProjects ? supabase.from('10.0_project_quotes').select('quote_id, quote_number, quote_date, customer_name, status').order('quote_date', { ascending: false }).limit(500) : none,
       canBuy ? supabase.from('2.0_suppliers').select('supplier_id, supplier_name, supplier_code') : none,
       canBuy ? supabase.from('1.0_companies').select('company_id, legal_name') : none,

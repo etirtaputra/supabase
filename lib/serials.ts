@@ -23,6 +23,7 @@
  */
 // Relative import keeps this runnable under `node --test` (no @/ alias there)
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { fetchAllRows, type PageResult } from './fetchAllRows.ts';
 
 /** How a serial is compared: letters and digits only, upper case. */
 export const normSerial = (s: string): string => (s ?? '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
@@ -227,16 +228,11 @@ const SERIAL_COLS = 'serial_id, serial, serial_norm, component_id, product_text,
 
 /** Page past PostgREST's 1,000-row ceiling — a register only ever grows. */
 export async function fetchSerials(supabase: SupabaseClient): Promise<SerialRow[]> {
-  const PAGE = 1000;
-  let all: SerialRow[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supabase.from('30.4_serial_numbers')
-      .select(SERIAL_COLS).order('created_at', { ascending: false }).range(from, from + PAGE - 1);
-    if (error || !data || data.length === 0) break;
-    all = all.concat(data as unknown as SerialRow[]);
-    if (data.length < PAGE) break;
-  }
-  return all;
+  const { rows } = await fetchAllRows<SerialRow>((from, to) =>
+    supabase.from('30.4_serial_numbers').select(SERIAL_COLS)
+      .order('created_at', { ascending: false })
+      .range(from, to) as unknown as PromiseLike<PageResult<SerialRow>>);
+  return rows;
 }
 
 /** One serial, matched the forgiving way. Empty when the register has never seen it. */

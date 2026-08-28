@@ -14,6 +14,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef, Fragment, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { createSupabaseClient } from '@/lib/supabase';
+import { fetchAllComponents } from '@/lib/fetchAllRows';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -270,24 +271,10 @@ function ProductsInner() {
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
-    const fetchAllComponents = async () => {
-      const PAGE = 1000;
-      let all: Comp[] = [];
-      let from = 0;
-      for (;;) {
-        const cols = `component_id, supplier_model, internal_description, category, unit, norm_value, selling_price_idr, datasheet_url, warranty, warranty_value, warranty_unit, perf_warranty_value, perf_warranty_unit, updated_at${canViewBrand ? ', brand' : ''}`;
-        const { data: page } = await supabase.from('3.0_components')
-          .select(cols)
-          .order('supplier_model').range(from, from + PAGE - 1);
-        if (!page || page.length === 0) break;
-        all = all.concat(page as unknown as Comp[]);
-        if (page.length < PAGE) break;
-        from += PAGE;
-      }
-      return all;
-    };
+    // Brand is buy-side sensitive — never sent to a sell-side browser.
+    const cols = `component_id, supplier_model, internal_description, category, unit, norm_value, selling_price_idr, datasheet_url, warranty, warranty_value, warranty_unit, perf_warranty_value, perf_warranty_unit, updated_at${canViewBrand ? ', brand' : ''}`;
     const [allComps, tierRes, ovRes, balRes, sqRes, sqiRes, poRes, poiRes, piiRes, custRes, linkRes, arrRes, pqRes] = await Promise.all([
-      fetchAllComponents(),
+      fetchAllComponents<Comp>(supabase, cols),
       supabase.from('21.0_price_tiers').select('tier_id, tier_code, name, default_discount_pct, sort_order, is_active').order('sort_order'),
       supabase.from('21.1_item_tier_prices').select('component_id, tier_id, override_price_idr, override_discount_pct'),
       supabase.from('30.1_stock_balances').select('component_id, location, qty_on_hand'),
