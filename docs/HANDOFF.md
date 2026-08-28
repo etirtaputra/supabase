@@ -140,8 +140,18 @@ Plus: a `constants/changelog.ts` entry in the same commit.
     narrows the switch. 5 tests, incl. "a tap never lands on a hidden skin".
     `MENU_THEME_VALUES` was a duplicate of that pair and is gone.
   - Measured in Chromium from the file's own class strings, Inter, inside the
-    real w-56 panel (210px content box): row **179px → 114px**, 35.5px → 33px
-    tall, identical in Indonesian.
+    real w-56 panel (210px content box): row **179px → 114px**, identical in
+    Indonesian.
+  - **Then corrected, same day, after the owner screenshotted it:** "the layout
+    and spacing looks weird, or too empty". He was right and it was
+    measurable — the switches at their natural 28px hugged the left while
+    `ml-auto` pinned the gear right, leaving a **108px hole in a 210px row**.
+    All three controls now share the row (`flex-1` each): 194px used, 4px gaps,
+    39px tall. **`flex-1` and not `grid-cols-3`** because the gear only exists
+    for `canManageUsers` — three columns strand a non-admin with an empty
+    third, flex just gives the two switches half each. Tap targets went
+    28×28 → ~66×28 with it. Rendered and checked in both skins, both
+    languages, and with/without the gear before pushing.
   - **Two measuring-rig bugs worth inheriting**, both the "a stale replica
     lies" trap: an extractor that only matched `className="..."` silently
     grabbed a LATER element's classes for any control written with a template

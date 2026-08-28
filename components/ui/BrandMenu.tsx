@@ -350,26 +350,44 @@ export default function BrandMenu({
              play button is. Where you ARE needs no icon — the skin is the
              whole screen and the language is every word around it.
 
+             THE CONTROLS SHARE THE ROW EQUALLY (`flex-1` each), rather than
+             hugging the left with the gear pinned right by `ml-auto`. That is
+             the second version of this row: the first shipped the switches at
+             their natural 28px and left **108px of dead space** in the middle
+             of a 210px row — over half of it — which read, correctly, as
+             unfinished (owner, 2026-08-28: "the layout and spacing looks
+             weird, or too empty").
+
+             `flex-1` and not `grid-cols-3`, because the gear only exists for
+             someone who can open Settings. Three columns would leave a
+             non-admin staring at an empty third; flex just gives the two
+             switches half each.
+
              MEASURED in Chromium against this file's own class strings, in
              Inter (the terminal skins' face), inside the real w-56 panel — a
              210px content box once its border and p-1.5 are taken off:
 
-               before  two circles + divider + EN + ID + gear   179px   35.5px tall
-               after   sun/moon + ID + gear                     114px   33px tall
+               before   two circles + divider + EN + ID + gear   179px wide, 35.5px tall
+               v1       sun/moon + ID + gear, left-hugged        114px wide, 108px hole
+               now      the same three, sharing the row          194px wide, 4px gaps
 
-             65px back, and identical in Indonesian: the switch is two letters
-             in either language, which the pair of buttons it replaced was not
-             (the old row was 179px in both because BOTH codes were always on
-             screen — its width never depended on which was active, and that
-             is exactly the space a switch does not need to spend). */}
-      <div className="flex items-center gap-2.5 px-2.5 pt-1 pb-2 mb-0.5 border-b border-slate-800/70">
+             (39px tall now rather than 33 — the switches lost their `-my-1`
+             so their hit area is real. It reads as a header strip above the
+             28px menu rows, which is what it is.)
+
+             The switch is also two letters in either language, which the pair
+             of buttons it replaced was not — the old row was 179px in English
+             AND Indonesian only because BOTH codes were always on screen.
+             And each control's tap target went from 28x28 to ~66x28, which on
+             a phone is the difference that matters. */}
+      <div className="flex items-center gap-1 px-2 pt-1 pb-1.5 mb-0.5 border-b border-slate-800/70">
         {/* Brightness. `nextTheme` (lib/theme.ts) keeps the tap inside the
             offered pair; the other four skins are Settings' business. */}
         <button
           onClick={() => setTheme(nextTheme(theme))}
           aria-label={`${t('Appearance')} — ${nextThemeLabel}`}
           title={nextThemeLabel}
-          className="flex-shrink-0 w-7 h-7 -my-1 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors">
+          className="flex-1 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors">
           {isLightTheme(theme) ? (
             /* On a light skin the tap gives you dark: show the moon.
                Stroked, not filled — every other icon in this menu is
@@ -393,7 +411,7 @@ export default function BrandMenu({
           onClick={() => setLang(otherLang(lang))}
           aria-label={`${t('Language')} — ${nextLangLabel}`}
           title={nextLangLabel}
-          className="flex-shrink-0 w-7 h-7 -my-1 flex items-center justify-center rounded-lg text-[11px] font-bold tracking-wide text-slate-400 hover:text-white hover:bg-white/10 transition-colors">
+          className="flex-1 h-7 flex items-center justify-center rounded-lg text-[11px] font-bold tracking-wide text-slate-400 hover:text-white hover:bg-white/10 transition-colors">
           {langInfo(otherLang(lang)).short}
         </button>
         {/* The other four skins live in Settings, where a house-wide look
@@ -402,7 +420,7 @@ export default function BrandMenu({
           <Link href="/settings?tab=appearance" onClick={() => { setOpen(false); setMoreOpen(false); }}
             aria-label={t('More skins and the company default')}
             title={t('More skins and the company default')}
-            className="ml-auto flex-shrink-0 p-0.5 -m-0.5 text-slate-600 hover:text-emerald-300 transition-colors">
+            className="flex-1 h-7 flex items-center justify-center rounded-lg text-slate-600 hover:text-emerald-300 hover:bg-white/10 transition-colors">
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />

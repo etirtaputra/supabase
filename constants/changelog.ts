@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-28T11:00:00Z',
+    title: 'The appearance and language row no longer looks half-empty',
+    details: [
+      'Shrinking those two settings down to one switch each left the row mostly blank \u2014 the two switches hugged the left and the settings cog sat pinned to the far right, with 108px of nothing between them in a 210px row. It read as unfinished, because it was.',
+      'The three controls now share the row evenly, so it looks like a deliberate strip of controls rather than a few icons scattered along a line. Each one is also a much bigger thing to tap: about 66px wide instead of 28px, which matters on a phone.',
+      'If your account cannot open Settings there is no cog, and the two switches simply take half the row each.',
+    ],
+  },
+  {
     at: '2026-08-28T10:05:00Z',
     title: 'Stock opens on what moved most recently, instead of what is worth most',
     details: [
