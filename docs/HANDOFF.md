@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-08-28** · head of `main` at that point: `999603f`
+**Last updated: 2026-08-28** · head of `main` at that point: `b8aed21`
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -32,7 +32,7 @@ item/price/spec data eventually feed a public website.
 - Do **not** open a pull request unless explicitly asked.
 - No `gh` CLI in this sandbox — use the `mcp__github__*` MCP tools if you need
   the GitHub API. Plain `git` over HTTPS works fine for fetch/push.
-- Head of `main` at handoff: `999603f` — "Sales order lines: upsert what survives, delete what went".
+- Head of `main` at handoff: `b8aed21` — "Read past the 1,000-row API cap where a table has crossed it".
 
 ### Vercel — https://vercel.com/etirtaputras-projects/supabase/deployments
 - Production deploys **automatically from `main`**. Pushing to main IS the release.
@@ -537,52 +537,109 @@ has not decided.
 
 ---
 
-## 6. NEXT MODULE — compile Tailwind at build time (or pick from §7)
+## 6. NEXT MODULE — finish the sales editor's concurrency story
 
-**Why this one is on the table:** the owner reported it himself on 2026-08-27,
-as "there's this lines during loading in Item Editor" with a screenshot. Half
-of that screenshot was a real bug (fixed, `b97d6ea`); the other half is that
-**this app has no compiled CSS**. There is no `tailwind.config`, no
-`postcss.config`, no CSS entry file — styling comes entirely from
-`<script src="https://cdn.tailwindcss.com">` in `app/layout.tsx:70`. The Play
-CDN builds the stylesheet by scanning the DOM after it mounts, so every
-client-rendered screen has a window where the markup is up but its classes are
-not. On the Item Editor's 990 rows that window is long enough to photograph.
+**Where this came from (2026-08-28).** The owner asked how multiple browsers
+are handled while editing, and whether there was low-hanging performance fruit.
+The answer: the EPC editor is properly protected and the SALES editor had
+nothing. He then asked which to do first and spotted it himself — *"this sounds
+like a sequencing issue"* — which it was, in both senses. The write ORDER was
+the bug (`999603f`), and the work items needed sequencing. **He chose the order
+below; do not re-litigate it.**
 
-**Why it is worth a thread, not a patch:**
-- it is on the critical path of *every* screen's first paint, and it is the
-  only remaining runtime dependency the app cannot serve itself — which sits
-  badly against "own the data, own the tooling";
-- the Play CDN also prints a "should not be used in production" console warning
-  on every load, which the owner will eventually screenshot too;
-- `constants/palette.ts` is GENERATED (`scripts/generate-palette.js`) and feeds
-  Tailwind through `TAILWIND_COLORS_JS` as a string. A build-time config has to
-  consume the same generator output, or the six skins silently diverge.
+### 6.1 — Per-row merge + stale-tab guard on sales  ← DO THIS FIRST
 
-**What it involves:** a `tailwind.config.js` whose `theme.extend` mirrors the
-inline `TAILWIND_THEME` in `app/layout.tsx` verbatim (`fontFamily` +
-`TAILWIND_COLORS_JS`), a CSS entry with the three `@tailwind` directives plus
-the existing global `<style>` block moved into it, `postcss.config.js`, and
-deleting the two `<script>` tags. **The measuring rig in §5 already does
-exactly this** — `scripts`-free, in the scratchpad, driven by
-`node_modules/.bin/tailwindcss` — so the config ismostly written; lift it
-from there.
+`999603f` stopped the sales editor deleting rows it did not need to, so two
+tabs can no longer wipe each other's LINES. What is still last-one-wins: **two
+people editing the SAME line in the same moment.** One tab's field values
+overwrite the other's, silently.
 
-**Traps to expect:**
-- **Any class composed at runtime stops working.** The CDN scans the live DOM,
-  a build scans the SOURCE. Every template-literal class in the app has to
-  resolve to literal strings the scanner can see, or be safelisted. This is the
-  whole risk of the change and it fails *silently* — an unstyled element, not
-  an error. Diff a built stylesheet's class list against the app's class sites
-  before believing it.
-- `cdn.tailwindcss.com` is blocked by the sandbox proxy, so the BEFORE state
-  cannot be reproduced here. The AFTER state can be, completely.
-- Arbitrary values (`w-[5.5rem]`, `max-w-[190px]`, `z-[131]`) are everywhere and
-  are fine, but only when written literally.
+**Port it from `app/proposals/[id]/page.tsx`. Do not invent a second
+mechanism.** That file already has, and has had in production since August:
+- `loadedStampRef` — the `updated_at` this tab loaded; a save that finds a
+  newer stamp stops instead of overwriting (it is also what stops a stale tab
+  un-sending a sent quote)
+- `baseRef` — the per-tab BASE snapshot; a save writes only rows that differ
+  from base
+- `mergeRemote()` + `syncNow()` — a 15s poll and a focus listener that fold a
+  colleague's rows into rows this tab has not touched
+- conflict counting — only rows BOTH sides edited count; the saver is warned
+  (`↻ Merged X's changes — 2 lines you both edited (yours shown)`) and their
+  version wins for those rows only
+- `ProposalPresence` — who else is in this document
 
-**Alternative if the owner would rather not:** §7 has the procedure for picking
-a module, and the sell-side roadmap in `docs/ERP_ROADMAP.md` still has CRM as
-the next unbuilt module in the sequence.
+The sales editor now has the identity foundation this needs:
+`lib/salesLines.ts` (`planLineWrite`, pure, 11 tests) and
+`knownItemIdsRef` in `app/sales/[id]/page.tsx`.
+
+**Watch out:** sales AUTOSAVES 2.5s after any keystroke and on tab-hide. The
+EPC editor autosaves on an interval instead. A stale-tab guard that blocks an
+autosave must not trap the user — surface it, do not just fail silently.
+
+### 6.2 — Repair the `so_item_id` links already cut
+
+`24.1_delivery_order_items.so_item_id` and
+`25.1_sales_invoice_items.so_item_id` are FKs onto `22.1_sales_quote_items`
+with **ON DELETE SET NULL**. Before `999603f` every save nulled them. **1 of 3
+invoice lines is currently null** (that row could also be a hand-added line —
+the mechanism is proven, that row is not). Match by description + quantity
+within the same quote while volumes are small; it gets unreliable as the
+sell-side ramps. **Do this AFTER 6.1** or it just re-breaks. Ask before writing
+— it is production data.
+
+### 6.3 — Retire the seven hand-copied paging loops
+
+`lib/fetchAllRows.ts` (shipped `b8aed21`, 8 tests) is the one right way to read
+past the API row cap. Seven files still carry their own `const PAGE = 1000`
+loop: `app/items/page.tsx`, `app/products/page.tsx`, `app/pricing/page.tsx`,
+`app/stock/page.tsx`, `app/profitability/page.tsx`, `lib/serials.ts`,
+`lib/landedCost.ts`. They all stop when a page returns FEWER rows than
+requested, which is only correct while the request size ≤ the server cap —
+**lower Max rows to 500 and all seven silently truncate.** They are correct
+today only because the cap is exactly 1000. Mechanical, low risk.
+
+### 6.4 — Five missing indexes (deliberately LAST)
+
+Measured 2026-08-28, all with NO index: `10.2_quote_items.quote_id`,
+`.section_id`, `.component_id` (1,040 rows), `10.1_quote_sections.quote_id`
+(421), `10.3_quote_activity.quote_id` (473). `quote_id` is what the EPC editor
+filters on at every open, every 15s poll and every save. Additive, zero risk —
+but at ~1k rows a seq scan is ~1ms, so **this is future-proofing, not a felt
+win.** Say so rather than overselling it. Write the .sql into `migrations/`
+AND apply it, and say you did.
+
+### Also still open, from earlier threads
+
+- **Compile Tailwind at build time.** There is NO compiled CSS — no
+  `tailwind.config`, no `postcss.config`, no CSS entry. Styling is only
+  `<script src="https://cdn.tailwindcss.com">` in `app/layout.tsx:70`, which
+  builds the stylesheet by scanning the DOM AFTER it mounts — that is the
+  unstyled flash the owner photographed on the Item Editor. Biggest first-paint
+  win. **The trap: a build scans SOURCE, not the live DOM, so any class
+  assembled at runtime silently stops working.** The measuring rig in §5
+  already contains most of the config.
+- **Four CNY POs carry a USD exchange rate** — PIO-2026013 (17,881), EB.42277
+  (17,822), EB.42278 (17,882), PIO-2026011 (17,822), all Shenzhen Kstar, raised
+  7–12 Aug 2026. The same supplier's other CNY POs use 2,427 / 2,502 / 2,643.
+  Overstates committed value by **Rp 24.76bn**. Owner said **leave it for now**
+  (2026-08-27). The durable fix is a per-currency plausibility band held as
+  DATA (like margin profiles) plus a row flag, riding the mismatch machinery
+  Deal Lookup already renders via `checkPoTotal`/`totalDisagrees`.
+- **Max rows stays at 1000.** Owner asked whether to raise it; the answer was
+  no — raising only defers the same silent truncation to a larger number, and
+  the paging fix makes the setting irrelevant. **Do not LOWER it** until 6.3 is
+  done, or the seven loops truncate. RLS is on for all 57 tables, so the cap is
+  a payload guard, not access control.
+- **157 of 222 POs** have neither a PI number nor a quote link, so Deal
+  Lookup's quote→PO→payment chain is unavailable for 71% of them.
+- **15 Confirmed POs over 90 days old** (avg 131, oldest 315) and **42 Open
+  quotes over 90 days**, oldest 2025-04-23.
+- **`text-slate-600` fails WCAG AA** on the terminal skin (2.29:1 on a card),
+  used 768× across 67 files. Held at parity through the graphite change, not
+  fixed. Systemic fix = lighten the token in the palette GENERATOR. Owner's
+  call.
+- Form-control heights are still three different values ACROSS screens (44 /
+  40 / padding-sized on Banks and Deal Lookup). One token would settle it.
 
 ### Then, still open from the margin-tier work
 
