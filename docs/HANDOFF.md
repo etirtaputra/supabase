@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-08-28** · head of `main` at that point: `b8aed21`
+**Last updated: 2026-08-28** · head of `main` at that point: `7f78972`+ (see §4)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -32,7 +32,8 @@ item/price/spec data eventually feed a public website.
 - Do **not** open a pull request unless explicitly asked.
 - No `gh` CLI in this sandbox — use the `mcp__github__*` MCP tools if you need
   the GitHub API. Plain `git` over HTTPS works fine for fetch/push.
-- Head of `main` at handoff: `b8aed21` — "Read past the 1,000-row API cap where a table has crossed it".
+- Head of `main` at handoff: see §4 — `7f78972` (sales merge), `7e705cb` (paging
+  loops) and the indexes commit on top of it.
 
 ### Vercel — https://vercel.com/etirtaputras-projects/supabase/deployments
 - Production deploys **automatically from `main`**. Pushing to main IS the release.
@@ -109,8 +110,10 @@ item/price/spec data eventually feed a public website.
 
 ```bash
 npx tsc --noEmit     # must be clean
-npm test             # node --test "lib/**/*.test.ts" — 295 tests at handoff, all pass
-npx eslint           # ~294 pre-existing errors repo-wide; just don't ADD any
+npm test             # node --test "lib/**/*.test.ts" — 334 tests at handoff, all pass
+                     # WATCH THE TOTAL, not just the pass count: a suite that
+                     # fails to IMPORT reports as 1 failure, not 26 missing tests
+npx eslint           # 420 problems at handoff (300 errors); just don't ADD any
 npm run build        # next build must be green
 ```
 Plus: a `constants/changelog.ts` entry in the same commit.
@@ -118,6 +121,81 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 ---
 
 ## 4. What the previous threads did (for context, all shipped to main)
+
+### 2026-08-28 (later) — §6 finished: the sales concurrency story, end to end
+
+All four items in the previous §6 are done. §6.2 turned out to need no work at
+all; the other three shipped.
+
+- `7f78972` **Sales editor: per-row merge + stale-tab guard.** The §6.1 port
+  from `app/proposals/[id]`, same mechanism, not a second one.
+  `lib/salesMerge.ts` holds the decision logic (pure, 20 tests):
+  `mergeLines` / `mergeHeader` / `sameLine` / `mergeMessage`. The page keeps
+  `loadedStampRef` (the `22.0` `updated_at` it last agreed with),
+  `baseRef` + `baseHeaderRef` (the rows/header as the DB held them then), a
+  15s poll + focus listener + presence's peer-saved signal, and a pre-save
+  merge inside `persist()`.
+  - **A save now writes only rows that differ from base.** A line this tab
+    never touched is never written back.
+  - **The stale-tab guard is sales-shaped.** `persist()` wrote this tab's
+    `status` on EVERY save, autosaves included — so a tab left on the draft
+    un-confirmed an order a colleague had just confirmed, and the trigger
+    logged `ordered → draft`. A plain save now writes the DATABASE's status; a
+    status BUTTON pressed against a status that has since moved says so and
+    does not fire.
+  - **The autosaver never opens a dialog** (it fires 2.5s after a keystroke) —
+    it merges and reports in the toast. An explicit save still confirms.
+  - `ProposalPresence` → `DocumentPresence`; nothing in it was ever
+    proposal-specific, and both editors use it now.
+  - Proved in a rolled-back `DO $$` block, Alice saving after Bob, each having
+    edited a different line: before `Panel 550Wp | Inverter @2000 | Cable`
+    (Bob's edit gone, status back to `draft`); after `Panel 550Wp | Inverter
+    5kW @2500 | Cable`, status `ordered`. 0 rows left behind, no SQ/SO
+    sequence numbers consumed (supply `quote_number`/`order_number` and the
+    trigger never calls `nextval`).
+
+- **§6.2 needed NO repair — the premise was wrong, and this is now settled.**
+  The one `so_item_id IS NULL` invoice line is `"Progress billing 50% —
+  SO-20260803-0002"`, qty 1 @ Rp 1,965,561.50, which is **exactly 50.0000%**
+  of that order's Rp 3,931,123 of lines. It is a progress bill against the
+  whole order, so it never had a single order line to point at. Delivery-order
+  lines: 6 of 6 linked. **Nothing was severed, and no production data was
+  written.** (The previous thread flagged it honestly as unproven; measuring
+  it resolves it.)
+
+- `7e705cb` **Retired the hand-copied paging loops — there were TEN, not
+  seven.** `CommandPalette`, `useSupabaseData` and `useItemScores` had copies
+  too. Six of the ten were the same `3.0_components` read, now
+  `fetchAllComponents()` beside the primitive in `lib/fetchAllRows.ts`; the
+  COLUMN lists stay at the call sites because `brand` is buy-side.
+  - **Inherit this: a single `for (;;)` makes the React Compiler bail on the
+    WHOLE component, and eslint then reports NOTHING for that file.**
+    Measured on `app/stock/page.tsx` — with the loop 0 problems, without it 1.
+    So those loops were suppressing the linter across five screens and two
+    hooks, and the 414 baseline was partly fiction.
+  - Unmasking surfaced 10 pre-existing findings. **3 fixed**
+    (`react-hooks/purity`: `Date.now()` read during render in
+    `useItemScores`, so the 90/180/360-day windows slid on every re-render —
+    they anchor to `readAt` now). **7 left**
+    (`react-hooks/set-state-in-effect` on `useEffect(() => load(), [load])`;
+    the codebase already carries 46 of exactly this, so refactoring five
+    screens blind was the wrong trade). **eslint baseline is therefore 420,
+    not 414.**
+  - **A relative import inside `lib/` needs its `.ts` extension** or
+    `node --test` cannot resolve it. Two suites went dark until it went back
+    on — and `npm test` reports that as 2 failures, not as 26 missing tests,
+    so watch the TOTAL count as well as the pass count.
+
+- **§6.4 indexes: 8 applied**, `migrations/index_quote_lookups_and_fk_children.sql`.
+  The five the roadmap named, plus three FK CHILD columns nobody had listed:
+  `24.1_delivery_order_items.so_item_id`, `25.1_sales_invoice_items.so_item_id`
+  and `25.0_sales_invoices.do_id` — all `ON DELETE SET NULL` with no index, so
+  every parent delete scanned the whole child table, and the sales editor
+  deletes `22.1` rows on any save that drops a line.
+  **Say the size honestly:** measured warm on the EPC editor's own query,
+  0.323ms → 0.213ms. The number that matters is beside it — 30 buffers per
+  read down to 8, and that gap is what widens with the table.
+
 
 ### 2026-08-28 — concurrency review, and the sales write path
 
@@ -537,87 +615,43 @@ has not decided.
 
 ---
 
-## 6. NEXT MODULE — finish the sales editor's concurrency story
+## 6. NEXT MODULE — compile Tailwind at build time
 
-**Where this came from (2026-08-28).** The owner asked how multiple browsers
-are handled while editing, and whether there was low-hanging performance fruit.
-The answer: the EPC editor is properly protected and the SALES editor had
-nothing. He then asked which to do first and spotted it himself — *"this sounds
-like a sequencing issue"* — which it was, in both senses. The write ORDER was
-the bug (`999603f`), and the work items needed sequencing. **He chose the order
-below; do not re-litigate it.**
+**Why this one.** It is the biggest remaining first-paint win and the owner has
+already photographed the symptom: the Item Editor rendering unstyled for a beat
+before the CSS arrives. That is not a bug in that screen. **There is no compiled
+CSS in this repo at all** — no `tailwind.config`, no `postcss.config`, no CSS
+entry. Styling is a single `<script src="https://cdn.tailwindcss.com">` in
+`app/layout.tsx:70`, which builds the stylesheet by scanning the DOM *after* it
+mounts. Every screen pays for it; the Item Editor is just where it was caught.
 
-### 6.1 — Per-row merge + stale-tab guard on sales  ← DO THIS FIRST
+**THE TRAP, and it fails SILENTLY.** A build-time Tailwind scans SOURCE TEXT,
+not the live DOM. Any class name assembled at runtime simply stops existing:
 
-`999603f` stopped the sales editor deleting rows it did not need to, so two
-tabs can no longer wipe each other's LINES. What is still last-one-wins: **two
-people editing the SAME line in the same moment.** One tab's field values
-overwrite the other's, silently.
+```
+className={`text-${tone}-400`}          // gone
+className={cls}  // cls came from a map, a prop, or the database
+```
 
-**Port it from `app/proposals/[id]/page.tsx`. Do not invent a second
-mechanism.** That file already has, and has had in production since August:
-- `loadedStampRef` — the `updated_at` this tab loaded; a save that finds a
-  newer stamp stops instead of overwriting (it is also what stops a stale tab
-  un-sending a sent quote)
-- `baseRef` — the per-tab BASE snapshot; a save writes only rows that differ
-  from base
-- `mergeRemote()` + `syncNow()` — a 15s poll and a focus listener that fold a
-  colleague's rows into rows this tab has not touched
-- conflict counting — only rows BOTH sides edited count; the saver is warned
-  (`↻ Merged X's changes — 2 lines you both edited (yours shown)`) and their
-  version wins for those rows only
-- `ProposalPresence` — who else is in this document
+The Play CDN never cared, because it read the DOM. So the job is not "add a
+config" — it is **find every runtime-composed class first**, and either safelist
+it or rewrite it to a whole literal string. `constants/palette.ts` is GENERATED
+(edit `scripts/generate-palette.js` and re-run, never hand-edit) and the six
+themes emit blocks of classes, so start there and in the status/tone maps
+(`lib/salesStatus.ts`, `constants/roles.ts`, the `STATUS[...]?.cls` pattern).
 
-The sales editor now has the identity foundation this needs:
-`lib/salesLines.ts` (`planLineWrite`, pure, 11 tests) and
-`knownItemIdsRef` in `app/sales/[id]/page.tsx`.
+**You already have most of the config.** The measuring rig in §5 builds CSS
+locally with `node_modules/.bin/tailwindcss` (`npx tailwindcss` does NOT
+resolve) — that config is the starting point, and the same rig is how to
+compare before/after.
 
-**Watch out:** sales AUTOSAVES 2.5s after any keystroke and on tab-hide. The
-EPC editor autosaves on an interval instead. A stale-tab guard that blocks an
-autosave must not trap the user — surface it, do not just fail silently.
-
-### 6.2 — Repair the `so_item_id` links already cut
-
-`24.1_delivery_order_items.so_item_id` and
-`25.1_sales_invoice_items.so_item_id` are FKs onto `22.1_sales_quote_items`
-with **ON DELETE SET NULL**. Before `999603f` every save nulled them. **1 of 3
-invoice lines is currently null** (that row could also be a hand-added line —
-the mechanism is proven, that row is not). Match by description + quantity
-within the same quote while volumes are small; it gets unreliable as the
-sell-side ramps. **Do this AFTER 6.1** or it just re-breaks. Ask before writing
-— it is production data.
-
-### 6.3 — Retire the seven hand-copied paging loops
-
-`lib/fetchAllRows.ts` (shipped `b8aed21`, 8 tests) is the one right way to read
-past the API row cap. Seven files still carry their own `const PAGE = 1000`
-loop: `app/items/page.tsx`, `app/products/page.tsx`, `app/pricing/page.tsx`,
-`app/stock/page.tsx`, `app/profitability/page.tsx`, `lib/serials.ts`,
-`lib/landedCost.ts`. They all stop when a page returns FEWER rows than
-requested, which is only correct while the request size ≤ the server cap —
-**lower Max rows to 500 and all seven silently truncate.** They are correct
-today only because the cap is exactly 1000. Mechanical, low risk.
-
-### 6.4 — Five missing indexes (deliberately LAST)
-
-Measured 2026-08-28, all with NO index: `10.2_quote_items.quote_id`,
-`.section_id`, `.component_id` (1,040 rows), `10.1_quote_sections.quote_id`
-(421), `10.3_quote_activity.quote_id` (473). `quote_id` is what the EPC editor
-filters on at every open, every 15s poll and every save. Additive, zero risk —
-but at ~1k rows a seq scan is ~1ms, so **this is future-proofing, not a felt
-win.** Say so rather than overselling it. Write the .sql into `migrations/`
-AND apply it, and say you did.
+**How to know it worked, rather than assume.** `cdn.tailwindcss.com` is BLOCKED
+by the sandbox proxy, so a Playwright run against the built app is the honest
+test: load a page, assert a known class actually has its declaration, and
+diff a screenshot before and after. Do not ship this on a reading of the diff.
 
 ### Also still open, from earlier threads
 
-- **Compile Tailwind at build time.** There is NO compiled CSS — no
-  `tailwind.config`, no `postcss.config`, no CSS entry. Styling is only
-  `<script src="https://cdn.tailwindcss.com">` in `app/layout.tsx:70`, which
-  builds the stylesheet by scanning the DOM AFTER it mounts — that is the
-  unstyled flash the owner photographed on the Item Editor. Biggest first-paint
-  win. **The trap: a build scans SOURCE, not the live DOM, so any class
-  assembled at runtime silently stops working.** The measuring rig in §5
-  already contains most of the config.
 - **Four CNY POs carry a USD exchange rate** — PIO-2026013 (17,881), EB.42277
   (17,822), EB.42278 (17,882), PIO-2026011 (17,822), all Shenzhen Kstar, raised
   7–12 Aug 2026. The same supplier's other CNY POs use 2,427 / 2,502 / 2,643.
@@ -625,15 +659,26 @@ AND apply it, and say you did.
   (2026-08-27). The durable fix is a per-currency plausibility band held as
   DATA (like margin profiles) plus a row flag, riding the mismatch machinery
   Deal Lookup already renders via `checkPoTotal`/`totalDisagrees`.
-- **Max rows stays at 1000.** Owner asked whether to raise it; the answer was
-  no — raising only defers the same silent truncation to a larger number, and
-  the paging fix makes the setting irrelevant. **Do not LOWER it** until 6.3 is
-  done, or the seven loops truncate. RLS is on for all 57 tables, so the cap is
-  a payload guard, not access control.
+- **Max rows stays at 1000, but it is now safe to change.** Owner asked whether
+  to raise it; the answer was no — raising only defers the same silent
+  truncation to a larger number. The "do not LOWER it" caveat is **lifted** as
+  of `7e705cb`: all ten hand-copied paging loops are gone, so no screen depends
+  on the cap being exactly 1000 any more. RLS is on for all 57 tables, so the
+  cap is a payload guard, not access control.
 - **157 of 222 POs** have neither a PI number nor a quote link, so Deal
   Lookup's quote→PO→payment chain is unavailable for 71% of them.
 - **15 Confirmed POs over 90 days old** (avg 131, oldest 315) and **42 Open
   quotes over 90 days**, oldest 2025-04-23.
+- **eslint baseline is 420, not 414** (`7e705cb`). 46+7 of those are
+  `react-hooks/set-state-in-effect` on the app's standard
+  `useEffect(() => load(), [load])` data-load pattern. If anyone wants that
+  number down, it is one deliberate refactor of how screens load, not a
+  drive-by.
+- **`lib/serials.ts` and `lib/landedCost.ts` still swallow a read error** and
+  return a SHORT list with no signal. `fetchAllRows` now hands them
+  `{ error, truncated }`; nothing surfaces it, because doing so needs a UI
+  decision. Small, and it is the same class of silent-partial-data bug the
+  row-cap work was about.
 - **`text-slate-600` fails WCAG AA** on the terminal skin (2.29:1 on a card),
   used 768× across 67 files. Held at parity through the graphite change, not
   fixed. Systemic fix = lighten the token in the palette GENERATOR. Owner's

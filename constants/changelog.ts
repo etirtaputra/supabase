@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-28T07:35:00Z',
+    title: 'Groundwork: eight database indexes, for later rather than for today',
+    details: [
+      'Said plainly \u2014 you will not feel these. Opening an EPC proposal was already reading its lines in about a third of a millisecond, and it is now about a fifth. That is not the point of them.',
+      'The point is that the database was reading EVERY proposal line in the system to find the ones belonging to the proposal you opened, and it did that on every open, every automatic refresh and every save. That costs whatever the whole table costs, so it grows with the table; looking it up by index barely does. The work per read is down from 30 pages to 8 today, and that gap widens as the file grows.',
+      'Three of the eight are a different matter: the columns that link a delivery order or an invoice back to the order line it came from had never been indexed, so deleting an order line made the database read those tables end to end. They are tiny today. They will not stay tiny.',
+    ],
+  },
+  {
     at: '2026-08-28T07:10:00Z',
     title: 'The row-limit fix is now the only way the app reads a long table',
     details: [
