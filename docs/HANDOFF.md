@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-08-27** · head of `main` at that point: `4aeba7f`
+**Last updated: 2026-08-28** · head of `main` at that point: `999603f`
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -32,7 +32,7 @@ item/price/spec data eventually feed a public website.
 - Do **not** open a pull request unless explicitly asked.
 - No `gh` CLI in this sandbox — use the `mcp__github__*` MCP tools if you need
   the GitHub API. Plain `git` over HTTPS works fine for fetch/push.
-- Head of `main` at handoff: `4aeba7f` — "Deal Lookup: stop hiding 207 deals".
+- Head of `main` at handoff: `999603f` — "Sales order lines: upsert what survives, delete what went".
 
 ### Vercel — https://vercel.com/etirtaputras-projects/supabase/deployments
 - Production deploys **automatically from `main`**. Pushing to main IS the release.
@@ -118,6 +118,53 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 ---
 
 ## 4. What the previous threads did (for context, all shipped to main)
+
+### 2026-08-28 — concurrency review, and the sales write path
+
+Owner asked two questions: how multiple browsers are handled while editing, and
+whether there is low-hanging performance fruit. Answered by reading the code and
+counting production, then he picked the sales fix first.
+
+**The two editors were nothing alike.** `app/proposals/[id]` has a real
+collaborative system — a per-tab BASE snapshot, writes only rows that tab
+changed, a 15s poll + focus sync that merges colleagues' rows, conflicts counted
+and the saver warned, an `updated_at` stale-tab guard, and `ProposalPresence`.
+`app/sales/[id]` had none of it.
+
+- `999603f` **Sales lines: upsert what survives, delete what went — IN THAT
+  ORDER.** `persist()` did `DELETE … WHERE quote_id` then `INSERT` the whole
+  list, so every save re-minted every `item_id`. Both
+  `24.1_delivery_order_items.so_item_id` and
+  `25.1_sales_invoice_items.so_item_id` are FKs onto those rows **ON DELETE SET
+  NULL**, so each save cut a delivered/invoiced line's link back to its order
+  line — on the autosaver, 2.5s after any keystroke. Decision half is
+  `lib/salesLines.ts` (pure, 11 tests, 306 total). Verified twice in rolled-back
+  `DO` blocks against the live schema, residue checked at 0.
+  **Still open:** two people editing the SAME line in the same moment is still
+  last-one-wins. The per-row merge + the `loadedStampRef` stale-tab guard +
+  presence on sales are the agreed next piece — port them from the EPC editor,
+  do not invent a second mechanism.
+
+**Findings raised and NOT acted on (owner's sequencing: after the above):**
+- **A link repair pass.** 1 of 3 invoice lines has a null `so_item_id`. While
+  volumes are tiny a broken link can still be inferred by description+quantity;
+  that gets unreliable as the sell-side ramps. Do it AFTER the fix above or it
+  just re-breaks.
+- **The 1,000-row cap.** `10.2_quote_items` is at **1,040 rows**,
+  `3.0_components` at 993. `pgrst.db_max_rows` is NOT set at the DB level, so
+  the cap is whatever the Supabase dashboard says (Settings → API → Max rows) —
+  **I could not read it from the sandbox; check it.** If it is the 1,000
+  default, `app/api/ask/route.ts:118` fetches that whole table unbounded to
+  compute EPC quote totals and is quietly ~4% short, worsening weekly.
+  `proposals/library` loads four whole tables on open.
+- **Five missing indexes**, measured: `10.2_quote_items.quote_id` /
+  `.section_id` / `.component_id`, `10.1_quote_sections.quote_id`,
+  `10.3_quote_activity.quote_id`. `quote_id` is what the EPC editor filters on
+  at every open, every 15s poll and every save. Additive, zero risk — but at
+  ~1k rows a seq scan is ~1ms, so this is future-proofing, not a felt win.
+  Deliberately sequenced LAST.
+- Already good, do not "fix": `lib/supabase.ts` is a singleton with a custom
+  in-process auth lock (from the 2026-08-19 "Save takes forever" report).
 
 ### 2026-08-27 (later) — the Products filter bar, and one bug found by screenshot
 
