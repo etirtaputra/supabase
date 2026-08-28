@@ -111,12 +111,21 @@ export async function POST(request: NextRequest) {
     const projectQuoteFilter = keywords.length > 0
       ? keywords.map((k: string) => `customer_name.ilike.%${k}%,quote_number.ilike.%${k}%,project_description.ilike.%${k}%,location.ilike.%${k}%`).join(',')
       : '';
-    const [pqReq, pqItemsReq] = await Promise.all([
+    const [pqReq] = await Promise.all([
       projectQuoteFilter
         ? supabase.from('10.0_project_quotes').select('quote_id, quote_number, quote_date, customer_name, project_description, location, status, ppn_pct, created_by_email, updated_by_email').or(projectQuoteFilter).order('quote_date', { ascending: false }).limit(12)
         : supabase.from('10.0_project_quotes').select('quote_id, quote_number, quote_date, customer_name, project_description, location, status, ppn_pct, created_by_email, updated_by_email').order('quote_date', { ascending: false }).limit(12),
-      supabase.from('10.2_quote_items').select('quote_id, quantity, sell_price, parent_item_id'),
     ]);
+    // Items for the quotes we actually selected, not the whole table. This
+    // used to fetch every row of 10.2_quote_items to total twelve quotes —
+    // which crossed the 1,000-row API cap on 2026-08-28 (1,040 rows) and
+    // started silently dropping lines, so the totals came out short. Filtering
+    // to the twelve is both correct and a fraction of the payload.
+    const pqIds = ((pqReq.data ?? []) as { quote_id: string }[]).map((q) => q.quote_id);
+    const pqItemsReq = pqIds.length
+      ? await supabase.from('10.2_quote_items')
+          .select('quote_id, quantity, sell_price, parent_item_id').in('quote_id', pqIds)
+      : { data: [] as { quote_id: string; quantity: number; sell_price: number; parent_item_id: string | null }[] };
     const pqTotals = new Map<string, number>();
     for (const it of pqItemsReq.data ?? []) {
       if (it.parent_item_id) continue;

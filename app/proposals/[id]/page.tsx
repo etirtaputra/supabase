@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
+import { fetchAllRows } from '@/lib/fetchAllRows';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useQuotesGate } from '@/hooks/useQuotesGate';
 import { computeTUCMap, getComponentCost, fxFromHistory, priceAgeDays, AGED_PRICE_DAYS, type CostEntry } from '@/lib/computeTUC';
@@ -1184,7 +1185,11 @@ export default function QuoteEditorPage() {
   // catalog brands, so the same brand is typed the same way every time.
   const [pastBrands, setPastBrands] = useState<string[]>([]);
   useEffect(() => {
-    supabase.from('10.2_quote_items').select('brand').neq('brand', '').then(({ data }) => {
+    // Paged: past the 1,000-row API cap, an unbounded read returns a partial
+    // brand list and the suggestions silently lose the oldest brands.
+    void fetchAllRows<{ brand: string | null }>((from, to) =>
+      supabase.from('10.2_quote_items').select('brand').neq('brand', '').range(from, to)
+    ).then(({ rows: data }) => {
       const set = new Set<string>();
       for (const r of (data ?? []) as { brand: string | null }[]) { const b = String(r.brand ?? '').trim(); if (b) set.add(b); }
       setPastBrands([...set]);

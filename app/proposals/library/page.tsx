@@ -13,6 +13,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { createSupabaseClient } from '@/lib/supabase';
+import { fetchAllRows } from '@/lib/fetchAllRows';
 import { useQuotesGate } from '@/hooks/useQuotesGate';
 import { fmtRp } from '@/lib/formatters';
 import { useT } from '@/hooks/useT';
@@ -110,8 +111,13 @@ export default function DescriptionLibraryPage() {
   const load = useCallback(async () => {
     setLoading(true);
     const [itemsRes, secRes, quotesRes, compRes, libRes] = await Promise.all([
-      supabase.from('10.2_quote_items')
-        .select('item_id, quote_id, section_id, parent_item_id, component_id, description, brand, unit, cost_price, sell_price, sort_order'),
+      // Paged — past the 1,000-row API cap (see lib/fetchAllRows.ts)
+      fetchAllRows<{ item_id: string; quote_id: string; section_id: string | null; parent_item_id: string | null;
+                     component_id: string | null; description: string | null; brand: string | null;
+                     unit: string | null; cost_price: number | null; sell_price: number | null; sort_order: number }>(
+        (from, to) => supabase.from('10.2_quote_items')
+          .select('item_id, quote_id, section_id, parent_item_id, component_id, description, brand, unit, cost_price, sell_price, sort_order')
+          .range(from, to)).then((r) => ({ data: r.rows })),
       supabase.from('10.1_quote_sections').select('section_id, title, group_key, sort_order'),
       supabase.from('10.0_project_quotes').select('quote_id, quote_number, quote_date, status, customer_name, project_description'),
       supabase.from('3.0_components').select('component_id, supplier_model'),

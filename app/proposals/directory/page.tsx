@@ -9,6 +9,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { createSupabaseClient } from '@/lib/supabase';
+import { fetchAllRows } from '@/lib/fetchAllRows';
 import { useQuotesGate } from '@/hooks/useQuotesGate';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { PROPOSAL_FIELDS, type ProposalFieldKey, clusterDuplicates } from '@/lib/proposalFields';
@@ -35,7 +36,10 @@ export default function ProposalDirectoryPage() {
     setLoading(true);
     const [hdr, brands] = await Promise.all([
       supabase.from('10.0_project_quotes').select('customer_name, customer_address, location'),
-      supabase.from('10.2_quote_items').select('brand').neq('brand', ''),
+      // Paged — past the 1,000-row API cap (see lib/fetchAllRows.ts)
+      fetchAllRows<{ brand: string | null }>((from, to) =>
+        supabase.from('10.2_quote_items').select('brand').neq('brand', '').range(from, to)
+      ).then((r) => ({ data: r.rows })),
     ]);
     if (hdr.error) setError(hdr.error.message);
     setRows((hdr.data ?? []) as Row[]);

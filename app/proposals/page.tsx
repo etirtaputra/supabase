@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
+import { fetchAllRows } from '@/lib/fetchAllRows';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useQuotesGate } from '@/hooks/useQuotesGate';
 import { useT } from '@/hooks/useT';
@@ -167,9 +168,12 @@ export default function QuotesListPage() {
 
   useEffect(() => {
     if (!quotes.length) { setAllItems([]); setSectionGroups(new Map()); return; }
-    supabase.from('10.2_quote_items')
+    // Paged: this list TOTALS these rows, and 10.2_quote_items passed the
+    // 1,000-row API cap on 2026-08-28 (1,040), so an unbounded read was
+    // quietly dropping lines and under-stating the money on screen.
+    void fetchAllRows<ListItem>((from, to) => supabase.from('10.2_quote_items')
       .select('quote_id, section_id, parent_item_id, component_id, description, unit, quantity, cost_price, sell_price')
-      .then(({ data }) => setAllItems((data as ListItem[]) ?? []));
+      .range(from, to)).then(({ rows }) => setAllItems(rows));
     supabase.from('10.1_quote_sections')
       .select('section_id, group_key')
       .then(({ data }) => setSectionGroups(new Map((data ?? []).map((s) => [s.section_id as string, (s.group_key as string) ?? 'bos']))));

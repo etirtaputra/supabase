@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { fetchAllRows } from './fetchAllRows';
 import type { CostEntry } from './computeTUC';
 import { composeDescription, type ProjectType, type SystemSpecs } from './projectSpec';
 
@@ -55,14 +56,21 @@ export async function fetchUsedEntries(
   supabase: SupabaseClient,
   excludeQuoteId?: string,
 ): Promise<Map<string, CostEntry[]>> {
-  let itemsQuery = supabase
-    .from('10.2_quote_items')
-    .select('component_id, cost_price, quote_id, created_at')
-    .not('component_id', 'is', null);
-  if (excludeQuoteId) itemsQuery = itemsQuery.neq('quote_id', excludeQuoteId);
+  // Paged: this is the cost HISTORY behind price suggestions, and
+  // 10.2_quote_items passed the 1,000-row API cap on 2026-08-28 — an unbounded
+  // read drops the oldest entries, which are exactly the history.
+  const items = fetchAllRows<{ component_id: string | null; cost_price: number | null; quote_id: string; created_at: string }>(
+    (from, to) => {
+      let q = supabase.from('10.2_quote_items')
+        .select('component_id, cost_price, quote_id, created_at')
+        .not('component_id', 'is', null);
+      if (excludeQuoteId) q = q.neq('quote_id', excludeQuoteId);
+      return q.range(from, to);
+    },
+  ).then((r) => ({ data: r.rows }));
 
   const [itemsRes, quotesRes] = await Promise.all([
-    itemsQuery,
+    items,
     supabase.from('10.0_project_quotes')
       .select(`quote_id, quote_number, quote_date, ${QUOTE_CONTEXT_COLS}`),
   ]);

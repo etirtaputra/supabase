@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-28T03:40:00Z',
+    title: 'EPC proposal totals were quietly short — a row limit had been crossed',
+    details: [
+      'The database returns at most 1,000 rows per request. Your EPC proposal lines passed that on 28 August — there are 1,040 — and any screen that asked for all of them was being handed the first 1,000 with no error and nothing on screen to say so.',
+      'That means the totals on the EPC Proposals list have been understating some proposals, and the AI advisor was totalling the same short list. Both read every line now.',
+      'The same limit was clipping the brand suggestions in the proposal editor and the directory, the description library, and the cost history behind price suggestions. All fixed.',
+      'Your item catalogue is at 993 of the same 1,000, so it was days away from the same problem. The screens that read it in pages already were fine; the fix is written once now, and it counts what the database actually returned rather than assuming, so lowering the limit can never silently truncate anything again.',
+    ],
+  },
+  {
     at: '2026-08-28T02:30:00Z',
     title: 'Saving a sales order no longer breaks its delivery and invoice links',
     details: [
