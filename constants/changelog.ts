@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-28T12:40:00Z',
+    title: 'Switching between dark and light is instant, and both choices are visible again',
+    details: [
+      'Changing the skin used to take a visible moment. The cause: almost every element in ICAPROC is set to animate its colours over 150ms, and changing the skin changes every colour at once \u2014 so the whole screen tried to fade at the same time and the browser could not keep up. Measured on a screen with 4,000 such elements it took 1.7 seconds; on a small screen, 79 milliseconds. The change now happens in one step instead of a fade, and everything else (buttons lighting up under the cursor, and so on) still animates as before.',
+      'The two settings at the top of the menu also show BOTH choices again, in a small pill, with the one you are on highlighted \u2014 moon or sun, EN or ID. The single-icon version showed where a tap would take you, which is the only honest reading when there is one icon and the wrong one as soon as there are two. Settings sits on the right.',
+    ],
+  },
+  {
     at: '2026-08-28T11:45:00Z',
     title: 'Appearance, language and settings sit together on the left',
     details: [

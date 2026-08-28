@@ -9,7 +9,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { nextTheme, isLightTheme, LIGHT_THEMES, THEMES, OFFERED_THEME_VALUES } from './theme.ts';
+import { nextTheme, pickOffered, isLightTheme, LIGHT_THEMES, THEMES, OFFERED_THEME_VALUES } from './theme.ts';
 
 test('every skin is classified bright or dark — none is left unanswered', () => {
   for (const th of THEMES) {
@@ -47,4 +47,25 @@ test('a legacy skin leaves for the offered pair on the first tap, and stays', ()
   assert.equal(nextTheme('dark'), 'terminal-light');
   // …and tapping back does not return them to the legacy skin, by design.
   assert.equal(nextTheme(nextTheme('paper')), 'terminal-light');
+});
+
+// ── The segmented switch sets a SIDE, it does not flip ──────────────────────
+
+test('picking a side lands on the offered skin of that brightness', () => {
+  assert.equal(isLightTheme(pickOffered(true)), true);
+  assert.equal(isLightTheme(pickOffered(false)), false);
+  assert.ok(OFFERED_THEME_VALUES.includes(pickOffered(true)));
+  assert.ok(OFFERED_THEME_VALUES.includes(pickOffered(false)));
+});
+
+test('picking the side you are already on is a no-op, from any skin', () => {
+  for (const th of THEMES) {
+    assert.equal(pickOffered(isLightTheme(th.value)) === th.value,
+      OFFERED_THEME_VALUES.includes(th.value),
+      `${th.value}: a legacy skin should move to the offered one, an offered skin should stay`);
+  }
+});
+
+test('the two sides agree with the flip — one rule, not two', () => {
+  for (const th of THEMES) assert.equal(nextTheme(th.value), pickOffered(!isLightTheme(th.value)));
 });

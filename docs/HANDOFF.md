@@ -164,6 +164,39 @@ Plus: a `constants/changelog.ts` entry in the same commit.
   - Tap targets are back to 28×28 as a result. Said out loud rather than
     buried: it is the cost of the left alignment, still bigger than the 20px
     circles and 14px gear this row held before the switches existed.
+  - **Then a fourth and settled shape, from a moon/sun pill reference:** "since
+    we have plenty of space, we can go back to something like this… with the
+    more aligned to the right." So both options are visible again inside a
+    `rounded-full` pill, the one in effect is lit, and the gear is `ml-auto`.
+    198px of the 210px row. **This reverses the semantics deliberately:** one
+    glyph can only honestly show the DESTINATION; two glyphs can only honestly
+    show STATE. `pickOffered(light)` (lib/theme.ts) sets a side outright and
+    still cannot land on a hidden skin; 3 more tests.
+
+- **The theme switch felt laggy, and it measured badly.** `transition-colors`
+  is on **804** class sites and `transition-all` on **166** more, so flipping
+  `data-theme` starts a 150ms colour interpolation on every element at once and
+  the browser cannot deliver the frames. Time until the colour stops moving,
+  measured in Chromium against the real palette:
+
+  | transitioning elements | before | after |
+  |---|---|---|
+  | 181 (a dashboard, counted on `/preview`) | 79ms | 42ms |
+  | 500 | 213ms | 43ms |
+  | 1,500 | 555ms | 93ms |
+  | 4,000 (a long list) | 1,690ms | 138ms |
+
+  `paint()` in `lib/theme.ts` now drops a `*{transition:none!important}` style
+  in, flips, forces the recalc while they are still off, and removes it two
+  frames later. **Both halves are load-bearing:** without the forced reflow the
+  new colours land after the style is gone, and removing it in the SAME frame
+  re-arms the transitions before the paint — the bug over again. Verified end
+  to end by transpiling the shipping `paint()` with `tsc` and running THAT in
+  the page: 391ms → 159ms at 3,000 elements, transitions restored to 0.15s
+  afterwards, no leftover `<style data-theme-swap>`, no page errors.
+  - This is the strongest argument yet for §6 (compiling Tailwind at build
+    time): 970 transition class sites is also 970 places the Play CDN has to
+    resolve at runtime.
   - **Rig lesson:** Tailwind only emits classes it finds in `content`, so a
     replica written AFTER the last CSS build silently renders with the class
     missing. `px-1`/`px-1.5` measured as zero padding until the CSS was

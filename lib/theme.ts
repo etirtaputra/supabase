@@ -66,10 +66,16 @@ export const isLightTheme = (t: ThemeName): boolean => LIGHT_THEMES.includes(t);
  * done behind their back (LEGACY_THEME_MIGRATION is the one that runs
  * unasked, and it runs once). Settings › Appearance still has all six.
  */
-export const nextTheme = (t: ThemeName): ThemeName => {
-  const wantLight = !isLightTheme(t);
-  return OFFERED_THEME_VALUES.find((v) => isLightTheme(v) === wantLight) ?? DEFAULT_THEME;
-};
+export const nextTheme = (t: ThemeName): ThemeName => pickOffered(!isLightTheme(t));
+
+/**
+ * The offered skin of a given brightness. The segmented switch in the wordmark
+ * menu shows BOTH and highlights the one in effect, so it sets a side outright
+ * rather than flipping — but it must still only ever reach the offered pair,
+ * for the same reason `nextTheme` must.
+ */
+export const pickOffered = (light: boolean): ThemeName =>
+  OFFERED_THEME_VALUES.find((v) => isLightTheme(v) === light) ?? DEFAULT_THEME;
 
 /**
  * What a browser that chose a skin BEFORE the terminal pair existed should
@@ -142,13 +148,55 @@ export const THEME_BOOT_SCRIPT = `(function(){try{var v=['dark','light','dim','p
 let current: ThemeName = DEFAULT_THEME;
 const listeners = new Set<(t: ThemeName) => void>();
 
+/**
+ * Repaint WITHOUT animating the change.
+ *
+ * The switch felt laggy (owner, 2026-08-28) and it measured badly. Flipping
+ * the attribute re-resolves every colour at once, and the app puts
+ * `transition-colors` on 804 class sites and `transition-all` on 166 more — so
+ * every element on screen starts a 150ms colour interpolation simultaneously.
+ * At that scale the browser cannot deliver the frames, and the nominal 150ms
+ * becomes far longer. Measured in Chromium against the real palette, time
+ * until the colour stops moving:
+ *
+ *     elements   as it was   suppressed
+ *          181        79ms         42ms     (a dashboard)
+ *          500       213ms         43ms
+ *        1,500       555ms         93ms
+ *        4,000     1,690ms        138ms     (a long list)
+ *
+ * So: turn every transition off, flip, force the style recalc to happen while
+ * they are still off, then restore them two frames later. The skin changes in
+ * one step, which is what a switch should feel like — and every OTHER
+ * transition in the app (hover, focus) is untouched a moment later.
+ *
+ * The `!important` and the `*` are both load-bearing: Tailwind's utilities are
+ * specific enough to win otherwise, and there is no single element to target.
+ */
+const suppressTransitions = (): (() => void) => {
+  const style = document.createElement('style');
+  style.setAttribute('data-theme-swap', '');
+  style.textContent = '*,*::before,*::after{transition:none!important;animation:none!important}';
+  document.head.appendChild(style);
+  return () => {
+    // Two frames: one for the new colours to be painted, one for safety on a
+    // busy main thread. Removing it in the same frame re-arms the transitions
+    // before the paint lands, which is the bug all over again.
+    requestAnimationFrame(() => requestAnimationFrame(() => style.remove()));
+  };
+};
+
 const paint = (theme: ThemeName): void => {
   if (typeof document === 'undefined') return;
+  const restore = suppressTransitions();
   // The DEFAULT is the absence of the attribute, so the skin most people see
   // costs nothing to render. That used to be the house dark; since 2026-08-21
   // it is the terminal skin, and dark carries an attribute like any other.
   if (theme === DEFAULT_THEME) document.documentElement.removeAttribute('data-theme');
   else document.documentElement.setAttribute('data-theme', theme);
+  // Force the recalculation NOW, while transitions are still off.
+  void document.documentElement.offsetHeight;
+  restore();
 };
 
 /** The theme in effect right now (readable outside React). */

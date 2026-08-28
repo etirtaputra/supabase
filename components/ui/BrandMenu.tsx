@@ -11,8 +11,8 @@ import { DESTINATIONS, orderedNavGroups, orderedGroupItems, sectionAllowed, menu
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useSettings } from '@/hooks/useSettings';
 import { useTheme } from '@/hooks/useTheme';
-import { isLightTheme, nextTheme, THEMES } from '@/lib/theme';
-import { langInfo, otherLang } from '@/lib/language';
+import { isLightTheme, pickOffered, THEMES } from '@/lib/theme';
+import { LANGUAGES } from '@/lib/language';
 import { useLanguage } from '@/hooks/useLanguage';
 import { fmtDayTime } from '@/lib/formatters';
 import CommandPalette from './CommandPalette';
@@ -232,10 +232,6 @@ export default function BrandMenu({
   const { t, tf } = useT();
   const { theme, setTheme } = useTheme();
   const { lang, setLang } = useLanguage();
-  // Both switches name their DESTINATION, so the tooltip says what the tap
-  // does rather than what you are looking at.
-  const nextThemeLabel = tf('Switch to {what}', { what: THEMES.find((th) => th.value === nextTheme(theme))?.label ?? '' });
-  const nextLangLabel = tf('Switch to {what}', { what: langInfo(otherLang(lang)).label });
   const [squeeze, barRef] = useHeaderSqueeze();
   const [open, setOpen] = useState(false);         // caret dropdown (narrow widths)
   const [moreOpen, setMoreOpen] = useState(false); // mobile "More" sheet
@@ -333,100 +329,85 @@ export default function BrandMenu({
   // density is the feature here; the whole list should fit in one glance.
   const menuPanel = (
     <>
-      {/* ── Brightness + language: two switches, no chrome ───────────────
-             Owner, 2026-08-28, with a screenshot of a wallet header: "for the
-             dark and bright appearance can be as elegant as this kind of
-             switch, so is EN or ID."
+      {/* ── Appearance + language: two segmented switches ─────────────────
+             Owner, 2026-08-28, third and settled shape, from a reference with
+             a moon/sun pill: "since we have plenty of space, we can go back to
+             something like this, and for EN ID as well, with the more aligned
+             to the right. So like the old style, but slightly different."
 
-             What made his reference elegant is what it LEAVES OUT. It is one
-             glyph per setting — no border, no fill, no heading, no second
-             option sitting next to the first waiting to be compared. So this
-             row stopped being two pickers and became two switches.
+             SO BOTH OPTIONS ARE VISIBLE AGAIN, and the one in effect is the
+             one lit. That reverses what the single-glyph version did — it
+             showed the DESTINATION, which is the only honest reading when
+             there is one glyph, and the wrong one the moment there are two.
+             With both on screen, "lit = where you are" is the only thing a
+             segmented control can mean.
 
-             BOTH SHOW WHERE THE TAP TAKES YOU, not where you are. That is the
-             reference's own convention (a sun on the dark screen, a moon on
-             the light one) and it is the only reading that makes a bare glyph
-             self-explanatory: the icon is the promise of the action, the way a
-             play button is. Where you ARE needs no icon — the skin is the
-             whole screen and the language is every word around it.
+             It is the old row's idea with the old row's problems removed: the
+             two headings are gone (the group `aria-label` carries them for a
+             screen reader), the choices sit inside one pill instead of four
+             loose bordered buttons, and the pill's own background is what says
+             "these two belong together" rather than a divider.
 
-             ALL THREE SIT LEFT, as one cluster (owner, 2026-08-28: "for the
-             appearance, language and more settings, better to align left").
-             This row has been three shapes in a day; the two rejected ones
-             are worth keeping written down:
-
-               v1  switches left, gear pinned right by `ml-auto` — left a
-                   108px hole in a 210px row, "too empty", and rightly so;
-               v2  all three sharing the row with `flex-1` — filled it, but
-                   spread three small glyphs across 194px, which reads as a
-                   toolbar rather than as a setting you glance at.
-
-             `px-1.5` is not arbitrary. MEASURED against the menu labels this
-             row sits above: the sun's glyph starts 11px from the row's edge
-             and "Dashboard" starts at 10px, so the column reads as one left
-             edge. `px-1` puts it at 9 (a pixel the other way) and `px-2` at
-             13, visibly indented from the labels. Nothing lands exactly on 10
-             — the glyph is inset 5px inside its own 28px button and
-             Tailwind's scale steps 4px → 6px around it.
-
-             MEASURED in Chromium against this file's own class strings, in
-             Inter (the terminal skins' face), inside the real w-56 panel — a
-             210px content box once its border and p-1.5 are taken off:
-
-               before   two circles + divider + EN + ID + gear   179px wide
-               v1       sun/moon + ID + gear, left-hugged        114px + a 108px hole
-               v2       the same three, sharing the row          194px, 4px gaps
-               now      the same three, clustered left            92px
-
-             The switch is two letters in either language, which the pair of
-             buttons it replaced was not — the old row was 179px in English
-             AND Indonesian only because BOTH codes were always on screen.
-
-             THE COST, stated rather than buried: each control's tap target is
-             28x28 again, down from v2's ~66x28. Still bigger than what this
-             row held before the switches existed (20px circles, a 14px gear),
-             and left alignment was the owner's call with that trade visible. */}
-      <div className="flex items-center gap-1 px-1.5 pt-1 pb-1.5 mb-0.5 border-b border-slate-800/70">
-        {/* Brightness. `nextTheme` (lib/theme.ts) keeps the tap inside the
-            offered pair; the other four skins are Settings' business. */}
-        <button
-          onClick={() => setTheme(nextTheme(theme))}
-          aria-label={`${t('Appearance')} — ${nextThemeLabel}`}
-          title={nextThemeLabel}
-          className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors">
-          {isLightTheme(theme) ? (
-            /* On a light skin the tap gives you dark: show the moon.
-               Stroked, not filled — every other icon in this menu is
-               `fill="none" strokeWidth="2"`, and a solid glyph would make the
-               row visibly heavier in one of the switch's two states. */
-            <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M20.4 14.9A8.5 8.5 0 019.1 3.6a8.5 8.5 0 1011.3 11.3z" />
-            </svg>
-          ) : (
-            /* On a dark skin the tap gives you bright: show the sun. */
-            <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="4" />
-              <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-            </svg>
-          )}
-        </button>
+             The gear is `ml-auto` — the owner asked for it right. That was
+             wrong when the row held 114px of content in a 210px box; with two
+             pills it is not. Measured below. */}
+      <div className="flex items-center gap-2 px-1.5 pt-1 pb-1.5 mb-0.5 border-b border-slate-800/70">
+        {/* Appearance. `pickOffered` (lib/theme.ts) keeps both sides inside the
+            offered pair — someone on a hidden legacy skin sees the side they
+            are on lit, and moves onto the offered pair when they press it. */}
+        <div role="group" aria-label={t('Appearance')} className="flex items-center gap-0.5 p-0.5 rounded-full bg-slate-800/70 flex-shrink-0">
+          {([false, true] as const).map((light) => {
+            const on = isLightTheme(theme) === light;
+            const label = THEMES.find((th) => th.value === pickOffered(light))?.label ?? '';
+            return (
+              <button
+                key={String(light)}
+                onClick={() => setTheme(pickOffered(light))}
+                aria-pressed={on}
+                aria-label={label}
+                title={on ? label : tf('Switch to {what}', { what: label })}
+                className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+                  on ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'
+                }`}>
+                {light ? (
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="4" />
+                    <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+                  </svg>
+                ) : (
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M20.4 14.9A8.5 8.5 0 019.1 3.6a8.5 8.5 0 1011.3 11.3z" />
+                  </svg>
+                )}
+              </button>
+            );
+          })}
+        </div>
         {/* Language. Settings › Defaults still decides what someone who has
             never chosen sees; choosing here overrides it for this browser and
             is never overwritten by a later company change. */}
-        <button
-          onClick={() => setLang(otherLang(lang))}
-          aria-label={`${t('Language')} — ${nextLangLabel}`}
-          title={nextLangLabel}
-          className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-[11px] font-bold tracking-wide text-slate-400 hover:text-white hover:bg-white/10 transition-colors">
-          {langInfo(otherLang(lang)).short}
-        </button>
+        <div role="group" aria-label={t('Language')} className="flex items-center gap-0.5 p-0.5 rounded-full bg-slate-800/70 flex-shrink-0">
+          {LANGUAGES.map((l) => (
+            <button
+              key={l.value}
+              onClick={() => setLang(l.value)}
+              aria-pressed={lang === l.value}
+              aria-label={l.label}
+              title={lang === l.value ? l.label : tf('Switch to {what}', { what: l.label })}
+              className={`px-2 h-6 rounded-full text-[10px] font-bold tracking-wide transition-colors ${
+                lang === l.value ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'
+              }`}>
+              {l.short}
+            </button>
+          ))}
+        </div>
         {/* The other four skins live in Settings, where a house-wide look
             belongs. Only offered to someone who can actually open it. */}
         {perms?.canManageUsers && (
           <Link href="/settings?tab=appearance" onClick={() => { setOpen(false); setMoreOpen(false); }}
             aria-label={t('More skins and the company default')}
             title={t('More skins and the company default')}
-            className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-slate-600 hover:text-emerald-300 hover:bg-white/10 transition-colors">
+            className="ml-auto flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-slate-600 hover:text-emerald-300 hover:bg-white/10 transition-colors">
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
