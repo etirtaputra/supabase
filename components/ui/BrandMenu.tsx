@@ -11,8 +11,8 @@ import { DESTINATIONS, orderedNavGroups, orderedGroupItems, sectionAllowed, menu
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useSettings } from '@/hooks/useSettings';
 import { useTheme } from '@/hooks/useTheme';
-import { THEMES, MENU_THEME_VALUES } from '@/lib/theme';
-import { LANGUAGES } from '@/lib/language';
+import { isLightTheme, nextTheme, THEMES } from '@/lib/theme';
+import { langInfo, otherLang } from '@/lib/language';
 import { useLanguage } from '@/hooks/useLanguage';
 import { fmtDayTime } from '@/lib/formatters';
 import CommandPalette from './CommandPalette';
@@ -229,9 +229,13 @@ export default function BrandMenu({
   const { profile, signOut } = useAuth();
   // Pages pass their subtitle in English; translating it HERE means the
   // language setting reaches all 27 of them without any of them knowing.
-  const { t } = useT();
+  const { t, tf } = useT();
   const { theme, setTheme } = useTheme();
   const { lang, setLang } = useLanguage();
+  // Both switches name their DESTINATION, so the tooltip says what the tap
+  // does rather than what you are looking at.
+  const nextThemeLabel = tf('Switch to {what}', { what: THEMES.find((th) => th.value === nextTheme(theme))?.label ?? '' });
+  const nextLangLabel = tf('Switch to {what}', { what: langInfo(otherLang(lang)).label });
   const [squeeze, barRef] = useHeaderSqueeze();
   const [open, setOpen] = useState(false);         // caret dropdown (narrow widths)
   const [moreOpen, setMoreOpen] = useState(false); // mobile "More" sheet
@@ -329,75 +333,69 @@ export default function BrandMenu({
   // density is the feature here; the whole list should fit in one glance.
   const menuPanel = (
     <>
-      {/* ── Skin + language: ONE row, and the FIRST one ────────────────────
-             Two personal switches that between them are two circles and two
-             two-letter buttons. They used to sit at the very bottom of the
-             panel under four rows of chrome — a heading, a row of circles,
-             a second heading, a row of buttons — which on a phone meant
-             scrolling the whole menu to change the colour (owner, 2026-08-26).
+      {/* ── Brightness + language: two switches, no chrome ───────────────
+             Owner, 2026-08-28, with a screenshot of a wallet header: "for the
+             dark and bright appearance can be as elegant as this kind of
+             switch, so is EN or ID."
 
-             The headings are what cost the rows, and they were the least
-             useful thing here: a filled circle and "EN / ID" say what they
-             are. They survive as `aria-label` on the two groups, so a screen
-             reader still hears "Appearance" and "Language" without either
-             costing a pixel.
+             What made his reference elegant is what it LEAVES OUT. It is one
+             glyph per setting — no border, no fill, no heading, no second
+             option sitting next to the first waiting to be compared. So this
+             row stopped being two pickers and became two switches.
 
-             `overflow-x-hidden` on the panel means a row that outgrows it is
-             CLIPPED, not scrolled — which is why the circles were put on their
-             own row in the first place. Measured inside the real w-56 panel
-             (212px of usable width, Rubik):
+             BOTH SHOW WHERE THE TAP TAKES YOU, not where you are. That is the
+             reference's own convention (a sun on the dark screen, a moon on
+             the light one) and it is the only reading that makes a bare glyph
+             self-explanatory: the icon is the promise of the action, the way a
+             play button is. Where you ARE needs no icon — the skin is the
+             whole screen and the language is every word around it.
 
-               row as it stands          161px   51px spare
-               with a "More →" link      202px   10px spare
-               with "Lainnya →" (ID)     217px   OVER by 5px
-               ...and a third skin       243px   OVER by 31px, clipped
+             MEASURED in Chromium against this file's own class strings, in
+             Inter (the terminal skins' face), inside the real w-56 panel — a
+             210px content box once its border and p-1.5 are taken off:
 
-             So the link to Settings › Appearance is an ICON, not words. A
-             text link fitted in English and did not fit in Indonesian — the
-             exact trap this menu is full of — and the icon is the same width
-             in both, with room left for a third skin. Its name lives in the
-             tooltip, like the circles beside it. */}
-      <div className="flex items-center gap-2 px-2.5 pt-1 pb-2 mb-0.5 border-b border-slate-800/70">
-        {/* Two skins in the menu; the other four live in Settings. One SOLID
-            circle each, painted the skin's own canvas colour, name in the
-            tooltip. */}
-        <div role="group" aria-label={t('Appearance')} className="flex items-center gap-1.5">
-          {THEMES.filter((th) => MENU_THEME_VALUES.includes(th.value)).map((th) => (
-            <button
-              key={th.value}
-              onClick={() => setTheme(th.value)}
-              aria-pressed={theme === th.value}
-              aria-label={th.label}
-              title={`${th.label} — ${th.blurb}`}
-              className={`w-5 h-5 rounded-full flex-shrink-0 transition-shadow ${
-                theme === th.value
-                  ? 'ring-2 ring-emerald-400'
-                  : 'ring-1 ring-slate-600 hover:ring-slate-400'
-              }`}
-              style={{ background: th.swatch.bg }}
-            />
-          ))}
-        </div>
-        <span aria-hidden className="w-px h-4 bg-slate-800 flex-shrink-0" />
-        {/* Settings › Defaults still decides what someone who has never chosen
-            sees; choosing here overrides it for this browser and is never
-            overwritten by a later company change. */}
-        <div role="group" aria-label={t('Language')} className="flex items-center gap-1">
-          {LANGUAGES.map((l) => (
-            <button
-              key={l.value}
-              onClick={() => setLang(l.value)}
-              aria-pressed={lang === l.value}
-              title={l.label}
-              className={`px-2 py-0.5 rounded-lg text-[11px] font-bold border transition-colors ${
-                lang === l.value
-                  ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
-                  : 'border-slate-700 text-slate-500 hover:text-slate-200 hover:border-slate-500'
-              }`}>
-              {l.short}
-            </button>
-          ))}
-        </div>
+               before  two circles + divider + EN + ID + gear   179px   35.5px tall
+               after   sun/moon + ID + gear                     114px   33px tall
+
+             65px back, and identical in Indonesian: the switch is two letters
+             in either language, which the pair of buttons it replaced was not
+             (the old row was 179px in both because BOTH codes were always on
+             screen — its width never depended on which was active, and that
+             is exactly the space a switch does not need to spend). */}
+      <div className="flex items-center gap-2.5 px-2.5 pt-1 pb-2 mb-0.5 border-b border-slate-800/70">
+        {/* Brightness. `nextTheme` (lib/theme.ts) keeps the tap inside the
+            offered pair; the other four skins are Settings' business. */}
+        <button
+          onClick={() => setTheme(nextTheme(theme))}
+          aria-label={`${t('Appearance')} — ${nextThemeLabel}`}
+          title={nextThemeLabel}
+          className="flex-shrink-0 w-7 h-7 -my-1 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors">
+          {isLightTheme(theme) ? (
+            /* On a light skin the tap gives you dark: show the moon.
+               Stroked, not filled — every other icon in this menu is
+               `fill="none" strokeWidth="2"`, and a solid glyph would make the
+               row visibly heavier in one of the switch's two states. */
+            <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M20.4 14.9A8.5 8.5 0 019.1 3.6a8.5 8.5 0 1011.3 11.3z" />
+            </svg>
+          ) : (
+            /* On a dark skin the tap gives you bright: show the sun. */
+            <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="4" />
+              <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+            </svg>
+          )}
+        </button>
+        {/* Language. Settings › Defaults still decides what someone who has
+            never chosen sees; choosing here overrides it for this browser and
+            is never overwritten by a later company change. */}
+        <button
+          onClick={() => setLang(otherLang(lang))}
+          aria-label={`${t('Language')} — ${nextLangLabel}`}
+          title={nextLangLabel}
+          className="flex-shrink-0 w-7 h-7 -my-1 flex items-center justify-center rounded-lg text-[11px] font-bold tracking-wide text-slate-400 hover:text-white hover:bg-white/10 transition-colors">
+          {langInfo(otherLang(lang)).short}
+        </button>
         {/* The other four skins live in Settings, where a house-wide look
             belongs. Only offered to someone who can actually open it. */}
         {perms?.canManageUsers && (

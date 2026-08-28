@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-28T09:20:00Z',
+    title: 'Bright/dark and EN/ID are one tap each now, in the menu',
+    details: [
+      'The top of the wordmark menu used to hold two pickers side by side \u2014 two colour circles and two language buttons \u2014 so changing either meant finding the one that was not lit and pressing it. Each is a single switch now: a sun or moon for the screen, a two-letter code for the language.',
+      'Both show where the tap TAKES you, not where you are. On the dark skin you see a sun because tapping gives you the bright one; in English you see ID because tapping gives you Indonesian. Where you already are needs no icon \u2014 the skin is the whole screen and the language is every word around it. Hovering either one spells it out.',
+      'The row is 179px wide before and 114px after, measured, so it has room to spare in Indonesian as well as English \u2014 and the switch is two letters in both, which the old pair of buttons never was.',
+      'One real bug went with it: the brightness switch was still written to cycle through every skin in order, from back when there were four of them. On a six-skin list that could have walked you onto Dim or Paper \u2014 skins that are deliberately no longer offered anywhere. It flips between the Terminal pair and nothing else now, with tests that say so.',
+    ],
+  },
+  {
     at: '2026-08-28T08:30:00Z',
     title: 'Items opens in your sort order straight away, and slow screens stop settling on stale data',
     details: [

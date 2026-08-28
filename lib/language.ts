@@ -51,6 +51,11 @@ export const LANGUAGES: { value: Lang; label: string; short: string }[] = [
   { value: 'id', label: 'Bahasa Indonesia', short: 'ID' },
 ];
 
+/** The other one — two languages, so the switch is a flip, not a picker. */
+export const otherLang = (l: Lang): Lang => (l === 'en' ? 'id' : 'en');
+/** Its row in LANGUAGES, for the switch's label and tooltip. */
+export const langInfo = (l: Lang) => LANGUAGES.find((x) => x.value === l) ?? LANGUAGES[0];
+
 // ── The store (module-level, so ONE answer serves every subscriber) ─────────
 
 let personal: Lang | null = null;

@@ -447,6 +447,10 @@ export const ID: Record<string, string> = {
   // ── The rest of the nav menu's own furniture ──────────────────────────────
   'Appearance': 'Tampilan',
   'Language': 'Bahasa',
+  // The two switches name their destination: "Ganti ke Terminal Light",
+  // "Ganti ke Bahasa Indonesia". Skin and language names are proper names and
+  // stay as they are, in both languages.
+  'Switch to {what}': 'Ganti ke {what}',
   'More': 'Lainnya',
   'More skins and the company default': 'Lebih banyak tampilan dan bawaan perusahaan',
   'Sign out': 'Keluar',

@@ -30,14 +30,6 @@ export const THEME_DEFAULT_KEY = 'icaproc_theme_default';
 export const DEFAULT_THEME: ThemeName = 'terminal';
 
 /**
- * The skins offered in the wordmark menu (owner's call, 2026-08-21): the
- * terminal pair and nothing else. Two choices is a switch people use; six is
- * a decision they postpone. The other four are still real, still selectable —
- * they moved to Settings › Appearance, where a house-wide look belongs.
- */
-export const MENU_THEME_VALUES: ThemeName[] = ['terminal', 'terminal-light'];
-
-/**
  * The skins Settings › Appearance OFFERS as a house default (owner, 2026-08-28:
  * "do not delete but just hide the original 4 colors").
  *
@@ -47,9 +39,37 @@ export const MENU_THEME_VALUES: ThemeName[] = ['terminal', 'terminal-light'];
  * choice. Settings still SHOWS a legacy skin when it is the current default,
  * because a setting you cannot see is worse than one you cannot pick.
  *
- * This is the same list the wordmark menu offers, so both places now agree.
+ * This is also the only list the wordmark menu's brightness switch can land on
+ * — `nextTheme` picks out of it rather than naming skins itself, so changing
+ * the offered pair here changes the switch too. (There used to be a second
+ * constant, MENU_THEME_VALUES, holding the same two values for the menu's own
+ * picker; the menu became a one-tap switch on 2026-08-28 and the duplicate
+ * went with it.)
  */
 export const OFFERED_THEME_VALUES: ThemeName[] = ['terminal', 'terminal-light'];
+
+/**
+ * Which skins are LIGHT. Six skins, but only ever two answers to "is the
+ * screen bright or dark" — which is what the one-tap switch in the wordmark
+ * menu asks, and what its icon has to be honest about.
+ */
+export const LIGHT_THEMES: ThemeName[] = ['light', 'paper', 'terminal-light'];
+export const isLightTheme = (t: ThemeName): boolean => LIGHT_THEMES.includes(t);
+
+/**
+ * What one tap of the brightness switch gives you from here.
+ *
+ * It always lands in the OFFERED pair, never on a hidden legacy skin — six
+ * skins behind a two-state switch is how someone ends up on Paper without
+ * having asked for it. Someone sitting on a legacy skin therefore leaves it
+ * the first time they tap, which is a choice they just made, not a migration
+ * done behind their back (LEGACY_THEME_MIGRATION is the one that runs
+ * unasked, and it runs once). Settings › Appearance still has all six.
+ */
+export const nextTheme = (t: ThemeName): ThemeName => {
+  const wantLight = !isLightTheme(t);
+  return OFFERED_THEME_VALUES.find((v) => isLightTheme(v) === wantLight) ?? DEFAULT_THEME;
+};
 
 /**
  * What a browser that chose a skin BEFORE the terminal pair existed should
@@ -206,10 +226,16 @@ export function endThemePreview(): void {
   paint(current);
 }
 
-/** Cycle through the four skins in switcher order. */
+/**
+ * Flip between bright and dark, in one tap.
+ *
+ * This used to cycle through every skin in `THEMES` order — written when
+ * there were four and never updated when there were six, so a switch the
+ * owner had deliberately narrowed to two would still walk someone onto Dim
+ * or Paper. It is a two-state switch now; `nextTheme` holds the rule.
+ */
 export function toggleTheme(): ThemeName {
-  const i = THEMES.findIndex((t) => t.value === getTheme());
-  const next = THEMES[(i + 1) % THEMES.length].value;
+  const next = nextTheme(getTheme());
   setTheme(next);
   return next;
 }

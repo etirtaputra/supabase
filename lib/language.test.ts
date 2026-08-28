@@ -16,6 +16,7 @@ import {
   subscribeLang, getPersonalLang, getHouseLangCache, hydrateLangFromStorage,
   setPersonalLang, cacheHouseLang, resetLangStore,
   LANG_STORAGE_KEY, LANG_DEFAULT_KEY,
+  otherLang, langInfo, LANGUAGES,
 } from './language.ts';
 
 /** A localStorage that behaves, or one that throws like a locked-down browser. */
@@ -112,4 +113,24 @@ test('unsubscribing stops the notifications', () => {
   off();
   setPersonalLang('en');
   assert.equal(woken, 1);
+});
+
+// ── The one-tap switch ──────────────────────────────────────────────────────
+// Two languages, so the control is a flip rather than a picker. It shows where
+// the tap TAKES you, so `otherLang` is what the label reads from — and a wrong
+// answer here would put the app's own language on the button.
+
+test('the switch always offers the language you are NOT in', () => {
+  assert.equal(otherLang('en'), 'id');
+  assert.equal(otherLang('id'), 'en');
+  assert.equal(otherLang(otherLang('en')), 'en', 'two taps is where you started');
+});
+
+test('both languages have a short code and a full name for the tooltip', () => {
+  for (const l of LANGUAGES) {
+    assert.match(langInfo(l.value).short, /^[A-Z]{2}$/, `${l.value} needs a two-letter code`);
+    assert.ok(langInfo(l.value).label.length > 2, `${l.value} needs a readable name`);
+  }
+  assert.equal(langInfo('id').short, 'ID');
+  assert.equal(langInfo('en').label, 'English');
 });
