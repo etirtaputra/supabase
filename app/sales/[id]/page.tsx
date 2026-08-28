@@ -9,12 +9,14 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 import { planLineWrite } from '@/lib/salesLines';
+import { mergeLines, mergeHeader, sameLine, mergeMessage } from '@/lib/salesMerge';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter, useParams } from 'next/navigation';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
 import { useDragReorder, DRAGGING_ROW, REORDER_ROW, DROP_ZONE } from '@/components/ui/dragReorder';
 import BrandMenu from '@/components/ui/BrandMenu';
+import DocumentPresence from '@/components/ui/DocumentPresence';
 import SalesMilestones from '@/components/ui/SalesMilestones';
 import FulfillmentPanel, { type SoLine, type Invoice, type InvItem, type DeliveryOrder, type DoItem } from '@/components/ui/FulfillmentPanel';
 import { SALES_STATUS as STATUS, COMMITTED_STATUSES as COMMITTED, displayDocNumber } from '@/lib/salesStatus';
@@ -111,6 +113,21 @@ const blankQuote = (companyId: string | null, ppnPct: number, notes = '', validi
     subtotal: 0, ppn_amount: 0, grand_total: 0, notes,
   };
 };
+/** Order value from a line list — the same arithmetic whether it runs on the
+ *  rows on screen or on the merged rows a save is about to write. */
+const totalsOf = (ls: EditLine[], ppnPct: number) => {
+  const subtotal = ls.reduce((s, l) => s + (l.is_section ? 0 : num(l.quantity) * num(l.unit_price)), 0);
+  const ppn = subtotal * (ppnPct / 100);
+  return { subtotal, ppn, grand: subtotal + ppn };
+};
+/**
+ * The empty row the editor always keeps at the bottom is an affordance, not a
+ * line — it is lifted off before a merge and put back after, so a colleague's
+ * rows can never land underneath it.
+ */
+const isTailBlank = (l: EditLine) =>
+  !l.is_section && !l.component_id && !l.description.trim() && !l.note.trim()
+  && !num(l.quantity) && !num(l.unit_price);
 const mapLine = (it: DbLine): EditLine => ({
   key: `db-${it.item_id}`, component_id: it.component_id, is_section: !!it.is_section,
   description: it.description, brand: it.brand ?? '', note: it.note ?? '', lead_time: it.lead_time ?? '', unit: it.unit,
@@ -379,6 +396,11 @@ export default function SalesQuotePage() {
       // differences between typed values and their stored round-trip.
       savedSnapRef.current = snapshotOf(loadedQ, loadedLines);
       knownItemIdsRef.current = new Set(((iRes.data as DbLine[]) ?? []).map((l) => l.item_id));
+      // …and it is also the BASE this tab merges and saves against: the
+      // version it has agreed with the database, stamp and all.
+      baseRef.current = ((iRes.data as DbLine[]) ?? []).map(mapLine);
+      baseHeaderRef.current = loadedQ;
+      loadedStampRef.current = loadedQ.updated_at ?? null;
       setReceipts(rRes.error ? [] : ((rRes.data as Receipt[]) ?? []));
       setSavedLines(((iRes.data as DbLine[]) ?? []).map((l) => ({
         item_id: l.item_id, component_id: l.component_id, is_section: !!l.is_section,
@@ -590,11 +612,9 @@ export default function SalesQuotePage() {
     } : l)));
   }
 
-  const totals = useMemo(() => {
-    const subtotal = lines.reduce((s, l) => s + (l.is_section ? 0 : num(l.quantity) * num(l.unit_price)), 0);
-    const ppn = subtotal * (num(editing?.ppn_pct ?? defaultPpnPct) / 100);
-    return { subtotal, ppn, grand: subtotal + ppn };
-  }, [lines, editing?.ppn_pct, defaultPpnPct]);
+  const totals = useMemo(
+    () => totalsOf(lines, num(editing?.ppn_pct ?? defaultPpnPct)),
+    [lines, editing?.ppn_pct, defaultPpnPct]);
 
   // Owner-only order margin: Σ (price − avg landed cost) × qty over the lines
   // whose catalog item carries a cost. Custom lines have no cost basis and are
@@ -628,6 +648,22 @@ export default function SalesQuotePage() {
   // A row another tab added is not in the set, so this tab will never delete
   // it. planLineWrite (lib/salesLines.ts) turns it into the save plan.
   const knownItemIdsRef = useRef<Set<string>>(new Set());
+  // ── Concurrent editing: BASE snapshot + stale-tab guard ──────────────────
+  // The EPC proposal editor has run this since August; the sales editor had
+  // nothing, so two people on the same line was last-one-wins. Same mechanism,
+  // not a second one — see lib/salesMerge.ts for the rule.
+  //
+  //   loadedStampRef  the 22.0 `updated_at` this tab last agreed with. The
+  //                   trigger stamps it on EVERY write, so a value newer than
+  //                   this one means somebody else has saved.
+  //   baseRef         the rows as the database held them at that moment. A
+  //                   save writes only rows that differ from base, so a line
+  //                   this tab never touched is never written back.
+  const loadedStampRef = useRef<string | null>(null);
+  const baseRef = useRef<EditLine[]>([]);
+  const baseHeaderRef = useRef<Quote | null>(null);
+  const editingRef = useRef<Quote | null>(editing); editingRef.current = editing;
+  const linesRef = useRef<EditLine[]>(lines); linesRef.current = lines;
 
   const snapshotOf = (q: Quote | null, ls: EditLine[]) => JSON.stringify([
     q?.customer_id, q?.company_id, q?.quote_date, q?.valid_until ?? null, q?.payment_terms ?? '', q?.delivery_terms ?? '', q?.ppn_pct, q?.notes,
@@ -637,6 +673,107 @@ export default function SalesQuotePage() {
   const draftLike = !!editing && (editing.status === 'draft' || !editing.quote_id);
   const hasContent = !!editing?.customer_id || lines.some((l) => l.description.trim() || l.component_id);
 
+  // ── Fold in what a colleague saved ─────────────────────────────────────────
+  /** What a merge did, so the caller can write with it and say what happened. */
+  interface RemoteMerge {
+    changed: boolean; actor: string; conflicts: number;
+    lines: EditLine[]; header: Quote; stamp: string | null;
+  }
+  const mergeInFlight = useRef<Promise<RemoteMerge> | null>(null);
+
+  /**
+   * Pull the document as the database holds it now and fold it into this tab:
+   * rows this tab has not touched since base take the database's values, rows
+   * it HAS touched keep this tab's, and only rows both sides moved count as
+   * conflicts. Returns what it did — a save uses the merged rows rather than
+   * the state it cannot see yet.
+   *
+   * Concurrent callers (the 15s poll and a save that starts mid-poll) share
+   * one round trip: the second gets the first one's result instead of a stale
+   * no-op that would then write over the merge.
+   */
+  function mergeRemote(): Promise<RemoteMerge> {
+    if (mergeInFlight.current) return mergeInFlight.current;
+    const p = doMergeRemote().finally(() => { mergeInFlight.current = null; });
+    mergeInFlight.current = p;
+    return p;
+  }
+
+  async function doMergeRemote(): Promise<RemoteMerge> {
+    const localHeader = editingRef.current;
+    const localLines = linesRef.current;
+    const noop: RemoteMerge = {
+      changed: false, actor: '', conflicts: 0,
+      lines: localLines, header: localHeader as Quote, stamp: loadedStampRef.current,
+    };
+    if (!localHeader?.quote_id) return noop;
+    const [qRes, iRes] = await Promise.all([
+      supabase.from('22.0_sales_quotes').select('*').eq('quote_id', localHeader.quote_id).single(),
+      supabase.from('22.1_sales_quote_items').select('*').eq('quote_id', localHeader.quote_id).order('sort_order'),
+    ]);
+    if (qRes.error || !qRes.data || iRes.error) return noop;
+    const remoteHeader = qRes.data as Quote;
+    const stamp = remoteHeader.updated_at ?? null;
+    // Nothing new since this tab last looked — and nothing to tell anyone.
+    if (!stamp || !loadedStampRef.current || stamp <= loadedStampRef.current) return noop;
+
+    const dbLines = (iRes.data as DbLine[]) ?? [];
+    const remoteLines = dbLines.map(mapLine);
+    // Empty rows at the bottom are the editor's affordance, never saved rows.
+    // They come off before the merge and go back on after, so a colleague's
+    // lines cannot land underneath them — and so `dirty` below compares like
+    // with like instead of arming the autosaver on every single poll.
+    let cut = localLines.length;
+    while (cut > 0 && isTailBlank(localLines[cut - 1])) cut -= 1;
+    const tail = localLines.slice(cut);
+    const { lines: mergedLines, conflicts: lineConflicts } =
+      mergeLines(baseRef.current, localLines.slice(0, cut), remoteLines);
+    const merged = [...mergedLines, ...tail];
+    const { header: mergedHeader, conflicts: headerConflicts } =
+      mergeHeader(baseHeaderRef.current ?? remoteHeader, localHeader, remoteHeader);
+
+    setLines(merged);
+    setEditing(mergedHeader);
+    // Saved state is what the DATABASE now holds, so `dirty` still means
+    // exactly "this tab is holding edits nobody else has seen" — a colleague's
+    // row arriving must not, by itself, arm the autosaver.
+    savedSnapRef.current = snapshotOf(remoteHeader, [...remoteLines, ...tail]);
+    baseRef.current = remoteLines;
+    baseHeaderRef.current = remoteHeader;
+    loadedStampRef.current = stamp;
+    // Every id the database actually holds. A row a colleague added is now
+    // this tab's to keep; one they deleted is no longer this tab's to delete.
+    knownItemIdsRef.current = new Set(dbLines.map((l) => l.item_id));
+    return {
+      changed: true, actor: remoteHeader.updated_by_email || '',
+      conflicts: lineConflicts + headerConflicts, lines: merged, header: mergedHeader, stamp,
+    };
+  }
+
+  // Background sync: a cheap stamp read every 15s and on window focus, and a
+  // full merge only when the stamp has actually moved. Presence also calls it
+  // the moment a colleague's "editing" flag clears, which is usually a save.
+  const syncRef = useRef({ mergeRemote, busy });
+  syncRef.current = { mergeRemote, busy };
+  const syncNow = useCallback(async () => {
+    const qid = editingRef.current?.quote_id;
+    if (!qid || !loadedStampRef.current) return;
+    if (syncRef.current.busy || mergeInFlight.current || autosavingRef.current) return;
+    const { data } = await supabase.from('22.0_sales_quotes')
+      .select('updated_at').eq('quote_id', qid).single();
+    const stamp = (data as { updated_at?: string } | null)?.updated_at;
+    if (!stamp || !loadedStampRef.current || stamp <= loadedStampRef.current) return;
+    const res = await syncRef.current.mergeRemote();
+    if (res.changed) flash(mergeMessage(res.actor, res.conflicts));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    const timer = setInterval(() => { void syncNow(); }, 15_000);
+    const onFocus = () => { void syncNow(); };
+    window.addEventListener('focus', onFocus);
+    return () => { clearInterval(timer); window.removeEventListener('focus', onFocus); };
+  }, [syncNow]);
+
   const autosave = useCallback(async () => {
     if (!editing || autosavingRef.current || busy) return;
     if (!draftLike || !hasContent) return;
@@ -645,7 +782,8 @@ export default function SalesQuotePage() {
     const wasNew = !editing.quote_id;
     const qid = await persist();
     if (qid) {
-      savedSnapRef.current = snapshotOf(editing, lines);
+      // persist() stamps savedSnapRef itself, from the POST-merge state — the
+      // closure here may be one colleague's save out of date.
       setAutoSavedAt(new Date().toISOString());
       // persist() already adopted the new row's id + SQ number in place;
       // just fix the URL without a router navigation mid-typing.
@@ -718,29 +856,81 @@ export default function SalesQuotePage() {
 
   async function persist(status?: string, extra?: Record<string, unknown>): Promise<string | null> {
     if (!editing) return null;
-    const kept = lines.filter((l) => l.is_section ? l.description.trim() : ((l.component_id || l.description.trim()) && num(l.quantity) > 0));
+    // The autosaver must never open a dialog — it fires 2.5s after a keystroke
+    // and again on tab-hide, so a confirm() there would ambush someone
+    // mid-sentence. On that path the merge is reported in the toast instead.
+    const quiet = autosavingRef.current;
+
+    // ── 0. Stale-tab guard ───────────────────────────────────────────────────
+    // Whatever a colleague saved since this tab last looked is folded in
+    // BEFORE anything is written, so this save carries their rows forward
+    // instead of writing over them.
+    let liveHeader = editing;
+    let liveLines = lines;
+    let merged: RemoteMerge | null = null;
+    if (editing.quote_id && loadedStampRef.current) {
+      const { data: peek } = await supabase.from('22.0_sales_quotes')
+        .select('updated_at').eq('quote_id', editing.quote_id).single();
+      const stamp = (peek as { updated_at?: string } | null)?.updated_at;
+      if (stamp && stamp > loadedStampRef.current) {
+        const res = await mergeRemote();
+        if (res.changed) { merged = res; liveHeader = res.header; liveLines = res.lines; }
+      }
+    }
+    if (merged) {
+      // A status somebody else moved while this tab sat open. The buttons on
+      // screen were drawn from a status that no longer exists, so the
+      // transition they name is not the one that would happen — say so rather
+      // than, say, quietly reverting a confirmed order to a draft quotation.
+      if (status && liveHeader.status !== editing.status) {
+        flash(`Not saved — ${merged.actor || 'someone'} moved this to ${STATUS[liveHeader.status]?.label ?? liveHeader.status} while you had it open`);
+        return null;
+      }
+      if (merged.conflicts > 0 && !quiet) {
+        const n = merged.conflicts;
+        const ok = window.confirm(
+          `You and ${merged.actor || 'a colleague'} both edited ${n} of the same line${n > 1 ? 's' : ''}.\n\n`
+          + 'Saving keeps YOUR version of those lines; everything else of theirs is already merged in.\n\nContinue?');
+        if (!ok) { flash('Not saved'); return null; }
+      } else {
+        flash(mergeMessage(merged.actor, merged.conflicts));
+      }
+    }
+
+    const kept = liveLines.filter((l) => l.is_section ? l.description.trim() : ((l.component_id || l.description.trim()) && num(l.quantity) > 0));
+    // Totals come from the MERGED rows, not from the memo over this tab's
+    // state — a colleague's line has to count towards the money too.
+    const tot = totalsOf(liveLines, num(liveHeader.ppn_pct ?? defaultPpnPct));
     const header = {
-      customer_id: editing.customer_id, company_id: editing.company_id, quote_date: editing.quote_date,
-      valid_until: editing.valid_until || null,
-      payment_terms: editing.payment_terms ?? '', delivery_terms: editing.delivery_terms ?? '',
-      status: status ?? editing.status, ppn_pct: num(editing.ppn_pct),
-      subtotal: totals.subtotal, ppn_amount: totals.ppn, grand_total: totals.grand, notes: editing.notes,
-      case_id: editing.case_id ?? null,
+      customer_id: liveHeader.customer_id, company_id: liveHeader.company_id, quote_date: liveHeader.quote_date,
+      valid_until: liveHeader.valid_until || null,
+      payment_terms: liveHeader.payment_terms ?? '', delivery_terms: liveHeader.delivery_terms ?? '',
+      // No status argument means this save is not a transition, so the status
+      // written is the DATABASE's — never this tab's, which may be stale.
+      status: status ?? liveHeader.status, ppn_pct: num(liveHeader.ppn_pct),
+      subtotal: tot.subtotal, ppn_amount: tot.ppn, grand_total: tot.grand, notes: liveHeader.notes,
+      case_id: liveHeader.case_id ?? null,
       ...(systemDesign ? { system_design: systemDesign } : {}),
       ...(extra ?? {}),
     };
     let qid = editing.quote_id;
     if (qid) {
-      const { error } = await supabase.from('22.0_sales_quotes').update(header).eq('quote_id', qid);
+      // The stamp comes back from the same round trip: adopting what the
+      // trigger just wrote is what stops this tab's OWN save looking like a
+      // colleague's on the next poll.
+      const { data, error } = await supabase.from('22.0_sales_quotes')
+        .update(header).eq('quote_id', qid).select('updated_at').single();
       if (error) { flash(`Error: ${error.message}`); return null; }
+      loadedStampRef.current = (data as { updated_at?: string } | null)?.updated_at ?? loadedStampRef.current;
     } else {
       // The DB trigger stamps the unique SQ number ON INSERT — a draft has its
       // number from the first (auto)save. Read it back so the header shows it
       // immediately instead of waiting for a reload.
-      const { data, error } = await supabase.from('22.0_sales_quotes').insert(header).select('quote_id, quote_number').single();
+      const { data, error } = await supabase.from('22.0_sales_quotes').insert(header).select('quote_id, quote_number, updated_at').single();
       if (error || !data) { flash(`Error: ${error?.message ?? 'insert failed'}`); return null; }
       qid = data.quote_id as string;
       const qnum = (data as { quote_number?: string }).quote_number ?? '';
+      loadedStampRef.current = (data as { updated_at?: string }).updated_at ?? null;
       setEditing((e) => (e ? { ...e, quote_id: qid!, quote_number: e.quote_number || qnum } : e));
     }
     // ── Lines: UPSERT what survives, DELETE what went — IN THAT ORDER ────────
@@ -769,17 +959,32 @@ export default function SalesQuotePage() {
     // which upsert does not promise.
     const plan = planLineWrite(kept.map((l) => l.key), knownItemIdsRef.current, () => crypto.randomUUID());
     const byKey = new Map(kept.map((l) => [l.key, l]));
-    const rows = plan.assign.map(({ key, itemId }, i) => {
+    // Where each surviving row sat in BASE — the version this tab agreed with
+    // the database. Rows base holds that this save is dropping are deleted
+    // below, so the ones that remain renumber; that renumbering is what the
+    // position comparison has to be against.
+    const basePos = new Map<string, { line: EditLine; idx: number }>();
+    baseRef.current.filter((l) => byKey.has(l.key))
+      .forEach((l, i) => basePos.set(l.key, { line: l, idx: i }));
+    const planned = plan.assign.map(({ key, itemId }, i) => {
       const l = byKey.get(key)!;
       return {
-        item_id: itemId, quote_id: qid, component_id: l.is_section ? null : l.component_id, is_section: l.is_section,
-        description: l.description.trim(), brand: l.brand.trim(), note: l.note.trim(), lead_time: l.lead_time.trim(), unit: l.unit.trim(),
-        quantity: l.is_section ? 0 : num(l.quantity), unit_price: l.is_section ? 0 : num(l.unit_price),
-        qty_formula: l.is_section ? '' : l.qty_formula.trim(), price_formula: l.is_section ? '' : l.price_formula.trim(),
-        line_total: l.is_section ? 0 : num(l.quantity) * num(l.unit_price), sort_order: i,
-        design_role: l.design_role || null,
+        key,
+        // A row identical to base — same values, same position — is not
+        // written at all. That is what stops this tab's save from putting a
+        // line it never touched back to the value it had when the tab opened.
+        changed: (() => { const b = basePos.get(key); return !b || b.idx !== i || !sameLine(l, b.line); })(),
+        row: {
+          item_id: itemId, quote_id: qid, component_id: l.is_section ? null : l.component_id, is_section: l.is_section,
+          description: l.description.trim(), brand: l.brand.trim(), note: l.note.trim(), lead_time: l.lead_time.trim(), unit: l.unit.trim(),
+          quantity: l.is_section ? 0 : num(l.quantity), unit_price: l.is_section ? 0 : num(l.unit_price),
+          qty_formula: l.is_section ? '' : l.qty_formula.trim(), price_formula: l.is_section ? '' : l.price_formula.trim(),
+          line_total: l.is_section ? 0 : num(l.quantity) * num(l.unit_price), sort_order: i,
+          design_role: l.design_role || null,
+        },
       };
     });
+    const rows = planned.filter((r) => r.changed).map((r) => r.row);
 
     let linesOk = true;
     if (rows.length) {
@@ -800,10 +1005,19 @@ export default function SalesQuotePage() {
       if (Object.keys(plan.rekey).length) {
         setLines((ls) => ls.map((l) => (plan.rekey[l.key] ? { ...l, key: `db-${plan.rekey[l.key]}` } : l)));
       }
+      // Rebase: the database now holds exactly what was just written, under
+      // the ids it was written with. Without this the next save would compare
+      // against a base that is one save behind and write every row again.
+      // Base is what the DATABASE now holds, read back through mapLine — NOT
+      // the rows on screen. `description` is trimmed on the way in, so basing
+      // on the typed value would make a trailing space look like a colleague's
+      // edit and report a conflict that never happened.
+      baseRef.current = planned.map((r) => mapLine(r.row as unknown as DbLine));
+      baseHeaderRef.current = { ...liveHeader, ...header } as Quote;
     }
     // Whatever just persisted is by definition the saved state — this keeps
     // the autosaver quiet after manual saves and status transitions too.
-    savedSnapRef.current = snapshotOf(editing, lines);
+    savedSnapRef.current = snapshotOf(liveHeader, liveLines);
     return qid;
   }
 
@@ -985,6 +1199,18 @@ export default function SalesQuotePage() {
           </h1>
           {(editing.revision ?? 0) > 0 && (
             <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-sky-500/15 text-sky-300">Rev {editing.revision}</span>
+          )}
+          {/* Who else is in this quotation right now. A colleague's amber dot
+              means they are holding unsaved edits, and their flag clearing
+              pulls their save in immediately instead of on the next poll. */}
+          {editing.quote_id && profile?.email && (
+            <DocumentPresence
+              channelId={`sales:${editing.quote_id}`}
+              email={profile.email}
+              name={profile.display_name || profile.email}
+              editing={dirty}
+              onPeerSaved={syncNow}
+            />
           )}
           {st !== 'delivered' && dos.some((d) => d.status === 'delivered') ? (
             <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-teal-500/15 text-teal-300"

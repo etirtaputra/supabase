@@ -7,7 +7,7 @@ import { colorFor, initials, firstName as firstNameOf } from '@/lib/presence';
 /**
  * Live presence for a shared document (Supabase Realtime Presence — no DB
  * writes, ephemeral). Shows colored avatars of everyone else viewing the same
- * proposal right now, an amber dot + warning when a colleague has UNSAVED
+ * document right now, an amber dot + warning when a colleague has UNSAVED
  * edits (conflict risk), and — because a peer's "editing" flag flipping off
  * usually means they just saved — fires onPeerSaved so the editor can pull
  * their changes immediately instead of waiting for the next poll.
@@ -15,13 +15,17 @@ import { colorFor, initials, firstName as firstNameOf } from '@/lib/presence';
  * This is the presence layer that makes concurrent editing feel Google-Sheets
  * live; the existing delta-save + auto-merge is what actually reconciles the
  * edits safely underneath it.
+ *
+ * Used by both document editors — the EPC proposal (`app/proposals/[id]`) and
+ * the sales quotation (`app/sales/[id]`). Nothing here is specific to either:
+ * `channelId` names the document, and everything else is presence.
  */
 
 interface Peer { email: string; name: string; color: string; editing: boolean }
 
 const firstName = (p: Peer) => firstNameOf(p.name, p.email);
 
-export default function ProposalPresence({ channelId, email, name, editing, onPeerSaved }: {
+export default function DocumentPresence({ channelId, email, name, editing, onPeerSaved }: {
   channelId: string;
   email: string;
   name: string;

@@ -16,7 +16,7 @@ import QuoteNoteThread from '@/components/ui/QuoteNoteThread';
 import { lineWp, wpPerModule } from '@/lib/quoteWp';
 import MigrationBanner from '@/components/ui/MigrationBanner';
 import MobileNotice from '@/components/ui/MobileNotice';
-import ProposalPresence from '@/components/ui/ProposalPresence';
+import DocumentPresence from '@/components/ui/DocumentPresence';
 import { useEpcLobby } from '@/hooks/useEpcLobby';
 import { normField, nearestDuplicate } from '@/lib/proposalFields';
 import { evalFormula } from '@/lib/formula';
@@ -1899,7 +1899,7 @@ export default function QuoteEditorPage() {
             </div>
             {/* Live presence — who else is in this proposal right now */}
             {gate.profile?.email && (
-              <ProposalPresence
+              <DocumentPresence
                 channelId={`proposal:${id}`}
                 email={gate.profile.email}
                 name={gate.profile.display_name || gate.profile.email}

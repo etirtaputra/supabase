@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-28T06:20:00Z',
+    title: 'Two people can now edit the same sales order without losing each other\u2019s work',
+    details: [
+      'Until now, two browsers open on the same quotation or order was last-one-wins on any line you both touched \u2014 and because a draft saves itself a couple of seconds after you stop typing, you could lose a colleague\u2019s price without either of you doing anything wrong. The sales editor now works the way the EPC proposal editor already did.',
+      'A save writes only the lines YOU changed. Anything you did not touch is left exactly as your colleague left it, instead of being written back to the value it had when you opened the page.',
+      'Their changes come to you on their own \u2014 every 15 seconds, whenever you come back to the tab, and the moment they save. A short note says so: \u21bb Merged Budi\u2019s changes. If you both edited the same line, it counts them and tells you, and the line you are looking at stays yours.',
+      'Their avatar now sits in the top bar while they have the document open, with an amber dot while they are holding unsaved edits \u2014 so you can see the overlap coming instead of finding out afterwards.',
+      'A tab left open on an old version can no longer drag the document backwards. If someone confirms the order while you sit on the quotation, your next save keeps it confirmed, and pressing a status button that is no longer the right one tells you what happened instead of doing it.',
+    ],
+  },
+  {
     at: '2026-08-28T03:40:00Z',
     title: 'EPC proposal totals were quietly short — a row limit had been crossed',
     details: [

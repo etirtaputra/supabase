@@ -11,7 +11,7 @@ import { colorFor } from '@/lib/presence';
  * they hold unsaved edits. The list uses this to show, per card, who is live
  * on that proposal right now; the editor uses it only to announce itself.
  *
- * Ephemeral (no DB writes). Complements the per-proposal ProposalPresence in
+ * Ephemeral (no DB writes). Complements the per-proposal DocumentPresence in
  * the editor — this is the cross-proposal, list-level view.
  */
 export interface LobbyPeer {
