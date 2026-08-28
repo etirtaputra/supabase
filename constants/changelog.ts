@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-28T11:45:00Z',
+    title: 'Appearance, language and settings sit together on the left',
+    details: [
+      'The three controls at the top of the menu are one group on the left now, instead of spread across the width of the panel. The first one lines up with Dashboard, Suppliers and the rest of the menu below it, so the whole panel reads down one left edge.',
+    ],
+  },
+  {
     at: '2026-08-28T11:00:00Z',
     title: 'The appearance and language row no longer looks half-empty',
     details: [

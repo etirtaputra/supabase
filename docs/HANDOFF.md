@@ -152,6 +152,23 @@ Plus: a `constants/changelog.ts` entry in the same commit.
     third, flex just gives the two switches half each. Tap targets went
     28×28 → ~66×28 with it. Rendered and checked in both skins, both
     languages, and with/without the gear before pushing.
+  - **Corrected again, same day:** "for the appearance, language and more
+    settings, better to align left". So the row is a LEFT CLUSTER (`px-1.5
+    gap-1`, fixed `w-7` controls, 92px wide — 60px without the gear). Three
+    shapes in one afternoon; both rejected ones are written into the comment
+    in `BrandMenu.tsx` so nobody re-proposes them. `px-1.5` was chosen by
+    MEASUREMENT, not taste: the sun's glyph then starts 11px from the row edge
+    against the menu labels' 10px, where `px-1` gives 9 and `px-2` gives 13.
+    Nothing lands exactly on 10 — the glyph is inset 5px inside its 28px
+    button and Tailwind's scale steps 4px → 6px around it.
+  - Tap targets are back to 28×28 as a result. Said out loud rather than
+    buried: it is the cost of the left alignment, still bigger than the 20px
+    circles and 14px gear this row held before the switches existed.
+  - **Rig lesson:** Tailwind only emits classes it finds in `content`, so a
+    replica written AFTER the last CSS build silently renders with the class
+    missing. `px-1`/`px-1.5` measured as zero padding until the CSS was
+    rebuilt. Always rebuild `tw.css` after writing the HTML, and sanity-check
+    a measurement against arithmetic before believing it.
   - **Two measuring-rig bugs worth inheriting**, both the "a stale replica
     lies" trap: an extractor that only matched `className="..."` silently
     grabbed a LATER element's classes for any control written with a template
