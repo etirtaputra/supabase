@@ -8,6 +8,7 @@
 'use client';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
+import { planLineWrite } from '@/lib/salesLines';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter, useParams } from 'next/navigation';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
@@ -377,6 +378,7 @@ export default function SalesQuotePage() {
       // dirty can never stick after a save + reload from normalization
       // differences between typed values and their stored round-trip.
       savedSnapRef.current = snapshotOf(loadedQ, loadedLines);
+      knownItemIdsRef.current = new Set(((iRes.data as DbLine[]) ?? []).map((l) => l.item_id));
       setReceipts(rRes.error ? [] : ((rRes.data as Receipt[]) ?? []));
       setSavedLines(((iRes.data as DbLine[]) ?? []).map((l) => ({
         item_id: l.item_id, component_id: l.component_id, is_section: !!l.is_section,
@@ -622,6 +624,11 @@ export default function SalesQuotePage() {
   const [autoSavedAt, setAutoSavedAt] = useState<string | null>(null);
   const savedSnapRef = useRef<string | null>(null);
   const autosavingRef = useRef(false);
+  // Every item_id THIS TAB knows about — loaded, or written by an earlier save.
+  // A row another tab added is not in the set, so this tab will never delete
+  // it. planLineWrite (lib/salesLines.ts) turns it into the save plan.
+  const knownItemIdsRef = useRef<Set<string>>(new Set());
+
   const snapshotOf = (q: Quote | null, ls: EditLine[]) => JSON.stringify([
     q?.customer_id, q?.company_id, q?.quote_date, q?.valid_until ?? null, q?.payment_terms ?? '', q?.delivery_terms ?? '', q?.ppn_pct, q?.notes,
     ls.map((l) => [l.component_id, l.is_section, l.description, l.brand, l.note, l.lead_time, l.unit, l.quantity, l.unit_price, l.qty_formula, l.price_formula]),
@@ -736,18 +743,63 @@ export default function SalesQuotePage() {
       const qnum = (data as { quote_number?: string }).quote_number ?? '';
       setEditing((e) => (e ? { ...e, quote_id: qid!, quote_number: e.quote_number || qnum } : e));
     }
-    await supabase.from('22.1_sales_quote_items').delete().eq('quote_id', qid);
-    if (kept.length) {
-      const rows = kept.map((l, i) => ({
-        quote_id: qid, component_id: l.is_section ? null : l.component_id, is_section: l.is_section,
+    // ── Lines: UPSERT what survives, DELETE what went — IN THAT ORDER ────────
+    // This was `delete every line for the quote, then insert them all back`,
+    // which re-minted every item_id on every save — and the autosaver fires
+    // one 2.5s after any keystroke. Two things broke silently:
+    //
+    //   • 24.1_delivery_order_items.so_item_id and
+    //     25.1_sales_invoice_items.so_item_id are foreign keys onto these rows
+    //     with ON DELETE SET NULL, so each save cut a delivered or invoiced
+    //     line's link back to the order line it came from;
+    //   • a second tab's save wiped the first tab's rows wholesale, no warning.
+    //
+    // Rows are written BY item_id now, so identity survives; and the delete
+    // goes LAST and names only the rows this tab actually removed, so there is
+    // never a moment where the order has no lines and a colleague's new row is
+    // never collateral. Same shape as the PO-total fix — the data was right,
+    // the ORDER of operations was the bug.
+    //
+    // Verified against the live schema in a rolled-back transaction
+    // (2026-08-28): after this sequence the delivery line's so_item_id still
+    // points at the kept order line, and the quote ends with the edited row
+    // plus the new one.
+    // A new row is given its uuid HERE rather than by the column default, so
+    // the tab knows the id without matching returned rows back by position —
+    // which upsert does not promise.
+    const plan = planLineWrite(kept.map((l) => l.key), knownItemIdsRef.current, () => crypto.randomUUID());
+    const byKey = new Map(kept.map((l) => [l.key, l]));
+    const rows = plan.assign.map(({ key, itemId }, i) => {
+      const l = byKey.get(key)!;
+      return {
+        item_id: itemId, quote_id: qid, component_id: l.is_section ? null : l.component_id, is_section: l.is_section,
         description: l.description.trim(), brand: l.brand.trim(), note: l.note.trim(), lead_time: l.lead_time.trim(), unit: l.unit.trim(),
         quantity: l.is_section ? 0 : num(l.quantity), unit_price: l.is_section ? 0 : num(l.unit_price),
         qty_formula: l.is_section ? '' : l.qty_formula.trim(), price_formula: l.is_section ? '' : l.price_formula.trim(),
         line_total: l.is_section ? 0 : num(l.quantity) * num(l.unit_price), sort_order: i,
         design_role: l.design_role || null,
-      }));
-      const { error } = await supabase.from('22.1_sales_quote_items').insert(rows);
-      if (error) flash(`Lines failed: ${error.message}`);
+      };
+    });
+
+    let linesOk = true;
+    if (rows.length) {
+      const { error } = await supabase.from('22.1_sales_quote_items').upsert(rows, { onConflict: 'item_id' });
+      if (error) { linesOk = false; flash(`Lines failed: ${error.message}`); }
+    }
+    // The delete runs LAST, and only if the write above succeeded — a failed
+    // save must never be able to remove a line.
+    if (linesOk) {
+      if (plan.gone.length) {
+        const { error } = await supabase.from('22.1_sales_quote_items').delete().in('item_id', plan.gone);
+        if (error) flash(`Could not remove ${plan.gone.length} deleted line${plan.gone.length > 1 ? 's' : ''}: ${error.message}`);
+      }
+      knownItemIdsRef.current = new Set(plan.assign.map((a) => a.itemId));
+      // The new rows exist now: carry their ids into the row keys so the NEXT
+      // save updates them instead of inserting a second copy. snapshotOf()
+      // ignores `key`, so this cannot mark the document dirty.
+      if (Object.keys(plan.rekey).length) {
+        setLines((ls) => ls.map((l) => (plan.rekey[l.key] ? { ...l, key: `db-${plan.rekey[l.key]}` } : l)));
+      }
     }
     // Whatever just persisted is by definition the saved state — this keeps
     // the autosaver quiet after manual saves and status transitions too.

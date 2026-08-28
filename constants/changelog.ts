@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-28T02:30:00Z',
+    title: 'Saving a sales order no longer breaks its delivery and invoice links',
+    details: [
+      'Every save of a sales quote or order used to delete all of its lines and write them back as new ones. The lines looked identical, but each one came back with a new identity — so any delivery order or invoice raised from that order quietly lost its link back to the line it came from. It happened on every save, including the automatic one that runs a couple of seconds after you stop typing.',
+      'Lines are now updated in place and keep their identity. Removing a line still removes it, but only that line, and only after the rest have been written — so an order is never briefly empty, and a failed save can no longer delete anything.',
+      'It also makes two browsers much safer. Before, whichever tab saved last replaced the whole list and erased the other tab\u2019s work. Now a tab only writes the lines it actually changed and never touches a line a colleague added while it was open. Two people editing the same line at the same moment is still last-one-wins — the full merge that EPC proposals have is a separate piece of work.',
+    ],
+  },
+  {
     at: '2026-08-28T00:20:00Z',
     title: 'Terminal Dark is graphite now, not near-black',
     details: [
