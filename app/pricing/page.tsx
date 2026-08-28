@@ -92,20 +92,28 @@ export default function PricingPage() {
   // How many items sit on each profile, and how many on none — the number that
   // tells the owner whether the classification is actually finished.
   const [profileCounts, setProfileCounts] = useState<Map<string, number>>(new Map());
-  const loadMarginProfiles = useCallback(async () => {
+  /** Reads, and hands back the state update — see `fetchAll` below for why. */
+  const loadMarginProfiles = useCallback(async (): Promise<() => void> => {
     const [profiles, tally] = await Promise.all([
       fetchMarginProfiles(supabase),
       supabase.from('3.0_components').select('margin_profile_id').limit(20000),
     ]);
-    setMarginProfiles(profiles);
     const counts = new Map<string, number>();
     for (const r of ((tally.data ?? []) as { margin_profile_id: string | null }[])) {
       const k = r.margin_profile_id ?? 'none';
       counts.set(k, (counts.get(k) ?? 0) + 1);
     }
-    setProfileCounts(counts);
+    return () => { setMarginProfiles(profiles); setProfileCounts(counts); };
   }, []);   // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { void loadMarginProfiles(); }, [loadMarginProfiles]);
+  useEffect(() => {
+    let live = true;
+    void loadMarginProfiles().then((apply) => { if (live) apply(); });
+    return () => { live = false; };
+  }, [loadMarginProfiles]);
+  /** Re-read the profiles after the Profiles tab edits one. */
+  const refreshMarginProfiles = useCallback(async () => {
+    (await loadMarginProfiles())();
+  }, [loadMarginProfiles]);
   const [toast, setToast] = useState<string | null>(null);
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2600); };
 
@@ -116,8 +124,21 @@ export default function PricingPage() {
     if (profile && !canOpenPath(ROLE_PERMISSIONS[profile.role], '/pricing')) router.replace('/unauthorized');
   }, [authLoading, user, profile, router]);
 
-  const fetchAll = useCallback(async () => {
-    setLoading(true);
+  /**
+   * Read everything, then hand back the state update rather than applying it.
+   *
+   * Why the two halves: this is started by an effect, and a response that
+   * arrives after that effect has been torn down must be DROPPED — otherwise
+   * two loads in flight let the slower one win and the screen settles on data
+   * nobody asked for. Returning the apply step is what gives the caller
+   * somewhere to make that decision. (It is also what
+   * `react-hooks/set-state-in-effect` is asking for: no state written on the
+   * effect's own call path.)
+   *
+   * The spinner is raised by the CALLER — `refresh()` below, or the initial
+   * `useState(true)` — for the same reason.
+   */
+  const fetchAll = useCallback(async (): Promise<() => void> => {
     const [tierRes, ovRes, allComps, balRes, custRes] = await Promise.all([
       supabase.from('21.0_price_tiers').select('*').order('sort_order'),
       supabase.from('21.1_item_tier_prices').select('price_id, component_id, tier_id, override_price_idr, override_discount_pct, updated_at, updated_by_email'),
@@ -125,10 +146,7 @@ export default function PricingPage() {
       supabase.from('30.1_stock_balances').select('component_id, qty_on_hand, avg_cost_idr'),
       supabase.from('20.0_customers').select('customer_id, tier'),
     ]);
-    if (tierRes.error) { setSchemaMissing(true); setLoading(false); return; }
-    setTiers((tierRes.data as Tier[]) ?? []);
-    setOverrides((ovRes.data as Override[]) ?? []);
-    setComps(allComps);
+    if (tierRes.error) return () => { setSchemaMissing(true); setLoading(false); };
     const bm = new Map<string, Bal>();
     for (const b of (balRes.data as Bal[]) ?? []) {
       // Single warehouse today, but 30.1 is keyed (component, location) — sum
@@ -141,17 +159,33 @@ export default function PricingPage() {
         avg_cost_idr: (Number(b.qty_on_hand) || 0) > (Number(prev.qty_on_hand) || 0) ? b.avg_cost_idr : prev.avg_cost_idr,
       });
     }
-    setBals(bm);
     const cc = new Map<string, number>();
     for (const c of (custRes.data as { tier: string | null }[]) ?? []) {
       const t = (c.tier ?? '').trim();
       if (t) cc.set(t, (cc.get(t) ?? 0) + 1);
     }
-    setCustTierCounts(cc);
-    setLoading(false);
+    return () => {
+      setTiers((tierRes.data as Tier[]) ?? []);
+      setOverrides((ovRes.data as Override[]) ?? []);
+      setComps(allComps);
+      setBals(bm);
+      setCustTierCounts(cc);
+      setLoading(false);
+    };
   }, []);
 
-  useEffect(() => { if (canManage) fetchAll(); }, [canManage, fetchAll]);
+  /** Re-read on demand, after an edit on this screen. */
+  const refresh = useCallback(() => {
+    setLoading(true);
+    void fetchAll().then((apply) => { apply(); });
+  }, [fetchAll]);
+
+  useEffect(() => {
+    if (!canManage) return;
+    let live = true;
+    void fetchAll().then((apply) => { if (live) apply(); });
+    return () => { live = false; };
+  }, [canManage, fetchAll]);
 
   // ── Derived pricing model ──────────────────────────────────────────────────
   const ovByKey = useMemo(() => {
@@ -250,7 +284,7 @@ export default function PricingPage() {
     } else {
       flash('Tier saved');
     }
-    fetchAll();
+    refresh();
   }
 
   async function addTier(draft: { name: string; default_discount_pct: number; margin_floor_pct: number }) {
@@ -265,7 +299,7 @@ export default function PricingPage() {
     });
     if (error) { flash(`Failed: ${error.message}`); return; }
     flash('Tier added');
-    fetchAll();
+    refresh();
   }
 
   async function moveTier(t: Tier, dir: -1 | 1) {
@@ -280,14 +314,14 @@ export default function PricingPage() {
       supabase.from('21.0_price_tiers').update({ sort_order: i + 1 }).eq('tier_id', b.tier_id),
     ]);
     if (ra.error || rb.error) { flash(`Failed: ${(ra.error ?? rb.error)!.message}`); return; }
-    fetchAll();
+    refresh();
   }
 
   async function deleteTier(t: Tier) {
     const { error } = await supabase.from('21.0_price_tiers').delete().eq('tier_id', t.tier_id);
     if (error) { flash(`Failed: ${error.message}`); return; }
     flash(`Tier "${t.name}" deleted`);
-    fetchAll();
+    refresh();
   }
 
   // ── Override writes ────────────────────────────────────────────────────────
@@ -298,14 +332,14 @@ export default function PricingPage() {
       { onConflict: 'component_id,tier_id' });
     if (error) { flash(`Failed: ${error.message}`); return; }
     flash(`${descOf(v.comp)} · ${v.tier.name} → ${fmtRupiah(v.minPrice)}`);
-    fetchAll();
+    refresh();
   }
 
   async function clearOverride(price_id: string, label?: string) {
     const { error } = await supabase.from('21.1_item_tier_prices').delete().eq('price_id', price_id);
     if (error) { flash(`Failed: ${error.message}`); return; }
     flash(label ?? 'Override cleared — back to the tier default');
-    fetchAll();
+    refresh();
   }
 
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -325,7 +359,7 @@ export default function PricingPage() {
     }
     setBulkBusy(false);
     flash(failed ? `${rows.length - failed} raised, ${failed} failed` : `${rows.length} price${rows.length !== 1 ? 's' : ''} raised to the floor`);
-    fetchAll();
+    refresh();
   }
 
   // ── Audit tab filters ──────────────────────────────────────────────────────
@@ -414,7 +448,7 @@ export default function PricingPage() {
                 search={auditSearch} setSearch={setAuditSearch} tierFilter={auditTier} setTierFilter={setAuditTier}
                 bulkBusy={bulkBusy} onRaise={raiseToFloor} onClear={clearOverride} onBulkRaise={bulkRaise} />
             ) : tab === 'profiles' ? (
-              <MarginProfilesTab profiles={marginProfiles} counts={profileCounts} onChanged={loadMarginProfiles} notify={setToast} />
+              <MarginProfilesTab profiles={marginProfiles} counts={profileCounts} onChanged={refreshMarginProfiles} notify={setToast} />
             ) : (
               <OverridesTab rows={overrideRows} search={ovSearch} setSearch={setOvSearch} onClear={clearOverride} costOf={costOf} />
             )}

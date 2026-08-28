@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-28T08:30:00Z',
+    title: 'Items opens in your sort order straight away, and slow screens stop settling on stale data',
+    details: [
+      'The Items list used to draw in its built-in order first and then jump to the order you set in Settings \u203a Lists, because the setting was applied a beat after the first paint. It now opens in your order. Clicking a column still overrides it for that visit, exactly as before.',
+      'Items, Pricing, Stock, Profitability and the item scores behind them now DROP a result that arrives after you have already left or reloaded the screen. Before, if two loads were in flight \u2014 you opened a screen, your permissions resolved, it loaded again \u2014 whichever answer came back last won, even if it was the older one. It was rare and it was silent, which is the bad combination.',
+      'The spinner also stops being raised by the load itself, so a refresh you triggered shows one and a background reload does not flash it at you.',
+    ],
+  },
+  {
     at: '2026-08-28T07:35:00Z',
     title: 'Groundwork: eight database indexes, for later rather than for today',
     details: [

@@ -113,7 +113,7 @@ npx tsc --noEmit     # must be clean
 npm test             # node --test "lib/**/*.test.ts" — 334 tests at handoff, all pass
                      # WATCH THE TOTAL, not just the pass count: a suite that
                      # fails to IMPORT reports as 1 failure, not 26 missing tests
-npx eslint           # 420 problems at handoff (300 errors); just don't ADD any
+npx eslint           # 413 problems at handoff (293 errors); just don't ADD any
 npm run build        # next build must be green
 ```
 Plus: a `constants/changelog.ts` entry in the same commit.
@@ -123,6 +123,46 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 ## 4. What the previous threads did (for context, all shipped to main)
 
 ### 2026-08-28 (later) — §6 finished: the sales concurrency story, end to end
+
+**Then, on the owner's instruction, the 7 lint errors §6.3 exposed were fixed
+properly rather than left.** `app/items`, `app/pricing`, `app/profitability`,
+`app/stock`, `hooks/useItemScores`. eslint is **413** now — below the 414 it
+started at, with nothing masked.
+
+- **What the rule actually flags, measured with a probe rather than assumed:**
+  `react-hooks/set-state-in-effect` fires on a setState reached synchronously
+  from an effect **and** on one reached through a named `async` callback the
+  effect calls — even when the setState is after an `await`. It does NOT fire
+  on a setState inside a `.then()` callback, nor inside an async IIFE written
+  in the effect body. So simply moving the call inline would have been
+  appeasement, not a fix.
+- **The real defect underneath it was missing cancellation.** Every one of
+  these effects started a load and applied the result unconditionally. Two
+  loads in flight — mount, then the permission gate resolving — and the slower
+  answer won. Silent, and rare enough to be nasty.
+- **The shape, applied to all five identically:** `load()` fetches, computes,
+  and RETURNS the apply step; the effect resolves it behind a `live` flag and
+  drops it if teardown already happened. `setLoading(true)` moves out of
+  `load()` to the caller — the initial `useState(true)` on mount, or an
+  explicit `refresh()` for the screens with re-read buttons (`pricing` ×7,
+  `stock` ×2). Clearing the lint is a side effect of the fix, not the point.
+- **`app/items` sort was a separate, genuine anti-pattern.** The Settings ›
+  Lists default was held in state and corrected by an effect, so the list drew
+  in the wrong order and jumped — and needed a `listTouched` ref to remember
+  not to do it twice. It is derived during render now, with `sortOverride`
+  (null until a real click) doubling as the touched record. The ref and the
+  effect are both gone.
+- Verified structurally as well as by the four checks: every `setState` in the
+  five files was diffed name-by-name against `HEAD`, and the only differences
+  are the intended ones (`setLoading(true)` removed where the load is
+  effect-only, `setSort`→`setSortOverride`, `setWarehouses` now on both the
+  error and success paths in `stock`).
+- **Not done, and deliberately:** two pre-existing `exhaustive-deps` warnings
+  in `pricing` and `profitability` sit on lines this touched. Silencing them
+  with the house `// eslint-disable-line` would have been correct in isolation
+  (`supabase` is a module singleton, so it can never be a useful dep) but it
+  would have quietly moved the headline number for something nobody asked for.
+  Left visible.
 
 All four items in the previous §6 are done. §6.2 turned out to need no work at
 all; the other three shipped.
@@ -177,10 +217,7 @@ all; the other three shipped.
     (`react-hooks/purity`: `Date.now()` read during render in
     `useItemScores`, so the 90/180/360-day windows slid on every re-render —
     they anchor to `readAt` now). **7 left**
-    (`react-hooks/set-state-in-effect` on `useEffect(() => load(), [load])`;
-    the codebase already carries 46 of exactly this, so refactoring five
-    screens blind was the wrong trade). **eslint baseline is therefore 420,
-    not 414.**
+    (`react-hooks/set-state-in-effect`) — **since fixed properly, see below.**
   - **A relative import inside `lib/` needs its `.ts` extension** or
     `node --test` cannot resolve it. Two suites went dark until it went back
     on — and `npm test` reports that as 2 failures, not as 26 missing tests,
@@ -669,11 +706,10 @@ diff a screenshot before and after. Do not ship this on a reading of the diff.
   Lookup's quote→PO→payment chain is unavailable for 71% of them.
 - **15 Confirmed POs over 90 days old** (avg 131, oldest 315) and **42 Open
   quotes over 90 days**, oldest 2025-04-23.
-- **eslint baseline is 420, not 414** (`7e705cb`). 46+7 of those are
-  `react-hooks/set-state-in-effect` on the app's standard
-  `useEffect(() => load(), [load])` data-load pattern. If anyone wants that
-  number down, it is one deliberate refactor of how screens load, not a
-  drive-by.
+- **46 `react-hooks/set-state-in-effect` remain**, all on the app's standard
+  `useEffect(() => load(), [load])` data-load pattern, in files the paging
+  loops never masked. The 7 that `7e705cb` exposed were fixed properly (see §4)
+  — that refactor is the template if anyone wants the other 46 gone.
 - **`lib/serials.ts` and `lib/landedCost.ts` still swallow a read error** and
   return a SHORT list with no signal. `fetchAllRows` now hands them
   `{ error, truncated }`; nothing surfaces it, because doing so needs a UI

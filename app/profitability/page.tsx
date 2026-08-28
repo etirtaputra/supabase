@@ -139,8 +139,13 @@ function EconomicsInner() {
     if (profile && !canOpenPath(ROLE_PERMISSIONS[profile.role], '/profitability')) router.replace('/unauthorized');
   }, [authLoading, user, profile, router]);
 
-  const fetchAll = useCallback(async () => {
-    setLoading(true);
+  /**
+   * Read everything, then hand back the state update rather than applying it.
+   * The effect below drops the result if it arrived after teardown, so a slow
+   * response can never overwrite a newer one. The spinner is the initial
+   * `useState(true)` — an effect must not write state on its own call path.
+   */
+  const fetchAll = useCallback(async (): Promise<() => void> => {
     const [allComps, balRes, movRes, doRes, doiRes, ordRes, soiRes, custRes, userRes, invRes, rcptRes, poRes, costRes] = await Promise.all([
       fetchAllComponents<Comp>(supabase, 'component_id, supplier_model, internal_description, category, unit, selling_price_idr'),
       supabase.from('30.1_stock_balances').select('component_id, qty_on_hand, avg_cost_idr'),
@@ -156,39 +161,48 @@ function EconomicsInner() {
       supabase.from('5.0_purchases').select('po_id, actual_received_date'),
       supabase.from('6.0_po_costs').select('po_id, amount, payment_date, exchange_rate, currency'),
     ]);
-    setComps(allComps);
     const bm = new Map<string, { qty: number; avg: number }>();
     for (const b of (balRes.data as { component_id: string; qty_on_hand: number; avg_cost_idr: number | null }[]) ?? []) {
       const prev = bm.get(b.component_id) ?? { qty: 0, avg: 0 };
       const q = Number(b.qty_on_hand) || 0;
       bm.set(b.component_id, { qty: prev.qty + q, avg: (Number(b.avg_cost_idr) || 0) > 0 ? Number(b.avg_cost_idr) : prev.avg });
     }
-    setBals(bm);
-    setMoves((movRes.data as Move[]) ?? []);
-    setDos((doRes.data as Do[]) ?? []);
-    setDoItems((doiRes.data as DoItem[]) ?? []);
-    setOrders(new Map((((ordRes.data as Order[]) ?? []).map((o) => [o.quote_id, o]))));
-    setSoItems(new Map((((soiRes.data as SoItem[]) ?? []).map((i) => [i.item_id, i]))));
-    setCustomers(new Map((((custRes.data as Customer[]) ?? []).map((c) => [c.customer_id, c]))));
-    setUsers(new Map((((userRes.data as { id: string; display_name: string | null; email: string }[]) ?? []).map((u) => [u.id, { name: u.display_name || u.email.split('@')[0], email: u.email }]))));
-    setInvoices((invRes.data as Invoice[]) ?? []);
-    setReceipts((rcptRes.data as Receipt[]) ?? []);
     const pr = new Map<string, string>();
     for (const p of (poRes.data as { po_id: unknown; actual_received_date: string | null }[]) ?? []) {
       if (p.actual_received_date) pr.set(String(p.po_id), p.actual_received_date); // po_id is UUID live — always String()
     }
-    setPoReceived(pr);
-    setPoPayments((((costRes.data as { po_id: unknown; amount: number | null; payment_date: string | null; exchange_rate: number | null; currency: string | null }[]) ?? [])
+    const poPayments = (((costRes.data as { po_id: unknown; amount: number | null; payment_date: string | null; exchange_rate: number | null; currency: string | null }[]) ?? [])
       .filter((c) => c.payment_date && (Number(c.amount) || 0) > 0)
       .map((c) => ({
         po_id: String(c.po_id),
         amount_idr: (Number(c.amount) || 0) * ((c.currency ?? 'IDR') === 'IDR' ? 1 : (Number(c.exchange_rate) || 1)),
         payment_date: c.payment_date!,
-      }))));
-    setLoading(false);
+      })));
+
+    return () => {
+      setComps(allComps);
+      setBals(bm);
+      setMoves((movRes.data as Move[]) ?? []);
+      setDos((doRes.data as Do[]) ?? []);
+      setDoItems((doiRes.data as DoItem[]) ?? []);
+      setOrders(new Map((((ordRes.data as Order[]) ?? []).map((o) => [o.quote_id, o]))));
+      setSoItems(new Map((((soiRes.data as SoItem[]) ?? []).map((i) => [i.item_id, i]))));
+      setCustomers(new Map((((custRes.data as Customer[]) ?? []).map((c) => [c.customer_id, c]))));
+      setUsers(new Map((((userRes.data as { id: string; display_name: string | null; email: string }[]) ?? []).map((u) => [u.id, { name: u.display_name || u.email.split('@')[0], email: u.email }]))));
+      setInvoices((invRes.data as Invoice[]) ?? []);
+      setReceipts((rcptRes.data as Receipt[]) ?? []);
+      setPoReceived(pr);
+      setPoPayments(poPayments);
+      setLoading(false);
+    };
   }, []);
 
-  useEffect(() => { if (canView) fetchAll(); }, [canView, fetchAll]);
+  useEffect(() => {
+    if (!canView) return;
+    let live = true;
+    void fetchAll().then((apply) => { if (live) apply(); });
+    return () => { live = false; };
+  }, [canView, fetchAll]);
 
   // ── Sales facts: one row per delivered DO × component ────────────────────
   // The maths lives in lib/salesFacts.ts, shared with the dashboard's Top

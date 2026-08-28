@@ -58,8 +58,13 @@ export function useItemScores(supabase: SupabaseClient, enabled: boolean): { sco
   const [raw, setRaw] = useState<Raw | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  /**
+   * Read everything, then hand back the state update rather than applying it.
+   * The effect below drops the result if it arrived after teardown, so a slow
+   * response can never overwrite a newer one. The spinner is the initial
+   * `useState(true)` — an effect must not write state on its own call path.
+   */
+  const load = useCallback(async (): Promise<() => void> => {
     const fetchAllComps = () =>
       fetchAllComponents<{ component_id: string; category: string | null }>(supabase, 'component_id, category');
     const [comps, balRes, movRes, doRes, doiRes, soiRes, poRes, poiRes, linkRes] = await Promise.all([
@@ -89,7 +94,7 @@ export function useItemScores(supabase: SupabaseClient, enabled: boolean): { sco
     for (const l of (linkRes.data as { component_id_a: string; component_id_b: string; link_type: string }[]) ?? []) {
       if (l.link_type === 'successor' && l.component_id_a) superseded.add(String(l.component_id_a));
     }
-    setRaw({
+    const snapshot: Raw = {
       comps,
       bals,
       moves: (movRes.data as Raw['moves']) ?? [],
@@ -101,11 +106,16 @@ export function useItemScores(supabase: SupabaseClient, enabled: boolean): { sco
       poComps: (((poiRes.data as { po_id: unknown; component_id: string | null }[]) ?? []).filter((r) => r.component_id).map((r) => ({ po_id: String(r.po_id), component_id: r.component_id! }))),
       superseded,
       readAt: Date.now(),
-    });
-    setLoading(false);
+    };
+    return () => { setRaw(snapshot); setLoading(false); };
   }, [supabase]);
 
-  useEffect(() => { if (enabled) load(); }, [enabled, load]);
+  useEffect(() => {
+    if (!enabled) return;
+    let live = true;
+    void load().then((apply) => { if (live) apply(); });
+    return () => { live = false; };
+  }, [enabled, load]);
 
   const { scores, metrics } = useMemo(() => {
     if (!raw) return { scores: new Map<string, ItemScoreResult>(), metrics: new Map<string, ItemMetrics>() };

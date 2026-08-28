@@ -9,7 +9,7 @@
  * — the column/tab gating below stays capability-driven so widening access
  * later is a one-line flag flip in constants/roles.ts.
  */
-import { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
+import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 import { fetchAllComponents } from '@/lib/fetchAllRows';
 import { useAuth } from '@/hooks/useAuth';
@@ -120,15 +120,20 @@ function ItemsInner() {
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
   const [filterCategory, setFilterCategory] = useState('');
   const [stockOnly, setStockOnly] = useState(false);
-  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'activity', dir: -1 });
-  // Settings › Lists decides how the master list opens, until someone re-sorts
+  // Settings › Lists decides how the master list opens, until someone re-sorts.
+  //
+  // This used to be state that an effect corrected once the setting arrived —
+  // which meant the list rendered in the wrong order first and then jumped, and
+  // needed a `listTouched` ref to remember not to do it again. The setting is
+  // not state, it is an INPUT: derive from it, and let a real click be the only
+  // thing that overrides it. The override doubles as the "touched" record.
   const listDefaults = useListDefaults('items');
-  const listTouched = useRef(false);
-  useEffect(() => {
-    if (listTouched.current) return;
+  const [sortOverride, setSortOverride] = useState<{ key: SortKey; dir: 1 | -1 } | null>(null);
+  const sort = useMemo<{ key: SortKey; dir: 1 | -1 }>(() => {
+    if (sortOverride) return sortOverride;
     const key = listDefaults.sort as SortKey;
-    if (SORT_LABELS[key]) setSort({ key, dir: DEFAULT_DIR[key] });
-  }, [listDefaults.sort]);
+    return SORT_LABELS[key] ? { key, dir: DEFAULT_DIR[key] } : { key: 'activity', dir: -1 };
+  }, [sortOverride, listDefaults.sort]);
 
   useEffect(() => { document.title = 'Items — ICAPROC'; }, []);
   useEffect(() => {
@@ -137,8 +142,14 @@ function ItemsInner() {
     if (profile && !canOpen) router.replace('/unauthorized');
   }, [authLoading, user, profile, canOpen, router]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  /**
+   * Read everything, then hand back the state update rather than applying it.
+   * The effect below drops the result if it arrived after teardown, so a slow
+   * response can never overwrite a newer one. The spinner is raised by the
+   * caller — the initial `useState(true)` on mount — because an effect must
+   * not write state on its own call path.
+   */
+  const load = useCallback(async (): Promise<() => void> => {
     // Brand is buy-side sensitive — not selected for sell-side roles.
     const cols = `component_id, supplier_model, internal_description, category, unit, selling_price_idr, datasheet_url, updated_at${canBrand ? ', brand' : ''}`;
     const [allComps, balRes, movRes, piiRes, poiRes, sqiRes, pqRes, poRes, costRes, supRes, linkRes] = await Promise.all([
@@ -156,21 +167,10 @@ function ItemsInner() {
       supabase.from('2.0_suppliers').select('supplier_id, supplier_name'),
       supabase.from('8.0_component_links').select('*'),
     ]);
-    setComps(allComps);
-    setStock(rollUpByComponent((balRes.data ?? []) as unknown as BalanceRow[]));
-    setQuotes((pqRes.data ?? []) as unknown as PriceQuote[]);
-    setQuoteItems((piiRes.data ?? []) as unknown as PriceQuoteLineItem[]);
-    setPos((poRes.data ?? []) as unknown as PurchaseOrder[]);
-    setPoItems((poiRes.data ?? []) as unknown as PurchaseLineItem[]);
-    setPoCosts((costRes.data ?? []) as unknown as POCost[]);
-    setSuppliers((supRes.data ?? []) as { supplier_id: string; supplier_name: string }[]);
-    setComponentLinks((linkRes.data ?? []) as unknown as ComponentLink[]);
-
     const last = new Map<string, string>();
     for (const m of ((movRes.data ?? []) as { component_id: string; moved_at: string }[])) {
       if (!last.has(m.component_id)) last.set(m.component_id, m.moved_at);
     }
-    setLastMove(last);
 
     // Activity = distinct supplier quotes + POs + sales quotes the item appears
     // on — the same trading-activity measure Products badges on its rows.
@@ -182,11 +182,30 @@ function ItemsInner() {
     for (const l of ((piiRes.data ?? []) as { quote_id: number; component_id: string | null }[])) add(l.component_id, `pi:${l.quote_id}`);
     for (const l of ((poiRes.data ?? []) as { po_id: unknown; component_id: string | null }[])) add(l.component_id, `po:${String(l.po_id)}`);
     for (const l of ((sqiRes.data ?? []) as { quote_id: string; component_id: string | null }[])) add(l.component_id, `sq:${l.quote_id}`);
-    setActivity(new Map([...sets].map(([cid, s]) => [cid, s.size])));
-    setLoading(false);
+    const activity = new Map([...sets].map(([cid, s]) => [cid, s.size]));
+
+    return () => {
+      setComps(allComps);
+      setStock(rollUpByComponent((balRes.data ?? []) as unknown as BalanceRow[]));
+      setQuotes((pqRes.data ?? []) as unknown as PriceQuote[]);
+      setQuoteItems((piiRes.data ?? []) as unknown as PriceQuoteLineItem[]);
+      setPos((poRes.data ?? []) as unknown as PurchaseOrder[]);
+      setPoItems((poiRes.data ?? []) as unknown as PurchaseLineItem[]);
+      setPoCosts((costRes.data ?? []) as unknown as POCost[]);
+      setSuppliers((supRes.data ?? []) as { supplier_id: string; supplier_name: string }[]);
+      setComponentLinks((linkRes.data ?? []) as unknown as ComponentLink[]);
+      setLastMove(last);
+      setActivity(activity);
+      setLoading(false);
+    };
   }, [canBrand, canBuy]);       // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { if (canOpen) load(); }, [canOpen, load]);
+  useEffect(() => {
+    if (!canOpen) return;
+    let live = true;
+    void load().then((apply) => { if (live) apply(); });
+    return () => { live = false; };
+  }, [canOpen, load]);
 
   const categories = useMemo(() => [...new Set(comps.map((c) => c.category).filter(Boolean))].sort() as string[], [comps]);
 
@@ -237,8 +256,10 @@ function ItemsInner() {
   }, [comps, stock, activity, lastMove, search, filterCategory, stockOnly, sort, scores, metrics]);
 
   const toggleSort = (key: SortKey) => {
-    listTouched.current = true;
-    setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: DEFAULT_DIR[key] }));
+    // `sort` is the EFFECTIVE sort this render — the override if there is one,
+    // the setting's default if not — so a first click flips whatever is on
+    // screen rather than whatever state happened to hold.
+    setSortOverride(sort.key === key ? { key, dir: (sort.dir * -1) as 1 | -1 } : { key, dir: DEFAULT_DIR[key] });
   };
   const arrow = (key: SortKey) => (sort.key === key ? (sort.dir === 1 ? ' ↑' : ' ↓') : '');
 
@@ -271,7 +292,7 @@ function ItemsInner() {
             {categories.map((c) => <option key={c} value={c}>{humanize(c)}</option>)}
           </select>
           <select value={`${sort.key}:${sort.dir}`}
-            onChange={(e) => { listTouched.current = true; const [k, d] = e.target.value.split(':'); setSort({ key: k as SortKey, dir: Number(d) as 1 | -1 }); }}
+            onChange={(e) => { const [k, d] = e.target.value.split(':'); setSortOverride({ key: k as SortKey, dir: Number(d) as 1 | -1 }); }}
             className="h-11 px-3 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-slate-500/60 outline-none text-slate-300 text-xs cursor-pointer">
             {(Object.keys(SORT_LABELS) as SortKey[]).map((k) => (
               <option key={k} value={`${k}:${DEFAULT_DIR[k]}`}>{SORT_LABELS[k]} {DEFAULT_DIR[k] === -1 ? '↓' : '↑'}</option>

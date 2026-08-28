@@ -81,8 +81,21 @@ export default function StockPage() {
     if (profile && !canOpenPath(ROLE_PERMISSIONS[profile.role], '/stock')) router.replace('/unauthorized');
   }, [authLoading, user, profile, router]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  /**
+   * Read everything, then hand back the state update rather than applying it.
+   *
+   * Why the two halves: this is started by an effect, and a response that
+   * arrives after that effect has been torn down must be DROPPED — otherwise
+   * two loads in flight let the slower one win and the screen settles on data
+   * nobody asked for. Returning the apply step is what gives the caller
+   * somewhere to make that decision. (It is also what
+   * `react-hooks/set-state-in-effect` is asking for: no state written on the
+   * effect's own call path.)
+   *
+   * The spinner is raised by the CALLER — `refresh()` below, or the initial
+   * `useState(true)` — for the same reason.
+   */
+  const load = useCallback(async (): Promise<() => void> => {
     // Reorder alerts fetch their own tables — independent, never blocks the page
     fetchReorderAlerts(supabase).then(setReorders).catch(() => setReorders([]));
     // Goods on the water — paid/ordered, not yet received — read the same way
@@ -99,15 +112,13 @@ export default function StockPage() {
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name'),
       fetchDeliveredByQuoteComp(supabase),
     ]);
-    setWarehouses(whs);
-    if (balRes.error || movRes.error) { setSchemaMissing(true); setLoading(false); return; }
-    setComps(new Map(allComps.map((c) => [c.component_id, c])));
-    setBalances((balRes.data ?? []) as Balance[]);
+    if (balRes.error || movRes.error) {
+      return () => { setWarehouses(whs); setSchemaMissing(true); setLoading(false); };
+    }
     const last = new Map<string, LastMove>();
     for (const m of (movRes.data ?? []) as ({ component_id: string } & LastMove)[]) {
       if (!last.has(m.component_id)) last.set(m.component_id, m);
     }
-    setLastByComp(last);
 
     // ── Shortages: committed demand that stock cannot cover ────────────────
     // reserved = ordered qty on committed orders MINUS what has already been
@@ -151,11 +162,29 @@ export default function StockPage() {
           orders: d.orders.sort((a, b) => (a.date || '').localeCompare(b.date || '')) });
       }
     }
-    setShortages(shortList.sort((a, b) => b.short - a.short));
-    setLoading(false);
+    shortList.sort((a, b) => b.short - a.short);
+    return () => {
+      setWarehouses(whs);
+      setComps(new Map(allComps.map((c) => [c.component_id, c])));
+      setBalances((balRes.data ?? []) as Balance[]);
+      setLastByComp(last);
+      setShortages(shortList);
+      setLoading(false);
+    };
   }, [supabase]);
 
-  useEffect(() => { if (user) load(); }, [user, load]);
+  /** Re-read on demand (a drill-down closing, a transfer landing). */
+  const refresh = useCallback(() => {
+    setLoading(true);
+    void load().then((apply) => { apply(); });
+  }, [load]);
+
+  useEffect(() => {
+    if (!user) return;
+    let live = true;
+    void load().then((apply) => { if (live) apply(); });
+    return () => { live = false; };
+  }, [user, load]);
 
   const rows = useMemo<Row[]>(() => {
     const out: Row[] = [];
@@ -523,7 +552,7 @@ export default function StockPage() {
           componentName={drill.internal_description || drill.supplier_model}
           unit={drill.unit}
           anchor={null}
-          onClose={() => { setDrill(null); load(); }}
+          onClose={() => { setDrill(null); refresh(); }}
         />
       )}
       {toast && <div className="fixed bottom-6 right-6 z-[130] px-4 py-2.5 bg-slate-800 border border-slate-700 text-white text-sm font-semibold rounded-xl shadow-lg">{toast}</div>}
@@ -535,7 +564,7 @@ export default function StockPage() {
           item={transfer}
           warehouses={warehouses}
           onClose={() => setTransfer(null)}
-          onDone={(msg) => { setTransfer(null); setToast(msg); setTimeout(() => setToast(''), 2600); load(); }}
+          onDone={(msg) => { setTransfer(null); setToast(msg); setTimeout(() => setToast(''), 2600); refresh(); }}
         />
       )}
     </div>
