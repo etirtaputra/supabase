@@ -122,6 +122,52 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
+### 2026-08-28 (later still) — the two personal switches, and a Stock finding
+
+- `9ec0b56` **Brightness and language are one-tap switches.** Owner sent a
+  wallet-header screenshot: "for the dark and bright appearance can be as
+  elegant as this kind of switch, so is EN or ID." The wordmark menu's first
+  row was two pickers (two colour circles, two language buttons); it is now a
+  sun/moon glyph and a two-letter code. **Both name their DESTINATION, not the
+  current state** — that is the reference's convention and the only reading
+  that makes a bare glyph self-explanatory. Tooltips spell it out, through
+  `tf()` so they translate.
+  - **A real bug went with it:** `toggleTheme()` still cycled `THEMES` in
+    order, written when there were four skins and never revisited when there
+    were six — so one tap could walk someone onto Dim or Paper, which the
+    owner hid the same day. `nextTheme()` now picks out of
+    `OFFERED_THEME_VALUES` rather than naming skins, so narrowing the offer
+    narrows the switch. 5 tests, incl. "a tap never lands on a hidden skin".
+    `MENU_THEME_VALUES` was a duplicate of that pair and is gone.
+  - Measured in Chromium from the file's own class strings, Inter, inside the
+    real w-56 panel (210px content box): row **179px → 114px**, 35.5px → 33px
+    tall, identical in Indonesian.
+  - **Two measuring-rig bugs worth inheriting**, both the "a stale replica
+    lies" trap: an extractor that only matched `className="..."` silently
+    grabbed a LATER element's classes for any control written with a template
+    literal; and splitting a `${a ? b : c}` on its `:` lands inside
+    `hover:text-slate-200` and drops half the branch. Take the quoted strings
+    in order instead. Also: the palette variables live on `:root`, so a
+    `data-theme` on a wrapper div renders "light" in the dark palette — put it
+    on `<html>` and PRINT the computed background to prove it.
+
+- **Stock's "Last Move" is not "date received", and that gap will open.**
+  Owner asked where to see goods just received; the answer is `/stock` sorted
+  by Last Move, with the green IN badge. It works TODAY: 151 of 153 items with
+  movement have a receipt as their most recent movement, because there are 189
+  `in` rows and only **5** `out` rows. Every delivery the sell-side ships adds
+  an `out` that outranks the receipt, so the two answers diverge exactly as
+  fulfilment ramps. A real "Received" sort (or a `date received` column) is the
+  fix; offered, not asked for.
+  - `/stock` reads `30.0_stock_movements` with `.limit(2000)`. **194 rows
+    today**, so no truncation — but it is a hard cap, not a page, and it is the
+    same silent-truncation shape §6.3 just retired everywhere else.
+  - Owner then asked for the DEFAULT to be Last Move, newest first: done, in
+    `app/stock/page.tsx`'s `useState`. **`/stock` is not in the Settings ›
+    Lists system** — eight other lists are (`constants/listDefaults.ts`), so
+    wiring it in would make the sort configurable like the rest. Offered, not
+    asked for.
+
 ### 2026-08-28 (later) — §6 finished: the sales concurrency story, end to end
 
 **Then, on the owner's instruction, the 7 lint errors §6.3 exposed were fixed

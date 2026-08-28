@@ -71,7 +71,17 @@ export default function StockPage() {
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [stockOnly, setStockOnly] = useState(true);
-  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'value', dir: -1 });
+  // Opens on LAST MOVE, newest first (owner, 2026-08-28). The question this
+  // screen gets asked most is "what just came in" — and with 189 receipts
+  // against 5 shipments in the ledger today, the most recent movement is a
+  // goods receipt for 151 of the 153 items that have one. Sorting by value
+  // answered a different question (what is the money sitting in), which the
+  // Value header still answers in one click.
+  //
+  // dir -1 over a date string is newest-first, and an item that has never
+  // moved sorts to the BOTTOM: its `moved_at` reads as '' (see the comparator
+  // in `filtered`), which is the smallest string ascending.
+  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'moved', dir: -1 });
   const [drill, setDrill] = useState<Comp | null>(null);
 
   useEffect(() => { document.title = 'Stock — ICAPROC'; }, []);

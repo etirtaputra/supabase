@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-28T10:05:00Z',
+    title: 'Stock opens on what moved most recently, instead of what is worth most',
+    details: [
+      'Purchasing \u203a Stock now opens sorted by Last move, newest first \u2014 so goods that have just been received are the first thing on the page, with the green IN date beside them. Value is still one click away on its own column heading.',
+      'Items that have never moved sort to the bottom rather than the top.',
+      'Worth knowing: "Last move" is the most recent movement in either direction, not the date received. They agree for 151 of the 153 items that have moved, because the ledger holds 189 receipts against only 5 shipments \u2014 but every delivery you ship adds a movement that outranks the receipt, so the two will drift apart as fulfilment picks up. A proper "received" sort is a small separate job when you want it.',
+    ],
+  },
+  {
     at: '2026-08-28T09:20:00Z',
     title: 'Bright/dark and EN/ID are one tap each now, in the menu',
     details: [
