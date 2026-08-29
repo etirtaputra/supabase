@@ -20,6 +20,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-29T08:20:00Z',
+    title: 'Purchasing \u2192 Progress: which PO is at which stage, without dragging anything',
+    details: [
+      'A new Progress tab in Purchasing shows every tracked purchase order as a card in one of seven columns: PI Received, PO Sent, DP Paid, Balance Paid, Docs Checked, Hard Copy Received, PIB & OPS Paid. It replaces the Basecamp board.',
+      'Five of the seven columns are worked out from what ICAPROC already holds \u2014 the PI number, the PO date, and the payments themselves. So the card moves the moment you record the payment, and there is nothing to drag and nothing to forget. Only Docs Checked and Hard Copy Received are ticked by hand, because nothing else in the system knows them.',
+      'A card that is paid in full without a down payment does not get stuck: a stage that never applied is not a blocker, and the card sits at the furthest point it has actually reached.',
+      'Each card offers the next real step \u2014 Log balance, Log PIB / OPS \u2014 which opens Payments with that PO already selected.',
+      'When you raise a PO in New Deal there is now a "Track on Progress board" tick, on by default. Quote-only deals stay off the board, so a quote kept for future reference does not clutter it.',
+      'The board starts empty. Existing purchase orders are not on it until someone puts them there.',
+    ],
+  },
+  {
     at: '2026-08-28T12:40:00Z',
     title: 'Switching between dark and light is instant, and both choices are visible again',
     details: [

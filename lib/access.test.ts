@@ -70,14 +70,14 @@ test('an unregistered path is open — registering it is how a page gets a gate'
 /** What each role finds in its menu. Change this only on purpose. */
 const EXPECTED: Record<UserRole, string[]> = {
   owner: [
-    '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=financials',
+    '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=progress', '/purchasing?tab=financials',
     '/purchasing?tab=lookup', '/suppliers', '/stock', '/stock/receive', '/stock/reconcile',
     '/customers', '/products', '/sales', '/invoices', '/delivery', '/serials', '/aftersales',
     '/support-letters', '/banks', '/spend-cash', '/profitability', '/items',
     '/purchasing?tab=market-intel', '/pricing', '/proposals', '/settings', '/import-export',
   ],
   buy_admin: [
-    '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=financials',
+    '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=progress', '/purchasing?tab=financials',
     '/purchasing?tab=lookup', '/suppliers', '/stock', '/stock/receive', '/stock/reconcile',
     '/products', '/delivery', '/serials', '/banks', '/purchasing?tab=market-intel',
     '/import-export',
@@ -98,12 +98,12 @@ const EXPECTED: Record<UserRole, string[]> = {
   aftersales: ['/', '/customers', '/serials', '/aftersales'],
   viewer: ['/'],
   data_entry: [
-    '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=lookup',
+    '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=progress', '/purchasing?tab=lookup',
     '/suppliers', '/stock', '/stock/receive', '/stock/reconcile', '/delivery', '/serials',
     '/purchasing?tab=market-intel',
   ],
   finance: [
-    '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=financials',
+    '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=progress', '/purchasing?tab=financials',
     '/purchasing?tab=lookup', '/suppliers', '/stock', '/stock/reconcile', '/invoices',
     '/banks', '/purchasing?tab=market-intel', '/import-export',
   ],

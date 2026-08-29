@@ -90,6 +90,12 @@ export const DESTINATIONS: Destination[] = [
   { href: '/purchasing?tab=quoting', label: 'New Deal', group: 'Purchasing', section: 'buySide', inNav: true,
     hint: 'Record a supplier quote / PI — alone or straight to its PO',
     keywords: 'pi proforma quote entry new catalog supplier quotes po purchase order raise deal' },
+  // The board the team opens first thing: which PO is at which stage. It sits
+  // before Payments because that is the order the morning runs — look at the
+  // board, see what needs paying, go and pay it.
+  { href: '/purchasing?tab=progress', label: 'Progress', group: 'Purchasing', section: 'buySide', inNav: true,
+    hint: 'Which PO is at which stage — PI, PO, payments, docs, PIB',
+    keywords: 'kanban board progress stage milestone status pipeline basecamp impor import track' },
   { href: '/purchasing?tab=financials', label: 'Payments', group: 'Purchasing', section: 'buySide', cap: 'canViewBankFees', inNav: true,
     hint: 'Record supplier payments, bank fees and landed costs',
     keywords: 'payment batch remittance costs fees ap payable financials money supplier' },

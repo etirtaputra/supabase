@@ -32,6 +32,9 @@ export interface RolePermissions {
     ordering: boolean;
     financials: boolean;
     lookup: boolean;
+    /** The PO progress board. Mirrors `lookup`: if you can find a deal,
+     *  you can see where it has got to. */
+    progress: boolean;
     'market-intel': boolean;
   };
   // Feature-level gates
@@ -66,7 +69,7 @@ export interface RolePermissions {
 export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
   owner: {
     buySide: true, sellSide: true, projects: true,
-    tabs: { catalog: true, quoting: true, ordering: true, financials: true, lookup: true, 'market-intel': true },
+    tabs: { catalog: true, quoting: true, ordering: true, financials: true, lookup: true, 'market-intel': true, progress: true },
     canEdit: true, canExportCsv: true,
     canViewSellingPrice: true, canViewBankFees: true, canViewCompetitorPrices: true, canViewBrand: true,
     canManageUsers: true, canEditQuotes: true,
@@ -78,7 +81,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
   // Buy-side admin — procurement + catalog, can edit; sees buy-side cost signals.
   buy_admin: {
     buySide: true, sellSide: false, projects: false,
-    tabs: { catalog: true, quoting: true, ordering: true, financials: true, lookup: true, 'market-intel': true },
+    tabs: { catalog: true, quoting: true, ordering: true, financials: true, lookup: true, 'market-intel': true, progress: true },
     canEdit: true, canExportCsv: true,
     canViewSellingPrice: true, canViewBankFees: true, canViewCompetitorPrices: true, canViewBrand: true,
     canManageUsers: false, canEditQuotes: false,
@@ -90,7 +93,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
   // Sell-side admin — runs the whole sell-side incl. pricing tiers + receipts.
   sell_admin: {
     buySide: false, sellSide: true, projects: false,
-    tabs: { catalog: false, quoting: false, ordering: false, financials: false, lookup: false, 'market-intel': false },
+    tabs: { catalog: false, quoting: false, ordering: false, financials: false, lookup: false, 'market-intel': false, progress: false },
     canEdit: true, canExportCsv: true,
     canViewSellingPrice: true, canViewBankFees: false, canViewCompetitorPrices: false, canViewBrand: false,
     canManageUsers: false, canEditQuotes: false,
@@ -102,7 +105,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
   // Sell-side sales — customers + sales docs; no back-end (pricing/stock/AR).
   sales: {
     buySide: false, sellSide: true, projects: false,
-    tabs: { catalog: false, quoting: false, ordering: false, financials: false, lookup: false, 'market-intel': false },
+    tabs: { catalog: false, quoting: false, ordering: false, financials: false, lookup: false, 'market-intel': false, progress: false },
     canEdit: false, canExportCsv: false,
     canViewSellingPrice: true, canViewBankFees: false, canViewCompetitorPrices: false, canViewBrand: false,
     canManageUsers: false, canEditQuotes: false,
@@ -114,7 +117,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
   // Project engineer — Project Quotes + sell-side sales access.
   engineer: {
     buySide: false, sellSide: true, projects: true,
-    tabs: { catalog: false, quoting: false, ordering: false, financials: false, lookup: false, 'market-intel': false },
+    tabs: { catalog: false, quoting: false, ordering: false, financials: false, lookup: false, 'market-intel': false, progress: false },
     canEdit: false, canExportCsv: false,
     canViewSellingPrice: true, canViewBankFees: false, canViewCompetitorPrices: false, canViewBrand: false,
     canManageUsers: false, canEditQuotes: true,
@@ -130,7 +133,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
    */
   warehouse: {
     buySide: false, sellSide: false, projects: false,
-    tabs: { catalog: false, quoting: false, ordering: false, financials: false, lookup: false, 'market-intel': false },
+    tabs: { catalog: false, quoting: false, ordering: false, financials: false, lookup: false, 'market-intel': false, progress: false },
     canEdit: true, canExportCsv: false,
     canViewSellingPrice: false, canViewBankFees: false, canViewCompetitorPrices: false, canViewBrand: false,
     canManageUsers: false, canEditQuotes: false,
@@ -147,7 +150,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
    */
   aftersales: {
     buySide: false, sellSide: false, projects: false,
-    tabs: { catalog: false, quoting: false, ordering: false, financials: false, lookup: false, 'market-intel': false },
+    tabs: { catalog: false, quoting: false, ordering: false, financials: false, lookup: false, 'market-intel': false, progress: false },
     canEdit: true, canExportCsv: false,
     canViewSellingPrice: false, canViewBankFees: false, canViewCompetitorPrices: false, canViewBrand: false,
     canManageUsers: false, canEditQuotes: false,
@@ -158,7 +161,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
   },
   viewer: {
     buySide: false, sellSide: false, projects: false,
-    tabs: { catalog: false, quoting: false, ordering: false, financials: false, lookup: true, 'market-intel': false },
+    tabs: { catalog: false, quoting: false, ordering: false, financials: false, lookup: true, 'market-intel': false, progress: true },
     canEdit: false, canExportCsv: false,
     canViewSellingPrice: false, canViewBankFees: false, canViewCompetitorPrices: false, canViewBrand: false,
     canManageUsers: false, canEditQuotes: false,
@@ -170,7 +173,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
   // ── Legacy (superseded by buy_admin); kept for backward-compatibility ──
   data_entry: {
     buySide: true, sellSide: false, projects: false,
-    tabs: { catalog: true, quoting: true, ordering: true, financials: false, lookup: true, 'market-intel': false },
+    tabs: { catalog: true, quoting: true, ordering: true, financials: false, lookup: true, 'market-intel': false, progress: true },
     canEdit: true, canExportCsv: false,
     canViewSellingPrice: false, canViewBankFees: false, canViewCompetitorPrices: false, canViewBrand: true,
     canManageUsers: false, canEditQuotes: true,
@@ -181,7 +184,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
   },
   finance: {
     buySide: true, sellSide: false, projects: false,
-    tabs: { catalog: false, quoting: false, ordering: false, financials: true, lookup: true, 'market-intel': false },
+    tabs: { catalog: false, quoting: false, ordering: false, financials: true, lookup: true, 'market-intel': false, progress: true },
     canEdit: true, canExportCsv: true,
     canViewSellingPrice: false, canViewBankFees: true, canViewCompetitorPrices: false, canViewBrand: true,
     canManageUsers: false, canEditQuotes: true,

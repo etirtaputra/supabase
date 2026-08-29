@@ -394,6 +394,7 @@ export const ID: Record<string, string> = {
   "What's New": 'Yang Baru',
   'Item Editor': 'Editor Barang',
   'New Deal': 'Transaksi Baru',
+  'Progress': 'Progres',
   'Payments': 'Pembayaran',
   'Deal Lookup': 'Telusur Transaksi',
   'Suppliers': 'Pemasok',
@@ -527,6 +528,8 @@ export const ID: Record<string, string> = {
     'Catat pembayaran ke pemasok, biaya bank dan biaya sampai gudang',
   'Every PI → PO → payment as one deal':
     'Setiap PI → PO → pembayaran sebagai satu transaksi',
+  'Which PO is at which stage — PI, PO, payments, docs, PIB':
+    'PO mana di tahap mana — PI, PO, pembayaran, dokumen, PIB',
   'Vendor profiles, purchase volume, outstanding payables':
     'Profil pemasok, volume pembelian, utang yang belum dibayar',
   'On-hand per warehouse, moving-average cost, shortages':

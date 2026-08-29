@@ -18,6 +18,7 @@ import MobileNotice from '@/components/ui/MobileNotice';
 import CompetitorPriceForm from '@/components/forms/CompetitorPriceForm';
 import MultiPaymentForm from '@/components/forms/MultiPaymentForm';
 import DealLookupTab from '@/components/ui/DealLookupTab';
+import ProgressBoard, { type ProgressPoRow } from '@/components/ui/ProgressBoard';
 import DealLink from '@/components/ui/DealLink';
 import { ToastContainer } from '@/components/ui/Toast';
 import { ToastProvider } from '@/hooks/useToast';
@@ -43,6 +44,9 @@ const MENU_ITEMS: MenuItem[] = [
   { id: 'quoting', label: 'New Deal', icon: '📝',
     color: 'text-slate-400 hover:text-blue-300 hover:bg-slate-800/50',
     activeColor: 'bg-blue-500/15 text-blue-300 ring-1 ring-blue-500/30' },
+  { id: 'progress', label: 'Progress', icon: '📋',
+    color: 'text-slate-400 hover:text-violet-300 hover:bg-slate-800/50',
+    activeColor: 'bg-violet-500/15 text-violet-300 ring-1 ring-violet-500/30' },
   { id: 'financials', label: 'Payments', icon: '💰',
     color: 'text-slate-400 hover:text-rose-300 hover:bg-slate-800/50',
     activeColor: 'bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30' },
@@ -148,6 +152,33 @@ function MasterInsertPage() {
     const { error } = await supabase.from('5.0_purchases').update({ status }).eq('po_id', poId);
     if (error) { showToast(`Error updating status: ${error.message}`, 'error'); throw error; }
     showToast(`Status updated to ${status}`, 'success');
+    refetch();
+  };
+
+  // ── Progress board ────────────────────────────────────────────────────────
+  // Only the two milestones nothing else in ICAPROC knows are written here.
+  // The other five are derived at read time (lib/poProgress.ts) precisely so
+  // there is no second copy of the truth to keep in sync.
+  const handleToggleMilestone = async (
+    poId: string | number,
+    field: 'docs_checked_at' | 'hard_copy_received_at',
+    on: boolean,
+  ) => {
+    const { error } = await supabase.from('5.0_purchases')
+      .update({ [field]: on ? new Date().toISOString() : null }).eq('po_id', poId);
+    if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
+    const what = field === 'docs_checked_at' ? 'Docs checked' : 'Hard copy received';
+    showToast(on ? `${what}.` : `${what} undone.`, 'success');
+    refetch();
+  };
+
+  // Off the board, not deleted — the deal and every payment on it stay exactly
+  // where they are. This only stops the card being shown.
+  const handleUntrackPo = async (poId: string | number) => {
+    const { error } = await supabase.from('5.0_purchases')
+      .update({ track_progress: false }).eq('po_id', poId);
+    if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
+    showToast('Taken off the Progress board.', 'success');
     refetch();
   };
 
@@ -389,6 +420,11 @@ function MasterInsertPage() {
   // Preselected mode, remembered per browser — someone who always books
   // quote + PO together never has to flip the switch again.
   const [withPo, setWithPo] = useState(false);
+  // Does this deal go on the Progress board? On by default whenever a PO is
+  // being raised — issuing a PO IS the decision to process it — so the common
+  // case needs no thought. Quote-only deals never go on the board: 66 of the
+  // 132 quotes on file have no PO and are recorded for future reference.
+  const [trackProgress, setTrackProgress] = useState(true);
   useEffect(() => {
     try { setWithPo(localStorage.getItem('purchasing:quote-mode') === 'combo'); } catch {}
   }, []);
@@ -632,6 +668,7 @@ function MasterInsertPage() {
         po_number, status: 'Confirmed', ...header, total_value: null,
         payment_terms: poTerms || settings.defaultPoPaymentTerms || null,
         replaces_po_id: supersede ? src.po_id : null,
+        track_progress: trackProgress,
       });
       if (!poRows?.[0]) return false;
       const newPoId = String(poRows[0].po_id);
@@ -693,6 +730,7 @@ function MasterInsertPage() {
       document_url: quote.document_url || null,
       // "Replaces PO" field: this fresh PO supersedes an older one.
       replaces_po_id: replaces_po_id || null,
+      track_progress: trackProgress,
     });
     if (!poRows?.[0]) return false;
     const poId = String(poRows[0].po_id);
@@ -1130,6 +1168,13 @@ function MasterInsertPage() {
                       </button>
                     ))}
                     {/* Caption takes its own line on a phone instead of squeezing the buttons */}
+                    {withPo && (
+                      <label className="flex items-center gap-2 ml-auto cursor-pointer select-none group" title="Show this PO on the Progress board so the team can see what stage it is at">
+                        <input type="checkbox" checked={trackProgress} onChange={(e) => setTrackProgress(e.target.checked)}
+                          className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-800 text-violet-500 focus:ring-1 focus:ring-violet-500/50" />
+                        <span className="text-[11px] text-slate-400 group-hover:text-slate-300">Track on Progress board</span>
+                      </label>
+                    )}
                     {withPo && <span className="text-[11px] text-slate-600 basis-full sm:basis-auto sm:ml-2">Violet fields belong to the PO — everything else is shared.</span>}
                   </div>
                   {dupWarning && (
@@ -1583,6 +1628,27 @@ function MasterInsertPage() {
               )}
 
               {/* Deal Lookup Tab */}
+              {activeTab === 'progress' && (
+                <ProgressBoard
+                  pos={data.pos as ProgressPoRow[]}
+                  costs={data.poCosts}
+                  suppliers={data.suppliers}
+                  canEdit={Boolean(perms?.canEdit)}
+                  onToggleMilestone={handleToggleMilestone}
+                  onUntrack={handleUntrackPo}
+                  onAction={(tab, poId) => {
+                    // Take the PO with you: Payments opens with it selected, so
+                    // the next step is where the person already is.
+                    if (tab === 'financials') { setPaymentMode('single'); setSinglePoId(String(poId)); }
+                    handleTabChange(tab as Tab);
+                  }}
+                  onOpenDeal={(po) => {
+                    const q = po.pi_number || po.po_number || '';
+                    router.push(`/purchasing?tab=lookup&q=${encodeURIComponent(q)}`);
+                  }}
+                />
+              )}
+
               {activeTab === 'lookup' && (
                 <DealLookupTab
                   key={initialLookupQ || 'lookup'}
