@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-08-28** · head of `main` at that point: `7f78972`+ (see §4)
+**Last updated: 2026-08-29** · head of `main` at that point: `1a45d4a` (see §4)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -121,6 +121,58 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 ---
 
 ## 4. What the previous threads did (for context, all shipped to main)
+
+### 2026-08-29 — the Hermes agent's credentials, and the Progress board
+
+- `e4abe0e` **`docs/PURCHASING_RUNBOOK.md`.** The six buy-side procedures as
+  machine-readable markdown, for the owner's Telegram agent (Hermes — OpenClaw
+  shaped, Claude Sonnet 5, drives Drive/email/ICAPROC). Front-loads the five
+  rules that cost money if broken. There is also an HTML artifact of the same
+  content, but an artifact is auth-gated and cannot be fetched by an agent —
+  the markdown is the one that matters. **Keep it in step when a purchasing
+  screen changes; an agent now depends on it.**
+- `1a45d4a` **Purchasing → Progress.** Replaces the team's Basecamp kanban.
+  Seven columns; FIVE are derived from existing rows (`lib/poProgress.ts`, 18
+  tests) and two are stored (`docs_checked_at`, `hard_copy_received_at`).
+  No drag-and-drop, on purpose. Board starts empty — no backfill; the
+  one-statement backfill sits commented in `migrations/po_progress_board.sql`.
+  Cards sit at the FURTHEST milestone reached, because only 15 of 223 POs have
+  a down payment and a strict sequence would strand the rest.
+
+**Account created for the agent:** `po@icasolar.com`, role `buy_admin`,
+confirmed manually in `auth.users` because **Supabase's built-in mailer does
+not deliver to non-team addresses** — confirmation, OTP and recovery were all
+accepted by GoTrue and silently dropped (mailbox verified empty). Any future
+non-team hire hits this. Fix is custom SMTP under Authentication → Emails;
+icasolar.com already has cPanel mail. Dashboard-only, not done.
+
+### Two findings from that thread, NOT acted on (owner has not decided)
+
+1. **Four CNY POs carry a USD exchange rate (~17,88x).** PIO-2026011,
+   EB.42277, EB.42278, PIO-2026013 — all Shenzhen Kstar, Aug 2026. Recorded at
+   IDR 29.0bn against ~IDR 4.3bn at a correct CNY rate: **AP overstated by
+   ~IDR 24.7bn**. The line prices prove the currency is right and the rate is
+   wrong (`ICAL LIP12120 12V/120Ah` at 772 sits between the confirmed-CNY 100Ah
+   at 655 and 200Ah at 1,152). No payments recorded against any of them yet.
+   Needs the owner's rate before any fix.
+2. **`PIO/007/ISL/05/2025` uses rate 2,643 on a May-2025 CNY order.** Their own
+   `9.0_exchange_rate_history` has CNY at 2,244 (Jun 2024) and 2,327 (Oct 2025);
+   2,643 only otherwise appears on 2026 POs. Overstates that deal ~IDR 145–180m.
+
+### Two security holes found and NOT yet fixed (owner informed, not authorised)
+
+1. **`app/api/insert-from-pdf/route.ts` has no auth and writes with the
+   service-role key.** Anyone reaching that URL can insert suppliers, quotes,
+   POs and line items into production. `extract-pdf` is also open and spends
+   `ANTHROPIC_API_KEY` for any caller. `ask` and `next-step` check the bearer
+   token correctly — copy that pattern.
+2. **The whole buy side is ungated at the DB level.** Ten tables
+   (`1.0`–`9.0`, minus `6.0_po_costs`) carry `ALL TO authenticated USING
+   (true)`; role gating for them lives only in React, so `po@icasolar.com`'s
+   `buy_admin` is a label, not a constraint. `3.0_components` additionally has
+   an anon `UPDATE ... USING (true)` policy. Everything built later (42 write
+   policies) IS properly role-gated.
+
 
 ### 2026-08-28 (later still) — the two personal switches, and a Stock finding
 
