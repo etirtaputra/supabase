@@ -158,6 +158,12 @@ export interface PurchaseOrder extends BaseEntity {
   pi_status?: ProformaStatus;
   quote_id?: number;
   document_url?: string | null;
+  // Progress board (2026-08-29). The other five milestones are DERIVED from
+  // payments and documents — see lib/poProgress.ts — and deliberately not
+  // stored, so the board cannot disagree with the ledger.
+  track_progress?: boolean | null;
+  docs_checked_at?: string | null;
+  hard_copy_received_at?: string | null;
 }
 
 // 6.1 Purchase Line Items

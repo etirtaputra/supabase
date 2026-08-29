@@ -27,11 +27,9 @@ import {
 } from '@/lib/poProgress';
 import { fmtIdr, fmtCcy, fmtDate } from '@/lib/formatters';
 
-export interface ProgressPoRow extends PurchaseOrder {
-  track_progress?: boolean | null;
-  docs_checked_at?: string | null;
-  hard_copy_received_at?: string | null;
-}
+/** The board's row IS a purchase order — the progress fields live on the
+ *  canonical type, so nothing here has to widen it. */
+export type ProgressPoRow = PurchaseOrder;
 
 interface Props {
   pos: ProgressPoRow[];

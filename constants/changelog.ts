@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-29T09:05:00Z',
+    title: 'Put a deal on the Progress board from Deal Lookup',
+    details: [
+      'Every purchase order in Deal Lookup now has an "On Progress board" tick, under its status. Deals that already existed \u2014 including every PO raised before the board was built \u2014 can go on it without re-entering anything.',
+      'It is also the honest place for the decision: whether a deal is really going to be processed is often settled after the PO was recorded, not while it was being typed.',
+    ],
+  },
+  {
     at: '2026-08-29T08:20:00Z',
     title: 'Purchasing \u2192 Progress: which PO is at which stage, without dragging anything',
     details: [

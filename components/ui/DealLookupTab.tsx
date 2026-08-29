@@ -459,6 +459,7 @@ export default function DealLookupTab({
   const [selectedCompId, setSelectedCompId]   = useState<string | null>(null);
   const [updatingQuote, setUpdatingQuote]     = useState<string | null>(null);
   const [updatingPo, setUpdatingPo]           = useState<string | null>(null);
+  const [trackingPo, setTrackingPo]           = useState<string | null>(null);
   // Two-step delete confirm: first click arms it (key = `po:<id>` or `deal:<key>`),
   // second click destroys. `busyDelete` guards against a double-fire mid-request.
   const [confirmDelete, setConfirmDelete]     = useState<string | null>(null);
@@ -1527,6 +1528,31 @@ export default function DealLookupTab({
                             )
                           )}
                         </div>
+
+                        {/* On the Progress board, or not. Here as well as in New
+                            Deal because the decision to actually process a deal
+                            is often taken AFTER the PO was recorded — and
+                            because a PO raised before the board existed has no
+                            other way onto it. Writes the same one flag; the
+                            seven columns are worked out from the payments. */}
+                        {onUpdatePo && po.status !== 'Replaced' && po.status !== 'Cancelled' && (
+                          <label className="flex items-center gap-2 cursor-pointer select-none group w-fit"
+                            onClick={(e) => e.stopPropagation()}
+                            title="Show this PO on the Purchasing → Progress board">
+                            <input type="checkbox"
+                              checked={Boolean(po.track_progress)}
+                              disabled={trackingPo === pKey}
+                              onChange={async (e) => {
+                                const on = e.target.checked;
+                                setTrackingPo(pKey);
+                                try { await onUpdatePo(pKey, { track_progress: on }); } finally { setTrackingPo(null); }
+                              }}
+                              className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-800 text-violet-500 focus:ring-1 focus:ring-violet-500/50 disabled:opacity-50" />
+                            <span className={`text-[11px] transition-colors ${po.track_progress ? 'text-violet-300' : 'text-slate-500 group-hover:text-slate-300'}`}>
+                              {trackingPo === pKey ? 'saving…' : 'On Progress board'}
+                            </span>
+                          </label>
+                        )}
 
                         {/* Received date picker — shown when intercepting "Fully Received" for this PO */}
                         {pendingReceived?.poId === pKey && (
