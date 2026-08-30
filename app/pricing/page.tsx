@@ -29,7 +29,8 @@ import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { computeTierChain, roundUpToStep } from '@/lib/tierPricing';
 import { issuesFor, matchesIssues, matchesScope, marginPct, priceForMargin,
-         ISSUE_LABEL, SCOPE_LABEL, type PriceIssue, type PriceScope } from '@/lib/priceGrid';
+         compareCells, ISSUE_LABEL, SCOPE_LABEL,
+         type PriceIssue, type PriceScope, type SortDir } from '@/lib/priceGrid';
 import {
   fetchMarginProfiles, saveMarginProfile, createMarginProfile, deleteMarginProfile,
   rangeError, byId as marginById, bandOf, assignProfile, type MarginProfile,
@@ -1063,6 +1064,55 @@ function MarginProfilesTab({ profiles, counts, onChanged, notify }: {
   );
 }
 
+/**
+ * One chip renderer for both filter groups. A count of zero is dimmed and
+ * inert: a chip that looks live and filters to an empty table is a small lie,
+ * and on a bar this wide there are usually two or three of them.
+ *
+ * Module scope, not inside the tab: a component declared during render is a
+ * new component type every render, so React remounts it and it loses state.
+ */
+function Chip({ label, count, on, tone, onClick }: {
+  label: string; count: number; on: boolean; tone: 'issue' | 'scope'; onClick: () => void;
+}) {
+  const dead = count === 0 && !on;
+  return (
+    <button type="button" disabled={dead} onClick={onClick}
+      className={`inline-flex items-center gap-1.5 pl-2.5 pr-2 py-1 rounded-lg text-[11.5px] font-semibold border transition-colors ${
+        dead ? 'text-slate-600 border-slate-800 cursor-default'
+        : on ? (tone === 'issue' ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+                                : 'bg-sky-500/15 text-sky-300 border-sky-500/40')
+        : 'text-slate-400 border-slate-700 hover:border-slate-600 hover:text-slate-200'}`}>
+      {label}
+      <span className={`tabular-nums text-[10.5px] font-medium px-1 rounded ${
+        dead ? 'text-slate-700' : on ? 'bg-black/25' : 'text-slate-500'}`}>{fmtInt(count)}</span>
+    </button>
+  );
+}
+
+/**
+ * A sortable header. First click sorts ascending, clicking again flips.
+ * Module scope for the same reason as Chip.
+ */
+function SortTh({ col, label, sortCol, sortDir, onSort, align = 'left', className = '' }: {
+  col: string; label: string; sortCol: string; sortDir: SortDir;
+  onSort: (col: string) => void; align?: 'left' | 'right'; className?: string;
+}) {
+  const on = sortCol === col;
+  return (
+    <th className={`px-3 py-2 font-semibold ${align === 'right' ? 'text-right' : 'text-left'} ${className}`}>
+      <button type="button" onClick={() => onSort(col)}
+        className={`inline-flex items-center gap-1 uppercase tracking-wide transition-colors ${
+          on ? 'text-slate-100' : 'text-slate-400 hover:text-slate-200'}`}>
+        {label}
+        <span className={`text-[9px] leading-none ${on ? 'opacity-100' : 'opacity-0'}`} aria-hidden>
+          {on && sortDir === 'desc' ? '▼' : '▲'}
+        </span>
+      </button>
+    </th>
+  );
+}
+
 // ── Set Pricing ───────────────────────────────────────────────────────────────
 /**
  * One row per item, one column per active tier, edit and save.
@@ -1097,6 +1147,8 @@ function SetPricingTab({
   const [scope, setScope] = useState<Set<PriceScope>>(new Set());
   // '' = every category, 'none' = the unclassified pile, else a profile id.
   const [profileFilter, setProfileFilter] = useState<string>('');
+  const [sortCol, setSortCol] = useState<string>('item');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
   // Staged cells: `${component_id}:${tier_id | 'net'}` → what is in the box.
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [page, setPage] = useState(200);
@@ -1126,8 +1178,23 @@ function SetPricingTab({
       if (!needle) return true;
       return `${r.c.supplier_model} ${r.c.internal_description ?? ''} ${r.c.category ?? ''}`
         .toLowerCase().includes(needle);
+    }).sort((x, y) => {
+      const cell = (r: typeof x): number | string | null => {
+        if (sortCol === 'item') return descOf(r.c);
+        if (sortCol === 'cost') return r.cost;
+        if (sortCol === 'qty') return r.qty;
+        if (sortCol === 'gp') return r.gp;
+        // Unclassified has no label, so it sorts as empty and sinks — which is
+        // also where it belongs in a list you are working down.
+        if (sortCol === 'category') return r.profile?.label ?? null;
+        if (sortCol.startsWith('tier:')) return r.priceByTier.get(sortCol.slice(5)) ?? null;
+        return null;
+      };
+      const c = compareCells(cell(x), cell(y), sortDir);
+      // Ties fall back to the name, so the order never shuffles between renders.
+      return c !== 0 ? c : compareCells(descOf(x.c), descOf(y.c), 'asc');
     });
-  }, [comps, tiers, chainFor, costOf, stockOf, profileById, search, wanted, scope, profileFilter]);
+  }, [comps, tiers, chainFor, costOf, stockOf, profileById, search, wanted, scope, profileFilter, sortCol, sortDir]);
 
   // Counts sit on the chips, so the size of each problem is visible before
   // anyone clicks — that is what makes this a worklist rather than a filter.
@@ -1180,28 +1247,10 @@ function SetPricingTab({
     });
   };
 
-  /**
-   * One chip renderer for both groups. A count of zero is dimmed and inert:
-   * a chip that looks live and filters to an empty table is a small lie, and
-   * on a bar this wide there are usually two or three of them.
-   */
-  const Chip = ({ label, count, on, tone, onClick }: {
-    label: string; count: number; on: boolean; tone: 'issue' | 'scope'; onClick: () => void;
-  }) => {
-    const dead = count === 0 && !on;
-    return (
-      <button type="button" disabled={dead} onClick={onClick}
-        className={`inline-flex items-center gap-1.5 pl-2.5 pr-2 py-1 rounded-lg text-[11.5px] font-semibold border transition-colors ${
-          dead ? 'text-slate-600 border-slate-800 cursor-default'
-          : on ? (tone === 'issue' ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
-                                  : 'bg-sky-500/15 text-sky-300 border-sky-500/40')
-          : 'text-slate-400 border-slate-700 hover:border-slate-600 hover:text-slate-200'}`}>
-        {label}
-        <span className={`tabular-nums text-[10.5px] font-medium px-1 rounded ${
-          dead ? 'text-slate-700' : on ? 'bg-black/25' : 'text-slate-500'}`}>{fmtInt(count)}</span>
-      </button>
-    );
-  };
+  const onSort = useCallback((col: string) => {
+    setSortDir((d) => (sortCol === col && d === 'asc' ? 'desc' : 'asc'));
+    setSortCol(col);
+  }, [sortCol]);
 
   const toggle = <T,>(set: Set<T>, v: T) => {
     const next = new Set(set); if (next.has(v)) next.delete(v); else next.add(v); return next;
@@ -1266,15 +1315,15 @@ function SetPricingTab({
         <table className="w-full text-[12.5px]">
           <thead>
             <tr className="bg-slate-800/60 text-[11px] uppercase tracking-wide text-slate-400">
-              <th className="text-left font-semibold px-3 py-2">Item</th>
-              <th className="text-right font-semibold px-3 py-2 whitespace-nowrap">Landed cost</th>
+              <SortTh sortCol={sortCol} sortDir={sortDir} onSort={onSort} col="item" label="Item" />
+              <SortTh sortCol={sortCol} sortDir={sortDir} onSort={onSort} col="qty" label="On hand" align="right" className="whitespace-nowrap" />
+              <SortTh sortCol={sortCol} sortDir={sortDir} onSort={onSort} col="cost" label="Landed cost" align="right" className="whitespace-nowrap" />
               {tiers.map((t, i) => (
-                <th key={t.tier_id} className="text-right font-semibold px-3 py-2 whitespace-nowrap">
-                  {t.name}{i === 0 && <span className="ml-1 text-emerald-400/70 normal-case">net</span>}
-                </th>
+                <SortTh key={t.tier_id} sortCol={sortCol} sortDir={sortDir} onSort={onSort} col={`tier:${t.tier_id}`} align="right" className="whitespace-nowrap"
+                  label={i === 0 ? `${t.name} · net` : t.name} />
               ))}
-              <th className="text-left font-semibold px-3 py-2 whitespace-nowrap">Category · target</th>
-              <th className="text-right font-semibold px-3 py-2">GP</th>
+              <SortTh sortCol={sortCol} sortDir={sortDir} onSort={onSort} col="category" label="Category · target" className="whitespace-nowrap" />
+              <SortTh sortCol={sortCol} sortDir={sortDir} onSort={onSort} col="gp" label="GP" align="right" />
               <th className="px-3 py-2" />
             </tr>
           </thead>
@@ -1288,11 +1337,11 @@ function SetPricingTab({
                     <p className="text-slate-200 leading-tight">{descOf(r.c)}</p>
                     <p className="text-[11px] text-slate-500 font-mono">{r.c.supplier_model}</p>
                   </td>
+                  <td className={`px-3 py-1.5 text-right tabular-nums whitespace-nowrap ${r.qty > 0 ? 'text-sky-300/80' : 'text-slate-600'}`}>
+                    {r.qty > 0 ? fmtInt(r.qty) : '—'}
+                  </td>
                   <td className="px-3 py-1.5 text-right tabular-nums text-slate-400 whitespace-nowrap">
                     {r.cost == null ? <span className="text-slate-600">—</span> : fmtRupiah(r.cost)}
-                    <p className={`text-[10px] ${r.qty > 0 ? 'text-sky-400/70' : 'text-slate-600'}`}>
-                      {r.qty > 0 ? `${fmtInt(r.qty)} on hand` : 'none held'}
-                    </p>
                   </td>
                   {tiers.map((t, i) => {
                     const k = keyOf(cid, t.tier_id);

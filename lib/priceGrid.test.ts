@@ -9,7 +9,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { issuesFor, matchesIssues, matchesScope, marginPct, priceForMargin, type PriceScope } from './priceGrid.ts';
+import { issuesFor, matchesIssues, matchesScope, marginPct, priceForMargin, compareCells, type PriceScope } from './priceGrid.ts';
 import type { MarginProfile } from './marginProfiles.ts';
 
 const profile = (min: number, max: number): MarginProfile =>
@@ -204,4 +204,40 @@ test('scope and issues are independent — a row must satisfy both', () => {
   assert.ok(matchesIssues(issues, new Set(['below_band'])));
   assert.ok(!matchesScope(facts, scope('in_stock')),
     'under target but none on the shelf: the issue matches, the scope does not');
+});
+
+// ── Sorting ────────────────────────────────────────────────────────────────
+
+const sorted = (vals: (number | string | null)[], dir: 'asc' | 'desc') =>
+  [...vals].sort((a, b) => compareCells(a, b, dir));
+
+test('numbers sort as numbers, both ways', () => {
+  assert.deepEqual(sorted([300, 20, 1000], 'asc'), [20, 300, 1000]);
+  assert.deepEqual(sorted([300, 20, 1000], 'desc'), [1000, 300, 20]);
+});
+
+test('EMPTY SINKS IN BOTH DIRECTIONS — the bug this guards', () => {
+  // 902 of 993 items have no price. Treating null as 0 would open "cheapest
+  // first" with 902 blank rows.
+  assert.deepEqual(sorted([null, 300, null, 20], 'asc'), [20, 300, null, null]);
+  assert.deepEqual(sorted([null, 300, null, 20], 'desc'), [300, 20, null, null]);
+});
+
+test('an empty string is as empty as null', () => {
+  assert.deepEqual(sorted(['', 'Panel', 'Cable'], 'asc'), ['Cable', 'Panel', '']);
+  assert.deepEqual(sorted(['', 'Panel', 'Cable'], 'desc'), ['Panel', 'Cable', '']);
+});
+
+test('zero is a real value and does not sink', () => {
+  assert.deepEqual(sorted([null, 0, 5], 'asc'), [0, 5, null], '0% margin is a fact, not a gap');
+});
+
+test('text sorts case-insensitively and numerically within the string', () => {
+  assert.deepEqual(sorted(['item10', 'item9', 'Item2'], 'asc'), ['Item2', 'item9', 'item10']);
+  assert.equal(compareCells('abb', 'ABB', 'asc'), 0, 'case is not a difference in a model list');
+});
+
+test('two empties are equal, so the previous order survives', () => {
+  assert.equal(compareCells(null, null, 'asc'), 0);
+  assert.equal(compareCells(null, '', 'desc'), 0);
 });

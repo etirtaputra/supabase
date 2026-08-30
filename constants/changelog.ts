@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-29T13:10:00Z',
+    title: 'Every column on Set Pricing sorts',
+    details: [
+      'Click a heading to sort by it \u2014 item, on hand, landed cost, any tier price, category or GP. Click it again to reverse.',
+      'Items with nothing in that column always sink to the bottom, whichever way the arrow points. Sorting by price with the cheapest first would otherwise open with the 902 items that have no price at all, which is ordered but useless.',
+      'On hand moved into its own column instead of sitting under the landed cost, so it can be sorted on too.',
+      'The list starts in alphabetical order rather than whatever order the database returned, so scrolling to a known item works.',
+    ],
+  },
+  {
     at: '2026-08-29T12:20:00Z',
     title: 'Set Pricing shows each item\u2019s category and target, and the filter bar is one row shorter',
     details: [

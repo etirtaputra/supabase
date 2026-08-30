@@ -179,3 +179,31 @@ export const ISSUE_LABEL: Record<PriceIssue, string> = {
   above_band: 'Above target',
   unclassified: 'Unclassified',
 };
+
+// ── Sorting ──────────────────────────────────────────────────────────────────
+
+export type SortDir = 'asc' | 'desc';
+
+/**
+ * Compare two cells, with EMPTY ALWAYS LAST — in both directions.
+ *
+ * The naive version treats null as 0 or as the empty string, and then "sort by
+ * price, lowest first" opens with 902 unpriced rows: technically ordered,
+ * useless as a worklist. A missing value is not a small value, it is the
+ * absence of one, so it sinks whichever way the arrow points and the rows that
+ * can answer the question stay at the top.
+ */
+export function compareCells(
+  a: number | string | null | undefined,
+  b: number | string | null | undefined,
+  dir: SortDir,
+): number {
+  const aEmpty = a == null || a === '';
+  const bEmpty = b == null || b === '';
+  if (aEmpty && bEmpty) return 0;
+  if (aEmpty) return 1;
+  if (bEmpty) return -1;
+  const sign = dir === 'asc' ? 1 : -1;
+  if (typeof a === 'number' && typeof b === 'number') return (a - b) * sign;
+  return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' }) * sign;
+}
