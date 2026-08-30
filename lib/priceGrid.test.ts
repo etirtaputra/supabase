@@ -9,7 +9,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { issuesFor, matchesIssues, marginPct, priceForMargin } from './priceGrid.ts';
+import { issuesFor, matchesIssues, matchesScope, marginPct, priceForMargin, type PriceScope } from './priceGrid.ts';
 import type { MarginProfile } from './marginProfiles.ts';
 
 const profile = (min: number, max: number): MarginProfile =>
@@ -154,4 +154,54 @@ test('a suggestion nobody can compute is null, not a wild number', () => {
   assert.equal(priceForMargin(0, 20), null);
   assert.equal(priceForMargin(800, 99), null, 'dividing by ~0 is not a price');
   assert.equal(priceForMargin(800, NaN), null);
+});
+
+// ── Scope: facts about the item, not verdicts on its price ─────────────────
+
+const scope = (...w: PriceScope[]) => new Set(w);
+
+test('no scope selected leaves every row in', () => {
+  assert.ok(matchesScope({ qtyOnHand: 0, cost: null }, scope()));
+});
+
+test('in stock means we are holding some', () => {
+  assert.ok(matchesScope({ qtyOnHand: 5, cost: 800 }, scope('in_stock')));
+  assert.ok(!matchesScope({ qtyOnHand: 0, cost: 800 }, scope('in_stock')));
+});
+
+test('the cost chips are opposites', () => {
+  assert.ok(matchesScope({ qtyOnHand: 0, cost: 800 }, scope('has_cost')));
+  assert.ok(!matchesScope({ qtyOnHand: 0, cost: 800 }, scope('no_cost')));
+  assert.ok(matchesScope({ qtyOnHand: 0, cost: null }, scope('no_cost')));
+  assert.ok(!matchesScope({ qtyOnHand: 0, cost: null }, scope('has_cost')));
+});
+
+test('a zero landed cost is no landed cost, not a free item', () => {
+  assert.ok(matchesScope({ qtyOnHand: 1, cost: 0 }, scope('no_cost')));
+  assert.ok(!matchesScope({ qtyOnHand: 1, cost: 0 }, scope('has_cost')));
+});
+
+test('scope NARROWS — this is the whole difference from the issue chips', () => {
+  const held = { qtyOnHand: 5, cost: null };
+  // Holding stock but no cost: passes each chip alone, fails them together.
+  assert.ok(matchesScope(held, scope('in_stock')));
+  assert.ok(matchesScope(held, scope('no_cost')));
+  assert.ok(!matchesScope(held, scope('in_stock', 'has_cost')),
+    'two scope chips must AND, or clicking more would show more');
+});
+
+test('both cost chips together honestly mean "either", not "neither"', () => {
+  assert.ok(matchesScope({ qtyOnHand: 0, cost: 800 }, scope('has_cost', 'no_cost')));
+  assert.ok(matchesScope({ qtyOnHand: 0, cost: null }, scope('has_cost', 'no_cost')));
+  // …and any other chip still applies alongside the cancelled pair.
+  assert.ok(!matchesScope({ qtyOnHand: 0, cost: 800 }, scope('has_cost', 'no_cost', 'in_stock')));
+  assert.ok(matchesScope({ qtyOnHand: 3, cost: 800 }, scope('has_cost', 'no_cost', 'in_stock')));
+});
+
+test('scope and issues are independent — a row must satisfy both', () => {
+  const issues = new Set(['below_band'] as const);
+  const facts = { qtyOnHand: 0, cost: 800 };
+  assert.ok(matchesIssues(issues, new Set(['below_band'])));
+  assert.ok(!matchesScope(facts, scope('in_stock')),
+    'under target but none on the shelf: the issue matches, the scope does not');
 });

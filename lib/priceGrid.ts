@@ -107,6 +107,57 @@ export function matchesIssues(issues: Set<PriceIssue>, wanted: Set<PriceIssue>):
 }
 
 /**
+ * Scope: facts about the item rather than verdicts on its price.
+ *
+ * Separate from PriceIssue because they combine differently. The issue chips
+ * are an OR — "show me the unpriced ones AND the under-target ones" widens the
+ * list on purpose. Scope ANDs with that, because "under target, of the stock I
+ * am actually holding" is a narrower question, and the whole point of asking it
+ * is to get a shorter list.
+ */
+export type PriceScope =
+  /** We hold some. Pricing this wrong costs money on stock already bought. */
+  | 'in_stock'
+  /** The ledger knows what it cost, so margin is a fact rather than a guess. */
+  | 'has_cost'
+  /** It does not, so no margin, floor or band verdict is possible. */
+  | 'no_cost';
+
+export interface RowFacts {
+  qtyOnHand: number;
+  cost: number | null;
+}
+
+export const factsOf = (r: RowFacts) => ({
+  in_stock: r.qtyOnHand > 0,
+  has_cost: r.cost != null && r.cost > 0,
+  no_cost: !(r.cost != null && r.cost > 0),
+});
+
+/**
+ * Scope narrows: every selected chip must hold. Picking both cost chips is the
+ * one self-cancelling combination, and it honestly means "either", so it is
+ * allowed to return everything rather than nothing.
+ */
+export function matchesScope(facts: RowFacts, wanted: Set<PriceScope>): boolean {
+  if (wanted.size === 0) return true;
+  const f = factsOf(facts);
+  if (wanted.has('has_cost') && wanted.has('no_cost')) {
+    // "either" — drop the pair and judge on whatever else is selected.
+    const rest = new Set([...wanted].filter((w) => w !== 'has_cost' && w !== 'no_cost'));
+    return matchesScope(facts, rest);
+  }
+  for (const w of wanted) if (!f[w]) return false;
+  return true;
+}
+
+export const SCOPE_LABEL: Record<PriceScope, string> = {
+  in_stock: 'In stock',
+  has_cost: 'Has landed cost',
+  no_cost: 'No landed cost',
+};
+
+/**
  * What the net price would have to be for this item to sit at the bottom of
  * its band — the "raise it to where it should be" suggestion.
  *

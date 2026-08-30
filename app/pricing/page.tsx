@@ -28,7 +28,8 @@ import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { computeTierChain, roundUpToStep } from '@/lib/tierPricing';
-import { issuesFor, matchesIssues, marginPct, priceForMargin, ISSUE_LABEL, type PriceIssue } from '@/lib/priceGrid';
+import { issuesFor, matchesIssues, matchesScope, marginPct, priceForMargin,
+         ISSUE_LABEL, SCOPE_LABEL, type PriceIssue, type PriceScope } from '@/lib/priceGrid';
 import {
   fetchMarginProfiles, saveMarginProfile, createMarginProfile, deleteMarginProfile,
   rangeError, byId as marginById, bandOf, type MarginProfile,
@@ -207,6 +208,9 @@ export default function PricingPage() {
       if (excludeTierId && tid === excludeTierId) return null;
       return ovByKey.get(`${c.component_id}:${tid}`)?.override_price_idr;
     }), [activeSorted, ovByKey]);
+
+  const stockOf = useCallback(
+    (cid: string): number => Math.max(0, Number(bals.get(cid)?.qty_on_hand) || 0), [bals]);
 
   const costOf = useCallback((cid: string): number | null => {
     const b = bals.get(cid);
@@ -486,6 +490,7 @@ export default function PricingPage() {
               <div className="space-y-2">{[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-slate-800/40 rounded-2xl animate-pulse" />)}</div>
             ) : tab === 'set' ? (
               <SetPricingTab comps={comps} tiers={activeSorted} chainFor={chainFor} costOf={costOf}
+                stockOf={stockOf}
                 profileById={profileById} ovByKey={ovByKey} saving={savingRows} onSave={saveEdits} />
             ) : tab === 'tiers' ? (
               <TiersTab tiers={orderedTiers} custTierCounts={custTierCounts} overridesByTier={overridesByTier}
@@ -1060,12 +1065,13 @@ function MarginProfilesTab({ profiles, counts, onChanged, notify }: {
  * pinned cell and the tier goes back to the chain.
  */
 function SetPricingTab({
-  comps, tiers, chainFor, costOf, profileById, ovByKey, saving, onSave,
+  comps, tiers, chainFor, costOf, stockOf, profileById, ovByKey, saving, onSave,
 }: {
   comps: Comp[];
   tiers: Tier[];
   chainFor: (c: Comp, excludeTierId?: string) => Map<string, { price: number | null; overridden: boolean }>;
   costOf: (cid: string) => number | null;
+  stockOf: (cid: string) => number;
   profileById: Map<string, MarginProfile>;
   ovByKey: Map<string, Override>;
   saving: boolean;
@@ -1073,6 +1079,8 @@ function SetPricingTab({
 }) {
   const [search, setSearch] = useState('');
   const [wanted, setWanted] = useState<Set<PriceIssue>>(new Set());
+  // Scope ANDs with the issue chips — see lib/priceGrid.matchesScope.
+  const [scope, setScope] = useState<Set<PriceScope>>(new Set());
   // Staged cells: `${component_id}:${tier_id | 'net'}` → what is in the box.
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [page, setPage] = useState(200);
@@ -1087,19 +1095,21 @@ function SetPricingTab({
       const priceByTier = new Map<string, number | null>();
       for (const t of tiers) priceByTier.set(t.tier_id, chain.get(t.tier_id)?.price ?? null);
       const cost = costOf(c.component_id);
+      const qty = stockOf(c.component_id);
       const profile = c.margin_profile_id ? profileById.get(c.margin_profile_id) ?? null : null;
       return {
-        c, chain, priceByTier, cost, profile,
+        c, chain, priceByTier, cost, qty, profile,
         issues: issuesFor({ net: c.selling_price_idr, cost, priceByTier, tiers, profile }),
         gp: marginPct(c.selling_price_idr, cost),
       };
     }).filter((r) => {
       if (!matchesIssues(r.issues, wanted)) return false;
+      if (!matchesScope({ qtyOnHand: r.qty, cost: r.cost }, scope)) return false;
       if (!needle) return true;
       return `${r.c.supplier_model} ${r.c.internal_description ?? ''} ${r.c.category ?? ''}`
         .toLowerCase().includes(needle);
     });
-  }, [comps, tiers, chainFor, costOf, profileById, search, wanted]);
+  }, [comps, tiers, chainFor, costOf, stockOf, profileById, search, wanted, scope]);
 
   // Counts sit on the chips, so the size of each problem is visible before
   // anyone clicks — that is what makes this a worklist rather than a filter.
@@ -1116,6 +1126,17 @@ function SetPricingTab({
     }
     return m;
   }, [comps, tiers, chainFor, costOf, profileById]);
+
+  const scopeCounts = useMemo(() => {
+    const m = new Map<PriceScope, number>();
+    for (const c of comps) {
+      const facts = { qtyOnHand: stockOf(c.component_id), cost: costOf(c.component_id) };
+      for (const k of ['in_stock', 'has_cost', 'no_cost'] as PriceScope[]) {
+        if (matchesScope(facts, new Set([k]))) m.set(k, (m.get(k) ?? 0) + 1);
+      }
+    }
+    return m;
+  }, [comps, stockOf, costOf]);
 
   const editsFor = useCallback((cids: string[]): { component_id: string; tier_id: string | null; value: number | null }[] => {
     const out: { component_id: string; tier_id: string | null; value: number | null }[] = [];
@@ -1141,6 +1162,20 @@ function SetPricingTab({
     });
   };
 
+  const scopeChip = (id: PriceScope) => {
+    const on = scope.has(id);
+    return (
+      <button key={id} type="button" onClick={() => setScope((w) => {
+        const next = new Set(w); if (on) next.delete(id); else next.add(id); return next;
+      })}
+        className={`px-2.5 py-1 rounded-lg text-[11.5px] font-semibold border transition-colors ${
+          on ? 'bg-sky-500/15 text-sky-300 border-sky-500/40'
+             : 'text-slate-400 border-slate-700 hover:border-slate-600 hover:text-slate-200'}`}>
+        {SCOPE_LABEL[id]} <span className="tabular-nums opacity-70">{scopeCounts.get(id) ?? 0}</span>
+      </button>
+    );
+  };
+
   const chip = (id: PriceIssue) => {
     const on = wanted.has(id);
     const n = counts.get(id) ?? 0;
@@ -1163,6 +1198,19 @@ function SetPricingTab({
           placeholder="Search item, model or category…"
           className="flex-1 min-w-[220px] max-w-sm bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/40" />
         {(['no_price', 'below_floor', 'below_band', 'above_band', 'unclassified'] as PriceIssue[]).map(chip)}
+      </div>
+
+      {/* Scope narrows what the chips above matched. Blue, not emerald, so the
+          two groups never read as one row of equal switches. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11px] uppercase tracking-wide text-slate-600 mr-0.5">Only</span>
+        {(['in_stock', 'has_cost', 'no_cost'] as PriceScope[]).map(scopeChip)}
+        {(wanted.size > 0 || scope.size > 0) && (
+          <button type="button" onClick={() => { setWanted(new Set()); setScope(new Set()); }}
+            className="text-[11px] text-slate-500 hover:text-slate-300 underline underline-offset-2">
+            Clear filters
+          </button>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
@@ -1202,6 +1250,9 @@ function SetPricingTab({
                   </td>
                   <td className="px-3 py-1.5 text-right tabular-nums text-slate-400 whitespace-nowrap">
                     {r.cost == null ? <span className="text-slate-600">—</span> : fmtRupiah(r.cost)}
+                    <p className={`text-[10px] ${r.qty > 0 ? 'text-sky-400/70' : 'text-slate-600'}`}>
+                      {r.qty > 0 ? `${fmtInt(r.qty)} on hand` : 'none held'}
+                    </p>
                   </td>
                   {tiers.map((t, i) => {
                     const k = keyOf(cid, t.tier_id);

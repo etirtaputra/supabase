@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-29T11:15:00Z',
+    title: 'Set Pricing: narrow the list to the stock you hold, or the items with a known cost',
+    details: [
+      'A second row of filters on Set Pricing: In stock, Has landed cost, No landed cost \u2014 each with its own count.',
+      'These NARROW what the filters above them found, rather than widening it. "Under target" plus "In stock" means the under-earning items you are actually holding, which is the shorter list worth working through first. The filters in the top row still widen: picking two of them shows both.',
+      'Each row also shows how many are on hand under its landed cost, so the answer is visible without switching to Stock.',
+    ],
+  },
+  {
     at: '2026-08-29T10:30:00Z',
     title: 'Setting prices has its own screen, and has left the Item Editor',
     details: [
