@@ -28,9 +28,10 @@ import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { computeTierChain, roundUpToStep } from '@/lib/tierPricing';
+import { issuesFor, matchesIssues, marginPct, priceForMargin, ISSUE_LABEL, type PriceIssue } from '@/lib/priceGrid';
 import {
   fetchMarginProfiles, saveMarginProfile, createMarginProfile, deleteMarginProfile,
-  rangeError, type MarginProfile,
+  rangeError, byId as marginById, bandOf, type MarginProfile,
 } from '@/lib/marginProfiles';
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
@@ -48,6 +49,7 @@ interface Override {
 interface Comp {
   component_id: string; supplier_model: string; internal_description: string | null;
   category: string | null; unit: string | null; selling_price_idr: number | null;
+  margin_profile_id: string | null;
 }
 interface Bal { component_id: string; qty_on_hand: number; avg_cost_idr: number | null; }
 
@@ -64,7 +66,7 @@ const minPriceFor = (cost: number, floorPct: number): number | null => {
   return roundUpToStep(cost / (1 - floorPct / 100));
 };
 
-type Tab = 'tiers' | 'audit' | 'overrides' | 'profiles';
+type Tab = 'set' | 'tiers' | 'audit' | 'overrides' | 'profiles';
 
 interface Violation {
   comp: Comp; tier: Tier; price: number; cost: number; gp: number;
@@ -87,7 +89,7 @@ export default function PricingPage() {
   const [custTierCounts, setCustTierCounts] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [schemaMissing, setSchemaMissing] = useState(false);
-  const [tab, setTab] = useState<Tab>('tiers');
+  const [tab, setTab] = useState<Tab>('set');
   const [marginProfiles, setMarginProfiles] = useState<MarginProfile[]>([]);
   // How many items sit on each profile, and how many on none — the number that
   // tells the owner whether the classification is actually finished.
@@ -142,7 +144,7 @@ export default function PricingPage() {
     const [tierRes, ovRes, allComps, balRes, custRes] = await Promise.all([
       supabase.from('21.0_price_tiers').select('*').order('sort_order'),
       supabase.from('21.1_item_tier_prices').select('price_id, component_id, tier_id, override_price_idr, override_discount_pct, updated_at, updated_by_email'),
-      fetchAllComponents<Comp>(supabase, 'component_id, supplier_model, internal_description, category, unit, selling_price_idr'),
+      fetchAllComponents<Comp>(supabase, 'component_id, supplier_model, internal_description, category, unit, selling_price_idr, margin_profile_id'),
       supabase.from('30.1_stock_balances').select('component_id, qty_on_hand, avg_cost_idr'),
       supabase.from('20.0_customers').select('customer_id, tier'),
     ]);
@@ -362,6 +364,50 @@ export default function PricingPage() {
     refresh();
   }
 
+  // ── Set Pricing tab ────────────────────────────────────────────────────────
+  const profileById = useMemo(() => marginById(marginProfiles), [marginProfiles]);
+
+  /**
+   * Write staged cells. Two destinations, because the model has two:
+   * the NET tier IS the item's own price (3.0), every tier above it is an
+   * override row (21.1). Clearing a cell above the net hands that tier back to
+   * the markup chain rather than pinning it to zero.
+   */
+  const [savingRows, setSavingRows] = useState(false);
+  const saveEdits = useCallback(async (
+    edits: { component_id: string; tier_id: string | null; value: number | null }[],
+  ): Promise<number> => {
+    if (!edits.length) return 0;
+    setSavingRows(true);
+    let failed = 0;
+    try {
+      // The net price, one item at a time — it lives on the component row.
+      for (const e of edits.filter((x) => x.tier_id === null)) {
+        const { error } = await supabase.from('3.0_components')
+          .update({ selling_price_idr: e.value }).eq('component_id', e.component_id);
+        if (error) failed += 1;
+      }
+      const ups = edits.filter((x) => x.tier_id !== null && x.value != null)
+        .map((e) => ({ component_id: e.component_id, tier_id: e.tier_id as string,
+                       override_price_idr: e.value, override_discount_pct: null }));
+      for (let i = 0; i < ups.length; i += 200) {
+        const { error } = await supabase.from('21.1_item_tier_prices')
+          .upsert(ups.slice(i, i + 200), { onConflict: 'component_id,tier_id' });
+        if (error) failed += Math.min(200, ups.length - i);
+      }
+      // A cleared cell is a deleted override, not a zero price.
+      for (const e of edits.filter((x) => x.tier_id !== null && x.value == null)) {
+        const { error } = await supabase.from('21.1_item_tier_prices').delete()
+          .eq('component_id', e.component_id).eq('tier_id', e.tier_id as string);
+        if (error) failed += 1;
+      }
+    } finally { setSavingRows(false); }
+    const ok = edits.length - failed;
+    flash(failed ? `${ok} saved, ${failed} failed` : `${ok} price${ok !== 1 ? 's' : ''} saved`);
+    refresh();
+    return failed;
+  }, [supabase, refresh]);
+
   // ── Audit tab filters ──────────────────────────────────────────────────────
   const [auditSearch, setAuditSearch] = useState('');
   const [auditTier, setAuditTier] = useState('');
@@ -428,7 +474,7 @@ export default function PricingPage() {
           <>
             {/* Tab bar — text-only underline, sell-side emerald */}
             <div className="flex items-center gap-5 border-b border-slate-800/80">
-              {([['tiers', 'Tiers'], ['audit', `Floor Audit${violations.length ? ` (${violations.length})` : ''}`], ['overrides', `Overrides${overrides.length ? ` (${overrides.length})` : ''}`], ['profiles', `Margin Profiles${marginProfiles.length ? ` (${marginProfiles.length})` : ''}`]] as [Tab, string][]).map(([k, label]) => (
+              {([['set', 'Set Pricing'], ['tiers', 'Tiers'], ['audit', `Floor Audit${violations.length ? ` (${violations.length})` : ''}`], ['overrides', `Overrides${overrides.length ? ` (${overrides.length})` : ''}`], ['profiles', `Margin Profiles${marginProfiles.length ? ` (${marginProfiles.length})` : ''}`]] as [Tab, string][]).map(([k, label]) => (
                 <button key={k} onClick={() => setTab(k)}
                   className={`pb-2.5 -mb-px text-[13px] transition-colors border-b-2 ${tab === k ? 'border-emerald-400 text-white font-bold' : 'border-transparent text-slate-500 hover:text-slate-300 font-medium'}`}>
                   {label}
@@ -438,6 +484,9 @@ export default function PricingPage() {
 
             {loading ? (
               <div className="space-y-2">{[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-slate-800/40 rounded-2xl animate-pulse" />)}</div>
+            ) : tab === 'set' ? (
+              <SetPricingTab comps={comps} tiers={activeSorted} chainFor={chainFor} costOf={costOf}
+                profileById={profileById} ovByKey={ovByKey} saving={savingRows} onSave={saveEdits} />
             ) : tab === 'tiers' ? (
               <TiersTab tiers={orderedTiers} custTierCounts={custTierCounts} overridesByTier={overridesByTier}
                 violationsByTier={violationsByTier} saving={savingTier}
@@ -992,6 +1041,234 @@ function MarginProfilesTab({ profiles, counts, onChanged, notify }: {
           <p className="text-[12px] text-slate-400 py-6 text-center">No margin profiles yet. Add one to start classifying items.</p>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Set Pricing ───────────────────────────────────────────────────────────────
+/**
+ * One row per item, one column per active tier, edit and save.
+ *
+ * This was a MODE on the Item Editor until 2026-08-29 (owner: "it's too
+ * cluttered"). Pricing 990 items is its own job, and it belongs beside the
+ * tier ladder and the margin bands that decide what a price should be — not
+ * bolted onto a grid that already carries brand, specs, suppliers and stock.
+ *
+ * The columns follow the markup chain: the FIRST active tier is the item's own
+ * net price (3.0_components.selling_price_idr); each tier above it shows the
+ * computed price as a placeholder, and typing pins an override (21.1). Empty a
+ * pinned cell and the tier goes back to the chain.
+ */
+function SetPricingTab({
+  comps, tiers, chainFor, costOf, profileById, ovByKey, saving, onSave,
+}: {
+  comps: Comp[];
+  tiers: Tier[];
+  chainFor: (c: Comp, excludeTierId?: string) => Map<string, { price: number | null; overridden: boolean }>;
+  costOf: (cid: string) => number | null;
+  profileById: Map<string, MarginProfile>;
+  ovByKey: Map<string, Override>;
+  saving: boolean;
+  onSave: (edits: { component_id: string; tier_id: string | null; value: number | null }[]) => Promise<number>;
+}) {
+  const [search, setSearch] = useState('');
+  const [wanted, setWanted] = useState<Set<PriceIssue>>(new Set());
+  // Staged cells: `${component_id}:${tier_id | 'net'}` → what is in the box.
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [page, setPage] = useState(200);
+
+  const netTierId = tiers[0]?.tier_id ?? null;
+  const keyOf = (cid: string, tid: string) => `${cid}:${tid === netTierId ? 'net' : tid}`;
+
+  const rows = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return comps.map((c) => {
+      const chain = chainFor(c);
+      const priceByTier = new Map<string, number | null>();
+      for (const t of tiers) priceByTier.set(t.tier_id, chain.get(t.tier_id)?.price ?? null);
+      const cost = costOf(c.component_id);
+      const profile = c.margin_profile_id ? profileById.get(c.margin_profile_id) ?? null : null;
+      return {
+        c, chain, priceByTier, cost, profile,
+        issues: issuesFor({ net: c.selling_price_idr, cost, priceByTier, tiers, profile }),
+        gp: marginPct(c.selling_price_idr, cost),
+      };
+    }).filter((r) => {
+      if (!matchesIssues(r.issues, wanted)) return false;
+      if (!needle) return true;
+      return `${r.c.supplier_model} ${r.c.internal_description ?? ''} ${r.c.category ?? ''}`
+        .toLowerCase().includes(needle);
+    });
+  }, [comps, tiers, chainFor, costOf, profileById, search, wanted]);
+
+  // Counts sit on the chips, so the size of each problem is visible before
+  // anyone clicks — that is what makes this a worklist rather than a filter.
+  const counts = useMemo(() => {
+    const m = new Map<PriceIssue, number>();
+    for (const c of comps) {
+      const chain = chainFor(c);
+      const priceByTier = new Map<string, number | null>();
+      for (const t of tiers) priceByTier.set(t.tier_id, chain.get(t.tier_id)?.price ?? null);
+      const profile = c.margin_profile_id ? profileById.get(c.margin_profile_id) ?? null : null;
+      for (const i of issuesFor({ net: c.selling_price_idr, cost: costOf(c.component_id), priceByTier, tiers, profile })) {
+        m.set(i, (m.get(i) ?? 0) + 1);
+      }
+    }
+    return m;
+  }, [comps, tiers, chainFor, costOf, profileById]);
+
+  const editsFor = useCallback((cids: string[]): { component_id: string; tier_id: string | null; value: number | null }[] => {
+    const out: { component_id: string; tier_id: string | null; value: number | null }[] = [];
+    for (const [k, raw] of Object.entries(draft)) {
+      const [cid, tpart] = [k.slice(0, k.lastIndexOf(':')), k.slice(k.lastIndexOf(':') + 1)];
+      if (!cids.includes(cid)) continue;
+      out.push({ component_id: cid, tier_id: tpart === 'net' ? null : tpart, value: num(raw) });
+    }
+    return out;
+  }, [draft]);
+
+  const dirtyCids = useMemo(
+    () => [...new Set(Object.keys(draft).map((k) => k.slice(0, k.lastIndexOf(':'))))], [draft]);
+
+  const commit = async (cids: string[]) => {
+    const edits = editsFor(cids);
+    if (!edits.length) return;
+    await onSave(edits);
+    setDraft((d) => {
+      const next = { ...d };
+      for (const k of Object.keys(next)) if (cids.includes(k.slice(0, k.lastIndexOf(':')))) delete next[k];
+      return next;
+    });
+  };
+
+  const chip = (id: PriceIssue) => {
+    const on = wanted.has(id);
+    const n = counts.get(id) ?? 0;
+    return (
+      <button key={id} type="button" onClick={() => setWanted((w) => {
+        const next = new Set(w); if (on) next.delete(id); else next.add(id); return next;
+      })}
+        className={`px-2.5 py-1 rounded-lg text-[11.5px] font-semibold border transition-colors ${
+          on ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+             : 'text-slate-400 border-slate-700 hover:border-slate-600 hover:text-slate-200'}`}>
+        {ISSUE_LABEL[id]} <span className="tabular-nums opacity-70">{n}</span>
+      </button>
+    );
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(200); }}
+          placeholder="Search item, model or category…"
+          className="flex-1 min-w-[220px] max-w-sm bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/40" />
+        {(['no_price', 'below_floor', 'below_band', 'above_band', 'unclassified'] as PriceIssue[]).map(chip)}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+        <span className="tabular-nums">{fmtInt(rows.length)} of {fmtInt(comps.length)} items</span>
+        {dirtyCids.length > 0 && (
+          <button type="button" disabled={saving} onClick={() => commit(dirtyCids)}
+            className="ml-auto px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[12px] font-bold disabled:opacity-50">
+            {saving ? 'Saving…' : `Save all (${dirtyCids.length})`}
+          </button>
+        )}
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-slate-800">
+        <table className="w-full text-[12.5px]">
+          <thead>
+            <tr className="bg-slate-800/60 text-[11px] uppercase tracking-wide text-slate-400">
+              <th className="text-left font-semibold px-3 py-2">Item</th>
+              <th className="text-right font-semibold px-3 py-2 whitespace-nowrap">Landed cost</th>
+              {tiers.map((t, i) => (
+                <th key={t.tier_id} className="text-right font-semibold px-3 py-2 whitespace-nowrap">
+                  {t.name}{i === 0 && <span className="ml-1 text-emerald-400/70 normal-case">net</span>}
+                </th>
+              ))}
+              <th className="text-right font-semibold px-3 py-2">GP</th>
+              <th className="px-3 py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.slice(0, page).map((r) => {
+              const cid = r.c.component_id;
+              const dirty = Object.keys(draft).some((k) => k.startsWith(`${cid}:`));
+              return (
+                <tr key={cid} className="border-t border-slate-800/70 hover:bg-slate-800/30">
+                  <td className="px-3 py-1.5">
+                    <p className="text-slate-200 leading-tight">{descOf(r.c)}</p>
+                    <p className="text-[11px] text-slate-500 font-mono">{r.c.supplier_model}</p>
+                  </td>
+                  <td className="px-3 py-1.5 text-right tabular-nums text-slate-400 whitespace-nowrap">
+                    {r.cost == null ? <span className="text-slate-600">—</span> : fmtRupiah(r.cost)}
+                  </td>
+                  {tiers.map((t, i) => {
+                    const k = keyOf(cid, t.tier_id);
+                    const computed = r.priceByTier.get(t.tier_id) ?? null;
+                    const pinned = i > 0 && Boolean(r.chain.get(t.tier_id)?.overridden);
+                    const stored = i === 0 ? r.c.selling_price_idr
+                      : (ovByKey.get(`${cid}:${t.tier_id}`)?.override_price_idr ?? null);
+                    const shown = draft[k] !== undefined ? draft[k] : (stored != null ? String(stored) : '');
+                    return (
+                      <td key={t.tier_id} className="px-2 py-1.5 text-right">
+                        <input value={shown} inputMode="numeric"
+                          onChange={(e) => setDraft((d) => ({ ...d, [k]: e.target.value }))}
+                          placeholder={computed != null ? fmtInt(computed) : '—'}
+                          title={i === 0 ? "The item's own net price" : pinned ? 'Pinned — clear to go back to the markup chain' : 'From the markup chain — type to pin it'}
+                          className={`w-24 text-right tabular-nums bg-transparent rounded px-1.5 py-1 border focus:outline-none focus:ring-1 focus:ring-emerald-500/40 ${
+                            draft[k] !== undefined ? 'border-amber-500/50 text-amber-200'
+                            : pinned ? 'border-violet-500/40 text-violet-200'
+                            : stored != null ? 'border-slate-700 text-slate-200'
+                            : 'border-transparent text-slate-500 hover:border-slate-700 placeholder-slate-600'}`} />
+                      </td>
+                    );
+                  })}
+                  <td className="px-3 py-1.5 text-right tabular-nums whitespace-nowrap">
+                    {r.gp == null ? <span className="text-slate-600">—</span> : (
+                      <span className={r.issues.has('below_floor') ? 'text-red-400'
+                        : r.issues.has('below_band') ? 'text-amber-400'
+                        : r.issues.has('above_band') ? 'text-emerald-400' : 'text-slate-300'}>
+                        {r.gp.toFixed(1)}%
+                      </span>
+                    )}
+                    {r.profile && <p className="text-[10px] text-slate-600">{bandOf(r.profile)}</p>}
+                  </td>
+                  <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                    {dirty ? (
+                      <button type="button" disabled={saving} onClick={() => commit([cid])}
+                        className="text-[11px] font-bold px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50">
+                        Save
+                      </button>
+                    ) : r.issues.has('below_band') && r.profile && r.cost != null ? (
+                      // The economic consequence, one click away: what this
+                      // item would have to sell at to reach its own band.
+                      <button type="button"
+                        onClick={() => {
+                          const target = priceForMargin(r.cost, Number(r.profile!.margin_target_min));
+                          if (target != null) setDraft((d) => ({ ...d, [keyOf(cid, tiers[0].tier_id)]: String(roundUpToStep(target)) }));
+                        }}
+                        className="text-[11px] text-amber-300/80 hover:text-amber-200 px-2 py-1 rounded border border-amber-500/25 hover:border-amber-500/50">
+                        To target
+                      </button>
+                    ) : null}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {rows.length === 0 && (
+          <p className="text-[12px] text-slate-400 py-10 text-center">Nothing matches — clear a filter to see more.</p>
+        )}
+      </div>
+
+      {rows.length > page && (
+        <button type="button" onClick={() => setPage((p) => p + 200)}
+          className="w-full py-2 text-[12px] text-slate-400 hover:text-slate-200 border border-slate-800 rounded-lg hover:bg-slate-800/40">
+          Show more ({fmtInt(rows.length - page)} left)
+        </button>
+      )}
     </div>
   );
 }

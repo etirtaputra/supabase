@@ -526,6 +526,8 @@ export const ID: Record<string, string> = {
     'Catat penawaran pemasok / PI — sendiri atau langsung menjadi PO',
   'Record supplier payments, bank fees and landed costs':
     'Catat pembayaran ke pemasok, biaya bank dan biaya sampai gudang',
+  'Set prices per tier, margin floor audit, per-item overrides':
+    'Atur harga per tier, audit batas bawah margin, penyesuaian per barang',
   'Every PI → PO → payment as one deal':
     'Setiap PI → PO → pembayaran sebagai satu transaksi',
   'Which PO is at which stage — PI, PO, payments, docs, PIB':
@@ -572,8 +574,6 @@ export const ID: Record<string, string> = {
     'Dasar perhitungan kalkulator sistem — lengkapi spesifikasi yang kosong',
   'Competitor prices and what the market is charging':
     'Harga pesaing dan harga yang berlaku di pasar',
-  'Price tiers, margin floor audit, per-item overrides':
-    'Tier harga, audit batas bawah margin, penyesuaian per barang',
   'Ask the AI about suppliers, costs, POs and quotes':
     'Tanya AI tentang pemasok, biaya, PO dan penawaran',
   'EPC project proposals':

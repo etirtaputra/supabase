@@ -205,10 +205,11 @@ export const DESTINATIONS: Destination[] = [
     hint: 'Competitor prices and what the market is charging',
     keywords: 'competitor market price intel benchmark rival' },
   // "Pricing Tiers", not bare "Pricing" (owner, 2026-08-11): the page manages
-  // the TIER LADDER; the per-item pricing intelligence lives on the Item hub.
+  // the TIER LADDER. Since 2026-08-29 it also OPENS on Set Pricing — entering
+  // prices moved off the Item Editor, which was too cluttered to price in.
   { href: '/pricing', label: 'Pricing Tiers', group: 'Catalog', section: null, cap: 'canManagePricing', inNav: true,
-    hint: 'Price tiers, margin floor audit, per-item overrides',
-    keywords: 'tiers markup discount floor margin pricing tier' },
+    hint: 'Set prices per tier, margin floor audit, per-item overrides',
+    keywords: 'tiers markup discount floor margin pricing tier set pricing sell price harga jual selling price bulk' },
   // The buy-side AI assistant — answers questions over suppliers, costs, POs
   // and quotes. Search-only: it has no menu tile today, so Spotlight is how it
   // is reached. Gate matches the page (buySide, redirects otherwise).

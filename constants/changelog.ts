@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-29T10:30:00Z',
+    title: 'Setting prices has its own screen, and has left the Item Editor',
+    details: [
+      'Pricing Mode is gone from the Item Editor. Prices are now set in Catalog \u2192 Pricing Tiers, on a new Set Pricing tab that opens first \u2014 beside the tier ladder and the margin bands that decide what a price should be, instead of bolted onto a grid that already carries brand, specs, suppliers, market intel and stock.',
+      'One row per item, one column per tier. The first column is the item\u2019s own net price; the columns after it show what the markup chain works out to, and typing in one pins it. Empty a pinned box and that tier goes back to the chain.',
+      'Save one row, or save every change at once.',
+      'Five filters, each with a live count, so you can see the size of a problem before opening it: no price, below floor, under target, above target, and unclassified. "Under target" is the one that finds items priced legally but earning less than their category is supposed to \u2014 and those rows offer a "To target" button that fills in the price that would reach the band.',
+      'The floors and bands are still data: an admin moves a band on the Tiers or Margin Profiles tab and this screen follows immediately.',
+    ],
+  },
+  {
     at: '2026-08-29T09:05:00Z',
     title: 'Put a deal on the Progress board from Deal Lookup',
     details: [
