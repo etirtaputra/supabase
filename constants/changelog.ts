@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-29T14:00:00Z',
+    title: 'Set Pricing filters by product category, and only owners and sell-side admins can change a price',
+    details: [
+      'A product category dropdown \u2014 Batteries, PV Module, UPS and the rest \u2014 each showing how many items it holds, so you can price one category at a time.',
+      'The margin column is now called "Margin profile \u00b7 target" and its dropdown says "All margin profiles". It used to say "category", which in ICAPROC has always meant the product category \u2014 two different things wearing one name.',
+      'Setting a price is limited to owners and sell-side admins. It always was for reaching the page; now the price boxes themselves are read-only for anyone else, and every save checks the permission rather than trusting the screen.',
+    ],
+  },
+  {
     at: '2026-08-29T13:10:00Z',
     title: 'Every column on Set Pricing sorts',
     details: [

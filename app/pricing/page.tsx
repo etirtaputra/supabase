@@ -36,6 +36,7 @@ import {
   rangeError, byId as marginById, bandOf, assignProfile, type MarginProfile,
 } from '@/lib/marginProfiles';
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
+import { formatCategory } from '@/lib/formatCategory';
 import { useSettings } from '@/hooks/useSettings';
 
 interface Tier {
@@ -383,6 +384,10 @@ export default function PricingPage() {
     edits: { component_id: string; tier_id: string | null; value: number | null }[],
   ): Promise<number> => {
     if (!edits.length) return 0;
+    // Belt and braces. The route guard already keeps this page to owner and
+    // sell_admin, but a price is not something to leave protected by markup
+    // alone — every write path checks the capability itself.
+    if (!canManage) { flash('You do not have permission to set prices.'); return edits.length; }
     setSavingRows(true);
     let failed = 0;
     try {
@@ -411,7 +416,7 @@ export default function PricingPage() {
     flash(failed ? `${ok} saved, ${failed} failed` : `${ok} price${ok !== 1 ? 's' : ''} saved`);
     refresh();
     return failed;
-  }, [supabase, refresh]);
+  }, [supabase, refresh, canManage]);
 
   /**
    * Classify one item from the pricing grid. Which band an item belongs to is
@@ -420,10 +425,11 @@ export default function PricingPage() {
    * whole tab exists to get pricing out of.
    */
   const assignItemProfile = useCallback(async (componentId: string, profileId: string | null) => {
+    if (!canManage) { flash('You do not have permission to change categories.'); return; }
     const ok = await assignProfile(supabase, [componentId], profileId);
     flash(ok ? (profileId ? 'Category set' : 'Category cleared') : 'Could not set the category');
     if (ok) refresh();
-  }, [supabase, refresh]);
+  }, [supabase, refresh, canManage]);
 
   // ── Audit tab filters ──────────────────────────────────────────────────────
   const [auditSearch, setAuditSearch] = useState('');
@@ -505,7 +511,7 @@ export default function PricingPage() {
               <SetPricingTab comps={comps} tiers={activeSorted} chainFor={chainFor} costOf={costOf}
                 stockOf={stockOf}
                 profileById={profileById} ovByKey={ovByKey} saving={savingRows} onSave={saveEdits}
-                onAssignProfile={assignItemProfile} />
+                onAssignProfile={assignItemProfile} canManage={canManage} />
             ) : tab === 'tiers' ? (
               <TiersTab tiers={orderedTiers} custTierCounts={custTierCounts} overridesByTier={overridesByTier}
                 violationsByTier={violationsByTier} saving={savingTier}
@@ -1128,7 +1134,7 @@ function SortTh({ col, label, sortCol, sortDir, onSort, align = 'left', classNam
  * pinned cell and the tier goes back to the chain.
  */
 function SetPricingTab({
-  comps, tiers, chainFor, costOf, stockOf, profileById, ovByKey, saving, onSave, onAssignProfile,
+  comps, tiers, chainFor, costOf, stockOf, profileById, ovByKey, saving, onSave, onAssignProfile, canManage,
 }: {
   comps: Comp[];
   tiers: Tier[];
@@ -1140,6 +1146,8 @@ function SetPricingTab({
   saving: boolean;
   onSave: (edits: { component_id: string; tier_id: string | null; value: number | null }[]) => Promise<number>;
   onAssignProfile: (componentId: string, profileId: string | null) => void;
+  /** owner / sell_admin. Anyone else reads the grid and cannot change it. */
+  canManage: boolean;
 }) {
   const [search, setSearch] = useState('');
   const [wanted, setWanted] = useState<Set<PriceIssue>>(new Set());
@@ -1147,6 +1155,9 @@ function SetPricingTab({
   const [scope, setScope] = useState<Set<PriceScope>>(new Set());
   // '' = every category, 'none' = the unclassified pile, else a profile id.
   const [profileFilter, setProfileFilter] = useState<string>('');
+  // The PRODUCT category (3.0_components.category) — distinct from the margin
+  // profile beside it. '' = all, 'none' = items with no category set.
+  const [catFilter, setCatFilter] = useState<string>('');
   const [sortCol, setSortCol] = useState<string>('item');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   // Staged cells: `${component_id}:${tier_id | 'net'}` → what is in the box.
@@ -1175,6 +1186,8 @@ function SetPricingTab({
       if (!matchesScope({ qtyOnHand: r.qty, cost: r.cost }, scope)) return false;
       if (profileFilter === 'none' ? r.profile != null
         : profileFilter !== '' && r.profile?.id !== profileFilter) return false;
+      if (catFilter === 'none' ? Boolean(r.c.category)
+        : catFilter !== '' && r.c.category !== catFilter) return false;
       if (!needle) return true;
       return `${r.c.supplier_model} ${r.c.internal_description ?? ''} ${r.c.category ?? ''}`
         .toLowerCase().includes(needle);
@@ -1185,8 +1198,9 @@ function SetPricingTab({
         if (sortCol === 'qty') return r.qty;
         if (sortCol === 'gp') return r.gp;
         // Unclassified has no label, so it sorts as empty and sinks — which is
-        // also where it belongs in a list you are working down.
-        if (sortCol === 'category') return r.profile?.label ?? null;
+        // also where it belongs in a list you are working down. Keyed 'profile',
+        // not 'category': in ICAPROC "category" is the PRODUCT category.
+        if (sortCol === 'profile') return r.profile?.label ?? null;
         if (sortCol.startsWith('tier:')) return r.priceByTier.get(sortCol.slice(5)) ?? null;
         return null;
       };
@@ -1194,7 +1208,7 @@ function SetPricingTab({
       // Ties fall back to the name, so the order never shuffles between renders.
       return c !== 0 ? c : compareCells(descOf(x.c), descOf(y.c), 'asc');
     });
-  }, [comps, tiers, chainFor, costOf, stockOf, profileById, search, wanted, scope, profileFilter, sortCol, sortDir]);
+  }, [comps, tiers, chainFor, costOf, stockOf, profileById, search, wanted, scope, profileFilter, catFilter, sortCol, sortDir]);
 
   // Counts sit on the chips, so the size of each problem is visible before
   // anyone clicks — that is what makes this a worklist rather than a filter.
@@ -1211,6 +1225,14 @@ function SetPricingTab({
     }
     return m;
   }, [comps, tiers, chainFor, costOf, profileById]);
+
+  const categories = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const c of comps) m.set(c.category ?? '', (m.get(c.category ?? '') ?? 0) + 1);
+    return [...m.entries()]
+      .map(([value, count]) => ({ value, count, label: value ? formatCategory(value) : 'No category' }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [comps]);
 
   const scopeCounts = useMemo(() => {
     const m = new Map<PriceScope, number>();
@@ -1265,9 +1287,18 @@ function SetPricingTab({
         <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(200); }}
           placeholder="Search item, model or category…"
           className="w-full sm:w-72 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-[13px] text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/40" />
-        <select value={profileFilter} onChange={(e) => { setProfileFilter(e.target.value); setPage(200); }}
+        <select value={catFilter} onChange={(e) => { setCatFilter(e.target.value); setPage(200); }}
+          title="Product category"
           className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-[12.5px] text-slate-300 focus:outline-none focus:ring-1 focus:ring-emerald-500/40">
           <option value="">All categories</option>
+          {categories.map((c) => (
+            <option key={c.value || 'none'} value={c.value || 'none'}>{c.label} ({c.count})</option>
+          ))}
+        </select>
+        <select value={profileFilter} onChange={(e) => { setProfileFilter(e.target.value); setPage(200); }}
+          title="Margin profile — what the item is supposed to earn"
+          className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-[12.5px] text-slate-300 focus:outline-none focus:ring-1 focus:ring-emerald-500/40">
+          <option value="">All margin profiles</option>
           {[...profileById.values()].map((pr) => (
             <option key={pr.id} value={pr.id}>{pr.label} · {bandOf(pr)}</option>
           ))}
@@ -1283,6 +1314,12 @@ function SetPricingTab({
           </button>
         )}
       </div>
+
+      {!canManage && (
+        <p className="text-[12px] text-amber-300/80 bg-amber-500/10 border border-amber-500/25 rounded-lg px-3 py-2">
+          Read-only — setting prices is limited to owners and sell-side admins.
+        </p>
+      )}
 
       {/* One chip row, two groups. The rule they follow is different — the
           left widens (OR), the right narrows (AND) — so a divider separates
@@ -1303,8 +1340,8 @@ function SetPricingTab({
           <Chip key={id} label={SCOPE_LABEL[id]} count={scopeCounts.get(id) ?? 0} on={scope.has(id)}
             tone="scope" onClick={() => { setScope((w) => toggle(w, id)); setPage(200); }} />
         ))}
-        {(wanted.size > 0 || scope.size > 0 || profileFilter !== '') && (
-          <button type="button" onClick={() => { setWanted(new Set()); setScope(new Set()); setProfileFilter(''); }}
+        {(wanted.size > 0 || scope.size > 0 || profileFilter !== '' || catFilter !== '') && (
+          <button type="button" onClick={() => { setWanted(new Set()); setScope(new Set()); setProfileFilter(''); setCatFilter(''); }}
             className="ml-1 text-[11px] text-slate-500 hover:text-slate-300 underline underline-offset-2">
             Clear
           </button>
@@ -1322,7 +1359,7 @@ function SetPricingTab({
                 <SortTh key={t.tier_id} sortCol={sortCol} sortDir={sortDir} onSort={onSort} col={`tier:${t.tier_id}`} align="right" className="whitespace-nowrap"
                   label={i === 0 ? `${t.name} · net` : t.name} />
               ))}
-              <SortTh sortCol={sortCol} sortDir={sortDir} onSort={onSort} col="category" label="Category · target" className="whitespace-nowrap" />
+              <SortTh sortCol={sortCol} sortDir={sortDir} onSort={onSort} col="profile" label="Margin profile · target" className="whitespace-nowrap" />
               <SortTh sortCol={sortCol} sortDir={sortDir} onSort={onSort} col="gp" label="GP" align="right" />
               <th className="px-3 py-2" />
             </tr>
@@ -1352,7 +1389,7 @@ function SetPricingTab({
                     const shown = draft[k] !== undefined ? draft[k] : (stored != null ? String(stored) : '');
                     return (
                       <td key={t.tier_id} className="px-2 py-1.5 text-right">
-                        <input value={shown} inputMode="numeric"
+                        <input value={shown} inputMode="numeric" disabled={!canManage} readOnly={!canManage}
                           onChange={(e) => setDraft((d) => ({ ...d, [k]: e.target.value }))}
                           placeholder={computed != null ? fmtInt(computed) : '—'}
                           title={i === 0 ? "The item's own net price" : pinned ? 'Pinned — clear to go back to the markup chain' : 'From the markup chain — type to pin it'}
@@ -1365,7 +1402,7 @@ function SetPricingTab({
                     );
                   })}
                   <td className="px-3 py-1.5 whitespace-nowrap">
-                    <select value={r.c.margin_profile_id ?? ''}
+                    <select value={r.c.margin_profile_id ?? ''} disabled={!canManage}
                       onChange={(e) => onAssignProfile(cid, e.target.value || null)}
                       title="What this item is supposed to earn. Value Capture funds the margin; Loss Leader wins the deal."
                       className={`bg-transparent border rounded px-1.5 py-0.5 text-[11.5px] focus:outline-none focus:ring-1 focus:ring-emerald-500/40 ${
@@ -1394,7 +1431,7 @@ function SetPricingTab({
                         className="text-[11px] font-bold px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50">
                         Save
                       </button>
-                    ) : r.issues.has('below_band') && r.profile && r.cost != null ? (
+                    ) : canManage && r.issues.has('below_band') && r.profile && r.cost != null ? (
                       // The economic consequence, one click away: what this
                       // item would have to sell at to reach its own band.
                       <button type="button"
