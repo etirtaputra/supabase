@@ -32,7 +32,7 @@ import { issuesFor, matchesIssues, matchesScope, marginPct, priceForMargin,
          ISSUE_LABEL, SCOPE_LABEL, type PriceIssue, type PriceScope } from '@/lib/priceGrid';
 import {
   fetchMarginProfiles, saveMarginProfile, createMarginProfile, deleteMarginProfile,
-  rangeError, byId as marginById, bandOf, type MarginProfile,
+  rangeError, byId as marginById, bandOf, assignProfile, type MarginProfile,
 } from '@/lib/marginProfiles';
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
@@ -412,6 +412,18 @@ export default function PricingPage() {
     return failed;
   }, [supabase, refresh]);
 
+  /**
+   * Classify one item from the pricing grid. Which band an item belongs to is
+   * the question that decides whether its price is right, so it is answered
+   * here rather than sending someone back to the Item Editor — the screen this
+   * whole tab exists to get pricing out of.
+   */
+  const assignItemProfile = useCallback(async (componentId: string, profileId: string | null) => {
+    const ok = await assignProfile(supabase, [componentId], profileId);
+    flash(ok ? (profileId ? 'Category set' : 'Category cleared') : 'Could not set the category');
+    if (ok) refresh();
+  }, [supabase, refresh]);
+
   // ── Audit tab filters ──────────────────────────────────────────────────────
   const [auditSearch, setAuditSearch] = useState('');
   const [auditTier, setAuditTier] = useState('');
@@ -491,7 +503,8 @@ export default function PricingPage() {
             ) : tab === 'set' ? (
               <SetPricingTab comps={comps} tiers={activeSorted} chainFor={chainFor} costOf={costOf}
                 stockOf={stockOf}
-                profileById={profileById} ovByKey={ovByKey} saving={savingRows} onSave={saveEdits} />
+                profileById={profileById} ovByKey={ovByKey} saving={savingRows} onSave={saveEdits}
+                onAssignProfile={assignItemProfile} />
             ) : tab === 'tiers' ? (
               <TiersTab tiers={orderedTiers} custTierCounts={custTierCounts} overridesByTier={overridesByTier}
                 violationsByTier={violationsByTier} saving={savingTier}
@@ -1065,7 +1078,7 @@ function MarginProfilesTab({ profiles, counts, onChanged, notify }: {
  * pinned cell and the tier goes back to the chain.
  */
 function SetPricingTab({
-  comps, tiers, chainFor, costOf, stockOf, profileById, ovByKey, saving, onSave,
+  comps, tiers, chainFor, costOf, stockOf, profileById, ovByKey, saving, onSave, onAssignProfile,
 }: {
   comps: Comp[];
   tiers: Tier[];
@@ -1076,11 +1089,14 @@ function SetPricingTab({
   ovByKey: Map<string, Override>;
   saving: boolean;
   onSave: (edits: { component_id: string; tier_id: string | null; value: number | null }[]) => Promise<number>;
+  onAssignProfile: (componentId: string, profileId: string | null) => void;
 }) {
   const [search, setSearch] = useState('');
   const [wanted, setWanted] = useState<Set<PriceIssue>>(new Set());
   // Scope ANDs with the issue chips — see lib/priceGrid.matchesScope.
   const [scope, setScope] = useState<Set<PriceScope>>(new Set());
+  // '' = every category, 'none' = the unclassified pile, else a profile id.
+  const [profileFilter, setProfileFilter] = useState<string>('');
   // Staged cells: `${component_id}:${tier_id | 'net'}` → what is in the box.
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [page, setPage] = useState(200);
@@ -1105,11 +1121,13 @@ function SetPricingTab({
     }).filter((r) => {
       if (!matchesIssues(r.issues, wanted)) return false;
       if (!matchesScope({ qtyOnHand: r.qty, cost: r.cost }, scope)) return false;
+      if (profileFilter === 'none' ? r.profile != null
+        : profileFilter !== '' && r.profile?.id !== profileFilter) return false;
       if (!needle) return true;
       return `${r.c.supplier_model} ${r.c.internal_description ?? ''} ${r.c.category ?? ''}`
         .toLowerCase().includes(needle);
     });
-  }, [comps, tiers, chainFor, costOf, stockOf, profileById, search, wanted, scope]);
+  }, [comps, tiers, chainFor, costOf, stockOf, profileById, search, wanted, scope, profileFilter]);
 
   // Counts sit on the chips, so the size of each problem is visible before
   // anyone clicks — that is what makes this a worklist rather than a filter.
@@ -1162,63 +1180,84 @@ function SetPricingTab({
     });
   };
 
-  const scopeChip = (id: PriceScope) => {
-    const on = scope.has(id);
+  /**
+   * One chip renderer for both groups. A count of zero is dimmed and inert:
+   * a chip that looks live and filters to an empty table is a small lie, and
+   * on a bar this wide there are usually two or three of them.
+   */
+  const Chip = ({ label, count, on, tone, onClick }: {
+    label: string; count: number; on: boolean; tone: 'issue' | 'scope'; onClick: () => void;
+  }) => {
+    const dead = count === 0 && !on;
     return (
-      <button key={id} type="button" onClick={() => setScope((w) => {
-        const next = new Set(w); if (on) next.delete(id); else next.add(id); return next;
-      })}
-        className={`px-2.5 py-1 rounded-lg text-[11.5px] font-semibold border transition-colors ${
-          on ? 'bg-sky-500/15 text-sky-300 border-sky-500/40'
-             : 'text-slate-400 border-slate-700 hover:border-slate-600 hover:text-slate-200'}`}>
-        {SCOPE_LABEL[id]} <span className="tabular-nums opacity-70">{scopeCounts.get(id) ?? 0}</span>
+      <button type="button" disabled={dead} onClick={onClick}
+        className={`inline-flex items-center gap-1.5 pl-2.5 pr-2 py-1 rounded-lg text-[11.5px] font-semibold border transition-colors ${
+          dead ? 'text-slate-600 border-slate-800 cursor-default'
+          : on ? (tone === 'issue' ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+                                  : 'bg-sky-500/15 text-sky-300 border-sky-500/40')
+          : 'text-slate-400 border-slate-700 hover:border-slate-600 hover:text-slate-200'}`}>
+        {label}
+        <span className={`tabular-nums text-[10.5px] font-medium px-1 rounded ${
+          dead ? 'text-slate-700' : on ? 'bg-black/25' : 'text-slate-500'}`}>{fmtInt(count)}</span>
       </button>
     );
   };
 
-  const chip = (id: PriceIssue) => {
-    const on = wanted.has(id);
-    const n = counts.get(id) ?? 0;
-    return (
-      <button key={id} type="button" onClick={() => setWanted((w) => {
-        const next = new Set(w); if (on) next.delete(id); else next.add(id); return next;
-      })}
-        className={`px-2.5 py-1 rounded-lg text-[11.5px] font-semibold border transition-colors ${
-          on ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
-             : 'text-slate-400 border-slate-700 hover:border-slate-600 hover:text-slate-200'}`}>
-        {ISSUE_LABEL[id]} <span className="tabular-nums opacity-70">{n}</span>
-      </button>
-    );
+  const toggle = <T,>(set: Set<T>, v: T) => {
+    const next = new Set(set); if (next.has(v)) next.delete(v); else next.add(v); return next;
   };
 
   return (
     <div className="space-y-3">
+      {/* Toolbar: what you are looking at, and what you are about to save.
+          The result count sits here rather than on its own line — it belongs
+          to the search box, not to the filters below it. */}
       <div className="flex flex-wrap items-center gap-2">
         <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(200); }}
           placeholder="Search item, model or category…"
-          className="flex-1 min-w-[220px] max-w-sm bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/40" />
-        {(['no_price', 'below_floor', 'below_band', 'above_band', 'unclassified'] as PriceIssue[]).map(chip)}
-      </div>
-
-      {/* Scope narrows what the chips above matched. Blue, not emerald, so the
-          two groups never read as one row of equal switches. */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[11px] uppercase tracking-wide text-slate-600 mr-0.5">Only</span>
-        {(['in_stock', 'has_cost', 'no_cost'] as PriceScope[]).map(scopeChip)}
-        {(wanted.size > 0 || scope.size > 0) && (
-          <button type="button" onClick={() => { setWanted(new Set()); setScope(new Set()); }}
-            className="text-[11px] text-slate-500 hover:text-slate-300 underline underline-offset-2">
-            Clear filters
+          className="w-full sm:w-72 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-[13px] text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/40" />
+        <select value={profileFilter} onChange={(e) => { setProfileFilter(e.target.value); setPage(200); }}
+          className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-[12.5px] text-slate-300 focus:outline-none focus:ring-1 focus:ring-emerald-500/40">
+          <option value="">All categories</option>
+          {[...profileById.values()].map((pr) => (
+            <option key={pr.id} value={pr.id}>{pr.label} · {bandOf(pr)}</option>
+          ))}
+          <option value="none">Unclassified</option>
+        </select>
+        <span className="text-xs text-slate-500 tabular-nums whitespace-nowrap">
+          {rows.length === comps.length ? `${fmtInt(comps.length)} items` : `${fmtInt(rows.length)} of ${fmtInt(comps.length)}`}
+        </span>
+        {dirtyCids.length > 0 && (
+          <button type="button" disabled={saving} onClick={() => commit(dirtyCids)}
+            className="ml-auto px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[12px] font-bold disabled:opacity-50 whitespace-nowrap">
+            {saving ? 'Saving…' : `Save all (${dirtyCids.length})`}
           </button>
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-        <span className="tabular-nums">{fmtInt(rows.length)} of {fmtInt(comps.length)} items</span>
-        {dirtyCids.length > 0 && (
-          <button type="button" disabled={saving} onClick={() => commit(dirtyCids)}
-            className="ml-auto px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[12px] font-bold disabled:opacity-50">
-            {saving ? 'Saving…' : `Save all (${dirtyCids.length})`}
+      {/* One chip row, two groups. The rule they follow is different — the
+          left widens (OR), the right narrows (AND) — so a divider separates
+          them instead of the stacked row and floating "ONLY" label that made
+          seven equal-looking switches read as one undifferentiated bank. */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {(['no_price', 'below_floor', 'below_band', 'above_band', 'unclassified'] as PriceIssue[]).map((id) => (
+          <Chip key={id} label={ISSUE_LABEL[id]} count={counts.get(id) ?? 0} on={wanted.has(id)}
+            tone="issue" onClick={() => { setWanted((w) => toggle(w, id)); setPage(200); }} />
+        ))}
+        <span className="w-px self-stretch bg-slate-800 mx-1.5" aria-hidden />
+        {/* "Has landed cost" is not offered: it is the SAME 156 items as In
+            stock today (an item gets a moving-average cost when goods are
+            received, which is also what puts them on the shelf), and its
+            complement is the chip beside it. matchesScope still supports it
+            for the day stock sells out while the cost stays. */}
+        {(['in_stock', 'no_cost'] as PriceScope[]).map((id) => (
+          <Chip key={id} label={SCOPE_LABEL[id]} count={scopeCounts.get(id) ?? 0} on={scope.has(id)}
+            tone="scope" onClick={() => { setScope((w) => toggle(w, id)); setPage(200); }} />
+        ))}
+        {(wanted.size > 0 || scope.size > 0 || profileFilter !== '') && (
+          <button type="button" onClick={() => { setWanted(new Set()); setScope(new Set()); setProfileFilter(''); }}
+            className="ml-1 text-[11px] text-slate-500 hover:text-slate-300 underline underline-offset-2">
+            Clear
           </button>
         )}
       </div>
@@ -1234,6 +1273,7 @@ function SetPricingTab({
                   {t.name}{i === 0 && <span className="ml-1 text-emerald-400/70 normal-case">net</span>}
                 </th>
               ))}
+              <th className="text-left font-semibold px-3 py-2 whitespace-nowrap">Category · target</th>
               <th className="text-right font-semibold px-3 py-2">GP</th>
               <th className="px-3 py-2" />
             </tr>
@@ -1275,6 +1315,21 @@ function SetPricingTab({
                       </td>
                     );
                   })}
+                  <td className="px-3 py-1.5 whitespace-nowrap">
+                    <select value={r.c.margin_profile_id ?? ''}
+                      onChange={(e) => onAssignProfile(cid, e.target.value || null)}
+                      title="What this item is supposed to earn. Value Capture funds the margin; Loss Leader wins the deal."
+                      className={`bg-transparent border rounded px-1.5 py-0.5 text-[11.5px] focus:outline-none focus:ring-1 focus:ring-emerald-500/40 ${
+                        r.profile ? 'border-slate-700 text-slate-300' : 'border-amber-500/30 text-amber-300/80'}`}>
+                      <option value="" className="bg-slate-900">Unclassified</option>
+                      {[...profileById.values()].map((pr) => (
+                        <option key={pr.id} value={pr.id} className="bg-slate-900">{pr.label}</option>
+                      ))}
+                    </select>
+                    {r.profile && (
+                      <p className="text-[10px] text-slate-500 mt-0.5">target {bandOf(r.profile)}</p>
+                    )}
+                  </td>
                   <td className="px-3 py-1.5 text-right tabular-nums whitespace-nowrap">
                     {r.gp == null ? <span className="text-slate-600">—</span> : (
                       <span className={r.issues.has('below_floor') ? 'text-red-400'
@@ -1283,7 +1338,6 @@ function SetPricingTab({
                         {r.gp.toFixed(1)}%
                       </span>
                     )}
-                    {r.profile && <p className="text-[10px] text-slate-600">{bandOf(r.profile)}</p>}
                   </td>
                   <td className="px-2 py-1.5 text-right whitespace-nowrap">
                     {dirty ? (

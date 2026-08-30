@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-29T12:20:00Z',
+    title: 'Set Pricing shows each item\u2019s category and target, and the filter bar is one row shorter',
+    details: [
+      'A new column shows whether an item is Value Capture or Loss Leader, and the margin its category is supposed to earn. It is a dropdown, so an unclassified item can be classified right there \u2014 38 items have no category, and that is the setting the "under target" filter depends on.',
+      'A category dropdown sits beside the search box, so you can work through one category at a time.',
+      'The filters are one row instead of two. The two groups are separated by a divider rather than a stacked row and an "ONLY" label, because they behave differently: the left group widens the list, the right narrows it.',
+      'A filter with nothing behind it is now greyed out instead of looking clickable, and the counts sit quieter beside each label.',
+      '"Has landed cost" is gone. It matched exactly the same 156 items as "In stock" \u2014 an item gets a moving-average cost when goods are received, which is the same moment it reaches the shelf \u2014 so it was one chip pretending to be a second question.',
+    ],
+  },
+  {
     at: '2026-08-29T11:15:00Z',
     title: 'Set Pricing: narrow the list to the stock you hold, or the items with a known cost',
     details: [
