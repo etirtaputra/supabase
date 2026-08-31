@@ -3408,7 +3408,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                             )}
                           </div>
                         ) : (
-                          <div className={`leading-tight ${itemW != null ? 'overflow-hidden' : ''}`}>
+                          <div className="leading-tight min-w-0">
                             {visibleCols.description && (
                               isDirtyField(c, 'internal_description') ? (
                                 <div>
@@ -3416,9 +3416,18 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                                   <DirtyBadge original={c.internal_description} />
                                 </div>
                               ) : (
-                                <span className="flex items-center text-xs text-white font-medium">
+                                <span className="flex items-center text-xs text-white font-medium min-w-0"
+                                      style={itemW != null ? { maxWidth: itemW } : undefined}>
                                   <CopyBtn text={c.internal_description} />
-                                  <Highlight text={c.internal_description} query={search} />
+                                  {/* truncate lives on the TEXT, not the cell:
+                                      `width` on a <td> in a table-layout:auto
+                                      table is a suggestion the browser drops as
+                                      soon as the content wants more room, so
+                                      dragging moved the number and nothing else.
+                                      Same shape as /products, which works. */}
+                                  <span className="truncate min-w-0">
+                                    <Highlight text={c.internal_description} query={search} />
+                                  </span>
                                 </span>
                               )
                             )}
@@ -3429,9 +3438,12 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                                   <DirtyBadge original={c.supplier_model} />
                                 </div>
                               ) : (
-                                <span className="flex items-center mt-0.5 text-[11px] font-mono text-slate-500">
+                                <span className="flex items-center mt-0.5 text-[11px] font-mono text-slate-500 min-w-0"
+                                      style={itemW != null ? { maxWidth: itemW } : undefined}>
                                   <CopyBtn text={c.supplier_model} />
-                                  <Highlight text={c.supplier_model} query={search} />
+                                  <span className="truncate min-w-0">
+                                    <Highlight text={c.supplier_model} query={search} />
+                                  </span>
                                 </span>
                               )
                             )}
