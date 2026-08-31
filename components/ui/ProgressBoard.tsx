@@ -200,19 +200,42 @@ export default function ProgressBoard({
     );
   };
 
-  const column = (id: MilestoneId, label: string, items: Card[], key = id as string) => (
-    <div key={key} className="flex-shrink-0 w-[236px] flex flex-col">
-      <div className={`flex items-center justify-between px-2.5 py-2 rounded-t-lg bg-slate-800/40 border-t-2 ${COL_ACCENT[id]}`}>
-        <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-300">{label}</span>
-        <span className="text-[11px] text-slate-500 tabular-nums">{items.length}</span>
+  /**
+   * One column of the board.
+   *
+   * Seven 236px columns is ~1,650px, which is fine on a desk and unusable on a
+   * phone — the cards shear off the right edge and the whole page scrolls
+   * sideways with them. So below `md` the columns stack full-width instead,
+   * and only the ones holding something are drawn: an empty stage is worth a
+   * placeholder on a board you scan across, and pure noise on one you scroll
+   * down. Basecamp's own phone view does the same thing.
+   */
+  const column = (id: MilestoneId, label: string, items: Card[], key = id as string) => {
+    if (items.length === 0) {
+      return (
+        <div key={key} className="hidden md:flex flex-shrink-0 w-[236px] flex-col">
+          <div className={`flex items-center justify-between px-2.5 py-2 rounded-t-lg bg-slate-800/40 border-t-2 ${COL_ACCENT[id]}`}>
+            <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-300">{label}</span>
+            <span className="text-[11px] text-slate-500 tabular-nums">0</span>
+          </div>
+          <div className="p-2 rounded-b-lg bg-slate-900/40 border border-t-0 border-slate-800 min-h-[120px]">
+            <p className="text-[11px] text-slate-600 text-center py-6">—</p>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div key={key} className="w-full md:flex-shrink-0 md:w-[236px] flex flex-col">
+        <div className={`flex items-center justify-between px-2.5 py-2 rounded-t-lg bg-slate-800/40 border-t-2 ${COL_ACCENT[id]}`}>
+          <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-300">{label}</span>
+          <span className="text-[11px] text-slate-500 tabular-nums">{items.length}</span>
+        </div>
+        <div className="flex flex-col gap-2 p-2 rounded-b-lg bg-slate-900/40 border border-t-0 border-slate-800 md:min-h-[120px]">
+          {items.map(renderCard)}
+        </div>
       </div>
-      <div className="flex flex-col gap-2 p-2 rounded-b-lg bg-slate-900/40 border border-t-0 border-slate-800 min-h-[120px]">
-        {items.length === 0
-          ? <p className="text-[11px] text-slate-600 text-center py-6">—</p>
-          : items.map(renderCard)}
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -234,8 +257,8 @@ export default function ProgressBoard({
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto pb-2">
-          <div className="flex gap-3 min-w-min">
+        <div className="min-w-0 md:overflow-x-auto pb-2">
+          <div className="flex flex-col gap-3 md:flex-row md:min-w-min">
             {unstarted.length > 0 && column('pi_received', 'Not started', unstarted, 'unstarted')}
             {MILESTONES.map((m) => column(m.id, m.label, byStage(m.id)))}
           </div>

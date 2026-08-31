@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-29T15:00:00Z',
+    title: 'The Progress board works on a phone',
+    details: [
+      'Seven columns side by side is about 1.650 pixels wide \u2014 fine on a desk, unusable on a phone, where you saw one card cut off at the edge and had to scroll sideways to find the rest.',
+      'On a phone the stages now stack down the screen at full width, and only the stages holding something are drawn. An empty column is worth a placeholder on a board you scan across, and clutter on one you scroll down. On a tablet or a desktop the board is unchanged.',
+      'Measured at 390, 768 and 1280 pixels wide: the card now sits fully on screen at phone width instead of ending 1.731 pixels off the right edge.',
+    ],
+  },
+  {
     at: '2026-08-29T14:00:00Z',
     title: 'Set Pricing filters by product category, and only owners and sell-side admins can change a price',
     details: [
