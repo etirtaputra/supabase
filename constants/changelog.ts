@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-31T11:30:00Z',
+    title: 'The Item Editor toolbar is the same size as the one on Selling Prices',
+    details: [
+      'The search box, the six dropdowns and the twelve quick filters were all a size larger than the equivalent controls on Selling Prices. They now match: the search and the filter buttons are pixel-identical to it, and the dropdowns sit 5 pixels shorter than before.',
+      'The filter buttons also stop growing on a wide screen \u2014 they used to jump a size at desktop width for no reason, which is what made them look heavy.',
+      'Nothing is smaller than the text elsewhere in the app, and nothing moved.',
+    ],
+  },
+  {
     at: '2026-08-31T08:00:00Z',
     title: 'Item Editor: the toolbar, a draggable Item column, and a smaller Fix button',
     details: [

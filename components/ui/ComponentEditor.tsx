@@ -283,7 +283,7 @@ function FilterCombobox({ options, value, onChange, placeholder, minWidth = 140,
         onChange={(e) => { setQuery(e.target.value); if (!open) openDrop(); }}
         onBlur={handleBlur}
         placeholder={placeholder}
-        className="w-full py-2.5 px-3 pr-7 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-sky-500 focus:outline-none placeholder-slate-500"
+        className="w-full py-2 px-2.5 pr-6 bg-slate-950 border border-slate-700 rounded-lg text-[12.5px] text-white focus:border-sky-500 focus:outline-none placeholder-slate-500"
       />
       {value ? (
         <button onMouseDown={(e) => { e.preventDefault(); onChange(''); setQuery(''); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
@@ -2645,7 +2645,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
               uncrowded row — that is the actual pattern. */}
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative w-full sm:w-80 flex-shrink-0">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               <input
@@ -2654,12 +2654,12 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                 placeholder="Search model, description, brand…"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                className="w-full pl-9 pr-8 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none placeholder-slate-600"
+                className="w-full pl-8 pr-7 py-2 bg-slate-950 border border-slate-700 rounded-lg text-[13px] text-white focus:border-sky-500 focus:ring-1 focus:ring-sky-500/20 focus:outline-none placeholder-slate-600"
               />
               {searchInput && (
                 <button
                   onClick={() => { setSearchInput(''); setSearch(''); }}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -2670,7 +2670,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
             <button
               onClick={() => setShowFindReplace(true)}
               title="Find & Replace (Ctrl+H)"
-              className="px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-slate-400 hover:text-slate-200 hover:border-slate-600 transition-colors flex items-center gap-1.5 flex-shrink-0 text-sm font-medium"
+              className="px-2.5 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-400 hover:text-slate-200 hover:border-slate-600 transition-colors flex items-center gap-1.5 flex-shrink-0 text-[12.5px] font-medium"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6-4v12m0 0l4-4m-4 4l-4-4" />
@@ -2704,10 +2704,11 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                 // Matches FilterCombobox exactly (py-2.5 px-3 text-sm) — this is a raw
                 // <select> among comboboxes, and it had been left at py-1.5 px-2
                 // text-xs, so it sat visibly shorter and tighter than its neighbours.
-                // h-[42px] because a <select> and an <input> do NOT compute the same
-                // box from the same padding: measured side by side, py-2.5 gives the
-                // combobox 42px and this 40px. Pinned so the row sits flat.
-                className={`h-[42px] py-2.5 px-3 pr-7 bg-slate-950 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-sky-500 min-w-[150px] flex-shrink-0 ${
+                // An explicit height because a <select> and an <input> do NOT compute
+                // the same box from the same padding — measured, py-2 leaves this a
+                // couple of pixels short of the combobox. 37px is the combobox height
+                // measured at this scale, so the row sits flat.
+                className={`h-[37px] py-2 px-2.5 pr-6 bg-slate-950 border border-slate-700 rounded-lg text-[12.5px] focus:outline-none focus:border-sky-500 min-w-[150px] flex-shrink-0 ${
                   // Its neighbours are FilterCombobox inputs, where "All Brands"
                   // is a PLACEHOLDER and therefore slate-500. Here it is a real
                   // <option>, so it inherited text-white and read as a chosen
@@ -2737,7 +2738,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
             {/* Quick-filter toggles */}
             <button
               onClick={() => { setFilterUnused((v) => !v); setFilterDuplicates(false); setFilterLinked(false); }}
-              className={`py-1.5 px-2.5 md:py-2 md:px-3 rounded-lg text-xs md:text-sm font-semibold border transition-all flex-shrink-0 ${
+              className={`py-1 px-2.5 rounded-lg text-[11.5px] font-semibold border transition-colors flex-shrink-0 ${
                 filterUnused
                   ? 'bg-orange-500/20 border-orange-500/40 text-orange-300'
                   : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-orange-300 hover:border-orange-500/30'
@@ -2748,7 +2749,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
             </button>
             <button
               onClick={() => setFilterReorder((v) => !v)}
-              className={`py-1.5 px-2.5 md:py-2 md:px-3 rounded-lg text-xs md:text-sm font-semibold border transition-all flex-shrink-0 ${
+              className={`py-1 px-2.5 rounded-lg text-[11.5px] font-semibold border transition-colors flex-shrink-0 ${
                 filterReorder
                   ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
                   : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-amber-300 hover:border-amber-500/30'
@@ -2759,7 +2760,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
             </button>
             <button
               onClick={() => { setFilterDuplicates((v) => !v); setFilterUnused(false); setFilterLinked(false); }}
-              className={`py-1.5 px-2.5 md:py-2 md:px-3 rounded-lg text-xs md:text-sm font-semibold border transition-all flex-shrink-0 ${
+              className={`py-1 px-2.5 rounded-lg text-[11.5px] font-semibold border transition-colors flex-shrink-0 ${
                 filterDuplicates
                   ? 'bg-red-500/20 border-red-500/40 text-red-300'
                   : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-red-300 hover:border-red-500/30'
@@ -2770,7 +2771,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
             </button>
             <button
               onClick={() => setFilterHasIntel((v) => !v)}
-              className={`py-1.5 px-2.5 md:py-2 md:px-3 rounded-lg text-xs md:text-sm font-semibold border transition-all flex-shrink-0 ${
+              className={`py-1 px-2.5 rounded-lg text-[11.5px] font-semibold border transition-colors flex-shrink-0 ${
                 filterHasIntel
                   ? 'bg-violet-500/20 border-violet-500/40 text-violet-300'
                   : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-violet-300 hover:border-violet-500/30'
@@ -2781,7 +2782,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
             </button>
             <button
               onClick={() => setFilterTucHidden((v) => !v)}
-              className={`py-1.5 px-2.5 md:py-2 md:px-3 rounded-lg text-xs md:text-sm font-semibold border transition-all flex-shrink-0 ${
+              className={`py-1 px-2.5 rounded-lg text-[11.5px] font-semibold border transition-colors flex-shrink-0 ${
                 filterTucHidden
                   ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
                   : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-amber-300 hover:border-amber-500/30'
@@ -2792,7 +2793,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
             </button>
             <button
               onClick={() => { setFilterLinked((v) => !v); setFilterUnused(false); setFilterDuplicates(false); }}
-              className={`py-1.5 px-2.5 md:py-2 md:px-3 rounded-lg text-xs md:text-sm font-semibold border transition-all flex-shrink-0 ${
+              className={`py-1 px-2.5 rounded-lg text-[11.5px] font-semibold border transition-colors flex-shrink-0 ${
                 filterLinked
                   ? 'bg-sky-500/20 border-sky-500/40 text-sky-300'
                   : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-sky-300 hover:border-sky-500/30'
@@ -2803,7 +2804,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
             </button>
             <button
               onClick={() => setFilterHasSpecs((v) => !v)}
-              className={`py-1.5 px-2.5 md:py-2 md:px-3 rounded-lg text-xs md:text-sm font-semibold border transition-all flex-shrink-0 ${
+              className={`py-1 px-2.5 rounded-lg text-[11.5px] font-semibold border transition-colors flex-shrink-0 ${
                 filterHasSpecs
                   ? 'bg-teal-500/20 border-teal-500/40 text-teal-300'
                   : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-teal-300 hover:border-teal-500/30'
@@ -2814,7 +2815,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
             </button>
             <button
               onClick={() => setFilterHasLeadTime((v) => !v)}
-              className={`py-1.5 px-2.5 md:py-2 md:px-3 rounded-lg text-xs md:text-sm font-semibold border transition-all flex-shrink-0 ${
+              className={`py-1 px-2.5 rounded-lg text-[11.5px] font-semibold border transition-colors flex-shrink-0 ${
                 filterHasLeadTime
                   ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
                   : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-emerald-300 hover:border-emerald-500/30'
@@ -2825,7 +2826,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
             </button>
             <button
               onClick={() => setFilterHasCashCycle((v) => !v)}
-              className={`py-1.5 px-2.5 md:py-2 md:px-3 rounded-lg text-xs md:text-sm font-semibold border transition-all flex-shrink-0 ${
+              className={`py-1 px-2.5 rounded-lg text-[11.5px] font-semibold border transition-colors flex-shrink-0 ${
                 filterHasCashCycle
                   ? 'bg-violet-500/20 border-violet-500/40 text-violet-300'
                   : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-violet-300 hover:border-violet-500/30'
@@ -2836,7 +2837,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
             </button>
             <button
               onClick={() => setFilterBelowMarket((v) => !v)}
-              className={`py-1.5 px-2.5 md:py-2 md:px-3 rounded-lg text-xs md:text-sm font-semibold border transition-all flex-shrink-0 ${
+              className={`py-1 px-2.5 rounded-lg text-[11.5px] font-semibold border transition-colors flex-shrink-0 ${
                 filterBelowMarket
                   ? 'bg-rose-500/20 border-rose-500/40 text-rose-300'
                   : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-rose-300 hover:border-rose-500/30'
@@ -2848,7 +2849,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
             {marginProfiles.length > 0 && (
               <button
                 onClick={() => setFilterOffTarget((v) => !v)}
-                className={`py-1.5 px-2.5 md:py-2 md:px-3 rounded-lg text-xs md:text-sm font-semibold border transition-all flex-shrink-0 ${
+                className={`py-1 px-2.5 rounded-lg text-[11.5px] font-semibold border transition-colors flex-shrink-0 ${
                   filterOffTarget
                     ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
                     : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-amber-300 hover:border-amber-500/30'
@@ -2861,7 +2862,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
             <div className="flex items-center gap-1 flex-shrink-0">
               <button
                 onClick={() => setFilterLowMargin((v) => !v)}
-                className={`py-1.5 px-2.5 md:py-2 md:px-3 rounded-lg text-xs md:text-sm font-semibold border transition-all ${
+                className={`py-1 px-2.5 rounded-lg text-[11.5px] font-semibold border transition-colors ${
                   filterLowMargin
                     ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
                     : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-amber-300 hover:border-amber-500/30'
