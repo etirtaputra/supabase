@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-31T08:00:00Z',
+    title: 'Item Editor: the toolbar, a draggable Item column, and a smaller Fix button',
+    details: [
+      'The filter row went back to its own line. Putting the search and all six dropdowns together made the search \u2014 the control used most \u2014 the smallest thing on the row, and cut its placeholder off mid-word. The search stays capped, but it now shares its row only with Replace and the result count.',
+      'The Item column can be dragged wider or narrower from the divider in its heading, and double-clicking the divider puts it back. Your width is remembered. Merging the description and the model into one column freed a column\u2019s worth of table \u2014 this is how you spend it.',
+      '"Fix source" on a quoted Last Price is now just "Fix". The label was wrapping onto two lines in that narrow column, which is what made the button look fat: 72\u00d736 pixels down to 31\u00d721. It does the same thing \u2014 corrects the price on the supplier quote it came from, so the fix applies everywhere that quote is used.',
+    ],
+  },
+  {
     at: '2026-08-31T07:00:00Z',
     title: 'Item Editor and Products now read like Selling Prices',
     details: [

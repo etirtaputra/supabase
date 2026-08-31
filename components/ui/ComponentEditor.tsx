@@ -898,6 +898,44 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
     const t = setTimeout(() => setSearch(searchInput), 150);
     return () => clearTimeout(t);
   }, [searchInput]);
+  /**
+   * Width of the merged Item column, dragged by the person and remembered.
+   *
+   * Ported from /products, which has had this since August — same handle, same
+   * double-click reset, same localStorage key shape. Merging Model/SKU and
+   * Description into one cell freed a column's worth of table, and the owner's
+   * point (2026-08-31) is that the freed room should be THEIRS to spend: a wide
+   * description on one monitor, more numeric columns on another.
+   *
+   * null = the default clamp, which is what most people should leave it at.
+   */
+  const [itemW, setItemW] = useState<number | null>(null);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('items:itemColWidth');
+      const n = raw ? Number(raw) : NaN;
+      if (Number.isFinite(n) && n >= 160) setItemW(Math.min(1400, n));
+    } catch {}
+  }, []);
+  const startItemResize = useCallback((e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    const startX = e.clientX;
+    const startW = itemW ?? Math.min(Math.max(320, window.innerWidth * 0.32), 900);
+    const at = (ev: MouseEvent) => Math.min(1400, Math.max(160, Math.round(startW + (ev.clientX - startX))));
+    const move = (ev: MouseEvent) => setItemW(at(ev));
+    const up = (ev: MouseEvent) => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      try { localStorage.setItem('items:itemColWidth', String(at(ev))); } catch {}
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  }, [itemW]);
+  const resetItemWidth = useCallback(() => {
+    setItemW(null);
+    try { localStorage.removeItem('items:itemColWidth'); } catch {}
+  }, []);
+
   const [sortCol, setSortCol] = useState<SortCol>('updated_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [editingIds, setEditingIds] = useState<Set<string>>(new Set());
@@ -2597,12 +2635,14 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
       {/* Toolbar */}
       <div className="p-4 md:p-5 border-b border-slate-800/60 space-y-2">
         <div className="flex flex-col gap-2">
-          {/* Search + the dropdown filters, ONE row (owner, 2026-08-31, taking
-              the Selling Prices toolbar as the house pattern). The search used
-              to span the full width on its own line, which made a 993-row grid
-              open with a search box the size of a banner and pushed every
-              filter down a row. Capped at 20rem: nobody types a model number
-              longer than that, and the space buys the filters a place beside it. */}
+          {/* Search row. Capped at 20rem — it used to span the whole width, so
+              a 993-row grid opened with a search box the size of a banner.
+              But NOT crammed in with the filters: Selling Prices puts its
+              search on one row with the dropdowns because it has TWO of them.
+              This screen has six, and putting all six beside the search made
+              the control people use most the smallest thing on the row
+              (owner, 2026-08-31: "this is worse than before"). Capped search,
+              uncrowded row — that is the actual pattern. */}
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative w-full sm:w-80 flex-shrink-0">
               <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2611,7 +2651,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
               <input
                 ref={searchInputRef}
                 type="text"
-                placeholder="Search model, description, brand… (press / to focus)"
+                placeholder="Search model, description, brand…"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 className="w-full pl-9 pr-8 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 focus:outline-none placeholder-slate-600"
@@ -2637,9 +2677,17 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
               </svg>
               Replace
             </button>
-            {/* The selects sit on the search's row from `sm` up; below that they
-                wrap under it, which is the only sane thing on a phone. */}
-            <div className="flex flex-wrap items-center gap-2 min-w-0">
+            {/* The count belongs beside the search that produced it, not on a
+                line of its own — the one thing worth borrowing from Selling
+                Prices here. */}
+            <p className="text-xs text-slate-500 ml-1">
+              <span className="text-slate-300 font-semibold">{filtered.length}</span> of {components.length}
+              {selectedIds.size > 0 && <span className="ml-2 text-sky-400 font-semibold">· {selectedIds.size} selected</span>}
+            </p>
+          </div>
+          {/* The six dropdowns, their own row, scrolling sideways rather than
+              wrapping into a block that pushes the grid down the page. */}
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
             {/* Brand filter */}
             <FilterCombobox options={uniqueBrands} value={filterBrand} onChange={setFilterBrand} placeholder="All Brands" minWidth={140} className="min-w-[140px] flex-shrink-0" />
             {/* Vendor / supplier filter — items quoted or ordered from a vendor */}
@@ -2667,7 +2715,6 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
             {uniquePONumbers.length > 0 && (
               <FilterCombobox options={uniquePONumbers} value={filterPO} onChange={setFilterPO} placeholder="All POs" minWidth={150} className="min-w-[150px] flex-shrink-0" />
             )}
-            </div>
           </div>
           {/* The quick-filter toggles keep their own row and WRAP: on a phone
               they stack into rows you can see at once rather than hiding off
@@ -2830,10 +2877,6 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
         {/* Stats + action buttons */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <p className="text-xs text-slate-500">
-            Showing <span className="text-slate-300 font-semibold">{filtered.length}</span> of {components.length} components
-            {selectedIds.size > 0 && (
-              <span className="ml-2 text-sky-400 font-semibold">· {selectedIds.size} selected</span>
-            )}
             {dirtyCount > 0 && (
               <span className="ml-2 text-amber-400 font-semibold">
                 · {dirtyCount} unsaved {dirtyCount === 1 ? 'edit' : 'edits'}
@@ -3191,7 +3234,14 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                     and "sku" beside it sorts by model — the two questions people
                     actually ask of this column, without a second column. */}
                 {(visibleCols.model || visibleCols.description) && (
-                  <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
+                  <th className="relative px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap"
+                      style={itemW != null ? { width: itemW } : undefined}>
+                    {/* Drag to set the width, double-click to put it back. */}
+                    <span onMouseDown={startItemResize} onDoubleClick={resetItemWidth}
+                      title="Drag to set the Item column width — double-click to reset"
+                      className="absolute right-0 top-0 bottom-0 w-2.5 cursor-col-resize group/rsz flex items-center justify-center select-none">
+                      <span className={`w-px h-4 transition-colors ${itemW != null ? 'bg-sky-500/50' : 'bg-slate-700'} group-hover/rsz:bg-sky-400`} />
+                    </span>
                     <span className="inline-flex items-center gap-2">
                       {visibleCols.description && (
                         <button type="button" onClick={() => toggleSort('internal_description')}
@@ -3290,7 +3340,8 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                         the cell renders whichever halves are switched on, so
                         hiding one still does what it always did. */}
                     {(visibleCols.model || visibleCols.description) && (
-                      <td className="px-3 py-1.5 align-middle">
+                      <td className="px-3 py-1.5 align-middle"
+                          style={itemW != null ? { width: itemW, maxWidth: itemW } : undefined}>
                         {isEditing ? (
                           <div className="space-y-1 min-w-[16rem]">
                             {visibleCols.description && (
@@ -3343,7 +3394,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                             )}
                           </div>
                         ) : (
-                          <div className="leading-tight">
+                          <div className={`leading-tight ${itemW != null ? 'overflow-hidden' : ''}`}>
                             {visibleCols.description && (
                               isDirtyField(c, 'internal_description') ? (
                                 <div>
@@ -3609,12 +3660,21 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                                       <button
                                         onClick={() => fixQuotedPrice(c.component_id, lq.quote_line_id!)}
                                         disabled={lqDraft?.componentId !== c.component_id || lqDraft.saving || !(parseFloat(lqDraft.value) > 0) || parseFloat(lqDraft.value) === lq.price}
-                                        className="px-2 py-0.5 text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded hover:bg-amber-500/20 transition-all disabled:opacity-40"
+                                        // whitespace-nowrap is the whole fix for the
+                                        // chunky amber block this used to be: the
+                                        // Last Price column is narrow, so "Fix
+                                        // source" wrapped onto two lines and the
+                                        // button grew taller than the input above
+                                        // it. One line, slimmer padding, and the
+                                        // weight comes off the label — the
+                                        // provenance text beside it truncates
+                                        // instead, which is the half that can.
+                                        className="flex-shrink-0 whitespace-nowrap px-1.5 py-0.5 text-[10px] font-semibold text-amber-300/90 bg-amber-500/10 border border-amber-500/25 rounded hover:bg-amber-500/20 hover:text-amber-200 transition-colors disabled:opacity-40 disabled:hover:bg-amber-500/10"
                                         title={`Corrects the source quote line (${lq.pi_number ?? 'quote'}) — the fix applies everywhere this price is used`}
                                       >
-                                        {lqDraft?.componentId === c.component_id && lqDraft.saving ? 'Fixing…' : 'Fix source'}
+                                        {lqDraft?.componentId === c.component_id && lqDraft.saving ? 'Fixing…' : 'Fix'}
                                       </button>
-                                      <span className="text-[10px] text-slate-600 truncate">quoted · {lq.pi_number ?? ''}</span>
+                                      <span className="text-[10px] text-slate-600 truncate min-w-0" title={`Quoted on ${lq.pi_number ?? 'a supplier quote'}`}>quoted · {lq.pi_number ?? ''}</span>
                                     </div>
                                   </div>
                                 ) : (
