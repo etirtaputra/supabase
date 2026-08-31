@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-08-29** · head of `main` at that point: `1a45d4a` (see §4)
+**Last updated: 2026-08-31** · head of `main` at that point: `1a45d4a` (see §4)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -139,12 +139,35 @@ Plus: a `constants/changelog.ts` entry in the same commit.
   Cards sit at the FURTHEST milestone reached, because only 15 of 223 POs have
   a down payment and a strict sequence would strand the rest.
 
-**Account created for the agent:** `po@icasolar.com`, role `buy_admin`,
-confirmed manually in `auth.users` because **Supabase's built-in mailer does
-not deliver to non-team addresses** — confirmation, OTP and recovery were all
-accepted by GoTrue and silently dropped (mailbox verified empty). Any future
-non-team hire hits this. Fix is custom SMTP under Authentication → Emails;
-icasolar.com already has cPanel mail. Dashboard-only, not done.
+**Accounts created for the agents:** `po@icasolar.com` (`buy_admin`, Hermes)
+and `mira@icasolar.com` (`owner`, 2026-08-31, owner's explicit choice — full
+access including banks and user management). Both confirmed manually in
+`auth.users` because **Supabase's built-in mailer does not deliver to non-team
+addresses** — confirmation, OTP and recovery were all accepted by GoTrue and
+silently dropped (mailbox verified empty). Any future non-team hire hits this.
+Fix is custom SMTP under Authentication → Emails; icasolar.com already has
+cPanel mail. Dashboard-only, not done.
+
+### Creating an agent login by SQL — the order, and the trap
+
+`auth.users` carries two triggers: `enforce_email_allowlist` (BEFORE INSERT,
+rejects any address not already in `allowed_emails`) and `handle_new_user`
+(AFTER INSERT, builds the `user_profiles` row and takes its role FROM that
+allowlist row). So:
+
+1. `insert into allowed_emails (email, role)` — the role is decided here;
+2. `insert into auth.users (...)` with `email_confirmed_at = now()` and
+   `encrypted_password = crypt('…', gen_salt('bf'))`;
+3. **`insert into auth.identities`** — the trap. A user created by direct
+   INSERT has no identity row, and GoTrue rejects password sign-in without
+   one with "Invalid login credentials" even though the hash is correct.
+   `identity_data` must carry `sub` (the user id, as text) and `email`.
+
+Verify by comparing the new row against a known-good account on: `identities`
+count, `identity_data->>'sub'`, `provider`, `email_confirmed_at`, `banned_until`,
+and `encrypted_password = crypt(<pw>, encrypted_password)`. A live sign-in test
+is NOT possible from the sandbox — the egress proxy denies CONNECT to
+`*.supabase.co`.
 
 ### Two findings from that thread, NOT acted on (owner has not decided)
 
