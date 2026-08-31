@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-29T17:30:00Z',
+    title: 'Pricing Tiers is now called Selling Prices',
+    details: [
+      'The name was right when the page was only the tier ladder. It now opens on Set Pricing, and "selling" is the word that separates these numbers from the landed cost sitting next to them on every row.',
+      'Everything is where it was \u2014 only the menu entry, the page title and the header line changed.',
+    ],
+  },
+  {
     at: '2026-08-29T17:00:00Z',
     title: 'Every price change is now on the record',
     details: [

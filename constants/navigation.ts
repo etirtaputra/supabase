@@ -204,10 +204,13 @@ export const DESTINATIONS: Destination[] = [
   { href: '/purchasing?tab=market-intel', label: 'Market Intel', group: 'Catalog', section: 'buySide', inNav: true,
     hint: 'Competitor prices and what the market is charging',
     keywords: 'competitor market price intel benchmark rival' },
-  // "Pricing Tiers", not bare "Pricing" (owner, 2026-08-11): the page manages
-  // the TIER LADDER. Since 2026-08-29 it also OPENS on Set Pricing — entering
-  // prices moved off the Item Editor, which was too cluttered to price in.
-  { href: '/pricing', label: 'Pricing Tiers', group: 'Catalog', section: null, cap: 'canManagePricing', inNav: true,
+  // "Selling Prices" (owner, 2026-08-29). It was "Pricing Tiers" while the page
+  // was only the tier ladder; it now OPENS on Set Pricing, because entering
+  // prices moved off the Item Editor. "Selling" earns its place — it is the one
+  // word that separates this from landed cost, which is the other price on
+  // every one of these rows. Bare "Pricing" was rejected on 2026-08-11 for
+  // being the ladder only; that reason has gone, but the ambiguity has not.
+  { href: '/pricing', label: 'Selling Prices', group: 'Catalog', section: null, cap: 'canManagePricing', inNav: true,
     hint: 'Set prices per tier, margin floor audit, per-item overrides',
     keywords: 'tiers markup discount floor margin pricing tier set pricing sell price harga jual selling price bulk' },
   // The buy-side AI assistant — answers questions over suppliers, costs, POs

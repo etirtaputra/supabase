@@ -418,7 +418,7 @@ export const ID: Record<string, string> = {
   'Item Hub': 'Pusat Barang',
   'Spec Readiness': 'Kesiapan Spesifikasi',
   'Market Intel': 'Intel Pasar',
-  'Pricing Tiers': 'Tingkat Harga',
+  'Selling Prices': 'Harga Jual',
   'Ask ICAPROC': 'Tanya ICAPROC',
   'Proposals': 'Proposal',
   'Proposals · Description Library': 'Proposal · Pustaka Deskripsi',
