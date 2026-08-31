@@ -9,7 +9,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { issuesFor, matchesIssues, matchesScope, marginPct, priceForMargin, compareCells, type PriceScope } from './priceGrid.ts';
+import { issuesFor, matchesIssues, matchesScope, marginPct, priceForMargin, compareCells,
+         suggestRange, type PriceScope } from './priceGrid.ts';
 import type { MarginProfile } from './marginProfiles.ts';
 
 const profile = (min: number, max: number): MarginProfile =>
@@ -240,4 +241,59 @@ test('text sorts case-insensitively and numerically within the string', () => {
 test('two empties are equal, so the previous order survives', () => {
   assert.equal(compareCells(null, null, 'asc'), 0);
   assert.equal(compareCells(null, '', 'desc'), 0);
+});
+
+// ── The suggested range ────────────────────────────────────────────────────
+
+test('the range brackets the band, on clean numbers', () => {
+  // Cost 5,399,776 against Value Capture 20–25% — the EPEVER UCP3542 on file.
+  const r = suggestRange(5_399_776, profile(20, 25), 1000)!;
+  assert.equal(r.min, 6_750_000);
+  assert.equal(r.max, 7_199_000);
+});
+
+test('BOTH ENDS ROUND INWARD, so every price in the range is inside the band', () => {
+  const p = profile(20, 25);
+  const r = suggestRange(5_399_776, p, 1000)!;
+  const at = (price: number) => marginPct(price, 5_399_776)!;
+  assert.ok(at(r.min) >= 20, `min earns ${at(r.min).toFixed(2)}% — must clear the floor of the band`);
+  assert.ok(at(r.max) <= 25, `max earns ${at(r.max).toFixed(2)}% — must not exceed the band`);
+  // Rounding the high end UP instead would break exactly that promise:
+  const naiveMax = Math.ceil(priceForMargin(5_399_776, 25)! / 1000) * 1000;
+  assert.ok(at(naiveMax) > 25, 'rounding the top up lands outside the target — the bug this avoids');
+});
+
+test('the suggestion is a multiple of the rounding step', () => {
+  const r = suggestRange(5_399_776, profile(20, 25), 1000)!;
+  assert.equal(r.min % 1000, 0);
+  assert.equal(r.max % 1000, 0);
+  const coarse = suggestRange(5_399_776, profile(20, 25), 100_000)!;
+  assert.equal(coarse.min % 100_000, 0);
+  assert.equal(coarse.max % 100_000, 0);
+});
+
+test('a wider band gives a wider range', () => {
+  const narrow = suggestRange(1_000_000, profile(20, 22), 1000)!;
+  const wide = suggestRange(1_000_000, profile(20, 40), 1000)!;
+  assert.equal(narrow.min, wide.min, 'same floor, same starting point');
+  assert.ok(wide.max > narrow.max);
+});
+
+test('no profile, no cost, or a nonsense target gives no suggestion', () => {
+  assert.equal(suggestRange(1_000_000, null, 1000), null);
+  assert.equal(suggestRange(null, profile(20, 25), 1000), null);
+  assert.equal(suggestRange(0, profile(20, 25), 1000), null);
+  assert.equal(suggestRange(1_000_000, profile(20, 99), 1000), null, 'dividing by ~0 is not a price');
+});
+
+test('a band too narrow to survive rounding gives none rather than half a range', () => {
+  // Cost 10,000, band 20–20.5%: the two ends are 12,500 and 12,578, which a
+  // 1,000 step rounds to 13,000 and 12,000 — inverted, so meaningless.
+  assert.equal(suggestRange(10_000, profile(20, 20.5), 1000), null);
+});
+
+test('a step of zero still returns whole numbers rather than dividing by nothing', () => {
+  const r = suggestRange(800, profile(20, 25), 0)!;
+  assert.equal(r.min, 1000);
+  assert.ok(Number.isInteger(r.max));
 });

@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-29T16:00:00Z',
+    title: 'Set Pricing suggests the price range that lands inside the target, and the GP updates as you type',
+    details: [
+      'An item priced outside its band now shows the two prices that would put it back inside \u2014 for example Rp 6.750.000 \u2013 Rp 7.199.000 for a 20\u201325% item costing Rp 5.399.776. Click either end to fill it in.',
+      'Both ends are clean numbers, rounded to the house step from Settings \u203a Pricing. The low end rounds up and the high end rounds down, on purpose: rounding both up would make the top of the suggestion itself sit above the target, so every price between the two ends now earns inside the band.',
+      'The GP column now follows what you type instead of what is saved, and shows what it was beside it. Before this, typing a new price left the old GP on screen \u2014 a confident wrong answer to the exact question you were asking.',
+      'Tier 2 and Tier 3 also preview from the new net price as you type.',
+    ],
+  },
+  {
     at: '2026-08-29T15:00:00Z',
     title: 'The Progress board works on a phone',
     details: [

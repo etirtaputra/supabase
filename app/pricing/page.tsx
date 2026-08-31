@@ -28,8 +28,8 @@ import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { computeTierChain, roundUpToStep } from '@/lib/tierPricing';
-import { issuesFor, matchesIssues, matchesScope, marginPct, priceForMargin,
-         compareCells, ISSUE_LABEL, SCOPE_LABEL,
+import { issuesFor, matchesIssues, matchesScope, marginPct,
+         compareCells, suggestRange, ISSUE_LABEL, SCOPE_LABEL,
          type PriceIssue, type PriceScope, type SortDir } from '@/lib/priceGrid';
 import {
   fetchMarginProfiles, saveMarginProfile, createMarginProfile, deleteMarginProfile,
@@ -83,6 +83,9 @@ export default function PricingPage() {
   const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
   const canManage = !!profile && ROLE_PERMISSIONS[profile.role].canManagePricing;
+  // The house rounding step (Settings › Pricing). Read through the hook rather
+  // than getSettings() so the grid re-renders when an admin changes it.
+  const { priceRoundingStep } = useSettings();
   const canManageUsers = !!profile && ROLE_PERMISSIONS[profile.role].canManageUsers;   // owner — Settings
 
   const [tiers, setTiers] = useState<Tier[]>([]);
@@ -511,7 +514,8 @@ export default function PricingPage() {
               <SetPricingTab comps={comps} tiers={activeSorted} chainFor={chainFor} costOf={costOf}
                 stockOf={stockOf}
                 profileById={profileById} ovByKey={ovByKey} saving={savingRows} onSave={saveEdits}
-                onAssignProfile={assignItemProfile} canManage={canManage} />
+                onAssignProfile={assignItemProfile} canManage={canManage}
+                roundStep={priceRoundingStep} />
             ) : tab === 'tiers' ? (
               <TiersTab tiers={orderedTiers} custTierCounts={custTierCounts} overridesByTier={overridesByTier}
                 violationsByTier={violationsByTier} saving={savingTier}
@@ -1134,7 +1138,7 @@ function SortTh({ col, label, sortCol, sortDir, onSort, align = 'left', classNam
  * pinned cell and the tier goes back to the chain.
  */
 function SetPricingTab({
-  comps, tiers, chainFor, costOf, stockOf, profileById, ovByKey, saving, onSave, onAssignProfile, canManage,
+  comps, tiers, chainFor, costOf, stockOf, profileById, ovByKey, saving, onSave, onAssignProfile, canManage, roundStep,
 }: {
   comps: Comp[];
   tiers: Tier[];
@@ -1148,6 +1152,8 @@ function SetPricingTab({
   onAssignProfile: (componentId: string, profileId: string | null) => void;
   /** owner / sell_admin. Anyone else reads the grid and cannot change it. */
   canManage: boolean;
+  /** Settings › Pricing rounding step — the suggestion lands on a multiple. */
+  roundStep: number;
 }) {
   const [search, setSearch] = useState('');
   const [wanted, setWanted] = useState<Set<PriceIssue>>(new Set());
@@ -1368,6 +1374,22 @@ function SetPricingTab({
             {rows.slice(0, page).map((r) => {
               const cid = r.c.component_id;
               const dirty = Object.keys(draft).some((k) => k.startsWith(`${cid}:`));
+              const range = suggestRange(r.cost, r.profile, roundStep);
+              // Preview: everything below reads from what is TYPED, not what is
+              // saved. A GP that still reports the old price while a new one sits
+              // in the box is worse than no GP — it is a wrong answer to the
+              // question the person is asking as they type.
+              const netKey = keyOf(cid, tiers[0]?.tier_id ?? '');
+              const netNow = draft[netKey] !== undefined ? num(draft[netKey]) : r.c.selling_price_idr;
+              const chainNow = computeTierChain(netNow, tiers, (tid) => {
+                const dk = keyOf(cid, tid);
+                if (draft[dk] !== undefined) return num(draft[dk]);
+                return ovByKey.get(`${cid}:${tid}`)?.override_price_idr;
+              });
+              const gpNow = marginPct(netNow, r.cost);
+              const standingNow = r.profile == null || gpNow == null ? null
+                : gpNow < Number(r.profile.margin_target_min) ? 'below'
+                : gpNow > Number(r.profile.margin_target_max) ? 'above' : 'within';
               return (
                 <tr key={cid} className="border-t border-slate-800/70 hover:bg-slate-800/30">
                   <td className="px-3 py-1.5">
@@ -1382,7 +1404,7 @@ function SetPricingTab({
                   </td>
                   {tiers.map((t, i) => {
                     const k = keyOf(cid, t.tier_id);
-                    const computed = r.priceByTier.get(t.tier_id) ?? null;
+                    const computed = chainNow.get(t.tier_id)?.price ?? null;
                     const pinned = i > 0 && Boolean(r.chain.get(t.tier_id)?.overridden);
                     const stored = i === 0 ? r.c.selling_price_idr
                       : (ovByKey.get(`${cid}:${t.tier_id}`)?.override_price_idr ?? null);
@@ -1398,6 +1420,26 @@ function SetPricingTab({
                             : pinned ? 'border-violet-500/40 text-violet-200'
                             : stored != null ? 'border-slate-700 text-slate-200'
                             : 'border-transparent text-slate-500 hover:border-slate-700 placeholder-slate-600'}`} />
+                        {/* Out of band, and we know the cost: say what would put
+                            it back, at both ends, and let one click take it.
+                            Shown under the NET box because the net is the price
+                            the band is judged on. */}
+                        {i === 0 && canManage && range && (standingNow === 'below' || standingNow === 'above') && (
+                          <p className="mt-1 flex items-center justify-end gap-1 text-[10px] whitespace-nowrap">
+                            <span className="text-slate-600">→</span>
+                            <button type="button" title={`Bottom of the ${r.profile ? bandOf(r.profile) : ''} band`}
+                              onClick={() => setDraft((d) => ({ ...d, [k]: String(range.min) }))}
+                              className="tabular-nums text-amber-300/80 hover:text-amber-200 underline underline-offset-2 decoration-dotted">
+                              {fmtInt(range.min)}
+                            </button>
+                            <span className="text-slate-600">–</span>
+                            <button type="button" title={`Top of the ${r.profile ? bandOf(r.profile) : ''} band`}
+                              onClick={() => setDraft((d) => ({ ...d, [k]: String(range.max) }))}
+                              className="tabular-nums text-amber-300/80 hover:text-amber-200 underline underline-offset-2 decoration-dotted">
+                              {fmtInt(range.max)}
+                            </button>
+                          </p>
+                        )}
                       </td>
                     );
                   })}
@@ -1417,12 +1459,20 @@ function SetPricingTab({
                     )}
                   </td>
                   <td className="px-3 py-1.5 text-right tabular-nums whitespace-nowrap">
-                    {r.gp == null ? <span className="text-slate-600">—</span> : (
-                      <span className={r.issues.has('below_floor') ? 'text-red-400'
-                        : r.issues.has('below_band') ? 'text-amber-400'
-                        : r.issues.has('above_band') ? 'text-emerald-400' : 'text-slate-300'}>
-                        {r.gp.toFixed(1)}%
-                      </span>
+                    {gpNow == null ? <span className="text-slate-600">—</span> : (
+                      <>
+                        <span className={`${r.issues.has('below_floor') ? 'text-red-400'
+                          : standingNow === 'below' ? 'text-amber-400'
+                          : standingNow === 'above' ? 'text-emerald-400' : 'text-slate-300'} ${
+                          draft[netKey] !== undefined ? 'font-semibold' : ''}`}>
+                          {gpNow.toFixed(1)}%
+                        </span>
+                        {/* While typing, show what it WAS beside what it would
+                            become, so the size of the move is visible. */}
+                        {draft[netKey] !== undefined && r.gp != null && Math.abs(r.gp - gpNow) >= 0.05 && (
+                          <p className="text-[10px] text-slate-500">was {r.gp.toFixed(1)}%</p>
+                        )}
+                      </>
                     )}
                   </td>
                   <td className="px-2 py-1.5 text-right whitespace-nowrap">
@@ -1430,17 +1480,6 @@ function SetPricingTab({
                       <button type="button" disabled={saving} onClick={() => commit([cid])}
                         className="text-[11px] font-bold px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50">
                         Save
-                      </button>
-                    ) : canManage && r.issues.has('below_band') && r.profile && r.cost != null ? (
-                      // The economic consequence, one click away: what this
-                      // item would have to sell at to reach its own band.
-                      <button type="button"
-                        onClick={() => {
-                          const target = priceForMargin(r.cost, Number(r.profile!.margin_target_min));
-                          if (target != null) setDraft((d) => ({ ...d, [keyOf(cid, tiers[0].tier_id)]: String(roundUpToStep(target)) }));
-                        }}
-                        className="text-[11px] text-amber-300/80 hover:text-amber-200 px-2 py-1 rounded border border-amber-500/25 hover:border-amber-500/50">
-                        To target
                       </button>
                     ) : null}
                   </td>

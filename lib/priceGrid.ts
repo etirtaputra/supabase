@@ -171,6 +171,40 @@ export function priceForMargin(cost: number | null, targetPct: number): number |
   return cost / (1 - targetPct / 100);
 }
 
+/**
+ * The price range that would put an item inside its band — the two ends, both
+ * on clean numbers.
+ *
+ * `round` is the caller's rounding step (Settings › Pricing, Rp 1,000 out of
+ * the box) so the suggestion is a number somebody would actually quote.
+ *
+ * ONE DELIBERATE ASYMMETRY: the low end rounds UP and the high end rounds
+ * DOWN. Both ends rounded up would put the top of the suggestion marginally
+ * ABOVE the band — a tool whose job is to get you into the range must not
+ * propose a number that is out of it. Rounding inward means every price
+ * between the two ends earns inside the target, which is the promise the
+ * suggestion is making.
+ *
+ * Returns null when there is nothing to compute from, or when rounding has
+ * collapsed the band to nothing (a narrow band on a cheap item), because half
+ * a range is worse than none.
+ */
+export function suggestRange(
+  cost: number | null,
+  profile: MarginProfile | null | undefined,
+  round: number,
+): { min: number; max: number } | null {
+  if (!profile) return null;
+  const lo = priceForMargin(cost, Number(profile.margin_target_min));
+  const hi = priceForMargin(cost, Number(profile.margin_target_max));
+  if (lo == null || hi == null) return null;
+  const step = round > 0 ? round : 1;
+  const min = Math.ceil(lo / step) * step;
+  const max = Math.floor(hi / step) * step;
+  if (!Number.isFinite(min) || !Number.isFinite(max) || max < min) return null;
+  return { min, max };
+}
+
 /** The label a person reads for each issue. */
 export const ISSUE_LABEL: Record<PriceIssue, string> = {
   no_price: 'No price',
