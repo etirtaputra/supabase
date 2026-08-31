@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-29T17:00:00Z',
+    title: 'Every price change is now on the record',
+    details: [
+      'Set Pricing has a "Last set" column. Click the date to open that item\u2019s history: what the price was, what it became, the GP it earned, and whether that was inside its target band \u2014 plus who changed it and when. Sortable, so the items nobody has touched in months come to the top.',
+      'The GP and the band shown against each past change are the ones that applied AT THE TIME. Landed cost moves and the targets are editable, so working an old margin out from today\u2019s numbers would answer a different question.',
+      'The log is written by the database itself, not by this screen, so a price changed from Deal Lookup, from the Floor Audit\u2019s "raise to floor", or by the procurement agent through the API is recorded exactly the same way.',
+      'It starts empty and fills from the next change onwards \u2014 there is no way to recover the history of changes made before today.',
+    ],
+  },
+  {
     at: '2026-08-29T16:00:00Z',
     title: 'Set Pricing suggests the price range that lands inside the target, and the GP updates as you type',
     details: [

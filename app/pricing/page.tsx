@@ -18,7 +18,7 @@
  * the tier system itself. Margin data is internal-only, never client-facing.
  */
 'use client';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { Fragment, useState, useEffect, useMemo, useCallback } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 import { fetchAllComponents } from '@/lib/fetchAllRows';
 import { useAuth } from '@/hooks/useAuth';
@@ -55,6 +55,13 @@ interface Comp {
   margin_profile_id: string | null;
 }
 interface Bal { component_id: string; qty_on_hand: number; avg_cost_idr: number | null; }
+/** One logged price change (21.3, written by triggers — see the migration). */
+interface PriceLog {
+  history_id: string; component_id: string; tier_id: string | null;
+  old_price_idr: number | null; new_price_idr: number | null;
+  cost_idr: number | null; target_min_pct: number | null; target_max_pct: number | null;
+  changed_at: string; changed_by_email: string | null;
+}
 
 const descOf = (c: Comp) => (c.internal_description && c.internal_description.trim()) || c.supplier_model || '(no description)';
 const num = (v: unknown): number | null => {
@@ -93,6 +100,7 @@ export default function PricingPage() {
   const [comps, setComps] = useState<Comp[]>([]);
   const [bals, setBals] = useState<Map<string, Bal>>(new Map());
   const [custTierCounts, setCustTierCounts] = useState<Map<string, number>>(new Map());
+  const [priceLog, setPriceLog] = useState<Map<string, PriceLog[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [schemaMissing, setSchemaMissing] = useState(false);
   const [tab, setTab] = useState<Tab>('set');
@@ -147,12 +155,17 @@ export default function PricingPage() {
    * `useState(true)` — for the same reason.
    */
   const fetchAll = useCallback(async (): Promise<() => void> => {
-    const [tierRes, ovRes, allComps, balRes, custRes] = await Promise.all([
+    const [tierRes, ovRes, allComps, balRes, custRes, logRes] = await Promise.all([
       supabase.from('21.0_price_tiers').select('*').order('sort_order'),
       supabase.from('21.1_item_tier_prices').select('price_id, component_id, tier_id, override_price_idr, override_discount_pct, updated_at, updated_by_email'),
       fetchAllComponents<Comp>(supabase, 'component_id, supplier_model, internal_description, category, unit, selling_price_idr, margin_profile_id'),
       supabase.from('30.1_stock_balances').select('component_id, qty_on_hand, avg_cost_idr'),
       supabase.from('20.0_customers').select('customer_id, tier'),
+      // Newest first; capped because this only feeds a per-row popover, and the
+      // table grows one row per price change forever.
+      supabase.from('21.3_item_price_history')
+        .select('history_id, component_id, tier_id, old_price_idr, new_price_idr, cost_idr, target_min_pct, target_max_pct, changed_at, changed_by_email')
+        .order('changed_at', { ascending: false }).limit(1000),
     ]);
     if (tierRes.error) return () => { setSchemaMissing(true); setLoading(false); };
     const bm = new Map<string, Bal>();
@@ -172,7 +185,14 @@ export default function PricingPage() {
       const t = (c.tier ?? '').trim();
       if (t) cc.set(t, (cc.get(t) ?? 0) + 1);
     }
+    // Index the log by item once, so a row's popover is a map lookup.
+    const lm = new Map<string, PriceLog[]>();
+    for (const l of (logRes.data as PriceLog[]) ?? []) {
+      const list = lm.get(l.component_id);
+      if (list) list.push(l); else lm.set(l.component_id, [l]);
+    }
     return () => {
+      setPriceLog(lm);
       setTiers((tierRes.data as Tier[]) ?? []);
       setOverrides((ovRes.data as Override[]) ?? []);
       setComps(allComps);
@@ -515,7 +535,7 @@ export default function PricingPage() {
                 stockOf={stockOf}
                 profileById={profileById} ovByKey={ovByKey} saving={savingRows} onSave={saveEdits}
                 onAssignProfile={assignItemProfile} canManage={canManage}
-                roundStep={priceRoundingStep} />
+                roundStep={priceRoundingStep} priceLog={priceLog} />
             ) : tab === 'tiers' ? (
               <TiersTab tiers={orderedTiers} custTierCounts={custTierCounts} overridesByTier={overridesByTier}
                 violationsByTier={violationsByTier} saving={savingTier}
@@ -1138,7 +1158,7 @@ function SortTh({ col, label, sortCol, sortDir, onSort, align = 'left', classNam
  * pinned cell and the tier goes back to the chain.
  */
 function SetPricingTab({
-  comps, tiers, chainFor, costOf, stockOf, profileById, ovByKey, saving, onSave, onAssignProfile, canManage, roundStep,
+  comps, tiers, chainFor, costOf, stockOf, profileById, ovByKey, saving, onSave, onAssignProfile, canManage, roundStep, priceLog,
 }: {
   comps: Comp[];
   tiers: Tier[];
@@ -1154,6 +1174,8 @@ function SetPricingTab({
   canManage: boolean;
   /** Settings › Pricing rounding step — the suggestion lands on a multiple. */
   roundStep: number;
+  /** Logged price changes per component, newest first (21.3). */
+  priceLog: Map<string, PriceLog[]>;
 }) {
   const [search, setSearch] = useState('');
   const [wanted, setWanted] = useState<Set<PriceIssue>>(new Set());
@@ -1169,6 +1191,8 @@ function SetPricingTab({
   // Staged cells: `${component_id}:${tier_id | 'net'}` → what is in the box.
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [page, setPage] = useState(200);
+  /** Which row has its price log open. One at a time — this is a reference. */
+  const [openLog, setOpenLog] = useState<string | null>(null);
 
   const netTierId = tiers[0]?.tier_id ?? null;
   const keyOf = (cid: string, tid: string) => `${cid}:${tid === netTierId ? 'net' : tid}`;
@@ -1203,6 +1227,7 @@ function SetPricingTab({
         if (sortCol === 'cost') return r.cost;
         if (sortCol === 'qty') return r.qty;
         if (sortCol === 'gp') return r.gp;
+        if (sortCol === 'lastset') return priceLog.get(r.c.component_id)?.[0]?.changed_at ?? null;
         // Unclassified has no label, so it sorts as empty and sinks — which is
         // also where it belongs in a list you are working down. Keyed 'profile',
         // not 'category': in ICAPROC "category" is the PRODUCT category.
@@ -1214,7 +1239,7 @@ function SetPricingTab({
       // Ties fall back to the name, so the order never shuffles between renders.
       return c !== 0 ? c : compareCells(descOf(x.c), descOf(y.c), 'asc');
     });
-  }, [comps, tiers, chainFor, costOf, stockOf, profileById, search, wanted, scope, profileFilter, catFilter, sortCol, sortDir]);
+  }, [comps, tiers, chainFor, costOf, stockOf, profileById, search, wanted, scope, profileFilter, catFilter, sortCol, sortDir, priceLog]);
 
   // Counts sit on the chips, so the size of each problem is visible before
   // anyone clicks — that is what makes this a worklist rather than a filter.
@@ -1367,6 +1392,7 @@ function SetPricingTab({
               ))}
               <SortTh sortCol={sortCol} sortDir={sortDir} onSort={onSort} col="profile" label="Margin profile · target" className="whitespace-nowrap" />
               <SortTh sortCol={sortCol} sortDir={sortDir} onSort={onSort} col="gp" label="GP" align="right" />
+              <SortTh sortCol={sortCol} sortDir={sortDir} onSort={onSort} col="lastset" label="Last set" align="right" className="whitespace-nowrap" />
               <th className="px-3 py-2" />
             </tr>
           </thead>
@@ -1391,7 +1417,8 @@ function SetPricingTab({
                 : gpNow < Number(r.profile.margin_target_min) ? 'below'
                 : gpNow > Number(r.profile.margin_target_max) ? 'above' : 'within';
               return (
-                <tr key={cid} className="border-t border-slate-800/70 hover:bg-slate-800/30">
+                <Fragment key={cid}>
+                <tr className="border-t border-slate-800/70 hover:bg-slate-800/30">
                   <td className="px-3 py-1.5">
                     <p className="text-slate-200 leading-tight">{descOf(r.c)}</p>
                     <p className="text-[11px] text-slate-500 font-mono">{r.c.supplier_model}</p>
@@ -1475,6 +1502,21 @@ function SetPricingTab({
                       </>
                     )}
                   </td>
+                  <td className="px-3 py-1.5 text-right whitespace-nowrap">
+                    {(() => {
+                      const log = priceLog.get(cid) ?? [];
+                      if (log.length === 0) return <span className="text-slate-600 text-[11px]">never</span>;
+                      const open = openLog === cid;
+                      return (
+                        <button type="button" onClick={() => setOpenLog(open ? null : cid)}
+                          title={`${log.length} price change${log.length !== 1 ? 's' : ''} on record`}
+                          className={`text-[11px] tabular-nums transition-colors ${open ? 'text-sky-300' : 'text-slate-400 hover:text-slate-200'}`}>
+                          {fmtDay(log[0].changed_at)}
+                          <span className="ml-1 text-[9px] opacity-70">{open ? '▲' : '▼'}</span>
+                        </button>
+                      );
+                    })()}
+                  </td>
                   <td className="px-2 py-1.5 text-right whitespace-nowrap">
                     {dirty ? (
                       <button type="button" disabled={saving} onClick={() => commit([cid])}
@@ -1484,6 +1526,51 @@ function SetPricingTab({
                     ) : null}
                   </td>
                 </tr>
+                {openLog === cid && (
+                  <tr className="border-t border-slate-800/70 bg-slate-900/50">
+                    <td colSpan={6 + tiers.length} className="px-3 py-2.5">
+                      <p className="text-[10px] uppercase tracking-wide text-slate-500 mb-1.5">Price history</p>
+                      <div className="space-y-1">
+                        {(priceLog.get(cid) ?? []).map((l) => {
+                          // GP as it stood: the cost and band SNAPSHOTTED at the
+                          // change, never today's — landed cost moves and the
+                          // bands are editable, so recomputing would answer a
+                          // different question. See migrations/item_price_history.sql
+                          const gp = l.new_price_idr && l.cost_idr
+                            ? ((l.new_price_idr - l.cost_idr) / l.new_price_idr) * 100 : null;
+                          const inBand = gp == null || l.target_min_pct == null ? null
+                            : gp >= Number(l.target_min_pct) && gp <= Number(l.target_max_pct);
+                          const tier = l.tier_id ? tiers.find((t) => t.tier_id === l.tier_id) : null;
+                          return (
+                            <div key={l.history_id} className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5 text-[11.5px]">
+                              <span className="text-slate-500 tabular-nums w-[92px] flex-shrink-0">{fmtDay(l.changed_at)}</span>
+                              <span className="text-slate-600 w-[52px] flex-shrink-0">{tier ? tier.name : 'Net'}</span>
+                              <span className="text-slate-500 tabular-nums">
+                                {l.old_price_idr != null ? fmtInt(l.old_price_idr) : 'unpriced'}
+                              </span>
+                              <span className="text-slate-600">→</span>
+                              <span className="text-slate-200 tabular-nums font-medium">
+                                {l.new_price_idr != null ? fmtInt(l.new_price_idr) : 'cleared'}
+                              </span>
+                              {gp != null && (
+                                <span className={inBand === true ? 'text-slate-300' : inBand === false ? 'text-amber-400' : 'text-slate-500'}>
+                                  {gp.toFixed(1)}%
+                                  {l.target_min_pct != null && (
+                                    <span className="text-slate-600 ml-1">
+                                      {inBand ? 'in' : 'out of'} {Number(l.target_min_pct)}–{Number(l.target_max_pct)}%
+                                    </span>
+                                  )}
+                                </span>
+                              )}
+                              {l.changed_by_email && <span className="text-slate-600 ml-auto">{l.changed_by_email}</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               );
             })}
           </tbody>
