@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-31T07:00:00Z',
+    title: 'Item Editor and Products now read like Selling Prices',
+    details: [
+      'The description and the model are one column, stacked \u2014 the description on top in white, because that is what you recognise, and the supplier\u2019s SKU beneath it in small mono, because that is the lookup key. Two columns for one identity made the eye jump sideways to answer the first question anyone asks of a row.',
+      'In the Item Editor both halves are still separately editable and separately sortable: the heading sorts by description, and the small "sku" beside it sorts by model. Hiding either one in the column picker still works.',
+      'The search box no longer spans the whole width. It is capped, and the category, brand and supplier dropdowns sit on the row beside it instead of below \u2014 the same shape as Selling Prices. On a phone they still wrap underneath.',
+      'The quick-filter toggles keep their own row.',
+    ],
+  },
+  {
     at: '2026-08-29T18:15:00Z',
     title: 'Undo on Selling Prices, a Price History tab, and typed prices round like the rest',
     details: [

@@ -2213,7 +2213,11 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
 
   // Total visible column count for colSpan on expanded spec rows
   const sellPriceOn = visibleCols.sellPrice;
-  const visibleColCount = 1 + (Object.keys(visibleCols) as ColKey[]).filter((k) => visibleCols[k]).length + 1;
+  // model + description render as ONE cell now, so two visible keys spend one
+  // column. Without this the expanded spec row's colSpan overshoots by one and
+  // the table grows a phantom column under it.
+  const identityMerged = visibleCols.model && visibleCols.description ? 1 : 0;
+  const visibleColCount = 1 + (Object.keys(visibleCols) as ColKey[]).filter((k) => visibleCols[k]).length + 1 - identityMerged;
 
   const fmtDate = (ts?: string) => {
     if (!ts) return '—';
@@ -2593,9 +2597,14 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
       {/* Toolbar */}
       <div className="p-4 md:p-5 border-b border-slate-800/60 space-y-2">
         <div className="flex flex-col gap-2">
-          {/* Search — full-width on all screen sizes */}
-          <div className="flex gap-2">
-            <div className="relative flex-1">
+          {/* Search + the dropdown filters, ONE row (owner, 2026-08-31, taking
+              the Selling Prices toolbar as the house pattern). The search used
+              to span the full width on its own line, which made a 993-row grid
+              open with a search box the size of a banner and pushed every
+              filter down a row. Capped at 20rem: nobody types a model number
+              longer than that, and the space buys the filters a place beside it. */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative w-full sm:w-80 flex-shrink-0">
               <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
@@ -2628,11 +2637,9 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
               </svg>
               Replace
             </button>
-          </div>
-          {/* Filter controls — the dropdown selects keep one scrollable row,
-              but the quick-filter toggles WRAP: on a phone they stack into
-              rows you can see at once instead of hiding off to the right. */}
-          <div className="flex gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+            {/* The selects sit on the search's row from `sm` up; below that they
+                wrap under it, which is the only sane thing on a phone. */}
+            <div className="flex flex-wrap items-center gap-2 min-w-0">
             {/* Brand filter */}
             <FilterCombobox options={uniqueBrands} value={filterBrand} onChange={setFilterBrand} placeholder="All Brands" minWidth={140} className="min-w-[140px] flex-shrink-0" />
             {/* Vendor / supplier filter — items quoted or ordered from a vendor */}
@@ -2660,7 +2667,11 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
             {uniquePONumbers.length > 0 && (
               <FilterCombobox options={uniquePONumbers} value={filterPO} onChange={setFilterPO} placeholder="All POs" minWidth={150} className="min-w-[150px] flex-shrink-0" />
             )}
+            </div>
           </div>
+          {/* The quick-filter toggles keep their own row and WRAP: on a phone
+              they stack into rows you can see at once rather than hiding off
+              to the right. */}
           <div className="flex flex-wrap gap-1.5 md:gap-2">
             {/* Quick-filter toggles */}
             <button
@@ -3175,8 +3186,29 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                     title={allFilteredSelected ? 'Deselect all' : 'Select all visible'}
                   />
                 </th>
-                {visibleCols.model && <SortTh col="supplier_model" label="Model / SKU" />}
-                {visibleCols.description && <SortTh col="internal_description" label="Description" />}
+                {/* One header for the merged identity cell. Both sorts survive:
+                    the label sorts by description (what the cell leads with),
+                    and "sku" beside it sorts by model — the two questions people
+                    actually ask of this column, without a second column. */}
+                {(visibleCols.model || visibleCols.description) && (
+                  <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-2">
+                      {visibleCols.description && (
+                        <button type="button" onClick={() => toggleSort('internal_description')}
+                          className={`uppercase tracking-wider transition-colors ${sortCol === 'internal_description' ? 'text-slate-100' : 'hover:text-slate-200'}`}>
+                          Item{sortCol === 'internal_description' && <span className="ml-1 text-[9px]">{sortDir === 'desc' ? '▼' : '▲'}</span>}
+                        </button>
+                      )}
+                      {visibleCols.model && (
+                        <button type="button" onClick={() => toggleSort('supplier_model')}
+                          title="Sort by the supplier's model / SKU"
+                          className={`text-[9px] font-mono normal-case tracking-normal transition-colors ${sortCol === 'supplier_model' ? 'text-slate-100' : 'text-slate-600 hover:text-slate-300'}`}>
+                          sku{sortCol === 'supplier_model' && <span className="ml-0.5">{sortDir === 'desc' ? '▼' : '▲'}</span>}
+                        </button>
+                      )}
+                    </span>
+                  </th>
+                )}
                 {visibleCols.brand && <SortTh col="brand" label="Brand" className="hidden md:table-cell min-w-[160px]" />}
                 {visibleCols.category && <SortTh col="category" label="Category" className="hidden md:table-cell" />}
                 {visibleCols.marginTier && <th className="hidden md:table-cell px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">Margin Tier</th>}
@@ -3244,84 +3276,104 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                         className="w-3.5 h-3.5 rounded border-white/20 bg-white/5 cursor-pointer accent-sky-400"
                       />
                     </td>
-                    {/* Model / SKU */}
-                    {visibleCols.model && <td className="px-3 py-1.5 align-middle">
-                      {isEditing ? (
-                        <div>
-                          <input
-                            type="text"
-                            autoFocus
-                            data-rid={c.component_id}
-                            data-fld="supplier_model"
-                            value={(getVal(c, 'supplier_model') as string) ?? ''}
-                            onChange={(e) => setField(c, 'supplier_model', e.target.value)}
-                            onKeyDown={(e) => handleCellKeyDown(e, c.component_id, 'supplier_model')}
-                            className={`w-full px-2 py-1 rounded-lg text-xs text-white focus:outline-none focus:ring-2 transition-all ${
-                              isDirtyField(c, 'supplier_model')
-                                ? 'bg-amber-500/10 border border-amber-500/50 focus:ring-amber-500/30'
-                                : 'bg-slate-950 border border-slate-700 focus:ring-sky-500/20 focus:border-sky-500'
-                            }`}
-                          />
-                          {isDirtyField(c, 'supplier_model') && <DirtyBadge original={c.supplier_model} />}
-                        </div>
-                      ) : isDirtyField(c, 'supplier_model') ? (
-                        <div>
-                          <span className="text-xs text-emerald-300 font-medium">{(getVal(c, 'supplier_model') as string) || '—'}</span>
-                          <DirtyBadge original={c.supplier_model} />
-                        </div>
-                      ) : (
-                        <span className="flex items-center text-xs text-white font-medium">
-                          <CopyBtn text={c.supplier_model} />
-                          <Highlight text={c.supplier_model} query={search} />
-                        </span>
-                      )}
-                    </td>}
+                    {/* Item — description over model, in one cell.
+                        Owner's call (2026-08-31), taken from the Selling Prices
+                        grid: the description is what a person recognises, so it
+                        leads in white; the supplier's SKU is the lookup key, so
+                        it sits beneath in mono and dim. Two columns for one
+                        identity made the eye jump sideways to answer the first
+                        question anyone asks of a row — which item is this?
 
-                    {/* Internal Description */}
-                    {visibleCols.description && <td className="px-3 py-1.5 align-middle">
-                      {isEditing ? (
-                        <div>
-                          {/* Textarea, not a single-line input: descriptions run
-                              long and must be readable in full while editing.
-                              Auto-grows to fit its content; Enter still commits
-                              / moves on (Shift+Enter inserts a line break). */}
-                          <textarea
-                            rows={1}
-                            data-rid={c.component_id}
-                            data-fld="internal_description"
-                            value={(getVal(c, 'internal_description') as string) ?? ''}
-                            ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; } }}
-                            onChange={(e) => {
-                              e.currentTarget.style.height = 'auto';
-                              e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
-                              setField(c, 'internal_description', e.target.value);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && e.shiftKey) return; // allow a manual line break
-                              handleCellKeyDown(e as unknown as React.KeyboardEvent<HTMLInputElement>, c.component_id, 'internal_description');
-                            }}
-                            className={`w-full px-2 py-1 rounded-lg text-xs text-white focus:outline-none focus:ring-2 transition-all resize-y overflow-hidden leading-snug break-words min-w-[16rem] ${
-                              isDirtyField(c, 'internal_description')
-                                ? 'bg-amber-500/10 border border-amber-500/50 focus:ring-amber-500/30'
-                                : 'bg-slate-950 border border-slate-700 focus:ring-sky-500/20 focus:border-sky-500'
-                            }`}
-                          />
-                          {isDirtyField(c, 'internal_description') && (
-                            <DirtyBadge original={c.internal_description} />
-                          )}
-                        </div>
-                      ) : isDirtyField(c, 'internal_description') ? (
-                        <div>
-                          <span className="text-xs text-emerald-300">{(getVal(c, 'internal_description') as string) || '—'}</span>
-                          <DirtyBadge original={c.internal_description} />
-                        </div>
-                      ) : (
-                        <span className="flex items-center text-xs text-slate-300">
-                          <CopyBtn text={c.internal_description} />
-                          <Highlight text={c.internal_description} query={search} />
-                        </span>
-                      )}
-                    </td>}
+                        Only the PRESENTATION merged. Both fields stay
+                        separately editable, separately dirty-tracked and
+                        separately sortable, and `visibleCols` keeps both keys —
+                        the cell renders whichever halves are switched on, so
+                        hiding one still does what it always did. */}
+                    {(visibleCols.model || visibleCols.description) && (
+                      <td className="px-3 py-1.5 align-middle">
+                        {isEditing ? (
+                          <div className="space-y-1 min-w-[16rem]">
+                            {visibleCols.description && (
+                              <div>
+                                {/* Textarea, not an input: descriptions run long
+                                    and must be readable in full while editing.
+                                    Auto-grows; Enter commits, Shift+Enter breaks. */}
+                                <textarea
+                                  rows={1}
+                                  autoFocus
+                                  data-rid={c.component_id}
+                                  data-fld="internal_description"
+                                  value={(getVal(c, 'internal_description') as string) ?? ''}
+                                  ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; } }}
+                                  onChange={(e) => {
+                                    e.currentTarget.style.height = 'auto';
+                                    e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
+                                    setField(c, 'internal_description', e.target.value);
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && e.shiftKey) return;
+                                    handleCellKeyDown(e as unknown as React.KeyboardEvent<HTMLInputElement>, c.component_id, 'internal_description');
+                                  }}
+                                  className={`w-full px-2 py-1 rounded-lg text-xs text-white focus:outline-none focus:ring-2 transition-all resize-y overflow-hidden leading-snug break-words ${
+                                    isDirtyField(c, 'internal_description')
+                                      ? 'bg-amber-500/10 border border-amber-500/50 focus:ring-amber-500/30'
+                                      : 'bg-slate-950 border border-slate-700 focus:ring-sky-500/20 focus:border-sky-500'
+                                  }`}
+                                />
+                                {isDirtyField(c, 'internal_description') && <DirtyBadge original={c.internal_description} />}
+                              </div>
+                            )}
+                            {visibleCols.model && (
+                              <div>
+                                <input
+                                  type="text"
+                                  data-rid={c.component_id}
+                                  data-fld="supplier_model"
+                                  value={(getVal(c, 'supplier_model') as string) ?? ''}
+                                  onChange={(e) => setField(c, 'supplier_model', e.target.value)}
+                                  onKeyDown={(e) => handleCellKeyDown(e, c.component_id, 'supplier_model')}
+                                  className={`w-full px-2 py-1 rounded-lg text-[11px] font-mono text-white focus:outline-none focus:ring-2 transition-all ${
+                                    isDirtyField(c, 'supplier_model')
+                                      ? 'bg-amber-500/10 border border-amber-500/50 focus:ring-amber-500/30'
+                                      : 'bg-slate-950 border border-slate-700 focus:ring-sky-500/20 focus:border-sky-500'
+                                  }`}
+                                />
+                                {isDirtyField(c, 'supplier_model') && <DirtyBadge original={c.supplier_model} />}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="leading-tight">
+                            {visibleCols.description && (
+                              isDirtyField(c, 'internal_description') ? (
+                                <div>
+                                  <span className="text-xs text-emerald-300">{(getVal(c, 'internal_description') as string) || '—'}</span>
+                                  <DirtyBadge original={c.internal_description} />
+                                </div>
+                              ) : (
+                                <span className="flex items-center text-xs text-white font-medium">
+                                  <CopyBtn text={c.internal_description} />
+                                  <Highlight text={c.internal_description} query={search} />
+                                </span>
+                              )
+                            )}
+                            {visibleCols.model && (
+                              isDirtyField(c, 'supplier_model') ? (
+                                <div className="mt-0.5">
+                                  <span className="text-[11px] font-mono text-emerald-300">{(getVal(c, 'supplier_model') as string) || '—'}</span>
+                                  <DirtyBadge original={c.supplier_model} />
+                                </div>
+                              ) : (
+                                <span className="flex items-center mt-0.5 text-[11px] font-mono text-slate-500">
+                                  <CopyBtn text={c.supplier_model} />
+                                  <Highlight text={c.supplier_model} query={search} />
+                                </span>
+                              )
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    )}
 
                     {/* Brand */}
                     {visibleCols.brand && (

@@ -672,7 +672,11 @@ function ProductsInner() {
             search field takes it to eight controls and 1,251px — one line
             from 1366 up. */}
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[200px]">
+          {/* Capped, not flex-1 (owner, 2026-08-31, house pattern from Selling
+              Prices): a search that grows with the monitor becomes a banner on
+              a wide screen while the filters bunch at the far right. Nobody
+              types a model longer than 20rem. */}
+          <div className="relative w-full sm:w-80 flex-shrink-0">
             <svg className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={canViewBrand ? 'Search model, description, brand, category…' : 'Search description, category…'}
               className="w-full pl-10 pr-24 h-11 sm:h-9 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors" />
@@ -815,13 +819,23 @@ function ProductsInner() {
                   <tr onClick={() => setExpanded((e) => (e === r.c.component_id ? null : r.c.component_id))}
                     className={`cursor-pointer transition-colors ${expanded === r.c.component_id ? 'bg-raised' : 'bg-chrome hover:bg-rail'}`}>
                     <td className="px-4 py-2 sticky left-0 z-10 bg-inherit">
-                      <span className="flex items-center gap-1.5">
+                      <span className="flex items-start gap-1.5">
                         {/* Grow the name with the viewport — a wide monitor
                             shows the whole description; it only truncates when
                             the row would otherwise overflow. Floor keeps mid
                             screens sane, ceiling stops an absurd column on 4K. */}
-                        <span className={`text-sm text-slate-100 font-medium truncate ${descW == null ? 'max-w-[clamp(20rem,42vw,64rem)]' : ''}`}
-                          style={descW != null ? { maxWidth: descW } : undefined}>{descOf(r.c)}</span>
+                        <span className="min-w-0">
+                          <span className={`block text-sm text-slate-100 font-medium truncate ${descW == null ? 'max-w-[clamp(20rem,42vw,64rem)]' : ''}`}
+                            style={descW != null ? { maxWidth: descW } : undefined}>{descOf(r.c)}</span>
+                          {/* The model under the name, dim and mono — the house
+                              identity pattern. Suppressed when the description
+                              IS the model (descOf falls back to it), so the row
+                              never says the same thing twice. */}
+                          {r.c.supplier_model && descOf(r.c) !== r.c.supplier_model && (
+                            <span className={`block text-[11px] font-mono text-slate-500 truncate ${descW == null ? 'max-w-[clamp(20rem,42vw,64rem)]' : ''}`}
+                              style={descW != null ? { maxWidth: descW } : undefined}>{r.c.supplier_model}</span>
+                          )}
+                        </span>
                         <ArrivalTag days={newArrivalDays} a={arrivals[r.c.component_id]} />
                         <SupersededTag succId={successors.get(r.c.component_id)} comps={comps} canHub={canHub} />
                         {r.activity > 0 && <span className="px-1 py-0.5 rounded bg-slate-800 text-[9px] text-slate-500 tabular-nums flex-shrink-0" title={`${r.activity} POs / quotes / orders`}>{r.activity}</span>}
