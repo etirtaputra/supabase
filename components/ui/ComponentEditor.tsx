@@ -2704,10 +2704,21 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                 // Matches FilterCombobox exactly (py-2.5 px-3 text-sm) — this is a raw
                 // <select> among comboboxes, and it had been left at py-1.5 px-2
                 // text-xs, so it sat visibly shorter and tighter than its neighbours.
-                className="py-2.5 px-3 pr-7 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-sky-500 min-w-[150px] flex-shrink-0">
-                <option value="">All Margin Tiers</option>
-                {marginProfiles.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-                <option value="none">Unclassified</option>
+                // h-[42px] because a <select> and an <input> do NOT compute the same
+                // box from the same padding: measured side by side, py-2.5 gives the
+                // combobox 42px and this 40px. Pinned so the row sits flat.
+                className={`h-[42px] py-2.5 px-3 pr-7 bg-slate-950 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-sky-500 min-w-[150px] flex-shrink-0 ${
+                  // Its neighbours are FilterCombobox inputs, where "All Brands"
+                  // is a PLACEHOLDER and therefore slate-500. Here it is a real
+                  // <option>, so it inherited text-white and read as a chosen
+                  // value next to four unchosen ones. Grey while nothing is
+                  // picked, white once something is — the same signal an input
+                  // gives for free.
+                  filterTier ? 'text-white' : 'text-slate-500'
+                }`}>
+                <option value="" className="bg-canvas text-slate-400">All Margin Tiers</option>
+                {marginProfiles.map((p) => <option key={p.id} value={p.id} className="bg-canvas text-slate-200">{p.label}</option>)}
+                <option value="none" className="bg-canvas text-slate-200">Unclassified</option>
               </select>
             )}
             {/* PI filter */}
