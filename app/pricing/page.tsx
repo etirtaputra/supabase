@@ -76,7 +76,7 @@ const minPriceFor = (cost: number, floorPct: number): number | null => {
   return roundUpToStep(cost / (1 - floorPct / 100));
 };
 
-type Tab = 'set' | 'tiers' | 'audit' | 'overrides' | 'profiles';
+type Tab = 'set' | 'tiers' | 'audit' | 'overrides' | 'profiles' | 'history';
 
 interface Violation {
   comp: Comp; tier: Tier; price: number; cost: number; gp: number;
@@ -101,6 +101,8 @@ export default function PricingPage() {
   const [bals, setBals] = useState<Map<string, Bal>>(new Map());
   const [custTierCounts, setCustTierCounts] = useState<Map<string, number>>(new Map());
   const [priceLog, setPriceLog] = useState<Map<string, PriceLog[]>>(new Map());
+  const [allLog, setAllLog] = useState<PriceLog[]>([]);
+  const logCount = allLog.length;
   const [loading, setLoading] = useState(true);
   const [schemaMissing, setSchemaMissing] = useState(false);
   const [tab, setTab] = useState<Tab>('set');
@@ -192,6 +194,7 @@ export default function PricingPage() {
       if (list) list.push(l); else lm.set(l.component_id, [l]);
     }
     return () => {
+      setAllLog((logRes.data as PriceLog[]) ?? []);
       setPriceLog(lm);
       setTiers((tierRes.data as Tier[]) ?? []);
       setOverrides((ovRes.data as Override[]) ?? []);
@@ -520,7 +523,8 @@ export default function PricingPage() {
           <>
             {/* Tab bar — text-only underline, sell-side emerald */}
             <div className="flex items-center gap-5 border-b border-slate-800/80">
-              {([['set', 'Set Pricing'], ['tiers', 'Tiers'], ['audit', `Floor Audit${violations.length ? ` (${violations.length})` : ''}`], ['overrides', `Overrides${overrides.length ? ` (${overrides.length})` : ''}`], ['profiles', `Margin Profiles${marginProfiles.length ? ` (${marginProfiles.length})` : ''}`]] as [Tab, string][]).map(([k, label]) => (
+              {([['set', 'Set Pricing'], ['tiers', 'Tiers'], ['audit', `Floor Audit${violations.length ? ` (${violations.length})` : ''}`], ['overrides', `Overrides${overrides.length ? ` (${overrides.length})` : ''}`], ['profiles', `Margin Profiles${marginProfiles.length ? ` (${marginProfiles.length})` : ''}`],
+                ['history', `Price History${logCount ? ` (${logCount})` : ''}`]] as [Tab, string][]).map(([k, label]) => (
                 <button key={k} onClick={() => setTab(k)}
                   className={`pb-2.5 -mb-px text-[13px] transition-colors border-b-2 ${tab === k ? 'border-emerald-400 text-white font-bold' : 'border-transparent text-slate-500 hover:text-slate-300 font-medium'}`}>
                   {label}
@@ -545,6 +549,8 @@ export default function PricingPage() {
                 itemsNoCost={itemsNoCost} tiers={orderedTiers.filter((t) => t.is_active)}
                 search={auditSearch} setSearch={setAuditSearch} tierFilter={auditTier} setTierFilter={setAuditTier}
                 bulkBusy={bulkBusy} onRaise={raiseToFloor} onClear={clearOverride} onBulkRaise={bulkRaise} />
+            ) : tab === 'history' ? (
+              <PriceHistoryTab log={allLog} compById={compById} tiers={tiers} />
             ) : tab === 'profiles' ? (
               <MarginProfilesTab profiles={marginProfiles} counts={profileCounts} onChanged={refreshMarginProfiles} notify={setToast} />
             ) : (
@@ -1339,10 +1345,17 @@ function SetPricingTab({
           {rows.length === comps.length ? `${fmtInt(comps.length)} items` : `${fmtInt(rows.length)} of ${fmtInt(comps.length)}`}
         </span>
         {dirtyCids.length > 0 && (
-          <button type="button" disabled={saving} onClick={() => commit(dirtyCids)}
-            className="ml-auto px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[12px] font-bold disabled:opacity-50 whitespace-nowrap">
-            {saving ? 'Saving…' : `Save all (${dirtyCids.length})`}
-          </button>
+          <span className="ml-auto flex items-center gap-2">
+            <button type="button" disabled={saving} onClick={() => setDraft({})}
+              title="Put every box back to its saved value"
+              className="px-2.5 py-1.5 rounded-lg border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-600 text-[12px] font-semibold disabled:opacity-50 whitespace-nowrap">
+              Undo all
+            </button>
+            <button type="button" disabled={saving} onClick={() => commit(dirtyCids)}
+              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[12px] font-bold disabled:opacity-50 whitespace-nowrap">
+              {saving ? 'Saving…' : `Save all (${dirtyCids.length})`}
+            </button>
+          </span>
         )}
       </div>
 
@@ -1440,6 +1453,19 @@ function SetPricingTab({
                       <td key={t.tier_id} className="px-2 py-1.5 text-right">
                         <input value={shown} inputMode="numeric" disabled={!canManage} readOnly={!canManage}
                           onChange={(e) => setDraft((d) => ({ ...d, [k]: e.target.value }))}
+                          // Every tier above the net is rounded by the chain
+                          // (lib/tierPricing). A TYPED price is not, so a net of
+                          // 8.000.123 would sit un-rounded under a column of
+                          // clean numbers. Round on blur rather than on save, so
+                          // the number is seen before it is committed.
+                          onBlur={() => setDraft((d) => {
+                            const raw = d[k];
+                            if (raw === undefined || raw === '') return d;
+                            const n = num(raw);
+                            if (n == null || n <= 0) return d;
+                            const rounded = roundUpToStep(n, roundStep);
+                            return rounded === n ? d : { ...d, [k]: String(rounded) };
+                          })}
                           placeholder={computed != null ? fmtInt(computed) : '—'}
                           title={i === 0 ? "The item's own net price" : pinned ? 'Pinned — clear to go back to the markup chain' : 'From the markup chain — type to pin it'}
                           className={`w-24 text-right tabular-nums bg-transparent rounded px-1.5 py-1 border focus:outline-none focus:ring-1 focus:ring-emerald-500/40 ${
@@ -1447,6 +1473,22 @@ function SetPricingTab({
                             : pinned ? 'border-violet-500/40 text-violet-200'
                             : stored != null ? 'border-slate-700 text-slate-200'
                             : 'border-transparent text-slate-500 hover:border-slate-700 placeholder-slate-600'}`} />
+                        {/* A pinned tier does not follow the net — that is what
+                            pinning means. But once the net moves, the pin is
+                            usually a leftover rather than a decision, so show
+                            what the chain would say and let one click take it. */}
+                        {i > 0 && canManage && pinned && draft[netKey] !== undefined && computed != null
+                          && Number(stored) !== computed && (
+                          <p className="mt-1 flex items-center justify-end gap-1 text-[10px] whitespace-nowrap">
+                            <span className="text-amber-400/70">pinned · chain says</span>
+                            <button type="button"
+                              title="Clear the pin so this tier follows the markup chain again"
+                              onClick={() => setDraft((d) => ({ ...d, [k]: '' }))}
+                              className="tabular-nums text-amber-300/80 hover:text-amber-200 underline underline-offset-2 decoration-dotted">
+                              {fmtInt(computed)}
+                            </button>
+                          </p>
+                        )}
                         {/* Out of band, and we know the cost: say what would put
                             it back, at both ends, and let one click take it.
                             Shown under the NET box because the net is the price
@@ -1518,11 +1560,32 @@ function SetPricingTab({
                     })()}
                   </td>
                   <td className="px-2 py-1.5 text-right whitespace-nowrap">
-                    {dirty ? (
-                      <button type="button" disabled={saving} onClick={() => commit([cid])}
-                        className="text-[11px] font-bold px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50">
-                        Save
+                    {!dirty && canManage && tiers.some((t, ti) => ti > 0 && r.chain.get(t.tier_id)?.overridden) ? (
+                      <button type="button" title="Clear the pinned tier prices so they follow the markup chain from the net"
+                        onClick={() => setDraft((d) => {
+                          const next = { ...d };
+                          tiers.forEach((t, ti) => { if (ti > 0 && r.chain.get(t.tier_id)?.overridden) next[keyOf(cid, t.tier_id)] = ''; });
+                          return next;
+                        })}
+                        className="text-[11px] px-2 py-1 rounded border border-slate-700 text-slate-500 hover:text-slate-300 hover:border-slate-600">
+                        Follow chain
                       </button>
+                    ) : dirty ? (
+                      <span className="inline-flex items-center gap-1">
+                        <button type="button" disabled={saving} title="Put this row back to its saved value"
+                          onClick={() => setDraft((d) => {
+                            const next = { ...d };
+                            for (const k of Object.keys(next)) if (k.startsWith(`${cid}:`)) delete next[k];
+                            return next;
+                          })}
+                          className="text-[11px] px-2 py-1 rounded border border-slate-700 text-slate-400 hover:text-slate-200 disabled:opacity-50">
+                          Undo
+                        </button>
+                        <button type="button" disabled={saving} onClick={() => commit([cid])}
+                          className="text-[11px] font-bold px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50">
+                          Save
+                        </button>
+                      </span>
                     ) : null}
                   </td>
                 </tr>
@@ -1563,6 +1626,16 @@ function SetPricingTab({
                                 </span>
                               )}
                               {l.changed_by_email && <span className="text-slate-600 ml-auto">{l.changed_by_email}</span>}
+                              {canManage && (
+                                <button type="button" disabled={saving}
+                                  title={l.old_price_idr != null
+                                    ? `Put it back to ${fmtInt(l.old_price_idr)}`
+                                    : 'Put it back to having no price'}
+                                  onClick={() => onSave([{ component_id: cid, tier_id: l.tier_id, value: l.old_price_idr }])}
+                                  className={`text-[10.5px] px-1.5 py-0.5 rounded border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-600 disabled:opacity-50 ${l.changed_by_email ? '' : 'ml-auto'}`}>
+                                  Undo
+                                </button>
+                              )}
                             </div>
                           );
                         })}
@@ -1582,6 +1655,127 @@ function SetPricingTab({
 
       {rows.length > page && (
         <button type="button" onClick={() => setPage((p) => p + 200)}
+          className="w-full py-2 text-[12px] text-slate-400 hover:text-slate-200 border border-slate-800 rounded-lg hover:bg-slate-800/40">
+          Show more ({fmtInt(rows.length - page)} left)
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ── Price History ─────────────────────────────────────────────────────────────
+/**
+ * Every logged price change, newest first — the answer to "what moved lately",
+ * which the per-item popover on Set Pricing cannot give.
+ *
+ * Read-only by construction: 21.3 is written by database triggers and carries
+ * no write policy, so nothing here could edit it even if it tried. The margin
+ * and the band shown are the ones SNAPSHOTTED at the change, never recomputed
+ * from today's landed cost — see migrations/item_price_history.sql.
+ */
+function PriceHistoryTab({ log, compById, tiers }: {
+  log: PriceLog[]; compById: Map<string, Comp>; tiers: Tier[];
+}) {
+  const [q, setQ] = useState('');
+  const [only, setOnly] = useState<'' | 'out'>('');
+  const [page, setPage] = useState(100);
+
+  const rows = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return log.map((l) => {
+      const c = compById.get(l.component_id);
+      const gp = l.new_price_idr && l.cost_idr
+        ? ((l.new_price_idr - l.cost_idr) / l.new_price_idr) * 100 : null;
+      const inBand = gp == null || l.target_min_pct == null ? null
+        : gp >= Number(l.target_min_pct) && gp <= Number(l.target_max_pct);
+      return { l, c, gp, inBand, tier: l.tier_id ? tiers.find((t) => t.tier_id === l.tier_id) ?? null : null };
+    }).filter((r) => {
+      if (only === 'out' && r.inBand !== false) return false;
+      if (!needle) return true;
+      return `${r.c ? descOf(r.c) : ''} ${r.c?.supplier_model ?? ''} ${r.l.changed_by_email ?? ''}`
+        .toLowerCase().includes(needle);
+    });
+  }, [log, compById, tiers, q, only]);
+
+  const outCount = useMemo(() => rows.filter((r) => r.inBand === false).length, [rows]);
+
+  if (log.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-slate-700 p-10 text-center">
+        <p className="text-sm text-slate-400">No price changes recorded yet.</p>
+        <p className="text-xs text-slate-500 mt-1.5 max-w-lg mx-auto">
+          Logging started on 29 Aug 2026. Every change from now on is recorded here —
+          from this screen, from Deal Lookup, from the Floor Audit, or through the API.
+          Changes made before that date cannot be recovered.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <input value={q} onChange={(e) => { setQ(e.target.value); setPage(100); }}
+          placeholder="Search item, model or who changed it…"
+          className="w-full sm:w-80 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-[13px] text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/40" />
+        <button type="button" onClick={() => { setOnly(only === 'out' ? '' : 'out'); setPage(100); }}
+          className={`px-2.5 py-1 rounded-lg text-[11.5px] font-semibold border transition-colors ${
+            only === 'out' ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                           : 'text-slate-400 border-slate-700 hover:border-slate-600 hover:text-slate-200'}`}>
+          Landed outside target <span className="tabular-nums opacity-70">{fmtInt(outCount)}</span>
+        </button>
+        <span className="text-xs text-slate-500 tabular-nums">{fmtInt(rows.length)} changes</span>
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-slate-800">
+        <table className="w-full text-[12.5px]">
+          <thead>
+            <tr className="bg-slate-800/60 text-[11px] uppercase tracking-wide text-slate-400">
+              <th className="text-left font-semibold px-3 py-2 whitespace-nowrap">When</th>
+              <th className="text-left font-semibold px-3 py-2">Item</th>
+              <th className="text-left font-semibold px-3 py-2">Tier</th>
+              <th className="text-right font-semibold px-3 py-2">Was</th>
+              <th className="text-right font-semibold px-3 py-2">Became</th>
+              <th className="text-right font-semibold px-3 py-2">GP then</th>
+              <th className="text-left font-semibold px-3 py-2">By</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.slice(0, page).map(({ l, c, gp, inBand, tier }) => (
+              <tr key={l.history_id} className="border-t border-slate-800/70 hover:bg-slate-800/30">
+                <td className="px-3 py-1.5 text-slate-400 tabular-nums whitespace-nowrap">{fmtDay(l.changed_at)}</td>
+                <td className="px-3 py-1.5">
+                  <p className="text-slate-200 leading-tight">{c ? descOf(c) : '(item deleted)'}</p>
+                  {c && <p className="text-[11px] text-slate-500 font-mono">{c.supplier_model}</p>}
+                </td>
+                <td className="px-3 py-1.5 text-slate-500">{tier ? tier.name : 'Net'}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums text-slate-500">
+                  {l.old_price_idr != null ? fmtInt(l.old_price_idr) : <span className="text-slate-600">unpriced</span>}
+                </td>
+                <td className="px-3 py-1.5 text-right tabular-nums text-slate-200">
+                  {l.new_price_idr != null ? fmtInt(l.new_price_idr) : <span className="text-slate-600">cleared</span>}
+                </td>
+                <td className="px-3 py-1.5 text-right tabular-nums whitespace-nowrap">
+                  {gp == null ? <span className="text-slate-600">—</span> : (
+                    <>
+                      <span className={inBand === false ? 'text-amber-400' : 'text-slate-300'}>{gp.toFixed(1)}%</span>
+                      {l.target_min_pct != null && (
+                        <p className="text-[10px] text-slate-600">
+                          {inBand ? 'in' : 'outside'} {Number(l.target_min_pct)}–{Number(l.target_max_pct)}%
+                        </p>
+                      )}
+                    </>
+                  )}
+                </td>
+                <td className="px-3 py-1.5 text-slate-500 text-[11.5px]">{l.changed_by_email ?? 'API'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {rows.length > page && (
+        <button type="button" onClick={() => setPage((p) => p + 100)}
           className="w-full py-2 text-[12px] text-slate-400 hover:text-slate-200 border border-slate-800 rounded-lg hover:bg-slate-800/40">
           Show more ({fmtInt(rows.length - page)} left)
         </button>

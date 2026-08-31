@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-08-29T18:15:00Z',
+    title: 'Undo on Selling Prices, a Price History tab, and typed prices round like the rest',
+    details: [
+      'Undo, in both senses. While editing: "Undo" on a row puts it back to its saved value, and "Undo all" beside Save all resets everything. After saving: every entry in an item\u2019s history has its own Undo that puts the price back to what it was \u2014 which is itself recorded as a change, because it is one.',
+      'A Price History tab shows every change across all items, newest first, with what it was, what it became, the GP at the time and whether that landed inside target. Filter to just the ones that landed outside, or search by item or by who changed it. The per-item view is still on Set Pricing under "Last set".',
+      'A price you type is now rounded to the house step when you leave the box. Tier 2 and Tier 3 were always rounded by the markup chain; the net you typed was not, so a price like 8.000.123 could sit un-rounded under a column of clean numbers.',
+      'A tier you have pinned does not follow the net \u2014 that is what pinning means \u2014 but it used to go stale in silence. Now, when you change the net, a pinned tier shows what the chain would say, and one click releases it. "Follow chain" on the row releases all of them at once.',
+    ],
+  },
+  {
     at: '2026-08-29T17:30:00Z',
     title: 'Pricing Tiers is now called Selling Prices',
     details: [
