@@ -2701,7 +2701,10 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
             {marginProfiles.length > 0 && (
               <select value={filterTier} onChange={(e) => setFilterTier(e.target.value)}
                 title="Filter by margin tier"
-                className="py-1.5 px-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-sky-500 min-w-[150px] flex-shrink-0">
+                // Matches FilterCombobox exactly (py-2.5 px-3 text-sm) — this is a raw
+                // <select> among comboboxes, and it had been left at py-1.5 px-2
+                // text-xs, so it sat visibly shorter and tighter than its neighbours.
+                className="py-2.5 px-3 pr-7 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-sky-500 min-w-[150px] flex-shrink-0">
                 <option value="">All Margin Tiers</option>
                 {marginProfiles.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
                 <option value="none">Unclassified</option>
