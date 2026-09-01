@@ -201,6 +201,29 @@ holes above), so it is unaffected. Anything that needs the Auth Admin API
 (creating users, etc.) will start failing — that genuinely requires
 service-role and should not be in an agent's hands.
 
+**Reach audit (2026-09-01, whole `public` schema).** The anon key is only the
+doorway; the JWT carries the permission, and `owner` passes every write gate:
+10 buy-side tables are open to any authenticated user, 32 are role-gated with
+`owner` in the list, and the 5 that gate through a function
+(`can_edit_quote`, `can_view_epc`, `can_write_po_costs` — project quotes,
+`6.0_po_costs`, `payment_batches`) all grant `owner` unconditionally.
+
+What NO logged-in user can write, by design — these carry a SELECT policy and
+no write policy, so only their `SECURITY DEFINER` triggers fill them:
+`21.3_item_price_history`, `22.3_sales_activity_log`, `30.1_stock_balances`,
+plus `materialized_view_refresh_log` (zero policies) and the legacy spec tables
+(`batteries`, `pv_modules`, `hybrid_inverters`, `on_grid_inverters`,
+`solar_charge_controllers` — public read only). **Service-role bypasses RLS and
+therefore CAN rewrite all of those**, so moving the agent onto a JWT is what
+makes the audit trail tamper-proof, not merely attributable.
+
+Proven by rolled-back probe under mira's claims: new sales order OK, new deal
+(`5.0_purchases`) OK, forge `22.3_sales_activity_log` DENIED, forge
+`21.3_item_price_history` DENIED, edit `user_profiles` OK. That last one is the
+open question — `owner` can change roles and add logins; narrowing it needs a
+policy change nobody has authorised. There are no storage buckets, so nothing
+to gate there.
+
 This does NOT fix the numbering bug: `stamp_sales_quote()` stamps
 `order_number` only in its UPDATE branch, so a row INSERTED already at
 `ordered` gets no SO number regardless of who writes it. See below.
