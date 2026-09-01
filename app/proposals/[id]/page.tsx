@@ -154,16 +154,6 @@ function sellFromGm(cost: string, gm: string): string {
   return String(Math.round(c / (1 - g / 100)));
 }
 
-// New cost, same margin: recompute the sell from the GM% the row already
-// carried. Editing a COST moves the SELL and keeps GM% fixed — never the
-// other way around.
-function sellKeepingGm(oldCost: number | null, oldSell: number | null, newCost: number): string | null {
-  if (!oldCost || !oldSell || oldSell <= 0 || !(newCost > 0)) return null;
-  const gmFrac = 1 - oldCost / oldSell;
-  if (gmFrac >= 1) return null;
-  return String(Math.round(newCost / (1 - gmFrac)));
-}
-
 const LEAD_TIMES = ['Ready', '1 minggu', '2 minggu', '3 minggu', '1 bulan', '2 bulan', '3 bulan', 'Custom'];
 
 // Cost source presentation (TUC from POs / supplier price quote / last used in a project quote)
@@ -420,7 +410,6 @@ export default function QuoteEditorPage() {
   const [gmEdit, setGmEdit] = useState<{ itemId: string; value: string } | null>(null);
   // Cost/sell as they were when the cost cell got focus — the pre-edit GM%
   // that a cost edit must preserve (onChange overwrites cost_price live).
-  const costFocusRef = useRef<{ itemId: string; cost: number | null; sell: number | null } | null>(null);
 
   // ── Qty formula editing (Excel-like: focus shows formula, blur shows value) ─
   const [qtyEdit, setQtyEdit] = useState<{ itemId: string; value: string } | null>(null);
@@ -832,12 +821,16 @@ export default function QuoteEditorPage() {
   // ── Refresh costs: preview what changes first, then apply the selection ────
   // Instead of silently rewriting every cost, the Costs button opens a preview
   // listing each item whose stored cost differs from today's recommendation
-  // (old → new, delta per unit and per line, margin-kept new sell). The user
-  // unticks any item to leave it alone, then applies.
+  // (old → new, delta per unit and per line, and what it does to the row's
+  // GM%). The user unticks any item to leave it alone, then applies.
+  //
+  // Sell prices are NOT touched here. A cost movement changes what the deal
+  // earns, not what the customer was quoted; the margin column is where the
+  // user sees the consequence and decides whether to reprice.
   interface CostPreviewRow {
     itemId: string; description: string; qty: number;
     oldCost: number | null; newCost: number;
-    oldSell: number | null; newSell: string | null;
+    sell: number | null; oldGm: number | null; newGm: number | null;
   }
   const [costPreview, setCostPreview] = useState<{ rows: CostPreviewRow[]; selected: Set<string> } | null>(null);
 
@@ -852,15 +845,11 @@ export default function QuoteEditorPage() {
         const newCost = Math.round(cc.cost);
         const oldCost = num(it.cost_price);
         if (oldCost === newCost) continue;
-        const oldSell = num(it.sell_price);
-        let newSell: string | null = null;
-        if (oldCost && oldSell && oldSell > 0) {
-          const gmFrac = 1 - oldCost / oldSell;
-          if (gmFrac < 1) newSell = String(Math.round(newCost / (1 - gmFrac)));
-        }
+        const sell = num(it.sell_price);
+        const gm = (c: number | null) => (sell && sell > 0 && c != null ? ((sell - c) / sell) * 100 : null);
         rows.push({
           itemId: it.item_id, description: it.description, qty: num(it.quantity) ?? 0,
-          oldCost, newCost, oldSell, newSell,
+          oldCost, newCost, sell, oldGm: gm(oldCost), newGm: gm(newCost),
         });
       }
     }
@@ -882,7 +871,7 @@ export default function QuoteEditorPage() {
         items: s.items.map((it) => {
           const r = byId.get(it.item_id);
           if (!r) return it;
-          return { ...it, cost_price: String(r.newCost), sell_price: r.newSell ?? it.sell_price };
+          return { ...it, cost_price: String(r.newCost) };
         }),
       })));
       markDirty();
@@ -2683,29 +2672,23 @@ export default function QuoteEditorPage() {
                                   onChange={(e) => updateItem(sec.section_id, item.item_id, { cost_price: e.target.value })}
                                   onKeyDown={(e) => { if (e.key === 'Enter') { (e.target as HTMLInputElement).blur(); return; } navCell(e, item.item_id, 'cost'); }}
                                   data-nav-row={item.item_id} data-nav-col="cost"
-                                  onFocus={() => {
-                                    costFocusRef.current = { itemId: item.item_id, cost: num(item.cost_price), sell: num(item.sell_price) };
-                                  }}
                                   onBlur={() => {
                                     const val = evalCell(item.cost_price);
                                     const patch: Partial<DraftItem> = {};
                                     if (val !== item.cost_price) patch.cost_price = val;
-                                    const newCost = num(val) ?? 0;
-                                    const before = costFocusRef.current?.itemId === item.item_id ? costFocusRef.current : null;
+                                    // A cost edit NEVER moves an existing sell price — the quoted
+                                    // price is what the customer was told, and only the user
+                                    // changes it. The GM% shown alongside absorbs the difference.
+                                    // An empty sell is not a price, so it still seeds from the
+                                    // section's group GM.
                                     if (!num(item.sell_price)) {
-                                      // No sell yet — auto-price from the group GM
-                                      const sell = sellFromGroupGm(sec.group_key, newCost);
-                                      if (sell) patch.sell_price = sell;
-                                    } else if (before && before.cost !== newCost) {
-                                      // Cost changed: move the SELL, keep the GM% the row had
-                                      const sell = sellKeepingGm(before.cost, before.sell, newCost);
+                                      const sell = sellFromGroupGm(sec.group_key, num(val) ?? 0);
                                       if (sell) patch.sell_price = sell;
                                     }
-                                    costFocusRef.current = null;
                                     if (Object.keys(patch).length) updateItem(sec.section_id, item.item_id, patch);
                                   }}
                                   placeholder="0 or =800000+180000"
-                                  title={drift ? `Outdated: today's cost is ${fmtIdr(drift.rec)} (${drift.pct > 0 ? '+' : ''}${(drift.pct * 100).toFixed(1)}%). The Costs button refreshes all items, keeping margins.` : 'Type a number, or =800000+180000 to calculate'}
+                                  title={drift ? `Outdated: today's cost is ${fmtIdr(drift.rec)} (${drift.pct > 0 ? '+' : ''}${(drift.pct * 100).toFixed(1)}%). The Costs button refreshes all items; sell prices stay as quoted.` : 'Type a number, or =800000+180000 to calculate'}
                                   className={`w-full bg-transparent outline-none text-right placeholder:text-slate-700 border-b transition-colors focus:border-violet-500 ${drift ? 'text-amber-300 border-amber-500/70 hover:border-amber-400' : 'text-slate-400 border-slate-800 hover:border-slate-600'} ${item.component_id || freeTextHistory.has(item.description.trim().toLowerCase()) ? 'cursor-help' : ''}`} />
                                 {drift && (
                                   <p className="text-right text-[10px] text-amber-400/90 leading-tight" title="Today's recommended cost">
@@ -2759,11 +2742,9 @@ export default function QuoteEditorPage() {
                                             <button
                                               onClick={() => {
                                                 if (locked) return;
-                                                const c = Math.round(h.rawUnitCost!);
-                                                const sell = sellKeepingGm(num(item.cost_price), num(item.sell_price), c);
-                                                updateItem(costHover.sectionId, costHover.itemId, { cost_price: String(c), ...(sell ? { sell_price: sell } : {}) });
+                                                updateItem(costHover.sectionId, costHover.itemId, { cost_price: String(Math.round(h.rawUnitCost!)) });
                                               }}
-                                              title={`Raw ${h.kind === 'quote' ? 'supplier quote' : 'TUC'} before buffer — click to use it as the cost (GM% kept, sell recomputes)`}
+                                              title={`Raw ${h.kind === 'quote' ? 'supplier quote' : 'TUC'} before buffer — click to use it as the cost (sell price unchanged)`}
                                               className="text-slate-500 tabular-nums flex-shrink-0 hover:text-slate-300 transition-colors"
                                             >
                                               raw {fmtIdr(h.rawUnitCost)}
@@ -2772,11 +2753,9 @@ export default function QuoteEditorPage() {
                                           <button
                                             onClick={() => {
                                               if (locked) return;
-                                              const c = Math.round(h.unitCost);
-                                              const sell = sellKeepingGm(num(item.cost_price), num(item.sell_price), c);
-                                              updateItem(costHover.sectionId, costHover.itemId, { cost_price: String(c), ...(sell ? { sell_price: sell } : {}) });
+                                              updateItem(costHover.sectionId, costHover.itemId, { cost_price: String(Math.round(h.unitCost)) });
                                             }}
-                                            title="Click to use this cost for the row (GM% kept, sell recomputes)"
+                                            title="Click to use this cost for the row (sell price unchanged)"
                                             className="text-slate-200 font-medium tabular-nums flex-shrink-0 hover:text-emerald-300 transition-colors"
                                           >
                                             {fmtIdr(h.unitCost)}
@@ -3139,8 +3118,8 @@ export default function QuoteEditorPage() {
                   </button>
                 </div>
                 <p className="text-[11px] text-slate-500 mt-0.5">
-                  {costPreview.rows.length} item{costPreview.rows.length > 1 ? 's' : ''} where today's recommended cost differs from the stored cost.
-                  Untick any row to leave it unchanged. Margins are kept — sell prices recompute from each row's GM%.
+                  {costPreview.rows.length} item{costPreview.rows.length > 1 ? 's' : ''} where today&rsquo;s recommended cost differs from the stored cost.
+                  Untick any row to leave it unchanged. Sell prices are not touched — the GM% moves instead.
                 </p>
               </div>
               <div className="flex-1 overflow-y-auto px-5 py-2">
@@ -3183,8 +3162,14 @@ export default function QuoteEditorPage() {
                           </td>
                           <td className="py-2 px-2 max-w-[16rem]">
                             <p className="text-slate-200 truncate">{r.description || '(no description)'}</p>
-                            {r.newSell && r.oldSell != null && (
-                              <p className="text-[10px] text-slate-600">sell {fmtIdr(r.oldSell)} → {fmtIdr(num(r.newSell) ?? 0)}</p>
+                            {r.oldGm != null && r.newGm != null && (
+                              <p className="text-[10px] text-slate-600">
+                                sell {fmtIdr(r.sell ?? 0)} unchanged · GM{' '}
+                                <span className="tabular-nums">{r.oldGm.toFixed(1)}%</span> →{' '}
+                                <span className={`tabular-nums font-semibold ${r.newGm < r.oldGm ? 'text-red-400/90' : 'text-emerald-400/90'}`}>
+                                  {r.newGm.toFixed(1)}%
+                                </span>
+                              </p>
                             )}
                           </td>
                           <td className="py-2 px-2 text-right text-slate-400 tabular-nums">{r.qty.toLocaleString('en-US')}</td>
