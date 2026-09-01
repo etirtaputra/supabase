@@ -224,9 +224,34 @@ open question — `owner` can change roles and add logins; narrowing it needs a
 policy change nobody has authorised. There are no storage buckets, so nothing
 to gate there.
 
-This does NOT fix the numbering bug: `stamp_sales_quote()` stamps
-`order_number` only in its UPDATE branch, so a row INSERTED already at
-`ordered` gets no SO number regardless of who writes it. See below.
+The JWT switch also fixes attribution on its own — no extra trigger needed.
+`stamp_sales_quote()` already overwrites `created_by_email` with the email
+behind `auth.uid()`, which is exactly why service-role writes came out as
+`'system'`. Under a JWT the agent cannot forget its name, and cannot forge one.
+
+### The PQ-that-never-became-SO bug — FIXED 2026-09-01
+
+`stamp_sales_quote()` stamped the milestone numbers only in its UPDATE branch,
+each gated on `OLD.status IS DISTINCT FROM '<milestone>'`. A row INSERTED
+already at `ordered` — what an API client does when it writes a confirmed order
+in one shot — has no `OLD`, passed no gate, and came out with
+`order_number = ''`; `displayDocNumber` then correctly fell back to the `PQ-`
+number, so a Confirmed Order kept reading as a quote. Same gap for
+`invoice_number`, `do_number`, and any UPDATE that skipped milestones.
+
+`migrations/fix_stamp_sales_quote_on_insert.sql` derives the numbering from the
+milestone the row is AT: every number the status implies is stamped if missing,
+on INSERT and UPDATE alike; a caller-supplied number is kept. Timestamps
+deliberately do NOT follow that rule — only the milestone the row actually sits
+at is stamped, so the ladder never invents history for skipped stages.
+Backfilled `SQ-20260831-0018` -> `SO-20260831-0007` and `SQ-20260901-0019` ->
+`SO-20260831-0008`, after winding `sales_order_seq` back to 6 to undo the
+numbers burned by the rolled-back rehearsals. Nothing at `ordered` or beyond is
+missing a number now, and no SO number repeats.
+
+Still open, nobody has decided: `SQ-20260819-0013` sits at `draft` but still
+holds `SO-20260819-0005` — reverted without clearing. Harmless (draft displays
+the `DQ-` number) but the SO number is spent.
 
 ### Two findings from that thread, NOT acted on (owner has not decided)
 
