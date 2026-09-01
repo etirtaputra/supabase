@@ -23,7 +23,7 @@ import { useT } from '@/hooks/useT';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string; case_id?: string | null;
-  customer_id: string | null; status: string; grand_total: number; updated_at?: string; revision?: number;
+  customer_id: string | null; status: string; grand_total: number; ppn_pct?: number | null; updated_at?: string; revision?: number;
   quote_date?: string | null; valid_until?: string | null;
 }
 interface Customer { customer_id: string; display_name: string; legal_name: string; }
@@ -97,7 +97,7 @@ export default function SalesListPage() {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     const [qRes, custRes, rRes, iRes, invRes, doRes] = await Promise.all([
-      supabase.from('22.0_sales_quotes').select('quote_id, quote_number, order_number, invoice_number, do_number, customer_id, status, grand_total, updated_at, revision, quote_date, valid_until, case_id').order('updated_at', { ascending: false }),
+      supabase.from('22.0_sales_quotes').select('quote_id, quote_number, order_number, invoice_number, do_number, customer_id, status, grand_total, ppn_pct, updated_at, revision, quote_date, valid_until, case_id').order('updated_at', { ascending: false }),
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name'),
       supabase.from('26.0_customer_receipts').select('quote_id, invoice_id, amount'),
       supabase.from('22.1_sales_quote_items').select('quote_id, description, quantity, unit_price, is_section, sort_order').order('sort_order'),
@@ -140,6 +140,25 @@ export default function SalesListPage() {
   const today = todayISO();
   const isExpired = (q: Quote) => !!q.valid_until && ['validated', 'sent'].includes(q.status) && q.valid_until < today;
   const BILLED = ['ordered', 'invoiced', 'preparing', 'delivered'];
+  /**
+   * What the document is worth BEFORE PPN (owner, 2026-09-01).
+   *
+   * `grand_total` is stored VAT-inclusive — verified against production:
+   * grand_total = sum(quantity × unit_price) × (1 + ppn_pct/100) exactly, on
+   * every document. So the pre-VAT figure is derivable per row without loading
+   * a single line item, which matters on a list that renders every document.
+   *
+   * NOT used for payment. Receipts are collected on the VAT-INCLUSIVE amount,
+   * so the payment bar, the paid/outstanding states and the payment filter all
+   * stay on grand_total — dividing those by 1.11 would show a fully settled
+   * order at 111%.
+   */
+  const exPpn = (q: Quote): number => {
+    const gross = Number(q.grand_total) || 0;
+    const pct = Number(q.ppn_pct) || 0;
+    return pct > -100 ? gross / (1 + pct / 100) : gross;
+  };
+
   // One vocabulary for the Payment column, the expanded digest AND the filter —
   // computed once so they can never disagree.
   const payStateOf = (q: Quote): 'none' | 'unpaid' | 'partial' | 'outstanding' | 'paid' => {
@@ -191,7 +210,7 @@ export default function SalesListPage() {
         case 'customer': cmp = nameOf(a).localeCompare(nameOf(b)); break;
         case 'status':   cmp = milestoneIndex(a.status) - milestoneIndex(b.status); break;
         case 'payment':  cmp = pctOf(a) - pctOf(b); break;
-        case 'total':    cmp = (Number(a.grand_total) || 0) - (Number(b.grand_total) || 0); break;
+        case 'total':    cmp = exPpn(a) - exPpn(b); break;   // sort on the shown value
         case 'updated':  cmp = (a.updated_at || '').localeCompare(b.updated_at || ''); break;
       }
       return colSort.dir === 'asc' ? cmp : -cmp;
@@ -208,7 +227,9 @@ export default function SalesListPage() {
   // Three lifecycle buckets, coloured like their codes: Quoted = live PQs on
   // the table, Ordered = everything confirmed (SO onward), Delivered = the
   // subset that has fully shipped.
-  const sumOf = (list: Quote[]) => list.reduce((sum, q) => sum + (Number(q.grand_total) || 0), 0);
+  // Pre-VAT too: a column the eye adds up must reconcile with the totals
+  // printed above it.
+  const sumOf = (list: Quote[]) => list.reduce((sum, q) => sum + exPpn(q), 0);
   const quotedDocs    = filtered.filter((q) => ['validated', 'sent', 'accepted'].includes(q.status));
   const committed     = filtered.filter((q) => ['ordered', 'invoiced', 'preparing', 'delivered'].includes(q.status));
   const deliveredDocs = filtered.filter((q) => q.status === 'delivered');
@@ -317,7 +338,7 @@ export default function SalesListPage() {
 
         <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
           <div className={`hidden md:grid grid-cols-[175px_1fr_120px_120px_130px_100px] gap-3 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500 ${compact ? 'px-3 py-1.5' : 'px-4 py-2.5'}`}>
-            {([['number', 'Number', ''], ['customer', 'Customer', ''], ['status', 'Status', ''], ['payment', 'Payment', ''], ['total', 'Grand Total', 'justify-end'], ['updated', 'Updated', 'justify-end']] as [ColKey, string, string][]).map(([k, label, align]) => (
+            {([['number', 'Number', ''], ['customer', 'Customer', ''], ['status', 'Status', ''], ['payment', 'Payment', ''], ['total', 'Total (excl. PPN)', 'justify-end'], ['updated', 'Updated', 'justify-end']] as [ColKey, string, string][]).map(([k, label, align]) => (
               <button key={k} onClick={() => clickCol(k)} title={`Sort by ${label.toLowerCase()} — click again to flip`}
                 className={`flex items-center gap-1 uppercase tracking-widest transition-colors ${align} ${colSort?.key === k ? 'text-slate-200' : 'hover:text-slate-300'}`}>
                 {label}
@@ -375,7 +396,11 @@ export default function SalesListPage() {
 
   function renderRow(q: Quote, isDraft: boolean) {
                 const c = q.customer_id ? custById.get(q.customer_id) : undefined;
+                // `total` stays GROSS throughout this row: the payment bar,
+                // the paid/outstanding states and the invoiced-percent all
+                // measure money actually collected, which is VAT-inclusive.
                 const total = Number(q.grand_total) || 0;
+                const netTotal = exPpn(q);   // what the Total column shows
                 const rcv = receivedByQuote[q.quote_id] ?? 0;
                 const billed = ['ordered', 'invoiced', 'preparing', 'delivered'].includes(q.status);
                 const pct = total > 0 ? Math.min(100, (rcv / total) * 100) : 0;
@@ -457,7 +482,8 @@ export default function SalesListPage() {
                           <span className={`text-[10px] tabular-nums font-semibold ${paidFull ? 'text-emerald-400' : arOpen && rcv <= 0 ? 'text-red-300' : pct > 0 ? 'text-amber-300' : 'text-slate-600'}`}>{pct.toFixed(0)}%</span>
                         </span>
                       )}
-                      <span className={`text-right tabular-nums text-slate-200 ${compact ? 'ml-auto flex-shrink-0 font-semibold text-[13px] md:font-normal md:text-sm' : ''}`}>{fmtInt(total)}</span>
+                      <span title={total !== netTotal ? `Rp ${fmtInt(netTotal)} before PPN · Rp ${fmtInt(total)} including PPN ${Number(q.ppn_pct) || 0}%` : undefined}
+                        className={`text-right tabular-nums text-slate-200 ${compact ? 'ml-auto flex-shrink-0 font-semibold text-[13px] md:font-normal md:text-sm' : ''}`}>{fmtInt(netTotal)}</span>
                       <span className={`text-right text-[11px] text-slate-500 tabular-nums flex items-center justify-end gap-2 ${compact ? 'flex-shrink-0' : ''}`}>
                         <span className={compact ? 'hidden md:inline' : ''}>{fmtDay(q.updated_at)}</span>
                         <svg className={`w-3.5 h-3.5 text-slate-600 transition-transform duration-150 ${open ? 'rotate-180 text-slate-400' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>

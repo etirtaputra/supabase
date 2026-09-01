@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-09-01T04:00:00Z',
+    title: 'The Sales Orders list shows totals before PPN',
+    details: [
+      'The money column now shows the value before tax, and is renamed "Total (excl. PPN)" \u2014 "Grand Total" means the figure with tax in it, so the old name would have been wrong for the new number. Hover any figure to see both, and the PPN rate applied.',
+      'Quoted, Ordered and Delivered above the list follow it, so the column still adds up to the totals printed over it. Sorting by the column sorts on what you can see.',
+      'The Payment bar, the paid and outstanding badges, and the invoiced percentage all still use the figure WITH tax, because that is what a customer actually pays. Measuring those against the pre-tax number would show a fully settled order at 111%.',
+    ],
+  },
+  {
     at: '2026-08-31T11:30:00Z',
     title: 'The Item Editor toolbar is the same size as the one on Selling Prices',
     details: [

@@ -789,6 +789,7 @@ export const ID: Record<string, string> = {
   'no DO yet': 'belum ada DO',
   'No items on this quote.': 'Tidak ada barang pada penawaran ini.',
   'Grand Total (excl. PPN)': 'Total (sebelum PPN)',
+  'Total (excl. PPN)': 'Total (sebelum PPN)',
   'Owner-only: curated custom line texts that feed the item picker':
     'Khusus pemilik: daftar teks baris pilihan yang mengisi pemilih barang',
   'Search by number, customer, status, product…':
