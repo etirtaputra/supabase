@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-08-31** · head of `main` at that point: `1a45d4a` (see §4)
+**Last updated: 2026-09-01** · head of `main` at that point: `1a45d4a` (see §4)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -168,6 +168,42 @@ count, `identity_data->>'sub'`, `provider`, `email_confirmed_at`, `banned_until`
 and `encrypted_password = crypt(<pw>, encrypted_password)`. A live sign-in test
 is NOT possible from the sandbox — the egress proxy denies CONNECT to
 `*.supabase.co`.
+
+### Making an agent WRITE AS a user instead of as service-role (2026-09-01)
+
+The service-role key bypasses RLS and leaves `auth.uid()` NULL, so every row an
+agent writes with it is anonymous (`created_by_email` fell back to `'system'`)
+and nothing can be revoked short of rotating the key for the whole app. To have
+the agent act **as `mira@icasolar.com`**, drop the service-role key from its
+config and give it the **anon key + mira's password**:
+
+1. **Sign in** — `POST {SUPABASE_URL}/auth/v1/token?grant_type=password`,
+   header `apikey: <anon key>`, body `{"email":"mira@icasolar.com","password":"…"}`.
+   Returns `access_token` (a JWT, `expires_in` 3600) and `refresh_token`.
+2. **Every data call** carries BOTH headers: `apikey: <anon key>` and
+   `Authorization: Bearer <access_token>`. (With `supabase-js`/`supabase-py`,
+   `createClient(url, ANON_KEY)` + `signInWithPassword` does this for you.)
+3. **Refresh** at ~50 min: same endpoint, `grant_type=refresh_token`.
+4. **Stamp attribution explicitly** — `created_by_email` has DB default `''`,
+   nothing derives it from the JWT. The agent must send
+   `created_by_email: 'mira@icasolar.com'` on every insert.
+
+Verified 2026-09-01 by a rolled-back probe: with mira's claims set,
+`auth.uid()` resolves to `71f8fb87-…`, the `sales quotes write` policy passes
+(mira is `owner`), and `stamp_sales_quote()` fires normally. 0 rows left behind.
+
+**What changes, and what does not.** Sell-side tables are role-gated, and
+`owner` passes all of them, so the agent loses no reach — but the writes become
+attributable and **revocable in one statement**
+(`update auth.users set banned_until = 'infinity' where email = 'mira@icasolar.com'`),
+which is the whole point. The buy side is ungated anyway (see the security
+holes above), so it is unaffected. Anything that needs the Auth Admin API
+(creating users, etc.) will start failing — that genuinely requires
+service-role and should not be in an agent's hands.
+
+This does NOT fix the numbering bug: `stamp_sales_quote()` stamps
+`order_number` only in its UPDATE branch, so a row INSERTED already at
+`ordered` gets no SO number regardless of who writes it. See below.
 
 ### Two findings from that thread, NOT acted on (owner has not decided)
 
