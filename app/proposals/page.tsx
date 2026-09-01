@@ -640,6 +640,24 @@ export default function QuotesListPage() {
                       </span>
                     )}
                   </div>
+                  {/* An OPEN follow-up note. Compact view swaps it in for the
+                      description because the row cannot grow; a card has the
+                      room for both, so the note sits ABOVE — a live "waiting on
+                      the customer" outranks a description you wrote yourself.
+                      Clamped to two lines so one long note can't stretch the
+                      card; the full thread is in the hover title. */}
+                  {noteByQuote.has(q.quote_id) && (
+                    <p className="flex items-start gap-1.5 text-[11px] text-amber-300/90 mb-1.5"
+                      title={noteThreadTitle(q.quote_id)}>
+                      <span aria-hidden className="flex-shrink-0">●</span>
+                      <span className="min-w-0 line-clamp-2">{noteByQuote.get(q.quote_id)!.body}</span>
+                      {(noteCountByQuote.get(q.quote_id) ?? 1) > 1 && (
+                        <span className="flex-shrink-0 text-amber-400/70 tabular-nums">
+                          +{(noteCountByQuote.get(q.quote_id) ?? 1) - 1}
+                        </span>
+                      )}
+                    </p>
+                  )}
                   {/* Project name / scope */}
                   {q.project_description && (
                     <p className="text-xs text-slate-400 truncate max-w-full mb-1.5">{q.project_description}</p>
