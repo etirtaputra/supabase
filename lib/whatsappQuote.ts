@@ -91,6 +91,63 @@ export function buildQuoteMessage(lines: QuoteLine[], opts: QuoteMessageOptions 
 }
 
 /**
+ * The one-tap copy: what a rep pastes into a chat already in progress.
+ *
+ * ONE line, in the shape the owner's Dolibarr has been emitting for years and
+ * the sales team already reads at a glance:
+ *
+ *     [2026-09-02] ICA SOLAR ICA550-72HMI 550Wp Mono, Rp 1.500.000 Exc. PPN
+ *
+ * Deliberately NOT `buildQuoteMessage`. That opens with "*Penawaran Harga*",
+ * the company name and a date — right for a quote you send cold, noise inside
+ * a conversation where the customer has just asked "berapa harga X?".
+ *
+ * Three things the shape gets right and are worth keeping: the date is ISO and
+ * leads, so a price pasted into a chat months ago can still be dated; "Exc.
+ * PPN" rides ON the number rather than sitting in a footnote, because a price
+ * read out of context is how a PPN argument starts; and no WhatsApp *bold*,
+ * which would show as literal asterisks anywhere else it gets pasted.
+ *
+ * The TIER is not printed — it tells the customer how the house grades them.
+ */
+export function buildPriceSnippet(line: QuoteLine, dateIso?: string): string {
+  return `[${dateIso ?? todayIso()}] ${line.name}, ${fmtRupiahDoc(line.price)} Exc. PPN`;
+}
+
+/**
+ * Put the message on the clipboard and nowhere else.
+ *
+ * Tapping a single price is a COPY, not a send: the person doing it has
+ * already decided where the number is going, and a share sheet asking "which
+ * app?" is a question they did not ask. `shareOrCopy` below is for the
+ * finished multi-item quote, where choosing the destination IS the action.
+ */
+export async function copyOnly(text: string): Promise<'copied' | 'failed'> {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return 'copied';
+    }
+  } catch { /* fall through — the textarea path below still works */ }
+  // navigator.clipboard is absent on a page served over plain http and inside
+  // some in-app browsers. The offscreen textarea is the path that survives.
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '-1000px';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok ? 'copied' : 'failed';
+  } catch {
+    return 'failed';
+  }
+}
+
+/**
  * Put the message where the user wants it: the native share sheet when the
  * device has one (that is the path straight into WhatsApp on a phone), the
  * clipboard otherwise. Returns how it went so the caller can say so.

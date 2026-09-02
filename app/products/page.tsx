@@ -45,7 +45,7 @@ import { INCOMING_PO_STATUSES, itemArrivals, itemArrivalDetails, type ItemArriva
 import { useSettings } from '@/hooks/useSettings';
 import { PRODUCT_COLS } from '@/constants/productColumns';
 import QuoteBasket, { useQuoteBasket } from '@/components/ui/QuoteBasket';
-import { buildQuoteMessage, shareOrCopy } from '@/lib/whatsappQuote';
+import { buildPriceSnippet, copyOnly } from '@/lib/whatsappQuote';
 import { useListLayout } from '@/hooks/useListLayout';
 import { useListDefaults } from '@/hooks/useListDefaults';
 import DateRangeFilter from '@/components/ui/DateRangeFilter';
@@ -423,11 +423,23 @@ function ProductsInner() {
   // Click a price → copy a WhatsApp-ready quote in Bahasa Indonesia. This is
   // customer-facing, so it follows the DOCUMENT number/date profile from
   // Settings (Indonesian punctuation is one click away there).
+  // Tapping ONE price copies it, and that is all it does.
+  //
+  // It used to go through shareOrCopy, so on a phone it opened "send to which
+  // app?" — a question nobody asked, for a number they were going to paste
+  // themselves. Choosing a destination belongs to Text quote mode, where
+  // sending IS the action.
+  //
+  // It also used to copy a whole buildQuoteMessage: heading, company, date,
+  // footer. Pasted into a chat already in progress that reads as a form letter
+  // answering "berapa harga X?". buildPriceSnippet is the two lines that
+  // question actually wants. The tier names the chip in the toast — it is
+  // never in the copied text, where it would tell the customer how the house
+  // grades them.
   const copyPrice = useCallback(async (c: Comp, price: number, tier?: string) => {
-    const text = buildQuoteMessage([{ name: descOf(c), price, qty: 1, unit: c.unit ?? undefined, tier }]);
-    const how = await shareOrCopy(text);
-    flash(how === 'failed' ? 'Gagal menyalin — tekan lama untuk memilih'
-      : how === 'shared' ? 'Dibagikan' : 'Harga disalin — siap ditempel');
+    const text = buildPriceSnippet({ name: descOf(c), price, qty: 1, unit: c.unit ?? undefined });
+    const how = await copyOnly(text);
+    flash(how === 'copied' ? `${tier ?? 'Harga'} disalin` : 'Gagal menyalin — tekan lama untuk memilih');
   }, []);
 
   // ── WhatsApp quote ────────────────────────────────────────────────────────
@@ -971,7 +983,7 @@ function ProductsInner() {
                     ))}
                     {r.c.selling_price_idr ? (
                       <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); onPrice(r.c, r.c.selling_price_idr!); }}
-                        title={multi ? 'Tap to add at this price' : 'Tap to copy this price for WhatsApp'}
+                        title={multi ? 'Tap to add at this price' : 'Tap to copy this price'}
                         className={`px-2 py-1 rounded-lg text-[11px] font-semibold tabular-nums transition-colors ${
                           pickedAt(r.c) ? 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40' : 'bg-slate-800 text-slate-200 active:text-emerald-300'
                         }`}>
@@ -983,7 +995,7 @@ function ProductsInner() {
                       return p != null ? (
                         <span key={tier.tier_id} role="button" tabIndex={0}
                           onClick={(e) => { e.stopPropagation(); onPrice(r.c, p, tier.name, tier.tier_id); }}
-                          title={multi ? `Tap to add at ${tier.name}` : `Tap to copy ${tier.name} price for WhatsApp`}
+                          title={multi ? `Tap to add at ${tier.name}` : `Tap to copy the ${tier.name} price`}
                           className={`px-2 py-1 rounded-lg text-[11px] tabular-nums transition-colors ${
                             pickedAt(r.c, tier.tier_id)
                               ? 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40'
