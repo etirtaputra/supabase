@@ -65,9 +65,17 @@ export function useSupabaseData() {
           if (quotes) setData((prev) => ({ ...prev, quotes }));
         });
 
+      // Line items carry a hand-set `sort_order` (dragged in Deal Lookup) so a
+      // quote reads in the order the supplier's PI presents it. NULL means
+      // never ordered and sorts last; `updated_at` then `quote_line_id` make
+      // the rest deterministic — without them Postgres returns physical order,
+      // which reshuffles silently whenever a row is written.
       supabase
         .from(TABLE_NAMES.PRICE_QUOTE_LINE_ITEMS)
         .select('*')
+        .order('sort_order', { ascending: true, nullsFirst: false })
+        .order('updated_at', { ascending: true })
+        .order('quote_line_id', { ascending: true })
         .then(({ data: quoteItems }) => {
           if (quoteItems) setData((prev) => ({ ...prev, quoteItems }));
         });
@@ -91,6 +99,9 @@ export function useSupabaseData() {
       supabase
         .from(TABLE_NAMES.PURCHASE_LINE_ITEMS)
         .select('*')
+        .order('sort_order', { ascending: true, nullsFirst: false })
+        .order('updated_at', { ascending: true })
+        .order('po_line_item_id', { ascending: true })
         .then(({ data: poItems }) => {
           if (poItems) setData((prev) => ({ ...prev, poItems }));
         });

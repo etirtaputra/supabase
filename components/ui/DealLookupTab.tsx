@@ -8,7 +8,7 @@
  * Three view modes: All / By Vendor / By Company
  */
 'use client';
-import { Fragment, useState, useMemo, useRef, useEffect } from 'react';
+import { Fragment, useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import type {
   PriceQuote, PriceQuoteLineItem,
@@ -379,6 +379,16 @@ const DEAL_SECTIONS: { key: DealSection; label: string; accent: string; hint: st
   { key: 'void',      label: 'Void / replaced',             accent: 'text-slate-600',   hint: 'Cancelled, replaced, rejected or expired.' },
 ];
 
+/** Drag handle. Same six-dot grip the proposal editor uses, so "this row can
+ *  be moved" reads the same everywhere in the app. */
+const GRIP = (
+  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+    <circle cx="7" cy="5" r="1.4" /><circle cx="13" cy="5" r="1.4" />
+    <circle cx="7" cy="10" r="1.4" /><circle cx="13" cy="10" r="1.4" />
+    <circle cx="7" cy="15" r="1.4" /><circle cx="13" cy="15" r="1.4" />
+  </svg>
+);
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -413,6 +423,10 @@ interface Props {
   onAddQuoteLineItem?: (quoteId: number, data: { component_id?: string; quantity: number; unit_price: number; currency: string }) => Promise<void>;
   onDeletePoLineItem?: (poLineItemId: number) => Promise<void>;
   onDeleteQuoteLineItem?: (quoteLineId: number) => Promise<void>;
+  /** Persist a hand-dragged line order. `orderedIds` is every line of that one
+   *  document, first to last; the page writes them as sort_order 1..n. */
+  onReorderQuoteLineItems?: (quoteId: string, orderedIds: string[]) => Promise<void>;
+  onReorderPoLineItems?: (poId: string, orderedIds: string[]) => Promise<void>;
   initialSearch?: string;  // e.g. a PI/PO number from the global search palette
 }
 
@@ -426,9 +440,54 @@ export default function DealLookupTab({
   onUpdateQuoteLineItem, onUpdatePoLineItem,
   onAddPoLineItem, onAddQuoteLineItem,
   onDeletePoLineItem, onDeleteQuoteLineItem,
+  onReorderQuoteLineItems, onReorderPoLineItems,
   initialSearch,
 }: Props) {
   const { t } = useT();
+
+  // ── Drag a line into place ──────────────────────────────────────────────
+  // This screen mirrors a document, and the document has an order. Neither
+  // line-item table had one, so rows came back in Postgres physical order.
+  // Dragging writes sort_order for every line of THAT document, so the screen
+  // can be made to read like the supplier's PI.
+  //
+  // Rows only reorder within their own quote/PO — `parent` is checked on every
+  // dragover, so a row can never be dropped into a different document.
+  const [dragLine, setDragLine]         = useState<{ kind: 'quote' | 'po'; parent: string; id: string } | null>(null);
+  const [dragOverLine, setDragOverLine] = useState<string | null>(null);
+  const [reordering, setReordering]     = useState<string | null>(null);
+  /** Locally-dragged order, applied over the server's until the refetch lands. */
+  const [lineOrder, setLineOrder]       = useState<Record<string, string[]>>({});
+
+  const applyLineOrder = useCallback(function <T>(key: string, rows: T[], idOf: (r: T) => string): T[] {
+    const want = lineOrder[key];
+    if (!want) return rows;
+    const byId = new Map(rows.map((r) => [idOf(r), r] as const));
+    const seen = new Set(want);
+    const out = want.map((id) => byId.get(id)).filter((r): r is T => r !== undefined);
+    // A line added since the drag has no place in the remembered order — it
+    // goes last rather than disappearing.
+    for (const r of rows) if (!seen.has(idOf(r))) out.push(r);
+    return out;
+  }, [lineOrder]);
+
+  async function handleDropLine(kind: 'quote' | 'po', parent: string, currentIds: string[], targetId: string) {
+    const src = dragLine;
+    setDragLine(null);
+    setDragOverLine(null);
+    if (!src || src.kind !== kind || src.parent !== parent) return;
+    const from = currentIds.indexOf(src.id);
+    const to   = currentIds.indexOf(targetId);
+    if (from < 0 || to < 0 || from === to) return;
+    const next = currentIds.slice();
+    next.splice(to, 0, next.splice(from, 1)[0]);
+    const key = `${kind}:${parent}`;
+    setLineOrder((prev) => ({ ...prev, [key]: next }));
+    const persist = kind === 'quote' ? onReorderQuoteLineItems : onReorderPoLineItems;
+    if (!persist) return;
+    setReordering(key);
+    try { await persist(parent, next); } finally { setReordering(null); }
+  }
 
   const [viewMode, setViewMode]               = useState<'all' | 'by-vendor' | 'by-company'>('all');
   const [search, setSearch]                   = useState(initialSearch ?? '');
@@ -734,7 +793,12 @@ export default function DealLookupTab({
             <div className="space-y-3">
               {g.quotes.map((qt) => {
                 const qKey  = String(qt.quote_id);
-                const items = quoteItems.filter((i) => String(i.quote_id) === qKey);
+                const items = applyLineOrder(`quote:${qKey}`,
+                  quoteItems.filter((i) => String(i.quote_id) === qKey),
+                  (i) => String(i.quote_line_id));
+                // Only worth a handle when there is something to reorder and
+                // somewhere to save it.
+                const canDragQuote = !!onReorderQuoteLineItems && items.length > 1;
                 const sup   = suppliers.find((s) => s.supplier_id === qt.supplier_id);
                 const co    = companies.find((c) => c.company_id === qt.company_id);
                 // Quote replacement lineage (mirrors the PO cards).
@@ -895,6 +959,7 @@ export default function DealLookupTab({
                         <table className="w-full text-xs border-collapse">
                           <thead>
                             <tr className="border-b border-slate-700/60">
+                              {canDragQuote && <th className="w-5" />}
                               <th className="text-left py-1.5 pr-4 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Component</th>
                               <th className="text-right py-1.5 pr-4 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Qty</th>
                               <th className="text-right py-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Unit / Total</th>
@@ -907,8 +972,35 @@ export default function DealLookupTab({
                               const lineTotal = (Number(item.quantity) || 0) * (Number(item.unit_price) || 0);
                               const isEditingComp = editingItem?.type === 'quote' && editingItem.id === item.quote_line_id;
                               const isEditingLine = editingLine?.mode === 'edit' && editingLine.type === 'quote' && editingLine.id === item.quote_line_id && editingLine.rowIdx === -1;
+                              const lineKey = String(item.quote_line_id);
+                              const isDragTarget = dragOverLine === lineKey && dragLine?.kind === 'quote' && dragLine.parent === qKey;
                               return (
-                                <tr key={item.quote_line_id} className={`border-b border-slate-800/40 last:border-0 group ${isEditingLine ? 'bg-sky-500/5' : ''}`}>
+                                <tr key={item.quote_line_id}
+                                  onDragOver={canDragQuote ? (e) => {
+                                    if (!dragLine || dragLine.kind !== 'quote' || dragLine.parent !== qKey) return;
+                                    e.preventDefault();
+                                    setDragOverLine(lineKey);
+                                  } : undefined}
+                                  onDrop={canDragQuote ? (e) => {
+                                    e.preventDefault();
+                                    handleDropLine('quote', qKey, items.map((i) => String(i.quote_line_id)), lineKey);
+                                  } : undefined}
+                                  className={`border-b border-slate-800/40 last:border-0 group ${isEditingLine ? 'bg-sky-500/5' : ''} ${isDragTarget ? 'outline outline-1 outline-sky-400/70 bg-sky-500/10' : ''} ${dragLine?.id === lineKey ? 'opacity-40' : ''}`}>
+                                  {/* Drag handle — grab area only, so text in the
+                                      cells stays selectable and copyable. */}
+                                  {canDragQuote && (
+                                    <td className="py-2 pr-1 align-top w-5">
+                                      <span
+                                        draggable
+                                        onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDragLine({ kind: 'quote', parent: qKey, id: lineKey }); }}
+                                        onDragEnd={() => { setDragLine(null); setDragOverLine(null); }}
+                                        title="Drag to reorder this quote's lines"
+                                        className="inline-flex cursor-grab active:cursor-grabbing text-slate-700 group-hover:text-slate-500 hover:!text-sky-400 transition-colors"
+                                      >
+                                        {GRIP}
+                                      </span>
+                                    </td>
+                                  )}
                                   {/* Component */}
                                   <td className="py-2 pr-4">
                                     {isEditingComp ? (
@@ -977,6 +1069,7 @@ export default function DealLookupTab({
                               const displayComp = editingLine.componentId ? components.find((c) => c.component_id === editingLine.componentId) : null;
                               return (
                                 <tr className="border-b border-slate-800/40 bg-sky-500/5">
+                                  {canDragQuote && <td className="w-5" />}
                                   <td className="py-2 pr-4">
                                     {editingLine.showCompSearch ? (
                                       <ComponentCombobox components={components} onSelect={(cid) => setEditingLine((prev) => prev && { ...prev, componentId: cid, showCompSearch: false })} onCancel={() => setEditingLine((prev) => prev && { ...prev, showCompSearch: false })} />
@@ -1002,6 +1095,9 @@ export default function DealLookupTab({
                             })()}
                           </tbody>
                         </table>
+                        {reordering === `quote:${qKey}` && (
+                          <p className="mt-1.5 text-[10px] text-slate-500">Saving order…</p>
+                        )}
                         {!editingLine && onAddQuoteLineItem && (
                           <div className="mt-2">
                             <button onMouseDown={(e) => { e.preventDefault(); setEditingLine({ mode: 'add', type: 'quote', id: 0, rowIdx: -2, targetId: qt.quote_id, currency: qt.currency, componentId: null, showCompSearch: true, qty: '', price: '', saving: false }); }} className="flex items-center gap-1.5 text-[11px] font-semibold text-sky-400 hover:text-sky-300 px-2 py-1 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/20 rounded-lg transition-colors">
@@ -1039,7 +1135,10 @@ export default function DealLookupTab({
             <div className="space-y-3">
               {g.pos.map((po) => {
                 const pKey    = String(po.po_id);
-                const items   = poItems.filter((i) => String(i.po_id) === pKey);
+                const items   = applyLineOrder(`po:${pKey}`,
+                  poItems.filter((i) => String(i.po_id) === pKey),
+                  (i) => String(i.po_line_item_id));
+                const canDragPo = !!onReorderPoLineItems && items.length > 1;
                 const costs   = poCosts.filter((c) => String(c.po_id) === pKey);
                 const princ   = costs.filter((c) => PRINCIPAL_CATS.has(c.cost_category));
                 const fees    = costs.filter((c) => BANK_FEE_CATS.has(c.cost_category));
@@ -1640,6 +1739,7 @@ export default function DealLookupTab({
                         <table className="w-full text-xs border-collapse">
                           <thead>
                             <tr className="border-b border-slate-700/60">
+                              {canDragPo && <th className="w-5" />}
                               <th className="text-left py-1.5 pr-4 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Component</th>
                               <th className="text-right py-1.5 pr-4 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Qty</th>
                               <th className="text-right py-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Unit / Total</th>
@@ -1652,8 +1752,33 @@ export default function DealLookupTab({
                               const lineTotal = (Number(item.quantity) || 0) * (Number(item.unit_cost) || 0);
                               const isEditingComp = editingItem?.type === 'po' && editingItem.id === item.po_line_item_id;
                               const isEditingLine = editingLine?.mode === 'edit' && editingLine.type === 'po' && editingLine.id === item.po_line_item_id && editingLine.rowIdx === -1;
+                              const lineKey = String(item.po_line_item_id);
+                              const isDragTarget = dragOverLine === lineKey && dragLine?.kind === 'po' && dragLine.parent === pKey;
                               return (
-                                <tr key={item.po_line_item_id} className={`border-b border-slate-800/40 last:border-0 group ${isEditingLine ? 'bg-emerald-500/5' : ''}`}>
+                                <tr key={item.po_line_item_id}
+                                  onDragOver={canDragPo ? (e) => {
+                                    if (!dragLine || dragLine.kind !== 'po' || dragLine.parent !== pKey) return;
+                                    e.preventDefault();
+                                    setDragOverLine(lineKey);
+                                  } : undefined}
+                                  onDrop={canDragPo ? (e) => {
+                                    e.preventDefault();
+                                    handleDropLine('po', pKey, items.map((i) => String(i.po_line_item_id)), lineKey);
+                                  } : undefined}
+                                  className={`border-b border-slate-800/40 last:border-0 group ${isEditingLine ? 'bg-emerald-500/5' : ''} ${isDragTarget ? 'outline outline-1 outline-emerald-400/70 bg-emerald-500/10' : ''} ${dragLine?.id === lineKey ? 'opacity-40' : ''}`}>
+                                  {canDragPo && (
+                                    <td className="py-2 pr-1 align-top w-5">
+                                      <span
+                                        draggable
+                                        onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDragLine({ kind: 'po', parent: pKey, id: lineKey }); }}
+                                        onDragEnd={() => { setDragLine(null); setDragOverLine(null); }}
+                                        title="Drag to reorder this PO's lines"
+                                        className="inline-flex cursor-grab active:cursor-grabbing text-slate-700 group-hover:text-slate-500 hover:!text-emerald-400 transition-colors"
+                                      >
+                                        {GRIP}
+                                      </span>
+                                    </td>
+                                  )}
                                   {/* Component */}
                                   <td className="py-2 pr-4">
                                     {isEditingComp ? (
@@ -1729,6 +1854,7 @@ export default function DealLookupTab({
                               const displayComp = editingLine.componentId ? components.find((c) => c.component_id === editingLine.componentId) : null;
                               return (
                                 <tr className="border-b border-slate-800/40 bg-emerald-500/5">
+                                  {canDragPo && <td className="w-5" />}
                                   <td className="py-2 pr-4">
                                     {editingLine.showCompSearch ? (
                                       <ComponentCombobox components={components} onSelect={(cid) => setEditingLine((prev) => prev && { ...prev, componentId: cid, showCompSearch: false })} onCancel={() => setEditingLine((prev) => prev && { ...prev, showCompSearch: false })} />
@@ -1754,6 +1880,9 @@ export default function DealLookupTab({
                             })()}
                           </tbody>
                         </table>
+                        {reordering === `po:${pKey}` && (
+                          <p className="mt-1.5 text-[10px] text-slate-500">Saving order…</p>
+                        )}
                         {!editingLine && onAddPoLineItem && (
                           <div className="mt-2">
                             <button onMouseDown={(e) => { e.preventDefault(); setEditingLine({ mode: 'add', type: 'po', id: 0, rowIdx: -2, targetId: po.po_id, currency: po.currency, componentId: null, showCompSearch: true, qty: '', price: '', saving: false }); }} className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 px-2 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg transition-colors">

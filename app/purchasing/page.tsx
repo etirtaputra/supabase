@@ -847,6 +847,28 @@ function MasterInsertPage() {
     refetch();
   };
 
+  // Persist a hand-dragged line order. `orderedIds` is every line of the one
+  // document, so writing 1..n leaves no gaps and no other document is touched.
+  // No toast — a drag that lands is its own confirmation, and the card already
+  // shows "Saving order…" while these are in flight.
+  const writeSortOrder = async (
+    table: '4.1_price_quote_line_items' | '5.1_purchase_line_items',
+    idCol: 'quote_line_id' | 'po_line_item_id',
+    orderedIds: string[],
+  ) => {
+    const results = await Promise.all(orderedIds.map((id, i) =>
+      supabase.from(table).update({ sort_order: i + 1 }).eq(idCol, id)));
+    const failed = results.find((r) => r.error);
+    if (failed?.error) { showToast(`Could not save the order: ${failed.error.message}`, 'error'); throw failed.error; }
+    refetch();
+  };
+
+  const handleReorderQuoteLineItems = (_quoteId: string, orderedIds: string[]) =>
+    writeSortOrder('4.1_price_quote_line_items', 'quote_line_id', orderedIds);
+
+  const handleReorderPoLineItems = (_poId: string, orderedIds: string[]) =>
+    writeSortOrder('5.1_purchase_line_items', 'po_line_item_id', orderedIds);
+
   const handleDeleteQuoteLineItem = async (quoteLineId: number) => {
     const { error } = await supabase.from('4.1_price_quote_line_items').delete().eq('quote_line_id', quoteLineId);
     if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
@@ -1672,6 +1694,8 @@ function MasterInsertPage() {
                   onDeleteDeal={perms?.buySide ? handleDeleteDeal : undefined}
                   onUpdateQuoteItem={handleUpdateQuoteItem}
                   onUpdatePoItem={handleUpdatePoItem}
+                  onReorderQuoteLineItems={handleReorderQuoteLineItems}
+                  onReorderPoLineItems={handleReorderPoLineItems}
                   onUpdateQuoteLineItem={handleUpdateQuoteLineItem}
                   onUpdatePoLineItem={handleUpdatePoLineItem}
                   onAddPoLineItem={handleAddPoLineItem}

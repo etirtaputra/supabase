@@ -120,6 +120,9 @@ export interface PriceQuoteLineItem extends BaseEntity {
   quantity: number;
   unit_price: number;
   currency: Currency;
+  /** Display order within the quote, set by dragging in Deal Lookup.
+   *  NULL on every line that has never been ordered — those sort last. */
+  sort_order?: number | null;
 }
 
 // 5.0 Proforma Invoices
@@ -175,6 +178,9 @@ export interface PurchaseLineItem extends BaseEntity {
   quantity: number;
   unit_cost: number;
   currency: Currency;
+  /** Display order within the PO, set by dragging in Deal Lookup.
+   *  NULL on every line that has never been ordered — those sort last. */
+  sort_order?: number | null;
 }
 
 // payment_batches: one row per bank wire / remittance (may cover multiple POs)
