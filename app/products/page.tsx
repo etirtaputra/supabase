@@ -667,23 +667,31 @@ function ProductsInner() {
             Thirteen controls in one wrapping row needed 1,724px to sit on a
             line; a 1536 laptop gives the row 1,488px and a 1366 gives 1,318,
             so it wrapped to two rows on every machine except a 1920 monitor
-            (measured 2026-08-27). Grouping the three tick-boxes under "Show",
-            density + columns under "View", and moving the count inside the
-            search field takes it to eight controls and 1,251px — one line
-            from 1366 up. */}
+            (measured 2026-08-27). Grouping the three tick-boxes under "Show"
+            and density + columns under "View" took it to eight controls.
+            The count later moved back OUT of the search field — see the span
+            below — which is re-measured in the comment there. */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Capped, not flex-1 (owner, 2026-08-31, house pattern from Selling
               Prices): a search that grows with the monitor becomes a banner on
-              a wide screen while the filters bunch at the far right. Nobody
-              types a model longer than 20rem. */}
-          <div className="relative w-full sm:w-80 flex-shrink-0">
+              a wide screen while the filters bunch at the far right.
+              18rem, matching Selling Prices — the count moving out of the
+              field cost the row 95px, and 20rem left only 1px of slack at a
+              1366 laptop (measured: 1,317px of controls into 1,318px of row).
+              18rem brings it to 1,285px. */}
+          <div className="relative w-full sm:w-72 flex-shrink-0">
             <svg className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={canViewBrand ? 'Search model, description, brand, category…' : 'Search description, category…'}
-              className="w-full pl-10 pr-24 h-11 sm:h-9 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors" />
-            {/* The count belongs to the search that produced it. As its own
-                ml-auto slot it cost the row 64px it could not spare. */}
-            <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-slate-600 tabular-nums pointer-events-none">{rows.length} of {comps.length}</span>
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={canViewBrand ? 'Search model, description, brand…' : 'Search description, category…'}
+              className={`w-full pl-10 pr-3 ${BAR_H} ${BAR_BOX} text-white text-[13px] placeholder:text-slate-500`} />
           </div>
+          {/* The count sits BESIDE the field, not inside it (Selling Prices
+              pattern). Inside, `pr-24` took six of the field's twenty rems,
+              leaving 184px for a 295px placeholder — the row saved 95px and
+              spent it on a prompt cut off mid-word ("…description, b"). The
+              shortened placeholder is 229px and the field now offers 236px. */}
+          <span className="text-xs text-slate-500 tabular-nums whitespace-nowrap">
+            {rows.length === comps.length ? `${comps.length} items` : `${rows.length} of ${comps.length}`}
+          </span>
           <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className={selCls}>
             <option value="">{t('All categories')}</option>
             {categories.map((c) => <option key={c} value={c}>{humanize(c)}</option>)}
@@ -723,7 +731,7 @@ function ProductsInner() {
           </BarMenu>
           {hasFilters && (
             <button onClick={() => { setSearch(''); setFilterCategory(''); setFilterBrand(''); setStockOnly(false); setJustArrived(false); setPricedOnly(true); }}
-              className="h-11 sm:h-9 inline-flex items-center text-[11px] text-slate-500 hover:text-white px-2 transition-colors">{t('Clear ×')}</button>
+              className={`${BAR_H} inline-flex items-center text-[12px] text-slate-500 hover:text-white px-2 transition-colors`}>{t('Clear ×')}</button>
           )}
           {/* "Text quote", not "Quote" — this builds a WhatsApp MESSAGE, it
               never creates a Sales Quotation document (owner, 2026-08-06). */}
@@ -731,8 +739,8 @@ function ProductsInner() {
             title={multi
               ? 'Tapping a price adds the item to the WhatsApp text quote at that price. Tap again to remove, tap another tier to move it. This never creates a Sales Quotation document.'
               : 'Collect several products into one WhatsApp text message — no Sales Quotation document is created'}
-            className={`h-11 sm:h-9 inline-flex items-center text-[11px] font-semibold px-2.5 rounded-lg border transition-colors whitespace-nowrap ${
-              multi ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800'
+            className={`${BAR_H} inline-flex items-center text-[12.5px] font-medium px-2.5 rounded-lg border transition-colors whitespace-nowrap ${
+              multi ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white hover:border-slate-600'
             }`}>
             {multi ? `Text quote mode · ${basket.items.length}` : 'Text quote mode'}
           </button>
@@ -1108,8 +1116,8 @@ function BarMenu({ label, title, active, width, children }: {
   return (
     <>
       <button ref={btnRef} onClick={toggle} title={title}
-        className={`h-11 sm:h-9 px-2.5 inline-flex items-center rounded-lg border text-[11px] font-medium whitespace-nowrap transition-colors ${
-          active ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:text-slate-200'
+        className={`${BAR_H} px-2.5 inline-flex items-center rounded-lg border text-[12.5px] font-medium whitespace-nowrap transition-colors ${
+          active ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white hover:border-slate-600'
         }`}>
         {label} ▾
       </button>
@@ -1138,7 +1146,22 @@ function MenuCheck({ checked, onChange, label, title, accent = 'emerald' }: {
   );
 }
 
-const selCls = 'h-11 sm:h-9 px-3 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-slate-300 text-xs transition-colors cursor-pointer';
+/**
+ * The toolbar's control surface, in one place so it cannot drift again.
+ *
+ * The bar had grown three: `rounded-xl` + `slate-900/80` for the search and
+ * the selects, `rounded-lg` + `slate-900/60` + a `slate-800` border for the
+ * BarMenus, and `rounded-lg` with no fill for Text quote mode. Three radii and
+ * three fills across eight controls read as an accident, which is what made
+ * the row look off however carefully it was spaced.
+ *
+ * These are the Selling Prices tokens (app/pricing SetPricingTab): one radius,
+ * one fill, one border, one focus ring. Height stays `h-11 sm:h-9` — the
+ * shared DateRangeFilter sits in this row and uses it.
+ */
+const BAR_H   = 'h-11 sm:h-9';
+const BAR_BOX = 'bg-slate-800 border border-slate-700 rounded-lg outline-none focus:ring-1 focus:ring-emerald-500/40 transition-colors';
+const selCls  = `${BAR_H} px-2.5 ${BAR_BOX} text-slate-300 text-[12.5px] cursor-pointer`;
 
 function CenterSpinner() {
   return <div className="min-h-screen bg-chrome flex items-center justify-center"><div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" /></div>;
