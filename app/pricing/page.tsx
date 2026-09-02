@@ -454,8 +454,11 @@ export default function PricingPage() {
     if (!canManage) { flash('You do not have permission to change categories.'); return; }
     const ok = await assignProfile(supabase, [componentId], profileId);
     flash(ok ? (profileId ? 'Category set' : 'Category cleared') : 'Could not set the category');
-    if (ok) refresh();
-  }, [supabase, refresh, canManage]);
+    // Both: `refresh` re-reads the items, `refreshMarginProfiles` re-tallies
+    // how many sit on each profile — otherwise the Margin Profiles tab keeps
+    // quoting a count that this very click just changed.
+    if (ok) { refresh(); void refreshMarginProfiles(); }
+  }, [supabase, refresh, refreshMarginProfiles, canManage]);
 
   // ── Audit tab filters ──────────────────────────────────────────────────────
   const [auditSearch, setAuditSearch] = useState('');
@@ -530,9 +533,23 @@ export default function PricingPage() {
                   {label}
                 </button>
               ))}
+              {/* A refresh that already has data to show says so here rather
+                  than replacing the tab (see the skeleton condition below). */}
+              {loading && comps.length > 0 && (
+                <span className="ml-auto pb-2.5 text-[11px] text-slate-500 animate-pulse">Updating…</span>
+              )}
             </div>
 
-            {loading ? (
+            {/* The skeleton is for the FIRST load only — when there is nothing
+                to show yet. Raising it on every refresh UNMOUNTED the tab, and
+                a tab that unmounts loses everything the person set up in it:
+                the sort column, the filter chips, how far they had scrolled,
+                and any price edits typed but not yet saved. Setting an item's
+                margin profile calls refresh(), so classifying one item threw
+                the whole view back to the top sorted by ITEM. Keeping the tab
+                mounted with its previous rows costs one frame of stale data
+                and keeps the person exactly where they were. */}
+            {loading && comps.length === 0 ? (
               <div className="space-y-2">{[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-slate-800/40 rounded-2xl animate-pulse" />)}</div>
             ) : tab === 'set' ? (
               <SetPricingTab comps={comps} tiers={activeSorted} chainFor={chainFor} costOf={costOf}
