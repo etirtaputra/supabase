@@ -43,7 +43,17 @@ const GLOBAL_ALIASES: Record<string, AliasRule> = {
  * but kW-canonical on grid-tie units; `battery_voltage_v` is the system
  * voltage on a charge controller but the battery bus on an inverter).
  */
-const CATEGORY_ALIASES: Partial<Record<ProductCategory, Record<string, AliasRule>>> = {
+export const CATEGORY_ALIASES: Partial<Record<ProductCategory, Record<string, AliasRule>>> = {
+  // Spellings that reached the catalogue before pv_module had a declared
+  // field set. Folding them here means the old rows conform without anyone
+  // re-typing a datasheet.
+  pv_module: {
+    power_tolerance_w: { to: 'power_tolerance' },
+    glass_description: { to: 'front_glass' },
+    packing_container_40ft_pcs_per_pallet: { to: 'packing_pcs_per_pallet' },
+    packing_container_40ft_pallets_per_container: { to: 'packing_pallets_per_container_40ft' },
+    packing_container_40ft_total_pcs: { to: 'packing_pcs_per_container_40ft' },
+  },
   inverter_charger: {
     rated_power_kw: { to: 'rated_output_power_w', scale: 1000 },
     battery_voltage_v: { to: 'battery_nominal_voltage_vdc' },
@@ -194,4 +204,106 @@ export function specReadiness(category: string | null | undefined, specs: Specs 
     if (param && (s[param] === null || s[param] === undefined || s[param] === '')) missing.push(param);
   }
   return { relevant: true, ready: missing.length === 0, missing };
+}
+
+// ─── Canonical field sets ────────────────────────────────────────────────────
+
+/**
+ * The FULL field list for a category — every key an item of that category
+ * carries, in the order a person reads a datasheet.
+ *
+ * `CATEGORY_SPEC_REQUIREMENTS` above says what a calculator cannot run
+ * without; this says what the record should LOOK like. They are different
+ * questions and both matter: a module missing `voc_stc_v` cannot be strung,
+ * but a catalogue where one brand carries 30 keys and another carries 3 (the
+ * state before this list existed — TRINA TSM-715NEG21C.20 held three) cannot
+ * be queried at all, because the absence of a key is indistinguishable from
+ * the absence of a value.
+ *
+ * So every item of the category gets every key. A datasheet that does not
+ * state a value writes `null` — "asked and not answered", which a query can
+ * count, rather than a missing key, which it cannot.
+ */
+export const CATEGORY_SPEC_FIELDS: Partial<Record<ProductCategory, readonly string[]>> = {
+  pv_module: [
+    // Cell / construction
+    'cell_type',
+    'number_of_cells',
+    'cell_configuration',
+    'cell_size_mm',
+    'bifacial',
+    'bifaciality_percent',
+    // Electrical at STC
+    'power_stc_w',
+    'power_tolerance',
+    'vmp_stc_v',
+    'imp_stc_a',
+    'voc_stc_v',
+    'isc_stc_a',
+    'efficiency_percent',
+    // Electrical at NOCT
+    'power_noct_w',
+    'vmp_noct_v',
+    'imp_noct_a',
+    'voc_noct_v',
+    'isc_noct_a',
+    'noct_c',
+    // Temperature behaviour
+    'temp_coeff_pmax_percent_per_c',
+    'temp_coeff_voc_percent_per_c',
+    'temp_coeff_isc_percent_per_c',
+    // Ratings that bound a string design
+    'max_system_voltage_vdc',
+    'max_series_fuse_a',
+    'operating_temp_range_c',
+    // Mechanical
+    'dimensions_l_w_h_mm',
+    'weight_kg',
+    'frame_material',
+    'front_glass',
+    'back_glass',
+    'encapsulant',
+    'junction_box',
+    'connector_type',
+    'cable_cross_section_mm2',
+    'cable_length_mm',
+    // Logistics — what a container costs to fill
+    'packing_pcs_per_pallet',
+    'packing_pallets_per_container_40ft',
+    'packing_pcs_per_container_40ft',
+    // Commercial
+    'product_warranty_years',
+    'performance_warranty_years',
+    'certifications',
+  ],
+} as const;
+
+/**
+ * Put one item's specs into its category's canonical shape: every declared
+ * key present, in declared order, `null` where the value is unknown. Keys the
+ * category does not declare are KEPT, after the declared ones — a spec nobody
+ * anticipated is data, not litter, and dropping it here would lose it on the
+ * next save.
+ *
+ * Categories with no declared field set pass through untouched.
+ */
+export function conformSpecs(category: string | null | undefined, specs: Specs | null | undefined): Specs {
+  const fields = category ? CATEGORY_SPEC_FIELDS[category as ProductCategory] : undefined;
+  const src = normalizeSpecs(category, specs ?? {});
+  if (!fields) return src;
+  const out: Specs = {};
+  for (const key of fields) out[key] = key in src ? src[key] : null;
+  for (const [key, value] of Object.entries(src)) if (!(key in out)) out[key] = value;
+  return out;
+}
+
+/** Declared keys this item is still missing a value for. */
+export function specGaps(category: string | null | undefined, specs: Specs | null | undefined): string[] {
+  const fields = category ? CATEGORY_SPEC_FIELDS[category as ProductCategory] : undefined;
+  if (!fields) return [];
+  const s = specs ?? {};
+  return fields.filter((k) => {
+    const v = s[k];
+    return v === null || v === undefined || (typeof v === 'string' && v.trim() === '');
+  });
 }
