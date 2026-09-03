@@ -416,6 +416,9 @@ export const ID: Record<string, string> = {
   'Spend & Cash': 'Belanja & Kas',
   'Profitability': 'Profitabilitas',
   'Item Hub': 'Pusat Barang',
+  'Tech Specs': 'Spesifikasi Teknis',
+  'Enter a datasheet, and compare products side by side':
+    'Masukkan lembar data, dan bandingkan produk berdampingan',
   'Spec Readiness': 'Kesiapan Spesifikasi',
   'Market Intel': 'Intel Pasar',
   'Selling Prices': 'Harga Jual',

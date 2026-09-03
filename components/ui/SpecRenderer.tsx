@@ -5,199 +5,54 @@
  */
 'use client';
 import React from 'react';
+import {
+  SPEC_GROUP_ORDER, fieldMeta, isAnswered, displaySpecValue,
+} from '@/lib/specFields';
 
 // ─── Field catalogue ────────────────────────────────────────────────────────
 
-interface SpecMeta {
-  label: string;
-  unit?: string;
-  group: string;
-  highlight?: boolean; // show in accent colour
-}
-
-const GROUP_ORDER = [
-  // Inverter-charger groups lead when present; a PV module has none of them
-  // and a converter has none of the module groups, so one order serves both.
-  'Topology',
-  'AC Output',
-  'Grid Export',
-  'AC Input & Charger',
-  'PV Input',
-  'Battery',
-  'Electrical (STC)',
-  'Electrical (NOCT)',
-  'Temperature Coefficients',
-  'Physical',
-  'Balance of System',
-  'System Limits',
-  'Logistics',
-  'General',
-];
+/**
+ * Labels, units and groups come from lib/specFields — the same table the Tech
+ * Specs form and the side-by-side comparison read. A field this panel calls
+ * "Max PV Voc" is called that everywhere, or the comparison is a lie.
+ */
+const GROUP_ORDER = SPEC_GROUP_ORDER;
 
 const GROUP_ICONS: Record<string, string> = {
-  'Topology':                '🧭',
-  'AC Output':               '🔋',
-  'Grid Export':             '🏭',
-  'AC Input & Charger':      '🔄',
-  'PV Input':                '☀️',
-  'Battery':                 '🪫',
-  'Electrical (STC)':        '⚡',
-  'Electrical (NOCT)':       '🌡',
+  'Topology':                 '🧭',
+  'AC Output':                '🔋',
+  'Grid Export':              '🏭',
+  'AC Input & Charger':       '🔄',
+  'PV Input':                 '☀️',
+  'Battery':                  '🪫',
+  'Electrical (STC)':         '⚡',
+  'Electrical (NOCT)':        '🌡',
   'Temperature Coefficients': '📉',
-  'Physical':                '📐',
-  'Balance of System':       '🔌',
-  'System Limits':           '🛡',
-  'Logistics':               '📦',
-  'General':                 '📋',
+  'Physical':                 '📐',
+  'Balance of System':        '🔌',
+  'System Limits':            '🛡',
+  'Logistics':                '📦',
+  'General':                  '📋',
 };
 
 const GROUP_COLORS: Record<string, { header: string; badge: string; row: string }> = {
-  'Topology':                { header: 'text-slate-300',  badge: 'bg-slate-500/10 border-slate-500/20',  row: 'hover:bg-slate-800/40' },
-  'AC Output':               { header: 'text-amber-300',  badge: 'bg-amber-500/10 border-amber-500/20',  row: 'hover:bg-amber-500/5' },
-  'Grid Export':             { header: 'text-teal-300',   badge: 'bg-teal-500/10 border-teal-500/20',   row: 'hover:bg-teal-500/5' },
-  'AC Input & Charger':      { header: 'text-violet-300', badge: 'bg-violet-500/10 border-violet-500/20', row: 'hover:bg-violet-500/5' },
-  'PV Input':                { header: 'text-yellow-300', badge: 'bg-yellow-500/10 border-yellow-500/20', row: 'hover:bg-yellow-500/5' },
-  'Battery':                 { header: 'text-lime-300',   badge: 'bg-lime-500/10 border-lime-500/20',   row: 'hover:bg-lime-500/5' },
-  'Electrical (STC)':        { header: 'text-amber-300',  badge: 'bg-amber-500/10 border-amber-500/20',  row: 'hover:bg-amber-500/5' },
-  'Electrical (NOCT)':       { header: 'text-orange-300', badge: 'bg-orange-500/10 border-orange-500/20', row: 'hover:bg-orange-500/5' },
-  'Temperature Coefficients': { header: 'text-rose-300',   badge: 'bg-rose-500/10 border-rose-500/20',    row: 'hover:bg-rose-500/5' },
-  'Physical':                { header: 'text-sky-300',    badge: 'bg-sky-500/10 border-sky-500/20',      row: 'hover:bg-sky-500/5' },
-  'Balance of System':       { header: 'text-violet-300', badge: 'bg-violet-500/10 border-violet-500/20', row: 'hover:bg-violet-500/5' },
-  'System Limits':           { header: 'text-emerald-300',badge: 'bg-emerald-500/10 border-emerald-500/20', row: 'hover:bg-emerald-500/5' },
-  'Logistics':               { header: 'text-cyan-300',   badge: 'bg-cyan-500/10 border-cyan-500/20',    row: 'hover:bg-cyan-500/5' },
-  'General':                 { header: 'text-slate-300',  badge: 'bg-slate-500/10 border-slate-500/20',  row: 'hover:bg-slate-800/40' },
+  'Topology':                 { header: 'text-slate-300',  badge: 'bg-slate-500/10 border-slate-500/20',   row: 'hover:bg-slate-800/40' },
+  'AC Output':                { header: 'text-amber-300',  badge: 'bg-amber-500/10 border-amber-500/20',   row: 'hover:bg-amber-500/5' },
+  'Grid Export':              { header: 'text-teal-300',   badge: 'bg-teal-500/10 border-teal-500/20',     row: 'hover:bg-teal-500/5' },
+  'AC Input & Charger':       { header: 'text-violet-300', badge: 'bg-violet-500/10 border-violet-500/20', row: 'hover:bg-violet-500/5' },
+  'PV Input':                 { header: 'text-yellow-300', badge: 'bg-yellow-500/10 border-yellow-500/20', row: 'hover:bg-yellow-500/5' },
+  'Battery':                  { header: 'text-lime-300',   badge: 'bg-lime-500/10 border-lime-500/20',     row: 'hover:bg-lime-500/5' },
+  'Electrical (STC)':         { header: 'text-amber-300',  badge: 'bg-amber-500/10 border-amber-500/20',   row: 'hover:bg-amber-500/5' },
+  'Electrical (NOCT)':        { header: 'text-orange-300', badge: 'bg-orange-500/10 border-orange-500/20', row: 'hover:bg-orange-500/5' },
+  'Temperature Coefficients': { header: 'text-rose-300',   badge: 'bg-rose-500/10 border-rose-500/20',     row: 'hover:bg-rose-500/5' },
+  'Physical':                 { header: 'text-sky-300',    badge: 'bg-sky-500/10 border-sky-500/20',       row: 'hover:bg-sky-500/5' },
+  'Balance of System':        { header: 'text-violet-300', badge: 'bg-violet-500/10 border-violet-500/20', row: 'hover:bg-violet-500/5' },
+  'System Limits':            { header: 'text-emerald-300',badge: 'bg-emerald-500/10 border-emerald-500/20', row: 'hover:bg-emerald-500/5' },
+  'Logistics':                { header: 'text-cyan-300',   badge: 'bg-cyan-500/10 border-cyan-500/20',     row: 'hover:bg-cyan-500/5' },
+  'General':                  { header: 'text-slate-300',  badge: 'bg-slate-500/10 border-slate-500/20',   row: 'hover:bg-slate-800/40' },
 };
 
-const SPEC_CATALOGUE: Record<string, SpecMeta> = {
-  // ── Inverter charger: topology ────────────────────────────
-  system_type:        { label: 'System Type',          group: 'Topology', highlight: true },
-  phase:              { label: 'Phase',                group: 'Topology' },
-  parallel_operation: { label: 'Parallel Operation',   group: 'Topology' },
-  no_of_mpp_trackers: { label: 'MPP Trackers',         group: 'Topology' },
-
-  // ── Inverter charger: AC output ───────────────────────────
-  rated_output_power_w:          { label: 'Rated Output Power',  unit: 'W',  group: 'AC Output', highlight: true },
-  rated_output_power_va:         { label: 'Rated Output',        unit: 'VA', group: 'AC Output' },
-  surge_power_va:                { label: 'Surge Power',         unit: 'VA', group: 'AC Output' },
-  overload_capability:           { label: 'Overload Capability', group: 'AC Output' },
-  nominal_output_voltage_vac:    { label: 'Nominal Output Voltage',  unit: 'Vac', group: 'AC Output' },
-  output_voltage_regulation_vac: { label: 'Output Voltage Regulation', group: 'AC Output' },
-  nominal_output_frequency_hz:   { label: 'Nominal Output Frequency', unit: 'Hz', group: 'AC Output' },
-  waveform:                      { label: 'Waveform',            group: 'AC Output' },
-  transfer_time_ms:              { label: 'Transfer Time',       unit: 'ms', group: 'AC Output' },
-  efficiency_dc_to_ac_percent:   { label: 'Efficiency (DC→AC)',  unit: '%',  group: 'AC Output' },
-  max_conversion_efficiency_dc_ac_percent: { label: 'Max Conversion Efficiency', unit: '%', group: 'AC Output' },
-
-  // ── Inverter charger: grid export (null on an off-grid unit) ──
-  grid_output_voltage_range_vac:  { label: 'Grid Output Voltage Range',   unit: 'Vac', group: 'Grid Export' },
-  grid_output_frequency_range_hz: { label: 'Grid Output Frequency Range', unit: 'Hz',  group: 'Grid Export' },
-  grid_nominal_output_current_a:  { label: 'Nominal Output Current',      unit: 'A',   group: 'Grid Export' },
-  power_factor:                   { label: 'Power Factor (cos Φ)',        group: 'Grid Export' },
-  ac_start_up_voltage_vac:        { label: 'AC Start-Up Voltage',         unit: 'Vac', group: 'Grid Export' },
-
-  // ── Inverter charger: AC input and the AC charger ─────────
-  ac_input_voltage_vac:       { label: 'AC Input Voltage',        unit: 'Vac', group: 'AC Input & Charger' },
-  ac_input_voltage_range_vac: { label: 'Acceptable Input Range',  unit: 'Vac', group: 'AC Input & Charger' },
-  ac_input_frequency_range_hz:{ label: 'Input Frequency Range',   unit: 'Hz',  group: 'AC Input & Charger' },
-  max_ac_input_current_a:     { label: 'Max AC Input Current',    unit: 'A',   group: 'AC Input & Charger' },
-  max_ac_charging_current_a:  { label: 'Max AC Charging Current', unit: 'A',   group: 'AC Input & Charger' },
-
-  // ── Inverter charger: PV input ────────────────────────────
-  pv_solar_charger_type:           { label: 'Solar Charger Type',   group: 'PV Input' },
-  pv_max_input_power_w:            { label: 'Max PV Input Power',   unit: 'W',   group: 'PV Input', highlight: true },
-  pv_nominal_voltage_vdc:          { label: 'Nominal PV Voltage',   unit: 'Vdc', group: 'PV Input' },
-  pv_max_open_circuit_voltage_vdc: { label: 'Max PV Voc',           unit: 'Vdc', group: 'PV Input', highlight: true },
-  pv_mppt_voltage_range_vdc:       { label: 'MPPT Voltage Range',   unit: 'Vdc', group: 'PV Input' },
-  max_pv_input_current_a:          { label: 'Max PV Input Current', unit: 'A',   group: 'PV Input' },
-  max_solar_charging_current_a:    { label: 'Max Solar Charging Current', unit: 'A', group: 'PV Input' },
-
-  // ── Inverter charger: battery port ────────────────────────
-  battery_nominal_voltage_vdc:  { label: 'Nominal Battery Voltage', unit: 'Vdc', group: 'Battery', highlight: true },
-  battery_voltage_range_vdc:    { label: 'Battery Voltage Range',   unit: 'Vdc', group: 'Battery' },
-  floating_charge_voltage_vdc:  { label: 'Floating Charge Voltage', unit: 'Vdc', group: 'Battery' },
-  overcharge_protection_vdc:    { label: 'Overcharge Protection',   unit: 'Vdc', group: 'Battery' },
-  max_total_charging_current_a: { label: 'Max Total Charging Current', unit: 'A', group: 'Battery' },
-
-  // ── Inverter charger: physical, interface, environment ────
-  dimensions_d_w_h_mm:           { label: 'Dimensions (D × W × H)', unit: 'mm', group: 'Physical' },
-  communication_interfaces:      { label: 'Communication',          group: 'Physical' },
-  intelligent_slot:              { label: 'Intelligent Slot',       group: 'Physical' },
-  humidity_range_percent:        { label: 'Humidity',               unit: '%',  group: 'General' },
-  operating_temperature_range_c: { label: 'Operating Temperature',  unit: '°C', group: 'General' },
-  storage_temperature_range_c:   { label: 'Storage Temperature',    unit: '°C', group: 'General' },
-
-  // ── Electrical STC ────────────────────────────────────────
-  model:            { label: 'Model',                      group: 'Electrical (STC)' },
-  power_stc_w:      { label: 'Peak Power (Pmax)',           unit: 'W',     group: 'Electrical (STC)', highlight: true },
-  efficiency_percent:{ label: 'Module Efficiency',          unit: '%',     group: 'Electrical (STC)', highlight: true },
-  voc_stc_v:        { label: 'Open-Circuit Voltage (Voc)', unit: 'V',     group: 'Electrical (STC)' },
-  vmp_stc_v:        { label: 'Max Power Voltage (Vmp)',    unit: 'V',     group: 'Electrical (STC)' },
-  isc_stc_a:        { label: 'Short-Circuit Current (Isc)',unit: 'A',     group: 'Electrical (STC)' },
-  imp_stc_a:        { label: 'Operating Current (Imp)',    unit: 'A',     group: 'Electrical (STC)' },
-  power_tolerance:  { label: 'Power Tolerance',                           group: 'Electrical (STC)' },
-
-  // ── Electrical NOCT ───────────────────────────────────────
-  noct_c:           { label: 'NOCT',                       unit: '°C',    group: 'Electrical (NOCT)' },
-  power_noct_w:     { label: 'Power at NOCT',              unit: 'W',     group: 'Electrical (NOCT)', highlight: true },
-  voc_noct_v:       { label: 'Voc at NOCT',                unit: 'V',     group: 'Electrical (NOCT)' },
-  vmp_noct_v:       { label: 'Vmp at NOCT',                unit: 'V',     group: 'Electrical (NOCT)' },
-  isc_noct_a:       { label: 'Isc at NOCT',                unit: 'A',     group: 'Electrical (NOCT)' },
-  imp_noct_a:       { label: 'Imp at NOCT',                unit: 'A',     group: 'Electrical (NOCT)' },
-
-  // ── Temperature Coefficients ──────────────────────────────
-  temp_coeff_pmax_percent_per_c: { label: 'Temp Coeff. Pmax', unit: '%/°C', group: 'Temperature Coefficients' },
-  temp_coeff_voc_percent_per_c:  { label: 'Temp Coeff. Voc',  unit: '%/°C', group: 'Temperature Coefficients' },
-  temp_coeff_isc_percent_per_c:  { label: 'Temp Coeff. Isc',  unit: '%/°C', group: 'Temperature Coefficients' },
-
-  // ── Physical ──────────────────────────────────────────────
-  dimensions_l_w_h_mm: { label: 'Dimensions (L × W × H)', unit: 'mm',    group: 'Physical' },
-  weight_kg:            { label: 'Weight',                  unit: 'kg',    group: 'Physical' },
-  number_of_cells:      { label: 'Number of Cells',         unit: 'cells', group: 'Physical' },
-  cell_configuration:   { label: 'Cell Configuration',      group: 'Physical' },
-  cell_size_mm:         { label: 'Cell Size',               unit: 'mm',    group: 'Physical' },
-  cell_type:            { label: 'Cell Type',               group: 'Physical' },
-  frame_material:       { label: 'Frame Material',          group: 'Physical' },
-  front_glass:          { label: 'Front Glass',             group: 'Physical' },
-  back_glass:           { label: 'Back Glass',              group: 'Physical' },
-  encapsulant:          { label: 'Encapsulant',             group: 'Physical' },
-  bifacial:             { label: 'Bifacial',                group: 'Physical' },
-  bifaciality_percent:  { label: 'Bifaciality',             unit: '%',     group: 'Physical' },
-
-  // ── Balance of System ─────────────────────────────────────
-  max_series_fuse_a:      { label: 'Max Series Fuse',      unit: 'A',   group: 'Balance of System' },
-  cable_cross_section_mm2:{ label: 'Cable Cross-Section',  unit: 'mm²', group: 'Balance of System' },
-  cable_length_mm:        { label: 'Cable Length',         unit: 'mm',  group: 'Balance of System' },
-  connector_type:         { label: 'Connector Type',       group: 'Balance of System' },
-  junction_box:           { label: 'Junction Box',         group: 'Balance of System' },
-
-  // ── System Limits ─────────────────────────────────────────
-  max_system_voltage_vdc:  { label: 'Max System Voltage',   unit: 'VDC', group: 'System Limits', highlight: true },
-  operating_temp_range_c:  { label: 'Operating Temperature', unit: '°C', group: 'System Limits' },
-
-  // ── Logistics ─────────────────────────────────────────────
-  packing_pcs_per_container_40ft:     { label: 'Total Pcs / 40ft',      unit: 'pcs',     group: 'Logistics' },
-  packing_pcs_per_pallet:             { label: 'Pcs per Pallet',        unit: 'pcs',     group: 'Logistics' },
-  packing_pallets_per_container_40ft: { label: 'Pallets per Container', unit: 'pallets', group: 'Logistics' },
-
-  // ── Warranty ──────────────────────────────────────────────
-  product_warranty_years:     { label: 'Product Warranty',     unit: 'years', group: 'General' },
-  performance_warranty_years: { label: 'Performance Warranty', unit: 'years', group: 'General' },
-};
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-function prettifyKey(key: string): string {
-  return key
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function formatValue(val: unknown): string {
-  if (val === null || val === undefined) return '—';
-  if (Array.isArray(val)) return val.join(', ');
-  if (typeof val === 'object') return JSON.stringify(val);
-  return String(val);
-}
+const formatValue = displaySpecValue;
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
 
@@ -278,8 +133,8 @@ export default function SpecRenderer({ specs, modelName }: SpecRendererProps) {
   for (const key of highlightKeys) {
     // `key in specs` is now true for every module — a null means unanswered,
     // and a headline stat reading "—" is worse than no stat.
-    if (specs[key] !== null && specs[key] !== undefined && specs[key] !== '') {
-      const meta = SPEC_CATALOGUE[key];
+    if (isAnswered(specs[key])) {
+      const meta = fieldMeta(key);
       highlights.push({
         label: meta.label,
         value: formatValue(specs[key]),
@@ -305,12 +160,12 @@ export default function SpecRenderer({ specs, modelName }: SpecRendererProps) {
   let unanswered = 0;
   for (const [key, val] of Object.entries(specs)) {
     if (skipKeys.has(key)) continue;
-    if (val === null || val === undefined || (typeof val === 'string' && val.trim() === '')) { unanswered += 1; continue; }
-    const meta = SPEC_CATALOGUE[key];
-    const group = meta?.group ?? 'General';
-    const label = meta?.label ?? prettifyKey(key);
-    const unit = meta?.unit;
-    const highlight = meta?.highlight;
+    if (!isAnswered(val)) { unanswered += 1; continue; }
+    const meta = fieldMeta(key);
+    const group = meta.group;
+    const label = meta.label;
+    const unit = meta.unit;
+    const highlight = meta.highlight;
     if (!groups[group]) groups[group] = [];
     groups[group].push({ label, value: formatValue(val), unit, highlight });
   }

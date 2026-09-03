@@ -73,18 +73,18 @@ const EXPECTED: Record<UserRole, string[]> = {
     '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=progress', '/purchasing?tab=financials',
     '/purchasing?tab=lookup', '/suppliers', '/stock', '/stock/receive', '/stock/reconcile',
     '/customers', '/products', '/sales', '/invoices', '/delivery', '/serials', '/aftersales',
-    '/support-letters', '/banks', '/spend-cash', '/profitability', '/items',
+    '/support-letters', '/banks', '/spend-cash', '/profitability', '/items', '/specs',
     '/purchasing?tab=market-intel', '/pricing', '/proposals', '/settings', '/import-export',
   ],
   buy_admin: [
     '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=progress', '/purchasing?tab=financials',
     '/purchasing?tab=lookup', '/suppliers', '/stock', '/stock/receive', '/stock/reconcile',
-    '/products', '/delivery', '/serials', '/banks', '/purchasing?tab=market-intel',
-    '/import-export',
+    '/products', '/delivery', '/serials', '/banks', '/specs',
+    '/purchasing?tab=market-intel', '/import-export',
   ],
   sell_admin: [
     '/', '/customers', '/products', '/sales', '/invoices', '/delivery', '/serials',
-    '/aftersales', '/support-letters', '/banks', '/pricing', '/import-export',
+    '/aftersales', '/support-letters', '/banks', '/specs', '/pricing', '/import-export',
   ],
   sales: [
     '/', '/customers', '/products', '/sales', '/invoices', '/delivery', '/serials',
@@ -100,12 +100,12 @@ const EXPECTED: Record<UserRole, string[]> = {
   data_entry: [
     '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=progress', '/purchasing?tab=lookup',
     '/suppliers', '/stock', '/stock/receive', '/stock/reconcile', '/delivery', '/serials',
-    '/purchasing?tab=market-intel',
+    '/specs', '/purchasing?tab=market-intel',
   ],
   finance: [
     '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=progress', '/purchasing?tab=financials',
     '/purchasing?tab=lookup', '/suppliers', '/stock', '/stock/reconcile', '/invoices',
-    '/banks', '/purchasing?tab=market-intel', '/import-export',
+    '/banks', '/specs', '/purchasing?tab=market-intel', '/import-export',
   ],
 };
 
