@@ -34,6 +34,9 @@ interface Comp {
   datasheet_url: string | null; warranty: string | null; updated_at: string | null;
   warranty_value: number | null; warranty_unit: string | null;
   perf_warranty_value: number | null; perf_warranty_unit: string | null;
+  /** The datasheet, as JSON. Safe on the sell side: lib/specSchema strips
+   *  brand, model and price from the blob, so it carries technical data only. */
+  specifications: Record<string, unknown> | null;
 }
 interface Tier { tier_id: string; tier_code: string; name: string; default_discount_pct: number; sort_order: number; is_active: boolean; }
 interface Override { component_id: string; tier_id: string; override_price_idr: number | null; override_discount_pct: number | null; }
@@ -45,6 +48,7 @@ import { INCOMING_PO_STATUSES, itemArrivals, itemArrivalDetails, type ItemArriva
 import { useSettings } from '@/hooks/useSettings';
 import { PRODUCT_COLS } from '@/constants/productColumns';
 import QuoteBasket, { useQuoteBasket } from '@/components/ui/QuoteBasket';
+import SpecRenderer from '@/components/ui/SpecRenderer';
 import { buildPriceSnippet, copyOnly } from '@/lib/whatsappQuote';
 import { useListLayout } from '@/hooks/useListLayout';
 import { useListDefaults } from '@/hooks/useListDefaults';
@@ -272,7 +276,7 @@ function ProductsInner() {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     // Brand is buy-side sensitive — never sent to a sell-side browser.
-    const cols = `component_id, supplier_model, internal_description, category, unit, norm_value, selling_price_idr, datasheet_url, warranty, warranty_value, warranty_unit, perf_warranty_value, perf_warranty_unit, updated_at${canViewBrand ? ', brand' : ''}`;
+    const cols = `component_id, supplier_model, internal_description, category, unit, norm_value, selling_price_idr, datasheet_url, warranty, warranty_value, warranty_unit, perf_warranty_value, perf_warranty_unit, specifications, updated_at${canViewBrand ? ', brand' : ''}`;
     const [allComps, tierRes, ovRes, balRes, sqRes, sqiRes, poRes, poiRes, piiRes, custRes, linkRes, arrRes, pqRes] = await Promise.all([
       fetchAllComponents<Comp>(supabase, cols),
       supabase.from('21.0_price_tiers').select('tier_id, tier_code, name, default_discount_pct, sort_order, is_active').order('sort_order'),
@@ -1272,6 +1276,15 @@ function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEdi
   const [pv, setPv] = useState(c.perf_warranty_value != null ? String(c.perf_warranty_value) : '');
   const [pu, setPu] = useState(c.perf_warranty_unit ?? 'years');
   const [sheet, setSheet] = useState(c.datasheet_url ?? '');
+  const [showSpecs, setShowSpecs] = useState(false);
+  // How many fields this item ANSWERS, not how many it carries. A category
+  // with a declared field set holds every key and writes null where the
+  // datasheet is silent, so counting keys would report "41" for an item that
+  // states nothing at all.
+  const specCount = useMemo(
+    () => Object.values(c.specifications ?? {})
+      .filter((v) => v !== null && v !== undefined && v !== '').length,
+    [c.specifications]);
   const saveWarranty = (patch?: { wu?: string; pu?: string }) => {
     const num = (s: string) => { const n = parseFloat(s); return isFinite(n) && n > 0 ? n : null; };
     const next = {
@@ -1387,6 +1400,38 @@ function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEdi
           )}
         </div>
       </div>
+
+      {/* Technical specifications ─────────────────────────────────────────
+          The same datasheet JSON the System Designer sizes from, rendered
+          where a rep actually needs it. It lives HERE and not behind a link
+          to the Item Hub because Sales cannot open the Catalog at all
+          (constants/roles.ts — the sales role has every Catalog tab false and
+          buySide false), and answering "what's the Voc on that panel?" should
+          not require the role that can also see what we paid for it.
+
+          Safe to show: lib/specSchema NON_SPEC_KEYS keeps brand, model and
+          price out of the blob, so it carries technical data only — which is
+          also why it is fine on a customer-facing spec annex.
+
+          Collapsed by default. Forty-one fields would bury the price list and
+          the order history that most people open this panel for. */}
+      {specCount > 0 && (
+        <div>
+          <button onClick={() => setShowSpecs((v) => !v)}
+            className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-300 transition-colors">
+            <span>{t('Technical specifications')}</span>
+            <span className="text-slate-600 tabular-nums normal-case tracking-normal font-normal">
+              {specCount} {t('stated')}
+            </span>
+            <span className={`transition-transform ${showSpecs ? 'rotate-90' : ''}`}>›</span>
+          </button>
+          {showSpecs && (
+            <div className="mt-2 rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+              <SpecRenderer specs={c.specifications} modelName={descOf(c)} />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Last orders + deliveries */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">

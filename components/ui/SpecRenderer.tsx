@@ -57,7 +57,7 @@ const SPEC_CATALOGUE: Record<string, SpecMeta> = {
   vmp_stc_v:        { label: 'Max Power Voltage (Vmp)',    unit: 'V',     group: 'Electrical (STC)' },
   isc_stc_a:        { label: 'Short-Circuit Current (Isc)',unit: 'A',     group: 'Electrical (STC)' },
   imp_stc_a:        { label: 'Operating Current (Imp)',    unit: 'A',     group: 'Electrical (STC)' },
-  power_tolerance_w:{ label: 'Power Tolerance',            unit: 'W',     group: 'Electrical (STC)' },
+  power_tolerance:  { label: 'Power Tolerance',                           group: 'Electrical (STC)' },
 
   // ── Electrical NOCT ───────────────────────────────────────
   noct_c:           { label: 'NOCT',                       unit: '°C',    group: 'Electrical (NOCT)' },
@@ -80,7 +80,11 @@ const SPEC_CATALOGUE: Record<string, SpecMeta> = {
   cell_size_mm:         { label: 'Cell Size',               unit: 'mm',    group: 'Physical' },
   cell_type:            { label: 'Cell Type',               group: 'Physical' },
   frame_material:       { label: 'Frame Material',          group: 'Physical' },
-  glass_description:    { label: 'Glass',                   group: 'Physical' },
+  front_glass:          { label: 'Front Glass',             group: 'Physical' },
+  back_glass:           { label: 'Back Glass',              group: 'Physical' },
+  encapsulant:          { label: 'Encapsulant',             group: 'Physical' },
+  bifacial:             { label: 'Bifacial',                group: 'Physical' },
+  bifaciality_percent:  { label: 'Bifaciality',             unit: '%',     group: 'Physical' },
 
   // ── Balance of System ─────────────────────────────────────
   max_series_fuse_a:      { label: 'Max Series Fuse',      unit: 'A',   group: 'Balance of System' },
@@ -94,9 +98,13 @@ const SPEC_CATALOGUE: Record<string, SpecMeta> = {
   operating_temp_range_c:  { label: 'Operating Temperature', unit: '°C', group: 'System Limits' },
 
   // ── Logistics ─────────────────────────────────────────────
-  packing_container_40ft_total_pcs:              { label: 'Total Pcs / 40ft',         unit: 'pcs',     group: 'Logistics' },
-  packing_container_40ft_pcs_per_pallet:         { label: 'Pcs per Pallet',            unit: 'pcs',     group: 'Logistics' },
-  packing_container_40ft_pallets_per_container:  { label: 'Pallets per Container',     unit: 'pallets', group: 'Logistics' },
+  packing_pcs_per_container_40ft:     { label: 'Total Pcs / 40ft',      unit: 'pcs',     group: 'Logistics' },
+  packing_pcs_per_pallet:             { label: 'Pcs per Pallet',        unit: 'pcs',     group: 'Logistics' },
+  packing_pallets_per_container_40ft: { label: 'Pallets per Container', unit: 'pallets', group: 'Logistics' },
+
+  // ── Warranty ──────────────────────────────────────────────
+  product_warranty_years:     { label: 'Product Warranty',     unit: 'years', group: 'General' },
+  performance_warranty_years: { label: 'Performance Warranty', unit: 'years', group: 'General' },
 };
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -185,7 +193,9 @@ export default function SpecRenderer({ specs, modelName }: SpecRendererProps) {
   const highlights: { label: string; value: string; unit?: string; color: string }[] = [];
   const highlightKeys = ['power_stc_w', 'efficiency_percent', 'voc_stc_v', 'max_system_voltage_vdc'];
   for (const key of highlightKeys) {
-    if (key in specs) {
+    // `key in specs` is now true for every module — a null means unanswered,
+    // and a headline stat reading "—" is worse than no stat.
+    if (specs[key] !== null && specs[key] !== undefined && specs[key] !== '') {
       const meta = SPEC_CATALOGUE[key];
       highlights.push({
         label: meta.label,
@@ -204,8 +214,15 @@ export default function SpecRenderer({ specs, modelName }: SpecRendererProps) {
   const groups: Record<string, { label: string; value: string; unit?: string; highlight?: boolean }[]> = {};
   const skipKeys = new Set([...highlightKeys, 'certifications']);
 
+  // Since lib/specSchema gave each category a declared field set, every item
+  // carries every key and writes null where its datasheet is silent. That is
+  // what makes "which modules have no NOCT data?" answerable — but rendering
+  // it would be twenty rows of "—". Unanswered fields are counted in the
+  // header instead, so the gap is still visible without filling the panel.
+  let unanswered = 0;
   for (const [key, val] of Object.entries(specs)) {
     if (skipKeys.has(key)) continue;
+    if (val === null || val === undefined || (typeof val === 'string' && val.trim() === '')) { unanswered += 1; continue; }
     const meta = SPEC_CATALOGUE[key];
     const group = meta?.group ?? 'General';
     const label = meta?.label ?? prettifyKey(key);
@@ -223,7 +240,10 @@ export default function SpecRenderer({ specs, modelName }: SpecRendererProps) {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-base font-bold text-white">{modelName ?? 'Specifications'}</h3>
-          <p className="text-xs text-slate-500 mt-0.5">{Object.keys(specs).length} parameters stored</p>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {Object.keys(specs).length - unanswered} of {Object.keys(specs).length} parameters
+            {unanswered > 0 && <span className="text-slate-600"> · {unanswered} not stated on the datasheet</span>}
+          </p>
         </div>
       </div>
 
