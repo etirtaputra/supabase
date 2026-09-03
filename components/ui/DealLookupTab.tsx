@@ -563,6 +563,8 @@ export default function DealLookupTab({
   // The inverse link, set from the SUPERSEDED quote's card: "this quote is
   // replaced by …" — writes replaces_quote_id on the chosen successor.
   const [editingQuoteReplacedBy, setEditingQuoteReplacedBy] = useState<string | null>(null);
+  const [editingDate, setEditingDate]             = useState<string | null>(null);
+  const [dateDraft, setDateDraft]                 = useState('');
   const [renameDraft, setRenameDraft]             = useState('');
   const [renameBusy, setRenameBusy]               = useState(false);
   const [acknowledgedMismatches, setAcknowledgedMismatches] = useState<Set<string>>(new Set());
@@ -860,8 +862,45 @@ export default function DealLookupTab({
                           )}
                         </div>
                       )}
+                      {/* The DATE is editable in place.
+                          A supplier who revises a quote often reissues it under
+                          the SAME PI number and only moves the date, so the
+                          fast path is to retype the date here rather than
+                          create a replacement quote. Anything more than a date
+                          change still belongs on a new quote, linked with
+                          "replaces a quote" below — this does not replace that,
+                          it just stops a date edit from needing it. */}
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Date</p>
+                        {editingDate === qKey ? (
+                          <div className="flex items-center gap-1 mt-0.5" onClick={(e) => e.stopPropagation()}>
+                            <input autoFocus type="date" value={dateDraft} onChange={(e) => setDateDraft(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === 'Escape') setEditingDate(null); if (e.key === 'Enter') (e.currentTarget.nextElementSibling as HTMLButtonElement)?.click(); }}
+                              className="text-xs rounded px-1.5 py-0.5 bg-slate-900 border border-sky-500/40 text-white focus:outline-none" />
+                            <button disabled={renameBusy} title="Save the quote date"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                const v = dateDraft.trim();
+                                if (v && v !== (qt.quote_date ?? '') && onUpdateQuote) {
+                                  setRenameBusy(true);
+                                  try { await onUpdateQuote(qKey, { quote_date: v }); } finally { setRenameBusy(false); }
+                                }
+                                setEditingDate(null);
+                              }}
+                              className="text-emerald-400 hover:text-emerald-300 disabled:opacity-40 p-0.5"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg></button>
+                            <button onClick={(e) => { e.stopPropagation(); setEditingDate(null); }} className="text-slate-500 hover:text-slate-300 p-0.5"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+                          </div>
+                        ) : onUpdateQuote ? (
+                          <button onClick={(e) => { e.stopPropagation(); setDateDraft(qt.quote_date ?? ''); setEditingDate(qKey); }}
+                            className="text-slate-300 mt-0.5 hover:text-sky-300 transition-colors text-left"
+                            title="Click to change the quote date — for a supplier who reissues under the same PI number">
+                            {qt.quote_date || <span className="text-slate-600 italic">Set date…</span>}
+                          </button>
+                        ) : (
+                          <p className="text-slate-300 mt-0.5">{qt.quote_date}</p>
+                        )}
+                      </div>
                       {[
-                        { label: 'Date',      value: qt.quote_date },
                         { label: 'Supplier',  value: sup?.supplier_name },
                         { label: 'Currency',  value: qt.currency },
                         { label: 'Lead Time', value: qt.estimated_lead_time_days },

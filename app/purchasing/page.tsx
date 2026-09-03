@@ -225,6 +225,9 @@ function MasterInsertPage() {
     }
     const { error } = await supabase.from('4.0_price_quotes').update(changes).eq('quote_id', quoteId);
     if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
+    // A date edit is silent otherwise, and a supplier reissuing under the same
+    // PI number is exactly the case where you want to see it landed.
+    if ('quote_date' in changes) showToast(`Quote date set to ${changes.quote_date}.`, 'success');
     refetch();
   };
 
