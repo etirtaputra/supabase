@@ -73,6 +73,7 @@ export const CATEGORY_ALIASES: Partial<Record<ProductCategory, Record<string, Al
     no_of_mpp_trackers: { to: 'no_of_mppts' },
   },
   solar_charge_controller: {
+    battery_temp_compensation: { to: 'temperature_compensation' },
     type: { to: 'controller_type' },
     rated_current_a: { to: 'rated_charge_current_a' },
     max_pv_voc_v: { to: 'pv_max_voc_v' },
@@ -230,6 +231,94 @@ export function specReadiness(category: string | null | undefined, specs: Specs 
  * count, rather than a missing key, which it cannot.
  */
 export const CATEGORY_SPEC_FIELDS: Partial<Record<ProductCategory, readonly string[]>> = {
+  /**
+   * Lead-acid and lithium share ONE field set. A float voltage reads null on a
+   * lithium pack and a discharge cut-off reads null on a flooded cell; that is
+   * the chemistry answering, not the record being incomplete.
+   */
+  batteries: [
+    // Chemistry and rating
+    'battery_type',
+    'configuration',
+    'nominal_voltage_v',
+    'rated_capacity_ah',
+    'minimal_capacity_ah',
+    'energy_wh',
+    // Charge and discharge limits
+    'charge_voltage_v',
+    'charge_voltage_cycle_v',
+    'charge_voltage_float_v',
+    'discharge_cut_off_voltage_v',
+    'rated_charge_current_a',
+    'max_charge_current_a',
+    'max_discharge_current_a',
+    'recommended_discharge_current_a',
+    'recommended_depth_of_discharge_percent',
+    'max_parallel_units',
+    // How it behaves over time
+    'cycle_life',
+    'internal_resistance_mohm',
+    'self_discharge_percent_per_month',
+    // Environment
+    'operating_temp_range_charge_c',
+    'operating_temp_range_discharge_c',
+    'storage_temp_range_c',
+    'humidity_range_percent',
+    'ip_rating',
+    // Physical and interface
+    'dimensions_l_w_h_mm',
+    'weight_kg',
+    'terminal_type',
+    'case_material',
+    'mounting',
+    'communication',
+    'display',
+    'certifications',
+  ],
+  /**
+   * MPPT and PWM share ONE field set — a PWM unit simply answers null where
+   * the tracking questions are, which is the honest way to say "it does not
+   * track".
+   */
+  solar_charge_controller: [
+    // What it is and what bus it serves
+    'controller_type',
+    'system_voltage_v',
+    'controller_operating_voltage_range_v',
+    // Ratings
+    'rated_charge_current_a',
+    'rated_discharge_current_a',
+    'rated_charging_power_w',
+    // PV side
+    'pv_max_voc_v',
+    'mppt_voltage_range_v',
+    'max_conversion_efficiency_percent',
+    'max_load_efficiency_percent',
+    'tracking_efficiency_percent',
+    'self_consumption_ma',
+    'discharge_circuit_voltage_drop_v',
+    'temperature_compensation',
+    'grounding_type',
+    // Battery compatibility and interface
+    'battery_types',
+    'parallel_operation',
+    'pv_inputs',
+    'communication',
+    'display',
+    // Physical
+    'dimensions_mm',
+    'mounting_size_mm',
+    'terminal_mm2',
+    'recommended_cable_mm2',
+    'weight_kg',
+    // Environment
+    'ip_rating',
+    'operating_temperature_range_c',
+    'storage_temperature_range_c',
+    'humidity_range_percent',
+    'pollution_degree',
+    'certifications',
+  ],
   /**
    * Off-grid and hybrid units share ONE field set. A hybrid is an off-grid
    * inverter that can also export, so splitting them would mean two shapes
