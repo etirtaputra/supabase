@@ -10,6 +10,7 @@
 'use client';
 import { Fragment, useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { useDragReorder, DRAGGING_ROW, REORDER_ROW } from './dragReorder';
 import type {
   PriceQuote, PriceQuoteLineItem,
   PurchaseOrder, PurchaseLineItem, POCost,
@@ -453,8 +454,6 @@ export default function DealLookupTab({
   //
   // Rows only reorder within their own quote/PO — `parent` is checked on every
   // dragover, so a row can never be dropped into a different document.
-  const [dragLine, setDragLine]         = useState<{ kind: 'quote' | 'po'; parent: string; id: string } | null>(null);
-  const [dragOverLine, setDragOverLine] = useState<string | null>(null);
   const [reordering, setReordering]     = useState<string | null>(null);
   /** Locally-dragged order, applied over the server's until the refetch lands. */
   const [lineOrder, setLineOrder]       = useState<Record<string, string[]>>({});
@@ -471,23 +470,46 @@ export default function DealLookupTab({
     return out;
   }, [lineOrder]);
 
-  async function handleDropLine(kind: 'quote' | 'po', parent: string, currentIds: string[], targetId: string) {
-    const src = dragLine;
-    setDragLine(null);
-    setDragOverLine(null);
-    if (!src || src.kind !== kind || src.parent !== parent) return;
-    const from = currentIds.indexOf(src.id);
-    const to   = currentIds.indexOf(targetId);
-    if (from < 0 || to < 0 || from === to) return;
-    const next = currentIds.slice();
-    next.splice(to, 0, next.splice(from, 1)[0]);
-    const key = `${kind}:${parent}`;
-    setLineOrder((prev) => ({ ...prev, [key]: next }));
-    const persist = kind === 'quote' ? onReorderQuoteLineItems : onReorderPoLineItems;
-    if (!persist) return;
-    setReordering(key);
-    try { await persist(parent, next); } finally { setReordering(null); }
-  }
+  // A row's drag key is `kind|parent|line`, so `canDrop` can refuse a line
+  // dropped into a different quote or PO — the only rule this list adds on top
+  // of the shared mechanism.
+  const partsOf = (key: string) => {
+    const [kind, parent, id] = key.split('|');
+    return { kind: kind as 'quote' | 'po', parent, id };
+  };
+
+  const orderedIdsFor = useCallback((kind: 'quote' | 'po', parent: string): string[] => {
+    const rows = kind === 'quote'
+      ? quoteItems.filter((i) => String(i.quote_id) === parent).map((i) => String(i.quote_line_id))
+      : poItems.filter((i) => String(i.po_id) === parent).map((i) => String(i.po_line_item_id));
+    return applyLineOrder(`${kind}:${parent}`, rows, (id) => id);
+  }, [quoteItems, poItems, applyLineOrder]);
+
+  const drag = useDragReorder<string>(
+    (fromKey, toKey, after) => {
+      const from = partsOf(fromKey);
+      const to = partsOf(toKey);
+      const ids = orderedIdsFor(from.kind, from.parent);
+      const i = ids.indexOf(from.id);
+      let j = ids.indexOf(to.id);
+      if (i < 0 || j < 0) return;
+      const next = ids.slice();
+      next.splice(i, 1);
+      j = next.indexOf(to.id) + (after ? 1 : 0);
+      next.splice(j, 0, from.id);
+      if (next.join() === ids.join()) return;
+      const key = `${from.kind}:${from.parent}`;
+      setLineOrder((prev) => ({ ...prev, [key]: next }));
+      const persist = from.kind === 'quote' ? onReorderQuoteLineItems : onReorderPoLineItems;
+      if (!persist) return;
+      setReordering(key);
+      void persist(from.parent, next).finally(() => setReordering(null));
+    },
+    { canDrop: (from, to) => {
+      const a = partsOf(from); const b = partsOf(to);
+      return a.kind === b.kind && a.parent === b.parent;
+    } },
+  );
 
   const [viewMode, setViewMode]               = useState<'all' | 'by-vendor' | 'by-company'>('all');
   const [search, setSearch]                   = useState(initialSearch ?? '');
@@ -972,28 +994,18 @@ export default function DealLookupTab({
                               const lineTotal = (Number(item.quantity) || 0) * (Number(item.unit_price) || 0);
                               const isEditingComp = editingItem?.type === 'quote' && editingItem.id === item.quote_line_id;
                               const isEditingLine = editingLine?.mode === 'edit' && editingLine.type === 'quote' && editingLine.id === item.quote_line_id && editingLine.rowIdx === -1;
-                              const lineKey = String(item.quote_line_id);
-                              const isDragTarget = dragOverLine === lineKey && dragLine?.kind === 'quote' && dragLine.parent === qKey;
+                              const dragKey = `quote|${qKey}|${item.quote_line_id}`;
+                              const canThis = canDragQuote;
                               return (
-                                <tr key={item.quote_line_id}
-                                  onDragOver={canDragQuote ? (e) => {
-                                    if (!dragLine || dragLine.kind !== 'quote' || dragLine.parent !== qKey) return;
-                                    e.preventDefault();
-                                    setDragOverLine(lineKey);
-                                  } : undefined}
-                                  onDrop={canDragQuote ? (e) => {
-                                    e.preventDefault();
-                                    handleDropLine('quote', qKey, items.map((i) => String(i.quote_line_id)), lineKey);
-                                  } : undefined}
-                                  className={`border-b border-slate-800/40 last:border-0 group ${isEditingLine ? 'bg-sky-500/5' : ''} ${isDragTarget ? 'outline outline-1 outline-sky-400/70 bg-sky-500/10' : ''} ${dragLine?.id === lineKey ? 'opacity-40' : ''}`}>
+                                <tr key={item.quote_line_id} data-drag-row
+                                  {...(canThis ? drag.rowProps(dragKey) : {})}
+                                  className={`border-b border-slate-800/40 last:border-0 group ${REORDER_ROW} ${isEditingLine ? 'bg-sky-500/5' : ''} ${canThis ? drag.lineAt(dragKey, { table: true }) : ''} ${drag.dragKey === dragKey ? DRAGGING_ROW : ''}`}>
                                   {/* Drag handle — grab area only, so text in the
                                       cells stays selectable and copyable. */}
-                                  {canDragQuote && (
+                                  {canThis && (
                                     <td className="py-2 pr-1 align-top w-5">
                                       <span
-                                        draggable
-                                        onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDragLine({ kind: 'quote', parent: qKey, id: lineKey }); }}
-                                        onDragEnd={() => { setDragLine(null); setDragOverLine(null); }}
+                                        {...drag.handleProps(dragKey, { rowImage: true })}
                                         title="Drag to reorder this quote's lines"
                                         className="inline-flex cursor-grab active:cursor-grabbing text-slate-700 group-hover:text-slate-500 hover:!text-sky-400 transition-colors"
                                       >
@@ -1752,26 +1764,16 @@ export default function DealLookupTab({
                               const lineTotal = (Number(item.quantity) || 0) * (Number(item.unit_cost) || 0);
                               const isEditingComp = editingItem?.type === 'po' && editingItem.id === item.po_line_item_id;
                               const isEditingLine = editingLine?.mode === 'edit' && editingLine.type === 'po' && editingLine.id === item.po_line_item_id && editingLine.rowIdx === -1;
-                              const lineKey = String(item.po_line_item_id);
-                              const isDragTarget = dragOverLine === lineKey && dragLine?.kind === 'po' && dragLine.parent === pKey;
+                              const dragKey = `po|${pKey}|${item.po_line_item_id}`;
+                              const canThis = canDragPo;
                               return (
-                                <tr key={item.po_line_item_id}
-                                  onDragOver={canDragPo ? (e) => {
-                                    if (!dragLine || dragLine.kind !== 'po' || dragLine.parent !== pKey) return;
-                                    e.preventDefault();
-                                    setDragOverLine(lineKey);
-                                  } : undefined}
-                                  onDrop={canDragPo ? (e) => {
-                                    e.preventDefault();
-                                    handleDropLine('po', pKey, items.map((i) => String(i.po_line_item_id)), lineKey);
-                                  } : undefined}
-                                  className={`border-b border-slate-800/40 last:border-0 group ${isEditingLine ? 'bg-emerald-500/5' : ''} ${isDragTarget ? 'outline outline-1 outline-emerald-400/70 bg-emerald-500/10' : ''} ${dragLine?.id === lineKey ? 'opacity-40' : ''}`}>
-                                  {canDragPo && (
+                                <tr key={item.po_line_item_id} data-drag-row
+                                  {...(canThis ? drag.rowProps(dragKey) : {})}
+                                  className={`border-b border-slate-800/40 last:border-0 group ${REORDER_ROW} ${isEditingLine ? 'bg-emerald-500/5' : ''} ${canThis ? drag.lineAt(dragKey, { table: true }) : ''} ${drag.dragKey === dragKey ? DRAGGING_ROW : ''}`}>
+                                  {canThis && (
                                     <td className="py-2 pr-1 align-top w-5">
                                       <span
-                                        draggable
-                                        onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDragLine({ kind: 'po', parent: pKey, id: lineKey }); }}
-                                        onDragEnd={() => { setDragLine(null); setDragOverLine(null); }}
+                                        {...drag.handleProps(dragKey, { rowImage: true })}
                                         title="Drag to reorder this PO's lines"
                                         className="inline-flex cursor-grab active:cursor-grabbing text-slate-700 group-hover:text-slate-500 hover:!text-emerald-400 transition-colors"
                                       >
