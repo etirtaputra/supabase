@@ -16,6 +16,14 @@ interface SpecMeta {
 }
 
 const GROUP_ORDER = [
+  // Inverter-charger groups lead when present; a PV module has none of them
+  // and a converter has none of the module groups, so one order serves both.
+  'Topology',
+  'AC Output',
+  'Grid Export',
+  'AC Input & Charger',
+  'PV Input',
+  'Battery',
   'Electrical (STC)',
   'Electrical (NOCT)',
   'Temperature Coefficients',
@@ -27,6 +35,12 @@ const GROUP_ORDER = [
 ];
 
 const GROUP_ICONS: Record<string, string> = {
+  'Topology':                '🧭',
+  'AC Output':               '🔋',
+  'Grid Export':             '🏭',
+  'AC Input & Charger':      '🔄',
+  'PV Input':                '☀️',
+  'Battery':                 '🪫',
   'Electrical (STC)':        '⚡',
   'Electrical (NOCT)':       '🌡',
   'Temperature Coefficients': '📉',
@@ -38,6 +52,12 @@ const GROUP_ICONS: Record<string, string> = {
 };
 
 const GROUP_COLORS: Record<string, { header: string; badge: string; row: string }> = {
+  'Topology':                { header: 'text-slate-300',  badge: 'bg-slate-500/10 border-slate-500/20',  row: 'hover:bg-slate-800/40' },
+  'AC Output':               { header: 'text-amber-300',  badge: 'bg-amber-500/10 border-amber-500/20',  row: 'hover:bg-amber-500/5' },
+  'Grid Export':             { header: 'text-teal-300',   badge: 'bg-teal-500/10 border-teal-500/20',   row: 'hover:bg-teal-500/5' },
+  'AC Input & Charger':      { header: 'text-violet-300', badge: 'bg-violet-500/10 border-violet-500/20', row: 'hover:bg-violet-500/5' },
+  'PV Input':                { header: 'text-yellow-300', badge: 'bg-yellow-500/10 border-yellow-500/20', row: 'hover:bg-yellow-500/5' },
+  'Battery':                 { header: 'text-lime-300',   badge: 'bg-lime-500/10 border-lime-500/20',   row: 'hover:bg-lime-500/5' },
   'Electrical (STC)':        { header: 'text-amber-300',  badge: 'bg-amber-500/10 border-amber-500/20',  row: 'hover:bg-amber-500/5' },
   'Electrical (NOCT)':       { header: 'text-orange-300', badge: 'bg-orange-500/10 border-orange-500/20', row: 'hover:bg-orange-500/5' },
   'Temperature Coefficients': { header: 'text-rose-300',   badge: 'bg-rose-500/10 border-rose-500/20',    row: 'hover:bg-rose-500/5' },
@@ -49,6 +69,63 @@ const GROUP_COLORS: Record<string, { header: string; badge: string; row: string 
 };
 
 const SPEC_CATALOGUE: Record<string, SpecMeta> = {
+  // ── Inverter charger: topology ────────────────────────────
+  system_type:        { label: 'System Type',          group: 'Topology', highlight: true },
+  phase:              { label: 'Phase',                group: 'Topology' },
+  parallel_operation: { label: 'Parallel Operation',   group: 'Topology' },
+  no_of_mpp_trackers: { label: 'MPP Trackers',         group: 'Topology' },
+
+  // ── Inverter charger: AC output ───────────────────────────
+  rated_output_power_w:          { label: 'Rated Output Power',  unit: 'W',  group: 'AC Output', highlight: true },
+  rated_output_power_va:         { label: 'Rated Output',        unit: 'VA', group: 'AC Output' },
+  surge_power_va:                { label: 'Surge Power',         unit: 'VA', group: 'AC Output' },
+  overload_capability:           { label: 'Overload Capability', group: 'AC Output' },
+  nominal_output_voltage_vac:    { label: 'Nominal Output Voltage',  unit: 'Vac', group: 'AC Output' },
+  output_voltage_regulation_vac: { label: 'Output Voltage Regulation', group: 'AC Output' },
+  nominal_output_frequency_hz:   { label: 'Nominal Output Frequency', unit: 'Hz', group: 'AC Output' },
+  waveform:                      { label: 'Waveform',            group: 'AC Output' },
+  transfer_time_ms:              { label: 'Transfer Time',       unit: 'ms', group: 'AC Output' },
+  efficiency_dc_to_ac_percent:   { label: 'Efficiency (DC→AC)',  unit: '%',  group: 'AC Output' },
+  max_conversion_efficiency_dc_ac_percent: { label: 'Max Conversion Efficiency', unit: '%', group: 'AC Output' },
+
+  // ── Inverter charger: grid export (null on an off-grid unit) ──
+  grid_output_voltage_range_vac:  { label: 'Grid Output Voltage Range',   unit: 'Vac', group: 'Grid Export' },
+  grid_output_frequency_range_hz: { label: 'Grid Output Frequency Range', unit: 'Hz',  group: 'Grid Export' },
+  grid_nominal_output_current_a:  { label: 'Nominal Output Current',      unit: 'A',   group: 'Grid Export' },
+  power_factor:                   { label: 'Power Factor (cos Φ)',        group: 'Grid Export' },
+  ac_start_up_voltage_vac:        { label: 'AC Start-Up Voltage',         unit: 'Vac', group: 'Grid Export' },
+
+  // ── Inverter charger: AC input and the AC charger ─────────
+  ac_input_voltage_vac:       { label: 'AC Input Voltage',        unit: 'Vac', group: 'AC Input & Charger' },
+  ac_input_voltage_range_vac: { label: 'Acceptable Input Range',  unit: 'Vac', group: 'AC Input & Charger' },
+  ac_input_frequency_range_hz:{ label: 'Input Frequency Range',   unit: 'Hz',  group: 'AC Input & Charger' },
+  max_ac_input_current_a:     { label: 'Max AC Input Current',    unit: 'A',   group: 'AC Input & Charger' },
+  max_ac_charging_current_a:  { label: 'Max AC Charging Current', unit: 'A',   group: 'AC Input & Charger' },
+
+  // ── Inverter charger: PV input ────────────────────────────
+  pv_solar_charger_type:           { label: 'Solar Charger Type',   group: 'PV Input' },
+  pv_max_input_power_w:            { label: 'Max PV Input Power',   unit: 'W',   group: 'PV Input', highlight: true },
+  pv_nominal_voltage_vdc:          { label: 'Nominal PV Voltage',   unit: 'Vdc', group: 'PV Input' },
+  pv_max_open_circuit_voltage_vdc: { label: 'Max PV Voc',           unit: 'Vdc', group: 'PV Input', highlight: true },
+  pv_mppt_voltage_range_vdc:       { label: 'MPPT Voltage Range',   unit: 'Vdc', group: 'PV Input' },
+  max_pv_input_current_a:          { label: 'Max PV Input Current', unit: 'A',   group: 'PV Input' },
+  max_solar_charging_current_a:    { label: 'Max Solar Charging Current', unit: 'A', group: 'PV Input' },
+
+  // ── Inverter charger: battery port ────────────────────────
+  battery_nominal_voltage_vdc:  { label: 'Nominal Battery Voltage', unit: 'Vdc', group: 'Battery', highlight: true },
+  battery_voltage_range_vdc:    { label: 'Battery Voltage Range',   unit: 'Vdc', group: 'Battery' },
+  floating_charge_voltage_vdc:  { label: 'Floating Charge Voltage', unit: 'Vdc', group: 'Battery' },
+  overcharge_protection_vdc:    { label: 'Overcharge Protection',   unit: 'Vdc', group: 'Battery' },
+  max_total_charging_current_a: { label: 'Max Total Charging Current', unit: 'A', group: 'Battery' },
+
+  // ── Inverter charger: physical, interface, environment ────
+  dimensions_d_w_h_mm:           { label: 'Dimensions (D × W × H)', unit: 'mm', group: 'Physical' },
+  communication_interfaces:      { label: 'Communication',          group: 'Physical' },
+  intelligent_slot:              { label: 'Intelligent Slot',       group: 'Physical' },
+  humidity_range_percent:        { label: 'Humidity',               unit: '%',  group: 'General' },
+  operating_temperature_range_c: { label: 'Operating Temperature',  unit: '°C', group: 'General' },
+  storage_temperature_range_c:   { label: 'Storage Temperature',    unit: '°C', group: 'General' },
+
   // ── Electrical STC ────────────────────────────────────────
   model:            { label: 'Model',                      group: 'Electrical (STC)' },
   power_stc_w:      { label: 'Peak Power (Pmax)',           unit: 'W',     group: 'Electrical (STC)', highlight: true },
@@ -191,7 +268,13 @@ export default function SpecRenderer({ specs, modelName }: SpecRendererProps) {
 
   // ── Build highlight key metrics ───────────────────────────
   const highlights: { label: string; value: string; unit?: string; color: string }[] = [];
-  const highlightKeys = ['power_stc_w', 'efficiency_percent', 'voc_stc_v', 'max_system_voltage_vdc'];
+  // PV-module headliners first, then the converter ones. Only keys that carry
+  // a value render, so a module shows four and an inverter shows its own four.
+  const highlightKeys = [
+    'power_stc_w', 'efficiency_percent', 'voc_stc_v', 'max_system_voltage_vdc',
+    'rated_output_power_w', 'battery_nominal_voltage_vdc',
+    'pv_max_input_power_w', 'pv_max_open_circuit_voltage_vdc',
+  ];
   for (const key of highlightKeys) {
     // `key in specs` is now true for every module — a null means unanswered,
     // and a headline stat reading "—" is worse than no stat.

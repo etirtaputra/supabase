@@ -57,6 +57,11 @@ export const CATEGORY_ALIASES: Partial<Record<ProductCategory, Record<string, Al
   inverter_charger: {
     rated_power_kw: { to: 'rated_output_power_w', scale: 1000 },
     battery_voltage_v: { to: 'battery_nominal_voltage_vdc' },
+    // The on-grid spelling reaches hybrids too, since a hybrid IS a grid-tie
+    // inverter with a battery port.
+    no_of_mpp_trackers: { to: 'no_of_mpp_trackers' },
+    max_charging_current_a: { to: 'max_total_charging_current_a' },
+    efficiency_percent: { to: 'max_conversion_efficiency_dc_ac_percent' },
   },
   power_inverter: {
     rated_power_kw: { to: 'rated_output_power_w', scale: 1000 },
@@ -225,6 +230,65 @@ export function specReadiness(category: string | null | undefined, specs: Specs 
  * count, rather than a missing key, which it cannot.
  */
 export const CATEGORY_SPEC_FIELDS: Partial<Record<ProductCategory, readonly string[]>> = {
+  /**
+   * Off-grid and hybrid units share ONE field set. A hybrid is an off-grid
+   * inverter that can also export, so splitting them would mean two shapes
+   * for one shelf — and the grid block simply reads null on an off-grid unit,
+   * which is itself the answer to "can this export?".
+   */
+  inverter_charger: [
+    // Topology — what kind of machine this is
+    'system_type',
+    'phase',
+    'parallel_operation',
+    'no_of_mpp_trackers',
+    // AC output
+    'rated_output_power_w',
+    'rated_output_power_va',
+    'surge_power_va',
+    'overload_capability',
+    'nominal_output_voltage_vac',
+    'output_voltage_regulation_vac',
+    'nominal_output_frequency_hz',
+    'waveform',
+    'transfer_time_ms',
+    'efficiency_dc_to_ac_percent',
+    'max_conversion_efficiency_dc_ac_percent',
+    // Grid-tied export — null on an off-grid unit, which is the answer
+    'grid_output_voltage_range_vac',
+    'grid_output_frequency_range_hz',
+    'grid_nominal_output_current_a',
+    'power_factor',
+    'ac_start_up_voltage_vac',
+    // AC input (mains / genset) and the AC charger
+    'ac_input_voltage_vac',
+    'ac_input_voltage_range_vac',
+    'ac_input_frequency_range_hz',
+    'max_ac_input_current_a',
+    'max_ac_charging_current_a',
+    // PV input — what the array may present
+    'pv_solar_charger_type',
+    'pv_max_input_power_w',
+    'pv_nominal_voltage_vdc',
+    'pv_max_open_circuit_voltage_vdc',
+    'pv_mppt_voltage_range_vdc',
+    'max_pv_input_current_a',
+    'max_solar_charging_current_a',
+    // Battery port
+    'battery_nominal_voltage_vdc',
+    'battery_voltage_range_vdc',
+    'floating_charge_voltage_vdc',
+    'overcharge_protection_vdc',
+    'max_total_charging_current_a',
+    // Physical, interface, environment
+    'dimensions_d_w_h_mm',
+    'weight_kg',
+    'communication_interfaces',
+    'intelligent_slot',
+    'humidity_range_percent',
+    'operating_temperature_range_c',
+    'storage_temperature_range_c',
+  ],
   pv_module: [
     // Cell / construction
     'cell_type',
