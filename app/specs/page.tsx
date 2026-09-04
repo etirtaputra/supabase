@@ -170,9 +170,12 @@ export default function TechSpecsPage() {
 
   // ── Compare ───────────────────────────────────────────────────────────────
   const [picked, setPicked] = useState<string[]>([]);
+  /** The picker is a drawer, not a wall: open while you are choosing, shut
+      once there is a table, so the comparison itself owns the screen. */
+  const [pickerOpen, setPickerOpen] = useState(true);
   const togglePick = (id: string) => setPicked((p) =>
     p.includes(id) ? p.filter((x) => x !== id) : p.length >= 4 ? p : [...p, id]);
-  useEffect(() => { setPicked([]); }, [category]);
+  useEffect(() => { setPicked([]); setPickerOpen(true); }, [category]);
 
   const pickedComps = useMemo(
     () => picked.map((id) => comps.find((c) => c.component_id === id)).filter((c): c is Comp => !!c),
@@ -328,23 +331,103 @@ export default function TechSpecsPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[11px] text-slate-500">Pick up to four:</span>
-              {inCategory.slice(0, 60).map((c) => (
-                <button key={c.component_id} onClick={() => togglePick(c.component_id)}
-                  disabled={!picked.includes(c.component_id) && picked.length >= 4}
-                  className={`px-2 py-1 rounded-lg text-[11.5px] border transition-colors disabled:opacity-30 ${
-                    picked.includes(c.component_id)
-                      ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
-                      : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-600'}`}>
-                  {descOf(c)}
-                </button>
-              ))}
+            {/* The four slots ARE the table's columns, shown before there is a
+                table to show them in — so choosing reads as filling a
+                comparison, not as picking from a list of everything. */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+              {[0, 1, 2, 3].map((i) => {
+                const c = pickedComps[i];
+                if (!c) {
+                  return (
+                    <button key={`slot-${i}`} onClick={() => setPickerOpen(true)}
+                      className="h-14 rounded-xl border border-dashed border-slate-700 text-slate-500 text-[12px] hover:border-emerald-500/50 hover:text-emerald-300 transition-colors">
+                      + Add item
+                    </button>
+                  );
+                }
+                const n = answeredCount(c);
+                return (
+                  <div key={c.component_id}
+                    className="h-14 rounded-xl border border-slate-800 bg-slate-900/60 pl-3 pr-1.5 py-2 flex items-start gap-1">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[12px] text-white leading-tight line-clamp-2" title={descOf(c)}>{descOf(c)}</p>
+                      <p className="text-[10px] text-slate-500 truncate tabular-nums">
+                        {c.brand || '—'} · {n}/{fields.length}
+                      </p>
+                    </div>
+                    <button onClick={() => togglePick(c.component_id)} title="Remove from comparison"
+                      className="shrink-0 w-5 h-5 rounded-md text-slate-500 hover:text-white hover:bg-slate-700/70 leading-none text-[13px] transition-colors">
+                      ×
+                    </button>
+                  </div>
+                );
+              })}
             </div>
+
+            {/* Candidates: one scrollable panel, not the whole category laid
+                out as buttons. The category select and search above drive it. */}
+            {pickerOpen ? (
+              <div className="rounded-xl border border-slate-800 bg-slate-900/40">
+                <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-slate-800/60">
+                  <p className="text-[11px] text-slate-500 tabular-nums">
+                    {picked.length} of 4 chosen · {fmtInt(inCategory.length)} to choose from
+                    {search.trim() && ' (filtered)'}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    {picked.length > 0 && (
+                      <button onClick={() => setPicked([])}
+                        className="text-[11px] text-slate-500 hover:text-white transition-colors">Clear</button>
+                    )}
+                    <button onClick={() => setPickerOpen(false)} disabled={picked.length < 2}
+                      className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11.5px] font-bold disabled:opacity-30 disabled:hover:bg-emerald-600 transition-colors">
+                      Compare
+                    </button>
+                  </div>
+                </div>
+                <div className="max-h-64 overflow-y-auto p-1.5 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-1">
+                  {inCategory.map((c) => {
+                    const on = picked.includes(c.component_id);
+                    const full = !on && picked.length >= 4;
+                    return (
+                      <button key={c.component_id} disabled={full}
+                        onClick={() => {
+                          togglePick(c.component_id);
+                          // Fourth pick fills the last slot — nothing left to choose.
+                          if (!on && picked.length === 3) setPickerOpen(false);
+                        }}
+                        className={`flex items-center gap-2 text-left px-2 py-1.5 rounded-lg border transition-colors disabled:opacity-30 ${
+                          on ? 'bg-emerald-500/10 border-emerald-500/40'
+                             : 'bg-transparent border-transparent hover:bg-white/[0.04]'}`}>
+                        <span className={`shrink-0 w-3.5 h-3.5 rounded border grid place-items-center text-[9px] leading-none ${
+                          on ? 'bg-emerald-500 border-emerald-500 text-slate-900 font-black' : 'border-slate-600'}`}>
+                          {on ? '✓' : ''}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className={`block text-[12px] truncate ${on ? 'text-emerald-200' : 'text-slate-300'}`}>
+                            {descOf(c)}
+                          </span>
+                          <span className="block text-[10px] text-slate-600 tabular-nums">
+                            {answeredCount(c)}/{fields.length} answered
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                  {inCategory.length === 0 && (
+                    <p className="col-span-full px-2 py-4 text-xs text-slate-600">No items match this search.</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => setPickerOpen(true)}
+                className="text-[12px] text-slate-400 hover:text-white px-2.5 py-1 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors">
+                Change items
+              </button>
+            )}
 
             {pickedComps.length < 2 ? (
               <p className="rounded-xl border border-slate-800 bg-slate-900/40 p-6 text-sm text-slate-500">
-                Choose at least two items to compare.
+                Pick at least two items above to see them side by side.
               </p>
             ) : (
               <>
