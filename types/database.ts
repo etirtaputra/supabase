@@ -92,6 +92,14 @@ export interface Component extends BaseEntity {
    * either tier (the owner's acceptance criterion, 2026-08-27).
    */
   margin_profile_id?: string | null;
+  /**
+   * When the item was archived; NULL means active. Archiving hides an item
+   * from the working lists WITHOUT deleting it — a deleted item takes its
+   * purchase history, stock movements and quote lines with it, and those are
+   * the record of what the business did.
+   */
+  archived_at?: string | null;
+  archived_by_email?: string | null;
 }
 
 // 4.0 Price Quotes

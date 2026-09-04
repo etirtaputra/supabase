@@ -947,6 +947,15 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
   const [saving, setSaving] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   /**
+   * Archived items are OUT by default (owner, 2026-09-03). A catalogue of a
+   * thousand rows where a good number are no longer traded is a catalogue
+   * nobody can scan; archiving is how a superseded model leaves the working
+   * list WITHOUT taking its purchase history, stock movements and quote lines
+   * with it, which is what deleting would do.
+   */
+  const [showArchived, setShowArchived] = useState(false);
+  const [archiveBusy, setArchiveBusy] = useState(false);
+  /**
    * The open row's ⋯ menu, anchored to the button that opened it. `anchor` is
    * that button's rect, which the stock panel needs to place itself — it used
    * to get the rect of its own button, and now inherits the menu's.
@@ -1063,6 +1072,44 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
   const [copiedRowId, setCopiedRowId] = useState<string | null>(null);
   // ── Optimistic overrides: bridge the gap between save and refetch ─────────
   const [optimistic, setOptimistic] = useState<Record<string, Partial<Component>>>({});
+  /**
+   * Who is archived, read through the optimistic layer so a row leaves the
+   * list the instant it is archived rather than on the next refetch.
+   */
+  const archivedIds = useMemo(() => {
+    const out = new Set<string>();
+    for (const c of components) {
+      const patch = optimistic[c.component_id];
+      const at = patch && 'archived_at' in patch ? patch.archived_at : c.archived_at;
+      if (at) out.add(c.component_id);
+    }
+    return out;
+  }, [components, optimistic]);
+
+  /**
+   * Archive or restore, for one item or a selection. A timestamp rather than a
+   * flag: it also answers "since when?", and `archived_at is null` is the same
+   * test a boolean would have given.
+   */
+  const setArchived = useCallback(async (ids: string[], archive: boolean) => {
+    if (!ids.length || archiveBusy) return;
+    setArchiveBusy(true);
+    const patch = archive
+      ? { archived_at: new Date().toISOString(), archived_by_email: profile?.email ?? null }
+      : { archived_at: null, archived_by_email: null };
+    try {
+      const { error } = await supabase.from('3.0_components').update(patch).in('component_id', ids);
+      if (error) { console.error('[ComponentEditor] archive error:', error); return; }
+      setOptimistic((prev) => {
+        const next = { ...prev };
+        for (const id of ids) next[id] = { ...(next[id] ?? {}), ...patch } as Partial<Component>;
+        return next;
+      });
+      setSelectedIds(new Set());
+    } finally {
+      setArchiveBusy(false);
+    }
+  }, [archiveBusy, supabase, profile]);
   useEffect(() => {
     if (!Object.keys(optimistic).length) return;
     setOptimistic((prev) => {
@@ -1426,6 +1473,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
       !externalUsedIds.has(String(c.component_id))
     );
     if (filterReorder) result = result.filter((c) => reorderById.has(String(c.component_id)));
+    if (!showArchived) result = result.filter((c) => !archivedIds.has(c.component_id));
     if (filterDuplicates) result = result.filter((c) => duplicateModels.has(c.supplier_model?.toLowerCase().trim() ?? ''));
     if (filterHasIntel) result = result.filter((c) => intelComponentIds.has(c.component_id));
     if (filterTucHidden) result = result.filter((c) => {
@@ -2753,6 +2801,23 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
             >
               Has Intel{filterHasIntel ? ` (${filtered.length})` : ''}
             </button>
+            {/* Not a filter — a view switch. It WIDENS the list where every
+                chip beside it narrows one, so it sits apart and states the
+                count it would add. */}
+            <button
+              onClick={() => setShowArchived((v) => !v)}
+              className={`py-1 px-2.5 rounded-lg text-[11.5px] font-semibold border transition-colors flex-shrink-0 ${
+                showArchived
+                  ? 'bg-slate-600/40 border-slate-500 text-slate-200'
+                  : 'bg-slate-950 border-slate-700 text-slate-500 hover:text-slate-300 hover:border-slate-600'
+              }`}
+              title={showArchived
+                ? 'Hide archived items again'
+                : 'Also list items that have been archived — they keep every purchase, stock and quote row, they are only out of the way'}
+            >
+              {showArchived ? 'Hiding none' : 'Show archived'}
+              {archivedIds.size > 0 && <span className="ml-1 opacity-70 tabular-nums">{archivedIds.size}</span>}
+            </button>
             <button
               onClick={() => setFilterTucHidden((v) => !v)}
               className={`py-1 px-2.5 rounded-lg text-[11.5px] font-semibold border transition-colors flex-shrink-0 ${
@@ -3006,6 +3071,16 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
             <span className="text-[11px] text-slate-400 flex-shrink-0">
               Set for <span className="text-sky-300 font-semibold">{selectedIds.size}</span> selected:
             </span>
+            <button
+              onClick={() => void setArchived([...selectedIds], !showArchived)}
+              disabled={archiveBusy}
+              title={showArchived
+                ? 'Restore the selected items to the active list'
+                : 'Archive the selected items — they leave the list and keep every row that points at them'}
+              className="py-1.5 px-2.5 rounded-lg text-xs font-semibold border border-slate-700 bg-slate-950 text-slate-300 hover:text-white hover:border-slate-600 disabled:opacity-40 transition-colors whitespace-nowrap"
+            >
+              {archiveBusy ? '…' : showArchived ? 'Restore' : 'Archive'}
+            </button>
             <select
               defaultValue=""
               onChange={(e) => {
@@ -3294,7 +3369,12 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                   <React.Fragment key={c.component_id}>
                   <tr
                     onDoubleClick={() => { if (!isEditing) toggleEdit(c.component_id); }}
+                    /* An archived row only appears when the view asks for it,
+                       and it reads as set aside rather than merely selected —
+                       muted, with a left rule. */
                     className={`transition-colors cursor-pointer ${
+                      archivedIds.has(c.component_id) ? 'opacity-55 border-l-2 border-slate-600' : ''
+                    } ${
                       selectedIds.has(String(c.component_id))
                         ? 'bg-sky-500/5'
                         : isDirty
@@ -3402,6 +3482,14 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                                   <span className="truncate min-w-0">
                                     <Highlight text={c.internal_description} query={search} />
                                   </span>
+                                  {/* Says WHY the row is muted, and when. Muting
+                                      alone reads as "disabled". */}
+                                  {archivedIds.has(c.component_id) && (
+                                    <span className="ml-1.5 flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-slate-700/60 text-slate-300"
+                                      title={`Archived${c.archived_at ? ` on ${String(c.archived_at).slice(0, 10)}` : ''}${c.archived_by_email ? ` by ${c.archived_by_email}` : ''} — hidden from this list and from Products, history intact`}>
+                                      Archived
+                                    </span>
+                                  )}
                                 </span>
                               )
                             )}
@@ -4078,6 +4166,15 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                                 onClick={() => { copyRow(c); setRowMenu(null); }}
                                 tone={copiedRowId === c.component_id ? 'good' : undefined}
                                 icon={<><rect x="9" y="9" width="13" height="13" rx="2" /><path strokeLinecap="round" d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></>}
+                              />
+                              <div className="my-1 border-t border-slate-800" />
+                              <RowMenuItem
+                                label={archivedIds.has(c.component_id) ? 'Restore to the list' : 'Archive'}
+                                hint={archivedIds.has(c.component_id)
+                                  ? 'Put it back among the active items'
+                                  : 'Out of the way, history intact'}
+                                onClick={() => { void setArchived([c.component_id], !archivedIds.has(c.component_id)); setRowMenu(null); }}
+                                icon={<path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />}
                               />
                               {onDelete && (
                                 <>

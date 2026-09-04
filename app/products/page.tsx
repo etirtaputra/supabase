@@ -277,8 +277,12 @@ function ProductsInner() {
     setLoading(true);
     // Brand is buy-side sensitive — never sent to a sell-side browser.
     const cols = `component_id, supplier_model, internal_description, category, unit, norm_value, selling_price_idr, datasheet_url, warranty, warranty_value, warranty_unit, perf_warranty_value, perf_warranty_unit, specifications, updated_at${canViewBrand ? ', brand' : ''}`;
+    // Archived items never reach the sell side. There is no toggle here on
+    // purpose: archiving is a CATALOGUE decision, and a rep quoting from a list
+    // that includes items the business has stopped trading is the whole problem
+    // it was introduced to solve. The switch lives in the Item Editor.
     const [allComps, tierRes, ovRes, balRes, sqRes, sqiRes, poRes, poiRes, piiRes, custRes, linkRes, arrRes, pqRes] = await Promise.all([
-      fetchAllComponents<Comp>(supabase, cols),
+      fetchAllComponents<Comp>(supabase, cols, { activeOnly: true }),
       supabase.from('21.0_price_tiers').select('tier_id, tier_code, name, default_discount_pct, sort_order, is_active').order('sort_order'),
       supabase.from('21.1_item_tier_prices').select('component_id, tier_id, override_price_idr, override_discount_pct'),
       supabase.from('30.1_stock_balances').select('component_id, location, qty_on_hand'),

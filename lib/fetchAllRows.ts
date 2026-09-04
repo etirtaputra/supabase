@@ -71,9 +71,23 @@ export async function fetchAllRows<T>(
  *
  * Ordered by `supplier_model`, which is what all six already asked for.
  */
-export async function fetchAllComponents<T>(supabase: SupabaseClient, cols: string): Promise<T[]> {
-  const { rows } = await fetchAllRows<T>((from, to) =>
-    supabase.from('3.0_components').select(cols).order('supplier_model')
-      .range(from, to) as unknown as PromiseLike<PageResult<T>>);
+export async function fetchAllComponents<T>(
+  supabase: SupabaseClient,
+  cols: string,
+  opts?: {
+    /**
+     * Leave archived items out. Default false — the Item Editor needs them so
+     * it can offer to show them, and every other reader was written before the
+     * column existed. A screen that should never see an archived item passes
+     * true rather than filtering afterwards, so the rows never travel.
+     */
+    activeOnly?: boolean;
+  },
+): Promise<T[]> {
+  const { rows } = await fetchAllRows<T>((from, to) => {
+    const q = supabase.from('3.0_components').select(cols).order('supplier_model');
+    return (opts?.activeOnly ? q.is('archived_at', null) : q)
+      .range(from, to) as unknown as PromiseLike<PageResult<T>>;
+  });
   return rows;
 }
