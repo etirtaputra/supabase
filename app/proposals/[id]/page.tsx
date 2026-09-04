@@ -24,6 +24,7 @@ import ProposalFieldInput from '@/components/ui/ProposalFieldInput';
 import EnergyEconomicsCard from '@/components/ui/EnergyEconomicsCard';
 import type { EconAssumptions } from '@/lib/energyEconomics';
 import { PROJECT_TYPES, composeDescription, specFileTag, isSolarType, type ProjectType, type SystemSpecs, type Phase } from '@/lib/projectSpec';
+import { lineAcWatts } from '@/lib/quoteAc';
 import { SECTION_GROUPS, STANDARD_SECTIONS, QUOTE_UNITS, type SectionGroup, type ProjectQuote, type QuoteSection, type QuoteItem } from '@/types/quotes';
 import type { Component } from '@/types/database';
 import { fmtDayTime, fmtRupiah, fmtRupiahDoc, fmtIntDoc } from '@/lib/formatters';
@@ -238,10 +239,21 @@ Delivery terms:
 
 Thank you for the opportunity. Should you require further clarification please do not hesitate to contact us.`;
 
-function SpecInput({ label, unit, value, onChange }: {
+function SpecInput({ label, unit, value, onChange, derived, derivedNote }: {
   label: string; unit: string; value: number | null | undefined;
   onChange: (v: number | null) => void;
+  /** What the quote's own line items add up to — 0 when nothing to go on. */
+  derived?: number;
+  derivedNote?: string;
 }) {
+  // The items ARE the system. A typed capacity that disagrees with them is
+  // either a deliberate override or a slip, and only the person here can tell
+  // which — so it is never overwritten, only shown with the real number one
+  // click away. A blank one is just an offer.
+  const d = derived ?? 0;
+  const typed = typeof value === 'number' && isFinite(value) && value > 0;
+  const agrees = typed && Math.abs(value! - d) <= Math.max(0.02, d * 0.005);
+  const show = d > 0 && !agrees;
   return (
     <div className="w-40">
       <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{label}</label>
@@ -250,11 +262,21 @@ function SpecInput({ label, unit, value, onChange }: {
           type="number"
           value={value ?? ''}
           onChange={(e) => onChange(e.target.value === '' ? null : parseFloat(e.target.value))}
-          placeholder="0"
+          placeholder={d > 0 ? String(d) : '0'}
           className="w-full bg-transparent outline-none text-white py-1 text-sm text-right placeholder:text-slate-600"
         />
         <span className="text-[10px] text-slate-500 whitespace-nowrap pb-1">{unit}</span>
       </div>
+      {show ? (
+        <button type="button" onClick={() => onChange(d)}
+          title={`${derivedNote ?? 'From the line items'} — click to use ${d}`}
+          className={`mt-1 text-[10px] leading-tight text-left transition-colors ${
+            typed ? 'text-amber-300/90 hover:text-amber-200' : 'text-emerald-500/80 hover:text-emerald-400'}`}>
+          {typed ? `⚠ Items say ${d} — use` : `Items: ${d} — use`}
+        </button>
+      ) : agrees ? (
+        <p className="mt-1 text-[10px] leading-tight text-slate-600">✓ matches the items</p>
+      ) : null}
     </div>
   );
 }
@@ -1116,6 +1138,39 @@ export default function QuoteEditorPage() {
     };
   }, [sections, quote?.ppn_pct, itemWp]);
 
+  /**
+   * The system size the quote's OWN items describe: modules for DC, inverters
+   * for AC. The capacity fields above are typed by hand and end up in the
+   * project description, the PDF title and the filename — so a slip there is
+   * printed on the customer's proposal. Deriving the same numbers from the
+   * bill of quantities gives the page something true to offer, and gives the
+   * save a value to fall back on when the field was left blank.
+   *
+   * Services are excluded from the AC sweep: "installation of a 100 kW system"
+   * is labour, not an inverter.
+   */
+  const derivedSize = useCallback((secs: DraftSection[]) => {
+    let wp = 0, w = 0;
+    for (const sec of secs) {
+      if (sec._deleted) continue;
+      for (const item of sec.items) {
+        if (item._deleted || item.parent_item_id) continue;
+        if (sec.group_key === 'solar_panels') wp += itemWp(item);
+        if (sec.group_key !== 'services') {
+          w += lineAcWatts(catalog.components, {
+            component_id: item.component_id,
+            description: item.description,
+            quantity: num(item.quantity) ?? 0,
+          });
+        }
+      }
+    }
+    const round2 = (v: number) => Math.round(v / 10) / 100;   // watts → kW, 2dp
+    return { kwp_dc: wp > 0 ? round2(wp) : 0, kw_ac: w > 0 ? round2(w) : 0 };
+  }, [itemWp, catalog.components]);
+
+  const derived = useMemo(() => derivedSize(sections), [derivedSize, sections]);
+
   // ── Mutations ──────────────────────────────────────────────────────────────
 
   function markDirty() { setDirty(true); setSaveMsg(''); }
@@ -1488,6 +1543,23 @@ export default function QuoteEditorPage() {
       // point of an owner picking DRAFT on a sent quote.
       if (liveStatus?.status === 'sent' && quoteNow.status !== 'sent' && !statusTouchedRef.current) {
         quoteNow = { ...quoteNow, status: 'sent' };
+      }
+      // A capacity left blank is filled from the items being saved with it —
+      // the modules and inverters ON the quote are the system, so a forgotten
+      // kWp never reaches the customer's PDF. A typed number is never touched:
+      // an engineer quoting one phase of a larger array means what they typed.
+      if (isSolarType(quoteNow.project_type)) {
+        const size = derivedSize(live);
+        const specs: SystemSpecs = { ...(quoteNow.system_specs ?? {}) };
+        let filled = false;
+        if (!(Number(specs.kwp_dc) > 0) && size.kwp_dc > 0) { specs.kwp_dc = size.kwp_dc; filled = true; }
+        if (!(Number(specs.kw_ac) > 0) && size.kw_ac > 0) { specs.kw_ac = size.kw_ac; filled = true; }
+        if (filled) {
+          const description = composeDescription(
+            quoteNow.project_type as ProjectType, specs, quoteNow.location ?? '');
+          quoteNow = { ...quoteNow, system_specs: specs, project_description: description };
+          setQuote((q) => q ? { ...q, system_specs: specs, project_description: description } : q);
+        }
       }
       const base = baseRef.current;
       const basePos = itemPositions(base);
@@ -2166,8 +2238,10 @@ export default function QuoteEditorPage() {
           {isSolarType(quote.project_type) && (
             <div className="md:col-span-2 flex flex-wrap gap-6">
               <SpecInput label="PV Modules" unit="kWp DC" value={quote.system_specs?.kwp_dc}
+                derived={derived.kwp_dc} derivedNote="Total Wp of the Solar Panels lines"
                 onChange={(v) => updateProject({ specs: { kwp_dc: v } })} />
               <SpecInput label="Inverters" unit="kW AC" value={quote.system_specs?.kw_ac}
+                derived={derived.kw_ac} derivedNote="Total AC power of the inverter lines"
                 onChange={(v) => updateProject({ specs: { kw_ac: v } })} />
               {(quote.project_type as ProjectType) === 'hybrid_bess' && (
                 <SpecInput label="PCS" unit="kW" value={quote.system_specs?.kw_pcs}

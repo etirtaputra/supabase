@@ -298,6 +298,31 @@ function MasterInsertPage() {
         const piPart   = p.pi_number ? `${p.pi_number} · ` : '';
         return { val: p.po_id, txt: `${code}${piPart}${p.po_number} - ${p.po_date}${value}` };
       }),
+      // Searchable list for "this quote supersedes an earlier one". The plain
+      // <select> it replaces held every quote on file in one flat, unsearchable
+      // menu — the deal you want is found by scrolling, or not at all. Same
+      // shape as posReplace: the PI/deal ref is the label, and everything a
+      // person might search by — vendor, date, value — goes in the sub-label,
+      // because RichDropdown searches label + sub.
+      quotesReplace: [...data.quotes]
+        .sort((a, b) =>
+          String(b.quote_date || '').localeCompare(String(a.quote_date || '')) ||
+          Number(b.quote_id) - Number(a.quote_id))
+        .map((q) => {
+          const supplier = data.suppliers.find((sp) => sp.supplier_id === q.supplier_id);
+          const vendor = supplier?.supplier_name || '';
+          const code = supplier?.supplier_code ? `[${supplier.supplier_code}]` : '';
+          const value = q.total_value != null
+            ? `${q.currency || 'IDR'} ${Number(q.total_value).toLocaleString()}` : '';
+          // Status earns a tag only when it changes what picking this means:
+          // an Open quote is the normal case and says nothing.
+          const tag = q.status && q.status !== 'Open' ? ` · ${String(q.status).toLowerCase()}` : '';
+          return {
+            quote_id: q.quote_id,
+            _label: `${q.pi_number || '(no ref)'}${tag}`,
+            _sub: [vendor, q.quote_date, value, code].filter(Boolean).join(' · '),
+          };
+        }),
       // Searchable source list for "revise a stored PO" — real orders only
       // (drafts/cancelled excluded, replaced kept so a split's 2nd leg can find
       // its origin), newest first. Most POs carry no supplier_id of their own
@@ -1356,7 +1381,7 @@ function MasterInsertPage() {
                           { name: 'status', label: 'Status', type: 'select' as const, options: ENUMS.price_quotes_status, default: 'Open' },
                         ]),
                         { name: 'estimated_lead_time_days', label: 'Lead Time', type: 'select', options: settings.leadTimeOptions, default: pdfData?.lead_time_days },
-                        { name: 'replaces_quote_id', label: 'Replaces Quote', hint: 'This quote supersedes an earlier one', type: 'select', options: options.quotes },
+                        { name: 'replaces_quote_id', label: 'Replaces Quote', hint: 'This quote supersedes an earlier one — type a PI ref, supplier or amount to find it', type: 'rich-select' as const, options: options.quotesReplace, config: { labelKey: '_label', valueKey: 'quote_id', subLabelKey: '_sub' } },
                         { name: 'document_url', label: 'Document Folder', hint: 'Link to the deal’s document folder (e.g. Google Drive)', type: 'text', placeholder: 'https://drive.google.com/…', default: storedPoDefaults?.document_url },
                         // Quote + PO mode — the PO's OWN fields, kept together as
                         // one violet block at the END so the form reads "the deal,
