@@ -89,7 +89,7 @@ export default function ComparePage() {
       <div className="wrap" style={{ padding: '26px 20px 0' }}>
         <div className="lab" style={{ color: 'var(--navy)' }}>PERBANDINGAN</div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap', marginTop: 8 }}>
-          <h1 style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-.9px', color: 'var(--ink)' }}>Bandingkan berdampingan</h1>
+          <h1 className="h1">Bandingkan berdampingan</h1>
           {cols.length >= 2 && (
             <label style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 13.5, color: 'var(--body)', minHeight: 44, cursor: 'pointer' }}>
               <input type="checkbox" checked={onlyDiff} onChange={(e) => setOnlyDiff(e.target.checked)} style={{ width: 17, height: 17, accentColor: '#1f5aa8' }} />

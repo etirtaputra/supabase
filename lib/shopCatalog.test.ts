@@ -155,3 +155,126 @@ test('PPN is the rate the documents already use', () => {
   assert.equal(PPN_PCT, 11);
   assert.equal(withPpn(1656000), 1656000 * 1.11);
 });
+
+// ── Generated filters, columns, search ─────────────────────────────────────
+import { facetsFor, applyFacets, columnsFor, searchItems, matchesQuery, searchText, categoryLabel } from './shopCatalog.ts';
+
+const mod = (id: string, p: number, eff: number, voc: number, bif: boolean, cell = 'N-type i-TOPCon') => item({
+  component_id: id, category: 'pv_module', supplier_model: `TSM-${p}`, internal_description: `TRINA TSM-${p} ${p}Wp`,
+  norm_value: p, selling_price_idr: 1000000,
+  specifications: { power_stc_w: p, efficiency_percent: eff, voc_stc_v: voc, bifacial: bif, cell_type: cell, weight_kg: 33 },
+});
+const MODS = [mod('a', 620, 23, 49.6, true), mod('b', 720, 23.2, 49.4, true), mod('c', 550, 21.29, 50.2, false, 'Monocrystalline')];
+
+test('facets are the category’s own declared fields', () => {
+  const f = facetsFor('pv_module', MODS);
+  const keys = f.map((x) => x.key);
+  assert.ok(keys.includes('power_stc_w'));
+  assert.ok(keys.includes('efficiency_percent'));
+  assert.ok(keys.includes('bifacial'));
+  assert.ok(keys.includes('cell_type'));
+  // a field no item answers is not offered
+  assert.ok(!keys.includes('isc_stc_a'));
+});
+
+test('a numeric field with a few distinct values is a ticked list, in numeric order', () => {
+  // Twelve modules have six wattages: showing them beats a min/max pair.
+  const f = facetsFor('pv_module', MODS).find((x) => x.key === 'power_stc_w');
+  assert.equal(f?.kind, 'options');
+  if (f?.kind === 'options') {
+    assert.deepEqual(f.options.map((o) => o.value), ['550', '620', '720']);
+    assert.equal(f.unit, 'W');
+  }
+});
+
+test('a numeric field with many distinct values becomes a range', () => {
+  const many = Array.from({ length: 20 }, (_, k) => mod(`m${k}`, 400 + k * 10, 20, 40, true));
+  const f = facetsFor('pv_module', many).find((x) => x.key === 'power_stc_w');
+  assert.equal(f?.kind, 'range');
+  if (f?.kind === 'range') { assert.equal(f.min, 400); assert.equal(f.max, 590); }
+});
+
+test('ticking a numeric option filters by that exact value', () => {
+  assert.deepEqual(applyFacets(MODS, { power_stc_w: ['620', '720'] }).map((i) => i.component_id), ['a', 'b']);
+});
+
+test('a field every item answers the same way is not a filter', () => {
+  // weight_kg is 33 on all three: a range from 33 to 33 returns everything or nothing.
+  const keys = facetsFor('pv_module', MODS).map((x) => x.key);
+  assert.ok(!keys.includes('weight_kg'));
+});
+
+test('a boolean and a short text field become options with counts', () => {
+  const f = facetsFor('pv_module', MODS);
+  const bif = f.find((x) => x.key === 'bifacial');
+  assert.equal(bif?.kind, 'options');
+  if (bif?.kind === 'options') assert.deepEqual(bif.options, [{ value: 'Yes', count: 2 }, { value: 'No', count: 1 }]);
+  const cell = f.find((x) => x.key === 'cell_type');
+  if (cell?.kind === 'options') assert.equal(cell.options[0].value, 'N-type i-TOPCon');
+});
+
+test('highlighted fields lead the facet list', () => {
+  const f = facetsFor('pv_module', MODS);
+  assert.equal(f[0].key, 'power_stc_w');
+});
+
+test('a category with no declared fields has no facets', () => {
+  assert.deepEqual(facetsFor('mounting', [item({ category: 'mounting' })]), []);
+  assert.deepEqual(facetsFor(null, MODS), []);
+});
+
+test('a range keeps items inside it and drops items that do not answer', () => {
+  const noVoc = item({ component_id: 'z', category: 'pv_module', specifications: { power_stc_w: 600 } });
+  const out = applyFacets([...MODS, noVoc], { power_stc_w: { min: 600, max: 700 } });
+  assert.deepEqual(out.map((i) => i.component_id), ['a', 'z']);
+  const out2 = applyFacets([...MODS, noVoc], { voc_stc_v: { min: 49, max: 50 } });
+  assert.deepEqual(out2.map((i) => i.component_id), ['a', 'b']);   // z has no Voc
+});
+
+test('options are an OR within a field and an AND across fields', () => {
+  assert.deepEqual(applyFacets(MODS, { bifacial: ['Yes'] }).map((i) => i.component_id), ['a', 'b']);
+  assert.deepEqual(applyFacets(MODS, { bifacial: ['Yes', 'No'] }).map((i) => i.component_id), ['a', 'b', 'c']);
+  assert.deepEqual(applyFacets(MODS, { bifacial: ['Yes'], power_stc_w: { min: 700 } }).map((i) => i.component_id), ['b']);
+});
+
+test('an empty state passes everything', () => {
+  assert.equal(applyFacets(MODS, {}).length, 3);
+  assert.equal(applyFacets(MODS, { bifacial: [], power_stc_w: {} }).length, 3);
+});
+
+test('table columns are the highlighted fields, at most five', () => {
+  const cols = columnsFor('pv_module');
+  assert.ok(cols.length > 0 && cols.length <= 5);
+  assert.ok(cols.includes('power_stc_w'));
+  assert.deepEqual(columnsFor('mounting'), []);
+});
+
+test('search needs every token, in any spelling of the capacity', () => {
+  assert.ok(matchesQuery(MODS[0], '620wp'));
+  assert.ok(matchesQuery(MODS[0], '620 wp'));
+  assert.ok(matchesQuery(MODS[0], 'trina 620'));
+  assert.ok(!matchesQuery(MODS[0], 'trina 720'));
+  assert.ok(matchesQuery(MODS[0], ''));
+});
+
+test('search ranks a model-number hit above a description hit', () => {
+  const inv = item({ component_id: 'i', category: 'inverter_charger', supplier_model: 'SNV-GH5042', internal_description: 'ICA SOLAR SNV-GH5042 5kW/48V', norm_value: 5000, specifications: { rated_output_power_w: 5000, battery_nominal_voltage_vdc: 48 } });
+  const cable = item({ component_id: 'k', category: 'pv_cable', supplier_model: 'PV1-F', internal_description: 'Kabel PV untuk inverter SNV-GH5042 kit' });
+  const r = searchItems([cable, inv], 'snv-gh5042');
+  assert.deepEqual(r.map((i) => i.component_id), ['i', 'k']);
+  assert.deepEqual(searchItems([cable, inv], '5kw 48v').map((i) => i.component_id), ['i']);
+  assert.deepEqual(searchItems([cable, inv], ''), []);
+});
+
+test('searchText carries the spec values engineers type', () => {
+  const inv = item({ category: 'inverter_charger', norm_value: 5000, specifications: { rated_output_power_w: 5000, battery_nominal_voltage_vdc: 48 } });
+  const t = searchText(inv);
+  assert.ok(t.includes('5000w'));
+  assert.ok(t.includes('48vdc'));
+});
+
+test('category labels are customer-facing, and never empty for a known category', () => {
+  assert.equal(categoryLabel('inverter_charger'), 'Inverter hybrid / off-grid');
+  assert.notEqual(categoryLabel('box_bsp'), '');
+  assert.equal(categoryLabel(null), '');
+});

@@ -8,52 +8,71 @@
  * move, not a rewrite — which is why the styling lives in one CSS block here
  * rather than leaning on the ERP's Tailwind theme.
  *
- * The look extends what ICA's customers already receive: the steel blue,
- * Rubik, wide-tracked micro-labels and hairline rules of the quotes and
- * proposals — so the site and the PDF read as one company.
+ * The design intention (owner, 2026-09-05, McMaster-Carr as the reference): a
+ * CATALOGUE with a cart attached, for a technical person who wants what is
+ * available, its specs, and its price, now. So: no hero, no messaging, an
+ * index instead of a landing page, tables instead of cards, filters that are
+ * the spec fields, small type and hairlines. What stays ICA's is the skin —
+ * the steel blue and Rubik of the documents customers already receive.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { DEPARTMENTS, formatIdr } from '@/lib/shopCatalog';
 
 export const SHOP_CSS = `
 .shop{--navy:#1f5aa8;--navy-dk:#17457f;--tint:#eef4fb;--ink:#0f172a;--body:#334155;
- --muted:#64748b;--label:#94a3b8;--hair:#e8edf3;--line:#e2e8f0;--canvas:#f6f8fb;
+ --muted:#64748b;--label:#94a3b8;--hair:#e8edf3;--line:#d9e0ea;--canvas:#f6f8fb;
  --sun:#c87a22;--sun-tint:#fdf3e6;--ok:#16a34a;
- background:#fff;color:var(--body);min-height:100vh;font-size:15px;line-height:1.55;
+ background:#fff;color:var(--body);min-height:100vh;font-size:13px;line-height:1.45;
  font-family:var(--font-app,Rubik),Rubik,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 .shop *{box-sizing:border-box}
 .shop a{color:inherit;text-decoration:none}
-.shop .wrap{max-width:1280px;margin:0 auto;padding:0 20px}
-.shop .lab{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--label)}
+.shop a.lnk{color:var(--navy)} .shop a.lnk:hover{text-decoration:underline}
+.shop .wrap{max-width:1360px;margin:0 auto;padding:0 16px}
+.shop .lab{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:1.6px;color:var(--label)}
 .shop .num{font-variant-numeric:tabular-nums}
-.shop .card{background:#fff;border:1px solid var(--line);border-radius:14px}
-.shop .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;
- padding:0 20px;border-radius:10px;font-size:15px;font-weight:600;border:1px solid transparent;cursor:pointer;
- font-family:inherit;transition:background .12s,border-color .12s,color .12s}
+.shop .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px}
+.shop .card{background:#fff;border:1px solid var(--line);border-radius:4px}
+.shop .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:32px;
+ padding:0 12px;border-radius:4px;font-size:12.5px;font-weight:600;border:1px solid transparent;cursor:pointer;
+ font-family:inherit;white-space:nowrap;transition:background .1s,border-color .1s}
 .shop .btn-p{background:var(--navy);color:#fff}
 .shop .btn-p:hover{background:var(--navy-dk)}
 .shop .btn-p:disabled{opacity:.45;cursor:not-allowed}
 .shop .btn-s{background:#fff;color:var(--navy);border-color:var(--line)}
 .shop .btn-s:hover{border-color:var(--navy)}
-.shop .chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 9px;border-radius:6px;
- font-size:11px;font-weight:600}
-.shop .h1{font-size:clamp(30px,4.6vw,50px);line-height:1.07;font-weight:800;letter-spacing:-1.3px;color:var(--ink);text-wrap:balance}
-.shop .h2{font-size:clamp(22px,2.6vw,30px);line-height:1.15;font-weight:800;letter-spacing:-.7px;color:var(--ink)}
-.shop .h3{font-size:18px;line-height:1.28;font-weight:700;letter-spacing:-.3px;color:var(--ink)}
-.shop .grid{display:grid;gap:16px}
-.shop .prod{display:flex;flex-direction:column;overflow:hidden;transition:border-color .12s,box-shadow .12s}
-.shop .prod:hover{border-color:#bcd3ec;box-shadow:0 6px 20px rgba(15,23,42,.07)}
-.shop .thumb{background:var(--canvas);border-bottom:1px solid var(--line);height:150px;
- display:flex;align-items:center;justify-content:center;position:relative}
-.shop input,.shop select{font-family:inherit;font-size:14px;color:var(--ink);background:#fff;
- border:1px solid var(--line);border-radius:10px;height:44px;padding:0 12px;outline:none;width:100%}
-.shop input:focus,.shop select:focus{border-color:var(--navy);box-shadow:0 0 0 3px rgba(31,90,168,.12)}
-.shop .navlink{padding:10px 0;font-size:14px;font-weight:500;color:var(--body);white-space:nowrap}
+.shop .chip{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 6px;border-radius:3px;
+ font-size:10.5px;font-weight:600;white-space:nowrap}
+.shop .ok{background:#eaf7ee;color:var(--ok)} .shop .fr{background:var(--sun-tint);color:var(--sun)}
+.shop .h1{font-size:20px;line-height:1.2;font-weight:800;letter-spacing:-.4px;color:var(--ink)}
+.shop .h2{font-size:15px;line-height:1.25;font-weight:700;color:var(--ink)}
+.shop input,.shop select{font-family:inherit;font-size:13px;color:var(--ink);background:#fff;
+ border:1px solid var(--line);border-radius:4px;height:32px;padding:0 9px;outline:none;width:100%}
+.shop input:focus,.shop select:focus{border-color:var(--navy);box-shadow:0 0 0 2px rgba(31,90,168,.15)}
+.shop input[type=checkbox]{width:14px;height:14px;accent-color:#1f5aa8;margin:0}
+.shop .search{height:40px;font-size:14px;padding-left:36px}
+.shop .navlink{font-size:12.5px;font-weight:500;color:var(--body);padding:7px 0;white-space:nowrap}
 .shop .navlink:hover{color:var(--navy)}
-.shop .navlink.on{color:var(--navy);font-weight:600;box-shadow:inset 0 -2.5px 0 var(--navy)}
-.shop table{width:100%;border-collapse:collapse}
-.shop .demo{background:var(--sun-tint);border-bottom:1px solid #f0e0c6;color:#7a4d15;font-size:12.5px}
+.shop .navlink.on{color:var(--navy);font-weight:700;box-shadow:inset 0 -2px 0 var(--navy)}
+.shop table{width:100%;border-collapse:collapse;font-size:12.5px}
+.shop th{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:1.4px;color:var(--label);
+ text-align:left;padding:7px 8px;border-bottom:2px solid var(--navy);white-space:nowrap;background:#fff;
+ position:sticky;top:0;z-index:1}
+.shop th.r,.shop td.r{text-align:right}
+.shop td{padding:6px 8px;border-bottom:1px solid var(--hair);vertical-align:middle;color:var(--body)}
+.shop tbody tr:hover td{background:#fafcfe}
+.shop .qty{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:4px;height:28px;background:#fff}
+.shop .qty button{width:26px;height:26px;border:0;background:none;color:var(--muted);font-size:15px;cursor:pointer;font-family:inherit;line-height:1}
+.shop .qty span{min-width:28px;text-align:center;font-weight:700;color:var(--ink);font-size:12.5px}
+.shop .facet{padding:9px 0;border-bottom:1px solid var(--hair)}
+.shop .facet .t{font-size:11.5px;font-weight:700;color:var(--ink);margin-bottom:5px}
+.shop .facet label{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--body);padding:3px 0;cursor:pointer}
+.shop .facet label .c{margin-left:auto;color:var(--label);font-size:11px}
+.shop .demo{background:var(--sun-tint);border-bottom:1px solid #f0e0c6;color:#7a4d15;font-size:11px}
+.shop .kv{display:flex;justify-content:space-between;gap:14px;padding:4px 0;border-bottom:1px solid var(--hair);font-size:12.5px}
+.shop .kv span:first-child{color:var(--muted)}
+.shop .kv span:last-child{color:var(--ink);font-weight:600;text-align:right}
 @media (max-width:820px){.shop .hidesm{display:none}}
 `;
 
@@ -112,47 +131,61 @@ export function useCart() {
 export function CartIcon({ n }: { n: number }) {
   return (
     <span style={{ position: 'relative', display: 'inline-flex' }}>
-      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M3 4h2.2l2.3 11.2a1.6 1.6 0 0 0 1.6 1.3h8.2a1.6 1.6 0 0 0 1.6-1.2L21 8H6.2" />
         <circle cx="9.5" cy="20" r="1.3" /><circle cx="17.5" cy="20" r="1.3" />
       </svg>
       {n > 0 && (
-        <span className="num" style={{ position: 'absolute', top: -6, right: -9, background: '#1f5aa8', color: '#fff', borderRadius: 20, padding: '0 5px', fontSize: 10, fontWeight: 700, lineHeight: '15px' }}>{n}</span>
+        <span className="num" style={{ position: 'absolute', top: -7, right: -9, background: '#1f5aa8', color: '#fff', borderRadius: 20, padding: '0 5px', fontSize: 10, fontWeight: 700, lineHeight: '15px' }}>{n}</span>
       )}
     </span>
   );
 }
 
-export function ShopShell({ dept, children }: { dept?: string; children: React.ReactNode }) {
+/** The search box: the primary way in. Submits to /shop/search. */
+export function SearchBox({ initial = '', autoFocus = false }: { initial?: string; autoFocus?: boolean }) {
+  const router = useRouter();
+  const [q, setQ] = useState(initial);
+  useEffect(() => { setQ(initial); }, [initial]);
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); const v = q.trim(); if (v) router.push(`/shop/search?q=${encodeURIComponent(v)}`); }}
+      style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.2" strokeLinecap="round"
+        style={{ position: 'absolute', left: 11, top: 12, pointerEvents: 'none' }}>
+        <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" />
+      </svg>
+      <input className="search" value={q} onChange={(e) => setQ(e.target.value)} autoFocus={autoFocus}
+        placeholder="Cari nomor model, merek, atau spesifikasi — mis. 620wp, mppt 40a, 5kw 48v" aria-label="Cari" />
+    </form>
+  );
+}
+
+export function ShopShell({ dept, children, q }: { dept?: string; children: React.ReactNode; q?: string }) {
   const { count } = useCart();
   return (
     <div className="shop">
       <style>{SHOP_CSS}</style>
 
-      {/* This is a demo living inside ICAPROC — say so, always. */}
       <div className="demo">
-        <div className="wrap" style={{ padding: '7px 20px', display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
-          <span><strong>Demo toko</strong> — data langsung dari katalog ICAPROC. Belum ada pembayaran; keranjang tersimpan di browser ini saja.</span>
-          <Link href="/" style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>← Kembali ke ICAPROC</Link>
+        <div className="wrap" style={{ padding: '4px 16px', display: 'flex', gap: 10, justifyContent: 'space-between' }}>
+          <span><strong>Demo</strong> — data langsung dari katalog ICAPROC; keranjang hanya di browser ini, belum ada pembayaran.</span>
+          <Link href="/" style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>← ICAPROC</Link>
         </div>
       </div>
 
-      <div style={{ borderBottom: '1px solid var(--line)', position: 'sticky', top: 0, background: '#fff', zIndex: 20 }}>
-        <div className="wrap" style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '14px 20px' }}>
-          <Link href="/shop" style={{ display: 'flex', flexDirection: 'column', flex: 'none' }}>
-            <span style={{ fontSize: 23, fontWeight: 800, letterSpacing: '-1px', color: 'var(--navy)', lineHeight: 1 }}>
-              ICA<span style={{ color: 'var(--ink)' }}>SOLAR</span>
-            </span>
-            <span className="lab hidesm" style={{ fontSize: 8, letterSpacing: '2.4px', marginTop: 2 }}>PT INDODAYA SURYA LESTARI</span>
+      <div style={{ borderBottom: '1px solid var(--line)', background: '#fff', position: 'sticky', top: 0, zIndex: 20 }}>
+        <div className="wrap" style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '10px 16px' }}>
+          <Link href="/shop" style={{ flex: 'none', lineHeight: 1 }}>
+            <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-.8px', color: 'var(--navy)' }}>ICA<span style={{ color: 'var(--ink)' }}>SOLAR</span></span>
           </Link>
-          <div style={{ flex: 1 }} />
-          <Link href="/shop/compare" className="navlink hidesm" style={{ fontWeight: 600 }}>Bandingkan</Link>
-          <Link href="/shop/cart" style={{ display: 'flex', alignItems: 'center', gap: 9, color: 'var(--body)', fontSize: 14, fontWeight: 500, minHeight: 44 }}>
+          <SearchBox initial={q} />
+          <Link href="/shop/compare" className="navlink hidesm" style={{ fontWeight: 600, padding: 0 }}>Bandingkan</Link>
+          <Link href="/shop/cart" style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--body)', fontSize: 12.5, fontWeight: 600, minHeight: 32 }}>
             <CartIcon n={count} /><span className="hidesm">Keranjang</span>
           </Link>
         </div>
-        <div className="wrap" style={{ padding: '0 20px' }}>
-          <div style={{ display: 'flex', gap: 20, overflowX: 'auto' }}>
+        <div className="wrap" style={{ padding: '0 16px' }}>
+          <div style={{ display: 'flex', gap: 18, overflowX: 'auto' }}>
             {DEPARTMENTS.map((d) => (
               <Link key={d.key} href={`/shop/c/${d.key}`} className={`navlink${dept === d.key ? ' on' : ''}`}>{d.label}</Link>
             ))}
@@ -162,15 +195,10 @@ export function ShopShell({ dept, children }: { dept?: string; children: React.R
 
       {children}
 
-      <div style={{ background: 'var(--ink)', color: '#94a3b8', fontSize: 13.5, marginTop: 60 }}>
-        <div className="wrap" style={{ padding: '36px 20px', display: 'flex', flexWrap: 'wrap', gap: 30, justifyContent: 'space-between' }}>
-          <div>
-            <span style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-1px', color: '#fff' }}>ICA<span style={{ color: '#7aa8dd' }}>SOLAR</span></span>
-            <p style={{ marginTop: 10, lineHeight: 1.6 }}>PT Indodaya Surya Lestari<br />[ALAMAT] · NPWP [NOMOR]</p>
-          </div>
-          <div style={{ textAlign: 'right', lineHeight: 1.7 }}>
-            Harga belum termasuk PPN 11%<br />Faktur pajak untuk badan usaha
-          </div>
+      <div style={{ borderTop: '1px solid var(--line)', marginTop: 40, fontSize: 11.5, color: 'var(--muted)' }}>
+        <div className="wrap" style={{ padding: '14px 16px', display: 'flex', flexWrap: 'wrap', gap: '6px 24px', justifyContent: 'space-between' }}>
+          <span>PT Indodaya Surya Lestari · [ALAMAT] · NPWP [NOMOR]</span>
+          <span>Harga belum termasuk PPN 11% · faktur pajak untuk badan usaha · <Link href="/shop/cart" className="lnk">penawaran proyek / EPC</Link></span>
         </div>
       </div>
     </div>

@@ -164,6 +164,22 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 - Unpriced items still shop, as "harga via penawaran". 137 of ~395 shoppable
   rows carry a price; hiding the rest would hide the gap instead of showing it.
 
+- **Rebuilt to the McMaster-Carr intention** (owner, 2026-09-05: "direct,
+  technical person focus, quick information on what's available, the specs,
+  urgent needs, not promotion"). A catalogue with a cart attached, not a store:
+  the front page is the INDEX (every department and category with counts and
+  lowest open price, no hero, no messaging); listings are TABLES with the
+  category's highlighted spec fields as columns; the filter sidebar is
+  GENERATED from the declared field set (`facetsFor` — a numeric field with
+  ≤12 distinct values is a ticked list in numeric order, more becomes a range,
+  booleans and short text become options; a field every item answers the same
+  way is not offered); search is the primary UI (`searchItems`, every token
+  must match, model-number hits rank first, spec values indexed with their
+  units so "5kw 48v" and "620wp" work); product pages are spec-first with the
+  buy box in a narrow left column. 13px type, 32px rows, hairlines, 4px radii.
+  What is McMaster's — the yellow-green skin, its exact layout grammar — is not
+  copied; what is taken is the intention. 482 tests.
+
 - **Design canvas** (8 artboards, published as an artifact) preceded the code
   and set the look: the client-facing brand from the quotes and proposals —
   `#1f5aa8`, Rubik, wide-tracked micro-labels, hairline rules — not the ERP's

@@ -76,7 +76,7 @@ export default function CartPage() {
     <ShopShell>
       <div className="wrap" style={{ padding: '26px 20px 0' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', paddingBottom: 14, borderBottom: '3px solid var(--navy)' }}>
-          <h1 style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-.9px', color: 'var(--ink)' }}>
+          <h1 className="h1">
             Keranjang <span className="num" style={{ color: 'var(--muted)', fontWeight: 600 }}>{count} item</span>
           </h1>
           {lines.length > 0 && (

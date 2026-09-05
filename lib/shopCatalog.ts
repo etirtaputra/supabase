@@ -181,3 +181,185 @@ export const formatIdrUnit = (n: number): string =>
 /** PPN as the shop states it — the rate the documents already use. */
 export const PPN_PCT = 11;
 export const withPpn = (n: number): number => n * (1 + PPN_PCT / 100);
+
+// ── Generated navigation: filters, columns, search ──────────────────────────
+//
+// A McMaster-shaped catalogue works because every category has a fixed
+// parameter set behind it, and the filters ARE those parameters. This
+// catalogue has exactly that in CATEGORY_SPEC_FIELDS, so the filter sidebar
+// and the listing table's columns are GENERATED from the declaration rather
+// than designed by hand — add a parameter in Tech Specs and it becomes a filter
+// and a column here, in the same commit.
+
+import { CATEGORY_SPEC_FIELDS, conformSpecs, specNumber } from './specSchema.ts';
+import { fieldMeta, isAnswered, displaySpecValue } from './specFields.ts';
+import { CATEGORY_LABELS } from '../constants/categoryUnits.ts';
+
+/** The declared field set of a category — empty when it has none yet. */
+export const declaredFields = (category: string | null | undefined): readonly string[] =>
+  ((category && CATEGORY_SPEC_FIELDS[category as keyof typeof CATEGORY_SPEC_FIELDS]) ?? []) as readonly string[];
+
+/** An item's specs conformed to its category's shape (declared keys always present). */
+export const specsOf = (i: ShopItem): Record<string, unknown> =>
+  conformSpecs(i.category, i.specifications ?? {}) as Record<string, unknown>;
+
+export interface RangeFacet {
+  kind: 'range'; key: string; label: string; unit?: string; min: number; max: number;
+}
+export interface OptionFacet {
+  kind: 'options'; key: string; label: string; unit?: string;
+  options: { value: string; count: number }[];
+}
+export type Facet = RangeFacet | OptionFacet;
+
+/** How many distinct text values still read as a set of choices, not free text. */
+const OPTION_LIMIT = 8;
+/**
+ * How many distinct NUMBERS are still better ticked than windowed. Twelve
+ * modules have six wattages: a list of six is faster than a min/max pair, and
+ * shows what exists. Past this, a range.
+ */
+const NUMERIC_OPTION_LIMIT = 12;
+/** How many facets a sidebar can carry before it stops being scannable. */
+const FACET_LIMIT = 10;
+
+/**
+ * The filters for a set of items in one category, from that category's own
+ * field set. A numeric field becomes a range when the items span more than one
+ * value; a boolean becomes Ya/Tidak; a text field becomes checkboxes when it
+ * has a handful of distinct answers. A field every item answers identically,
+ * or no item answers, is not a filter — it would only ever return everything
+ * or nothing. Highlighted fields lead; the rest keep declared order.
+ */
+export function facetsFor(category: string | null | undefined, items: ShopItem[]): Facet[] {
+  const fields = declaredFields(category);
+  if (fields.length === 0 || items.length === 0) return [];
+  const specs = items.map(specsOf);
+  const ordered = [...fields].sort((a, b) => Number(!!fieldMeta(b).highlight) - Number(!!fieldMeta(a).highlight));
+  const out: Facet[] = [];
+  for (const key of ordered) {
+    if (out.length >= FACET_LIMIT) break;
+    const meta = fieldMeta(key);
+    if (meta.kind === 'number') {
+      const nums = specs.map((s) => specNumber(s[key])).filter((n): n is number => n != null);
+      const distinct = new Set(nums);
+      if (distinct.size < 2) continue;
+      if (distinct.size <= NUMERIC_OPTION_LIMIT) {
+        const counts = new Map<number, number>();
+        for (const n of nums) counts.set(n, (counts.get(n) ?? 0) + 1);
+        out.push({
+          kind: 'options', key, label: meta.label, unit: meta.unit,
+          options: [...counts.entries()].sort((a, b) => a[0] - b[0])
+            .map(([n, count]) => ({ value: displaySpecValue(n), count })),
+        });
+      } else {
+        out.push({ kind: 'range', key, label: meta.label, unit: meta.unit, min: Math.min(...nums), max: Math.max(...nums) });
+      }
+    } else {
+      const counts = new Map<string, number>();
+      for (const s of specs) {
+        if (!isAnswered(s[key])) continue;
+        const v = displaySpecValue(s[key]);
+        counts.set(v, (counts.get(v) ?? 0) + 1);
+      }
+      if (counts.size < 2 || counts.size > OPTION_LIMIT) continue;
+      out.push({
+        kind: 'options', key, label: meta.label, unit: meta.unit,
+        options: [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+          .map(([value, count]) => ({ value, count })),
+      });
+    }
+  }
+  return out;
+}
+
+/** What the person has chosen: a numeric window, or a set of ticked values, per field. */
+export type FacetState = Record<string, { min?: number; max?: number } | string[]>;
+
+/**
+ * Items that pass every active facet. An item that does not ANSWER a field a
+ * range is set on is excluded — "modules between 600 and 700 Wp" cannot
+ * include one whose wattage is unknown — while an empty state passes all.
+ */
+export function applyFacets(items: ShopItem[], state: FacetState): ShopItem[] {
+  const active = Object.entries(state).filter(([, v]) =>
+    Array.isArray(v) ? v.length > 0 : v.min != null || v.max != null);
+  if (active.length === 0) return items;
+  return items.filter((i) => {
+    const s = specsOf(i);
+    return active.every(([key, sel]) => {
+      if (Array.isArray(sel)) return isAnswered(s[key]) && sel.includes(displaySpecValue(s[key]));
+      const n = specNumber(s[key]);
+      if (n == null) return false;
+      if (sel.min != null && n < sel.min) return false;
+      if (sel.max != null && n > sel.max) return false;
+      return true;
+    });
+  });
+}
+
+/** Table columns for a category: its highlighted fields, at most five. */
+export const columnsFor = (category: string | null | undefined): string[] =>
+  declaredFields(category).filter((k) => fieldMeta(k).highlight).slice(0, 5);
+
+/** A category's customer-facing name — ours where the business one is jargon. */
+const CATEGORY_LABEL_ID: Record<string, string> = {
+  pv_module: 'Modul surya', inverter_charger: 'Inverter hybrid / off-grid',
+  on_grid_inverter: 'Inverter on-grid', power_inverter: 'Power inverter',
+  batteries: 'Baterai', portable_power: 'Power station portabel',
+  solar_charge_controller: 'Solar charge controller', mounting: 'Mounting',
+  accessories: 'Proteksi & aksesori', pv_cable: 'Kabel PV', solar_pump_inverter: 'Inverter pompa surya',
+  ups: 'UPS', stabilizer: 'Stabilizer', ev_charger: 'Pengisi daya EV',
+  standing_cabinet: 'Kabinet berdiri', wallmount_cabinet: 'Kabinet dinding',
+};
+export const categoryLabel = (category: string | null | undefined): string =>
+  (category && (CATEGORY_LABEL_ID[category] ?? CATEGORY_LABELS[category])) || '';
+
+/**
+ * Everything a person might type to find this item, lowercased: name, model,
+ * brand, category, the capacity in its own unit ("620wp"), and the highlighted
+ * spec values with their units ("48v", "5000w"). Spaces are also collapsed so
+ * "5 kw" and "5kw" both land.
+ */
+export function searchText(i: ShopItem): string {
+  const parts: string[] = [shopName(i), i.supplier_model, i.brand ?? '', categoryLabel(i.category), CATEGORY_LABELS[i.category ?? ''] ?? ''];
+  const cu = i.category ? CATEGORY_UNITS[i.category] : undefined;
+  if (cu && Number(i.norm_value) > 0) parts.push(`${Number(i.norm_value)}${cu.unit}`, `${Number(i.norm_value)} ${cu.unit}`);
+  const s = specsOf(i);
+  for (const k of columnsFor(i.category)) {
+    if (!isAnswered(s[k])) continue;
+    const v = displaySpecValue(s[k]);
+    const u = fieldMeta(k).unit ?? '';
+    parts.push(v, u ? `${v}${u}` : '');
+  }
+  const text = parts.filter(Boolean).join(' ').toLowerCase();
+  return `${text} ${text.replace(/\s+/g, '')}`;
+}
+
+/** Does the item answer every token of the query? "5kw 48v" needs both. */
+export function matchesQuery(i: ShopItem, query: string): boolean {
+  const tokens = query.toLowerCase().split(/\s+/).map((t) => t.trim()).filter(Boolean);
+  if (tokens.length === 0) return true;
+  const hay = searchText(i);
+  return tokens.every((t) => hay.includes(t));
+}
+
+/**
+ * Search results, best first: a hit in the model number outranks one in the
+ * description, which outranks one in a spec value. Ties keep capacity order.
+ */
+export function searchItems(items: ShopItem[], query: string): ShopItem[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  const compact = q.replace(/\s+/g, '');
+  const score = (i: ShopItem): number => {
+    const model = i.supplier_model.toLowerCase().replace(/\s+/g, '');
+    if (model === compact) return 0;
+    if (model.startsWith(compact)) return 1;
+    if (model.includes(compact)) return 2;
+    if (shopName(i).toLowerCase().includes(q)) return 3;
+    return 4;
+  };
+  return items.filter((i) => matchesQuery(i, q))
+    .sort((a, b) => score(a) - score(b) || Number(b.norm_value ?? 0) - Number(a.norm_value ?? 0) || shopName(a).localeCompare(shopName(b)));
+}
