@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-05** · head of `main` at that point: `21ddae9` (see §4, §6)
+**Last updated: 2026-09-05** · head of `main` at that point: `1bc8ae1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -121,6 +121,91 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 ---
 
 ## 4. What the previous threads did (for context, all shipped to main)
+
+### 2026-09-05 (later) — the product taxonomy: one hierarchy, readable names
+
+The owner reopened categorisation himself (§6.3 decision 4 said it was
+deferred; it is now partly settled). His question was the shape of the answer:
+*"we should have the Main Product Categories, and its sub-categories… but what
+I don't want is an extra column that waste space in ICAPROC or Item Editor."*
+
+**Three levels, and only the middle one is stored.**
+
+| Level | Example | Where it lives | New storage |
+|---|---|---|---|
+| Main category | Inverters | `MAIN_CATEGORIES`, derived | none |
+| Category | `inverter_charger` | the existing `category` enum column | none |
+| Sub-category | Hybrid | a declared spec field in `specifications` | none |
+
+- **`constants/productTaxonomy.ts` is new and is the ONE list**: which aisle a
+  category rolls up into, what a category is CALLED, and which declared spec
+  field carries its sub-category (`SUBCATEGORY_FIELD`). The main category is
+  derived and never typed, so two screens cannot disagree about it.
+
+- **The rule that stops this becoming a taxonomy rewrite: a NEW CATEGORY only
+  when the spec field set genuinely differs; a SUB-CATEGORY when it does not.**
+  MPPT and PWM answer the same datasheet questions → sub-categories of one
+  category. An AC cable has no Voc and a PV cable has no phase → two
+  categories. Apply this rule to every future case rather than re-deciding.
+
+- **The naming, which was the owner's complaint.** The app had three answers
+  for the same category: the Item Editor rendered the raw enum (`pv_module`),
+  the Products/Items/Stock lists rendered `formatCategory()`'s acronym guess
+  ("PV Module"), and the cost views read a separate hand-written
+  `CATEGORY_LABELS` map. All three now read `CATEGORY_LABEL` from the
+  taxonomy. `pv_module` is **"Solar Panels"** (his word, not "PV Module").
+  `lib/productTaxonomy.test.ts` fails the build if a category has no label, if
+  a label still carries an underscore, or if a `product_category` enum value is
+  added and placed in no aisle.
+
+- **Two levels in one field.** `components/ui/CategoryOptions.tsx` renders the
+  aisle as an `<optgroup>` heading inside the same single `<select>` bound to
+  the same single column — no new column in the Item Editor or the Products
+  list, which was the owner's constraint. `FilterCombobox` gained an optional
+  `format` prop: it files by `pv_module`, reads "Solar Panels", and still
+  matches either when typed.
+
+- **Three categories added and 465 rows moved** (`migrations/product_taxonomy_categories.sql`,
+  applied): `ac_cable` **415** out of `non_stock`, one stray H1Z2Z2-K back to
+  `pv_cable`, `switchgear` **27** and `monitoring` **22** out of `accessories`.
+  `non_stock` fell 607 → 191. **The AC rule matches the SPLN/IEC construction
+  code, never the word "kabel"** — 24 `non_stock` rows say "Kabel Ladder" or
+  "Kabel Tray" and are cable MANAGEMENT; a word match would have filed a
+  galvanised tray as a conductor. All 440 cable-worded rows classified with
+  nothing left over, and the switchgear/monitoring predicates have zero
+  overlap (checked before applying).
+
+- **Four sub-category axes were ALREADY being typed** before anyone called them
+  that, which is why this costs no re-keying: `bom_role` on mounting (44 of
+  72), `controller_type` (47 of 72), `battery_type` (19 of 27), `system_type`
+  (6 of 48). `SUBCATEGORY_FIELD` just names them.
+
+- The shop's `DEPARTMENTS` are now DERIVED from `MAIN_CATEGORIES`, so a
+  department cannot exist on the storefront that the Item Editor has never
+  heard of. `FAMILIES` followed the rows out of `accessories`; AC cables get
+  families by construction (20 kV, XLPE, armoured, aerial, NYY/NYM, NYAF/NYA).
+
+- 504 tests (13 new), `tsc` clean, `next build` clean, no lint problems added.
+  Commit `1bc8ae1`.
+
+**Left for the owner to decide** (raised, not acted on):
+1. **AC cables are now shoppable and there are 415 of them, 0 priced**, listed
+   per size AND per colour (`NYAF 2.5 mm² (Merah)`, `(Biru)`, `(Hitam)`…).
+   Recommendation: make colour a spec field so eight rows collapse to one
+   product, otherwise the Cables aisle is 415 near-duplicates.
+2. `SUNTREE AC EV Charger SWJ3-11/16` sits in `accessories` while an
+   `ev_charger` category exists — 1 row, obvious, not moved without his word.
+3. `DEYE SUN-STS500L` (a transfer switch?) left in `accessories` rather than
+   guessed into `switchgear`.
+4. Three `wallmount_cabinet` rows are "Extra carton NWS5006/8/10" — packaging,
+   not products.
+5. **Panel Box**: his list put it under Switchgears, and the SUNTREE
+   Distribution Boxes did move there. The NIRAX 19" rack cabinets
+   (`standing_cabinet`/`wallmount_cabinet`) stayed as their own aisle
+   (Enclosures) because a network rack is not a switchgear enclosure — confirm.
+6. Not on his list, so decided here and reversible: `power_inverter` folded
+   into the Inverters aisle; pumps, UPS/stabilizer and EV charging kept as
+   aisles of their own.
 
 ### 2026-09-05 — the storefront demo, and the catalogue as one source
 
@@ -1029,12 +1114,13 @@ say what is wrong, you change the code, push to main, it is live in ~90 s.
   `familyIndex`), `components/shop/{shopUi,useShopData,ProductTable}.tsx`.
   `useShopData` shares ONE fetch per page; SELECT never includes cost,
   supplier, margin — or `supplier_model`.
-- **Commits this thread, in order:** `59ed8e9` compare slot picker (Tech
+- **Commits, in order:** `59ed8e9` compare slot picker (Tech
   Specs) · `8c82c42` searchable Replaces Quote + EPC kWp/kW AC from items ·
   `eae1e86` quote/PO menus scoped to chosen supplier (`lib/dropdownPool.ts`) ·
   `c8a935b` sales print filename convention · `a5ba771` every print view +
   iOS name card · `7481e0b` first /shop · `c59d65a` McMaster rebuild ·
-  `21ddae9` families, autocomplete, no supplier naming.
+  `21ddae9` families, autocomplete, no supplier naming · `feccac9` handoff ·
+  `1bc8ae1` the product taxonomy (§4).
 - **Design canvas** (8 artboards, the pre-code mockups, still useful for
   the intended look): https://claude.ai/code/artifact/837d61ef-0cd6-402f-b5e1-f987ae211dfa
 
@@ -1072,10 +1158,16 @@ model/description is not fetched, shown, or searched.**
    ≠ sharing data: public apps read a `public_catalog` VIEW (name, brand,
    category, specs, price, images — no cost/supplier/margin) with anon
    SELECT on the view only.
-4. **Families are a stopgap.** The owner knows ICAPROC's categorisation
-   needs work and has DEFERRED it until the shop UI is settled. `FAMILIES`
-   are regex/capacity rules over our descriptions; when categorisation gets
-   its turn, `family` becomes a real column and the rules retire.
+4. **Categorisation — PARTLY SETTLED 2026-09-05 (was "deferred").** The
+   owner reopened it and set the shape: three levels, only the middle one
+   stored (see §4's taxonomy entry and `constants/productTaxonomy.ts`). The
+   rule is **new category only when the spec field set differs; sub-category
+   when it does not.** `FAMILIES` are still regex rules over our descriptions
+   and are still a stopgap — but they do NOT become a column. They become the
+   FALLBACK for `SUBCATEGORY_FIELD`: once a category's sub-category spec field
+   is typed on a row, the typed value wins and the regex is only used where
+   the field is still blank. That way the guess decays as staff type instead
+   of being ripped out and regressing the shop.
 5. **Photos & datasheets → Supabase Storage** (agreed in principle, not
    built): buckets `product-images` (`{component_id}/1600|800|400.webp`,
    resized IN THE BROWSER at upload — never depend on Vercel/Supabase image
@@ -1091,8 +1183,27 @@ model/description is not fetched, shown, or searched.**
 
 ### 6.4 Open items, in the order they should happen
 
-- **Owner review of the family cuts** — Mounting (8) and Proteksi (10)
-  were the biggest judgement calls in `FAMILIES`.
+- **The sub-category mechanism — NEXT, and the only half of the taxonomy
+  still unbuilt.** `SUBCATEGORY_FIELD` names the axis per category, but
+  nothing renders or constrains it yet. Three pieces, in order:
+  1. `SpecFieldMeta` has no option kind — `kind: 'number' | 'text' |
+     'boolean' | 'list'`. So `battery_type` and `controller_type` are FREE
+     TEXT and have already drifted: `LiFePO4` (16 rows) vs `LiFePO4 (with
+     BMS)` (1) vs `Lead-acid (deep cycle)` (2). Add `kind: 'option'` +
+     `options: string[]`; it turns Tech Specs into a dropdown everywhere,
+     not just here.
+  2. The fields that do not exist yet: `module_type` (Mono / Bifacial, 0 of
+     13 typed), `switchgear_type` (MCB / MCCB / SPD / Fuse / Panel Box),
+     `device_type` (Logger / Meter / Comms), `cable_construction`. And
+     `CATEGORY_SPEC_FIELDS` entries for `ac_cable`, `switchgear`,
+     `monitoring` — they have none, so the shop generates no facets for them.
+  3. `subcategoryOf(item)` = the typed field when present, ELSE the
+     `FAMILIES` regex. Never retire FAMILIES outright — most rows are
+     untyped and the shop would collapse into "Lainnya".
+  Then offer the owner a regex-seeded backfill; do not just run it.
+- **Owner review of the family cuts** — Mounting (8) is still the biggest
+  judgement call in `FAMILIES`. (Proteksi is gone: it split into Switchgears
+  and Monitoring & Comms on 2026-09-05.)
 - **shop.icaproc.com** — needs the OWNER to add the domain to the Vercel
   `supabase` project (Settings → Domains; DNS is already there, it is the
   project serving icaproc.com). Then and only then push a middleware that
