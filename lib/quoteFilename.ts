@@ -1,4 +1,34 @@
 /**
+ * The house filename convention for every document the app exports, in one
+ * place — because a browser's Save-as-PDF uses `document.title` verbatim, and
+ * a document that lands in someone's Downloads under a different shape than
+ * its siblings is a document nobody can find again.
+ *
+ * The shape: identifying number first, then who it is for, then what it is —
+ * underscores BETWEEN the parts, dashes INSIDE them, nothing that a file
+ * system would reject.
+ */
+
+/** Join the parts of a document name under the house rule. */
+export function documentFileName(parts: (string | null | undefined)[]): string {
+  return parts
+    .filter((p): p is string => !!p && !!String(p).trim())
+    .join('_')
+    .replace(/[/\\?%*:|"<>#,]/g, '-')
+    .replace(/\s+/g, '-')
+    .replace(/-{2,}/g, '-');
+}
+
+/**
+ * Sales-side documents (quote / order confirmation / invoice / DO): the number
+ * the document itself prints, then the customer —
+ * "PQ-20260905-0036_PT-Indodaya-Surya-Lestari".
+ */
+export function salesFileName(docNumber: string, customerName: string): string {
+  return documentFileName([docNumber || 'document', customerName]);
+}
+
+/**
  * Filename for exported quotes: quote number + customer + project identifiers
  * + location, e.g.
  * "082-0126_MidPlaza_Hybrid-1.8MWpDC-1.5MWAC-750kWPCS-1.53MWhBESS_RIVERSIDE-PV-FARM".
@@ -22,9 +52,5 @@ export function quoteFileName(
       : `${Math.round(totalWp)}Wp`);
   }
   if (opts?.location) parts.push(opts.location);
-  return parts
-    .join('_')
-    .replace(/[/\\?%*:|"<>#,]/g, '-')
-    .replace(/\s+/g, '-')
-    .replace(/-{2,}/g, '-');
+  return documentFileName(parts);
 }

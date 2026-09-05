@@ -42,6 +42,24 @@ export const displayDocNumber = (q: { quote_number?: string | null; order_number
   return qn.replace(/^SQ-/, 'PQ-');
 };
 
+/**
+ * The number the PRINTED document actually carries.
+ *
+ * Different from displayDocNumber in exactly one case, and it matters: a split
+ * invoice printed with ?inv= shows ITS invoice number, not the order's. The
+ * header and the PDF's filename both read from here, so the name of the file
+ * can never disagree with the number on the page.
+ */
+export const printedDocNumber = (q: {
+  quote_number?: string | null; order_number?: string | null;
+  invoice_number?: string | null; status?: string | null;
+}): string => {
+  if (q.invoice_number && ['invoiced', 'preparing', 'delivered'].includes(q.status ?? '')) {
+    return q.invoice_number;
+  }
+  return displayDocNumber(q);
+};
+
 /** Colour for the document code: DQ grey (unfinished), SQ sky (offer out),
  *  SO violet (confirmed order — matches the Confirmed Order chip). Dead
  *  documents (cancelled / rejected) fade out. */

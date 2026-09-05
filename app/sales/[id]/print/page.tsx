@@ -9,13 +9,15 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
-import { displayDocNumber } from '@/lib/salesStatus';
+import { displayDocNumber, printedDocNumber } from '@/lib/salesStatus';
+import { salesFileName } from '@/lib/quoteFilename';
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
 import { DEFAULT_SALES_COLS, SALES_COL_KEYS, SALES_COL_LABELS, loadSalesCols, saveSalesCols, type SalesExportCols } from '@/lib/salesExportCols';
 import { fmtRupiahDoc as fmtIdr, fmtIntDoc, fmtQtyDoc, fmtDayDoc as fmtDate } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
+import { copyOnly } from '@/lib/whatsappQuote';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
@@ -94,9 +96,39 @@ export default function SalesPrintPage() {
     load();
   }, [user, id]);
 
+  /**
+   * The document title IS the filename a browser proposes for Save-as-PDF, so
+   * it carries the house convention (lib/quoteFilename.ts) and nothing else —
+   * no " — ICAPROC" suffix, and the same number the page itself prints.
+   */
+  const fileName = quote ? salesFileName(printedDocNumber(quote), customerName) : '';
   useEffect(() => {
-    if (!loading && quote) document.title = `${displayDocNumber(quote)}${customerName ? ` - ${customerName}` : ''}`;
-  }, [loading, quote, customerName]);
+    if (fileName) document.title = fileName;
+  }, [fileName]);
+
+  // iOS is the exception: a WKWebView browser (Brave, Chrome, Edge…) names the
+  // printed PDF after ITSELF — "Brave.pdf" — whatever the page is called. The
+  // save sheet lets you rename it, so the name goes to the clipboard on the way
+  // into the print dialog and is one paste away. Safari and every desktop
+  // browser use the title and never see this.
+  const [isIOS, setIsIOS] = useState(false);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    const ua = navigator.userAgent || '';
+    setIsIOS(/iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1));
+  }, []);
+
+  const copyName = async () => {
+    if (!fileName) return;
+    if (await copyOnly(fileName) === 'copied') { setCopied(true); setTimeout(() => setCopied(false), 8000); }
+  };
+
+  const printNow = () => {
+    document.title = fileName || document.title;   // re-assert: it is the filename
+    // Fire-and-forget so the print dialog still opens inside the click itself.
+    if (isIOS && fileName) void copyName();
+    window.print();
+  };
 
   if (authLoading || !user || loading || !quote) {
     return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif', color: '#666' }}>Preparing document…</div>;
@@ -187,7 +219,7 @@ export default function SalesPrintPage() {
           </div>
           <div className="doc-title">
             <div className="doc-label">{isInvoice ? 'Invoice' : isOrder ? 'Konfirmasi Pesanan' : 'Penawaran Harga'}</div>
-            <div className="quote-num">{isInvoice ? quote.invoice_number : isOrder ? quote.order_number : displayDocNumber(quote)}</div>
+            <div className="quote-num">{printedDocNumber(quote)}</div>
             <div className="quote-date">{fmtDate(quote.quote_date)}</div>
             {/* Validity is a property of the OFFER — the quotation only, never
                 the order confirmation or invoice built from it. */}
@@ -338,7 +370,19 @@ export default function SalesPrintPage() {
             </label>
           ))}
         </div>
-        <button className="print-btn" onClick={() => window.print()}>Print / Save PDF</button>
+        {/* iOS only: the name is shown as well as copied, so a browser that
+            refuses the clipboard still leaves it there to be read. */}
+        {isIOS && fileName && (
+          <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '10px 12px', boxShadow: '0 6px 20px rgba(15,23,42,0.15)', fontSize: '11px', lineHeight: 1.45, color: '#64748b' }}>
+            <p style={{ marginBottom: '6px' }}>iOS names the PDF after the browser. Paste this in the save sheet:</p>
+            <p style={{ fontWeight: 700, color: '#1f5aa8', wordBreak: 'break-all', marginBottom: '6px' }}>{fileName}</p>
+            <button onClick={copyName}
+              style={{ width: '100%', padding: '6px 8px', borderRadius: '8px', border: '1px solid #cbd5e1', background: copied ? '#dcfce7' : '#f8fafc', color: copied ? '#166534' : '#334155', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>
+              {copied ? '✓ Name copied' : 'Copy file name'}
+            </button>
+          </div>
+        )}
+        <button className="print-btn" onClick={printNow}>Print / Save PDF</button>
       </div>
     </>
   );
