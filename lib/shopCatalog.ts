@@ -12,6 +12,7 @@
  */
 
 import { CATEGORY_UNITS } from '../constants/categoryUnits.ts';
+import { MAIN_CATEGORIES } from '../constants/productTaxonomy.ts';
 
 /** What a storefront needs of a catalogue row — deliberately less than a row has. */
 export interface ShopItem {
@@ -43,32 +44,21 @@ export interface Department {
 /**
  * Departments are how a BUYER divides the catalogue; categories are how the
  * business does. They are not the same cut — three inverter categories are one
- * aisle to someone shopping, and `non_stock` (607 rows of one-off project
- * lines) is not an aisle at all, which is why it appears in no department and
- * therefore never reaches the shop.
+ * aisle to someone shopping, and `non_stock` (project one-off lines, cable
+ * tray and ladder) is not an aisle at all, which is why it appears in no
+ * department and therefore never reaches the shop.
+ *
+ * This is DERIVED from `MAIN_CATEGORIES`, the one taxonomy the ERP renders
+ * too, so a department cannot exist on the shop that the Item Editor has never
+ * heard of. What the shop supplies is the language: `labelId`, because the
+ * storefront is Indonesian-primary and the ERP is not.
  */
-export const DEPARTMENTS: readonly Department[] = [
-  { key: 'panel',      label: 'Panel Surya',             categories: ['pv_module'],
-    blurb: 'Modul monokristal dan bifacial N-type' },
-  { key: 'inverter',   label: 'Inverter',                categories: ['inverter_charger', 'on_grid_inverter', 'power_inverter'],
-    blurb: 'On-grid, hybrid, dan off-grid' },
-  { key: 'battery',    label: 'Baterai & Penyimpanan',   categories: ['batteries', 'portable_power'],
-    blurb: 'LiFePO4 rak, dinding, dan portabel' },
-  { key: 'controller', label: 'Solar Charge Controller', categories: ['solar_charge_controller'],
-    blurb: 'MPPT dan PWM, 10–100 A' },
-  { key: 'mounting',   label: 'Mounting',                categories: ['mounting'],
-    blurb: 'Rail, klem, kaki, dan walkway' },
-  { key: 'protection', label: 'Proteksi & Kabel',        categories: ['accessories', 'pv_cable'],
-    blurb: 'MCB, MCCB, SPD, konektor, kabel PV' },
-  { key: 'pump',       label: 'Pompa Surya',             categories: ['solar_pump_inverter'],
-    blurb: 'Inverter pompa 0,75–250 kW' },
-  { key: 'power',      label: 'UPS & Stabilizer',        categories: ['ups', 'stabilizer'],
-    blurb: 'Cadangan daya dan penstabil tegangan' },
-  { key: 'ev',         label: 'Pengisian EV',            categories: ['ev_charger'],
-    blurb: 'Pengisi daya kendaraan listrik' },
-  { key: 'enclosure',  label: 'Panel Box & Kabinet',     categories: ['standing_cabinet', 'wallmount_cabinet'],
-    blurb: 'Kabinet berdiri dan tempel dinding' },
-] as const;
+export const DEPARTMENTS: readonly Department[] = MAIN_CATEGORIES.map((m) => ({
+  key: m.key,
+  label: m.labelId,
+  categories: m.categories,
+  blurb: m.blurb,
+}));
 
 const DEPT_OF_CATEGORY = new Map<string, Department>();
 for (const d of DEPARTMENTS) for (const c of d.categories) DEPT_OF_CATEGORY.set(c, d);
@@ -315,7 +305,9 @@ const CATEGORY_LABEL_ID: Record<string, string> = {
   on_grid_inverter: 'Inverter on-grid', power_inverter: 'Power inverter',
   batteries: 'Baterai', portable_power: 'Power station portabel',
   solar_charge_controller: 'Solar charge controller', mounting: 'Mounting',
-  accessories: 'Proteksi & aksesori', pv_cable: 'Kabel PV', solar_pump_inverter: 'Inverter pompa surya',
+  switchgear: 'Switchgear', monitoring: 'Monitoring & komunikasi',
+  accessories: 'Aksesori', pv_cable: 'Kabel PV', ac_cable: 'Kabel AC',
+  solar_pump_inverter: 'Inverter pompa surya',
   ups: 'UPS', stabilizer: 'Stabilizer', ev_charger: 'Pengisi daya EV',
   standing_cabinet: 'Kabinet berdiri', wallmount_cabinet: 'Kabinet dinding',
 };
@@ -401,15 +393,19 @@ export const FAMILIES: Record<string, readonly Family[]> = {
     { key: 'ground',    label: 'Grounding',                     test: re(/ground|earthing/i) },
     { key: 'hardware',  label: 'Baut, sekrup & aksesori',       test: re(/bolt|screw|nut|epdm|cable clip/i) },
   ],
-  accessories: [
+  switchgear: [
     { key: 'mcb',       label: 'MCB & MCCB DC',                 test: re(/\bmccb\b|\bmcb\b/i) },
     { key: 'fuse',      label: 'Fuse & fuse holder',            test: re(/fuse/i) },
     { key: 'spd',       label: 'SPD (surge protection)',        test: re(/\bspd\b/i) },
-    { key: 'box',       label: 'Box distribusi & meter box',    test: re(/distribution box|meter box/i) },
+    { key: 'box',       label: 'Box distribusi',                test: re(/distribution box|combiner|panel box/i) },
+  ],
+  monitoring: [
+    { key: 'logger',    label: 'Data logger & stick',           test: re(/logger|stick|smartmgc|com100/i) },
+    { key: 'meter',     label: 'kWh meter & CT',                test: re(/\bmeter\b|dtsu|dtsd|\bsdm\d/i) },
+    { key: 'comm',      label: 'WiFi, 4G & antarmuka',          test: re(/wifi|\bble\b|rj45|\btcp\b|serial|\b4g\b|gps|pal-adp|rc-01/i) },
+  ],
+  accessories: [
     { key: 'mc4',       label: 'Konektor MC4',                  test: re(/mc4|connector/i) },
-    { key: 'meter',     label: 'kWh meter',                     test: re(/\bmeter\b/i) },
-    { key: 'monitor',   label: 'Monitoring & komunikasi',       test: re(/wifi|\bble\b|logger|tcp|serial|rj45|\b4g\b|gps|comm|stick|snmp|pal-adp|rc-01/i) },
-    { key: 'ev',        label: 'Pengisi daya EV',               test: re(/ev charger/i) },
     { key: 'battacc',   label: 'Aksesori baterai',              test: re(/bos-|pdu|cluster|rack battery/i) },
     { key: 'converter', label: 'Konverter DC-DC',               test: re(/dc-dc|converter/i) },
   ],
@@ -449,6 +445,17 @@ export const FAMILIES: Record<string, readonly Family[]> = {
     { key: 'c4',        label: '4 mm²',                         test: re(/\b4 ?mm/i) },
     { key: 'c6',        label: '6 mm²',                         test: re(/\b6 ?mm/i) },
     { key: 'c10',       label: '10 mm²',                        test: re(/\b10 ?mm/i) },
+  ],
+  // The buyer's first question about an AC cable is its CONSTRUCTION, not its
+  // size — the size is the second, and it is already a spec filter. These are
+  // the same SPLN/IEC codes the categorisation migration filed the rows on.
+  ac_cable: [
+    { key: 'mv',        label: 'Tegangan menengah 20 kV (N2XSY / N2XSEBY)', test: re(/\bn2xsy\b|\bn2xseby\b|\bn2xsefgby\b/i) },
+    { key: 'xlpe',      label: 'XLPE tanah (N2XY / NA2XY)',     test: re(/\bn2xy\b|\bna2xy\b/i) },
+    { key: 'armoured',  label: 'Berperisai (NYFGbY / NYRGbY)',  test: re(/\bnyfgby\b|\bnyrgby\b|\bnyfgbf\b/i) },
+    { key: 'aerial',    label: 'Udara berpilin (NFA2X)',        test: re(/\bnfa2x\b|\bnfa2xt\b|twisted/i) },
+    { key: 'nyy',       label: 'Instalasi tetap (NYY / NYM)',   test: re(/\bnyy\b|\bnyyhy\b|\bnym\b|\bnymhy\b/i) },
+    { key: 'nyaf',      label: 'Kabel serabut & tunggal (NYAF / NYA)', test: re(/\bnyaf\b|\bnyaaf\b|\bnya\b/i) },
   ],
 };
 

@@ -69,6 +69,16 @@ export const CATEGORY_UNITS: Record<string, CategoryUnit> = {
     priceLabel: 'Price / W',
     axis: 'Power (W)',
   },
+  // AC cable is sold by the metre exactly as PV cable is, and its
+  // cross-section is the axis a person compares on — same shape, own category
+  // because an AC cable answers `phase` and a PV cable answers `voltage_rating`.
+  ac_cable: {
+    unit: 'mm²',
+    label: 'Cross-section',
+    priceLabel: 'Price / m',
+    axis: 'Cross-section (mm²)',
+    priceIsPerUnit: true,
+  },
   pv_cable: {
     unit: 'mm²',
     label: 'Cross-section',
@@ -107,24 +117,10 @@ export function hasCategoryUnit(category: string | undefined): boolean {
   return !!category && category in CATEGORY_UNITS;
 }
 
-/** Human-readable category names for display. */
-export const CATEGORY_LABELS: Record<string, string> = {
-  accessories: 'Accessories',
-  batteries: 'Batteries',
-  box_bsp: 'Box / BSP',
-  ev_charger: 'EV Charger',
-  inverter_charger: 'Inverter Charger',
-  mounting: 'Mounting',
-  non_stock: 'Non-Stock',
-  on_grid_inverter: 'On-Grid Inverter',
-  portable_power: 'Portable Power',
-  power_inverter: 'Power Inverter',
-  pv_cable: 'PV Cable',
-  pv_module: 'PV Module',
-  solar_charge_controller: 'Solar Charge Controller',
-  solar_pump_inverter: 'Solar Pump Inverter',
-  stabilizer: 'Stabilizer',
-  standing_cabinet: 'Standing Cabinet',
-  ups: 'UPS',
-  wallmount_cabinet: 'Wallmount Cabinet',
-};
+/**
+ * Category names, re-exported from the ONE list that owns them
+ * (`constants/productTaxonomy.ts`). This alias is kept because the cost views
+ * and the positioning map already import it; it is no longer a second list
+ * that could drift from the Item Editor's.
+ */
+export { CATEGORY_LABEL as CATEGORY_LABELS } from './productTaxonomy.ts';

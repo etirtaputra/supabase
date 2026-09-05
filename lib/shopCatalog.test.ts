@@ -303,15 +303,39 @@ test('mounting opens with the buyer’s first question: rail, clamp, foot…', (
   assert.equal(familyOf(named('mounting', 'MIBET MD T Bolt Nut M8*20mm SUS304'))?.key, 'hardware');
 });
 
-test('accessories split into protection, connectors, metering, monitoring', () => {
-  assert.equal(familyOf(named('accessories', 'SUNTREE DC MCCB SM8-250HPV 2P 1000V 125A'))?.key, 'mcb');
-  assert.equal(familyOf(named('accessories', 'SUNTREE DC Fuse Link SRF-30 20A 1000V'))?.key, 'fuse');
-  assert.equal(familyOf(named('accessories', 'SUNTREE DC SPD SUP2-DC/T1+T2 1500V 3P'))?.key, 'spd');
+// Protection and metering left `accessories` for their own categories on
+// 2026-09-05 — a logger and an MCB answer no datasheet question in common,
+// which by this repo's rule makes them two categories, not two families.
+test('switchgear splits by protection device', () => {
+  assert.equal(familyOf(named('switchgear', 'SUNTREE DC MCCB SM8-250HPV 2P 1000V 125A'))?.key, 'mcb');
+  assert.equal(familyOf(named('switchgear', 'SUNTREE DC Fuse Link SRF-30 20A 1000V'))?.key, 'fuse');
+  assert.equal(familyOf(named('switchgear', 'SUNTREE DC SPD SUP2-DC/T1+T2 1500V 3P'))?.key, 'spd');
+  assert.equal(familyOf(named('switchgear', 'SUNTREE Distribution Box PMHPN Box 12ways'))?.key, 'box');
+});
+
+test('monitoring splits by what the device does', () => {
+  assert.equal(familyOf(named('monitoring', 'DEYE LSE-3 Stick Logger Ethernet'))?.key, 'logger');
+  assert.equal(familyOf(named('monitoring', 'EASTRON SDM630MCT V2 Smart Meter without CT'))?.key, 'meter');
+  assert.equal(familyOf(named('monitoring', 'HUAWEI DTSU666-HW Three-phase Meter'))?.key, 'meter');
+  assert.equal(familyOf(named('monitoring', 'EPEVER WiFi Adapter 2.4G RJ45 D'))?.key, 'comm');
+});
+
+test('what is left in accessories is genuinely accessories', () => {
   assert.equal(familyOf(named('accessories', 'SUNTREE MC4 Connector PMCN40-CM 6mm² 1500V'))?.key, 'mc4');
-  assert.equal(familyOf(named('accessories', 'EASTRON SDM630MCT V2 Smart Meter without CT'))?.key, 'meter');
-  assert.equal(familyOf(named('accessories', 'ICA SOLAR Grid Meter Box for SNV-GT6032TM'))?.key, 'box');
-  assert.equal(familyOf(named('accessories', 'EPEVER WiFi Adapter 2.4G RJ45 D'))?.key, 'monitor');
-  assert.equal(familyOf(named('accessories', 'SUNTREE AC EV Charger SWJ3-11/16 Type 2 11kW'))?.key, 'ev');
+  assert.equal(familyOf(named('accessories', 'DEYE BOS-A-PDU2; HV Battery Cluster Control Box'))?.key, 'battacc');
+  assert.equal(familyOf(named('accessories', 'MEAN WELL SD-350C-5 350W DC-DC Converter'))?.key, 'converter');
+});
+
+// The families read the SAME construction codes the categorisation migration
+// filed the rows on, so a cable cannot be filed as AC and then shelved as
+// something else.
+test('AC cables split by construction, most specific code first', () => {
+  assert.equal(familyOf(named('ac_cable', 'JEMBO Kabel N2XSY 1 x 120 mm²'))?.key, 'mv');
+  assert.equal(familyOf(named('ac_cable', 'KMI Kabel N2XSEBY 20 kV 3 x 35 mm²'))?.key, 'mv');
+  assert.equal(familyOf(named('ac_cable', 'JEMBO Kabel N2XY 1 x 50 mm²'))?.key, 'xlpe');
+  assert.equal(familyOf(named('ac_cable', 'KMI Kabel NA2XY 1 x 240 mm²'))?.key, 'xlpe');
+  assert.equal(familyOf(named('ac_cable', 'JEMBO Kabel NYY 4 x 10 mm²'))?.key, 'nyy');
+  assert.equal(familyOf(named('ac_cable', 'JEMBO Kabel NYAF 2.5 mm² (Merah)'))?.key, 'nyaf');
 });
 
 test('inverters: three-phase, off-grid, and everything else is single-phase hybrid', () => {

@@ -19,6 +19,7 @@ import type {
 } from '../../types/database';
 import { ENUMS } from '../../constants/enums';
 import { fmtDay } from '@/lib/formatters';
+import { CategoryOptionGroups } from '../ui/CategoryOptions';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -585,7 +586,7 @@ export default function CompetitorPriceForm({
             <Field label="Category">
               <select className={selectCls} value={form.category} onChange={(e) => set('category', e.target.value)}>
                 <option value="">— Select —</option>
-                {ENUMS.product_category.map((c) => <option key={c} value={c}>{c}</option>)}
+                <CategoryOptionGroups />
               </select>
             </Field>
             <Field label="Power / Capacity (Wp or kWh)">

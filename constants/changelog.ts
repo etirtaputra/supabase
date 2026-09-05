@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-09-05T12:00:00Z',
+    title: 'Kategori produk punya nama yang bisa dibaca, dan induknya sendiri',
+    details: [
+      'Setiap kategori kini punya SATU nama di seluruh ICAPROC. Item Editor dulu menampilkan kode mentah (pv_module), Daftar Produk menebak sendiri ("PV Module"), dan tampilan biaya memakai daftar terpisah \u2014 sekarang ketiganya membaca daftar yang sama. "pv_module" menjadi "Solar Panels", "on_grid_inverter" menjadi "On-Grid Inverters". Tidak ada garis bawah lagi di layar mana pun.',
+      'Pemilih kategori sekarang dikelompokkan menurut kategori induk \u2014 Inverters, Cables, Switchgears \u2014 sebagai judul di dalam daftar yang sama. Dua tingkat terlihat, kolomnya tetap satu: tidak ada kolom baru di Item Editor maupun Daftar Produk.',
+      'Tiga kategori baru. Kabel AC (415 item: NYA, NYAF, NYM, NYY, N2XY, N2XSY, NFA2X dan sejenisnya) keluar dari Non-Stock dan berdiri sendiri; satu kabel H1Z2Z2-K yang tersasar dikembalikan ke Kabel PV. Rak kabel dan cable tray TIDAK ikut pindah \u2014 itu dudukan kabel, bukan kabel.',
+      'Aksesori dipecah: Switchgears (27 item \u2014 MCB, MCCB, SPD, fuse, box distribusi) dan Monitoring & Comms (22 item \u2014 logger, WiFi, kWh meter, gateway) kini kategori masing-masing. Keduanya tidak menjawab satu pun pertanyaan datasheet yang sama, jadi keduanya bukan satu kategori.',
+      'Di /shop, departemen kini diturunkan dari daftar kategori yang sama, sehingga sebuah departemen tidak bisa muncul di toko kalau Item Editor belum mengenalnya. Kabel AC masuk sebagai keluarga menurut konstruksinya (20 kV, XLPE tanah, berperisai, udara berpilin, NYY/NYM, NYAF/NYA).',
+    ],
+  },
+  {
     at: '2026-09-01T04:00:00Z',
     title: 'The Sales Orders list shows totals before PPN',
     details: [

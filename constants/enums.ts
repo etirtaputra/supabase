@@ -8,10 +8,12 @@ export const ENUMS = {
 
   product_category: [
     'accessories',
+    'ac_cable',
     'batteries',
     'box_bsp',
     'ev_charger',
     'inverter_charger',
+    'monitoring',
     'mounting',
     'non_stock',
     'on_grid_inverter',
@@ -23,6 +25,7 @@ export const ENUMS = {
     'solar_pump_inverter',
     'stabilizer',
     'standing_cabinet',
+    'switchgear',
     'ups',
     'wallmount_cabinet',
   ] as const,

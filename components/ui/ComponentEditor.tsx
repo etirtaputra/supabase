@@ -25,6 +25,8 @@ import { fetchReorderAlerts, type ReorderAlert } from '@/lib/reorder';
 import { PRINCIPAL_CATS, BALANCE_CATS, BANK_FEE_CATS, TAX_CATS } from '../../constants/costCategories';
 import { ENUMS } from '../../constants/enums';
 import { CATEGORY_UNITS, hasCategoryUnit } from '../../constants/categoryUnits';
+import { categoryLabelOf, categoryPath } from '../../constants/productTaxonomy';
+import { CategoryOptionGroups } from './CategoryOptions';
 
 interface ComponentUsage {
   quoteCount: number;
@@ -248,20 +250,27 @@ interface FilterComboboxProps {
   placeholder: string;
   minWidth?: number;
   className?: string;
+  /**
+   * How to SHOW an option whose stored value is not what a person calls it —
+   * the category filter files by `pv_module` and reads "Solar Panels". Typing
+   * still matches either, so a person who knows the key can still use it.
+   */
+  format?: (v: string) => string;
 }
-function FilterCombobox({ options, value, onChange, placeholder, minWidth = 140, className = '' }: FilterComboboxProps) {
+function FilterCombobox({ options, value, onChange, placeholder, minWidth = 140, className = '', format }: FilterComboboxProps) {
+  const show = useCallback((v: string) => (format ? format(v) : v), [format]);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const [dropStyle, setDropStyle] = useState<React.CSSProperties>({});
 
-  const inputDisplay = open ? query : value;
+  const inputDisplay = open ? query : show(value);
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
     if (!q) return options.filter(Boolean);
-    return options.filter((o) => o?.toLowerCase().includes(q));
-  }, [options, query]);
+    return options.filter((o) => o && (o.toLowerCase().includes(q) || show(o).toLowerCase().includes(q)));
+  }, [options, query, show]);
 
   const openDrop = () => {
     if (!inputRef.current) return;
@@ -307,7 +316,7 @@ function FilterCombobox({ options, value, onChange, placeholder, minWidth = 140,
             ) : filtered.map((opt) => (
               <button key={opt} onMouseDown={() => select(opt)}
                 className={`w-full text-left px-3 py-2 text-sm transition-colors border-b border-white/[0.04] last:border-0 ${opt === value ? 'bg-emerald-500/15 text-emerald-300' : 'text-slate-300 hover:bg-white/10'}`}>
-                {opt}
+                {show(opt)}
               </button>
             ))}
           </div>
@@ -1451,7 +1460,8 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
           c.supplier_model?.toLowerCase().includes(q) ||
           c.internal_description?.toLowerCase().includes(q) ||
           c.brand?.toLowerCase().includes(q) ||
-          c.category?.toLowerCase().includes(q)
+          c.category?.toLowerCase().includes(q) ||
+          categoryPath(c.category).toLowerCase().includes(q)
       );
     }
     if (filterBrand) result = result.filter((c) => c.brand?.trim() === filterBrand);
@@ -2539,9 +2549,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                         className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-sky-500"
                       >
                         <option value="">— none —</option>
-                        {ENUMS.product_category.map((cat) => (
-                          <option key={cat} value={cat}>{cat}</option>
-                        ))}
+                        <CategoryOptionGroups />
                       </select>
                     </div>
                     <div>
@@ -2716,7 +2724,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
               <FilterCombobox options={uniqueSuppliers} value={filterSupplier} onChange={setFilterSupplier} placeholder="All Suppliers" minWidth={160} className="min-w-[160px] flex-shrink-0" />
             )}
             {/* Category filter */}
-            <FilterCombobox options={ENUMS.product_category} value={filterCategory} onChange={setFilterCategory} placeholder="All Categories" minWidth={180} className="min-w-[160px] flex-shrink-0" />
+            <FilterCombobox options={ENUMS.product_category} value={filterCategory} onChange={setFilterCategory} placeholder="All Categories" minWidth={180} className="min-w-[160px] flex-shrink-0" format={categoryPath} />
             {/* Margin tier. Offered only once profiles exist, so the control
                 cannot appear on an install that has none. */}
             {marginProfiles.length > 0 && (
@@ -3099,7 +3107,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
               className="py-1.5 px-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-sky-500 min-w-[140px]"
             >
               <option value="" disabled>Category…</option>
-              {ENUMS.product_category.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+              <CategoryOptionGroups />
             </select>
             {/* Mass-assign the margin tier (owner's ask, 2026-08-27). Rides the
                 SAME staging buffer as the Brand and Category bulk selects above
@@ -3239,7 +3247,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                       <span className="text-sm font-semibold text-white break-words">{c.supplier_model || '(no model)'}</span>
                       {isDup && <span className="px-1.5 py-0.5 bg-red-500/15 border border-red-500/25 text-red-400 text-[9px] font-bold rounded flex-shrink-0">dup</span>}
                     </div>
-                    <p className="text-[11px] text-slate-500 mt-0.5 break-words">{[c.brand, c.category, c.unit].filter(Boolean).join(' · ') || '—'}</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5 break-words">{[c.brand, categoryLabelOf(c.category), c.unit].filter(Boolean).join(' · ') || '—'}</p>
                     {(qN > 0 || pN > 0) && (
                       <p className="text-[10px] text-slate-600 mt-1">{qN} quote{qN !== 1 ? 's' : ''} · {pN} PO{pN !== 1 ? 's' : ''}</p>
                     )}
@@ -3561,20 +3569,18 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                               }`}
                             >
                               <option value="">— none —</option>
-                              {ENUMS.product_category.map((cat) => (
-                                <option key={cat} value={cat}>{cat}</option>
-                              ))}
+                              <CategoryOptionGroups />
                             </select>
-                            {isDirtyField(c, 'category') && <DirtyBadge original={c.category} />}
+                            {isDirtyField(c, 'category') && <DirtyBadge original={categoryLabelOf(c.category)} />}
                           </div>
                         ) : isDirtyField(c, 'category') ? (
                           <div>
-                            <span className="text-xs text-emerald-300">{(getVal(c, 'category') as string) || '—'}</span>
-                            <DirtyBadge original={c.category} />
+                            <span className="text-xs text-emerald-300">{categoryLabelOf(getVal(c, 'category') as string) || '—'}</span>
+                            <DirtyBadge original={categoryLabelOf(c.category)} />
                           </div>
                         ) : (
-                          <span className="text-xs text-slate-300">
-                            {c.category || <span className="text-slate-600">—</span>}
+                          <span className="text-xs text-slate-300" title={categoryPath(c.category)}>
+                            {c.category ? categoryLabelOf(c.category) : <span className="text-slate-600">—</span>}
                           </span>
                         )}
                       </td>
