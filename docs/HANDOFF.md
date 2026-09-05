@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-01** · head of `main` at that point: `1a45d4a` (see §4)
+**Last updated: 2026-09-05** · head of `main` at that point: see §4 (storefront demo)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -121,6 +121,54 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 ---
 
 ## 4. What the previous threads did (for context, all shipped to main)
+
+### 2026-09-05 — the storefront demo, and the catalogue as one source
+
+- **`/shop` — a working storefront inside ICAPROC, behind the existing login.**
+  Five routes: `/shop` (home), `/shop/c/[dept]` (department listing with
+  search, brand facets built from the data, and five sorts), `/shop/p/[id]`
+  (product page), `/shop/compare`, `/shop/cart`. Signed-in only, listed in no
+  menu — `canOpenPath` returns true for unregistered paths, so nothing in
+  `constants/navigation.ts` or the access tests had to move.
+
+  **Why it lives here rather than on its own host yet:** a public site ships
+  the anon key in every page's source, so it cannot go live before the
+  `3.0_components` anon UPDATE policy and the two unauthenticated API routes
+  (`insert-from-pdf`, `extract-pdf`) are closed. Behind the login, none of that
+  blocks a demo the owner can click through on real data.
+
+  **Portability is the design constraint** (owner, 2026-09-05: demo on an
+  icaproc subdomain, then port to a self-hosted VPS). Everything store-side is
+  `app/shop/**`, `components/shop/**` and `lib/shopCatalog.ts`; it reads
+  Supabase and the spec schema and NOTHING else of the ERP — no Tailwind
+  theme, no settings, no ERP components. Its own CSS block, its own
+  `formatIdr` (the ERP's `fmtRupiah` follows each installation's currency
+  settings; a storefront's prices must not). Lifting it out is a folder move.
+
+  **The consistency claim, made structural.** The product page and the
+  comparison render from `CATEGORY_SPEC_FIELDS` and `SPEC_FIELD_META` — the
+  same declared field sets, order, group headings, labels and units as the
+  Tech Specs screen the staff type them into. Not a copy of that list: the
+  list. A parameter added there appears on the website in the same commit, and
+  the two cannot disagree about what a field is called.
+
+- **`lib/shopCatalog.ts` (17 tests).** Every storefront rule, out of the pages:
+  departments (a BUYER's cut of the catalogue — three inverter categories are
+  one aisle, and `non_stock`'s 607 one-off project lines are in no department
+  and so never reach the shop), `isShoppable`, `pricePerUnit` (Rp/Wp, Rp/Wh,
+  Rp/A per category, skipping cable which is priced by the metre),
+  `needsFreight` (weight when the datasheet states it, else category — a 2,4 m
+  module and a 4,85 m rail are refused for size and state no weight, so a rule
+  waiting for complete data would parcel a pallet), `formatIdr`, PPN.
+
+- Unpriced items still shop, as "harga via penawaran". 137 of ~395 shoppable
+  rows carry a price; hiding the rest would hide the gap instead of showing it.
+
+- **Design canvas** (8 artboards, published as an artifact) preceded the code
+  and set the look: the client-facing brand from the quotes and proposals —
+  `#1f5aa8`, Rubik, wide-tracked micro-labels, hairline rules — not the ERP's
+  graphite theme. Product imagery is technical line drawings, because 0 of
+  1,002 catalogue rows has a photo.
 
 ### 2026-08-29 — the Hermes agent's credentials, and the Progress board
 
