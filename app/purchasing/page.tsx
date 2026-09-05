@@ -319,6 +319,7 @@ function MasterInsertPage() {
           const tag = q.status && q.status !== 'Open' ? ` · ${String(q.status).toLowerCase()}` : '';
           return {
             quote_id: q.quote_id,
+            supplier_id: q.supplier_id ?? '',
             _label: `${q.pi_number || '(no ref)'}${tag}`,
             _sub: [vendor, q.quote_date, value, code].filter(Boolean).join(' · '),
           };
@@ -343,6 +344,9 @@ function MasterInsertPage() {
           const tag      = p.status === 'Replaced' ? ' · replaced' : p.status === 'Fully Received' ? ' · received' : '';
           return {
             po_id: p.po_id,
+            // Most POs carry no supplier of their own — the vendor resolved
+            // above (theirs, else the linked quote's) is the one to scope by.
+            supplier_id: supplier?.supplier_id ?? '',
             _label: `${p.po_number || '(no number)'}${tag}`,
             // vendor · date · value first (what shows once truncated), the PI/deal
             // ref last so it stays searchable without dominating the line.
@@ -1360,7 +1364,7 @@ function MasterInsertPage() {
                         // no separate PO form, no re-entry.
                         ...(withPo ? [
                           { name: 'existing_quote_id', label: 'Stored Quote', hint: 'Raise the PO for a quote saved earlier — empty = a brand-new PI', type: 'select' as const, options: options.quotes, default: pendingStoredQuote || undefined },
-                          { name: 'existing_po_id', label: 'Stored PO', hint: 'Revise an existing PO — loads its items; keep the number to amend in place, change it to split/supersede', type: 'rich-select' as const, options: options.posReplace, config: { labelKey: '_label', valueKey: 'po_id', subLabelKey: '_sub' }, default: pendingStoredPo || undefined },
+                          { name: 'existing_po_id', label: 'Stored PO', hint: 'Revise an existing PO — loads its items; keep the number to amend in place, change it to split/supersede', type: 'rich-select' as const, options: options.posReplace, config: { labelKey: '_label', valueKey: 'po_id', subLabelKey: '_sub' }, browseScope: { fieldName: 'supplier_id', optionKey: 'supplier_id', label: 'this supplier' }, default: pendingStoredPo || undefined },
                         ] : []),
                         { name: 'supplier_id', label: 'Supplier', type: 'rich-select', options: data.suppliers, config: { labelKey: 'supplier_name', valueKey: 'supplier_id', subLabelKey: 'location' }, req: true, default: storedPoDefaults?.supplier_id ?? storedDefaults?.supplier_id ?? pdfDefaults.supplier_id },
                         { name: 'company_id', label: 'Addressed To', type: 'select', options: options.companies, req: true, default: storedPoDefaults?.company_id ?? storedDefaults?.company_id ?? pdfDefaults.company_id },
@@ -1381,7 +1385,9 @@ function MasterInsertPage() {
                           { name: 'status', label: 'Status', type: 'select' as const, options: ENUMS.price_quotes_status, default: 'Open' },
                         ]),
                         { name: 'estimated_lead_time_days', label: 'Lead Time', type: 'select', options: settings.leadTimeOptions, default: pdfData?.lead_time_days },
-                        { name: 'replaces_quote_id', label: 'Replaces Quote', hint: 'This quote supersedes an earlier one — type a PI ref, supplier or amount to find it', type: 'rich-select' as const, options: options.quotesReplace, config: { labelKey: '_label', valueKey: 'quote_id', subLabelKey: '_sub' } },
+                        // Opening the menu offers the CHOSEN SUPPLIER's quotes — a reissue is
+                        // almost always theirs. Typing still searches every quote on file.
+                        { name: 'replaces_quote_id', label: 'Replaces Quote', hint: 'This quote supersedes an earlier one — the menu lists this supplier’s quotes; type a ref or amount to search them all', type: 'rich-select' as const, options: options.quotesReplace, config: { labelKey: '_label', valueKey: 'quote_id', subLabelKey: '_sub' }, browseScope: { fieldName: 'supplier_id', optionKey: 'supplier_id', label: 'this supplier' } },
                         { name: 'document_url', label: 'Document Folder', hint: 'Link to the deal’s document folder (e.g. Google Drive)', type: 'text', placeholder: 'https://drive.google.com/…', default: storedPoDefaults?.document_url },
                         // Quote + PO mode — the PO's OWN fields, kept together as
                         // one violet block at the END so the form reads "the deal,
@@ -1396,7 +1402,7 @@ function MasterInsertPage() {
                           { name: 'payment_terms', label: 'PO Terms', type: 'text' as const, suggestions: suggestions.paymentTerms, default: storedPoDefaults?.payment_terms ?? settings.defaultPoPaymentTerms, accent: true },
                           // The PO's own replacement link — supersede an older PO
                           // without loading it (Stored PO above does load-and-edit).
-                          { name: 'replaces_po_id', label: 'Replaces PO', hint: 'This PO supersedes an older one — the old PO is marked Replaced and linked. (Use Stored PO above to also load its items.)', type: 'rich-select' as const, options: options.posReplace, config: { labelKey: '_label', valueKey: 'po_id', subLabelKey: '_sub' }, accent: true },
+                          { name: 'replaces_po_id', label: 'Replaces PO', hint: 'This PO supersedes an older one — the menu lists this supplier’s POs; type a number to search them all. The old PO is marked Replaced and linked. (Use Stored PO above to also load its items.)', type: 'rich-select' as const, options: options.posReplace, config: { labelKey: '_label', valueKey: 'po_id', subLabelKey: '_sub' }, browseScope: { fieldName: 'supplier_id', optionKey: 'supplier_id', label: 'this supplier' }, accent: true },
                         ] : []),
                       ]}
                       onSubmit={submitDeal}

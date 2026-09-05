@@ -357,7 +357,8 @@ export default function NewDealForm({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
         {headerFields.map((f) => (
           <div key={f.name} className="group">
-            <FieldRenderer field={f} value={header[f.name]} onChange={setHeaderField} formId={formId} disabled={loading} />
+            <FieldRenderer field={f} value={header[f.name]} onChange={setHeaderField} formId={formId} disabled={loading}
+              scopeValue={f.browseScope ? header[f.browseScope.fieldName] : undefined} />
           </div>
         ))}
       </div>

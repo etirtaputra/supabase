@@ -15,6 +15,23 @@ export interface RichSelectConfig {
   subLabelKey?: string;
 }
 
+/**
+ * Browse-time scope for a rich-select.
+ *
+ * A quote is almost always replaced by one from the SAME supplier, so opening
+ * the picker should offer that supplier's quotes — not every quote on file.
+ * Typing still searches everything, because "almost always" is not always.
+ *
+ * `fieldName` is another field in the same form (its current value is the
+ * scope); `optionKey` is the key on each option that must match it.
+ */
+export interface BrowseScope {
+  fieldName: string;
+  optionKey: string;
+  /** Named in the dropdown's footer, e.g. "this supplier". */
+  label?: string;
+}
+
 // Select option structure
 export interface SelectOption {
   val: string | number;
@@ -32,6 +49,8 @@ export interface FieldConfig {
   suggestions?: string[];
   options?: readonly string[] | SelectOption[] | any[]; // for select/rich-select
   config?: RichSelectConfig; // for rich-select
+  /** rich-select only — see BrowseScope: narrows BROWSING, never searching. */
+  browseScope?: BrowseScope;
   width?: string; // for batch forms (tailwind class)
   /** Violet border + label: marks fields belonging to a secondary document
       (e.g. the PO fields on the combined quote form). */

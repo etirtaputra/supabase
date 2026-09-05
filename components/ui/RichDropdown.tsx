@@ -8,6 +8,7 @@
 
 import React, { useState, useEffect, useRef, memo } from 'react';
 import type { RichSelectConfig } from '../../types/forms';
+import { dropdownPool, BROWSE_LIMIT } from '@/lib/dropdownPool';
 
 interface RichDropdownProps {
   options: any[];
@@ -15,6 +16,12 @@ interface RichDropdownProps {
   onChange: (value: any) => void;
   placeholder?: string;
   config?: Partial<RichSelectConfig>;
+  /** Key on each option that browseValue is matched against (see BrowseScope). */
+  browseKey?: string;
+  /** The scope itself — empty/null means no scoping, show everything. */
+  browseValue?: string | number | null;
+  /** How the scope is named in the footer, e.g. "this supplier". */
+  browseLabel?: string;
 }
 
 const RichDropdown = memo(function RichDropdown({
@@ -23,6 +30,9 @@ const RichDropdown = memo(function RichDropdown({
   onChange,
   placeholder = 'Search...',
   config = {} as Partial<RichSelectConfig>,
+  browseKey,
+  browseValue,
+  browseLabel = 'this supplier',
 }: RichDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -63,18 +73,11 @@ const RichDropdown = memo(function RichDropdown({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [value, options, valueKey, labelKey, subLabelKey]);
 
-  // Filter options based on search term
-  // When searching: show all matches (no cap) so nothing is hidden
-  // When browsing: show first 50 as a preview; user should type to narrow down
-  const BROWSE_LIMIT = 50;
-  const filtered = searchTerm
-    ? options.filter(
-        (c) =>
-          (c[labelKey] || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (c[subLabelKey] || '').toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    : options.slice(0, BROWSE_LIMIT);
-  const isTruncated = !searchTerm && options.length > BROWSE_LIMIT;
+  // What to show is lib/dropdownPool.ts's one rule: browsing is a capped
+  // suggestion that may be SCOPED to the deal the form is already on; a typed
+  // search is answered from everything, uncapped. This component only renders it.
+  const { items: filtered, scoped, poolSize, truncated: isTruncated } =
+    dropdownPool(options, { search: searchTerm, labelKey, subLabelKey, browseKey, browseValue });
 
   const handleSelect = (item: any) => {
     onChange(item[valueKey]);
@@ -151,7 +154,9 @@ const RichDropdown = memo(function RichDropdown({
           <div className="max-h-60 md:max-h-72 overflow-y-auto custom-scrollbar" role="listbox">
             {filtered.length === 0 ? (
               <div className="p-4 md:p-6 text-center text-xs md:text-sm text-slate-500 italic">
-                No matching results.
+                {!searchTerm && scoped
+                  ? `Nothing on file for ${browseLabel} — type to search all ${options.length}.`
+                  : 'No matching results.'}
               </div>
             ) : (
               <>
@@ -175,11 +180,17 @@ const RichDropdown = memo(function RichDropdown({
                     </div>
                   </div>
                 ))}
-                {isTruncated && (
+                {/* Say what the list you are looking at IS, so a missing entry
+                    reads as "out of scope", not "not on file". */}
+                {!searchTerm && scoped ? (
+                  <div className="px-4 py-2.5 text-center text-[11px] text-slate-500 italic border-t border-slate-800">
+                    {isTruncated ? `First ${BROWSE_LIMIT} of ${poolSize}` : poolSize} for {browseLabel} — type to search all {options.length}
+                  </div>
+                ) : isTruncated ? (
                   <div className="px-4 py-2.5 text-center text-[11px] text-slate-500 italic border-t border-slate-800">
                     Showing {BROWSE_LIMIT} of {options.length} — type to search all
                   </div>
-                )}
+                ) : null}
               </>
             )}
           </div>

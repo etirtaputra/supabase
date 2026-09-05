@@ -21,6 +21,8 @@ interface FieldRendererProps {
   onChange: (name: string, value: any) => void;
   formId?: string;
   disabled?: boolean;
+  /** Current value of field.browseScope.fieldName — the form owns it. */
+  scopeValue?: any;
 }
 
 export default function FieldRenderer({
@@ -29,6 +31,7 @@ export default function FieldRenderer({
   onChange,
   formId,
   disabled = false,
+  scopeValue,
 }: FieldRendererProps) {
   const uniqueId = useId();
   const datalistId = `${formId || 'form'}-${field.name}-${uniqueId}`;
@@ -61,6 +64,9 @@ export default function FieldRenderer({
           options={(field.options || EMPTY_OPTIONS) as any[]}
 	  value={value}
           config={field.config}
+          browseKey={field.browseScope?.optionKey}
+          browseValue={field.browseScope ? scopeValue : undefined}
+          browseLabel={field.browseScope?.label}
           onChange={(val: any) => onChange(field.name, val)}
         />
       ) : field.type === 'select' ? (
