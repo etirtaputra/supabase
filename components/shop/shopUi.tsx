@@ -18,7 +18,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { DEPARTMENTS, formatIdr } from '@/lib/shopCatalog';
+import {
+  DEPARTMENTS, departmentOf, shopName, hasPrice, pricePerUnit, categoryLabel, familyOf,
+  searchItems, formatIdr, formatIdrUnit,
+} from '@/lib/shopCatalog';
+import { useShopData, Thumb } from './useShopData';
 
 export const SHOP_CSS = `
 .shop{--navy:#1f5aa8;--navy-dk:#17457f;--tint:#eef4fb;--ink:#0f172a;--body:#334155;
@@ -142,20 +146,75 @@ export function CartIcon({ n }: { n: number }) {
   );
 }
 
-/** The search box: the primary way in. Submits to /shop/search. */
-export function SearchBox({ initial = '', autoFocus = false }: { initial?: string; autoFocus?: boolean }) {
+/**
+ * The search box: the primary way in.
+ *
+ * Suggestions come from the same `searchItems` the results page uses, over
+ * the catalogue already in memory, so they are instant and never disagree
+ * with the page Enter lands on. Arrow keys move, Enter opens the highlighted
+ * item or, with none highlighted, the full results.
+ */
+export function SearchBox({ initial = '' }: { initial?: string }) {
   const router = useRouter();
+  const { items } = useShopData();
   const [q, setQ] = useState(initial);
+  const [open, setOpen] = useState(false);
+  const [hi, setHi] = useState(-1);
   useEffect(() => { setQ(initial); }, [initial]);
+
+  const hits = useMemo(() => (q.trim().length >= 2 ? searchItems(items, q).slice(0, 8) : []), [items, q]);
+
+  const go = (i: number) => {
+    const v = q.trim();
+    if (i >= 0 && hits[i]) router.push(`/shop/p/${hits[i].component_id}`);
+    else if (v) router.push(`/shop/search?q=${encodeURIComponent(v)}`);
+    setOpen(false);
+  };
+
   return (
-    <form onSubmit={(e) => { e.preventDefault(); const v = q.trim(); if (v) router.push(`/shop/search?q=${encodeURIComponent(v)}`); }}
-      style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+    <form onSubmit={(e) => { e.preventDefault(); go(hi); }} style={{ position: 'relative', flex: 1, minWidth: 0 }}>
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.2" strokeLinecap="round"
         style={{ position: 'absolute', left: 11, top: 12, pointerEvents: 'none' }}>
         <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" />
       </svg>
-      <input className="search" value={q} onChange={(e) => setQ(e.target.value)} autoFocus={autoFocus}
-        placeholder="Cari nomor model, merek, atau spesifikasi — mis. 620wp, mppt 40a, 5kw 48v" aria-label="Cari" />
+      <input className="search" value={q} aria-label="Cari" autoComplete="off"
+        placeholder="Cari nomor model, merek, atau spesifikasi — mis. 620wp, mppt 40a, 5kw 48v"
+        onChange={(e) => { setQ(e.target.value); setOpen(true); setHi(-1); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 120)}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); setHi((h) => Math.min(hits.length - 1, h + 1)); }
+          else if (e.key === 'ArrowUp') { e.preventDefault(); setHi((h) => Math.max(-1, h - 1)); }
+          else if (e.key === 'Escape') { setOpen(false); }
+        }} />
+      {open && hits.length > 0 && (
+        <div role="listbox" style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: '#fff', border: '1px solid var(--line)', borderRadius: 4, boxShadow: '0 10px 30px rgba(15,23,42,.14)', zIndex: 40, overflow: 'hidden' }}>
+          {hits.map((h, i) => {
+            const per = pricePerUnit(h);
+            return (
+              <div key={h.component_id} role="option" aria-selected={i === hi}
+                onMouseDown={(e) => { e.preventDefault(); go(i); }} onMouseEnter={() => setHi(i)}
+                style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '7px 12px', cursor: 'pointer', background: i === hi ? 'var(--tint)' : '#fff', borderTop: i ? '1px solid var(--hair)' : 'none' }}>
+                <span style={{ width: 34, height: 26, background: 'var(--canvas)', borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+                  <Thumb dept={departmentOf(h.category)?.key ?? null} size={32} />
+                </span>
+                <span style={{ minWidth: 0, flex: 1 }}>
+                  <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{shopName(h)}</span>
+                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>{categoryLabel(h.category)}{familyOf(h) ? ` · ${familyOf(h)!.label}` : ''}</span>
+                </span>
+                <span className="num" style={{ fontSize: 12.5, fontWeight: 700, color: hasPrice(h) ? 'var(--ink)' : 'var(--navy)', whiteSpace: 'nowrap', textAlign: 'right' }}>
+                  {hasPrice(h) ? formatIdr(Number(h.selling_price_idr)) : 'penawaran'}
+                  {per && <span style={{ display: 'block', fontWeight: 400, color: 'var(--muted)', fontSize: 11 }}>{formatIdrUnit(per.value)}/{per.unit}</span>}
+                </span>
+              </div>
+            );
+          })}
+          <div onMouseDown={(e) => { e.preventDefault(); go(-1); }}
+            style={{ padding: '7px 12px', fontSize: 12, color: 'var(--navy)', fontWeight: 600, borderTop: '1px solid var(--line)', background: 'var(--canvas)', cursor: 'pointer' }}>
+            Semua hasil untuk “{q.trim()}” →
+          </div>
+        </div>
+      )}
     </form>
   );
 }

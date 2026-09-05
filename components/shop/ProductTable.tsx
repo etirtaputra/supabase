@@ -9,7 +9,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import {
-  departmentOf, shopName, hasPrice, pricePerUnit, needsFreight, specsOf, categoryLabel,
+  departmentOf, shopName, hasPrice, pricePerUnit, needsFreight, specsOf, categoryLabel, familyOf,
   formatIdr, formatIdrUnit, type ShopItem,
 } from '@/lib/shopCatalog';
 import { fieldMeta, isAnswered, displaySpecValue } from '@/lib/specFields';
@@ -63,8 +63,7 @@ export default function ProductTable({ items, columns, showCategory = false, onA
                 </td>
                 <td style={{ minWidth: 220 }}>
                   <Link href={`/shop/p/${i.component_id}`} className="lnk" style={{ fontWeight: 600, color: 'var(--ink)', display: 'block', lineHeight: 1.3 }}>{shopName(i)}</Link>
-                  <span className="mono" style={{ color: 'var(--muted)' }}>{i.supplier_model}</span>
-                  {i.brand && <span style={{ color: 'var(--label)', fontSize: 11 }}> · {i.brand.trim()}</span>}
+                  {familyOf(i) && <span style={{ color: 'var(--label)', fontSize: 11 }}>{familyOf(i)!.label}</span>}
                 </td>
                 {showCategory && <td className="hidesm" style={{ color: 'var(--muted)', whiteSpace: 'nowrap' }}>{categoryLabel(i.category)}</td>}
                 {showCapacity && (

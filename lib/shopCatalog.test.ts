@@ -47,10 +47,10 @@ test('non_stock never reaches the shop', () => {
   assert.equal(isShoppable(item({ category: 'non_stock' })), false);
 });
 
-test('an item with no name is not shoppable', () => {
-  assert.equal(isShoppable(item({ internal_description: '  ', supplier_model: '' })), false);
-  // …but a supplier model alone is a name.
-  assert.equal(isShoppable(item({ internal_description: null, supplier_model: 'TSM-620' })), true);
+test('an item with no description of OURS is not shoppable — the supplier’s is never a name', () => {
+  assert.equal(isShoppable(item({ internal_description: '  ', supplier_model: 'TSM-620' })), false);
+  assert.equal(isShoppable(item({ internal_description: null, supplier_model: 'TSM-620' })), false);
+  assert.equal(isShoppable(item({ internal_description: 'TRINA 620Wp', supplier_model: '' })), true);
 });
 
 test('an unpriced item still shops — quote-only is a real way to sell', () => {
@@ -60,9 +60,15 @@ test('an unpriced item still shops — quote-only is a real way to sell', () => 
   assert.equal(pricePerUnit(i), null);
 });
 
-test('the customer-facing name prefers our description', () => {
+test('the customer-facing name is our description and never the supplier model', () => {
   assert.equal(shopName(item({ internal_description: 'TRINA 620Wp', supplier_model: 'TSM-620' })), 'TRINA 620Wp');
-  assert.equal(shopName(item({ internal_description: null, supplier_model: 'TSM-620' })), 'TSM-620');
+  assert.equal(shopName(item({ internal_description: null, supplier_model: 'TSM-620' })), '');
+});
+
+test('search never reads the supplier model', () => {
+  const i = item({ internal_description: 'ICA SOLAR 5kW/48V', supplier_model: 'ZZ-SECRET-9' });
+  assert.ok(!searchText(i).includes('zz-secret'));
+  assert.equal(matchesQuery(i, 'zz-secret-9'), false);
 });
 
 test('price per unit speaks each category’s own unit', () => {
@@ -257,7 +263,7 @@ test('search needs every token, in any spelling of the capacity', () => {
   assert.ok(matchesQuery(MODS[0], ''));
 });
 
-test('search ranks a model-number hit above a description hit', () => {
+test('search ranks a hit early in our name above one buried in it', () => {
   const inv = item({ component_id: 'i', category: 'inverter_charger', supplier_model: 'SNV-GH5042', internal_description: 'ICA SOLAR SNV-GH5042 5kW/48V', norm_value: 5000, specifications: { rated_output_power_w: 5000, battery_nominal_voltage_vdc: 48 } });
   const cable = item({ component_id: 'k', category: 'pv_cable', supplier_model: 'PV1-F', internal_description: 'Kabel PV untuk inverter SNV-GH5042 kit' });
   const r = searchItems([cable, inv], 'snv-gh5042');
@@ -277,4 +283,87 @@ test('category labels are customer-facing, and never empty for a known category'
   assert.equal(categoryLabel('inverter_charger'), 'Inverter hybrid / off-grid');
   assert.notEqual(categoryLabel('box_bsp'), '');
   assert.equal(categoryLabel(null), '');
+});
+
+// ── Families ────────────────────────────────────────────────────────────────
+import { FAMILIES, familyOf, familiesOf, familyIndex, OTHER_FAMILY } from './shopCatalog.ts';
+
+const named = (category: string, name: string, norm: number | null = null) =>
+  item({ component_id: name, category, internal_description: name, norm_value: norm });
+
+test('mounting opens with the buyer’s first question: rail, clamp, foot…', () => {
+  assert.equal(familyOf(named('mounting', 'MIBET MD T-slot Rail H38.5 L4850mm AL6005-T5'))?.key, 'rail');
+  assert.equal(familyOf(named('mounting', 'MIBET MD Rail H38.5 Splice Kit L100mm'))?.key, 'splice');
+  assert.equal(familyOf(named('mounting', 'MIBET MD End Clamp 30/33 Kit L50mm'))?.key, 'clamp');
+  assert.equal(familyOf(named('mounting', 'MIBET Klip-Lok 27 L50mm AL6005-T5'))?.key, 'roofclamp');
+  assert.equal(familyOf(named('mounting', 'MIBET MD L Feet Kit H90'))?.key, 'foot');
+  assert.equal(familyOf(named('mounting', 'MIBET ZAM Walkway 2400*400*30'))?.key, 'walkway');
+  assert.equal(familyOf(named('mounting', 'MIBET Clamp Kit of Walkway/MA Nut 300mm'))?.key, 'walkway');
+  assert.equal(familyOf(named('mounting', 'MIBET MA Grounding Lug Kit L20mm'))?.key, 'ground');
+  assert.equal(familyOf(named('mounting', 'MIBET MD T Bolt Nut M8*20mm SUS304'))?.key, 'hardware');
+});
+
+test('accessories split into protection, connectors, metering, monitoring', () => {
+  assert.equal(familyOf(named('accessories', 'SUNTREE DC MCCB SM8-250HPV 2P 1000V 125A'))?.key, 'mcb');
+  assert.equal(familyOf(named('accessories', 'SUNTREE DC Fuse Link SRF-30 20A 1000V'))?.key, 'fuse');
+  assert.equal(familyOf(named('accessories', 'SUNTREE DC SPD SUP2-DC/T1+T2 1500V 3P'))?.key, 'spd');
+  assert.equal(familyOf(named('accessories', 'SUNTREE MC4 Connector PMCN40-CM 6mm² 1500V'))?.key, 'mc4');
+  assert.equal(familyOf(named('accessories', 'EASTRON SDM630MCT V2 Smart Meter without CT'))?.key, 'meter');
+  assert.equal(familyOf(named('accessories', 'ICA SOLAR Grid Meter Box for SNV-GT6032TM'))?.key, 'box');
+  assert.equal(familyOf(named('accessories', 'EPEVER WiFi Adapter 2.4G RJ45 D'))?.key, 'monitor');
+  assert.equal(familyOf(named('accessories', 'SUNTREE AC EV Charger SWJ3-11/16 Type 2 11kW'))?.key, 'ev');
+});
+
+test('inverters: three-phase, off-grid, and everything else is single-phase hybrid', () => {
+  assert.equal(familyOf(named('inverter_charger', 'DEYE SUN-12K-SG05LP3-EU-SM2 Three-Phase 12kW Hybrid'))?.key, 'hybrid3');
+  assert.equal(familyOf(named('inverter_charger', 'EPEVER UCP3542-0650P20C 3.5kW/48V'))?.key, 'offgrid');
+  assert.equal(familyOf(named('inverter_charger', 'ICA SOLAR SNV-GF6541 6.5kW/48V'))?.key, 'offgrid');
+  assert.equal(familyOf(named('inverter_charger', 'ICA SOLAR SNV-GH5042 5kW/48V'))?.key, 'hybrid1');
+  assert.equal(familyOf(named('inverter_charger', 'EPEVER ELS6K-E 6kW/48V'))?.key, 'hybrid1');
+  assert.equal(familyOf(named('on_grid_inverter', 'ICA SOLAR SNV-GT5022DM 5kW 2xMPPT', 5000))?.key, 'res');
+  assert.equal(familyOf(named('on_grid_inverter', 'ICA SOLAR SNV-GT8033QT 80kW 4xMPPT', 80000))?.key, 'ind');
+});
+
+test('batteries by voltage class, HV first so "51.2V" inside an HV name does not steal it', () => {
+  assert.equal(familyOf(named('batteries', 'EPEVER HR16314 LiFePO4 51.2V/314Ah, IP21 HV rack'))?.key, 'hv');
+  assert.equal(familyOf(named('batteries', 'EPEVER LR51100A LiFePO4 51.2V/100Ah, IP21 rack-mounted'))?.key, 'v48');
+  assert.equal(familyOf(named('batteries', 'EPEVER LW25205A LiFePO4 25.6V/205Ah, IP21 wall-mounted'))?.key, 'v24');
+  assert.equal(familyOf(named('batteries', 'ICAL LIP12200D 12V/200Ah'))?.key, 'v12');
+  // a miscategorised inverter is Lainnya, not hidden
+  assert.equal(familyOf(named('batteries', 'EPEVER HP3522-AH1250P20A'))?.key, OTHER_FAMILY.key);
+});
+
+test('charge controllers by series, PWM separated', () => {
+  assert.equal(familyOf(named('solar_charge_controller', 'EPEVER VS1024AU PWM SCC 10A 12V/24V'))?.key, 'pwm');
+  assert.equal(familyOf(named('solar_charge_controller', 'EPEVER LS2024120LPLI PWM 20A'))?.key, 'pwm');
+  assert.equal(familyOf(named('solar_charge_controller', 'EPEVER TRACER3910BPL MPPT 15A'))?.key, 'tracer');
+  assert.equal(familyOf(named('solar_charge_controller', 'EPEVER XTRA4210N-G3 MPPT 40A'))?.key, 'xtra');
+  assert.equal(familyOf(named('solar_charge_controller', 'EPEVER TEP8425 MPPT 80A (IP20)'))?.key, 'industrial');
+  assert.equal(familyOf(named('solar_charge_controller', 'EPEVER IT6415NC-G3 BLE MPPT 60A (IP32)'))?.key, 'industrial');
+});
+
+test('a category with no families lists directly', () => {
+  assert.deepEqual(familiesOf('ups'), []);
+  assert.equal(familyOf(named('ups', 'ICA SE3100')), null);
+  assert.deepEqual(familyIndex('ups', [named('ups', 'ICA SE3100')]), []);
+});
+
+test('the family index counts, prices, keeps declared order, and shows Lainnya only when used', () => {
+  const items = [
+    item({ component_id: 'a', category: 'mounting', internal_description: 'MIBET MD End Clamp 35 Kit', selling_price_idr: 7000 }),
+    item({ component_id: 'b', category: 'mounting', internal_description: 'MIBET MD Symmetric Rail H38.5 L4850mm', selling_price_idr: 200000 }),
+    item({ component_id: 'c', category: 'mounting', internal_description: 'MIBET MA Symmetric Rail H43 L3600mm', selling_price_idr: 155000 }),
+  ];
+  const idx = familyIndex('mounting', items);
+  assert.deepEqual(idx.map((r) => [r.family.key, r.n, r.min]), [['rail', 2, 155000], ['clamp', 1, 7000]]);
+  const withOther = familyIndex('mounting', [...items, item({ component_id: 'z', category: 'mounting', internal_description: 'Something unclassified' })]);
+  assert.equal(withOther.at(-1)?.family.key, OTHER_FAMILY.key);
+});
+
+test('every family key is unique within its category', () => {
+  for (const [cat, fams] of Object.entries(FAMILIES)) {
+    const keys = fams.map((f) => f.key);
+    assert.equal(new Set(keys).size, keys.length, cat);
+    assert.ok(!keys.includes(OTHER_FAMILY.key), cat);
+  }
 });

@@ -180,6 +180,22 @@ Plus: a `constants/changelog.ts` entry in the same commit.
   What is McMaster's — the yellow-green skin, its exact layout grammar — is not
   copied; what is taken is the intention. 482 tests.
 
+- **Families, autocomplete, and no supplier naming** (owner, 2026-09-05).
+  `FAMILIES` in `lib/shopCatalog.ts`: the buyer's first question inside a
+  category ("rail, clamp, or foot?", "on-grid or off-grid?", "12 V or 48 V?"),
+  as rules over OUR description and capacity, first match wins, unmatched →
+  "Lainnya" (never hidden). A department now opens on its family tiles, not
+  the whole list; the table appears once one is chosen, facets scoped to it.
+  URL `/shop/c/<dept>?cat=<category>&fam=<family|all>`. The owner knows the
+  ERP's categorisation itself needs work and has deferred it until the shop
+  UI is settled — families are the stopgap over today's categories and can
+  become a real column in Item Editor then. Search box has autocomplete
+  (same `searchItems` as the results page, over the catalogue in memory, ↑↓
+  Enter Esc). `supplier_model` is not fetched, not shown, and not searched:
+  the supplier's naming never reaches a customer, and an item with no
+  description of ours is not on the shop. `useShopData` shares one fetch
+  across every hook instance on a page. 491 tests.
+
 - **Design canvas** (8 artboards, published as an artifact) preceded the code
   and set the look: the client-facing brand from the quotes and proposals —
   `#1f5aa8`, Rubik, wide-tracked micro-labels, hairline rules — not the ERP's

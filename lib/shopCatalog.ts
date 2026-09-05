@@ -17,7 +17,8 @@ import { CATEGORY_UNITS } from '../constants/categoryUnits.ts';
 export interface ShopItem {
   component_id: string;
   internal_description: string | null;
-  supplier_model: string;
+  /** Present in the ERP's rows; the shop neither fetches nor shows it. */
+  supplier_model?: string;
   brand: string | null;
   category: string | null;
   unit: string | null;
@@ -78,17 +79,23 @@ export const departmentOf = (category: string | null | undefined): Department | 
 export const departmentByKey = (key: string): Department | null =>
   DEPARTMENTS.find((d) => d.key === key) ?? null;
 
-/** The customer-facing name. Never the supplier's own code when we have our own. */
-export const shopName = (i: ShopItem): string =>
-  (i.internal_description || '').trim() || i.supplier_model;
+/**
+ * The customer-facing name: OUR description, and nothing else.
+ *
+ * The supplier's own description and model code never reach a customer
+ * (owner, 2026-09-05) — it is the supplier's naming, not ours, and it is
+ * how a buyer finds the same item elsewhere. An item with no description of
+ * ours has no name on the shop, and so is not on the shop.
+ */
+export const shopName = (i: ShopItem): string => (i.internal_description || '').trim();
 
 /**
- * On the shop at all? A department, and a name. NOT a price: an item without
- * one is quote-only, which is a real way to sell a 250 kW pump inverter — and
- * showing it is how the gap in the catalogue stays visible instead of hidden.
+ * On the shop at all? A department, and a name OF OURS. NOT a price: an item
+ * without one is quote-only, which is a real way to sell a 250 kW pump
+ * inverter — and showing it is how the gap in the catalogue stays visible.
  */
 export const isShoppable = (i: ShopItem): boolean =>
-  !!departmentOf(i.category) && !!shopName(i).trim();
+  !!departmentOf(i.category) && shopName(i).length > 0;
 
 export const hasPrice = (i: ShopItem): boolean =>
   i.selling_price_idr != null && Number(i.selling_price_idr) > 0;
@@ -322,7 +329,7 @@ export const categoryLabel = (category: string | null | undefined): string =>
  * "5 kw" and "5kw" both land.
  */
 export function searchText(i: ShopItem): string {
-  const parts: string[] = [shopName(i), i.supplier_model, i.brand ?? '', categoryLabel(i.category), CATEGORY_LABELS[i.category ?? ''] ?? ''];
+  const parts: string[] = [shopName(i), i.brand ?? '', categoryLabel(i.category), CATEGORY_LABELS[i.category ?? ''] ?? '', familyOf(i)?.label ?? ''];
   const cu = i.category ? CATEGORY_UNITS[i.category] : undefined;
   if (cu && Number(i.norm_value) > 0) parts.push(`${Number(i.norm_value)}${cu.unit}`, `${Number(i.norm_value)} ${cu.unit}`);
   const s = specsOf(i);
@@ -345,21 +352,129 @@ export function matchesQuery(i: ShopItem, query: string): boolean {
 }
 
 /**
- * Search results, best first: a hit in the model number outranks one in the
- * description, which outranks one in a spec value. Ties keep capacity order.
+ * Search results, best first. A hit early in OUR name (the brand and model
+ * come first in it) outranks one buried later, which outranks a hit only in a
+ * spec value or category. Ties keep capacity order.
  */
 export function searchItems(items: ShopItem[], query: string): ShopItem[] {
   const q = query.trim().toLowerCase();
   if (!q) return [];
   const compact = q.replace(/\s+/g, '');
+  const first = q.split(/\s+/)[0];
   const score = (i: ShopItem): number => {
-    const model = i.supplier_model.toLowerCase().replace(/\s+/g, '');
-    if (model === compact) return 0;
-    if (model.startsWith(compact)) return 1;
-    if (model.includes(compact)) return 2;
-    if (shopName(i).toLowerCase().includes(q)) return 3;
-    return 4;
+    const name = shopName(i).toLowerCase();
+    const at = name.replace(/\s+/g, '').indexOf(compact);
+    if (at >= 0) return at;
+    const t = name.indexOf(first);
+    return t >= 0 ? 1000 + t : 10000;
   };
   return items.filter((i) => matchesQuery(i, q))
     .sort((a, b) => score(a) - score(b) || Number(b.norm_value ?? 0) - Number(a.norm_value ?? 0) || shopName(a).localeCompare(shopName(b)));
+}
+
+// ── Families: the first cut inside a category ────────────────────────────────
+//
+// A category is the business's cut; a FAMILY is the buyer's first question
+// inside it — "rail, clamp, or foot?", "on-grid or off-grid?", "12 V or 48 V?".
+// McMaster opens every category with that question. These are rules over the
+// item's own name and capacity, first match wins, and an item no rule claims
+// is "Lainnya" rather than hidden: a family list that quietly dropped items
+// would be a worse catalogue than none.
+
+export interface Family { key: string; label: string; test: (i: ShopItem) => boolean; }
+
+const re = (r: RegExp) => (i: ShopItem) => r.test(shopName(i));
+const cap = (lo: number, hi = Infinity) => (i: ShopItem) => {
+  const n = Number(i.norm_value); return Number.isFinite(n) && n >= lo && n < hi;
+};
+const both = (...fs: ((i: ShopItem) => boolean)[]) => (i: ShopItem) => fs.every((f) => f(i));
+const not = (f: (i: ShopItem) => boolean) => (i: ShopItem) => !f(i);
+
+export const FAMILIES: Record<string, readonly Family[]> = {
+  mounting: [
+    { key: 'walkway',   label: 'Walkway',                       test: re(/walkway/i) },
+    { key: 'splice',    label: 'Sambungan rail (splice)',       test: re(/splice|jointer/i) },
+    { key: 'rail',      label: 'Rail',                          test: re(/\brail\b/i) },
+    { key: 'roofclamp', label: 'Klem atap metal',               test: re(/klip-lok|standing seam/i) },
+    { key: 'clamp',     label: 'Klem modul (end / mid)',        test: re(/clamp/i) },
+    { key: 'foot',      label: 'Kaki & penyangga',              test: re(/l feet|z support|tripod|support kit|support \d|asphalt/i) },
+    { key: 'ground',    label: 'Grounding',                     test: re(/ground|earthing/i) },
+    { key: 'hardware',  label: 'Baut, sekrup & aksesori',       test: re(/bolt|screw|nut|epdm|cable clip/i) },
+  ],
+  accessories: [
+    { key: 'mcb',       label: 'MCB & MCCB DC',                 test: re(/\bmccb\b|\bmcb\b/i) },
+    { key: 'fuse',      label: 'Fuse & fuse holder',            test: re(/fuse/i) },
+    { key: 'spd',       label: 'SPD (surge protection)',        test: re(/\bspd\b/i) },
+    { key: 'box',       label: 'Box distribusi & meter box',    test: re(/distribution box|meter box/i) },
+    { key: 'mc4',       label: 'Konektor MC4',                  test: re(/mc4|connector/i) },
+    { key: 'meter',     label: 'kWh meter',                     test: re(/\bmeter\b/i) },
+    { key: 'monitor',   label: 'Monitoring & komunikasi',       test: re(/wifi|\bble\b|logger|tcp|serial|rj45|\b4g\b|gps|comm|stick|snmp|pal-adp|rc-01/i) },
+    { key: 'ev',        label: 'Pengisi daya EV',               test: re(/ev charger/i) },
+    { key: 'battacc',   label: 'Aksesori baterai',              test: re(/bos-|pdu|cluster|rack battery/i) },
+    { key: 'converter', label: 'Konverter DC-DC',               test: re(/dc-dc|converter/i) },
+  ],
+  solar_charge_controller: [
+    { key: 'pwm',       label: 'PWM',                           test: re(/\bpwm\b|\bLS\d|\bVS\d/) },
+    { key: 'tracer',    label: 'MPPT Tracer (10–100 A)',        test: re(/tracer/i) },
+    { key: 'xtra',      label: 'MPPT XTRA (10–40 A)',           test: re(/xtra/i) },
+    { key: 'industrial',label: 'MPPT industri IT / ET / TEP / TES / TIS (50–100 A)', test: re(/\b(IT|ET|TEP|TES|TIS)\d/) },
+  ],
+  batteries: [
+    { key: 'hv',        label: 'Baterai HV (high voltage)',     test: re(/\bhv\b|high.?voltage|409\.6|bos-|hr16/i) },
+    { key: 'v48',       label: 'LiFePO4 48 V (rak)',            test: re(/51\.2 ?v|48 ?v|\bLR51|\bLS51|\bLF51/i) },
+    { key: 'v24',       label: 'LiFePO4 24 V',                  test: re(/25\.6 ?v|24 ?v|\bLR25|\bLW25/i) },
+    { key: 'v12',       label: '12 V (LiFePO4 & VRLA)',         test: re(/12\.8 ?v|12 ?v|\bLIP12|\bIP12/i) },
+  ],
+  inverter_charger: [
+    { key: 'hybrid3',   label: 'Hybrid 3 fasa & HV',            test: re(/three-?phase|\b3p\b|hv hybrid|\bpcs\b|sg0[12]hp3|sg05lp3|wp ii|luna/i) },
+    { key: 'offgrid',   label: 'Off-grid inverter charger',     test: re(/\b(UC|UCP|KR|QI|UP)\d|SNV-GF/) },
+    { key: 'hybrid1',   label: 'Hybrid 1 fasa (24–48 V)',       test: re(/./) },
+  ],
+  on_grid_inverter: [
+    { key: 'res',       label: 'Residensial (≤ 5 kW)',          test: cap(0, 5001) },
+    { key: 'com',       label: 'Komersial (6–30 kW)',           test: cap(5001, 30001) },
+    { key: 'ind',       label: 'Industri (> 30 kW)',            test: cap(30001) },
+  ],
+  solar_pump_inverter: [
+    { key: 'ip65',      label: '3 fasa 380 V, IP65',            test: re(/ip65/i) },
+    { key: 'ph1',       label: '1 fasa 220 V',                  test: re(/\b1 ?ph\b|220 ?v|-2s\b/i) },
+    { key: 'ph3',       label: '3 fasa 380 V',                  test: re(/380 ?v|\b3 ?ph\b|-4t\b/i) },
+  ],
+  pv_module: [
+    { key: 'bifacial',  label: 'Bifacial N-type TOPCon',        test: re(/bifacial|n-type|topcon/i) },
+    { key: 'mono',      label: 'Mono ≥ 500 Wp',                 test: both(not(re(/bifacial/i)), cap(500)) },
+    { key: 'small',     label: 'Mono kecil (≤ 200 Wp)',         test: cap(0, 500) },
+  ],
+  pv_cable: [
+    { key: 'c4',        label: '4 mm²',                         test: re(/\b4 ?mm/i) },
+    { key: 'c6',        label: '6 mm²',                         test: re(/\b6 ?mm/i) },
+    { key: 'c10',       label: '10 mm²',                        test: re(/\b10 ?mm/i) },
+  ],
+};
+
+export const OTHER_FAMILY: Family = { key: 'lainnya', label: 'Lainnya', test: () => true };
+
+/** The families a category opens with — empty when it lists directly. */
+export const familiesOf = (category: string | null | undefined): readonly Family[] =>
+  (category && FAMILIES[category]) || [];
+
+/** Which family claims this item: the first whose rule matches, else Lainnya when the category has families at all. */
+export function familyOf(i: ShopItem): Family | null {
+  const fams = familiesOf(i.category);
+  if (fams.length === 0) return null;
+  return fams.find((f) => f.test(i)) ?? OTHER_FAMILY;
+}
+
+/** Families present in a set of items, with counts, in declared order; Lainnya last and only if used. */
+export function familyIndex(category: string | null | undefined, items: ShopItem[]): { family: Family; n: number; min: number | null }[] {
+  const fams = familiesOf(category);
+  if (fams.length === 0) return [];
+  const rows = [...fams, OTHER_FAMILY].map((family) => ({ family, n: 0, min: null as number | null }));
+  for (const i of items) {
+    const f = familyOf(i);
+    const row = rows.find((r) => r.family.key === (f?.key ?? OTHER_FAMILY.key))!;
+    row.n += 1;
+    if (hasPrice(i)) { const p = Number(i.selling_price_idr); row.min = row.min == null ? p : Math.min(row.min, p); }
+  }
+  return rows.filter((r) => r.n > 0);
 }

@@ -12,29 +12,41 @@ import { fetchAllComponents } from '@/lib/fetchAllRows';
 import { isShoppable, type ShopItem } from '@/lib/shopCatalog';
 
 const SHOP_COLUMNS = [
-  'component_id', 'internal_description', 'supplier_model', 'brand', 'category',
+  // No supplier_model: the supplier's naming never reaches a customer, so it
+  // is not fetched — a page cannot show a column it never received.
+  'component_id', 'internal_description', 'brand', 'category',
   'unit', 'norm_value', 'selling_price_idr', 'datasheet_url',
   'warranty_value', 'warranty_unit', 'perf_warranty_value', 'perf_warranty_unit',
   'specifications',
 ].join(', ');
 
+/**
+ * One fetch per page load, however many components ask. The search box in the
+ * header and the page body both need the catalogue; without this each would
+ * pull a thousand rows on its own.
+ */
+let inflight: Promise<ShopItem[]> | null = null;
+function loadCatalogue(): Promise<ShopItem[]> {
+  if (!inflight) {
+    const supabase = createSupabaseClient();
+    // activeOnly: an archived item is off the shop for the same reason it is
+    // off the Products list — it is not something we sell any more.
+    inflight = fetchAllComponents<ShopItem>(supabase, SHOP_COLUMNS, { activeOnly: true })
+      .then((rows) => (rows ?? []).filter(isShoppable))
+      .catch((e) => { inflight = null; throw e; });
+  }
+  return inflight;
+}
+
 export function useShopData() {
-  const supabase = useMemo(() => createSupabaseClient(), []);
   const [items, setItems] = useState<ShopItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let live = true;
-    (async () => {
-      // activeOnly: an archived item is off the shop for the same reason it is
-      // off the Products list — it is not something we sell any more.
-      const rows = await fetchAllComponents<ShopItem>(supabase, SHOP_COLUMNS, { activeOnly: true });
-      if (!live) return;
-      setItems((rows ?? []).filter(isShoppable));
-      setLoading(false);
-    })();
+    loadCatalogue().then((rows) => { if (live) { setItems(rows); setLoading(false); } });
     return () => { live = false; };
-  }, [supabase]);
+  }, []);
 
   const byId = useMemo(() => new Map(items.map((i) => [i.component_id, i])), [items]);
   return { items, byId, loading };

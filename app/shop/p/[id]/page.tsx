@@ -18,7 +18,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { groupsFor, fieldsInGroup, fieldMeta, isAnswered, displaySpecValue } from '@/lib/specFields';
 import {
   departmentOf, shopName, hasPrice, pricePerUnit, needsFreight, weightKg, warrantyLine,
-  declaredFields, specsOf, columnsFor, categoryLabel, formatIdr, formatIdrUnit, withPpn, PPN_PCT,
+  declaredFields, specsOf, columnsFor, categoryLabel, familyOf, formatIdr, formatIdrUnit, withPpn, PPN_PCT,
 } from '@/lib/shopCatalog';
 import { ShopShell, useCart } from '@/components/shop/shopUi';
 import { useShopData, Thumb } from '@/components/shop/useShopData';
@@ -70,6 +70,7 @@ export default function ProductPage() {
   const price = hasPrice(item) ? Number(item.selling_price_idr) : null;
   const inCart = cart[item.component_id] ?? 0;
   const warranty = warrantyLine(item);
+  const fam = familyOf(item);
 
   return (
     <ShopShell dept={dept?.key}>
@@ -77,17 +78,14 @@ export default function ProductPage() {
         <Link href="/shop" className="lnk">Katalog</Link>
         {dept && <> / <Link href={`/shop/c/${dept.key}`} className="lnk">{dept.label}</Link></>}
         {item.category && dept && dept.categories.length > 1 && <> / <Link href={`/shop/c/${dept.key}?cat=${item.category}`} className="lnk">{categoryLabel(item.category)}</Link></>}
-        {' / '}<span style={{ color: 'var(--ink)' }} className="mono">{item.supplier_model}</span>
+        {fam && dept && <> / <Link href={`/shop/c/${dept.key}?cat=${item.category}&fam=${fam.key}`} className="lnk">{fam.label}</Link></>}
       </div>
 
       <div className="wrap" style={{ padding: '8px 16px 0' }}>
         <div style={{ paddingBottom: 8, borderBottom: '2px solid var(--navy)' }}>
           <h1 className="h1" style={{ fontSize: 22 }}>{shopName(item)}</h1>
           <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>
-            <span className="mono" style={{ color: 'var(--body)' }}>{item.supplier_model}</span>
-            {item.brand && <> · {item.brand.trim()}</>}
-            {item.category && <> · {categoryLabel(item.category)}</>}
-            {warranty && <> · Garansi {warranty}</>}
+            {[item.brand?.trim(), categoryLabel(item.category), fam?.label, warranty ? `Garansi ${warranty}` : null].filter(Boolean).join(' · ')}
           </div>
         </div>
       </div>
