@@ -10,6 +10,8 @@ import { DEFAULT_EXPORT_COLS, EXPORT_COL_KEYS, EXPORT_COL_LABELS, loadExportCols
 import { computeEnergyEconomics, fmtPayback, ECON_DEFAULTS } from '@/lib/energyEconomics';
 import { fmtRupiahDoc as fmtIdr, fmtRupiahDoc2 as fmtIdr2, fmtIntDoc, fmtQtyDoc, fmtNumDoc, fmtDayDoc } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
+import { usePrintFileName } from '@/hooks/usePrintFileName';
+import PrintFileNameNotice from '@/components/ui/PrintFileNameNotice';
 
 const fmtDate = (d: string) => fmtDayDoc(d);
 
@@ -96,17 +98,16 @@ export default function PrintPage() {
     .flatMap((s) => s.items.filter((i) => !i.parent_item_id))
     .reduce((s, i) => s + itemWp(i), 0);
 
-  useEffect(() => {
-    if (!loading && quote && gate.ready) {
-      // Browsers use the document title as the default Save-as-PDF filename.
-      // We no longer auto-open the print dialog — the user reviews the
-      // preview first, then clicks Print / Save (the button below).
-      document.title = quoteFileName(quote.quote_number, quote.customer_name, totalWp, {
+  // The saved filename. Shared with every other print view (the title IS the
+  // filename); the hook also handles iOS, where the browser names the PDF
+  // after itself unless the person pastes this over it.
+  const fileName = !loading && quote && gate.ready
+    ? quoteFileName(quote.quote_number, quote.customer_name, totalWp, {
         specTag: specFileTag(quote.project_type, (quote.system_specs as SystemSpecs) ?? {}),
         location: quote.location ?? '',
-      });
-    }
-  }, [loading, quote, totalWp, gate.ready]);
+      })
+    : '';
+  const { isIOS, copied, copyName, printNow } = usePrintFileName(fileName);
 
   if (!gate.ready || loading || !quote) {
     return (
@@ -534,7 +535,8 @@ export default function PrintPage() {
           )}
           <p style={{ fontSize: '10px', color: '#94a3b8', marginTop: '6px' }}>Also applies to the Excel export</p>
         </div>
-        <button className="print-btn" onClick={() => window.print()}>
+        <PrintFileNameNotice show={isIOS} fileName={fileName} copied={copied} onCopy={copyName} />
+        <button className="print-btn" onClick={printNow}>
           Print / Save PDF
         </button>
       </div>

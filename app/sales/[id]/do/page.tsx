@@ -15,6 +15,9 @@ import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
 import { fmtDayDoc as fmtDate, fmtIntDoc, fmtQtyDoc } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
+import { salesFileName } from '@/lib/quoteFilename';
+import { usePrintFileName } from '@/hooks/usePrintFileName';
+import PrintFileNameNotice from '@/components/ui/PrintFileNameNotice';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
@@ -89,9 +92,10 @@ export default function DeliveryOrderPrintPage() {
     load();
   }, [user, id]);
 
-  useEffect(() => {
-    if (!loading && quote) document.title = `${quote.do_number || 'DO'}${customerName ? ` - ${customerName}` : ''}`;
-  }, [loading, quote, customerName]);
+  // Saved as "SDO-…_Customer", like every other document of the deal. With
+  // ?do= this is the split shipment's own number, which is what the page prints.
+  const fileName = quote ? salesFileName(quote.do_number || 'DO', customerName) : '';
+  const { isIOS, copied, copyName, printNow } = usePrintFileName(fileName);
 
   if (authLoading || !user || loading || !quote) {
     return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif', color: '#666' }}>Preparing document…</div>;
@@ -242,8 +246,9 @@ export default function DeliveryOrderPrintPage() {
         </div>
       </div>
 
-      <div className="no-print" style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 50 }}>
-        <button className="print-btn" onClick={() => window.print()}>Print / Save PDF</button>
+      <div className="no-print" style={{ position: 'fixed', bottom: '20px', right: '20px', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '10px', width: '190px', zIndex: 50 }}>
+        <PrintFileNameNotice show={isIOS} fileName={fileName} copied={copied} onCopy={copyName} />
+        <button className="print-btn" onClick={printNow}>Print / Save PDF</button>
       </div>
     </>
   );
