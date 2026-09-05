@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-05** · head of `main` at that point: see §4 (storefront demo)
+**Last updated: 2026-09-05** · head of `main` at that point: `21ddae9` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -997,128 +997,162 @@ has not decided.
 
 ---
 
-## 6. NEXT MODULE — compile Tailwind at build time
+## 6. NEXT MODULE — the Shop (icasolar.com storefront), continued
 
-**Why this one.** It is the biggest remaining first-paint win and the owner has
-already photographed the symptom: the Item Editor rendering unstyled for a beat
-before the CSS arrives. That is not a bug in that screen. **There is no compiled
-CSS in this repo at all** — no `tailwind.config`, no `postcss.config`, no CSS
-entry. Styling is a single `<script src="https://cdn.tailwindcss.com">` in
-`app/layout.tsx:70`, which builds the stylesheet by scanning the DOM *after* it
-mounts. Every screen pays for it; the Item Editor is just where it was caught.
+**Read this section whole before touching `app/shop`.** It is the live demo the
+owner is iterating on, the way ICAPROC itself was built: they click through it,
+say what is wrong, you change the code, push to main, it is live in ~90 s.
 
-**THE TRAP, and it fails SILENTLY.** A build-time Tailwind scans SOURCE TEXT,
-not the live DOM. Any class name assembled at runtime simply stops existing:
+### 6.1 Where it stands (all on `main`, deployed)
 
-```
-className={`text-${tone}-400`}          // gone
-className={cls}  // cls came from a map, a prop, or the database
-```
+- **Live:** https://icaproc.com/shop — behind the existing ICAPROC login,
+  listed in no menu (`canOpenPath` returns true for unregistered paths, so
+  `constants/navigation.ts` and the access tests were never touched).
+- **Routes** (`app/shop/**`, all `'use client'`, all gated on `useAuth`):
+  - `/shop` — the INDEX: every department → its categories, counts, lowest
+    open price. No hero, no messaging, search across the top.
+  - `/shop/c/[dept]?cat=<category>&fam=<family|all>` — a department opens on
+    its family tiles (rail / clamp / foot…; on-grid / off-grid…), the table
+    appears once a family is chosen, spec filters in the sidebar GENERATED
+    from the category's declared field set and scoped to the family.
+  - `/shop/p/[id]` — product page, spec sheet first (from
+    `CATEGORY_SPEC_FIELDS` + `SPEC_FIELD_META`, the same list Tech Specs edits),
+    buy box in a narrow left column, alternatives as a table.
+  - `/shop/search?q=` — every token must match; hits early in OUR name rank
+    first; spec values indexed with units ("5kw 48v", "620wp", "mppt 40a").
+  - `/shop/compare` — up to four, differing rows marked. `/shop/cart` — one
+    basket, two lanes (Kurir / Ekspedisi), PPN 11%, "copy summary for
+    WhatsApp"; writes NOTHING to the database.
+- **Shared code:** `lib/shopCatalog.ts` (every rule, 491 tests incl. these:
+  departments, `isShoppable`, `pricePerUnit`, `needsFreight`, `formatIdr`,
+  `facetsFor`/`applyFacets`/`columnsFor`, `searchItems`, `FAMILIES`/`familyOf`/
+  `familyIndex`), `components/shop/{shopUi,useShopData,ProductTable}.tsx`.
+  `useShopData` shares ONE fetch per page; SELECT never includes cost,
+  supplier, margin — or `supplier_model`.
+- **Commits this thread, in order:** `59ed8e9` compare slot picker (Tech
+  Specs) · `8c82c42` searchable Replaces Quote + EPC kWp/kW AC from items ·
+  `eae1e86` quote/PO menus scoped to chosen supplier (`lib/dropdownPool.ts`) ·
+  `c8a935b` sales print filename convention · `a5ba771` every print view +
+  iOS name card · `7481e0b` first /shop · `c59d65a` McMaster rebuild ·
+  `21ddae9` families, autocomplete, no supplier naming.
+- **Design canvas** (8 artboards, the pre-code mockups, still useful for
+  the intended look): https://claude.ai/code/artifact/837d61ef-0cd6-402f-b5e1-f987ae211dfa
 
-The Play CDN never cared, because it read the DOM. So the job is not "add a
-config" — it is **find every runtime-composed class first**, and either safelist
-it or rewrite it to a whole literal string. `constants/palette.ts` is GENERATED
-(edit `scripts/generate-palette.js` and re-run, never hand-edit) and the six
-themes emit blocks of classes, so start there and in the status/tone maps
-(`lib/salesStatus.ts`, `constants/roles.ts`, the `STATUS[...]?.cls` pattern).
+### 6.2 The design intention (owner's words, 2026-09-05 — do not drift from it)
 
-**You already have most of the config.** The measuring rig in §5 builds CSS
-locally with `node_modules/.bin/tailwindcss` (`npx tailwindcss` does NOT
-resolve) — that config is the starting point, and the same rig is how to
-compare before/after.
+> "The website should be more direct, technical person focus who wants quick
+> information on what's available, the specs, and cater to their urgent
+> needs, than too much promotion messaging." Reference: https://www.mcmaster.com/
 
-**How to know it worked, rather than assume.** `cdn.tailwindcss.com` is BLOCKED
-by the sandbox proxy, so a Playwright run against the built app is the honest
-test: load a page, assert a known class actually has its declaration, and
-diff a screenshot before and after. Do not ship this on a reading of the diff.
+A CATALOGUE with a cart attached, not a store. Index not hero; tables not
+cards; filters ARE the spec fields; search is the primary UI; 13px type,
+32px rows, hairlines, 4px radii; line drawings for products (0 of 1,002 rows
+has a photo). What is taken from McMaster is the intention only — its
+yellow-green skin and layout grammar are theirs; the skin stays ICA's steel
+blue `#1f5aa8` + Rubik from the quote/proposal PDFs. Indonesian primary.
+Prices via `formatIdr` ("Rp 1.656.000"), never the ERP's settings-driven
+`fmtRupiah`. **Only OUR `internal_description` is ever shown; the supplier's
+model/description is not fetched, shown, or searched.**
 
-### Also still open, from earlier threads
+### 6.3 Decisions locked with the owner
 
-- **Four CNY POs carry a USD exchange rate** — PIO-2026013 (17,881), EB.42277
-  (17,822), EB.42278 (17,882), PIO-2026011 (17,822), all Shenzhen Kstar, raised
-  7–12 Aug 2026. The same supplier's other CNY POs use 2,427 / 2,502 / 2,643.
-  Overstates committed value by **Rp 24.76bn**. Owner said **leave it for now**
-  (2026-08-27). The durable fix is a per-currency plausibility band held as
-  DATA (like margin profiles) plus a row flag, riding the mismatch machinery
-  Deal Lookup already renders via `checkPoTotal`/`totalDisagrees`.
-- **Max rows stays at 1000, but it is now safe to change.** Owner asked whether
-  to raise it; the answer was no — raising only defers the same silent
-  truncation to a larger number. The "do not LOWER it" caveat is **lifted** as
-  of `7e705cb`: all ten hand-copied paging loops are gone, so no screen depends
-  on the cap being exactly 1000 any more. RLS is on for all 57 tables, so the
-  cap is a payload guard, not access control.
-- **157 of 222 POs** have neither a PI number nor a quote link, so Deal
-  Lookup's quote→PO→payment chain is unavailable for 71% of them.
-- **15 Confirmed POs over 90 days old** (avg 131, oldest 315) and **42 Open
-  quotes over 90 days**, oldest 2025-04-23.
-- **46 `react-hooks/set-state-in-effect` remain**, all on the app's standard
-  `useEffect(() => load(), [load])` data-load pattern, in files the paging
-  loops never masked. The 7 that `7e705cb` exposed were fixed properly (see §4)
-  — that refactor is the template if anyone wants the other 46 gone.
-- **`lib/serials.ts` and `lib/landedCost.ts` still swallow a read error** and
-  return a SHORT list with no signal. `fetchAllRows` now hands them
-  `{ error, truncated }`; nothing surfaces it, because doing so needs a UI
-  decision. Small, and it is the same class of silent-partial-data bug the
-  row-cap work was about.
-- **`text-slate-600` fails WCAG AA** on the terminal skin (2.29:1 on a card),
-  used 768× across 67 files. Held at parity through the graphite change, not
-  fixed. Systemic fix = lighten the token in the palette GENERATOR. Owner's
-  call.
-- Form-control heights are still three different values ACROSS screens (44 /
-  40 / padding-sized on Banks and Deal Lookup). One token would settle it.
+1. **Two sites, one catalogue.** `ica.id` stays corporate/EPC, `icasolar.com`
+   becomes the store. Both are **WordPress today, run separately by staff**;
+   after this, staff maintain the CATALOGUE (Item Editor / Tech Specs / Set
+   Pricing) and the sites render it. Keep the old sites up until cutover;
+   build a redirect map for existing URLs.
+2. **Demo on an icaproc.com subdomain first, then port to the owner's own
+   VPS.** So the store is PORTABLE BY CONSTRUCTION: `app/shop/**`,
+   `components/shop/**`, `lib/shopCatalog.ts` touch Supabase and the spec
+   schema and nothing else of the ERP (own CSS block, own currency format).
+   Lifting it is a folder move + `next build`.
+3. **Target repo shape:** one repo — `packages/catalog` (specSchema,
+   specFields, categoryUnits, formatters, shopCatalog) + `apps/erp` +
+   `apps/store` + `apps/ica`; three Vercel projects from `main`. Sharing code
+   ≠ sharing data: public apps read a `public_catalog` VIEW (name, brand,
+   category, specs, price, images — no cost/supplier/margin) with anon
+   SELECT on the view only.
+4. **Families are a stopgap.** The owner knows ICAPROC's categorisation
+   needs work and has DEFERRED it until the shop UI is settled. `FAMILIES`
+   are regex/capacity rules over our descriptions; when categorisation gets
+   its turn, `family` becomes a real column and the rules retire.
+5. **Photos & datasheets → Supabase Storage** (agreed in principle, not
+   built): buckets `product-images` (`{component_id}/1600|800|400.webp`,
+   resized IN THE BROWSER at upload — never depend on Vercel/Supabase image
+   transforms, they are plan-gated and don't port) and `datasheets`
+   (`{component_id}/{rev}.pdf` — OUR copy, versioned; keep `datasheet_url`
+   as the manufacturer link). Columns: `image_paths jsonb`,
+   `datasheet_path`, `datasheet_rev`, `datasheet_uploaded_at`. **Store
+   PATHS, not URLs** — base URL is one env var, so the VPS move is one
+   variable. Upload UI + "ready for web" meter (price ✓ photo ✓ specs ✓
+   datasheet ✓) belong in Item Editor; `/shop` shows real photos with the
+   line drawing as fallback. Only ~137 priced items need photos; start with
+   the 50 that move. Manufacturer press photos: get permission in writing.
 
-### Then, still open from the margin-tier work
+### 6.4 Open items, in the order they should happen
 
-- **The soft margin flag on quote/order LINE items.** Shipped for the Item
-  Editor only. The spec (2026-08-27) asks for it on sales/EPC quote lines too;
-  it needs the line-margin path in two editors and was deliberately left out
-  rather than half-built. Not one of the six acceptance criteria, all of which
-  are met.
-- **A standalone Tier Audit report** on `/pricing` beside Floor Audit — totals
-  and money-at-stake per tier. The Item Editor filter answers "which items";
-  a report would answer "how much is this costing us". Offered, not asked for.
-- **693 Unclassified items.** 603 are `non_stock`. Filter to Unclassified in
-  the Item Editor and bulk-assign; the tooling for it shipped.
+- **Owner review of the family cuts** — Mounting (8) and Proteksi (10)
+  were the biggest judgement calls in `FAMILIES`.
+- **shop.icaproc.com** — needs the OWNER to add the domain to the Vercel
+  `supabase` project (Settings → Domains; DNS is already there, it is the
+  project serving icaproc.com). Then and only then push a middleware that
+  rewrites that host to `/shop`. Do NOT add speculative middleware to the
+  live ERP for a domain that does not exist.
+- **Photos + datasheets** — per 6.3 (5). Additive schema; say so and apply.
+- **BEFORE ANYTHING IS PUBLIC** (a public site ships the anon key in every
+  page): close the `3.0_components` anon UPDATE policy hole; auth the two
+  open API routes `app/api/insert-from-pdf` and `app/api/extract-pdf`.
+  **The GitHub repo is PUBLIC** — no secrets committed (all keys from env,
+  no `.env` tracked) but schema/table names/RLS assumptions are readable,
+  which makes those holes a published map. **Vercel team is on HOBBY**,
+  which does not permit commercial use — move to Pro before a public store.
+- **`packages/catalog` extraction**, then `public_catalog` view + RLS, then
+  `apps/store`, then `apps/ica` (+ WordPress content and redirects), then
+  Midtrans/Xendit + Biteship, then quote request → draft Sales Quote (DQ)
+  in ICAPROC.
+- **Stock/lead time** is NOT read yet: "Kurir / Ekspedisi" is derived from
+  weight or category (`needsFreight`), and there is no "ready stock" signal
+  on the shop. `30.1_stock_balances` exists; wire it when the owner asks.
+- **Unpriced items** (~258 of ~395 shoppable) show as "harga via penawaran"
+  on purpose — it is the gap made visible. Do not hide them.
+- Smaller, still open: Stored Quote picker in New Deal is still a plain
+  `<select>`; Support Letter print still on the old filename shape; 20 of 23
+  on-grid inverters have no `norm_value` (the AC-capacity rule reads the
+  rating off the name as a fallback — offer a backfill, don't just do it).
 
-### The Bahasa Indonesia sweep — still the standing backlog
+### 6.5 Backend facts you will need
 
-Menus, Dashboard and document statuses are done (§4, 2026-08-25). What is left
-is the INSIDE of the big screens, in the owner's order: Purchasing shell →
-**`components/ui/ComponentEditor.tsx` (5,674 lines, the largest untranslated
-file — probably its own thread)** → Sales → Deal Lookup. The four decisions
-are settled and must not be re-litigated: keepers are codes and units only;
-`t(label)` at the render site; that order; short trade forms in any control.
-`lib/i18n.test.ts` fails the build if a nav label, group header, panel, quick
-action, role or document status ships with no Indonesian and no keeper entry.
+- **GitHub** `etirtaputra/supabase` (PUBLIC). Push straight to `main`:
+  `git push origin HEAD:main`. Never a sub-branch, never a PR unless asked.
+- **Vercel** team `etirtaputras-projects` (`team_vZGw83tgQXTmrZoAk62NAdqs`),
+  project `supabase` (`prj_7TOK8Ht8rVI6kV5uJpSJ4mvfTQQQ`), region `iad1`,
+  aliases `icaproc.com`, `www.icaproc.com`; production deploys from `main`
+  in ~60 s. Dashboard: https://vercel.com/etirtaputras-projects/supabase/deployments
+  `mcp__Vercel__get_deployment` shows build state; no `vercel.json` in repo.
+- **Supabase** project `icaproc`, ref `xijgplktpnpnstgeolfa`, region
+  `ap-northeast-2` (Seoul — good for Indonesian buyers), Postgres 17. **No
+  Storage buckets exist yet.** Use `mcp__Supabase__execute_sql`; direct
+  fetch to supabase.co is proxied-out of the sandbox. Owner said "always
+  allow claude to execute sql" (a harness permission, not something the
+  model grants itself). Additive schema changes: write the `.sql` into
+  `migrations/` AND apply it, and say so. Never mutate data without asking.
+- **Sandbox:** `.env.local` does not exist, so `next start` 500s on every
+  page here — that is environmental, not a bug. `npx next build` is the
+  check. Tests: `npm test` (node --test, relative `.ts` imports only).
+- **Definition of done:** `npm test` green (491 at handoff) · `npx next
+  build` clean · pushed to `main` · this file's §4/§6 updated.
 
-### Traps this run hit — inherit these
+### 6.6 Deferred module: compile Tailwind at build time
 
-- **A duplicate phrase-book key silently wins.** Adding `'Paid'` when it
-  already existed replaced a translation used on another screen. `tsc` catches
-  it (TS1117) *including* one written with a `\uXXXX` escape — but only if you
-  read the error. Before committing an i18n change, diff the parsed map against
-  `HEAD` and check nothing was LOST or CHANGED.
-- **The orphan test matches SUBSTRINGS**, so a fragment of a longer entry can
-  never be looked up and is never reported.
-- **An entry that is only placeholders** (`'{who} · {when}'`) equals its own
-  English and fails the suite — omit it, `tf()` fills it from the fallback.
-- **A map parameter named `t` shadows the translator** (`tiles.map((t) => …)`,
-  `const t = totalsByQuote.get(…)`). Rename it, or bind as `tr`.
-- **`t`/`tf` are real dependencies** now they are memoised on `lang`;
-  `preserve-manual-memoization` is an ERROR, not a warning.
-- **Postgres `now()` is transaction time**, so two rows inserted in one
-  transaction share a timestamp and any `ORDER BY created_at` is a coin flip.
-  Break the tie on the id, in BOTH the SQL and the client sort.
-- **`text-slate-600` is 2.38:1 on the terminal skin** — fails WCAG AA (4.5)
-  and the app uses it **768 times across 67 files** for small print. Raised
-  with the owner as a systemic fix (lighten the token in the palette
-  generator); NOT done, because slate-600 is also a border and background
-  colour. His call.
-- **Vercel is slow and its `state` field LAGS the build logs badly** — a
-  deployment can read QUEUED/BUILDING for 10+ minutes after the logs say
-  "Build Completed". Read `get_deployment_build_logs`, not just `state`.
-
----
+Not started; still worth doing after the shop settles. There is no compiled
+CSS in the repo — styling is `<script src="https://cdn.tailwindcss.com">` in
+`app/layout.tsx`, built from the DOM after mount, so every screen flashes
+unstyled. THE TRAP: a build-time Tailwind scans source text, so every
+runtime-composed class (`` `text-${tone}-400` ``, classes from maps/props/DB,
+the generated `constants/palette.ts` themes, `STATUS[...]?.cls`) silently
+stops existing — find and safelist/rewrite those FIRST. The §5 measuring rig
+(`node_modules/.bin/tailwindcss`, not `npx`) is the config starting point.
+The shop's own CSS is a plain `<style>` block and is unaffected.
 
 ## 7. If no next module has been chosen
 
