@@ -1,0 +1,474 @@
+# MANDA — Solar Design Knowledge Pack
+
+> **Load this before any PV or mounting design task.** It is not a PV textbook.
+> It is the transcription of the design rules ICAPROC actually runs, so that
+> MANDA and the ERP produce the same numbers for the same inputs.
+>
+> **Source of truth:** `lib/systemDesign/` in `etirtaputra/supabase`.
+> **Version:** written against `main` @ `0df2214`, 2026-09-05.
+> **Regenerate this file whenever `lib/systemDesign/*.ts` changes.**
+
+---
+
+## 0. The one rule
+
+**MANDA does not invent PV design rules. ICAPROC already contains them.**
+
+The two engines below are line-for-line ports of calculators ICA has used for
+years — *"Kalkulator Pemasangan Solar ICA v11"* (mounting) and *"Smart Solar
+BoM v7"* (whole system). Both are pinned by **golden tests**: the original HTML
+apps were loaded in headless Chromium, their own functions were called, and the
+rendered outputs captured as the expected values.
+
+So there are only three legitimate things MANDA can say about a number:
+
+1. **"The engine gives X"** — and she can show the formula and the constant.
+2. **"The engine does not check that"** — see §9, the deliberate gaps. This is
+   the most valuable thing she can say, and the one a generic PV assistant
+   cannot.
+3. **"The engine gives X and I believe X is wrong, because…"** — a finding,
+   raised to a human, never silently corrected.
+
+A fourth answer — a plausible number MANDA derived herself — is the failure
+mode this document exists to prevent. If she cannot trace a figure to a rule
+here, she says so.
+
+---
+
+## 1. Scope: what MANDA decides, and what she escalates
+
+**She may decide alone**
+- Running the engines and reporting their output, warnings included.
+- Cross-checking a submitted design against the engine and listing the deltas.
+- Flagging a spec that is missing, out of range, or internally inconsistent.
+- Reading `3.0_components` specs and saying whether an item is design-ready.
+
+**She must escalate to a human**
+- Any change to a rule, constant, or golden-test number.
+- Any design where the engine emits an error (not a warning).
+- Anything structural or safety-bearing that the engine does **not** model
+  (§9) — wind and snow load, roof structural capacity, earthing adequacy,
+  cable voltage drop, arc-fault protection, PLN compliance.
+- Writing a **spec value** into `3.0_components` that she inferred rather than
+  read off a datasheet. Suggestions are shown and accepted by a person; see
+  `lib/systemDesign/specSuggest.ts` — *"a spec nobody checked is worse than a
+  spec that is missing, because the calculator would then size from it with
+  confidence."*
+
+**She never**
+- Sees or quotes cost, supplier, or margin in a customer-facing context.
+- Names the supplier's model to a customer. Only ICA's own
+  `internal_description` is customer-facing.
+
+---
+
+## 2. The architecture MANDA must not break
+
+```
+  INPUT (answers)  →  ENGINE  →  generic BoM lines  →  RESOLVER  →  quote lines
+                      pure         role + param + qty    catalog       item + tier price
+                      arithmetic   "a 4850 mm rail"      + price       + stock
+```
+
+- **An engine is pure arithmetic.** It never touches the catalog, never sees a
+  price, never knows a brand. That is what makes it testable against the
+  standalone calculators.
+- **A resolver** turns each generic line into a real item by matching
+  `specifications.bom_role`, then prices it at the customer's tier.
+- **Anything the catalog cannot satisfy survives as free text**, flagged *"Not
+  in catalog — priced by hand"*. **A missing clamp must never block a
+  quotation.**
+
+If MANDA is asked to "pick a rail", the correct move is: run the engine to get
+the generic line, then resolve it. Picking a part first and reverse-engineering
+the quantity is the wrong order and will disagree with the ERP.
+
+---
+
+## 3. The mounting engine (v11)
+
+`lib/systemDesign/mounting.ts` · `calculateMounting(input, options)`
+
+### 3.1 Inputs
+
+| Field | Meaning |
+|---|---|
+| `panelCount` | modules in the array |
+| `numberOfRows` | rail lines; **clamped down to `panelCount`** if larger, with a warning |
+| `panelLengthMm` / `panelWidthMm` | module long / short side |
+| `panelThicknessMm` | frame thickness — **this IS the clamp size** |
+| `railLengthMm` | stock rail; the calculator offers **4850** and **3600** |
+| `panelSpacingMm` | gap between modules (thermal expansion + mid clamp) |
+| `mountType` | `roof` \| `ground` \| `flat` — changes the support's NAME only |
+| `orientation` | `portrait` \| `landscape` |
+
+### 3.2 Constants (v11's rules of thumb, overridable in options)
+
+| Constant | Default | What it does |
+|---|---|---|
+| `supportSpacingMm` | **1700** | rafter/purlin spacing → supports per rail |
+| `minEdgeSpacingMm` | **25** | below this the rail end is structurally risky |
+| `overhangThreshold` | **0.3** | last rail used under 30 % = wasteful overhang |
+
+### 3.3 The arithmetic, in order
+
+```
+orientation:   portrait  → effectiveWidth = min(L,W),  effectiveHeight = max(L,W)
+               landscape → effectiveWidth = max(L,W),  effectiveHeight = min(L,W)
+               (min/max, not the raw fields, so swapped inputs still behave)
+
+panelsPerRow   = ceil(panelCount / numberOfRows)
+arrayWidthMm   = panelsPerRow × effectiveWidth + (panelsPerRow − 1) × panelSpacing
+railsPerLine   = ceil(arrayWidthMm / railLength)
+edgeSpacingMm  = (railsPerLine × railLength − arrayWidthMm) / 2      ← spare at EACH end
+railUtil%      = min(100, arrayWidthMm / (railsPerLine × railLength) × 100)
+
+totalRails      = railsPerLine × 2 × numberOfRows          ← 2 rail lines per row
+railJoints      = railsPerLine > 1 ? (railsPerLine − 1) × 2 × numberOfRows : 0
+endClamps       = numberOfRows × 4
+midClamps       = max(0, (panelCount − numberOfRows) × 2)
+supportsPerRail = max(2, ceil(railLength / 1700) + 1)
+supports        = totalRails × supportsPerRail
+groundClips     = midClamps                                ← bonding scales with panels
+groundingLugs   = ceil(endClamps / 2)
+```
+
+**Two warnings, and they are mutually exclusive (edge check wins):**
+- `edgeSpacing < 25 mm` → *"structurally risky"*.
+- else if `railsPerLine > 1` and the last rail is under 30 % used → *"large rail
+  overhang — consider a cut-to-length rail to save material."*
+
+**Bails out** (`ok: false`) when `effectiveWidth` or `railLength` is 0 — i.e.
+the module has no dimensions on file. It does not guess.
+
+### 3.4 Worked example — verify MANDA against this
+
+`4 panels · 1 row · portrait · 2278×1134×35 mm · 4850 mm rail · 20 mm spacing · roof`
+
+```
+effectiveWidth = 1134            panelsPerRow  = 4
+arrayWidth     = 4×1134 + 3×20   = 4596 mm
+railsPerLine   = ceil(4596/4850) = 1
+edgeSpacing    = (4850 − 4596)/2 = 127.0 mm      ✓ ≥ 25, no warning
+railUtil       = 4596/4850       = 95 %
+totalRails 2 · railJoints 0 · endClamps 4 · midClamps 6
+supportsPerRail = max(2, ceil(4850/1700)+1) = 4  → supports 8
+groundClips 6 · groundingLugs 2
+```
+
+Other pinned scenarios from `mounting.test.ts` (all read out of the HTML app):
+
+| Scenario | rails | joints | end | mid | supports | edge mm | util |
+|---|---|---|---|---|---|---|---|
+| 12 panels, 2 rows, landscape, ground | 12 | 8 | 8 | 20 | 48 | 391.0 | 95 % |
+| 9 panels, 3 rows, 3600 rail, flat, small panel | 6 | 0 | 12 | 12 | 24 | 637.5 | 65 % |
+| 3 panels but 8 rows asked | 6 | 0 | 12 | 0 | 24 | 1924.0 | 21 % (rows→3) |
+| 5 panels, 1 row (spills to rail 2) | 4 | 2 | 4 | 8 | 16 | 1975.0 | 59 % ⚠ overhang |
+
+---
+
+## 4. The system engine (v7)
+
+`lib/systemDesign/system.ts` · `calculateSystem(input, candidates, options)`
+
+Two paths. **The structure block is not re-derived — it calls the v11 mounting
+engine above.** One set of mounting rules, one set of tests.
+
+### 4.1 Constants
+
+| Constant | Default | Used for |
+|---|---|---|
+| `continuousSafetyFactor` | **1.25** | margin over running load |
+| `assumedSurgeMultiple` | **2** | surge headroom when the datasheet lists none |
+| `dodLithium` | **0.8** | depth of discharge, LiFePO4 |
+| `dodLeadAcid` | **0.5** | depth of discharge, lead-acid |
+| `systemEfficiency` | **0.8** | wire-to-load losses |
+| `vocMarginFactor` | **0.95** | cold-temperature Voc headroom (**flat**, see §9) |
+| `cableMetresPerPanel` | **6** | string cabling |
+
+### 4.2 ON-GRID path
+
+```
+1. The PLN connection caps the inverter.
+   viable = inverters where phase == gridPhase AND rated_kW × 1000 ≤ gridVA
+   → pick the LARGEST.  No viable inverter is an ERROR, not a warning.
+2. targetDC = rated_kW × 1000 × dcAcRatio
+   numPanels = ceil(targetDC / panel.power_stc_w)
+3. Size the strings (§5), then build structure + balance of system.
+```
+
+Phase is read off the text: `nominal_ac_voltage_vac` containing `3L` or
+`3-phase` → 3-phase, else single.
+
+**Balance of system, on-grid:** `solar_cable` 6 mm² × (panels × 6 m) ·
+`mc4_pair` × (strings × 2 + 2) · `ac_distribution` × 1 (`single`/`triple`).
+**No combiner box on the on-grid path** — v7 does not emit one.
+
+### 4.3 OFF-GRID / HYBRID path
+
+```
+1. LOAD TABLE
+   runningW = Σ watts × qty
+   totalWh  = Σ watts × hours × qty
+   surgeW   = Σ (watts × qty × (inductive ? 2 : 1))     ← motors/pumps counted twice
+   requiredContinuousW = runningW × 1.25
+   No loads → ERROR.
+
+2. INVERTER
+   candidates must declare battery_nominal_voltage_vdc.
+   If LiFePO4 chosen, ONLY 48 V or 384 V buses are eligible.   ← see §9
+   surgeCapacity = surge_power_va, else rated_output_power_w × 2
+   Pick the SMALLEST unit meeting continuous AND surge.
+   If none: take the largest and parallel them —
+     qty = ceil(max(requiredContinuousW, surgeW / 2) / rated_output_power_w)
+
+3. BATTERY BANK
+   dod = lithium ? 0.8 : 0.5
+   requiredWh = totalWh × autonomyDays / dod
+   pick first battery of the right chemistry with nominal_voltage_v ≤ busV
+     (lithium with no lithium in the catalog → falls back to lead-acid, WITH a warning)
+   series   = busV / battery.nominal_voltage_v          ← NOT rounded, see §9
+   parallel = ceil(requiredWh / (series × battery.energy_wh))
+   total    = series × parallel
+
+4. ARRAY
+   requiredPVW = totalWh / (psh × 0.8)
+   numPanels   = ceil(requiredPVW / panel.power_stc_w)
+```
+
+**Balance of system, off-grid/hybrid:** cable and MC4 as above, plus
+`combiner_box` × inverters · `dc_breaker` × inverters · `ac_distribution` × 1.
+
+### 4.4 Worked examples — verify MANDA against these
+
+**On-grid, 5500 VA single-phase, DC/AC 1.2, ICA100-36M (100 W, 26.91 Voc):**
+inverter `SNV-GT5023DSC` · 60 panels · 6.00 kWp · 3 strings × max 21 in series ·
+**warns**: the inverter supports only 2 strings (2 MPPT × 1) → needs a combiner
+or a second inverter. Structure: 16 rails, 12 joints, 64 hooks, 8 end / 116 mid
+clamps, 360 m cable, 8 MC4 pairs.
+
+**On-grid, 23000 VA three-phase, DC/AC 1.3, ICA200-72M:** `SNV-GT1033DT`
+(10 kW) · 65 panels · 13.00 kWp · 4 strings × 18 · `ac_distribution` = `triple`.
+
+**Off-grid, lithium, 1 day, with an inductive pump** — loads 6×100 W×8 h,
+1×750 W×4 h *inductive*, 10×40 W×12 h:
+running **1750 W**, surge **2500 W** (pump doubled), required continuous
+**2188 W** → `SNV-GH3041`, 1 unit. Bank `LIP48100LF` ×4 = 1 series × 4 parallel,
+**19.20 kWh** usable. Array 40 panels at PSH 4.0.
+
+**Off-grid, lead-acid, 2 days** — 1×1500 W×2 h *inductive*, 3×200 W×10 h:
+running **2100 W**, surge **3600 W**, continuous **2625 W** → `SNV-GH3041`,
+bank `LIP12100D` **4 in series** (12 V → 48 V bus) × **8 parallel**.
+
+---
+
+## 5. String sizing — MANDA's core cross-check
+
+`sizePvStrings(panel, inverter, numPanels, category)`
+
+```
+on-grid : maxVoltage = pv_max_voltage_vdc            || 1000
+          mppt       = no_of_mppts                   || 1
+          perMppt    = strings_per_mppt              || 1
+hybrid  : maxVoltage = pv_max_open_circuit_voltage_vdc || 600
+          mppt       = no_of_mpp_trackers            || 1
+          perMppt    = 1        ← the hybrid data does not state strings/tracker
+
+maxSeriesLength = max(1, floor(maxVoltage × 0.95 / panel.voc_stc_v))
+numStrings      = max(1, ceil(numPanels / maxSeriesLength))
+maxAllowed      = mppt × perMppt
+
+numStrings > maxAllowed  →  WARNING (never an error):
+  "…needs N string(s) of up to M panel(s) each, but <model> only supports
+   K string(s) (mppt × perMppt). Add an external combiner or a larger/second
+   inverter."
+```
+
+**Note the fallbacks.** A missing `pv_max_voltage_vdc` silently becomes
+**1000 V**, and a missing `no_of_mppts` becomes **1**. MANDA must check whether
+the value was *read* or *defaulted* — a default that happens to be generous is
+the quietest way to over-length a string. Say which it was.
+
+---
+
+## 6. The catalog contract — how a generic line becomes a part
+
+`lib/systemDesign/resolve.ts`
+
+### 6.1 The `bom_role` vocabulary (`lib/specSchema.ts`)
+
+| Role | Discriminating spec (`BOM_ROLE_PARAMS`) |
+|---|---|
+| `rail` | `rail_length_mm` |
+| `rail_joint` | — |
+| `mid_clamp` | `clamp_thickness_mm` |
+| `end_clamp` | `clamp_thickness_mm` |
+| `roof_hook` | `roof_type` (`metal` \| `tile` \| `concrete`) |
+| `grounding_clip` | — |
+| `grounding_lug` | — |
+| `solar_cable` | `cable_cross_section_mm2` |
+| `mc4_pair` | — |
+| `combiner_box` | — |
+| `dc_breaker` | — |
+| `ac_distribution` | `phase` |
+
+### 6.2 Selection, in order
+
+1. Candidate declares the role in `specifications.bom_role` **and** matches the
+   discriminating parameter. *A 35 mm mid clamp is not a 30 mm one.*
+2. Candidate must pass `specReadiness` and must not be a **Hidden** item.
+3. Among survivors: **in stock** beats out of stock → **priced** beats unpriced
+   → **cheapest** wins. Ties break on `component_id` so two runs agree.
+4. Nothing matched → free text, `resolved: false`, *"Not in catalog — priced by
+   hand"*.
+
+### 6.3 Parameters are FIT RANGES, not single sizes — `specCovers()`
+
+Real parts are sold to span a range. A "MIBET MD U20 Inter Clamp 35-39" takes
+any frame from 35 to 39 mm.
+
+| Spec value | Covers |
+|---|---|
+| `35` | exactly 35 |
+| `35-39` | 35 … 39 inclusive |
+| `30/33` | 30 **or** 33 (a list, not a span) |
+| `30-34/50` | 30 … 34, or 50 |
+
+Matching these exactly would silently drop the right clamp and hand-price a
+line instead — *the failure that hides until site.*
+
+### 6.4 Mounting systems must not be mixed — `mountingSystem.ts`
+
+A kit is only valid within one family. **MIBET MD clamps ride MIBET MD rails,
+and an MD T-slot rail takes the T-slot splice, not the symmetric one.**
+ICA quotes **MIBET MD with T-slot rail** (owner, 2026-08-06).
+
+Series comes from `specifications.mounting_series` when declared, otherwise
+from brand + a whole-word model token (`MD`, `MA`, `Mini` — "MD" must not match
+inside "MODULE"). Profile comes from `rail_profile`, else the text (`t-slot` /
+`symmetric`). Only `rail` and `rail_joint` are profile-sensitive.
+
+**MANDA must check series consistency on any BoM she reviews.** The engine does
+not enforce it — `shortlist()` is offered to the designer as a choice, and an
+unshortlisted run can mix families.
+
+---
+
+## 7. Data contracts
+
+| Table | What it holds |
+|---|---|
+| `3.0_components` | items. `category`, `internal_description`, `specifications` jsonb, `norm_value`, `selling_price_idr` |
+| `22.0_sales_quotes` | quote header; `system_design` jsonb stores the reproducible run |
+| `22.1_sales_quote_line_items` | lines; `design_role` stamps engine-owned lines |
+| `21.0/21.1` | price tiers and per-item overrides |
+| `30.1_stock_balances` | live stock, per (item, warehouse) |
+
+**`SystemDesign` (stored on `22.0.system_design`)** — `engine`
+(`mounting`\|`system`), `version`, `input` (the answers, verbatim), `warnings`,
+`generated_at`. This is what makes a REGENERATE possible and an old quote still
+explicable after a rule changes.
+
+**`design_role`** is stamped on every generated line as `role` or
+`role:param`. **REGENERATE replaces only lines that carry one — a line typed by
+hand has no role and is never touched.** MANDA must preserve this.
+
+---
+
+## 8. Cross-check protocol
+
+When handed a design to verify, work in this order and report each step:
+
+1. **Inputs.** Are panel dimensions, `voc_stc_v`, `power_stc_w` present on the
+   actual catalog row — or were they defaulted? Name the source.
+2. **Re-run the engine** with those inputs. Report every warning it raises,
+   including the ones the salesperson dismissed.
+3. **Diff.** List every line where the submitted BoM differs from the engine's,
+   with the delta and the likely cause. Do not "correct" the submission.
+4. **String check.** Recompute §5 independently. State `maxSeriesLength`,
+   `numStrings`, `maxAllowed`, and whether any inverter limit was defaulted.
+5. **Series consistency** (§6.4) — is every mounting part from one family and
+   one rail profile?
+6. **The gaps** (§9) — say explicitly which checks were *not* performed by
+   anyone, so nobody assumes they were.
+7. **Verdict**: matches / differs / cannot verify, plus what would settle it.
+
+---
+
+## 9. What the engines deliberately do NOT check
+
+**This section is the reason MANDA is useful.** Everything below is outside the
+engine. If a design depends on it, a human engineer must answer it.
+
+**Electrical**
+- **Temperature-corrected Voc.** The engine uses a **flat 0.95 margin**, not the
+  module's `temp_coeff_voc_percent_per_c` against a site minimum temperature.
+  At a cold site a string inside `maxSeriesLength` can still exceed the
+  inverter at dawn. `temp_coeff_voc_percent_per_c` **is** a declared spec field
+  — it is simply not read by the sizing.
+- **MPPT lower bound.** Only the maximum voltage is checked. A string too
+  SHORT to start the tracker passes silently.
+- **Isc and string fusing.** `max_series_fuse_a` is declared on the module and
+  never read. No parallel-string overcurrent check.
+- **Cable sizing and voltage drop.** Cable is a flat **6 m per panel at
+  6 mm²**, regardless of run length, current or drop.
+- **AC-side protection sizing**, RCD/AFCI selection, earthing adequacy.
+- **Inverter oversizing on-grid.** The rule is strictly `rated_kW × 1000 ≤
+  gridVA`; it never allows the export-limited oversize a real PLN design may.
+
+**Structural**
+- **Wind and snow load, roof capacity, purlin condition.** `supportSpacingMm`
+  1700 is a rule of thumb, not an engineered span. The 25 mm edge check is
+  geometric, not structural.
+- **Row-to-row shading, tilt, azimuth, inter-row pitch.** Not modelled at all.
+  `numberOfRows` is a layout answer, not a shading calculation.
+- Roof penetration detailing and waterproofing.
+
+**Energy**
+- **PSH is an input, not a lookup.** No irradiance database, no soiling,
+  degradation, or seasonal variation. `systemEfficiency` 0.8 absorbs all losses.
+
+**Two engine quirks to watch for (real, reproducible)**
+
+1. **Fractional battery counts.** `series = busV / battery.nominal_voltage_v`
+   is **not rounded to an integer**, and the candidate filter only requires
+   `nominal_voltage_v ≤ busV`. A 25.6 V LiFePO4 on a 48 V bus yields
+   **series 1.875, qty 3.75** — verified 2026-09-05. ICAPROC's catalogue *does*
+   carry 24 V LiFePO4 rows, so this is reachable in production, not theoretical.
+   **If MANDA sees a non-integer battery quantity, that is this bug — stop and
+   report it, do not round it.**
+2. **The lithium bus filter.** Choosing LiFePO4 restricts inverters to a
+   **48 V or 384 V** battery bus. A 24 V lithium system cannot be designed by
+   the engine at all; it will report "no compatible inverter" rather than
+   offering the 24 V unit sitting in the catalogue.
+
+---
+
+## 10. Prohibitions
+
+- Never change a **golden test** number to make a build pass. Those numbers are
+  the calculators' answers. Change one only when the rule deliberately changed,
+  and say so out loud.
+- Never write an inferred spec into `3.0_components` without a human accepting
+  it.
+- Never present an engine default as a datasheet value.
+- Never let a missing part block a quotation — flag it, price it by hand.
+- Never quote a customer the supplier's model or description. ICA's
+  `internal_description` only.
+- Never report a figure MANDA cannot trace to a rule in this document.
+
+---
+
+## 11. Where to look in the code
+
+| File | What it owns |
+|---|---|
+| `lib/systemDesign/types.ts` | `BomLine`, `ResolvedLine`, `SystemDesign`, `designRoleOf` |
+| `lib/systemDesign/mounting.ts` | the v11 mounting engine + its constants |
+| `lib/systemDesign/system.ts` | the v7 system engine, both paths, `sizePvStrings` |
+| `lib/systemDesign/resolve.ts` | role → catalog item, `specCovers`, ranking |
+| `lib/systemDesign/mountingSystem.ts` | series / rail-profile families |
+| `lib/systemDesign/specSuggest.ts` | spec suggestions, and why they need a human |
+| `lib/systemDesign/v7Fixture.ts` | v7's own component database, verbatim |
+| `lib/specSchema.ts` | `BOM_ROLES`, `BOM_ROLE_PARAMS`, `specReadiness` |
+| `*.test.ts` alongside each | the golden numbers |
