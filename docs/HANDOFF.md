@@ -176,6 +176,25 @@ evenly and matches the code's casing, while the real catalogue does neither.
 `260fec1` regenerated the pack for v8. 524 tests, no lint problems added
 across the whole day.
 
+**MANDA's ICAPROC login — created 2026-09-06.** `project@ptmbs.co`, role
+`engineer` (the UI calls it **"Project Engineer"** — no new role was needed).
+The address was ALREADY in `allowed_emails` as `engineer`; only the
+`auth.users` and `auth.identities` rows were missing, and both were created by
+SQL per the runbook below, identity row included. Verified field-for-field
+against `adminproject@ptmbs.co`: `aud`, `role`, `email_confirmed_at`,
+`banned_until`, one identity, `identity_data->>'sub'` = the user id, provider
+`email`, and `encrypted_password = crypt(<pw>, encrypted_password)` true. The
+`handle_new_user` trigger built `user_profiles` with role `engineer`.
+**A live sign-in could not be tested from the sandbox** — the egress proxy
+denies CONNECT to `*.supabase.co` (§1). The owner holds the password; it is
+not recorded here or anywhere in the repo.
+
+What `engineer` grants MANDA: sell-side + Project Quotes; she CAN edit project
+quotes and the BoM builder (**costs and margins are visible there**), manage
+customers, edit sales documents, handle service tickets, and see selling
+prices. She CANNOT reach the buy side, brands/supplier relationships, pricing
+tiers, stock, banks, receipts, analytics or user management.
+
 **Still open from this work**
 - `EPEVER UC3522-1250P20C 3.5kW/24V` carries `battery_nominal_voltage_vdc = 48`
   — the name says 24 V. One of the two is wrong; needs a datasheet. Offered to
