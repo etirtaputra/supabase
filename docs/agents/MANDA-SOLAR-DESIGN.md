@@ -5,7 +5,7 @@
 > MANDA and the ERP produce the same numbers for the same inputs.
 >
 > **Source of truth:** `lib/systemDesign/` in `etirtaputra/supabase`.
-> **Version:** written against `main` @ `4146b29`, 2026-09-05.
+> **Version:** written against `main` @ `b8954cb`, 2026-09-06. Engine v8.
 > **Regenerate this file whenever `lib/systemDesign/*.ts` changes.**
 
 ---
@@ -183,7 +183,9 @@ engine above.** One set of mounting rules, one set of tests.
 | `dodLithium` | **0.8** | depth of discharge, LiFePO4 |
 | `dodLeadAcid` | **0.5** | depth of discharge, lead-acid |
 | `systemEfficiency` | **0.8** | wire-to-load losses |
-| `vocMarginFactor` | **0.95** | cold-temperature Voc headroom (**flat**, see §9) |
+| `vocRule` | **`'temperature'`** | how cold-morning Voc rise is answered (§5) |
+| `minCellTempC` | **18** | coldest site temperature strings are sized for (§5) |
+| `vocMarginFactor` | **0.95** | the OLD flat margin; used by `vocRule: 'flat'` and as the fallback when a module has no β |
 | `cableMetresPerPanel` | **6** | string cabling |
 
 ### 4.2 ON-GRID path
@@ -300,30 +302,90 @@ upstream of the engine — stop and report it. The engine cannot produce one.**
 
 ## 5. String sizing — MANDA's core cross-check
 
-`sizePvStrings(panel, inverter, numPanels, category)`
+`sizePvStrings(panel, inverter, numPanels, category, options)`
+
+**Changed 2026-09-06 (engine v8, owner's decision).** v7 sized every string on
+a flat 0.95 of the inverter maximum. The engine now corrects each module's own
+Voc by its own temperature coefficient to the site's coldest expected
+temperature — what IEC 62548 and NEC 690.7 actually ask for.
+
+### 5.1 The inverter's limits (unchanged)
 
 ```
-on-grid : maxVoltage = pv_max_voltage_vdc            || 1000
-          mppt       = no_of_mppts                   || 1
-          perMppt    = strings_per_mppt              || 1
+on-grid : maxVoltage = pv_max_voltage_vdc              || 1000
+          mppt       = no_of_mppts                     || 1
+          perMppt    = strings_per_mppt                || 1
 hybrid  : maxVoltage = pv_max_open_circuit_voltage_vdc || 600
-          mppt       = no_of_mpp_trackers            || 1
+          mppt       = no_of_mpp_trackers              || 1
           perMppt    = 1        ← the hybrid data does not state strings/tracker
-
-maxSeriesLength = max(1, floor(maxVoltage × 0.95 / panel.voc_stc_v))
-numStrings      = max(1, ceil(numPanels / maxSeriesLength))
-maxAllowed      = mppt × perMppt
-
-numStrings > maxAllowed  →  WARNING (never an error):
-  "…needs N string(s) of up to M panel(s) each, but <model> only supports
-   K string(s) (mppt × perMppt). Add an external combiner or a larger/second
-   inverter."
 ```
 
 **Note the fallbacks.** A missing `pv_max_voltage_vdc` silently becomes
-**1000 V**, and a missing `no_of_mppts` becomes **1**. MANDA must check whether
-the value was *read* or *defaulted* — a default that happens to be generous is
-the quietest way to over-length a string. Say which it was.
+**1000 V** and a missing `no_of_mppts` becomes **1**. MANDA must say whether a
+value was READ or DEFAULTED — a default that happens to be generous is the
+quietest way to over-length a string.
+
+### 5.2 The rule (default: `temperature`)
+
+```
+Voc(T)          = Voc_STC × (1 + β/100 × (T − 25))     β = temp_coeff_voc_percent_per_c, NEGATIVE
+maxSeriesLength = max(1, floor(maxVoltage / Voc(minCellTempC)))
+numStrings      = max(1, ceil(numPanels / maxSeriesLength))
+maxAllowed      = mppt × perMppt
+```
+
+β is negative, so **below 25 °C the voltage RISES**. That rise on a cold clear
+dawn is what destroys an inverter, and it is why string length is a temperature
+question rather than a fixed percentage.
+
+**`minCellTempC` is an INPUT, not a constant** — a field on the designer,
+stored with the design so a quote records the temperature it was sized for.
+
+| Site | Use roughly |
+|---|---|
+| Jakarta / Surabaya lowland | **18 °C** (the default) |
+| Bandung and similar highland | ~14 °C |
+| Dieng plateau | 0 °C or below |
+
+**Lower is always the safe direction** — it shortens strings. If MANDA does not
+know the site, she says so and asks; she does not assume the default fits.
+
+### 5.3 Two warnings, and neither is noise
+
+- **String longer than the old rule allowed.** The flat 0.95 was equivalent to
+  designing for **3–9 °C** depending on β (−0.24 → 3.1 °C, −0.27 → 5.5 °C,
+  −0.29 → 6.9 °C, −0.32 → 8.6 °C), which is conservative for most of Indonesia.
+  So correcting properly usually makes strings **LONGER**. The engine says so,
+  naming the per-module voltage at that temperature. **This is correct, not a
+  fault** — but MANDA must confirm the site really cannot get colder than the
+  temperature used.
+- **No temperature coefficient on file.** The module falls back to the flat
+  margin and the engine names the missing spec. **3 of 13 catalogue modules are
+  in this state** (JINKO JKM575N and two ICA rows). A design sized this way is
+  not wrong, but it is sized by the old rule — MANDA must say so rather than
+  report it as temperature-corrected.
+- **Exceeded MPPT capacity** (unchanged): `numStrings > maxAllowed` warns, never
+  errors — add a combiner or a second inverter.
+
+### 5.4 What `StringConfig` reports
+
+`rule` (`'temperature'` | `'flat'`) · `vocAtMinTempV` · `minCellTempC` ·
+`maxSeriesLength` · `numStrings` · `flatRuleMaxSeriesLength` (what v7 would
+have allowed, for comparison) · `warnings`.
+
+**MANDA quotes `rule` on every string report.** "19 in series" means nothing
+without saying which rule and which temperature produced it.
+
+### 5.5 Worked example — verify MANDA against this
+
+TRINA TSM-620NEG19RC.20 (Voc 49.6 V, β −0.24 %/°C) on a 1000 V inverter:
+
+```
+at 18 °C : Voc = 49.6 × (1 + (−0.24/100) × (18 − 25)) = 50.43 V → floor(1000/50.43) = 19
+at  0 °C : Voc = 52.58 V                                        → floor(1000/52.58) = 19
+at 25 °C : Voc = 49.60 V                                        → floor(1000/49.60) = 20  ⚠ warns
+v7 flat  : floor(1000 × 0.95 / 49.6)                            = 19
+```
 
 ---
 
@@ -352,7 +414,11 @@ the quietest way to over-length a string. Say which it was.
 
 1. Candidate declares the role in `specifications.bom_role` **and** matches the
    discriminating parameter. *A 35 mm mid clamp is not a 30 mm one.*
-2. Candidate must pass `specReadiness` and must not be a **Hidden** item.
+2. Candidate must pass `specReadiness` and must be **offerable** —
+   `isOfferable()`: neither Cost-Basis **Hidden** nor **archived**. (Archiving
+   was added in 2026-09-03 and every picker had been written before it existed,
+   so archived items went on being offered until 2026-09-06. If MANDA sees a
+   retired item in a design, that class of bug is why.)
 3. Among survivors: **in stock** beats out of stock → **priced** beats unpriced
    → **cheapest** wins. Ties break on `component_id` so two runs agree.
 4. Nothing matched → free text, `resolved: false`, *"Not in catalog — priced by
@@ -442,11 +508,10 @@ When handed a design to verify, work in this order and report each step:
 engine. If a design depends on it, a human engineer must answer it.
 
 **Electrical**
-- **Temperature-corrected Voc.** The engine uses a **flat 0.95 margin**, not the
-  module's `temp_coeff_voc_percent_per_c` against a site minimum temperature.
-  At a cold site a string inside `maxSeriesLength` can still exceed the
-  inverter at dawn. `temp_coeff_voc_percent_per_c` **is** a declared spec field
-  — it is simply not read by the sizing.
+- ~~**Temperature-corrected Voc.**~~ **CLOSED 2026-09-06 (v8)** — see §5. What
+  remains of it: the correction uses the site temperature a person typed, so it
+  is only as good as that number; and 3 of 13 modules still have no β and fall
+  back to the flat margin.
 - **MPPT lower bound.** Only the maximum voltage is checked. A string too
   SHORT to start the tracker passes silently.
 - **Isc and string fusing.** `max_series_fuse_a` is declared on the module and
