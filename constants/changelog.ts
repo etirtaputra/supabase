@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-09-06T02:00:00Z',
+    title: 'Barang yang diarsipkan benar-benar hilang dari semua pemilih dokumen',
+    details: [
+      'Mengarsipkan barang di Item Editor kini menghentikannya muncul di Design mounting, Design system, pemilih item EPC Proposal, dan Surat Dukungan. Sebelumnya tidak: kelima layar itu hanya menanyakan Cost Basis \u2014 Hidden, karena semuanya ditulis sebelum kolom arsip ada (3 September). Dua modul yang sudah diarsipkan masih terdaftar sampai hari ini.',
+      'Sekarang ada SATU pertanyaan, `isOfferable`: sebuah barang ditawarkan hanya bila ia tidak Hidden DAN tidak diarsipkan. Ada uji yang membaca kode aplikasi sendiri dan menggagalkan build kalau ada layar baru yang menanyakan setengahnya saja.',
+      'Daftar merek di Surat Dukungan ikut: sebuah merek hilang begitu SEMUA barangnya hilang \u2014 diarsipkan maupun disembunyikan.',
+      'Catatan: bagian "Calculator presets" di Design mounting bukan katalog. Itu database panel bawaan kalkulator v11, dipakai saat barang katalog belum punya dimensi, jadi nama seperti ICA450-72HMG tetap ada di sana meski barang katalognya diarsipkan.',
+      'Design system juga kini membaca kategori Switchgear dan Monitoring & Comms yang baru dipisah dari Aksesori, supaya box distribusi dan pengaman DC tetap ketemu saat menyusun bill of materials.',
+    ],
+  },
+  {
     at: '2026-09-05T14:30:00Z',
     title: 'System Designer: bank baterai kini selalu bilangan bulat, dan kimia baterai dibaca dengan benar',
     details: [

@@ -10,8 +10,8 @@
  *     where the role has a discriminating parameter — match it exactly. A
  *     35 mm mid clamp is not a 30 mm one.
  *  2. A candidate must be a design candidate at all: its specs must satisfy
- *     `specReadiness`, and an item Hidden from customer-facing pickers is
- *     never offered (same rule as Project Quotes and Surat Dukungan).
+ *     `specReadiness`, and it must be OFFERABLE — neither Cost-Basis Hidden
+ *     nor archived (same rule as Project Quotes and Surat Dukungan).
  *  3. Among the survivors: something in stock beats something not, a priced
  *     item beats an unpriced one, then the cheapest wins — the quote should
  *     lead with what we can actually ship today.
@@ -19,7 +19,7 @@
  *     catalog". A missing clamp must never block a quotation.
  */
 import { BOM_ROLE_PARAMS, specNumber, specReadiness, type BomRole, type Specs } from '../specSchema.ts';
-import { isHiddenItem, type VisibilityFields } from '../itemVisibility.ts';
+import { isOfferable, type VisibilityFields } from '../itemVisibility.ts';
 import type { BomLine, ResolvedLine } from './types.ts';
 
 /** The catalog fields resolution needs — a subset of 3.0_components. */
@@ -77,7 +77,7 @@ function matchesRole(c: DesignCandidate, role: BomRole, param: BomLine['param'])
 /** Resolve one generic line. Exported for the tests and the review step. */
 export function resolveLine(line: BomLine, ctx: ResolveContext): ResolvedLine {
   const matches = ctx.candidates.filter((c) =>
-    !isHiddenItem(c)
+    isOfferable(c)
     && specReadiness(c.category, c.specifications).ready
     && matchesRole(c, line.role, line.param));
 

@@ -26,6 +26,7 @@ import {
   type MountingInput, type MountType, type Orientation,
 } from '@/lib/systemDesign/mounting';
 import { resolveBom, summarise, type DesignCandidate } from '@/lib/systemDesign/resolve';
+import { isOfferable, VISIBILITY_COLUMNS } from '@/lib/itemVisibility';
 import { mountingSystems, shortlist, RAIL_PROFILE_LABEL, type RailProfile } from '@/lib/systemDesign/mountingSystem';
 import { designRoleOf, type SystemDesign } from '@/lib/systemDesign/types';
 
@@ -117,8 +118,8 @@ export default function MountingDesigner({ open, onClose, priceOf, stockOf, onAp
   const load = useCallback(async () => {
     setLoading(true);
     const { data } = await supabase.from('3.0_components')
-      .select('component_id, supplier_model, internal_description, category, unit, specifications, quote_cost_mode, show_tuc_in_quotes')
-      .in('category', ['mounting', 'pv_module']).limit(2000);
+      .select(`component_id, supplier_model, internal_description, category, unit, specifications, ${VISIBILITY_COLUMNS}`)
+      .in('category', ['mounting', 'pv_module']).is('archived_at', null).limit(2000);
     const rows = (data as DesignCandidate[]) ?? [];
     // Structure only: every role this engine emits (rail, joint, clamps,
     // supports, grounding) is catalogued under `mounting`. Cable and MC4 are
@@ -126,8 +127,10 @@ export default function MountingDesigner({ open, onClose, priceOf, stockOf, onAp
     // listing their brands as "mounting systems" was plainly wrong.
     setCandidates(rows.filter((c) => c.category === 'mounting'));
 
+    // The panel list is customer-facing in effect — what it offers ends up on
+    // a quotation — so it asks the same question every other picker asks.
     const fromCatalog: PanelOption[] = rows
-      .filter((c) => c.category === 'pv_module')
+      .filter((c) => c.category === 'pv_module' && isOfferable(c))
       .flatMap((c): PanelOption[] => {
         const dims = parseDims((c.specifications ?? {}).dimensions_l_w_h_mm);
         if (!dims || !dims.l || !dims.w) return [];

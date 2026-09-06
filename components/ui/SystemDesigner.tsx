@@ -21,7 +21,7 @@ import { createPortal } from 'react-dom';
 import { createSupabaseClient } from '@/lib/supabase';
 import { fmtInt, fmtRupiah } from '@/lib/formatters';
 import { specNumber, specReadiness } from '@/lib/specSchema';
-import { isHiddenItem } from '@/lib/itemVisibility';
+import { isOfferable, VISIBILITY_COLUMNS } from '@/lib/itemVisibility';
 import { RAIL_LENGTHS_MM, type MountType, type Orientation } from '@/lib/systemDesign/mounting';
 import { resolveBom, summarise, type DesignCandidate } from '@/lib/systemDesign/resolve';
 import { mountingSystems, shortlist, RAIL_PROFILE_LABEL, type RailProfile } from '@/lib/systemDesign/mountingSystem';
@@ -133,8 +133,12 @@ export default function SystemDesigner({ open, onClose, priceOf, stockOf, onAppl
   const load = useCallback(async () => {
     setLoading(true);
     const { data } = await supabase.from('3.0_components')
-      .select('component_id, supplier_model, internal_description, category, unit, specifications, quote_cost_mode, show_tuc_in_quotes')
-      .in('category', ['pv_module', 'on_grid_inverter', 'inverter_charger', 'batteries', 'mounting', 'accessories', 'pv_cable'])
+      .select(`component_id, supplier_model, internal_description, category, unit, specifications, ${VISIBILITY_COLUMNS}`)
+      // `switchgear` and `monitoring` split out of `accessories` on 2026-09-05;
+      // the balance-of-system roles (combiner_box, dc_breaker, ac_distribution)
+      // live in `switchgear` now, so omitting it would quietly stop resolving them.
+      .in('category', ['pv_module', 'on_grid_inverter', 'inverter_charger', 'batteries', 'mounting', 'accessories', 'switchgear', 'monitoring', 'pv_cable'])
+      .is('archived_at', null)
       .limit(3000);
     setRows((data as DesignCandidate[]) ?? []);
     setLoading(false);
@@ -147,7 +151,7 @@ export default function SystemDesigner({ open, onClose, priceOf, stockOf, onAppl
   // Only calculator-ready, visible items may be design candidates — the same
   // two gates as every other customer-facing picker.
   const readyOf = useCallback((category: string) => rows.filter((c) =>
-    c.category === category && !isHiddenItem(c) && specReadiness(c.category, c.specifications).ready), [rows]);
+    c.category === category && isOfferable(c) && specReadiness(c.category, c.specifications).ready), [rows]);
 
   /** In stock beats not, priced beats unpriced, then cheapest — the resolver's rule. */
   const preferOrder = useCallback((a: DesignCandidate, b: DesignCandidate) => {

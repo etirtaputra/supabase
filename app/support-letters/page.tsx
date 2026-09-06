@@ -31,7 +31,7 @@ import { useListLayout } from '@/hooks/useListLayout';
 import { inRange, todayISO, type DateRange } from '@/lib/dateRange';
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 import { formatCategory as humanize } from '@/lib/formatCategory';
-import { isHiddenItem, visibleBrands } from '@/lib/itemVisibility';
+import { isOfferable, visibleBrands, VISIBILITY_COLUMNS } from '@/lib/itemVisibility';
 import {
   LETTER_STATUS, DEFAULT_LETTER_FEE, DEFAULT_STATEMENTS, DEFAULT_VALIDITY_NOTE,
   DEFAULT_CLOSING_NOTE, brandsOf, warrantyTextID, previewLetterNumber,
@@ -48,7 +48,7 @@ interface Comp {
   brand: string | null; category: string | null;
   warranty: string | null; warranty_value: number | null; warranty_unit: string | null;
   /** Cost Basis → Hidden keeps an item out of customer-facing pickers. */
-  quote_cost_mode: string | null; show_tuc_in_quotes: boolean | null;
+  quote_cost_mode: string | null; show_tuc_in_quotes: boolean | null; archived_at: string | null;
 }
 interface Profile { id: string; email: string; display_name: string | null }
 interface Company { company_id: string; legal_name: string }
@@ -129,7 +129,7 @@ export default function SupportLettersPage() {
       supabase.from('28.1_support_letter_items').select('*').order('sort_order'),
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name, billing_address, account_manager_id').order('display_name'),
       supabase.from('20.1_customer_contacts').select('customer_id, name, title, is_primary'),
-      supabase.from('3.0_components').select('component_id, supplier_model, internal_description, brand, category, warranty, warranty_value, warranty_unit, quote_cost_mode, show_tuc_in_quotes').order('internal_description').limit(5000),
+      supabase.from('3.0_components').select(`component_id, supplier_model, internal_description, brand, category, warranty, warranty_value, warranty_unit, ${VISIBILITY_COLUMNS}`).order('internal_description').limit(5000),
       supabase.from('user_profiles').select('id, email, display_name').in('role', ['owner', 'sales', 'sell_admin']),
       supabase.from('1.0_companies').select('company_id, legal_name'),
     ]);
@@ -160,7 +160,7 @@ export default function SupportLettersPage() {
   // Items set to Cost Basis → Hidden are not part of the customer-facing
   // catalog: they stay out of the picker here exactly as they stay out of the
   // Project Quote picker.
-  const quotableComps = useMemo(() => comps.filter((c) => !isHiddenItem(c)), [comps]);
+  const quotableComps = useMemo(() => comps.filter(isOfferable), [comps]);
   const compOptions = useMemo(() => quotableComps.map((c) => ({
     component_id: c.component_id,
     label: (c.internal_description ?? '').trim() || c.supplier_model || '(no description)',
