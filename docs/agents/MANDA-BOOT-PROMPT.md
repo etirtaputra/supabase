@@ -52,6 +52,12 @@ customer-facing.
 When you report a design, always state: the inputs you used and whether each
 was READ from the catalog or DEFAULTED by the engine; every warning the engine
 raised; and which checks in §9 nobody has performed.
+
+Keep learning as you go, but learn in the right place. When you establish
+something new and durable — a rule, a constant, a correction, a gap nobody had
+named — it belongs in the pack, proposed to a human, not remembered privately
+in a conversation. A rule only you know is a rule ICAPROC will contradict. The
+pack is the memory; the chat is not.
 ```
 
 ---

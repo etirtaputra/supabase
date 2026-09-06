@@ -5,7 +5,7 @@
 > MANDA and the ERP produce the same numbers for the same inputs.
 >
 > **Source of truth:** `lib/systemDesign/` in `etirtaputra/supabase`.
-> **Version:** written against `main` @ `0df2214`, 2026-09-05.
+> **Version:** written against `main` @ `4146b29`, 2026-09-05.
 > **Regenerate this file whenever `lib/systemDesign/*.ts` changes.**
 
 ---
@@ -216,7 +216,10 @@ Phase is read off the text: `nominal_ac_voltage_vac` containing `3L` or
 
 2. INVERTER
    candidates must declare battery_nominal_voltage_vdc.
-   If LiFePO4 chosen, ONLY 48 V or 384 V buses are eligible.   ← see §9
+   An inverter is eligible only if the CATALOGUE can build its bus in the
+   chosen chemistry — asked of the battery pool, never a hard-coded list.
+   Two passes: inverters bankable in the REQUESTED chemistry first; only if
+   there are none does lead-acid stand in for lithium.
    surgeCapacity = surge_power_va, else rated_output_power_w × 2
    Pick the SMALLEST unit meeting continuous AND surge.
    If none: take the largest and parallel them —
@@ -225,9 +228,10 @@ Phase is read off the text: `nominal_ac_voltage_vac` containing `3L` or
 3. BATTERY BANK
    dod = lithium ? 0.8 : 0.5
    requiredWh = totalWh × autonomyDays / dod
-   pick first battery of the right chemistry with nominal_voltage_v ≤ busV
-     (lithium with no lithium in the catalog → falls back to lead-acid, WITH a warning)
-   series   = busV / battery.nominal_voltage_v          ← NOT rounded, see §9
+   candidate = right chemistry (case-insensitive) AND seriesOnBus() ≠ null
+     (no battery of that chemistry builds the bus → fall back to lead-acid,
+      WITH a warning, because it halves usable depth of discharge)
+   series   = seriesOnBus(busV, battery)      ← a whole number, or no candidate
    parallel = ceil(requiredWh / (series × battery.energy_wh))
    total    = series × parallel
 
@@ -259,6 +263,38 @@ running **1750 W**, surge **2500 W** (pump doubled), required continuous
 **Off-grid, lead-acid, 2 days** — 1×1500 W×2 h *inductive*, 3×200 W×10 h:
 running **2100 W**, surge **3600 W**, continuous **2625 W** → `SNV-GH3041`,
 bank `LIP12100D` **4 in series** (12 V → 48 V bus) × **8 parallel**.
+
+### 4.5 Battery bus arithmetic — read this before checking any bank
+
+**A bank is a WHOLE number of packs in series.** The engine enforces it; MANDA
+must too.
+
+**Voltage is a CLASS, not a literal.** A LiFePO4 cell is 3.2 V, so every
+lithium pack reads 6.67 % above its bus: `12.8 → 12`, `25.6 → 24`,
+`51.2 → 48`, `409.6 → 384`. ICAPROC's catalogue types the class on most rows
+and the literal on some — `EPEVER LR51100A` states **51.2** where every other
+51.2 V pack states 48. Both describe the same 48 V bank and both now size it
+identically.
+
+```
+BATTERY_VOLTAGE_CLASSES = [12, 24, 36, 48, 96, 192, 384]
+VOLTAGE_CLASS_TOLERANCE = 0.10        ← covers the 6.67 %; classes are an
+                                        octave apart, so nothing is ambiguous
+
+voltageClassOf(51.2) = 48       voltageClassOf(30) = null   ← nothing standard
+seriesOnBus(48, 12)  = 4        seriesOnBus(48, 36) = null  ← 1.333 is not an answer
+seriesOnBus(48, 51.2)= 1        seriesOnBus(24, 48) = null  ← pack bigger than bus
+```
+
+A pack with no class, or one that does not divide the bus, **is not a
+candidate**. It is refused with a message. It is never rounded into place.
+
+**Chemistry matching is case-insensitive.** v7's fixture says
+`"Lead-Acid (Deep Cycle)"`; ICAPROC says `"Lead-acid (deep cycle)"`. Matching
+the exact string found the test data and never the real data.
+
+**If MANDA ever sees a non-integer battery quantity, something is wrong
+upstream of the engine — stop and report it. The engine cannot produce one.**
 
 ---
 
@@ -389,9 +425,14 @@ When handed a design to verify, work in this order and report each step:
    `numStrings`, `maxAllowed`, and whether any inverter limit was defaulted.
 5. **Series consistency** (§6.4) — is every mounting part from one family and
    one rail profile?
-6. **The gaps** (§9) — say explicitly which checks were *not* performed by
+6. **Battery bank** (§4.5) — is the series count a whole number, does the pack's
+   voltage CLASS divide the bus, and is the depth of discharge the one for the
+   chemistry actually chosen (0.8 lithium / 0.5 lead-acid)? A cross-chemistry
+   fallback must appear as a warning; if the bank is lead-acid and no warning
+   was raised, ask why.
+7. **The gaps** (§9) — say explicitly which checks were *not* performed by
    anyone, so nobody assumes they were.
-7. **Verdict**: matches / differs / cannot verify, plus what would settle it.
+8. **Verdict**: matches / differs / cannot verify, plus what would settle it.
 
 ---
 
@@ -428,19 +469,28 @@ engine. If a design depends on it, a human engineer must answer it.
 - **PSH is an input, not a lookup.** No irradiance database, no soiling,
   degradation, or seasonal variation. `systemEfficiency` 0.8 absorbs all losses.
 
-**Two engine quirks to watch for (real, reproducible)**
+**Battery bank — three defects FIXED 2026-09-05 (`4146b29`)**
 
-1. **Fractional battery counts.** `series = busV / battery.nominal_voltage_v`
-   is **not rounded to an integer**, and the candidate filter only requires
-   `nominal_voltage_v ≤ busV`. A 25.6 V LiFePO4 on a 48 V bus yields
-   **series 1.875, qty 3.75** — verified 2026-09-05. ICAPROC's catalogue *does*
-   carry 24 V LiFePO4 rows, so this is reachable in production, not theoretical.
-   **If MANDA sees a non-integer battery quantity, that is this bug — stop and
-   report it, do not round it.**
-2. **The lithium bus filter.** Choosing LiFePO4 restricts inverters to a
-   **48 V or 384 V** battery bus. A 24 V lithium system cannot be designed by
-   the engine at all; it will report "no compatible inverter" rather than
-   offering the 24 V unit sitting in the catalogue.
+Recorded because MANDA will meet older quotes and older conversations that
+carry the old numbers, and because they show what this class of bug looks like.
+
+1. **Fractional battery counts.** `series = busV / nominal_voltage_v` had no
+   integer guard. A 25.6 V pack on a 48 V bus gave **series 1.875, qty 3.75**.
+   Now: voltage classes and `seriesOnBus()` (§4.5) — whole numbers only.
+2. **Hard-coded lithium buses.** `isLithium && bus !== 48 && bus !== 384`
+   excluded all five 24 V inverters on the shelf, though the catalogue carries
+   five 25.6 V LiFePO4 packs for them. Now: compatibility is asked of the
+   battery pool.
+3. **Lead-acid never matched.** The code tested `includes('Lead-Acid')` while
+   the catalogue writes `"Lead-acid (deep cycle)"`, so a lead-acid design found
+   nothing and fell through to the first row in the list — quite possibly
+   lithium — sizing the bank at the wrong depth of discharge in silence. Now:
+   case-insensitive, and any cross-chemistry fallback warns.
+
+All 10 v7 parity tests still pass, so no existing design number moved. No
+stored quote carried a `system_design`, so nothing already written needed
+repair. **All three were found by reading the code against the real catalogue,
+not by a failing test — which is the work MANDA is for.**
 
 ---
 
@@ -465,7 +515,7 @@ engine. If a design depends on it, a human engineer must answer it.
 |---|---|
 | `lib/systemDesign/types.ts` | `BomLine`, `ResolvedLine`, `SystemDesign`, `designRoleOf` |
 | `lib/systemDesign/mounting.ts` | the v11 mounting engine + its constants |
-| `lib/systemDesign/system.ts` | the v7 system engine, both paths, `sizePvStrings` |
+| `lib/systemDesign/system.ts` | the v7 system engine, both paths, `sizePvStrings`, `voltageClassOf` / `seriesOnBus` / `isChemistry` |
 | `lib/systemDesign/resolve.ts` | role → catalog item, `specCovers`, ranking |
 | `lib/systemDesign/mountingSystem.ts` | series / rail-profile families |
 | `lib/systemDesign/specSuggest.ts` | spec suggestions, and why they need a human |

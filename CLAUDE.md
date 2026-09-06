@@ -19,6 +19,19 @@
   the "Last updated" line. Never date the filename and never start a second
   copy — git history keeps the dated versions.
 
+## Agent knowledge packs (owner's rule, 2026-09-05)
+
+- `docs/agents/MANDA-SOLAR-DESIGN.md` is a TRANSCRIPTION of `lib/systemDesign/`,
+  not an independent document. **Any thread that changes an engine rule,
+  constant or behaviour regenerates the pack in the same commit** — the same
+  way `docs/HANDOFF.md` is updated by the thread that ships a module. Bump the
+  commit SHA in its header.
+- The golden tests (`lib/systemDesign/*.test.ts`) are the real contract. If the
+  pack and a test disagree, **the test is right and the pack is stale.**
+- Never change a golden number to make a build pass. Those numbers were read
+  out of the original v7/v11 calculators. Change one only when the rule
+  deliberately changed, and say so out loud.
+
 ## Mission (why ICAPROC exists)
 
 ICAPROC is the company's bid to **own its own operating system** — a full ERP
