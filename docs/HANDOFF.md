@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-05** · head of `main` at that point: `1bc8ae1` (see §4, §6)
+**Last updated: 2026-09-06** · head of `main` at that point: `260fec1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -121,6 +121,71 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 ---
 
 ## 4. What the previous threads did (for context, all shipped to main)
+
+### 2026-09-06 — MANDA's knowledge pack, and three rounds of engine correctness
+
+The owner introduced a second agent, **MANDA** (Basecamp/timelines, solar
+engineering cross-checks, Drive/Sheets/Supabase) and asked how to teach her PV
+and mounting design. The answer was not a prompt: the rules already exist as
+tested code in `lib/systemDesign/`, so `docs/agents/MANDA-SOLAR-DESIGN.md` is a
+TRANSCRIPTION of them, with `MANDA-BOOT-PROMPT.md` as the short prompt that
+points her at it. `CLAUDE.md` now carries the standing rule that the thread
+changing an engine rule regenerates the pack in the same commit.
+
+**Writing the pack found four defects nobody's tests could see**, because v7's
+own fixture (12 V lead-acid, 48 V lithium, `"Lead-Acid (Deep Cycle)"`) divides
+evenly and matches the code's casing, while the real catalogue does neither.
+
+1. **`4146b29` — the battery bank.** `series = busV / nominal_voltage_v` had no
+   integer guard: a 25.6 V pack on a 48 V bus gave **qty 3.75**. Fixed with
+   voltage CLASSES (12/24/36/48/96/192/384, 10 % tolerance so a 51.2 V pack is
+   a 48 V bank) and `seriesOnBus()`, which returns a whole number or refuses
+   the candidate. Also: the hard-coded `bus !== 48 && bus !== 384` lithium
+   filter excluded all five 24 V inverters on the shelf — compatibility is now
+   asked of the battery pool, two passes so a catalogue gap costs the chemistry
+   and not the quotation. And `battery_type.includes('Lead-Acid')` never
+   matched `"Lead-acid (deep cycle)"`, so lead-acid designs silently fell
+   through to `pool[0]` (often lithium) and sized at the wrong DoD.
+2. **`b8d4cf6` — archived items were still offered.** The owner archived a
+   JINKO module and it kept appearing in Design mounting. Not one screen:
+   `archived_at` arrived 2026-09-03 and all FIVE customer-facing pickers still
+   asked only about Cost Basis → Hidden. `isOfferable()` is now the one
+   question, `VISIBILITY_COLUMNS` stops a picker forgetting to SELECT what the
+   rule reads, and `itemVisibility.test.ts` reads the app's own source and
+   fails the build if a picker asks half the rule. Two modules had been leaking
+   (JINKO, and ICA450-72HMG since 2026-09-04).
+   *Also fixed here: a regression from that morning's taxonomy commit —
+   SystemDesigner still fetched `accessories` alone after `switchgear` and
+   `monitoring` split out of it.*
+3. **`b8954cb` — string length is a TEMPERATURE question (engine v8).** v7
+   sized every string on a flat 0.95 of the inverter maximum. Now
+   `Voc(T) = Voc_STC × (1 + β/100 × (T − 25))` against the site's coldest
+   expected temperature, per IEC 62548 / NEC 690.7. **`minCellTempC` is an
+   input on the designer** (owner asked for it explicitly), default **18 °C**
+   for the Indonesian lowlands, stored with the design. Highland sites lower
+   it, which shortens strings.
+   **Expect LONGER strings**: the old flat margin was equivalent to designing
+   for 3–9 °C depending on β, so correcting properly usually fits more panels
+   per string. The engine warns when it exceeds what the old rule allowed,
+   naming the per-module voltage. 3 of 13 modules have no β (JINKO JKM575N and
+   two ICA rows) and fall back to the flat margin **saying so** — no invented
+   coefficient enters a safety-bearing calculation.
+   The flat rule stays as `vocRule: 'flat'`; the ten v7 parity tests now
+   request it explicitly, so they keep testing v7 rather than current practice.
+
+`260fec1` regenerated the pack for v8. 524 tests, no lint problems added
+across the whole day.
+
+**Still open from this work**
+- `EPEVER UC3522-1250P20C 3.5kW/24V` carries `battery_nominal_voltage_vdc = 48`
+  — the name says 24 V. One of the two is wrong; needs a datasheet. Offered to
+  sweep the inverter rows for name-vs-spec disagreements; not started.
+- `DEYE SUN-STS500L` (a transfer switch?) left in `accessories`; the SUNTREE AC
+  EV Charger sits there while an `ev_charger` category exists; three
+  `wallmount_cabinet` rows are "Extra carton", i.e. packaging not products.
+- Still outside both engines (pack §9): MPPT lower bound, Isc and string
+  fusing (`max_series_fuse_a` is declared and never read), cable voltage drop,
+  wind/snow and roof capacity, shading, PSH as an input rather than a lookup.
 
 ### 2026-09-05 (later) — the product taxonomy: one hierarchy, readable names
 
