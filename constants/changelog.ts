@@ -20,6 +20,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-09-05T14:30:00Z',
+    title: 'System Designer: bank baterai kini selalu bilangan bulat, dan kimia baterai dibaca dengan benar',
+    details: [
+      'Jumlah baterai tidak akan pernah lagi keluar sebagai pecahan. Rumus lama membagi tegangan bus dengan tegangan baterai tanpa penjagaan bilangan bulat, sehingga pak 25,6 V pada bus 48 V menghasilkan 1,875 seri \u2014 penawaran untuk 3,75 buah baterai. Sekarang sebuah pak yang tidak membentuk bus secara utuh bukan kandidat sama sekali, dan ditolak dengan pesan, bukan dibulatkan diam-diam.',
+      'Tegangan baterai dibaca sebagai KELAS bus. Katalog menulis sebagian baris sebagai 48 V dan sebagian lagi sebagai 51,2 V untuk pak LiFePO4 yang sama; keduanya kini menghasilkan bank 48 V yang sama. Berlaku juga untuk 12,8 V, 25,6 V, dan 409,6 V.',
+      'Sistem litium 24 V sekarang bisa dirancang. Sebelumnya inverter litium dibatasi ke bus 48 V atau 384 V lewat daftar tertulis di kode, sehingga lima inverter 24 V di katalog tidak pernah terpakai meskipun ada lima pak LiFePO4 25,6 V untuk melayaninya. Kecocokan sekarang ditanyakan ke KATALOG, bukan ke daftar.',
+      'Pemilihan baterai lead-acid diperbaiki. Kode mencocokkan teks "Lead-Acid" persis, sementara katalog menulis "Lead-acid (deep cycle)" \u2014 sehingga desain lead-acid tidak menemukan apa pun lalu jatuh ke baris pertama daftar, yang bisa jadi baterai litium. Bank lalu dihitung pada kedalaman pemakaian yang salah tanpa peringatan apa pun. Pencocokan kini tidak peduli huruf besar-kecil.',
+      'Bila kimia yang diminta memang tidak ada di katalog, penawaran tetap jalan: mesin turun ke lead-acid dan MENGATAKANNYA, karena perpindahan itu memotong kedalaman pemakaian dari 0,8 ke 0,5.',
+      'Sepuluh uji paritas terhadap kalkulator "Smart Solar BoM v7" tetap lulus \u2014 angka desain yang sudah ada tidak berubah. Belum ada satu pun penawaran tersimpan yang memakai System Designer, jadi tidak ada dokumen lama yang perlu diperbaiki.',
+    ],
+  },
+  {
     at: '2026-09-05T12:00:00Z',
     title: 'Kategori produk punya nama yang bisa dibaca, dan induknya sendiri',
     details: [

@@ -189,6 +189,78 @@ export function sizePvStrings(
 export const phaseOf = (inv: OnGridInverterSpec): 1 | 3 =>
   (inv.nominal_ac_voltage_vac ?? '').includes('3L') || (inv.nominal_ac_voltage_vac ?? '').includes('3-phase') ? 3 : 1;
 
+// ── Battery bus arithmetic ──────────────────────────────────────────────────
+//
+// A battery bank is a WHOLE number of packs in series. That sounds obvious and
+// the engine did not enforce it: `series = busV / nominal_voltage_v` with no
+// integer guard, and a candidate filter that only asked `nominal_voltage_v <=
+// busV`. A 25.6 V pack on a 48 V bus produced series 1.875 and a quantity of
+// 3.75 batteries — a quote for three and three quarters of a battery.
+//
+// The reason it survived is that v7's own fixture holds only 12 V lead-acid
+// and 48 V lithium, which divide evenly. ICAPROC's real catalogue does not:
+// most rows state the voltage CLASS (a 51.2 V LiFePO4 pack typed as 48) but
+// some state the literal pack voltage (`EPEVER LR51100A` says 51.2). Both
+// describe the same 48 V bank and both must size it the same way.
+
+/** The buses batteries are actually built and sold for. */
+export const BATTERY_VOLTAGE_CLASSES = [12, 24, 36, 48, 96, 192, 384] as const;
+
+/**
+ * How far a stated voltage may sit from its class. A LiFePO4 cell is 3.2 V
+ * against lead-acid's 3.0 V equivalent, so every lithium pack reads 6.67 %
+ * high — 12.8, 25.6, 51.2, 409.6. Ten percent covers that and nothing else:
+ * the classes are an octave apart, so no pack can be ambiguous between two.
+ */
+export const VOLTAGE_CLASS_TOLERANCE = 0.1;
+
+/**
+ * The bus class a stated voltage belongs to — 51.2 V and 48 V are both a
+ * 48 V bank. `null` when the number is nothing standard, which makes the
+ * battery a non-candidate rather than a silent fraction.
+ */
+export function voltageClassOf(nominalV: number | null | undefined): number | null {
+  const v = Number(nominalV);
+  if (!Number.isFinite(v) || v <= 0) return null;
+  let best: number | null = null;
+  let bestErr = Infinity;
+  for (const c of BATTERY_VOLTAGE_CLASSES) {
+    const err = Math.abs(v - c) / c;
+    if (err < bestErr) { bestErr = err; best = c; }
+  }
+  return bestErr <= VOLTAGE_CLASS_TOLERANCE ? best : null;
+}
+
+/**
+ * How many of this battery sit in series on this bus — a positive whole
+ * number, or `null` when the pack does not build that bus at all. A 36 V pack
+ * on a 48 V bus has no answer, and 1.333 was never one.
+ */
+export function seriesOnBus(busV: number, batteryNominalV: number | null | undefined): number | null {
+  const bus = voltageClassOf(busV);
+  const pack = voltageClassOf(batteryNominalV);
+  if (bus === null || pack === null) return null;
+  const series = bus / pack;
+  return Number.isInteger(series) && series >= 1 ? series : null;
+}
+
+/**
+ * Does this battery carry the chosen chemistry?
+ *
+ * Case-INSENSITIVE, and this is not a nicety. v7's fixture says "Lead-Acid
+ * (Deep Cycle)" and ICAPROC's catalogue says "Lead-acid (deep cycle)", so the
+ * old `battery_type.includes('Lead-Acid')` matched the test data and never the
+ * real data. A lead-acid design then found no battery and fell through to
+ * `pool[0]` — the first row in the list, which is quite possibly lithium.
+ * The bank was sized at the wrong depth of discharge and nothing said so.
+ */
+export function isChemistry(batteryType: string | null | undefined, lithium: boolean): boolean {
+  const t = String(batteryType ?? '').toLowerCase();
+  return lithium
+    ? t.includes('lifepo4') || t.includes('li-ion') || t.includes('lithium')
+    : t.includes('lead');
+}
+
 export function calculateSystem(
   input: SystemInput,
   candidates: SystemCandidates,
@@ -258,13 +330,35 @@ export function calculateSystem(
   const isLithium = (input.batteryPreference ?? 'LiFePO4') === 'LiFePO4';
   const surgeCapacityOf = (i: HybridInverterSpec) => i.surge_power_va || i.rated_output_power_w * opt.assumedSurgeMultiple;
 
-  const viable = (candidates.hybridInverters ?? [])
-    .filter((i) => {
-      if (i.battery_nominal_voltage_vdc === undefined || i.battery_nominal_voltage_vdc === null) return false;
-      if (isLithium && i.battery_nominal_voltage_vdc !== 48 && i.battery_nominal_voltage_vdc !== 384) return false;
-      return true;
-    })
-    .sort((a, b) => a.rated_output_power_w - b.rated_output_power_w);
+  const pool = candidates.batteries ?? [];
+
+  // An inverter is compatible when the CATALOGUE can actually build its bus in
+  // the chosen chemistry — not when its bus appears on a hard-coded list.
+  //
+  // The old rule was `isLithium && bus !== 48 && bus !== 384 → reject`, which
+  // ruled out every 24 V inverter on the shelf even though the catalogue
+  // carries five 25.6 V LiFePO4 packs to serve them. Asking the battery pool
+  // instead is both correct and self-maintaining: it widens as the catalogue
+  // does, and it still refuses a bus nothing can build. (On v7's own fixture —
+  // 12 V lead-acid and 48 V lithium only — it excludes the 24 V inverter for a
+  // lithium design exactly as the old list did, so parity is unchanged.)
+  const bankableIn = (busV: number | null | undefined, lithium: boolean): boolean =>
+    pool.some((b) => isChemistry(b.battery_type, lithium) && seriesOnBus(Number(busV), b.nominal_voltage_v) !== null);
+
+  const byPower = (list: HybridInverterSpec[]) =>
+    [...list].sort((a, b) => a.rated_output_power_w - b.rated_output_power_w);
+  const withBus = (candidates.hybridInverters ?? []).filter((i) => i.battery_nominal_voltage_vdc != null);
+
+  // Two passes, so a catalogue gap costs the chemistry rather than the quote:
+  // inverters whose bus the REQUESTED chemistry can build come first, and only
+  // when there are none does lead-acid stand in for lithium (which the battery
+  // step then warns about). Without the second pass, asking for lithium in a
+  // shop that stocks only lead-acid would fail outright — and a missing
+  // battery must no more block a quotation than a missing clamp does.
+  const preferred = byPower(withBus.filter((i) => bankableIn(i.battery_nominal_voltage_vdc, isLithium)));
+  const viable = preferred.length > 0
+    ? preferred
+    : byPower(withBus.filter((i) => isLithium && bankableIn(i.battery_nominal_voltage_vdc, false)));
 
   // Smallest unit that carries both the continuous and the surge load; failing
   // that, the biggest available in parallel.
@@ -275,32 +369,34 @@ export function calculateSystem(
     invQty = Math.ceil(Math.max(requiredContinuousW, requiredSurgeW / 2) / inv.rated_output_power_w);
   }
   if (!inv) {
-    errors.push('No compatible inverter found (check the battery voltage match).');
+    errors.push(`No compatible inverter found: no ${isLithium ? 'lithium' : 'lead-acid'} battery in the catalog can build the bus of any available inverter.`);
     return { ...empty, totalWh, runningW, surgeW, requiredContinuousW };
   }
 
-  // Battery bank: series to reach the inverter's bus, parallel to hold the energy
+  // Battery bank: a WHOLE number in series to reach the inverter's bus, then
+  // strings in parallel to hold the energy. A pack that does not divide the
+  // bus is not a candidate — it is not a fraction of one.
   const sysV = inv.battery_nominal_voltage_vdc as number;
   const dod = isLithium ? opt.dodLithium : opt.dodLeadAcid;
   const reqBattWh = (totalWh * (Number(input.autonomyDays) || 1)) / dod;
-  const pool = candidates.batteries ?? [];
-  let batt = pool.find((b) =>
-    (isLithium ? b.battery_type.includes('LiFePO4') : b.battery_type.includes('Lead-Acid'))
-    && b.nominal_voltage_v <= sysV) ?? null;
-  if (!batt) {
-    if (isLithium) {
-      warnings.push('No suitable lithium battery in the catalog — fell back to lead-acid.');
-      batt = pool.find((b) => b.battery_type.includes('Lead-Acid')) ?? null;
-    } else {
-      batt = pool[0] ?? null;
-    }
+
+  const fits = (b: BatterySpec, lithium: boolean) =>
+    isChemistry(b.battery_type, lithium) && seriesOnBus(sysV, b.nominal_voltage_v) !== null;
+
+  let batt = pool.find((b) => fits(b, isLithium)) ?? null;
+  if (!batt && isLithium) {
+    // Falling back across chemistries changes the depth of discharge from 0.8
+    // to 0.5, so it is never silent.
+    batt = pool.find((b) => fits(b, false)) ?? null;
+    if (batt) warnings.push(`No lithium battery in the catalog builds a ${sysV} V bus — fell back to lead-acid, which halves usable depth of discharge.`);
   }
   if (!batt) {
-    errors.push('No battery in the catalog can serve this system.');
+    errors.push(`No battery in the catalog builds a ${sysV} V bus in a whole number of units in series.`);
     return { ...empty, totalWh, runningW, surgeW, requiredContinuousW };
   }
 
-  const battSeries = sysV / batt.nominal_voltage_v;
+  // Non-null: `fits` is what selected this battery.
+  const battSeries = seriesOnBus(sysV, batt.nominal_voltage_v) as number;
   const stringWh = battSeries * batt.energy_wh;
   const battParallel = Math.ceil(reqBattWh / stringWh);
   const totalBatt = battSeries * battParallel;

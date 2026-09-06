@@ -11,7 +11,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { calculateSystem, type SystemInput } from './system.ts';
+import { calculateSystem, voltageClassOf, seriesOnBus, isChemistry, type SystemInput, type BatterySpec } from './system.ts';
 import { V7_PANELS, V7_ON_GRID_INVERTERS, V7_HYBRID_INVERTERS, V7_BATTERIES } from './v7Fixture.ts';
 
 const CANDIDATES = {
@@ -218,4 +218,103 @@ test('lithium requested but only lead-acid stocked → falls back and says so', 
   }, { ...CANDIDATES, batteries: V7_BATTERIES.filter((b) => b.battery_type.includes('Lead-Acid')) });
   assert.equal(r.ok, true);
   assert.ok(r.warnings.some((w) => /fell back to lead-acid/i.test(w)));
+});
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Battery bank correctness — three defects found 2026-09-05 while writing the
+// MANDA knowledge pack. v7's own fixture (12 V lead-acid, 48 V lithium) hides
+// all three because those voltages divide evenly and its chemistry strings
+// happen to match the code's casing. ICAPROC's real catalogue does neither.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const OFFGRID = {
+  systemType: 'off-grid' as const, panel: V7_PANELS[0], autonomyDays: 1, pshHours: 4,
+  rows: 1, railLengthMm: 4850, panelSpacingMm: 20, mountType: 'roof' as const, orientation: 'portrait' as const,
+  loads: [{ watts: 1000, hoursPerDay: 5, qty: 1 }],
+};
+const inv48 = { model: 'X-5K/48', rated_output_power_w: 5000, battery_nominal_voltage_vdc: 48, surge_power_va: 10000, pv_max_open_circuit_voltage_vdc: 500, no_of_mpp_trackers: 2 };
+const batt = (model: string, battery_type: string, nominal_voltage_v: number, energy_wh: number): BatterySpec =>
+  ({ model, battery_type, nominal_voltage_v, energy_wh });
+
+test('a pack reads its bus CLASS, so 51.2 V and 48 V are one bank', () => {
+  assert.equal(voltageClassOf(48), 48);
+  assert.equal(voltageClassOf(51.2), 48);      // 16S LiFePO4
+  assert.equal(voltageClassOf(25.6), 24);      // 8S
+  assert.equal(voltageClassOf(12.8), 12);      // 4S
+  assert.equal(voltageClassOf(409.6), 384);    // 128S
+  // Nothing standard is not silently coerced into something standard.
+  assert.equal(voltageClassOf(30), null);
+  assert.equal(voltageClassOf(0), null);
+  assert.equal(voltageClassOf(null), null);
+});
+
+test('series on a bus is a whole number of packs, or no answer at all', () => {
+  assert.equal(seriesOnBus(48, 12), 4);
+  assert.equal(seriesOnBus(48, 24), 2);
+  assert.equal(seriesOnBus(48, 51.2), 1);      // the literal 51.2 V row
+  assert.equal(seriesOnBus(384, 48), 8);
+  assert.equal(seriesOnBus(48, 36), null);     // 1.333 was never an answer
+  assert.equal(seriesOnBus(24, 48), null);     // a bigger pack than the bus
+});
+
+test('chemistry matching is case-insensitive — the live catalogue says "Lead-acid"', () => {
+  assert.equal(isChemistry('Lead-Acid (Deep Cycle)', false), true);   // v7 fixture
+  assert.equal(isChemistry('Lead-acid (deep cycle)', false), true);   // ICAPROC
+  assert.equal(isChemistry('LiFePO4 (with BMS)', true), true);
+  assert.equal(isChemistry('LiFePO4', true), true);
+  assert.equal(isChemistry('Lead-acid (deep cycle)', true), false);
+  assert.equal(isChemistry(null, true), false);
+});
+
+test('REGRESSION: a 25.6 V pack on a 48 V bus quoted 3.75 batteries', () => {
+  const r = calculateSystem({ ...OFFGRID, batteryPreference: 'LiFePO4' }, {
+    hybridInverters: [inv48],
+    batteries: [batt('25.6V pack', 'LiFePO4', 25.6, 2560)],
+  });
+  assert.equal(r.ok, true);
+  assert.equal(r.battery?.series, 2, 'two packs in series make the 48 V bus');
+  assert.ok(Number.isInteger(r.battery?.qty ?? 0.5), 'a quote can never carry a fraction of a battery');
+  assert.equal(r.battery?.qty, 4);
+});
+
+test('REGRESSION: the 51.2 V row the catalogue types literally still banks', () => {
+  const r = calculateSystem({ ...OFFGRID, batteryPreference: 'LiFePO4' }, {
+    hybridInverters: [inv48],
+    batteries: [batt('EPEVER LR51100A 51.2V/100Ah', 'LiFePO4', 51.2, 5120)],
+  });
+  assert.equal(r.ok, true);
+  assert.equal(r.battery?.series, 1);
+  assert.deepEqual(r.errors, []);
+});
+
+test('REGRESSION: a 24 V lithium system is designable — the bus list was hard-coded', () => {
+  const r = calculateSystem({ ...OFFGRID, loads: [{ watts: 300, hoursPerDay: 4, qty: 1 }], batteryPreference: 'LiFePO4' }, {
+    hybridInverters: [{ model: 'EPEVER QI1522 1500W/24V', rated_output_power_w: 1500, battery_nominal_voltage_vdc: 24, surge_power_va: 3000, pv_max_open_circuit_voltage_vdc: 400, no_of_mpp_trackers: 1 }],
+    batteries: [batt('EPEVER LW25205A 25.6V/205Ah', 'LiFePO4', 24, 5248)],
+  });
+  assert.equal(r.ok, true);
+  assert.equal(r.inverter?.model, 'EPEVER QI1522 1500W/24V');
+  assert.equal(r.battery?.series, 1);
+});
+
+test('REGRESSION: a lead-acid design picks lead-acid, not whatever is first in the list', () => {
+  const r = calculateSystem({ ...OFFGRID, batteryPreference: 'Lead-Acid' }, {
+    hybridInverters: [inv48],
+    batteries: [
+      batt('ICAL LIP48100LF 48V LiFePO4', 'LiFePO4 (with BMS)', 48, 4800),   // first, and wrong
+      batt('ICAL LIP12200D 12V', 'Lead-acid (deep cycle)', 12, 2400),
+    ],
+  });
+  assert.equal(r.battery?.model, 'ICAL LIP12200D 12V');
+  assert.equal(r.battery?.series, 4);
+});
+
+test('a pack that cannot build the bus is refused, never rounded into place', () => {
+  const r = calculateSystem({ ...OFFGRID, batteryPreference: 'LiFePO4' }, {
+    hybridInverters: [inv48],
+    batteries: [batt('38.4V pack', 'LiFePO4', 38.4, 3840)],
+  });
+  assert.equal(r.ok, false);
+  assert.match(r.errors.join(' '), /whole number of units in series|no .*battery/i);
 });
