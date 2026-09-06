@@ -189,6 +189,17 @@ against `adminproject@ptmbs.co`: `aud`, `role`, `email_confirmed_at`,
 denies CONNECT to `*.supabase.co` (§1). The owner holds the password; it is
 not recorded here or anywhere in the repo.
 
+**First sign-in failed, and it was trap TWO above.** MANDA's password grant
+returned `500 "Database error querying schema"` three times and she diagnosed
+a paused free-tier project. It was not: the database answered SQL throughout
+(and this project is not free-tier). Four token columns were NULL on the new
+row — `confirmation_token`, `recovery_token`, `email_change`,
+`email_change_token_new` — because the INSERT omitted them. Set to `''` and
+verified against `adminproject@ptmbs.co`. **All ten other accounts were checked
+in the same pass and none carries a NULL token**, so nothing else was latently
+broken. Password still verifies, identity intact, `user_profiles.role`
+`engineer`.
+
 What `engineer` grants MANDA: sell-side + Project Quotes; she CAN edit project
 quotes and the BoM builder (**costs and margins are visible there**), manage
 customers, edit sales documents, handle service tickets, and see selling
@@ -407,10 +418,27 @@ allowlist row). So:
 1. `insert into allowed_emails (email, role)` — the role is decided here;
 2. `insert into auth.users (...)` with `email_confirmed_at = now()` and
    `encrypted_password = crypt('…', gen_salt('bf'))`;
-3. **`insert into auth.identities`** — the trap. A user created by direct
+3. **`insert into auth.identities`** — trap ONE. A user created by direct
    INSERT has no identity row, and GoTrue rejects password sign-in without
    one with "Invalid login credentials" even though the hash is correct.
    `identity_data` must carry `sub` (the user id, as text) and `email`.
+4. **Set the token columns to `''`, never leave them NULL** — trap TWO, found
+   2026-09-06 and it costs a whole debugging session because the error blames
+   the database, not the row:
+
+   ```sql
+   confirmation_token = '', recovery_token = '', email_change = '',
+   email_change_token_new = '', email_change_token_current = '',
+   phone_change = '', phone_change_token = '', reauthentication_token = ''
+   ```
+
+   GoTrue scans these into Go `string`, not `*string`. A NULL fails the scan
+   and the endpoint answers **`500 "Database error querying schema"`** — which
+   reads exactly like a paused project or a broken auth schema, and is neither.
+   The API sets them to `''` on every user it creates; a direct INSERT that
+   omits them leaves NULL. Every account made through the dashboard/API has
+   `''`, so **diff a new row against a working one on these eight columns**
+   before believing any story about the server.
 
 Verify by comparing the new row against a known-good account on: `identities`
 count, `identity_data->>'sub'`, `provider`, `email_confirmed_at`, `banned_until`,
