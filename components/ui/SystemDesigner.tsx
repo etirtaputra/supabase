@@ -93,6 +93,9 @@ export default function SystemDesigner({ open, onClose, priceOf, stockOf, onAppl
   const [plnCustom, setPlnCustom] = useState('');
   const [gridPhase, setGridPhase] = useState<1 | 3>(1);
   const [dcAcRatio, setDcAcRatio] = useState('1.2');
+  // Coldest expected temperature at the SITE. 18 °C is the Indonesian lowland
+  // default (owner, 2026-09-06); highland jobs lower it, which shortens strings.
+  const [minTemp, setMinTemp] = useState('18');
   const [loads, setLoads] = useState<EditableLoad[]>([blankLoad()]);
 
   // A previous run's answers are the starting point — regenerate means
@@ -120,6 +123,7 @@ export default function SystemDesigner({ open, onClose, priceOf, stockOf, onAppl
     if (inp.plnCustom) setPlnCustom(String(inp.plnCustom));
     if (inp.gridPhase) setGridPhase(Number(inp.gridPhase) === 3 ? 3 : 1);
     if (inp.dcAcRatio != null) setDcAcRatio(String(inp.dcAcRatio));
+    if (inp.minCellTempC != null) setMinTemp(String(inp.minCellTempC));
     if (Array.isArray(inp.loads) && inp.loads.length) {
       setLoads((inp.loads as LoadRow[]).map((l) => ({
         name: l.name ?? '', watts: String(l.watts ?? ''), hours: String(l.hoursPerDay ?? ''),
@@ -175,6 +179,7 @@ export default function SystemDesigner({ open, onClose, priceOf, stockOf, onAppl
       component_id: c.component_id, model: nameOf(c),
       power_stc_w: specNumber(s.power_stc_w) ?? 0,
       voc_stc_v: specNumber(s.voc_stc_v) ?? 0,
+      temp_coeff_voc_percent_per_c: specNumber(s.temp_coeff_voc_percent_per_c),
       dimensions_l_w_h_mm: String(s.dimensions_l_w_h_mm ?? ''),
     };
   }, [byId, panelId]);
@@ -254,6 +259,7 @@ export default function SystemDesigner({ open, onClose, priceOf, stockOf, onAppl
       gridVA, gridPhase, dcAcRatio: Number(dcAcRatio) || 1,
       loads: loadRows, autonomyDays: Number(autonomy) || 1, pshHours: Number(psh) || 1,
       batteryPreference: batteryPref,
+      minCellTempC: minTemp.trim() === '' ? undefined : Number(minTemp),
       rows: Number(numberOfRows) || 1, railLengthMm, panelSpacingMm: Number(panelSpacing) || 0,
       mountType, orientation,
     }, {
@@ -261,7 +267,7 @@ export default function SystemDesigner({ open, onClose, priceOf, stockOf, onAppl
       hybridInverters: hybridCandidates,
       batteries: batteryCandidates,
     });
-  }, [panelSpec, systemType, gridVA, gridPhase, dcAcRatio, loadRows, autonomy, psh, batteryPref,
+  }, [panelSpec, systemType, gridVA, gridPhase, dcAcRatio, minTemp, loadRows, autonomy, psh, batteryPref,
     numberOfRows, railLengthMm, panelSpacing, mountType, orientation,
     onGridCandidates, hybridCandidates, batteryCandidates]);
 
@@ -307,11 +313,15 @@ export default function SystemDesigner({ open, onClose, priceOf, stockOf, onAppl
     }));
     const design: SystemDesign = {
       engine: 'system',
-      version: 7,
+      // 7 was the pure v7 port. 8 sizes strings on temperature-corrected Voc
+      // rather than v7's flat 0.95 margin (owner, 2026-09-06), so a quote saved
+      // under 7 stays explicable by the rule that actually produced it.
+      version: 8,
       input: {
         systemType, panelId, panelLabel: panelSpec?.model ?? '',
         batteryPreference: batteryPref, pshHours: Number(psh) || 0, autonomyDays: Number(autonomy) || 0,
         gridVA, gridPhase, dcAcRatio: Number(dcAcRatio) || 1, plnKey, plnCustom,
+        minCellTempC: Number(minTemp) || 18,
         loads: loadRows,
         rows: Number(numberOfRows) || 1, railKey, railCustom, railLengthMm,
         panelSpacingMm: Number(panelSpacing) || 0, mountType, orientation, series, profile,
@@ -434,6 +444,30 @@ export default function SystemDesigner({ open, onClose, priceOf, stockOf, onAppl
                   </select>
                 </label>
               </div>
+              {/* String length is a TEMPERATURE question: Voc rises as a module
+                  cools, and the worst case is a cold clear dawn. 18 °C is the
+                  Indonesian lowland default; a highland site must lower it, which
+                  shortens strings. Offered here because it applies to both the
+                  on-grid and the off-grid path. */}
+              <label className="block">
+                <span className={lbl}>Coldest site temperature</span>
+                <div className="flex items-center gap-2">
+                  <input className={inp} inputMode="decimal" value={minTemp}
+                    onChange={(e) => setMinTemp(e.target.value)} />
+                  <span className="text-[11px] text-slate-500 flex-shrink-0">°C</span>
+                </div>
+                <span className="text-[10px] text-slate-600">
+                  Strings are sized on the module&rsquo;s Voc at this temperature. 18 °C suits
+                  the lowlands; lower it for highland sites (Bandung ~14, Dieng below 0).
+                  {result?.strings?.rule === 'temperature' && result.strings.vocAtMinTempV != null && (
+                    <> Now: <b className="text-slate-400">{result.strings.vocAtMinTempV.toFixed(1)} V</b> per
+                    module, up to <b className="text-slate-400">{result.strings.maxSeriesLength}</b> in series.</>
+                  )}
+                  {result?.strings?.rule === 'flat' && (
+                    <> This module has no Temp Coeff. Voc on file, so the old flat margin was used.</>
+                  )}
+                </span>
+              </label>
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                 <label className="block">
                   <span className={lbl}>Rows</span>

@@ -34,8 +34,35 @@ export interface SystemOptions {
   dodLeadAcid?: number;
   /** Wire-to-load system losses. v7: 0.8. */
   systemEfficiency?: number;
-  /** Cold-temperature Voc headroom on string length. v7: 0.95. */
+  /**
+   * How string length answers cold-morning Voc rise.
+   *
+   * `'temperature'` (the default since 2026-09-06) corrects the module's own
+   * Voc by its own temperature coefficient to the site's coldest expected
+   * temperature. `'flat'` is v7's original rule and stays selectable so the
+   * parity tests — and any quote saved under engine version 7 — remain
+   * reproducible.
+   */
+  vocRule?: 'temperature' | 'flat';
+  /** Cold-temperature Voc headroom on string length, `'flat'` rule. v7: 0.95. */
   vocMarginFactor?: number;
+  /**
+   * Coldest cell temperature the array is designed for, °C.
+   *
+   * Voc rises as a module cools, and the worst case is a cold clear dawn where
+   * the cell sits at ambient with full irradiance arriving — so this is the
+   * site's record MINIMUM, not its average.
+   *
+   * 18 °C is the Indonesian lowland default (owner, 2026-09-06): it matches
+   * record lows around Jakarta and Surabaya, where most installations are.
+   * HIGHLAND SITES MUST LOWER IT — Bandung reaches ~14 °C and the Dieng
+   * plateau goes below zero. Lower is always the safe direction: it shortens
+   * strings.
+   *
+   * For scale, v7's flat 0.95 was equivalent to designing for 3–9 °C depending
+   * on the module, so 18 °C generally makes strings LONGER than they were.
+   */
+  minCellTempC?: number;
   /** Metres of string cable per panel. v7: 6. */
   cableMetresPerPanel?: number;
 }
@@ -46,7 +73,9 @@ export const SYSTEM_DEFAULTS: Required<SystemOptions> = {
   dodLithium: 0.8,
   dodLeadAcid: 0.5,
   systemEfficiency: 0.8,
+  vocRule: 'temperature',
   vocMarginFactor: 0.95,
+  minCellTempC: 18,
   cableMetresPerPanel: 6,
 };
 
@@ -56,6 +85,12 @@ export interface PanelSpec {
   model: string;
   power_stc_w: number;
   voc_stc_v: number;
+  /**
+   * %/°C, negative — the datasheet's temperature coefficient of Voc. Declared
+   * on every module in the spec schema; absent on some rows, in which case
+   * string length falls back to the flat margin AND says so.
+   */
+  temp_coeff_voc_percent_per_c?: number | null;
   /** "2278 x 1134 x 35" */
   dimensions_l_w_h_mm: string;
 }
@@ -109,6 +144,8 @@ export interface SystemInput {
   autonomyDays?: number;
   pshHours?: number;
   batteryPreference?: BatteryPreference;
+  /** Coldest expected cell temperature at the SITE, °C. Defaults to 18. */
+  minCellTempC?: number;
   /** Array layout — feeds the mounting engine. */
   rows: number;
   railLengthMm: number;
@@ -126,7 +163,28 @@ export interface SystemCandidates {
 export interface StringConfig {
   numStrings: number;
   maxSeriesLength: number;
+  /** Which rule produced it, so a review can tell at a glance. */
+  rule: 'temperature' | 'flat';
+  /** Module Voc at the design minimum temperature, V — `null` on the flat rule. */
+  vocAtMinTempV: number | null;
+  /** The temperature it was corrected to, °C — `null` on the flat rule. */
+  minCellTempC: number | null;
+  /** What v7's flat 0.95 rule would have allowed, for comparison on review. */
+  flatRuleMaxSeriesLength: number;
   warnings: string[];
+}
+
+/**
+ * A module's open-circuit voltage at a given cell temperature.
+ *
+ *   Voc(T) = Voc_STC × (1 + β/100 × (T − 25))
+ *
+ * β is negative, so below 25 °C the voltage RISES. This is the number that
+ * destroys an inverter on a cold clear morning, and the reason string length
+ * is a temperature question rather than a fixed percentage.
+ */
+export function vocAtTemp(vocStc: number, betaPercentPerC: number, cellTempC: number): number {
+  return vocStc * (1 + (betaPercentPerC / 100) * (cellTempC - 25));
 }
 
 export interface SystemResult {
@@ -150,8 +208,20 @@ export interface SystemResult {
 }
 
 /**
- * String length and count against the inverter's real limits — v7's
- * `sizePvStrings`, unchanged.
+ * String length and count against the inverter's real limits.
+ *
+ * v7 sized on a FLAT 0.95 of the inverter's maximum — a single fudge factor
+ * standing in for cold-morning Voc rise, identical for every module. Since
+ * 2026-09-06 the default corrects each module's own Voc by its own
+ * temperature coefficient to the site's coldest expected temperature, which
+ * is what IEC 62548 and NEC 690.7 actually ask for.
+ *
+ * The flat rule remains selectable (`vocRule: 'flat'`) because it is what v7
+ * does, and the parity tests must keep testing v7.
+ *
+ * A module with no `temp_coeff_voc_percent_per_c` falls back to the flat rule
+ * and SAYS SO (owner, 2026-09-06). Inventing a plausible β would put a number
+ * nobody read off a datasheet into a safety-bearing calculation.
  */
 export function sizePvStrings(
   panel: PanelSpec,
@@ -160,7 +230,7 @@ export function sizePvStrings(
   invCategory: 'on-grid' | 'hybrid',
   options: SystemOptions = {},
 ): StringConfig {
-  const { vocMarginFactor } = { ...SYSTEM_DEFAULTS, ...options };
+  const { vocRule, vocMarginFactor, minCellTempC } = { ...SYSTEM_DEFAULTS, ...options };
   let maxVoltage: number;
   let mpptCount: number;
   let stringsPerMppt: number;
@@ -175,14 +245,33 @@ export function sizePvStrings(
     mpptCount = i.no_of_mpp_trackers || 1;
     stringsPerMppt = 1;   // the hybrid data does not state strings per tracker
   }
-  const maxSeriesLength = Math.max(1, Math.floor((maxVoltage * vocMarginFactor) / panel.voc_stc_v));
+  const warnings: string[] = [];
+  const flatRuleMaxSeriesLength = Math.max(1, Math.floor((maxVoltage * vocMarginFactor) / panel.voc_stc_v));
+
+  const beta = Number(panel.temp_coeff_voc_percent_per_c);
+  const haveBeta = Number.isFinite(beta) && beta !== 0;
+  const useTemperature = vocRule === 'temperature' && haveBeta;
+
+  if (vocRule === 'temperature' && !haveBeta) {
+    warnings.push(`${panel.model} has no Temp Coeff. Voc on file, so its string length was sized on the old flat ${vocMarginFactor} margin instead of the site temperature. Fill that spec in Tech Specs to size it properly.`);
+  }
+
+  const vocAtMinTempV = useTemperature ? vocAtTemp(panel.voc_stc_v, beta, minCellTempC) : null;
+  const maxSeriesLength = useTemperature
+    ? Math.max(1, Math.floor(maxVoltage / (vocAtMinTempV as number)))
+    : flatRuleMaxSeriesLength;
+
   const numStrings = Math.max(1, Math.ceil(numPanels / maxSeriesLength));
   const maxAllowedStrings = mpptCount * stringsPerMppt;
-  const warnings: string[] = [];
   if (numStrings > maxAllowedStrings) {
     warnings.push(`PV array needs ${numStrings} string(s) of up to ${maxSeriesLength} panel(s) each, but ${inv.model} only supports ${maxAllowedStrings} string(s) (${mpptCount} MPPT × ${stringsPerMppt}/MPPT). Add an external combiner or a larger/second inverter.`);
   }
-  return { numStrings, maxSeriesLength, warnings };
+  // A longer string than the old rule allowed is correct, not a mistake — but
+  // it is a change a reviewer should see rather than discover.
+  if (useTemperature && maxSeriesLength > flatRuleMaxSeriesLength) {
+    warnings.push(`String length ${maxSeriesLength} is above the ${flatRuleMaxSeriesLength} the old flat margin allowed: ${panel.model} at ${minCellTempC} °C reaches ${(vocAtMinTempV as number).toFixed(1)} V per module against ${maxVoltage} V at the inverter. Lower the design temperature if this site can get colder than ${minCellTempC} °C.`);
+  }
+  return { numStrings, maxSeriesLength, rule: useTemperature ? 'temperature' : 'flat', vocAtMinTempV, minCellTempC: useTemperature ? minCellTempC : null, flatRuleMaxSeriesLength, warnings };
 }
 
 /** An on-grid inverter's phase, read the way v7 reads it. */
@@ -266,7 +355,12 @@ export function calculateSystem(
   candidates: SystemCandidates,
   options: SystemOptions = {},
 ): SystemResult {
-  const opt = { ...SYSTEM_DEFAULTS, ...options };
+  const opt = {
+    ...SYSTEM_DEFAULTS,
+    ...(input.minCellTempC != null && Number.isFinite(Number(input.minCellTempC))
+      ? { minCellTempC: Number(input.minCellTempC) } : {}),
+    ...options,
+  };
   const errors: string[] = [];
   const warnings: string[] = [];
   const picks: SystemResult['picks'] = [];

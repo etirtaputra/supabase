@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-09-06T03:00:00Z',
+    title: 'Panjang string dihitung dari suhu lokasi, bukan lagi satu angka pukul rata',
+    details: [
+      'Voc modul naik saat dingin, dan kasus terburuknya pagi cerah yang dingin. Mesin lama memakai satu faktor 0,95 untuk semua modul; sekarang Voc tiap modul dikoreksi memakai koefisien suhunya sendiri ke suhu terdingin lokasi. Inilah yang sebenarnya diminta IEC 62548 dan NEC 690.7.',
+      'Ada kolom baru "Coldest site temperature" di Design system, dan bisa diubah. Bawaannya 18 \u00b0C untuk dataran rendah Indonesia; TURUNKAN untuk lokasi dataran tinggi \u2014 Bandung sekitar 14 \u00b0C, Dieng bisa di bawah nol. Lebih rendah selalu arah yang aman: string jadi lebih pendek.',
+      'Faktor 0,95 yang lama setara merancang untuk 3\u20139 \u00b0C, tergantung modulnya \u2014 terlalu berhati-hati untuk sebagian besar Indonesia. Jadi string biasanya jadi LEBIH PANJANG sekarang, artinya lebih banyak panel per string dan per MPPT. Kalau hasilnya melewati batas aturan lama, mesin mengatakannya di layar tinjauan, lengkap dengan tegangan per modul pada suhu itu \u2014 supaya perubahan itu terlihat, bukan ditemukan belakangan.',
+      'Modul yang belum punya Temp Coeff. Voc di Tech Specs (3 dari 13, termasuk JINKO JKM575N) tetap dihitung dengan margin lama, dan mesin MENYEBUTKAN bahwa itu yang terjadi serta spec mana yang kurang. Tidak ada angka koefisien yang dikarang sendiri.',
+      'Desain yang tersimpan tetap bisa dijelaskan: versi mesin naik dari 7 ke 8, dan aturan lama tetap ada di kode. Sepuluh uji paritas terhadap kalkulator v7 sekarang meminta aturan lama secara eksplisit, jadi keduanya tetap terjaga.',
+    ],
+  },
+  {
     at: '2026-09-06T02:00:00Z',
     title: 'Barang yang diarsipkan benar-benar hilang dari semua pemilih dokumen',
     details: [
