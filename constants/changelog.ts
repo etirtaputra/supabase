@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-09-06T09:00:00Z',
+    title: 'Data pembelian ditutup dari akses anonim, dan hak tulis kini dijaga database',
+    details: [
+      'DITEMUKAN DAN DITUTUP hari ini: dengan kunci anon saja \u2014 tanpa login \u2014 siapa pun bisa MEMBACA 37 pemasok, 226 PO, 651 baris PO lengkap dengan harga beli, dan seluruh 1.005 baris katalog; serta MENGUBAH katalog. Kunci anon ikut terkirim di setiap halaman situs, jadi ini tidak butuh pencurian apa pun. Lima kebijakan lama menyasar peran "public" (yang mencakup anonim), bukan "authenticated". Sudah dihapus dan dibuktikan tertutup: anon kini melihat 0 baris.',
+      'Hak tulis sisi pembelian sekarang dijaga di DATABASE, bukan hanya di tampilan React. Sepuluh tabel dulu mengizinkan semua pengguna yang login menulis apa pun. Sekarang: pemasok, penawaran pemasok, PO dan biaya hanya bisa ditulis owner, buy_admin, data_entry, finance. Katalog bisa ditulis semua peran yang memang boleh menyunting (termasuk sell_admin untuk harga). Gudang tetap bisa menandai PO diterima.',
+      'Yang bisa DIBACA tidak berubah sama sekali \u2014 tidak ada layar yang kehilangan datanya. Diuji per peran dengan transaksi yang di-rollback: buy_admin dan owner tetap bisa menulis semuanya, sell_admin bisa katalog tapi bukan PO, dan akun Project Engineer ditolak di keempatnya.',
+      'Membaca tabel biaya masih terbuka untuk semua yang login. Itu tahap berikutnya \u2014 perlu pemeriksaan satu per satu atas view analitik yang membacanya.',
+    ],
+  },
+  {
     at: '2026-09-06T03:00:00Z',
     title: 'Panjang string dihitung dari suhu lokasi, bukan lagi satu angka pukul rata',
     details: [

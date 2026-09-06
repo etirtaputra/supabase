@@ -543,19 +543,41 @@ the `DQ-` number) but the SO number is spent.
    `9.0_exchange_rate_history` has CNY at 2,244 (Jun 2024) and 2,327 (Oct 2025);
    2,643 only otherwise appears on 2026 POs. Overstates that deal ~IDR 145–180m.
 
-### Two security holes found and NOT yet fixed (owner informed, not authorised)
+### Security holes — #2 FIXED 2026-09-06, #1 still open
 
-1. **`app/api/insert-from-pdf/route.ts` has no auth and writes with the
-   service-role key.** Anyone reaching that URL can insert suppliers, quotes,
-   POs and line items into production. `extract-pdf` is also open and spends
-   `ANTHROPIC_API_KEY` for any caller. `ask` and `next-step` check the bearer
-   token correctly — copy that pattern.
-2. **The whole buy side is ungated at the DB level.** Ten tables
-   (`1.0`–`9.0`, minus `6.0_po_costs`) carry `ALL TO authenticated USING
-   (true)`; role gating for them lives only in React, so `po@icasolar.com`'s
-   `buy_admin` is a label, not a constraint. `3.0_components` additionally has
-   an anon `UPDATE ... USING (true)` policy. Everything built later (42 write
-   policies) IS properly role-gated.
+1. **STILL OPEN. `app/api/insert-from-pdf/route.ts` has no auth and writes with
+   the service-role key.** Anyone reaching that URL can insert suppliers,
+   quotes, POs and line items into production. `extract-pdf` is also open and
+   spends `ANTHROPIC_API_KEY` for any caller. `ask` and `next-step` check the
+   bearer token correctly — copy that pattern.
+2. **FIXED 2026-09-06 — and it was worse than recorded here.** The note used to
+   say the buy side was ungated "at the DB level" with role gating only in
+   React. True, but it understated it: four tables also carried
+   `Allow public read` policies targeting the **`public` ROLE**, which includes
+   `anon`. Proven by rolled-back probe: **with the anon key alone and no login**
+   a caller could READ 37 suppliers, 226 POs, 651 PO line items WITH UNIT COSTS
+   and all 1,005 catalogue rows, and could UPDATE the catalogue (the known
+   `allow_update` policy). The anon key ships in every page's JS bundle, so this
+   needed no credential theft at all.
+   Closed in two migrations, both applied and verified:
+   * `migrations/close_anon_access.sql` — drops the four public-read policies,
+     the anon `allow_update`, and a duplicate on `8.0_component_links`. Re-ran
+     the same probe: anon now sees **0 rows** on all four and updates nothing;
+     `authenticated` still sees 37/226/651/1005, so no screen lost data.
+   * `migrations/gate_buy_side_writes.sql` — replaces `ALL TO authenticated
+     USING (true)` on ten tables with `can_write_buy_side()`,
+     `can_edit_catalog()` and `can_manage_stock()`, mirroring
+     `ROLE_PERMISSIONS` exactly. The catalogue is SHARED (Tech Specs, Products,
+     tier pricing all write it from the sell side) so it gates on `canEdit`,
+     not on buy-side membership; `5.0_purchases` also accepts stock roles
+     because goods receipt marks the PO received.
+   Verified per role by rolled-back probe: buy_admin and owner write everything;
+   sell_admin writes the catalogue but not POs or suppliers; the `engineer`
+   account (MANDA) is refused on all four. **SELECT is deliberately unchanged** —
+   this change removes no read that works today, so it cannot break a screen.
+   **Still to do: gate READS on the cost-bearing tables** (`4.x`, `5.x`, `7.0`).
+   That needs the analytics views checked one at a time, since `v_landed_cost_summary`
+   and friends read them.
 
 
 ### 2026-08-28 (later still) — the two personal switches, and a Stock finding
