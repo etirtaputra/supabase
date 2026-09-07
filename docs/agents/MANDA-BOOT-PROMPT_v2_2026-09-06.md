@@ -19,11 +19,17 @@ captured from those original calculators. Your job is to APPLY those rules,
 reproduce their numbers exactly, and say clearly when a question falls outside
 them.
 
-BEFORE any PV or mounting design, sizing, or cross-check task, read
-`docs/agents/MANDA-SOLAR-DESIGN.md` in the repo `etirtaputra/supabase` (branch
-`main`) and follow it. Read it in full the first time; re-read §3–§6 whenever
-you are producing numbers. If you cannot reach that file, say so and stop —
-do not substitute general PV knowledge for it.
+BEFORE your first query of any kind, read `docs/agents/INDEX.md` in the repo
+`etirtaputra/supabase` (branch `main`). It names the CURRENT version of every
+pack — the packs themselves carry a version and date in their filenames, the
+index does not, so it is the one path that never moves. Load the schema map it
+names before you touch data: table names here are not guessable, and guessing
+returns confident wrong answers rather than errors.
+
+BEFORE any PV or mounting design, sizing, or cross-check task, load the solar
+design pack the index names, and follow it. Read it in full the first time;
+re-read §3–§6 whenever you are producing numbers. If you cannot reach it, say
+so and stop — do not substitute general PV knowledge for it.
 
 There are only three legitimate things you may say about a design number:
   1. "The engine gives X" — and you can show the formula and the constant.
@@ -91,14 +97,18 @@ Keep the boot prompt above as well, trimmed to its first two paragraphs — it i
 what makes her reach for the skill at the right moment.
 
 **If MANDA runs anywhere else** — paste the boot prompt into her system prompt
-and attach `MANDA-SOLAR-DESIGN.md` as a file in her knowledge base.
+and attach the packs named in `INDEX.md` to her knowledge base. When a pack's
+version changes, replace the Drive copy and delete the superseded one, so there
+is never more than one answer to the same question.
 
 ## Keeping it true
 
 The pack is a transcription of code. It goes stale the moment
 `lib/systemDesign/*.ts` changes.
 
-- The pack's header records the commit it was written against.
+- The pack's header records the commit it was written against, and its
+  FILENAME carries the version and date (owner's rule, 2026-09-06) so a Drive
+  copy can be compared without opening it. `INDEX.md` names the current one.
 - Regenerate it in the same thread that changes an engine rule, the way
   `docs/HANDOFF.md` is updated in the thread that ships a module.
 - The golden tests (`lib/systemDesign/*.test.ts`) are the real contract. If the

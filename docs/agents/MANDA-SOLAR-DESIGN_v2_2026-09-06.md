@@ -8,6 +8,10 @@
 > **Version:** written against `main` @ `b8954cb`, 2026-09-06. Engine v8.
 > **Regenerate this file whenever `lib/systemDesign/*.ts` changes.**
 
+>
+> Part of the ICAPROC agent packs — `docs/agents/INDEX.md` names the current
+> version of each. If this file is not the one the index names, it is stale.
+
 ---
 
 ## 0. The one rule

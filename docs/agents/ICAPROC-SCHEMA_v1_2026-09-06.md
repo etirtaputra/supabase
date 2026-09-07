@@ -10,6 +10,10 @@
 > are not guessable — no one invents `3.0_components` — so guessing produces
 > confident, wrong answers instead of errors.
 
+>
+> Part of the ICAPROC agent packs — `docs/agents/INDEX.md` names the current
+> version of each. If this file is not the one the index names, it is stale.
+
 ---
 
 ## 0. Five tables that will lie to you
