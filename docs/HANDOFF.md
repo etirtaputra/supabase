@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-06** · head of `main` at that point: `260fec1` (see §4, §6)
+**Last updated: 2026-09-07** · head of `main` at that point: `2902c98` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -121,6 +121,64 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 ---
 
 ## 4. What the previous threads did (for context, all shipped to main)
+
+### 2026-09-07 — the agent document set becomes enforceable
+
+The owner set up a Google Shared Drive for the agent packs and asked whether any
+runbooks existed. One did — `docs/PURCHASING_RUNBOOK.md`, written 2026-08-29
+(`e4abe0e`) and never versioned. Answering that turned into a correctness pass,
+because his two agents had by then written their own `.md` files into the
+drive's output folder, and reading them found a live problem.
+
+**MIRA's notes carried a mutated version of a rule that was already written
+down.** She had derived, from a real incident, "`total_value` is trigger-backed
+and the trigger adds rather than replaces — never state it on insert." Checked
+against `pg_trigger` and the app:
+
+- The incident is real. `recalculate_po_total()` preserves `delta = total −
+  (line sum before the change)`, which is the freight billed on top. State a
+  total before any lines exist and the delta is measured against zero, so the
+  first line insert stacks goods on freight. Her figures reproduce exactly:
+  1,724,385 + 1,553,500 = 3,277,885.
+- **Her mechanism is wrong.** `5.0_purchases` has no total-touching trigger,
+  only `refresh_analytics_view`. It was not the later `document_url` edit;
+  the damage happens at insert. Her version would make an agent afraid to
+  edit any field on a PO.
+- **Her rule is wrong for price quotes.** `4.0_price_quotes` has no total
+  trigger at all — `NewDealForm.tsx:319` computes `items + freight` and writes
+  it. Following her rule leaves every quote's total null.
+- The correct rule had been **rule #1 of the purchasing runbook since
+  2026-08-29**, in a file she had never been given.
+
+Shipped:
+
+- **`docs/agents/PURCHASING-RUNBOOK_v2_2026-09-07.md`** — moved out of `docs/`
+  and versioned. §4 now carries the delta formula, what the trap is *not*, and
+  the price-quote exception; rule #4 no longer blanket-claims totals are
+  derived; §1 gains the offerable rule (archived is a legitimate purchase
+  match, never an offer).
+- **`docs/agents/ICAPROC-SCHEMA_v4_2026-09-07.md`** — new §5a (four total
+  columns, three mechanisms), a sell-side write freeze box in §3 (`22.1` has no
+  triggers at all; `24.0` posts no stock), §5b for onboarding, and two new
+  habits: a rule derived from an incident is a guess about the mechanism, and
+  your notes are not the packs.
+- **`app/api/agent/onboarding/route.ts`** — the "agents know where to look"
+  ask, as one call. Role, visible/hidden signal kinds, endpoints, the CURRENT
+  filename of every pack, and the standing rules. Answers as the caller.
+- **`lib/agentDocs.ts` + `agentDocs.test.ts`** — the registry behind it. The
+  build now fails if a named pack is missing, if `INDEX.md` does not mention
+  it, if a superseded copy is left in the folder, or if a filename lacks its
+  `_v<N>_YYYY-MM-DD`. The versioning rule is enforced, not remembered.
+- **`INDEX.md`** — the Drive folder convention (`00-READ-FIRST` /
+  `10-PACKS` / `20-RUNBOOKS` / `90-OUTPUT`), the permissions rule, and a
+  section on why agent notes are field notes rather than packs.
+
+**Left alone on purpose:** the agents' own files in `90-OUTPUT` — including
+`manda_engines_v11_v8.py`, a Python fork of the two engines. It is faithful
+today (diffed against `mounting.ts` and `system.ts`) but nothing in CI knows it
+exists, so the next engine change makes it silently wrong. The fix is the
+design API, which shipped the day before; it needs a message to MANDA, not a
+commit.
 
 ### 2026-09-06 — MANDA's knowledge pack, and three rounds of engine correctness
 

@@ -62,13 +62,18 @@ nothing else; everything it needs hangs off there.
 
 | File | What it teaches | Status |
 |---|---|---|
-| `ICAPROC-SCHEMA.md` | the table map, the dead tables, the revision rule | ✅ |
+| `GET /api/agent/onboarding` | role, capabilities, current filenames, standing rules | ✅ |
+| `ICAPROC-SCHEMA.md` | the table map, the dead tables, the revision rule, the totals rules | ✅ |
+| `PURCHASING-RUNBOOK.md` | the six buy-side procedures | ✅ |
 | `MANDA-SOLAR-DESIGN.md` | the PV and mounting engines, and their limits | ✅ |
 | `MANDA-BOOT-PROMPT.md` | how to wire an agent to the above | ✅ |
-| `PURCHASING_RUNBOOK.md` (in `docs/`) | the six buy-side procedures | ✅ |
 | `AGENT-PLATFORM_v*.md` | this file | ✅ |
 | `INDEX.md` | names the current version of every pack | ✅ |
-| `SELL-SIDE-RUNBOOK.md` | quote → order → DO → invoice → receipt, in order | TODO |
+| `SELL-SIDE-RUNBOOK.md` | quote → order → DO → invoice → receipt, in order | TODO — step 6 |
+
+(Filenames carry `_v<N>_YYYY-MM-DD`; `INDEX.md` and the onboarding endpoint
+name the current one. `lib/agentDocs.ts` is the registry both read, and
+`agentDocs.test.ts` fails the build if it drifts from the folder.)
 
 **The rule that keeps these true:** a pack is a TRANSCRIPTION of code, and the
 thread that changes the code regenerates the pack in the same commit
@@ -133,7 +138,7 @@ Every function:
 **Where the design engines live is a real constraint.** `lib/systemDesign/` is
 TypeScript with golden tests. Do NOT port it to SQL — two implementations of a
 sizing rule is exactly how the numbers drift apart. Instead expose it as an
-authenticated API route (`POST /api/design/system`, `/api/design/mounting`)
+authenticated API route (`POST /api/agent/design/system`, `/api/agent/design/mounting`)
 that runs the same engine the ERP runs, so an agent prepopulating a Proposal
 BoM gets the same numbers the Sales Quote screen would produce. One engine, two
 callers.
@@ -186,14 +191,17 @@ attention to" feature, without any agent needing write access at all.
 2. **`INDEX.md`** ✅ **+ read views** — the views are still to do.
 3. ✅ **Design API routes** — `/api/agent/design/mounting` and `/design/system`,
    running the same engines the screens run, resolved at the customer's tier.
-4. **`agent_runs` + catalogue write RPCs with dry-run.** Data entry and bulk
+4. ✅ **Onboarding endpoint + enforced document registry** —
+   `/api/agent/onboarding`, `lib/agentDocs.ts`, `agentDocs.test.ts`. An agent
+   finds out a pack is superseded on its first call, not after acting on it.
+5. **`agent_runs` + catalogue write RPCs with dry-run.** Data entry and bulk
    update — the highest-volume, lowest-risk writes.
-5. **Sell-side RPCs**, in ladder order: quote, then advance, then DO, then
+6. **Sell-side RPCs**, in ladder order: quote, then advance, then DO, then
    invoice. Money last, and each one moves an invariant out of React and into
    SQL as it goes.
-6. **Sell-side runbook**, written against the RPCs once they exist.
+7. **Sell-side runbook**, written against the RPCs once they exist.
 
-**Until step 5 lands, no agent writes a sell-side document** — not because of
+**Until step 6 lands, no agent writes a sell-side document** — not because of
 permissions, but because §0 means the result would be quietly wrong.
 
 ---

@@ -1,5 +1,13 @@
 # ICAPROC Purchasing Runbook (buy side)
 
+> Part of the ICAPROC agent packs — `docs/agents/INDEX.md` names the current
+> version of each. If this file is not the one the index names, it is stale.
+>
+> **v2, 2026-09-07** — moved into `docs/agents/` and versioned; §4 now carries
+> the mechanism behind the lines-before-totals rule and the price-quote
+> exception to it; the offerable rule added to §2. Everything else is as
+> written on 2026-08-29.
+
 Six procedures, in the order the work happens. Each is written twice: the click-path a
 person follows, and the contract an agent must honour. Both describe the same save.
 
@@ -22,7 +30,9 @@ An agent that remembers nothing else from this document must still obey these fi
    `exchange_rate` is present. Never multiply. See §5.
 3. **A near-match is a question for a human, never an auto-merge.** Only an exact
    `lower(trim(supplier_model))` match counts as "this component already exists". See §1.
-4. **Never invent a total.** Totals are derived. Omitting them yields the correct answer.
+4. **Never invent a PO total.** `5.0_purchases.total_value` is derived; omitting it yields
+   the correct answer. **This does not extend to `4.0_price_quotes.total_value`** — that
+   column has no trigger behind it. Omit it there and the quote has no total at all. See §4.
 5. **New Deal creates; it does not edit.** Amendments to a saved document go through
    Deal Lookup. See §7.
 
@@ -78,6 +88,14 @@ question — *have we traded this with them* — rather than *does this string e
 ### Note for API clients
 The duplicate check is implemented in React, not in the database. An agent writing directly
 to PostgREST does not hit it and must run this lookup itself before every component insert.
+
+### Buying an archived item is fine; offering one is not
+`archived_at IS NOT NULL` means retired. It is still a legitimate match for this lookup —
+history is history, and a PO that receives stock against a retired code is correct. But an
+item is **offerable** only when `archived_at IS NULL` *and* `quote_cost_mode <> 'hidden'`.
+Two modules leaked into the designer on 2026-09-06 because a picker checked only the second
+half. Where the app asks that question it uses `isOfferable()` in `lib/itemVisibility.ts`;
+where you ask it, ask both halves.
 
 ---
 
@@ -209,20 +227,38 @@ Write a total onto a PO that has no lines yet and the gap is measured against ze
 entire total is read as freight, and the first line then stacks the goods on top of it. The
 total lands at exactly twice the goods.
 
+```
+delta       = total_value − (line sum BEFORE this change)
+total_value = (line sum AFTER this change) + delta
+```
+
 **PO-149-MBS-08-2026 read IDR 1.619.460 against IDR 809.730 of lines; EB.42277 and
 EB.42324 the same.**
+
+**What this trap is NOT.** The trigger sits on `5.1_purchase_line_items`. `5.0_purchases`
+carries nothing that touches its total — only `refresh_analytics_view`. So updating a PO's
+`document_url`, `status` or `payment_terms` is safe and always was; an agent that reproduced
+the doubling in 2026-09 blamed a later `document_url` edit, but the damage was done at
+insert and the first line-item write merely revealed it. Order of writes is the whole rule.
+
+**And it does not transfer to the quote.** `4.0_price_quotes` has no total trigger at all —
+only `copy_sku_trigger` on `4.1`, which fills descriptions. The New Deal form computes
+`items + freight` and writes it (`components/forms/NewDealForm.tsx`). State it yourself.
 
 ### Contract
 ```
 write 4.0_price_quotes           # status -> Accepted
+      total_value = items + freight     <- NO trigger here.
+                                           State it or it stays null.
 then  4.1_price_quote_line_items
 then  5.0_purchases              # unit_price -> unit_cost
+                                 # total_value: LEAVE NULL at insert
 then  5.1_purchase_line_items
 last  5.0_purchases.total_value  # ONLY if stated, and
                                  # ONLY after the lines exist
 
-omit total -> the trigger sets it to the line sum,
-              which is the right answer. Do not guess.
+omit PO total -> the trigger sets it to the line sum,
+                 which is the right answer. Do not guess.
 
 status 5.0_purchases
   Draft · Sent · Confirmed · Replaced

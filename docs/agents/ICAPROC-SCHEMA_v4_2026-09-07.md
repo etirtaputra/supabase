@@ -2,8 +2,9 @@
 
 > **Read this before your first query. Never guess a table name.**
 >
-> Written 2026-09-06 against `main` @ the commit that added it. Row counts are
-> from that day and drift; the NAMES and the RULES are what matter.
+> Written 2026-09-06, revised 2026-09-07, against `main` @ the commit that
+> carries it. Row counts are from those days and drift; the NAMES and the RULES
+> are what matter.
 >
 > Why this file exists: on 2026-09-06 an agent queried `batteries`, got 3 rows,
 > and reported it as the catalogue. The real figure is 27. The table names here
@@ -112,6 +113,25 @@ walks `draft → validated → sent → accepted → ordered → invoiced → pr
 delivered`, and the SO/INV/DO numbers are stamped onto the same row by a
 trigger as it passes each milestone.
 
+> ### Read the sell side. Do not write it — not yet.
+>
+> `22.1_sales_quote_items` carries **no triggers at all** (checked against
+> `pg_trigger`, 2026-09-07). `22.0_sales_quotes` stores `subtotal`,
+> `ppn_amount` and `grand_total` as plain columns, and the only thing that
+> computes them is the sales editor in the browser (`app/sales/[id]/page.tsx`:
+> sum the non-section lines, add PPN, write all three).
+>
+> So inserting a quote item over the API changes nothing on the header. The
+> document keeps its old total and looks perfectly normal — no error, no
+> mismatch flagged anywhere — until someone invoices it. The same is true of
+> `24.0_delivery_orders`: it posts nothing to `30.0_stock_movements`, so a
+> delivery written directly leaves the stock ledger claiming goods that have
+> left the building.
+>
+> This is why the sell-side write verbs are not built yet. It is not a
+> permissions gap you can work around by having the right role; the result
+> would be quietly wrong, which is worse than refused.
+
 ## 4. Stock
 
 `30.0_stock_movements` (174, append-only ledger) · `30.1_stock_balances` (138,
@@ -135,7 +155,71 @@ of whether a query happens to succeed.
 
 ---
 
-## 5b. What needs attention — ask the API, don't invent the query
+## 5a. Totals: which are derived, and how the derivation bites
+
+Four total columns, three different mechanisms. Getting this wrong has cost
+real money twice, so it is written out in full.
+
+| Column | Who computes it | What you do |
+|---|---|---|
+| `5.0_purchases.total_value` | trigger `recalculate_po_total()` on the LINE ITEMS | write the lines first, state the total after — or omit it |
+| `4.0_price_quotes.total_value` | **nobody** — the New Deal form computes `items + freight` and writes it | state it, or the quote has no total |
+| `22.0_sales_quotes.subtotal / ppn_amount / grand_total` | **nobody** — the sales editor computes all three | don't write these documents yet (§3) |
+| `30.1_stock_balances` | trigger, from the movement ledger | never write it (§6) |
+
+### The PO trigger keeps freight, and it measures against what exists
+
+`recalculate_po_total()` fires on `5.1_purchase_line_items`. It does not
+replace the total with the line sum — it preserves whatever the total exceeds
+the lines by, because that difference is the freight the supplier bills on top:
+
+```
+delta       = total_value − (line-item sum BEFORE this change)
+total_value = (line-item sum AFTER this change) + delta
+```
+
+Which is correct, and has one sharp edge. **State a total on a PO that has no
+lines yet and the delta is measured against zero** — the whole stated total is
+read as freight, and the first line insert then stacks the goods on top of it.
+The total lands at exactly twice the goods.
+
+That is not hypothetical: `PO-149-MBS-08-2026` read IDR 1.619.460 against IDR
+809.730 of line items, and `EB.42277` / `EB.42324` the same (owner,
+2026-08-24). An agent reproduced it independently on 2026-09-07 — a PO stated
+at 1,724,385 with no lines, then lines summing 1,553,500, landing at 3,277,885
+— and concluded that *editing any field* on a PO doubles the total. It does
+not. `5.0_purchases` carries no total-touching trigger; the damage happens at
+insert and the first line-item write is only what reveals it.
+
+**The rule: lines first, total last.** Then the delta is measured against real
+goods, freight survives every later edit, and nothing about touching
+`document_url` or `status` is dangerous. `app/purchasing/page.tsx` does exactly
+this (`stampPoTotal`, written after the line inserts); the purchasing runbook
+carries it as rule #1.
+
+**The rule does not transfer to `4.0_price_quotes`.** That table has no total
+trigger — only `copy_sku_trigger` on its line items, which fills descriptions.
+Omit `total_value` there and it stays null forever.
+
+---
+
+## 5b. Start here after you sign in
+
+```
+GET /api/agent/onboarding
+Header: Authorization: Bearer <access_token>
+```
+
+One call. It answers AS YOU and returns your email and role, the signal kinds
+you may see and the ones you may not, the endpoints available to you, the
+documents to read with their **current filenames**, and the standing rules.
+
+Read it at the start of every session. The document filenames carry a version
+and a date, so a pack you were handed weeks ago may no longer be the current
+one — this endpoint is generated from the same registry the repository tests,
+so it cannot name a file that does not exist.
+
+## 5c. What needs attention — ask the API, don't invent the query
 
 Two read-only endpoints on `https://icaproc.com`. Send your access token; they
 answer AS YOU, so what you get back is exactly what your role may see.
@@ -242,3 +326,14 @@ attribution is the point of the account, not a side effect.
 6. **Label a hypothesis as a hypothesis.** "The auth endpoint returned 500,
    cause unknown" is a report. "The project is paused" was a guess that cost an
    hour.
+7. **A rule you derived from an incident is a guess about the mechanism.** You
+   saw what happened; you did not see why. Write down the observation and the
+   rule separately, so the next reader can correct one without losing the
+   other. The PO-total rule in §5a is the case in point: the remedy an agent
+   reached for was safe, the mechanism it inferred was wrong, and the wrong
+   mechanism would have made every later agent afraid to edit a PO at all.
+8. **Your notes are not the packs.** Write what you learn — it is how a wrong
+   belief gets caught — but keep it in your own output folder. A pack is
+   written from the shipping code downward and the code wins every
+   disagreement; notes are written from experience upward and record your
+   mistakes with the same confidence as your successes.
