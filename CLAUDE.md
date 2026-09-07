@@ -31,6 +31,25 @@
 - Never change a golden number to make a build pass. Those numbers were read
   out of the original v7/v11 calculators. Change one only when the rule
   deliberately changed, and say so out loud.
+- **The registry is `lib/agentDocs.ts`, and `docs/agents/INDEX.md` is the only
+  filename that never changes.** Every other pack carries `_v<N>_YYYY-MM-DD`.
+  Rename a pack and you must update the registry in the same commit — `npm
+  test` fails otherwise, and `/api/agent/onboarding` serves the same list.
+
+## Shipping a pack change to the agents (owner's rule, 2026-09-07)
+
+The owner is not technical and should not have to move files by hand. A thread
+that changes any pack finishes the job:
+
+1. **Upload to the shared drive** (`ICAPROC AI AGENTS`, Google Shared Drives),
+   filenames matching the repo character for character:
+   `00-READ-FIRST/` INDEX.md · `10-PACKS/` the packs · `20-RUNBOOKS/` the
+   runbooks · `90-OUTPUT/` agents' own notes, never ours.
+2. **Trash the superseded copy** in the same folder. Two files answering one
+   question is the failure the versioning rule exists to prevent.
+3. **ALWAYS end by writing the update prompt for BOTH MIRA and MANDA**, ready
+   to paste into Telegram — what changed, what to re-read, what belief to drop.
+   A pack nobody was told about is a pack nobody reads.
 
 ## Mission (why ICAPROC exists)
 
