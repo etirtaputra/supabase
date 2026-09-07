@@ -5,13 +5,13 @@
 > copy in Google Drive is stale. Agent prompts point HERE, and this page names
 > the current file — otherwise every version bump would break every prompt.
 >
-> **Last updated: 2026-09-06.**
+> **Last updated: 2026-09-06** (second revision today: the attention API).
 
 ## Current packs
 
 | Pack | Current file | For | Changed |
 |---|---|---|---|
-| **Schema map** | `ICAPROC-SCHEMA_v1_2026-09-06.md` | every agent, first | new |
+| **Schema map** | `ICAPROC-SCHEMA_v2_2026-09-06.md` | every agent, first | v2: the attention API |
 | **Solar design** | `MANDA-SOLAR-DESIGN_v2_2026-09-06.md` | MANDA, engineering | v2: engine v8, temperature-corrected strings |
 | **MANDA boot prompt** | `MANDA-BOOT-PROMPT_v2_2026-09-06.md` | MANDA's config | v2: string-reporting rule |
 | **Agent platform** | `AGENT-PLATFORM_v1_2026-09-06.md` | the owner and me | new — the plan, not a pack |

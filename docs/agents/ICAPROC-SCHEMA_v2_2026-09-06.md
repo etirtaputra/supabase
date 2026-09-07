@@ -135,6 +135,33 @@ of whether a query happens to succeed.
 
 ---
 
+## 5b. What needs attention — ask the API, don't invent the query
+
+Two read-only endpoints on `https://icaproc.com`. Send your access token; they
+answer AS YOU, so what you get back is exactly what your role may see.
+
+```
+GET /api/agent/attention/summary
+GET /api/agent/attention?severity=high&kind=po_late,stock_short&limit=50
+Header: Authorization: Bearer <access_token>
+```
+
+Every response carries `visible_kinds` and `hidden_kinds` for your role.
+**Report against those, never against an empty list.** "No overdue invoices"
+and "AR is outside what I can see" are different claims, and only one of them
+is honest when `ar_overdue` is in `hidden_kinds`.
+
+The seven signals: `ar_overdue` · `po_late` · `quote_quiet` · `below_cost` ·
+`stock_short` · `unpriced` · `no_specs`. Each row gives `severity`
+(high/medium/low), `subject`, `detail`, `amount_idr`, `age_days`, and
+`ref_table` + `ref_id` to drill into.
+
+Use these rather than writing your own aggregate over `25.0` and `26.0`: the
+rules are maintained in one place, and a hand-rolled version will disagree
+with the one the owner sees.
+
+---
+
 ## 6. What no one may write
 
 Maintained solely by `SECURITY DEFINER` triggers. Attempts are denied, and that

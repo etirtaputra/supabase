@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-09-06T11:00:00Z',
+    title: 'Dua endpoint baru: apa yang perlu diperhatikan hari ini',
+    details: [
+      '`/api/agent/attention` dan `/api/agent/attention/summary` menjawab pertanyaan "apa yang perlu saya perhatikan" sebagai data: faktur jatuh tempo, PO lewat ETA, penawaran yang didiamkan, barang yang dijual di bawah harga pokok, stok yang tidak menutup pesanan berjalan, barang bergerak tanpa harga, dan barang tanpa spesifikasi.',
+      'Keduanya HANYA MEMBACA. Sebuah agen bisa berguna sebelum ia boleh menulis apa pun.',
+      'Keduanya menjawab SEBAGAI PEMANGGIL, memakai token orang yang meminta \u2014 bukan kunci service-role. Jadi yang terlihat persis sama dengan yang boleh dilihat peran itu di layar. Akun Project Engineer tidak melihat faktur, PO, atau harga pokok.',
+      'Setiap jawaban menyertakan `visible_kinds` dan `hidden_kinds`. Ini bukan hiasan: agen harus melaporkan berdasarkan itu, supaya "tidak ada faktur jatuh tempo" tidak pernah tertukar dengan "saya tidak boleh melihat faktur".',
+    ],
+  },
+  {
     at: '2026-09-06T09:00:00Z',
     title: 'Data pembelian ditutup dari akses anonim, dan hak tulis kini dijaga database',
     details: [
