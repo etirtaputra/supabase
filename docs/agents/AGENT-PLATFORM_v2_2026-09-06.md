@@ -66,8 +66,8 @@ nothing else; everything it needs hangs off there.
 | `MANDA-SOLAR-DESIGN.md` | the PV and mounting engines, and their limits | ✅ |
 | `MANDA-BOOT-PROMPT.md` | how to wire an agent to the above | ✅ |
 | `PURCHASING_RUNBOOK.md` (in `docs/`) | the six buy-side procedures | ✅ |
-| `AGENT-PLATFORM.md` | this file | ✅ |
-| `INDEX.md` | one page listing all of the above, per agent role | TODO |
+| `AGENT-PLATFORM_v*.md` | this file | ✅ |
+| `INDEX.md` | names the current version of every pack | ✅ |
 | `SELL-SIDE-RUNBOOK.md` | quote → order → DO → invoice → receipt, in order | TODO |
 
 **The rule that keeps these true:** a pack is a TRANSCRIPTION of code, and the
@@ -182,11 +182,10 @@ attention to" feature, without any agent needing write access at all.
 
 ## 7. Build order, and why
 
-1. **Attention layer.** Read-only, zero risk, immediate value. An agent can be
-   useful before it can write anything.
-2. **`INDEX.md` + read views.** Stops the guessing that has already produced
-   two wrong answers.
-3. **Design API routes.** Unblocks BoM prepopulation using the real engines.
+1. ✅ **Attention layer** — `agent_attention` + `/api/agent/attention*`.
+2. **`INDEX.md`** ✅ **+ read views** — the views are still to do.
+3. ✅ **Design API routes** — `/api/agent/design/mounting` and `/design/system`,
+   running the same engines the screens run, resolved at the customer's tier.
 4. **`agent_runs` + catalogue write RPCs with dry-run.** Data entry and bulk
    update — the highest-volume, lowest-risk writes.
 5. **Sell-side RPCs**, in ladder order: quote, then advance, then DO, then

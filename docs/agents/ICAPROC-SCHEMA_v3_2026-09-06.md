@@ -160,6 +160,42 @@ Use these rather than writing your own aggregate over `25.0` and `26.0`: the
 rules are maintained in one place, and a hand-rolled version will disagree
 with the one the owner sees.
 
+### Designing — call the engine, never re-derive it
+
+```
+GET  /api/agent/design/mounting     the rail lengths, mount types, panel
+                                    presets and mounting systems to choose from
+POST /api/agent/design/mounting     { panelCount, panelLengthMm, panelWidthMm,
+                                      railLengthMm, numberOfRows?, panelSpacingMm?,
+                                      panelThicknessMm?, mountType?, orientation?,
+                                      customerId?, series?, railProfile? }
+POST /api/agent/design/system       { systemType, panelComponentId, customerId?,
+                                      gridVA?/gridPhase?/dcAcRatio?    (on-grid)
+                                      loads[]/autonomyDays?/pshHours?  (off-grid)
+                                      minCellTempC?, rows?, railLengthMm?, … }
+```
+
+These run **the same v11 and v7/v8 engines the Design Mounting and Design
+System screens run**, resolved against the same catalogue at the same
+customer's tier. If a number here disagrees with the screen, one of them is
+broken — there is no second implementation to blame. **Never compute a bill of
+materials yourself**, and never re-derive a string length: post to the engine.
+
+What comes back, and what you must carry into any report:
+- `lines` — the resolved bill of materials, each with `resolved`, `candidates`
+  and a `warning` where the catalogue could not satisfy the role.
+- `strings` — `rule`, `minCellTempC`, `vocAtMinTempV`, `maxSeriesLength`,
+  `flatRuleMaxSeriesLength`. **A string length without its rule and temperature
+  is not a report** (see the solar design pack §5).
+- `notes` — every engine warning plus unresolved / unpriced / short counts.
+  Dropping these drops the engineering.
+- `pricing.tierCode` — which tier priced it.
+
+The candidate pool is the catalogue filtered to OFFERABLE and design-ready
+items, so an item that is archived, Cost-Basis Hidden, or missing the specs its
+category needs cannot enter a design. You cannot pass in a module of your own
+invention; `panelComponentId` must be a real catalogue row.
+
 ---
 
 ## 6. What no one may write

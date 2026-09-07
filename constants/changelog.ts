@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-09-06T12:00:00Z',
+    title: 'Design System dan Design Mounting kini bisa dipanggil lewat API',
+    details: [
+      '`/api/agent/design/mounting` dan `/api/agent/design/system` menjalankan MESIN YANG SAMA dengan layar Design Mounting dan Design System \u2014 kalkulator v11 dan v7/v8 \u2014 lalu mencocokkannya ke katalog dengan harga tier pelanggan yang sama. Kalau angkanya berbeda dari layar, salah satunya rusak; tidak ada implementasi kedua untuk disalahkan.',
+      'Ini alasan mesinnya TIDAK ditulis ulang di SQL: dua salinan aturan sizing akan menyimpang diam-diam.',
+      'Kumpulan kandidatnya adalah katalog yang sudah disaring: barang yang diarsipkan, yang disembunyikan dari dokumen pelanggan, atau yang spesifikasinya belum lengkap tidak bisa masuk ke desain. Modul harus dipilih dari katalog \u2014 tidak bisa dikarang.',
+      'Jawabannya membawa peringatan mesin, jumlah baris yang tidak ketemu di katalog, yang belum berharga, dan yang melebihi stok \u2014 plus aturan Voc dan suhu lokasi di balik panjang string. Itu bagian dari jawabannya, bukan hiasan.',
+    ],
+  },
+  {
     at: '2026-09-06T11:00:00Z',
     title: 'Dua endpoint baru: apa yang perlu diperhatikan hari ini',
     details: [
