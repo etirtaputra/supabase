@@ -433,10 +433,10 @@ function ProductsInner() {
   // Settings (Indonesian punctuation is one click away there).
   // Tapping ONE price copies it, and that is all it does.
   //
-  // It used to go through shareOrCopy, so on a phone it opened "send to which
-  // app?" — a question nobody asked, for a number they were going to paste
-  // themselves. Choosing a destination belongs to Text quote mode, where
-  // sending IS the action.
+  // It used to go through a shareOrCopy that opened "send to which app?" — a
+  // question nobody asked, for a number they were going to paste themselves.
+  // Text quote mode followed it here on 2026-09-07 and shareOrCopy is gone:
+  // copying is the whole action on both paths, on every platform.
   //
   // It also used to copy a whole buildQuoteMessage: heading, company, date,
   // footer. Pasted into a chat already in progress that reads as a form letter

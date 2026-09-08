@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { buildQuoteMessage, shareOrCopy, type QuoteLine } from '@/lib/whatsappQuote';
+import { buildQuoteMessage, copyOnly, type QuoteLine } from '@/lib/whatsappQuote';
 import { fmtRupiah } from '@/lib/formatters';
 
 /**
@@ -11,8 +11,20 @@ import { fmtRupiah } from '@/lib/formatters';
  *
  * Two pieces: a bar that only exists while something is picked, and a sheet
  * that shows what will be sent — quantities adjustable, live preview of the
- * exact text, then Share (the phone's share sheet, which is the direct path
- * into WhatsApp) or Copy.
+ * exact text, then Copy.
+ *
+ * COPY, not share (owner's call, 2026-09-07). This used to call the native
+ * share sheet where one existed. On Windows one DOES exist — Chromium
+ * implements `navigator.share` there — so the desk staff got the Windows share
+ * flyout, which offers Mail and Bluetooth and no way into WhatsApp Web, when
+ * all they wanted was Ctrl+V. Worse, cancelling that flyout still reported
+ * "Shared" while nothing had been put anywhere.
+ *
+ * So it copies, on every platform, the way tapping a single price already
+ * does (`copyPrice` in app/products/page.tsx made the same move first). One
+ * predictable outcome beats a branch nobody can see the shape of, and
+ * `copyOnly` carries the offscreen-textarea fallback that survives plain http
+ * and in-app browsers — which the share path did not.
  *
  * Both are portaled to <body>: page headers use backdrop-blur, which WebKit
  * treats as a containing block for fixed descendants, so a fixed bar rendered
@@ -91,10 +103,12 @@ export default function QuoteBasket({
 
   const send = async () => {
     setBusy(true);
-    const how = await shareOrCopy(message);
+    const how = await copyOnly(message);
     setBusy(false);
-    if (how === 'failed') { flash('Could not copy — long-press the preview to select it'); return; }
-    flash(how === 'shared' ? 'Shared' : `Copied ${items.length} item${items.length !== 1 ? 's' : ''} — paste into WhatsApp`);
+    // A failed copy leaves the sheet OPEN on purpose: the preview above is
+    // still selectable by hand, which is the only remaining way out.
+    if (how === 'failed') { flash('Could not copy — select the preview above and copy it by hand'); return; }
+    flash(`Copied ${items.length} item${items.length !== 1 ? 's' : ''} — paste into WhatsApp`);
     setOpen(false);
   };
 
@@ -112,7 +126,7 @@ export default function QuoteBasket({
         </button>
         <button onClick={send} disabled={busy}
           className="flex-shrink-0 px-3 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition-colors disabled:opacity-50">
-          {busy ? '…' : 'Send'}
+          {busy ? '…' : 'Copy'}
         </button>
         <button onClick={onClear} title="Clear the list"
           className="flex-shrink-0 w-8 h-8 rounded-xl text-white/70 hover:text-white hover:bg-white/15 transition-colors">×</button>
@@ -170,7 +184,7 @@ export default function QuoteBasket({
             <button onClick={onClear} className="text-[11px] text-slate-500 hover:text-white px-2 py-2 transition-colors">Clear all</button>
             <button onClick={send} disabled={busy}
               className="ml-auto px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold transition-colors disabled:opacity-50">
-              {busy ? 'Preparing…' : 'Share / Copy'}
+              {busy ? 'Copying…' : 'Copy quote'}
             </button>
           </div>
         </div>

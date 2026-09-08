@@ -115,12 +115,21 @@ export function buildPriceSnippet(line: QuoteLine, dateIso?: string): string {
 }
 
 /**
- * Put the message on the clipboard and nowhere else.
+ * Put the message on the clipboard and nowhere else. The only way out of this
+ * file, for a single price and for a finished multi-item quote alike.
  *
- * Tapping a single price is a COPY, not a send: the person doing it has
- * already decided where the number is going, and a share sheet asking "which
- * app?" is a question they did not ask. `shareOrCopy` below is for the
- * finished multi-item quote, where choosing the destination IS the action.
+ * There WAS a `shareOrCopy` that called `navigator.share` when the browser had
+ * it. It is gone (owner's call, 2026-09-07). The person copying a quote has
+ * already decided where the number is going; a share sheet asking "which app?"
+ * is a question nobody asked. Windows made that concrete — Chromium implements
+ * `navigator.share` there, so the desk staff got the Windows share flyout,
+ * which offers Mail and Bluetooth and no route into WhatsApp Web, and
+ * cancelling it reported success while putting the text nowhere.
+ *
+ * The two-step fallback matters and is why this is the survivor:
+ * `navigator.clipboard` is absent on a page served over plain http and inside
+ * some in-app browsers, so the offscreen textarea is the path that still
+ * works there.
  */
 export async function copyOnly(text: string): Promise<'copied' | 'failed'> {
   try {
@@ -142,30 +151,6 @@ export async function copyOnly(text: string): Promise<'copied' | 'failed'> {
     const ok = document.execCommand('copy');
     document.body.removeChild(ta);
     return ok ? 'copied' : 'failed';
-  } catch {
-    return 'failed';
-  }
-}
-
-/**
- * Put the message where the user wants it: the native share sheet when the
- * device has one (that is the path straight into WhatsApp on a phone), the
- * clipboard otherwise. Returns how it went so the caller can say so.
- */
-export async function shareOrCopy(text: string): Promise<'shared' | 'copied' | 'failed'> {
-  if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
-    try {
-      await navigator.share({ text });
-      return 'shared';
-    } catch (e) {
-      // A cancelled share is not a failure — fall through to the clipboard only
-      // when sharing is genuinely unavailable.
-      if (e instanceof DOMException && e.name === 'AbortError') return 'shared';
-    }
-  }
-  try {
-    await navigator.clipboard.writeText(text);
-    return 'copied';
   } catch {
     return 'failed';
   }

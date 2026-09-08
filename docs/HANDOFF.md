@@ -173,6 +173,28 @@ Shipped:
   `10-PACKS` / `20-RUNBOOKS` / `90-OUTPUT`), the permissions rule, and a
   section on why agent notes are field notes rather than packs.
 
+Also that day, two smaller things:
+
+- **Text quote mode copies instead of sharing** (owner: *"just make it copied
+  to clipboard, it's simpler for Windows OS user"*). `QuoteBasket` called
+  `shareOrCopy`, and Windows Chromium DOES implement `navigator.share` — so the
+  desk staff got the Windows share flyout, offering Mail and Bluetooth and no
+  route into WhatsApp Web. Cancelling it returned `'shared'`, so the toast said
+  "Shared" while nothing had been put anywhere. Now `copyOnly` on every
+  platform, which also brings the offscreen-textarea fallback the share path
+  lacked. `shareOrCopy` is deleted; the single-price copy had already made the
+  same move, so there is now one behaviour on both paths.
+- **A sell-side audit, prompted by MIRA flagging her own writes.** All 19 rows
+  in `22.0_sales_quotes` reconcile exactly — stored `subtotal` / `ppn_amount` /
+  `grand_total` against the sum of non-section lines plus PPN — including her
+  six. But `DO-20260721-0001` is `delivered` with two real catalogue lines and
+  **zero stock movements** (1× ICA550-72HMI, 1× EPEVER XTRA1210N), so on-hand
+  reads one high on each. Created `system`, 2026-07-23, long before any agent.
+  **Not fixed — awaiting the owner's confirmation those goods shipped**; the
+  fix is two `30.0_stock_movements` rows dated 2026-07-21. Three records are
+  stamped `created_by_email = 'system'` (`SQ-...0018`, `SQ-...0019`, that DO):
+  the attribution loss, in live data.
+
 **Left alone on purpose:** the agents' own files in `90-OUTPUT` — including
 `manda_engines_v11_v8.py`, a Python fork of the two engines. It is faithful
 today (diffed against `mounting.ts` and `system.ts`) but nothing in CI knows it
