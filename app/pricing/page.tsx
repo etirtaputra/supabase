@@ -1392,12 +1392,17 @@ function SetPricingTab({
             tone="issue" onClick={() => { setWanted((w) => toggle(w, id)); setPage(200); }} />
         ))}
         <span className="w-px self-stretch bg-slate-800 mx-1.5" aria-hidden />
-        {/* "Has landed cost" is not offered: it is the SAME 156 items as In
-            stock today (an item gets a moving-average cost when goods are
-            received, which is also what puts them on the shelf), and its
-            complement is the chip beside it. matchesScope still supports it
-            for the day stock sells out while the cost stays. */}
-        {(['in_stock', 'no_cost'] as PriceScope[]).map((id) => (
+        {/* "Has landed cost" WAS hidden here, on the grounds that it selects
+            the same items as In stock — an item gets its moving-average cost
+            when goods are received, which is also what puts them on the shelf.
+            That is still literally true (checked 2026-09-08: 156 and 156, and
+            neither set has a single member the other lacks), and it is still
+            the wrong reason to leave it out. The two chips answer different
+            questions — "what am I holding" and "what can I judge a margin on"
+            — and they part company the day stock sells out while the ledger
+            keeps the cost. Inferring one from the other's complement is a trick
+            the user has to know; a chip is not. Owner asked for it, 2026-09-08. */}
+        {(['in_stock', 'has_cost', 'no_cost'] as PriceScope[]).map((id) => (
           <Chip key={id} label={SCOPE_LABEL[id]} count={scopeCounts.get(id) ?? 0} on={scope.has(id)}
             tone="scope" onClick={() => { setScope((w) => toggle(w, id)); setPage(200); }} />
         ))}

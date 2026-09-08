@@ -9,8 +9,10 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { issuesFor, matchesIssues, matchesScope, marginPct, priceForMargin, compareCells,
-         suggestRange, type PriceScope } from './priceGrid.ts';
+         suggestRange, SCOPE_LABEL, type PriceScope } from './priceGrid.ts';
 import type { MarginProfile } from './marginProfiles.ts';
 
 const profile = (min: number, max: number): MarginProfile =>
@@ -296,4 +298,33 @@ test('a step of zero still returns whole numbers rather than dividing by nothing
   const r = suggestRange(800, profile(20, 25), 0)!;
   assert.equal(r.min, 1000);
   assert.ok(Number.isInteger(r.max));
+});
+
+/**
+ * Every scope the engine can filter by must actually be OFFERED on the screen.
+ *
+ * `has_cost` sat in the type, the label map and `matchesScope` — fully working,
+ * fully tested — while the chip row rendered only two of the three, so nobody
+ * could reach it. The reasoning at the time was sound (it selects the same
+ * items as In stock, and its complement is the chip beside it) and it still
+ * left a filter that existed everywhere except where a person could click it.
+ *
+ * A capability the tests prove and the UI hides is worse than one that was
+ * never built: it reads as done. So the screen is the assertion.
+ */
+test('the pricing screen offers every scope the engine supports', () => {
+  const page = readFileSync(join(process.cwd(), 'app', 'pricing', 'page.tsx'), 'utf8');
+  const chipRow = page.match(/\(\[([^\]]*)\] as PriceScope\[\]\)\.map/);
+  assert.ok(chipRow, 'could not find the scope chip row in app/pricing/page.tsx');
+  const offered = [...chipRow[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+  for (const scopeKey of Object.keys(SCOPE_LABEL)) {
+    assert.ok(offered.includes(scopeKey),
+      `SCOPE_LABEL has "${scopeKey}" but the chip row does not offer it — the filter would be unreachable`);
+  }
+});
+
+test('every offered chip has a label, so none renders blank', () => {
+  for (const scopeKey of Object.keys(SCOPE_LABEL) as PriceScope[]) {
+    assert.ok(SCOPE_LABEL[scopeKey]?.trim(), `${scopeKey} has no label`);
+  }
 });
