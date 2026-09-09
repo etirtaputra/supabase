@@ -11,7 +11,10 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { calculateSystem, sizePvStrings, vocAtTemp, voltageClassOf, seriesOnBus, isChemistry, type SystemInput, type BatterySpec, type PanelSpec } from './system.ts';
+import { calculateSystem, sizePvStrings, vocAtTemp, voltageClassOf, seriesOnBus, isChemistry,
+         SYSTEM_ENGINE_VERSION, type SystemInput, type BatterySpec, type PanelSpec } from './system.ts';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { V7_PANELS, V7_ON_GRID_INVERTERS, V7_HYBRID_INVERTERS, V7_BATTERIES } from './v7Fixture.ts';
 
 const CANDIDATES = {
@@ -147,6 +150,13 @@ test('v7 parity — off-grid, lead-acid, 2 days autonomy', () => {
   assert.equal(qtyOf(r.lines, 'mid_clamp'), 32);
   assert.equal(qtyOf(r.lines, 'grounding_lug'), 2);
   assert.equal(qtyOf(r.lines, 'solar_cable'), 102);
+  // FOUND BY v9, in v7's own golden scenario: a 3 kW unit against a 2,625 W
+  // continuous requirement is 14% headroom, and the surge requirement is
+  // 3,600 W — above the unit's rating. v7 sized it this way and said nothing;
+  // the numbers stay as v7 produced them (this is a parity test) and the
+  // engine now says what it thinks of them.
+  assert.equal(Number(((r.inverterHeadroomPct ?? 0) * 100).toFixed(1)), 14.3);
+  assert.ok(r.warnings.some((w) => /Inverter headroom is only 14%/.test(w)));
 });
 
 test('v7 parity — hybrid, small lithium system', () => {
@@ -167,7 +177,15 @@ test('v7 parity — hybrid, small lithium system', () => {
   assert.equal(qtyOf(r.lines, 'mid_clamp'), 6);
   assert.equal(qtyOf(r.lines, 'solar_cable'), 24);
   assert.equal(qtyOf(r.lines, 'mc4_pair'), 4);
-  assert.equal(r.warnings.length, 0, 'a one-string array raises nothing');
+  // v8 raised nothing here. v9 raises exactly three, and all three are the
+  // engine naming a DEFAULT it was given no answer for — not a fault in the
+  // design. Every number above is unchanged, which is the point: v9 says more
+  // about the same arithmetic.
+  assert.equal(r.warnings.length, 3, 'the three default-disclosure warnings, and nothing else');
+  assert.ok(r.warnings.some((w) => /No demand factor specified/.test(w)));
+  assert.ok(r.warnings.some((w) => /Cable distance defaulted/.test(w)));
+  assert.ok(r.warnings.some((w) => /is an estimate/.test(w)));
+  assert.ok(!r.warnings.some((w) => /headroom/.test(w)), '2000W against 300W required is ample');
 });
 
 // ── Guards the calculator has, kept honest ─────────────────────────────────
@@ -198,6 +216,9 @@ test('a load beyond the biggest unit parallels rather than failing', () => {
   // 50 kW continuous required against a 30 kW unit → two in parallel
   assert.equal(r.inverter?.qty, 2);
   assert.equal(qtyOf(r.lines, 'dc_breaker'), 2, 'a breaker per inverter');
+  // 60 kW installed on 50 kW required: legal, and 20% is thin enough to say so.
+  assert.equal(Number(((r.inverterHeadroomPct ?? 0) * 100).toFixed(0)), 20);
+  assert.ok(r.warnings.some((w) => /Inverter headroom is only 20%/.test(w)));
 });
 
 test('no inverter fits the grid connection → a plain error, no BoM', () => {
@@ -416,4 +437,281 @@ test('the site temperature travels on the design input, so a quote records it', 
   assert.equal(r.ok, true);
   assert.equal(r.strings?.minCellTempC, 5);
   assert.equal(r.strings?.rule, 'temperature');
+});
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ENGINE v9 — the six silent defaults (owner via MANDA, 2026-09-09).
+//
+// Every one of these comes from a real design: PT Kayan Plantation, 440 kWp
+// hybrid PV + BESS, where six sizing errors were caught by a senior engineer
+// on review rather than by the engine. The pattern behind all six is the same
+// and it is worth naming: the engine had a DEFAULT for something the site
+// should have answered, the default was plausible, and it was applied in
+// silence. A number nobody chose reads exactly like a number somebody did.
+//
+// So none of these changes an existing calculation. They add an input where
+// there was an assumption, and they make the assumption speak when it is used.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const V9 = {
+  systemType: 'off-grid' as const, panel: V7_PANELS[0],
+  autonomyDays: 1, pshHours: 4, batteryPreference: 'LiFePO4' as const,
+  rows: 1, railLengthMm: 4850, panelSpacingMm: 20,
+  mountType: 'roof' as const, orientation: 'portrait' as const,
+};
+
+// ── 1. Demand factor ───────────────────────────────────────────────────────
+
+test('the demand factor divides the load table, and never the surge', () => {
+  // 2000 W installed running, 10 000 Wh a day, of which 750 W is a pump.
+  const loads = [
+    { watts: 1250, hoursPerDay: 5, qty: 1 },
+    { watts: 750, hoursPerDay: 5, qty: 1, inductive: true },
+  ];
+  const full = calculateSystem({ ...V9, loads }, CANDIDATES);
+  const half = calculateSystem({ ...V9, loads, demandFactor: 0.5 }, CANDIDATES);
+
+  assert.equal(full.runningW, 2000);
+  assert.equal(full.totalWh, 10000);
+  assert.equal(half.runningW, 1000, 'half the estate runs at once');
+  assert.equal(half.totalWh, 5000);
+  // The pump still has to start. Diversity is an average; inrush is an event.
+  assert.equal(half.surgeW, full.surgeW);
+  assert.equal(half.surgeW, 2750);
+  // The raw table survives beside the diversified one, so a reviewer can see
+  // both numbers rather than having to reverse the multiplication.
+  assert.equal(half.rawRunningW, 2000);
+  assert.equal(half.rawTotalWh, 10000);
+  assert.equal(half.demandFactor, 0.5);
+});
+
+test('an omitted demand factor is 1.0 and says so — it is not a decision', () => {
+  const r = calculateSystem({ ...V9, loads: [{ watts: 1000, hoursPerDay: 5, qty: 1 }] }, CANDIDATES);
+  assert.equal(r.demandFactor, 1);
+  assert.equal(r.runningW, r.rawRunningW);
+  assert.ok(r.warnings.some((w) => /No demand factor specified/.test(w)));
+  // The number the estate case turns on, quoted so nobody has to look it up.
+  assert.ok(r.warnings.some((w) => /40–60% is typical/.test(w)));
+});
+
+test('a demand factor of 1.0 stated OUTRIGHT is silent — it was chosen', () => {
+  const r = calculateSystem({ ...V9, loads: [{ watts: 1000, hoursPerDay: 5, qty: 1 }], demandFactor: 1 }, CANDIDATES);
+  assert.equal(r.demandFactor, 1);
+  assert.ok(!r.warnings.some((w) => /No demand factor specified/.test(w)),
+    'the warning is about an unanswered question, not about the value 1.0');
+});
+
+test('a nonsense demand factor is clamped, never applied', () => {
+  const loads = [{ watts: 1000, hoursPerDay: 5, qty: 1 }];
+  assert.equal(calculateSystem({ ...V9, loads, demandFactor: 4 }, CANDIDATES).demandFactor, 1);
+  assert.equal(calculateSystem({ ...V9, loads, demandFactor: 0 }, CANDIDATES).demandFactor, 0.01,
+    'zero demand would size a system for nothing at all');
+  assert.equal(calculateSystem({ ...V9, loads, demandFactor: -0.5 }, CANDIDATES).demandFactor, 0.01);
+});
+
+// ── 2. Power loss factor ───────────────────────────────────────────────────
+
+test("a site's stated Fs replaces the safety factor, and the result says which", () => {
+  const loads = [{ watts: 1000, hoursPerDay: 5, qty: 1 }];
+  const dflt = calculateSystem({ ...V9, loads }, CANDIDATES);
+  assert.equal(dflt.requiredContinuousW, 1250, '1000 × 1.25');
+  assert.equal(dflt.inverterSizingMethod, 'safety_factor');
+  assert.equal(dflt.powerLossFactorFs, undefined);
+
+  const fs = calculateSystem({ ...V9, loads, powerLossFactorFs: 0.30 }, CANDIDATES);
+  assert.equal(Number(fs.requiredContinuousW?.toFixed(2)), 1428.57, '1000 / (1 − 0.30)');
+  assert.equal(fs.inverterSizingMethod, 'power_loss_factor');
+  assert.equal(fs.powerLossFactorFs, 0.30);
+  // 14% is the gap that undersized PT Kayan: 1.4286 against 1.25.
+  assert.ok(fs.requiredContinuousW! > dflt.requiredContinuousW! * 1.14);
+});
+
+test('an Fs outside 0–1 is ignored rather than dividing by nothing', () => {
+  const loads = [{ watts: 1000, hoursPerDay: 5, qty: 1 }];
+  for (const bad of [0, 1, 1.5, -0.2, NaN]) {
+    const r = calculateSystem({ ...V9, loads, powerLossFactorFs: bad }, CANDIDATES);
+    assert.equal(r.inverterSizingMethod, 'safety_factor', `Fs ${bad} must not size anything`);
+    assert.equal(r.requiredContinuousW, 1250);
+  }
+});
+
+// ── 3. Inverter headroom ───────────────────────────────────────────────────
+
+const HEADROOM_INV = {
+  model: 'DEYE SUN-50K', rated_output_power_w: 50000, battery_nominal_voltage_vdc: 384,
+  surge_power_va: 100000, pv_max_open_circuit_voltage_vdc: 1000, no_of_mpp_trackers: 4,
+};
+const BIG_BATT: BatterySpec = { model: 'BOS-A 51.2V', battery_type: 'LiFePO4', nominal_voltage_v: 51.2, energy_wh: 5120 };
+
+test('6% headroom on a 94 kW load is flagged — the PT Kayan case', () => {
+  // 75 440 W running × 1.25 = 94 300 W. Two 50 kW units = 100 kW: 6% over.
+  const r = calculateSystem({
+    ...V9, loads: [{ watts: 75440, hoursPerDay: 8, qty: 1 }],
+  }, { hybridInverters: [HEADROOM_INV], batteries: [BIG_BATT] });
+  assert.equal(r.inverter?.qty, 2);
+  assert.equal(Number(r.requiredContinuousW?.toFixed(0)), 94300);
+  assert.equal(Number(((r.inverterHeadroomPct ?? 0) * 100).toFixed(0)), 6);
+  assert.ok(r.warnings.some((w) => /Inverter headroom is only 6%/.test(w)));
+  // The warning has to carry the arithmetic, or the reviewer re-derives it.
+  assert.ok(r.warnings.some((w) => /2× 50000W = 100000W against 94300W required/.test(w)));
+});
+
+test('a third unit clears the threshold and the engine goes quiet', () => {
+  // Same 94.3 kW requirement, met by three 45 kW units: 135 kW installed is
+  // 43% headroom. Note what this test also shows — three 33.3 kW units would
+  // total 100 kW and be flagged for the SAME 6%, so the warning is about the
+  // margin, not about the unit count.
+  const r = calculateSystem({
+    ...V9, loads: [{ watts: 75440, hoursPerDay: 8, qty: 1 }],
+  }, { hybridInverters: [{ ...HEADROOM_INV, rated_output_power_w: 45000 }], batteries: [BIG_BATT] });
+  assert.equal(r.inverter?.qty, 3);
+  assert.equal(Number(((r.inverterHeadroomPct ?? 0) * 100).toFixed(0)), 43);
+  assert.ok(!r.warnings.some((w) => /headroom/.test(w)));
+});
+
+test('the headroom threshold is a setting, not a number buried in the engine', () => {
+  const loads = [{ watts: 75440, hoursPerDay: 8, qty: 1 }];
+  const cands = { hybridInverters: [HEADROOM_INV], batteries: [BIG_BATT] };
+  const strict = calculateSystem({ ...V9, loads }, cands, { minInverterHeadroomPct: 0.50 });
+  const lax = calculateSystem({ ...V9, loads }, cands, { minInverterHeadroomPct: 0.05 });
+  assert.ok(strict.warnings.some((w) => /headroom/.test(w)));
+  assert.ok(!lax.warnings.some((w) => /headroom/.test(w)));
+  assert.equal(strict.inverterHeadroomPct, lax.inverterHeadroomPct, 'the threshold judges, it does not size');
+});
+
+// ── 4. Battery string voltage against the inverter's port ──────────────────
+//
+// The bank is sized to the bus CLASS (48, 384…) but wired at the pack's STATED
+// voltage, and every LiFePO4 pack reads 6.67% above its class — 51.2 for 48,
+// 409.6 for 384. On a 384 V bus that is 409.6 V arriving at a port the engine
+// had never been told the limit of.
+
+test('a string comfortably inside the port is silent and says it checked', () => {
+  const r = calculateSystem({
+    ...V9, loads: [{ watts: 5000, hoursPerDay: 5, qty: 1 }],
+  }, { hybridInverters: [{ ...HEADROOM_INV, max_battery_voltage_vdc: 800 }], batteries: [BIG_BATT] });
+  assert.equal(r.battery?.series, 8);
+  assert.equal(Number(r.batteryStringVoltageV?.toFixed(1)), 409.6, '8 × 51.2, not 8 × 48');
+  assert.equal(r.batteryVoltageCheck, 'ok');
+  assert.equal(r.inverterMaxBatteryV, 800);
+  assert.ok(!r.warnings.some((w) => /string voltage/i.test(w)));
+});
+
+test('a string within 5% of the port maximum is called close, not passed', () => {
+  // 409.6 V against a 420 V port: 97.5%.
+  const r = calculateSystem({
+    ...V9, loads: [{ watts: 5000, hoursPerDay: 5, qty: 1 }],
+  }, { hybridInverters: [{ ...HEADROOM_INV, max_battery_voltage_vdc: 420 }], batteries: [BIG_BATT] });
+  assert.equal(r.batteryVoltageCheck, 'close');
+  assert.ok(r.warnings.some((w) => /97\.5% of the DEYE SUN-50K maximum 420V/.test(w)));
+  assert.ok(r.warnings.some((w) => /verify with the manufacturer/.test(w)));
+  assert.equal(r.ok, true, 'close is a question for the manufacturer, not a refusal to quote');
+});
+
+test('a string over the port maximum is called out in those words', () => {
+  const r = calculateSystem({
+    ...V9, loads: [{ watts: 5000, hoursPerDay: 5, qty: 1 }],
+  }, { hybridInverters: [{ ...HEADROOM_INV, max_battery_voltage_vdc: 400 }], batteries: [BIG_BATT] });
+  assert.equal(r.batteryVoltageCheck, 'exceeds');
+  assert.ok(r.warnings.some((w) => /409\.6V EXCEEDS/.test(w)));
+  assert.ok(r.warnings.some((w) => /Reduce the series count/.test(w)));
+});
+
+test('an inverter with no stated port limit is UNKNOWN, never assumed fine', () => {
+  const r = calculateSystem({
+    ...V9, loads: [{ watts: 5000, hoursPerDay: 5, qty: 1 }],
+  }, { hybridInverters: [HEADROOM_INV], batteries: [BIG_BATT] });
+  assert.equal(r.batteryVoltageCheck, 'unknown');
+  assert.equal(r.inverterMaxBatteryV, null);
+  assert.equal(Number(r.batteryStringVoltageV?.toFixed(1)), 409.6,
+    'the real voltage is still reported, so the check can be made by hand');
+  assert.ok(!r.warnings.some((w) => /string voltage/i.test(w)),
+    'the engine does not invent a ceiling it was not given');
+});
+
+// ── 5. Cable run ───────────────────────────────────────────────────────────
+
+test('a measured cable run replaces the rooftop default and is silent', () => {
+  const measured = calculateSystem({
+    ...V9, loads: [{ watts: 5000, hoursPerDay: 5, qty: 1 }], cableRunPerStringM: 85,
+  }, CANDIDATES);
+  const strings = measured.strings?.numStrings ?? 0;
+  assert.ok(strings > 0);
+  // Per string, out and back: + and − are two conductors, not one.
+  assert.equal(measured.totalCableM, 85 * strings * 2);
+  assert.equal(measured.cableSource, 'measured');
+  assert.equal(measured.cableRunPerStringM, 85);
+  assert.ok(!measured.warnings.some((w) => /Cable distance defaulted/.test(w)));
+  const cableLine = measured.lines.find((l) => l.role === 'solar_cable');
+  assert.equal(cableLine?.qty, 85 * strings * 2, 'the BoM line is the same number, not a second one');
+  assert.match(String(cableLine?.note), /85m per string/);
+});
+
+test('the default cable figure is stated as a rooftop assumption', () => {
+  const r = calculateSystem({ ...V9, loads: [{ watts: 5000, hoursPerDay: 5, qty: 1 }] }, CANDIDATES);
+  assert.equal(r.cableSource, 'default');
+  assert.equal(r.totalCableM, r.numPanels * 6);
+  assert.equal(r.cableRunPerStringM, undefined);
+  assert.ok(r.warnings.some((w) => /understate it by 5–10×/.test(w)));
+});
+
+test('cable provenance is asked of on-grid designs too — a field is a field', () => {
+  const base: SystemInput = {
+    systemType: 'on-grid', panel: V7_PANELS[0], gridVA: 5500, gridPhase: 1, dcAcRatio: 1.2,
+    rows: 2, railLengthMm: 4850, panelSpacingMm: 20, mountType: 'ground', orientation: 'portrait',
+  };
+  const dflt = calculateSystem(base, CANDIDATES, V7_RULE);
+  assert.equal(dflt.cableSource, 'default');
+  assert.ok(dflt.warnings.some((w) => /Cable distance defaulted/.test(w)));
+  const measured = calculateSystem({ ...base, cableRunPerStringM: 120 }, CANDIDATES, V7_RULE);
+  assert.equal(measured.cableSource, 'measured');
+  assert.equal(measured.totalCableM, 120 * (measured.strings?.numStrings ?? 0) * 2);
+  // An on-grid design has no load table and no PSH, so it must not be asked
+  // about either.
+  assert.ok(!measured.warnings.some((w) => /demand factor|is an estimate/.test(w)));
+});
+
+// ── 6. PSH provenance ──────────────────────────────────────────────────────
+
+test('an unattributed PSH is an estimate, and estimates say so', () => {
+  const r = calculateSystem({ ...V9, loads: [{ watts: 1000, hoursPerDay: 5, qty: 1 }] }, CANDIDATES);
+  assert.equal(r.pshSource, 'estimate');
+  assert.ok(r.warnings.some((w) => /PSH 4 is an estimate/.test(w)));
+});
+
+test('a simulated or measured PSH is recorded and passes without comment', () => {
+  for (const src of ['pvsyst', 'measured'] as const) {
+    const r = calculateSystem({ ...V9, loads: [{ watts: 1000, hoursPerDay: 5, qty: 1 }], pshSource: src }, CANDIDATES);
+    assert.equal(r.pshSource, src);
+    assert.ok(!r.warnings.some((w) => /is an estimate/.test(w)));
+  }
+});
+
+test('provenance changes nothing about the array it describes', () => {
+  const loads = [{ watts: 1000, hoursPerDay: 5, qty: 1 }];
+  const guessed = calculateSystem({ ...V9, loads }, CANDIDATES);
+  const simulated = calculateSystem({ ...V9, loads, pshSource: 'pvsyst' }, CANDIDATES);
+  assert.equal(guessed.numPanels, simulated.numPanels);
+  assert.equal(guessed.arrayKwp, simulated.arrayKwp);
+});
+
+// ── The version, in one place ──────────────────────────────────────────────
+
+test('the engine version is 9', () => {
+  assert.equal(SYSTEM_ENGINE_VERSION, 9);
+});
+
+/**
+ * Two screens stamp the engine version onto a saved design, and both used to
+ * carry the literal `version: 8`. A design stamped with the wrong version is
+ * not explicable later by the rule that produced it, which is the entire
+ * reason the field exists — so the number has one home and the copies import it.
+ */
+test('nothing hardcodes an engine version beside the constant', () => {
+  for (const rel of [['app', 'api', 'agent', 'design', 'system', 'route.ts'], ['components', 'ui', 'SystemDesigner.tsx']]) {
+    const src = readFileSync(join(process.cwd(), ...rel), 'utf8');
+    assert.ok(/SYSTEM_ENGINE_VERSION/.test(src), `${rel.join('/')} must import the version, not restate it`);
+    assert.ok(!/version:\s*\d+/.test(src), `${rel.join('/')} still writes a literal engine version`);
+  }
 });

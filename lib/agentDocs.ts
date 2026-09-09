@@ -44,7 +44,7 @@ export const AGENT_DOCS: readonly AgentDoc[] = [
   {
     id: 'solar-design',
     title: 'Solar system and mounting design',
-    file: 'MANDA-SOLAR-DESIGN_v2_2026-09-06.md',
+    file: 'MANDA-SOLAR-DESIGN_v3_2026-09-09.md',
     audience: 'engineering agents sizing arrays, strings and mounting',
     first: false,
   },
@@ -70,7 +70,7 @@ export const AGENT_ENDPOINTS = [
   { method: 'GET', path: '/api/agent/attention', purpose: 'every open signal, filtered to your role' },
   { method: 'GET', path: '/api/agent/attention/summary', purpose: 'counts and totals per signal, for a daily message' },
   { method: 'POST', path: '/api/agent/design/mounting', purpose: 'the v11 mounting engine, with catalogue and prices' },
-  { method: 'POST', path: '/api/agent/design/system', purpose: 'the v8 system engine, with catalogue and prices' },
+  { method: 'POST', path: '/api/agent/design/system', purpose: 'the v9 system engine, with catalogue and prices' },
 ] as const;
 
 /**

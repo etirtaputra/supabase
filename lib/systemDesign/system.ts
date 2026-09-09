@@ -20,6 +20,24 @@
 import { calculateMounting, type MountType, type Orientation } from './mounting.ts';
 import type { BomLine } from './types.ts';
 
+/**
+ * The engine version stamped on every saved design.
+ *
+ *  7 — the pure v7 port.
+ *  8 — temperature-corrected Voc replaces v7's flat 0.95 string margin.
+ *  9 — the six silent defaults are named: demand factor, power loss factor,
+ *      inverter headroom, battery string voltage, cable run, PSH provenance.
+ *
+ * It lives HERE, beside the rules it describes, because it was written out by
+ * hand in two places — the API route and the designer screen — and a number
+ * copied twice is a number that will disagree with itself. `system.test.ts`
+ * fails if either copy comes back.
+ */
+export const SYSTEM_ENGINE_VERSION = 9;
+
+/** Keep a fraction inside its meaningful range. */
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
 export type SystemType = 'on-grid' | 'off-grid' | 'hybrid';
 export type BatteryPreference = 'LiFePO4' | 'Lead-Acid';
 
@@ -65,6 +83,21 @@ export interface SystemOptions {
   minCellTempC?: number;
   /** Metres of string cable per panel. v7: 6. */
   cableMetresPerPanel?: number;
+  /**
+   * Least inverter headroom over the continuous requirement before the engine
+   * says something, as a fraction. v9: 0.30.
+   *
+   * Headroom is not a comfort margin. It is what absorbs surge the load table
+   * did not name, thermal derating on a 35 °C afternoon, and the load the site
+   * adds next year. A design at 6 % over passes arithmetic and fails in
+   * August.
+   */
+  minInverterHeadroomPct?: number;
+  /**
+   * Fraction of the inverter's maximum battery voltage above which the string
+   * is called close. v9: 0.95.
+   */
+  batteryVoltageProximityThreshold?: number;
 }
 
 export const SYSTEM_DEFAULTS: Required<SystemOptions> = {
@@ -77,6 +110,8 @@ export const SYSTEM_DEFAULTS: Required<SystemOptions> = {
   vocMarginFactor: 0.95,
   minCellTempC: 18,
   cableMetresPerPanel: 6,
+  minInverterHeadroomPct: 0.30,
+  batteryVoltageProximityThreshold: 0.95,
 };
 
 // ── The specs each candidate must carry ─────────────────────────────────────
@@ -108,6 +143,20 @@ export interface HybridInverterSpec {
   model: string;
   rated_output_power_w: number;
   battery_nominal_voltage_vdc?: number | null;
+  /**
+   * The battery port's absolute ceiling, V — the top of the datasheet's
+   * `battery_voltage_range_vdc` ("500~900" → 900).
+   *
+   * The NOMINAL bus above is what the bank is designed to; this is what it may
+   * not exceed. They are not the same number and the gap is where the error
+   * lives: a 48 V bus built from 51.2 V LiFePO4 packs sits 6.67 % over nominal
+   * on every string, and 16 of them make 819.2 V against an 800 V port.
+   *
+   * Optional, and silent when absent — the engine will not invent a ceiling it
+   * has not been given. Fill `battery_voltage_range_vdc` in Tech Specs to make
+   * the check work (as of 2026-09-09 only 1 of 50 inverter-chargers carries it).
+   */
+  max_battery_voltage_vdc?: number | null;
   surge_power_va?: number | null;
   pv_max_open_circuit_voltage_vdc?: number | null;
   no_of_mpp_trackers?: number | null;
@@ -144,6 +193,44 @@ export interface SystemInput {
   autonomyDays?: number;
   pshHours?: number;
   batteryPreference?: BatteryPreference;
+  /**
+   * Fraction of the rated load expected to run at once. 0.01–1.0, default 1.0.
+   *
+   * A load table is a list of everything INSTALLED. Sizing on its sum assumes
+   * every MCB at full draw in the same second, which no housing estate has ever
+   * done — 0.4–0.6 is the standard band there, 0.7–0.8 industrial. v8 expected
+   * the designer to pre-multiply before calling, which meant a design carried
+   * no record of whether they had. Now the engine applies it and stores it.
+   *
+   * It does NOT touch surge: a motor's inrush is a physical event, not an
+   * average, and a diversified estate still has to start its pumps.
+   */
+  demandFactor?: number;
+  /**
+   * The site's stated power loss factor, 0–1 exclusive. Optional.
+   *
+   * A consultant's drawing that says "Fs = 30 %" means the inverter must be
+   * sized at load / (1 − 0.30) = ×1.4286 — NOT the engine's default ×1.25
+   * safety factor, which undersizes by 14 % against that brief. When present it
+   * replaces `continuousSafetyFactor`, and the result says which rule ran.
+   */
+  powerLossFactorFs?: number;
+  /**
+   * Measured cable run from array to inverter, metres per string, one way.
+   *
+   * Absent, the engine falls back to v7's 6 m per panel — a ROOFTOP figure. On
+   * a 250 m plantation estate that is out by an order of magnitude, and it is
+   * out silently, which is how it survived.
+   */
+  cableRunPerStringM?: number;
+  /**
+   * Where the peak-sun-hours figure came from. Default `'estimate'`.
+   *
+   * PSH 3.5 against 3.0 moves the array by 17 %, so a design's second-largest
+   * number deserves a provenance. Informational — it changes no arithmetic —
+   * but an estimate says so on the review.
+   */
+  pshSource?: 'measured' | 'pvsyst' | 'estimate';
   /** Coldest expected cell temperature at the SITE, °C. Defaults to 18. */
   minCellTempC?: number;
   /** Array layout — feeds the mounting engine. */
@@ -195,11 +282,34 @@ export interface SystemResult {
   numPanels: number;
   arrayKwp: number;
   strings?: StringConfig;
-  /** Load analysis (off-grid / hybrid). */
+  /** Load analysis (off-grid / hybrid), AFTER the demand factor. */
   totalWh?: number;
   runningW?: number;
   surgeW?: number;
   requiredContinuousW?: number;
+  /** The demand factor actually used — 1.0 when the caller named none. */
+  demandFactor?: number;
+  /** The load table's own sum, before diversity. Kept so both are checkable. */
+  rawRunningW?: number;
+  rawTotalWh?: number;
+  /** Which rule set the continuous requirement. */
+  inverterSizingMethod?: 'safety_factor' | 'power_loss_factor';
+  /** Echoed when the caller supplied one. */
+  powerLossFactorFs?: number;
+  /** (installed W / required W) − 1. Negative means the units cannot carry it. */
+  inverterHeadroomPct?: number;
+  /** The bank's real terminal voltage — series × the pack's STATED volts. */
+  batteryStringVoltageV?: number;
+  /** The inverter's battery-port ceiling, when its datasheet is on file. */
+  inverterMaxBatteryV?: number | null;
+  /** Whether the string clears that ceiling, or whether we cannot tell. */
+  batteryVoltageCheck?: 'ok' | 'close' | 'exceeds' | 'unknown';
+  /** Whether the cable metreage was measured or fell back to 6 m per panel. */
+  cableSource?: 'measured' | 'default';
+  cableRunPerStringM?: number;
+  totalCableM?: number;
+  /** Provenance of the PSH figure the array was sized on. */
+  pshSource?: 'measured' | 'pvsyst' | 'estimate';
   lines: BomLine[];
   /** Non-mounting picks that must resolve by identity, not by BoM role. */
   picks: { component_id: string | null; label: string; qty: number; note?: string }[];
@@ -392,35 +502,58 @@ export function calculateSystem(
     picks.push({ component_id: inv.component_id ?? null, label: `${inv.model} (${inv.rated_output_power_kw} kW, ${gridPhase}-phase)`, qty: 1, note: 'Largest inverter inside the grid limit' });
     picks.push({ component_id: panel.component_id ?? null, label: `${panel.model} ${panel.power_stc_w}W`, qty: numPanels, note: `${(actualDCW / 1000).toFixed(2)} kWp total` });
 
-    const { lines, mountWarnings } = buildStructureAndBos(input, numPanels, strings.numStrings, 1, gridPhase, opt);
-    warnings.push(...mountWarnings);
+    const { lines, bomWarnings, cable } = buildStructureAndBos(input, numPanels, strings.numStrings, 1, gridPhase, opt);
+    warnings.push(...bomWarnings);
     return {
       ok: true,
       inverter: { model: inv.model, component_id: inv.component_id ?? null, qty: 1, note: `${inv.rated_output_power_kw} kW AC` },
-      numPanels, arrayKwp: actualDCW / 1000, strings, lines, picks, errors, warnings,
+      numPanels, arrayKwp: actualDCW / 1000, strings, lines, picks, errors, warnings, ...cable,
     };
   }
 
   // ── Off-grid / hybrid ─────────────────────────────────────────────────────
-  let totalWh = 0;
-  let runningW = 0;
+  let rawTotalWh = 0;
+  let rawRunningW = 0;
   let surgeW = 0;
   for (const l of input.loads ?? []) {
     const w = Number(l.watts) || 0;
     const h = Number(l.hoursPerDay) || 0;
     const q = Number(l.qty) || 0;
     const lineWatts = w * q;
-    runningW += lineWatts;
-    totalWh += w * h * q;
+    rawRunningW += lineWatts;
+    rawTotalWh += w * h * q;
     surgeW += l.inductive ? lineWatts * 2 : lineWatts;
   }
-  if (totalWh === 0) {
+  if (rawTotalWh === 0) {
     errors.push('Add at least one load with watts and hours per day.');
     return empty;
   }
 
-  const requiredContinuousW = runningW * opt.continuousSafetyFactor;
+  // DIVERSITY. The load table lists what is installed; the demand factor says
+  // how much of it runs at once. Surge is deliberately left un-factored — an
+  // inrush is a physical event, not an average.
+  const namedDemandFactor = Number.isFinite(Number(input.demandFactor)) ? Number(input.demandFactor) : null;
+  const demandFactor = namedDemandFactor == null ? 1 : clamp(namedDemandFactor, 0.01, 1);
+  if (namedDemandFactor == null) {
+    warnings.push('No demand factor specified — sizing at 100% of rated load. For housing estates, 40–60% is typical.');
+  }
+  const runningW = rawRunningW * demandFactor;
+  const totalWh = rawTotalWh * demandFactor;
+
+  // Continuous rating: the site's own power loss factor when it has one,
+  // otherwise the engine's safety factor. load / (1 − Fs) and load × 1.25 are
+  // different questions, and a drawing that states Fs has already answered it.
+  const fs = Number(input.powerLossFactorFs);
+  const useFs = Number.isFinite(fs) && fs > 0 && fs < 1;
+  const requiredContinuousW = useFs ? runningW / (1 - fs) : runningW * opt.continuousSafetyFactor;
+  const inverterSizingMethod: 'safety_factor' | 'power_loss_factor' = useFs ? 'power_loss_factor' : 'safety_factor';
   const requiredSurgeW = surgeW;
+  /** Everything the load step established, carried onto the early returns too. */
+  const loadFacts = {
+    totalWh, runningW, surgeW, requiredContinuousW,
+    demandFactor, rawRunningW, rawTotalWh,
+    inverterSizingMethod, ...(useFs ? { powerLossFactorFs: fs } : {}),
+  };
   const isLithium = (input.batteryPreference ?? 'LiFePO4') === 'LiFePO4';
   const surgeCapacityOf = (i: HybridInverterSpec) => i.surge_power_va || i.rated_output_power_w * opt.assumedSurgeMultiple;
 
@@ -464,7 +597,16 @@ export function calculateSystem(
   }
   if (!inv) {
     errors.push(`No compatible inverter found: no ${isLithium ? 'lithium' : 'lead-acid'} battery in the catalog can build the bus of any available inverter.`);
-    return { ...empty, totalWh, runningW, surgeW, requiredContinuousW };
+    return { ...empty, ...loadFacts };
+  }
+
+  // HEADROOM. Picking the smallest unit that clears the requirement is right;
+  // saying nothing when it clears it by 6 % is not. What is left over is what
+  // absorbs an unlisted surge, a derated afternoon and next year's load.
+  const installedW = invQty * inv.rated_output_power_w;
+  const inverterHeadroomPct = requiredContinuousW > 0 ? installedW / requiredContinuousW - 1 : 0;
+  if (inverterHeadroomPct < opt.minInverterHeadroomPct) {
+    warnings.push(`Inverter headroom is only ${(inverterHeadroomPct * 100).toFixed(0)}% (${invQty}× ${inv.rated_output_power_w}W = ${installedW}W against ${requiredContinuousW.toFixed(0)}W required). Consider one more unit for surge, derating and expansion.`);
   }
 
   // Battery bank: a WHOLE number in series to reach the inverter's bus, then
@@ -486,17 +628,43 @@ export function calculateSystem(
   }
   if (!batt) {
     errors.push(`No battery in the catalog builds a ${sysV} V bus in a whole number of units in series.`);
-    return { ...empty, totalWh, runningW, surgeW, requiredContinuousW };
+    return { ...empty, ...loadFacts };
   }
 
   // Non-null: `fits` is what selected this battery.
   const battSeries = seriesOnBus(sysV, batt.nominal_voltage_v) as number;
+
+  // The bank is sized to the bus CLASS, but it is wired at the pack's STATED
+  // voltage, and those differ by 6.67 % for every LiFePO4 pack ever made. The
+  // nominal bus never trips the inverter's battery port; the real terminal
+  // voltage does.
+  const batteryStringVoltageV = battSeries * Number(batt.nominal_voltage_v);
+  const maxBatteryV = Number(inv.max_battery_voltage_vdc);
+  const haveMaxBatteryV = Number.isFinite(maxBatteryV) && maxBatteryV > 0;
+  let batteryVoltageCheck: 'ok' | 'close' | 'exceeds' | 'unknown' = 'unknown';
+  if (haveMaxBatteryV) {
+    const proximity = batteryStringVoltageV / maxBatteryV;
+    if (batteryStringVoltageV > maxBatteryV) {
+      batteryVoltageCheck = 'exceeds';
+      warnings.push(`Battery string voltage ${batteryStringVoltageV.toFixed(1)}V EXCEEDS the ${inv.model} battery input maximum of ${maxBatteryV}V. Reduce the series count.`);
+    } else if (proximity > opt.batteryVoltageProximityThreshold) {
+      batteryVoltageCheck = 'close';
+      warnings.push(`Battery string voltage ${batteryStringVoltageV.toFixed(1)}V is ${(proximity * 100).toFixed(1)}% of the ${inv.model} maximum ${maxBatteryV}V — verify with the manufacturer that this is inside tolerance.`);
+    } else {
+      batteryVoltageCheck = 'ok';
+    }
+  }
+
   const stringWh = battSeries * batt.energy_wh;
   const battParallel = Math.ceil(reqBattWh / stringWh);
   const totalBatt = battSeries * battParallel;
 
   // Array from the daily energy, the sun and the system losses
   const psh = Number(input.pshHours) || 1;
+  const pshSource = input.pshSource ?? 'estimate';
+  if (pshSource === 'estimate') {
+    warnings.push(`PSH ${psh} is an estimate, not irradiance data or a simulation — and PSH 3.5 against 3.0 moves the array by 17%. Consider a PVsyst run before the final design.`);
+  }
   const reqPVW = totalWh / (psh * opt.systemEfficiency);
   const numPanels = Math.ceil(reqPVW / panel.power_stc_w);
   const strings = sizePvStrings(panel, inv, numPanels, 'hybrid', opt);
@@ -510,15 +678,18 @@ export function calculateSystem(
     note: `${(numPanels * panel.power_stc_w / 1000).toFixed(2)} kWp total` });
 
   const phase: 1 | 3 = (inv.phase ?? '').includes('3') ? 3 : 1;
-  const { lines, mountWarnings } = buildStructureAndBos(input, numPanels, strings.numStrings, invQty, phase, opt);
-  warnings.push(...mountWarnings);
+  const { lines, bomWarnings, cable } = buildStructureAndBos(input, numPanels, strings.numStrings, invQty, phase, opt);
+  warnings.push(...bomWarnings);
 
   return {
     ok: true,
     inverter: { model: inv.model, component_id: inv.component_id ?? null, qty: invQty, note: `${inv.rated_output_power_w}W · ${sysV}V bus` },
     battery: { model: batt.model, component_id: batt.component_id ?? null, qty: totalBatt, series: battSeries, parallel: battParallel, usableKwh: (totalBatt * batt.energy_wh) / 1000 },
     numPanels, arrayKwp: (numPanels * panel.power_stc_w) / 1000, strings,
-    totalWh, runningW, surgeW, requiredContinuousW,
+    ...loadFacts,
+    inverterHeadroomPct,
+    batteryStringVoltageV, inverterMaxBatteryV: haveMaxBatteryV ? maxBatteryV : null, batteryVoltageCheck,
+    pshSource, ...cable,
     lines, picks, errors, warnings,
   };
 }
@@ -531,7 +702,7 @@ export function calculateSystem(
 function buildStructureAndBos(
   input: SystemInput, numPanels: number, numStrings: number,
   numInverters: number, phase: 1 | 3, opt: Required<SystemOptions>,
-): { lines: BomLine[]; mountWarnings: string[] } {
+): { lines: BomLine[]; bomWarnings: string[]; cable: CableRun } {
   const dims = (input.panel.dimensions_l_w_h_mm ?? '').split(/[x×]/i).map((s) => parseFloat(s.trim()));
   const mount = calculateMounting({
     panelCount: numPanels,
@@ -546,8 +717,27 @@ function buildStructureAndBos(
   });
 
   const lines: BomLine[] = [...mount.lines];
+  const bomWarnings = [...mount.warnings];
+
+  // CABLE. `cableMetresPerPanel = 6` is a rooftop residential placeholder: the
+  // array is above the inverter and the run is short. On a ground-mount estate
+  // where the field sits 250 m from the plant room it is out by five to ten
+  // times, and the BoM shows a plausible number either way — which is the only
+  // reason it lasted. A measured run per string is a straight answer; the
+  // default now says out loud that it is not one.
+  const measured = Number(input.cableRunPerStringM);
+  const haveMeasured = Number.isFinite(measured) && measured > 0;
+  // ×2: a string needs a positive and a negative conductor back to the inverter.
+  const totalCableM = haveMeasured ? measured * numStrings * 2 : numPanels * opt.cableMetresPerPanel;
+  const cable: CableRun = haveMeasured
+    ? { cableSource: 'measured', cableRunPerStringM: measured, totalCableM }
+    : { cableSource: 'default', totalCableM };
+  if (!haveMeasured) {
+    bomWarnings.push(`Cable distance defaulted to ${opt.cableMetresPerPanel}m per panel (${totalCableM}m total), which is a rooftop figure. For ground-mount or estate sites give the measured run per string — the default can understate it by 5–10×.`);
+  }
+
   // String cabling and connectors
-  lines.push({ role: 'solar_cable', param: 6, qty: numPanels * opt.cableMetresPerPanel, unit: 'm', label: 'Solar cable 1×6 mm²', note: 'String cabling' });
+  lines.push({ role: 'solar_cable', param: 6, qty: totalCableM, unit: 'm', label: 'Solar cable 1×6 mm²', note: cable.cableSource === 'measured' ? `${measured}m per string × ${numStrings} string(s) × 2 conductors` : 'String cabling' });
   lines.push({ role: 'mc4_pair', qty: numStrings * 2 + 2, unit: 'pcs', label: 'MC4 connector pair', note: `${numStrings} string(s)` });
 
   if (input.systemType === 'on-grid') {
@@ -557,5 +747,12 @@ function buildStructureAndBos(
     lines.push({ role: 'dc_breaker', qty: numInverters, unit: 'pcs', label: 'Battery DC breaker / fuse', note: 'Between battery and inverter' });
     lines.push({ role: 'ac_distribution', param: phase === 3 ? 'triple' : 'single', qty: 1, unit: 'pcs', label: 'AC distribution box (load side)', note: 'House connection' });
   }
-  return { lines, mountWarnings: mount.warnings };
+  return { lines, bomWarnings, cable };
+}
+
+/** What the cable step decided, and on what basis. */
+interface CableRun {
+  cableSource: 'measured' | 'default';
+  cableRunPerStringM?: number;
+  totalCableM: number;
 }

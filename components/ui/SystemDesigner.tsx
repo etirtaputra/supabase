@@ -27,7 +27,7 @@ import { resolveBom, summarise, type DesignCandidate } from '@/lib/systemDesign/
 import { mountingSystems, shortlist, RAIL_PROFILE_LABEL, type RailProfile } from '@/lib/systemDesign/mountingSystem';
 import { designRoleOf, type SystemDesign } from '@/lib/systemDesign/types';
 import {
-  calculateSystem, type SystemType, type BatteryPreference, type LoadRow,
+  calculateSystem, SYSTEM_ENGINE_VERSION, type SystemType, type BatteryPreference, type LoadRow,
   type PanelSpec, type OnGridInverterSpec, type HybridInverterSpec, type BatterySpec,
 } from '@/lib/systemDesign/system';
 import type { DesignedLine } from './MountingDesigner';
@@ -96,6 +96,13 @@ export default function SystemDesigner({ open, onClose, priceOf, stockOf, onAppl
   // Coldest expected temperature at the SITE. 18 °C is the Indonesian lowland
   // default (owner, 2026-09-06); highland jobs lower it, which shortens strings.
   const [minTemp, setMinTemp] = useState('18');
+  // v9's four provenance answers. All start EMPTY, never at their default:
+  // the engine's warning is about a question nobody answered, and pre-filling
+  // the box with "1" here would answer it on the designer's behalf.
+  const [demandFactor, setDemandFactor] = useState('');
+  const [lossFactor, setLossFactor] = useState('');
+  const [cableRun, setCableRun] = useState('');
+  const [pshSource, setPshSource] = useState<'' | 'measured' | 'pvsyst' | 'estimate'>('');
   const [loads, setLoads] = useState<EditableLoad[]>([blankLoad()]);
 
   // A previous run's answers are the starting point — regenerate means
@@ -124,6 +131,10 @@ export default function SystemDesigner({ open, onClose, priceOf, stockOf, onAppl
     if (inp.gridPhase) setGridPhase(Number(inp.gridPhase) === 3 ? 3 : 1);
     if (inp.dcAcRatio != null) setDcAcRatio(String(inp.dcAcRatio));
     if (inp.minCellTempC != null) setMinTemp(String(inp.minCellTempC));
+    if (inp.demandFactor != null) setDemandFactor(String(inp.demandFactor));
+    if (inp.powerLossFactorFs != null) setLossFactor(String(inp.powerLossFactorFs));
+    if (inp.cableRunPerStringM != null) setCableRun(String(inp.cableRunPerStringM));
+    if (inp.pshSource) setPshSource(inp.pshSource as 'measured' | 'pvsyst' | 'estimate');
     if (Array.isArray(inp.loads) && inp.loads.length) {
       setLoads((inp.loads as LoadRow[]).map((l) => ({
         name: l.name ?? '', watts: String(l.watts ?? ''), hours: String(l.hoursPerDay ?? ''),
@@ -260,6 +271,10 @@ export default function SystemDesigner({ open, onClose, priceOf, stockOf, onAppl
       loads: loadRows, autonomyDays: Number(autonomy) || 1, pshHours: Number(psh) || 1,
       batteryPreference: batteryPref,
       minCellTempC: minTemp.trim() === '' ? undefined : Number(minTemp),
+      demandFactor: demandFactor.trim() === '' ? undefined : Number(demandFactor),
+      powerLossFactorFs: lossFactor.trim() === '' ? undefined : Number(lossFactor) / 100,
+      cableRunPerStringM: cableRun.trim() === '' ? undefined : Number(cableRun),
+      pshSource: pshSource === '' ? undefined : pshSource,
       rows: Number(numberOfRows) || 1, railLengthMm, panelSpacingMm: Number(panelSpacing) || 0,
       mountType, orientation,
     }, {
@@ -268,6 +283,7 @@ export default function SystemDesigner({ open, onClose, priceOf, stockOf, onAppl
       batteries: batteryCandidates,
     });
   }, [panelSpec, systemType, gridVA, gridPhase, dcAcRatio, minTemp, loadRows, autonomy, psh, batteryPref,
+    demandFactor, lossFactor, cableRun, pshSource,
     numberOfRows, railLengthMm, panelSpacing, mountType, orientation,
     onGridCandidates, hybridCandidates, batteryCandidates]);
 
@@ -313,15 +329,19 @@ export default function SystemDesigner({ open, onClose, priceOf, stockOf, onAppl
     }));
     const design: SystemDesign = {
       engine: 'system',
-      // 7 was the pure v7 port. 8 sizes strings on temperature-corrected Voc
-      // rather than v7's flat 0.95 margin (owner, 2026-09-06), so a quote saved
-      // under 7 stays explicable by the rule that actually produced it.
-      version: 8,
+      // The version travels with the design so a quote stays explicable by the
+      // rule that actually produced it. It is imported, never restated —
+      // system.test.ts fails if a literal comes back here.
+      version: SYSTEM_ENGINE_VERSION,
       input: {
         systemType, panelId, panelLabel: panelSpec?.model ?? '',
         batteryPreference: batteryPref, pshHours: Number(psh) || 0, autonomyDays: Number(autonomy) || 0,
         gridVA, gridPhase, dcAcRatio: Number(dcAcRatio) || 1, plnKey, plnCustom,
         minCellTempC: Number(minTemp) || 18,
+        demandFactor: demandFactor.trim() === '' ? null : Number(demandFactor),
+        powerLossFactorFs: lossFactor.trim() === '' ? null : Number(lossFactor) / 100,
+        cableRunPerStringM: cableRun.trim() === '' ? null : Number(cableRun),
+        pshSource: pshSource === '' ? null : pshSource,
         loads: loadRows,
         rows: Number(numberOfRows) || 1, railKey, railCustom, railLengthMm,
         panelSpacingMm: Number(panelSpacing) || 0, mountType, orientation, series, profile,
@@ -420,12 +440,49 @@ export default function SystemDesigner({ open, onClose, priceOf, stockOf, onAppl
                       <input className={inp} inputMode="decimal" value={autonomy} onChange={(e) => setAutonomy(e.target.value)} />
                     </label>
                   </div>
+                  {/* PSH 3.5 against 3.0 moves the array by 17%, so where the
+                      number came from is nearly as important as the number. */}
+                  <label className="block">
+                    <span className={lbl}>Where the sun hours came from</span>
+                    <select className={pshSource === '' ? inpNeeded : inp} value={pshSource}
+                      onChange={(e) => setPshSource(e.target.value as typeof pshSource)}>
+                      <option value="">Not stated — treated as an estimate</option>
+                      <option value="measured">Measured on site</option>
+                      <option value="pvsyst">PVsyst / simulation</option>
+                      <option value="estimate">Estimate</option>
+                    </select>
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block">
+                      <span className={lbl}>Demand factor %</span>
+                      <input className={demandFactor.trim() === '' ? inpNeeded : inp} inputMode="decimal"
+                        placeholder="100" value={demandFactor === '' ? '' : String(Number(demandFactor) * 100)}
+                        onChange={(e) => setDemandFactor(e.target.value.trim() === '' ? '' : String(Number(e.target.value) / 100))} />
+                      <span className="text-[10px] text-slate-600">How much of the load table runs at once. Housing 40–60%, industrial 70–80%. Blank sizes for all of it.</span>
+                    </label>
+                    <label className="block">
+                      <span className={lbl}>Power loss factor Fs %</span>
+                      <input className={inp} inputMode="decimal" placeholder="—" value={lossFactor}
+                        onChange={(e) => setLossFactor(e.target.value)} />
+                      <span className="text-[10px] text-slate-600">Only if the site drawing states one. Sizes the inverter at load ÷ (1 − Fs) instead of ×1.25.</span>
+                    </label>
+                  </div>
                 </>
               )}
             </div>
 
             {/* The structure — same questions as the mounting designer */}
             <div className="rounded-xl border border-sky-500/25 bg-sky-500/[0.04] p-3 space-y-2.5">
+              {/* The one number on this panel that is not about the frame. It
+                  sits here because it is a site measurement like the rest of
+                  them, and because 6 m per panel is a ROOFTOP figure that is
+                  out by 5–10× on a ground-mount field. */}
+              <label className="block">
+                <span className={lbl}>Cable run per string, m</span>
+                <input className={inp} inputMode="decimal" placeholder="6 m per panel if blank" value={cableRun}
+                  onChange={(e) => setCableRun(e.target.value)} />
+                <span className="text-[10px] text-slate-600">One-way, array to inverter. The BoM counts it twice for + and −.</span>
+              </label>
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
                   <span className={lbl}>Mounting system</span>
@@ -581,6 +638,15 @@ export default function SystemDesigner({ open, onClose, priceOf, stockOf, onAppl
                 <span className="text-[11px] text-slate-500">
                   {fmtInt(loadRows.reduce((s, l) => s + l.watts * l.qty, 0))} W running ·{' '}
                   {fmtInt(loadRows.reduce((s, l) => s + l.watts * l.hoursPerDay * l.qty, 0))} Wh/day
+                  {/* With a demand factor set, the table's own sum is NOT what
+                      gets sized. Showing only one of the two numbers is how a
+                      screen starts disagreeing with the engine behind it. */}
+                  {result?.demandFactor != null && result.demandFactor < 1 && (
+                    <span className="text-amber-300/80">
+                      {' '}→ {fmtInt(result.runningW ?? 0)} W · {fmtInt(result.totalWh ?? 0)} Wh/day
+                      {' '}at {Math.round(result.demandFactor * 100)}% demand
+                    </span>
+                  )}
                 </span>
               )}
             </div>

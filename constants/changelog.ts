@@ -20,6 +20,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-09-09T13:00:00Z',
+    title: 'Design System v9: enam angka yang dulu diam sekarang bersuara',
+    details: [
+      'Mesinnya tidak berubah hitungannya \u2014 semua angka desain lama tetap sama persis. Yang berubah: mesin sekarang MENGAKUI kalau sebuah angka datang dari default-nya sendiri, bukan dari lokasi proyek.',
+      '**Demand factor** \u2014 tabel beban itu daftar yang TERPASANG. Menjumlahkannya berarti menganggap semua MCB tarik penuh di detik yang sama. Perumahan lazimnya 40\u201360%. Kosongkan dan mesin memakai 100% sambil bilang begitu. Surge tidak ikut dikali: arus start pompa itu kejadian fisik, bukan rata-rata.',
+      '**Power loss factor (Fs)** \u2014 kalau gambar konsultan menyebut Fs 30%, inverter disizing di beban \u00f7 (1 \u2212 0,30) = \u00d71,4286, bukan \u00d71,25. Selisihnya 14% inverter.',
+      '**Headroom inverter** \u2014 di bawah 30% sekarang diperingatkan. Sisa daya itu yang menyerap surge yang tidak terdaftar, derating siang bolong, dan beban tahun depan.',
+      '**Tegangan string baterai** \u2014 bank disizing ke KELAS bus (48, 384\u2026) tapi dirangkai di tegangan pack yang sebenarnya, dan setiap pack LiFePO4 itu 6,67% di atas kelasnya. Mesin membandingkannya ke batas port baterai inverter \u2014 kalau spesifikasi `Battery Voltage Range` diisi di Tech Specs. Hari ini baru 1 dari 50 inverter yang mengisinya.',
+      '**Jarak kabel** \u2014 6 m per panel itu angka ATAP. Untuk lapangan ground-mount jaraknya bisa 5\u201310\u00d7 lebih jauh; sekarang ada isian meter per string yang terukur, dan default-nya mengaku default.',
+      '**Asal angka PSH** \u2014 PSH 3,5 lawan 3,0 menggeser luas array 17%. Sekarang ditanya: diukur, PVsyst, atau perkiraan.',
+      'Semuanya datang dari satu proyek nyata (PT Kayan Plantation, 440 kWp hybrid) di mana enam kesalahan sizing tertangkap oleh insinyur senior saat review \u2014 bukan oleh mesin. Polanya sama di keenamnya: mesin punya default yang masuk akal untuk hal yang seharusnya dijawab LOKASI, lalu memakainya diam-diam. Angka yang tidak dipilih siapa pun terbaca persis seperti angka yang dipilih seseorang.',
+    ],
+  },
+  {
     at: '2026-09-06T12:00:00Z',
     title: 'Design System dan Design Mounting kini bisa dipanggil lewat API',
     details: [

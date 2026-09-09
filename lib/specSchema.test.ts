@@ -8,7 +8,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  CATEGORY_SPEC_FIELDS, conformSpecs, specGaps, normalizeSpecs, specNumber,
+  CATEGORY_SPEC_FIELDS, conformSpecs, specGaps, normalizeSpecs, specNumber, specRangeMax,
 } from './specSchema.ts';
 
 test('every declared pv_module key is present, even when nothing is known', () => {
@@ -84,4 +84,30 @@ test('numeric strings from a datasheet become numbers', () => {
   assert.equal(specNumber('45 ± 2'), null);
   const out = normalizeSpecs('pv_module', { voc_stc_v: '50.20' });
   assert.equal(out.voc_stc_v, 50.2);
+});
+
+// ── Range specs ─────────────────────────────────────────────────────────────
+//
+// Added 2026-09-09 for engine v9's battery-port check. `specNumber` rejects
+// "500~900", which is right — and left the ceiling of every range spec on the
+// datasheet unreadable, so nothing could check a design against one.
+
+test('the top of a range spec is readable, whichever way it is written', () => {
+  assert.equal(specRangeMax('500~900'), 900);      // the live catalogue's form
+  assert.equal(specRangeMax('160-800'), 800);      // the DEYE SUN-50K datasheet
+  assert.equal(specRangeMax('384–480'), 480);      // en dash
+  assert.equal(specRangeMax('120 to 500'), 500);
+  assert.equal(specRangeMax('160-800 Vdc'), 800, 'a unit after the number is not a third number');
+  assert.equal(specRangeMax('1,000~1,500'), 1500);
+});
+
+test('a bare number is its own maximum, and nonsense is null', () => {
+  assert.equal(specRangeMax(800), 800);
+  assert.equal(specRangeMax('800'), 800);
+  assert.equal(specRangeMax('900~500'), 900, 'a range typed backwards is still a range');
+  assert.equal(specRangeMax(''), null);
+  assert.equal(specRangeMax('n/a'), null);
+  assert.equal(specRangeMax(null), null);
+  assert.equal(specRangeMax(undefined), null);
+  assert.equal(specRangeMax(NaN), null);
 });

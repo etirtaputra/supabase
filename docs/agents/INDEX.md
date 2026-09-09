@@ -5,8 +5,8 @@
 > copy in Google Drive is stale. Agent prompts point HERE, and this page names
 > the current file — otherwise every version bump would break every prompt.
 >
-> **Last updated: 2026-09-09** (v5: the landed-cost alarm; the schema pack
-> gains the eighth attention signal).
+> **Last updated: 2026-09-09** (later: engine v9 — the solar design pack is
+> regenerated for the six defaults the system engine no longer hides).
 
 ## The one call that beats this page
 
@@ -30,7 +30,7 @@ superseded now and finding out after acting on it.
 |---|---|---|---|
 | **Schema map** | `ICAPROC-SCHEMA_v5_2026-09-09.md` | every agent, first | v5: the landed\_cost\_open signal — imports received with no PIB/OPS |
 | **Purchasing runbook** | `PURCHASING-RUNBOOK_v2_2026-09-07.md` | Hermes, buy side | v2: versioned and moved here; the mechanism behind lines-before-totals; the price-quote exception |
-| **Solar design** | `MANDA-SOLAR-DESIGN_v2_2026-09-06.md` | MANDA, engineering | v2: engine v8, temperature-corrected strings |
+| **Solar design** | `MANDA-SOLAR-DESIGN_v3_2026-09-09.md` | MANDA, engineering | v3: engine v9 — demand factor, power loss factor, headroom, battery string voltage, cable run, PSH provenance |
 | **MANDA boot prompt** | `MANDA-BOOT-PROMPT_v2_2026-09-06.md` | MANDA's config | v2: string-reporting rule |
 | **Agent platform** | `AGENT-PLATFORM_v3_2026-09-07.md` | the owner and me | v3: onboarding endpoint and the enforced registry |
 

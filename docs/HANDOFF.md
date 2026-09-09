@@ -122,6 +122,70 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
+### 2026-09-09 (latest) — system engine v9: six defaults that were applied in silence
+
+From MANDA, after PT Kayan Plantation (440 kWp hybrid PV + BESS): six sizing
+errors on one design, all caught by Mr. Wendy on review rather than by the
+engine. She wrote a spec; this implements it.
+
+**The pattern is the whole finding, and it is worth reading once.** In all six
+cases the engine had a plausible DEFAULT for something the SITE should have
+answered, and used it without saying so. A number nobody chose reads exactly
+like a number somebody did. So v9 changes no arithmetic at all — every golden
+number is what it was — and instead adds four inputs plus six places where an
+unanswered question now speaks.
+
+| | Input | Default | Says something when |
+|---|---|---|---|
+| 1 | `demandFactor` | 1.0 | not stated (housing estates are 40–60 %) |
+| 2 | `powerLossFactorFs` | none → ×1.25 | never; the result states which rule ran |
+| 3 | — | — | inverter headroom under 30 % |
+| 4 | — | — | battery string voltage over 95 % of the port maximum |
+| 5 | `cableRunPerStringM` | 6 m/panel | not stated (a ROOFTOP figure) |
+| 6 | `pshSource` | `'estimate'` | not stated |
+
+Demand factor divides the load table and **not** the surge — a diversified
+estate still has to start every motor it owns. Fs replaces the 1.25 safety
+factor when the drawing states one: at Fs = 0.30 that is ×1.4286, which is the
+14 % that undersized Kayan.
+
+**Two findings inside v7's own golden scenarios, which the spec expected to be
+clean.** The lead-acid parity case sizes a 3 kW inverter against a 2,625 W
+continuous requirement — 14 % headroom, with a 3,600 W surge requirement above
+the unit's rating. The "parallel rather than fail" case installs 60 kW on 50 kW:
+20 %. Neither is a porting bug; both are v7 decisions nobody had been asked to
+look at. The numbers stay (they are parity tests) and both now carry an
+asserted warning, so the finding is in the suite rather than in a note.
+
+**Change 4 needed a field the engine did not have.** The spec assumed
+`inverter.max_battery_voltage_vdc`; `HybridInverterSpec` had only the NOMINAL
+bus. They are different numbers and the gap is the bug: a bank is sized to the
+bus CLASS (48, 384…) and wired at the pack's stated voltage, and every LiFePO4
+pack reads 6.67 % above its class — 8 × 51.2 V is 409.6 V, not 384 V. Added as
+an optional field, fed from the catalogue's `battery_voltage_range_vdc`
+("500~900" → 900) through a new `specRangeMax()` in `lib/specSchema.ts`.
+**It is nearly always silent today: 49 of 50 inverter-chargers have that spec
+blank.** When it is missing the result says `batteryVoltageCheck: 'unknown'`,
+never `'ok'` — and reports the real string voltage so it can be checked by hand.
+
+**Wired end to end, not just in the engine.** The four inputs are on the
+Design System screen (blank by default — pre-filling the box would answer the
+question on the designer's behalf) and on `/api/agent/design/system`, which now
+returns the provenance beside the numbers. The loads step shows the diversified
+figure next to the table's own sum when a demand factor is set, because a screen
+showing 2,000 W while the engine sized 1,000 W is how the two start disagreeing.
+
+**The version constant now has one home.** `version: 8` was written by hand in
+the API route and in `SystemDesigner.tsx`. It is `SYSTEM_ENGINE_VERSION` in
+`system.ts` now, and a test fails if a literal comes back to either file.
+
+Pack regenerated in the same commit per the standing rule:
+`MANDA-SOLAR-DESIGN_v2_2026-09-06.md` → `_v3_2026-09-09.md`, with §4.1, §4.3, a
+new §4.6 and §9 updated; `INDEX.md` and `lib/agentDocs.ts` follow.
+
+613 tests pass, 23 of them new; build clean.
+
+
 ### 2026-09-09 (latest) — "Within target": the verdict the engine computed and threw away
 
 Owner: *"for selling prices list, we also need a filter 'Within target' or 'In

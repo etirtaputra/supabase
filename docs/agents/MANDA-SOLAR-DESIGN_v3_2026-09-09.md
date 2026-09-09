@@ -5,8 +5,14 @@
 > MANDA and the ERP produce the same numbers for the same inputs.
 >
 > **Source of truth:** `lib/systemDesign/` in `etirtaputra/supabase`.
-> **Version:** written against `main` @ `b8954cb`, 2026-09-06. Engine v8.
+> **Version:** written against `main` @ `ea5c06b`, 2026-09-09. Engine **v9**.
 > **Regenerate this file whenever `lib/systemDesign/*.ts` changes.**
+>
+> **v9 changes nothing that was already computed.** Every golden number in
+> §3.4, §4.4 and §5.5 is what it was under v8. What v9 adds is four inputs the
+> site should answer and six places where an unanswered one now says so. If you
+> hold a v8 belief about an ARITHMETIC rule, it is still right; if you hold one
+> about the engine being SILENT, drop it — see §4.6.
 
 >
 > Part of the ICAPROC agent packs — `docs/agents/INDEX.md` names the current
@@ -171,7 +177,7 @@ Other pinned scenarios from `mounting.test.ts` (all read out of the HTML app):
 
 ---
 
-## 4. The system engine (v7)
+## 4. The system engine (v7 port, engine v9)
 
 `lib/systemDesign/system.ts` · `calculateSystem(input, candidates, options)`
 
@@ -190,7 +196,15 @@ engine above.** One set of mounting rules, one set of tests.
 | `vocRule` | **`'temperature'`** | how cold-morning Voc rise is answered (§5) |
 | `minCellTempC` | **18** | coldest site temperature strings are sized for (§5) |
 | `vocMarginFactor` | **0.95** | the OLD flat margin; used by `vocRule: 'flat'` and as the fallback when a module has no β |
-| `cableMetresPerPanel` | **6** | string cabling |
+| `cableMetresPerPanel` | **6** | string cabling — a ROOFTOP figure; see §4.6 |
+| `minInverterHeadroomPct` | **0.30** | least installed-over-required margin before the engine objects (v9) |
+| `batteryVoltageProximityThreshold` | **0.95** | fraction of the battery port maximum above which a string is called close (v9) |
+
+**One number is no longer a constant.** `continuousSafetyFactor` 1.25 still
+applies, but a design may now state the site's own **power loss factor Fs**
+instead, and then the inverter is sized at `load / (1 − Fs)`. At Fs = 0.30 that
+is ×1.4286 — 14 % more inverter than 1.25 buys. `inverterSizingMethod` in the
+result says which rule ran; never assume.
 
 ### 4.2 ON-GRID path
 
@@ -214,11 +228,19 @@ Phase is read off the text: `nominal_ac_voltage_vac` containing `3L` or
 
 ```
 1. LOAD TABLE
-   runningW = Σ watts × qty
-   totalWh  = Σ watts × hours × qty
-   surgeW   = Σ (watts × qty × (inductive ? 2 : 1))     ← motors/pumps counted twice
-   requiredContinuousW = runningW × 1.25
+   rawRunningW = Σ watts × qty
+   rawTotalWh  = Σ watts × hours × qty
+   surgeW      = Σ (watts × qty × (inductive ? 2 : 1))  ← motors/pumps counted twice
    No loads → ERROR.
+
+   demandFactor = clamp(input.demandFactor ?? 1.0, 0.01, 1.0)   ← v9
+   runningW = rawRunningW × demandFactor
+   totalWh  = rawTotalWh  × demandFactor
+   surgeW is NOT factored — an inrush is an event, not an average.
+
+   requiredContinuousW = input.powerLossFactorFs is 0 < Fs < 1
+                         ? runningW / (1 − Fs)                  ← v9
+                         : runningW × 1.25
 
 2. INVERTER
    candidates must declare battery_nominal_voltage_vdc.
@@ -230,6 +252,8 @@ Phase is read off the text: `nominal_ac_voltage_vac` containing `3L` or
    Pick the SMALLEST unit meeting continuous AND surge.
    If none: take the largest and parallel them —
      qty = ceil(max(requiredContinuousW, surgeW / 2) / rated_output_power_w)
+   headroom = (qty × rated_output_power_w) / requiredContinuousW − 1   ← v9
+   headroom < 0.30 → WARNING (the pick is unchanged; only the silence is)
 
 3. BATTERY BANK
    dod = lithium ? 0.8 : 0.5
@@ -241,13 +265,65 @@ Phase is read off the text: `nominal_ac_voltage_vac` containing `3L` or
    parallel = ceil(requiredWh / (series × battery.energy_wh))
    total    = series × parallel
 
+   stringVoltage = series × battery.nominal_voltage_v    ← v9, the STATED volts
+   against inv.max_battery_voltage_vdc (top of battery_voltage_range_vdc):
+     > max          → WARNING "EXCEEDS", check 'exceeds'
+     > 95 % of max  → WARNING "verify with the manufacturer", check 'close'
+     otherwise      → check 'ok'
+     no max on file → check 'unknown', and NO warning
+
 4. ARRAY
-   requiredPVW = totalWh / (psh × 0.8)
+   requiredPVW = totalWh / (psh × 0.8)            ← totalWh AFTER demand factor
    numPanels   = ceil(requiredPVW / panel.power_stc_w)
+   pshSource = input.pshSource ?? 'estimate'      ← v9
+   'estimate' → WARNING. It changes no arithmetic.
 ```
 
 **Balance of system, off-grid/hybrid:** cable and MC4 as above, plus
 `combiner_box` × inverters · `dc_breaker` × inverters · `ac_distribution` × 1.
+
+**Cable, both paths (v9).** `cableRunPerStringM` given →
+`totalCableM = run × numStrings × 2` (+ and − are two conductors) and
+`cableSource: 'measured'`. Absent → `numPanels × 6` as before, `'default'`,
+and a warning.
+
+### 4.6 The six defaults v9 stopped hiding
+
+Every one of these came from one real design — PT Kayan Plantation, 440 kWp
+hybrid PV + BESS — where six sizing errors were caught by a senior engineer on
+review rather than by the engine. **The pattern is the same in all six, and it
+is the thing to learn: the engine had a plausible default for something the
+SITE should have answered, and applied it in silence. A number nobody chose
+reads exactly like a number somebody did.**
+
+| # | Input | Default | The engine now says |
+|---|---|---|---|
+| 1 | `demandFactor` | 1.0 | when it was not stated — housing estates are 40–60 %, not 100 % |
+| 2 | `powerLossFactorFs` | none, so ×1.25 | nothing; `inverterSizingMethod` states which rule ran |
+| 3 | — | — | when headroom is under 30 % |
+| 4 | — | — | when the bank's real string voltage is over 95 % of the port maximum |
+| 5 | `cableRunPerStringM` | 6 m/panel | when it was not stated — a rooftop figure, out by 5–10× on an estate |
+| 6 | `pshSource` | `'estimate'` | when it was not stated — PSH 3.5 vs 3.0 moves the array by 17 % |
+
+**What this means for MANDA in practice:**
+
+- **Ask for all four before designing.** A design that carries three
+  "not stated" warnings is not wrong, but it is undefended, and every one of
+  them is a question the customer or the drawing can answer in a sentence.
+- **A v9 design with no warnings is a different claim from a v8 design with no
+  warnings.** v8 silence meant nothing was checked. v9 silence means the four
+  questions were answered and the four thresholds cleared.
+- **Never report the load table's own sum as the sized load** when a demand
+  factor is set. `rawRunningW` and `runningW` are both in the result for
+  exactly this reason; quote both, or quote the one that was sized and say so.
+- **`batteryVoltageCheck: 'unknown'` is not `'ok'`.** It means the inverter's
+  `battery_voltage_range_vdc` is blank in Tech Specs — as of 2026-09-09 that is
+  49 of 50 inverter-chargers, so this check is nearly always unknown today. The
+  string voltage is still reported; check it by hand against the datasheet, and
+  say that you did.
+- **Headroom under 30 % is a warning, not a refusal.** The engine still picks
+  what it picked. Two 50 kW units on a 94.3 kW requirement is 6 % and is what
+  started this; three is the answer, and it is the engineer's to give.
 
 ### 4.4 Worked examples — verify MANDA against these
 
@@ -520,8 +596,11 @@ engine. If a design depends on it, a human engineer must answer it.
   SHORT to start the tracker passes silently.
 - **Isc and string fusing.** `max_series_fuse_a` is declared on the module and
   never read. No parallel-string overcurrent check.
-- **Cable sizing and voltage drop.** Cable is a flat **6 m per panel at
-  6 mm²**, regardless of run length, current or drop.
+- **Cable sizing and voltage drop.** Still **6 mm² regardless of current or
+  drop**. What v9 closed is only the LENGTH: `cableRunPerStringM` takes a
+  measured run, and the 6 m/panel fallback now announces itself. The
+  cross-section is still never calculated — a 250 m run at 6 mm² will pass this
+  engine and fail a voltage-drop check.
 - **AC-side protection sizing**, RCD/AFCI selection, earthing adequacy.
 - **Inverter oversizing on-grid.** The rule is strictly `rated_kW × 1000 ≤
   gridVA`; it never allows the export-limited oversize a real PLN design may.
@@ -537,6 +616,13 @@ engine. If a design depends on it, a human engineer must answer it.
 **Energy**
 - **PSH is an input, not a lookup.** No irradiance database, no soiling,
   degradation, or seasonal variation. `systemEfficiency` 0.8 absorbs all losses.
+  v9 added `pshSource` — that records where the number came from; it does not
+  check it. A `'measured'` figure that is wrong is still wrong, and the engine
+  will now be quiet about it.
+- **The demand factor is not derived.** v9 applies whatever fraction it is
+  given and clamps it to 0.01–1.0. Nothing checks it against the load mix, and
+  a diversified estate still has to start every motor it owns — which is why
+  surge is deliberately left un-factored.
 
 **Battery bank — three defects FIXED 2026-09-05 (`4146b29`)**
 
@@ -560,6 +646,18 @@ All 10 v7 parity tests still pass, so no existing design number moved. No
 stored quote carried a `system_design`, so nothing already written needed
 repair. **All three were found by reading the code against the real catalogue,
 not by a failing test — which is the work MANDA is for.**
+
+**Two more found the same way, 2026-09-09 (v9), in v7's OWN golden scenarios:**
+
+- The lead-acid parity case sizes a 3 kW inverter against a 2,625 W continuous
+  requirement — **14 % headroom** — while its surge requirement is 3,600 W,
+  above the unit's rating. v7 produced that and said nothing. v9 leaves the
+  numbers alone (it is a parity test) and now says what it thinks of them.
+- The "parallel rather than fail" case installs 60 kW on a 50 kW requirement:
+  **20 %**. Also flagged.
+
+Neither is a bug in the port. Both are v7 sizing decisions that nobody had
+been asked to look at, which is exactly the category §4.6 exists to surface.
 
 ---
 

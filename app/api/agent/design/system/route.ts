@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { callerFromRequest, AgentAuthError } from '@/lib/agentApi';
 import { designContext, resolveAndPrice, designNotes } from '@/lib/agentDesign';
-import { calculateSystem, type SystemInput, type PanelSpec, type OnGridInverterSpec,
+import { calculateSystem, SYSTEM_ENGINE_VERSION, type SystemInput, type PanelSpec, type OnGridInverterSpec,
          type HybridInverterSpec, type BatterySpec } from '@/lib/systemDesign/system';
-import { specNumber } from '@/lib/specSchema';
+import { specNumber, specRangeMax } from '@/lib/specSchema';
 import { isOfferable } from '@/lib/itemVisibility';
 
 /**
@@ -18,6 +18,10 @@ import { isOfferable } from '@/lib/itemVisibility';
  *         gridVA?, gridPhase?, dcAcRatio?,        ← on-grid
  *         loads?: [{name, watts, hoursPerDay, qty, inductive}],
  *         autonomyDays?, pshHours?, batteryPreference?,   ← off-grid / hybrid
+ *         demandFactor?,                          ← default 1.0 (all at once)
+ *         powerLossFactorFs?,                     ← the site's own Fs, if stated
+ *         pshSource?: 'measured'|'pvsyst'|'estimate',
+ *         cableRunPerStringM?,                    ← default 6 m per panel
  *         minCellTempC?,                          ← default 18 (lowland)
  *         rows?, railLengthMm?, panelSpacingMm?, mountType?, orientation?,
  *         customerId? }
@@ -79,6 +83,9 @@ export async function POST(request: NextRequest) {
       component_id: c.component_id, model: nameOf(c),
       rated_output_power_w: num(spec(c).rated_output_power_w) ?? 0,
       battery_nominal_voltage_vdc: num(spec(c).battery_nominal_voltage_vdc),
+      // "500~900" → 900. The bank's real terminal voltage is checked against
+      // this; absent, the engine says 'unknown' rather than assuming it fits.
+      max_battery_voltage_vdc: specRangeMax(spec(c).battery_voltage_range_vdc),
       surge_power_va: num(spec(c).surge_power_va),
       pv_max_open_circuit_voltage_vdc: num(spec(c).pv_max_open_circuit_voltage_vdc),
       no_of_mpp_trackers: num(spec(c).no_of_mpp_trackers),
@@ -102,6 +109,13 @@ export async function POST(request: NextRequest) {
       autonomyDays: num(body.autonomyDays) ?? 1,
       pshHours: num(body.pshHours) ?? 4,
       batteryPreference: (body.batteryPreference as SystemInput['batteryPreference']) ?? 'LiFePO4',
+      // v9's four provenance answers. Each is UNDEFINED when unstated rather
+      // than defaulted here, because the engine's warning is about the caller
+      // not having answered — a default applied at the door would silence it.
+      demandFactor: num(body.demandFactor) ?? undefined,
+      powerLossFactorFs: num(body.powerLossFactorFs) ?? undefined,
+      cableRunPerStringM: num(body.cableRunPerStringM) ?? undefined,
+      pshSource: (body.pshSource as SystemInput['pshSource']) ?? undefined,
       minCellTempC: num(body.minCellTempC) ?? undefined,
       rows: num(body.rows) ?? 1,
       railLengthMm: num(body.railLengthMm) ?? 4850,
@@ -114,7 +128,7 @@ export async function POST(request: NextRequest) {
     const reply = resolveAndPrice(result.lines, ctx);
 
     return NextResponse.json({
-      engine: 'system', version: 8,
+      engine: 'system', version: SYSTEM_ENGINE_VERSION,
       actor: { email, role },
       ok: result.ok,
       errors: result.errors,
@@ -129,6 +143,24 @@ export async function POST(request: NextRequest) {
       load_analysis: systemType === 'on-grid' ? null : {
         totalWh: result.totalWh, runningW: result.runningW,
         surgeW: result.surgeW, requiredContinuousW: result.requiredContinuousW,
+        // The load table BEFORE diversity, beside the figure that was sized.
+        // An agent reporting "2 kW running" when the engine sized 1 kW is the
+        // failure this whole version exists to stop.
+        rawRunningW: result.rawRunningW, rawTotalWh: result.rawTotalWh,
+        demandFactor: result.demandFactor,
+        inverterSizingMethod: result.inverterSizingMethod,
+        powerLossFactorFs: result.powerLossFactorFs ?? null,
+        inverterHeadroomPct: result.inverterHeadroomPct,
+        batteryStringVoltageV: result.batteryStringVoltageV,
+        inverterMaxBatteryV: result.inverterMaxBatteryV ?? null,
+        batteryVoltageCheck: result.batteryVoltageCheck,
+        pshSource: result.pshSource,
+      },
+      // Provenance of the two site figures that move the BoM most. Reported on
+      // every path because an on-grid field has cable too.
+      assumptions: {
+        cableSource: result.cableSource, cableRunPerStringM: result.cableRunPerStringM ?? null,
+        totalCableM: result.totalCableM,
       },
       candidate_pool: {
         on_grid_inverters: onGridInverters.length,

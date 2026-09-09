@@ -93,6 +93,33 @@ export function specNumber(value: unknown): number | null {
 }
 
 /**
+ * The TOP of a range spec ("500~900" → 900, "160-800" → 800), else null.
+ *
+ * Several datasheet fields state a window rather than a value —
+ * `battery_voltage_range_vdc`, `pv_mppt_voltage_range_vdc`. `specNumber`
+ * rejects them outright (correctly: "500~900" is not a number), which left the
+ * ceiling of every one of them unreadable by anything that wanted to check a
+ * design against it.
+ *
+ * Accepts `~`, `-`, `–` and `to` as separators, and tolerates units after the
+ * number ("160-800 Vdc"). Returns the LARGER end whichever way round it was
+ * written, because a range typed backwards is still a range. A bare number is
+ * its own maximum.
+ */
+export function specRangeMax(value: unknown): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value !== 'string') return null;
+  // A hyphen BETWEEN two digits is a separator, not a sign — "160-800" is two
+  // numbers, and reading the second as −800 makes the maximum 160.
+  const flat = value.replace(/,/g, '').replace(/(\d)\s*[-–—~]\s*(?=\d)/g, '$1 ');
+  const nums = flat.match(/-?\d+(?:\.\d+)?/g);
+  if (!nums || nums.length === 0) return null;
+  const parsed = nums.map(Number).filter((n) => Number.isFinite(n));
+  if (!parsed.length) return null;
+  return Math.max(...parsed);
+}
+
+/**
  * Normalise a raw spec object for one component:
  * renames aliases (category-aware), coerces pure-numeric strings to numbers,
  * drops empty values and non-spec keys, and derives what is cheaply
