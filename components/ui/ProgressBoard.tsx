@@ -22,7 +22,7 @@
 import { useMemo, useState } from 'react';
 import type { PurchaseOrder, POCost, Supplier } from '@/types/database';
 import {
-  MILESTONES, milestonesReached, furthest, isComplete, nextAction, reachedCount,
+  MILESTONES, milestonesReached, furthest, isComplete, nextAction, reachedCount, goodsReceived,
   type MilestoneId, type Reached,
 } from '@/lib/poProgress';
 import { fmtIdr, fmtCcy, fmtDate } from '@/lib/formatters';
@@ -111,7 +111,7 @@ export default function ProgressBoard({
           reached,
           stage: furthest(reached),
           supplier: supplierName.get(String(po.supplier_id)) ?? '',
-          done: isComplete(reached),
+          done: isComplete(reached, po),
           count: reachedCount(reached),
         };
       })
@@ -143,7 +143,7 @@ export default function ProgressBoard({
   };
 
   const renderCard = (c: Card) => {
-    const next = nextAction(c.reached);
+    const next = nextAction(c.reached, c.po);
     const value = c.po.currency === 'IDR'
       ? fmtIdr(Number(c.po.total_value) || 0)
       : fmtCcy(Number(c.po.total_value) || 0, String(c.po.currency ?? ''));
@@ -166,6 +166,13 @@ export default function ProgressBoard({
           <span className="text-[11px] text-slate-500">{fmtDate(c.po.po_date)}</span>
         </div>
 
+        {goodsReceived(c.po) && (
+          <p className="mt-1.5 text-[11px] text-emerald-300/90 flex items-center gap-1">
+            <span aria-hidden>✓</span>
+            Goods received{c.po.actual_received_date ? ` ${fmtDate(c.po.actual_received_date)}` : ''}
+          </p>
+        )}
+
         {/* Seven pips: the whole journey at a glance, without opening anything. */}
         <div className="flex items-center gap-1 mt-2.5" aria-label={`${c.count} of ${MILESTONES.length} milestones`}>
           {MILESTONES.map((m) => (
@@ -175,14 +182,14 @@ export default function ProgressBoard({
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
-          {canEdit && !c.reached.docs_checked && (
+          {canEdit && !c.reached.docs_checked && !goodsReceived(c.po) && (
             <button type="button" disabled={busy === `${c.po.po_id}-docs_checked_at`}
               onClick={() => toggle(c, 'docs_checked_at', true)}
               className="text-[11px] px-2 py-1 rounded border border-violet-500/40 text-violet-300 hover:bg-violet-500/15 disabled:opacity-50">
               ✓ Docs
             </button>
           )}
-          {canEdit && c.reached.docs_checked && !c.reached.hard_copy && (
+          {canEdit && c.reached.docs_checked && !c.reached.hard_copy && !goodsReceived(c.po) && (
             <button type="button" disabled={busy === `${c.po.po_id}-hard_copy_received_at`}
               onClick={() => toggle(c, 'hard_copy_received_at', true)}
               className="text-[11px] px-2 py-1 rounded border border-fuchsia-500/40 text-fuchsia-300 hover:bg-fuchsia-500/15 disabled:opacity-50">

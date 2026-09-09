@@ -9,7 +9,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  milestonesReached, furthest, isComplete, nextAction, reachedCount, MILESTONE_IDS,
+  milestonesReached, furthest, isComplete, nextAction, reachedCount, MILESTONE_IDS, goodsReceived,
 } from './poProgress.ts';
 
 type AnyPo = Parameters<typeof milestonesReached>[0];
@@ -127,37 +127,77 @@ test('nothing reached at all has no column', () => {
 });
 
 test('every milestone done is complete, and one short is not', () => {
-  const all = milestonesReached(
-    po({ docs_checked_at: 'x', hard_copy_received_at: 'y' }),
-    [cost('down_payment', 300), cost('balance_payment', 700), cost('local_vat', 10)],
-  );
+  const p = po({ docs_checked_at: 'x', hard_copy_received_at: 'y' });
+  const all = milestonesReached(p,
+    [cost('down_payment', 300), cost('balance_payment', 700), cost('local_vat', 10)]);
   assert.equal(reachedCount(all), MILESTONE_IDS.length);
-  assert.ok(isComplete(all));
+  assert.ok(isComplete(all, p));
 
-  const noHardCopy = milestonesReached(
-    po({ docs_checked_at: 'x' }),
-    [cost('balance_payment', 1000), cost('local_vat', 10)],
-  );
-  assert.ok(!isComplete(noHardCopy), 'the hard copy is still outstanding');
+  const partial = po({ docs_checked_at: 'x' });
+  const noHardCopy = milestonesReached(partial, [cost('balance_payment', 1000), cost('local_vat', 10)]);
+  assert.ok(!isComplete(noHardCopy, partial), 'the hard copy is still outstanding');
+});
+
+// ── Receipt of goods: the fact the board was blind to ────────────────────────
+
+test('goods count as received from the date, or from the status alone', () => {
+  assert.ok(goodsReceived(po({ actual_received_date: '2026-09-08' })));
+  assert.ok(goodsReceived(po({ status: 'Fully Received' as never })));
+  assert.ok(!goodsReceived(po()));
+  assert.ok(!goodsReceived(po({ status: 'Partially Received' as never })),
+    'half the goods is half a deal');
+});
+
+test('received and paid is DONE, even with the ticks and PIB outstanding', () => {
+  // PIO-2026010 exactly: Fully Received 2026-09-08, settled to the rupiah, no
+  // PIB row, neither document ticked. The board filed it under Balance Paid
+  // and offered "Log PIB / OPS" while Deal Lookup called it finished.
+  const renasun = po({ status: 'Fully Received' as never, actual_received_date: '2026-09-08' });
+  const reached = milestonesReached(renasun, [cost('down_payment', 300), cost('balance_payment', 700)]);
+  assert.ok(!reached.pib_paid);
+  assert.ok(!reached.docs_checked);
+  assert.ok(isComplete(reached, renasun), 'the goods are in and the supplier is paid');
+  assert.equal(nextAction(reached, renasun), null, 'nothing left to chase');
+});
+
+test('received but NOT paid stays live — that is the one worth chasing', () => {
+  const p = po({ status: 'Fully Received' as never, actual_received_date: '2026-09-08' });
+  const reached = milestonesReached(p, [cost('down_payment', 300)]);
+  assert.ok(!isComplete(reached, p));
+  assert.equal(nextAction(reached, p)?.id, 'balance_paid');
+});
+
+test('a domestic PO with no PIB can still finish — the old rule made that impossible', () => {
+  // Nothing clears customs, so pib_paid is false forever. Under "all seven"
+  // this card sat on the board until the end of time.
+  const p = po({ currency: 'IDR' as never, status: 'Fully Received' as never });
+  const reached = milestonesReached(p, [cost('balance_payment', 1000, 'IDR')]);
+  assert.ok(!reached.pib_paid);
+  assert.ok(isComplete(reached, p));
+});
+
+test('paid but not yet arrived is still live, however complete the paperwork', () => {
+  const p = po({ docs_checked_at: 'x', hard_copy_received_at: 'y' });
+  const reached = milestonesReached(p, [cost('balance_payment', 1000)]);
+  assert.ok(!isComplete(reached, p), 'the goods have not landed');
+  assert.equal(nextAction(reached, p)?.id, 'pib_paid');
 });
 
 // ── What the card offers next ───────────────────────────────────────────────
 
 test('the next action skips the ticks and names real work', () => {
   const fresh = milestonesReached(po(), []);
-  assert.equal(nextAction(fresh)?.id, 'dp_paid');
+  assert.equal(nextAction(fresh, po())?.id, 'dp_paid');
 
   const dpDone = milestonesReached(po(), [cost('down_payment', 300)]);
-  assert.equal(nextAction(dpDone)?.id, 'balance_paid');
+  assert.equal(nextAction(dpDone, po())?.id, 'balance_paid');
 
   const paid = milestonesReached(po(), [cost('balance_payment', 1000)]);
-  assert.equal(nextAction(paid)?.id, 'pib_paid', 'a skipped DP is not offered again');
+  assert.equal(nextAction(paid, po())?.id, 'pib_paid', 'a skipped DP is not offered again');
 });
 
 test('a finished deal has nothing left to offer', () => {
-  const all = milestonesReached(
-    po({ docs_checked_at: 'x', hard_copy_received_at: 'y' }),
-    [cost('balance_payment', 1000), cost('local_vat', 10)],
-  );
-  assert.equal(nextAction(all), null);
+  const p = po({ docs_checked_at: 'x', hard_copy_received_at: 'y' });
+  const all = milestonesReached(p, [cost('balance_payment', 1000), cost('local_vat', 10)]);
+  assert.equal(nextAction(all, p), null);
 });

@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-09** · head of `main` at that point: `f066c08` (see §4, §6)
+**Last updated: 2026-09-09** · head of `main` at that point: `dc14dac` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -121,6 +121,52 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 ---
 
 ## 4. What the previous threads did (for context, all shipped to main)
+
+### 2026-09-09 — the Progress board could not see that the goods had arrived
+
+Owner, with two screenshots: *"there's a mismatch between Progress in
+Purchasing, and deal lookup such as this Renasun's PO."*
+
+`PIO-2026010` (Renasun, RP2026072901) was **Fully Received on 2026-09-08** and
+settled to the rupiah — Deal Lookup said exactly that, under COMPLETED. The
+Progress board filed the same PO under **Balance Paid**, called it live, and
+offered **"Log PIB / OPS"** as the next thing to do.
+
+**Root cause: `milestonesReached` never read the receipt.** Seven milestones,
+all derived from payments and document ticks, and not one of them asked whether
+the goods had actually turned up. `actual_received_date` — the single fact that
+most decisively ends a purchase — was invisible to the board.
+
+Two defects fell out of that, and the second is the worse one:
+
+1. **`nextAction` offered "Log PIB / OPS" on a received, settled order.** The
+   file's own header warns against "a board giving advice nobody should take";
+   this was that, reached from a direction its author had not considered.
+2. **`isComplete` required all seven milestones, so no real PO could ever
+   finish.** A domestic supply has no PIB, so `pib_paid` is false forever;
+   nobody goes back to tick "Docs Checked" on goods already on the shelf. Every
+   settled PO would have sat on that board permanently — the exact Basecamp
+   drift the board was built to end.
+
+**The rule now: goods in AND supplier paid = done.** The document ticks are
+progress markers on the way to receipt, not gates on it — and receipt implies
+them, since nothing clears customs without its papers. Received but NOT paid
+stays live, which is the case worth chasing hardest. A card that is done also
+stops offering the two manual ticks (a backdated claim nobody will check) and
+now says **"✓ Goods received 8 Sep 26"** so the reader can see why.
+
+`isComplete` and `nextAction` take the PO as a second argument now: completion
+genuinely depends on the order, not only on the seven booleans.
+
+Checked against the live board: of six tracked POs, exactly one — `PIO-2026010`
+— moves. It leaves the live columns for Done, and the board finally agrees with
+Deal Lookup. `PIO-2026012` (DP paid, balance outstanding) and `EB.42324` (no
+payments yet) are untouched. 577 tests pass, five of them new; build clean.
+
+**Adjacent, NOT fixed:** a `Cancelled` PO with `track_progress = true` would
+sit on the board forever for the same reason. There are none today, so it is
+noted rather than fixed on speculation.
+
 
 ### 2026-09-09 — the product P&L, and why its COGS column is mostly estimated
 

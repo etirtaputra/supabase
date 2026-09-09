@@ -20,6 +20,9 @@
  *   Hard Copy Received ← STORED (hard_copy_received_at)
  *   PIB & OPS Paid     ← an import duty / VAT / income tax / import tax row exists
  *
+ * AND ONE FACT THAT IS NOT A COLUMN: whether the goods actually arrived. See
+ * `goodsReceived` — it is what ENDS a deal, and the board was blind to it.
+ *
  * Pure on purpose: the page does the I/O, this file makes the decisions, and
  * the rules can be tested without a database. See lib/poProgress.test.ts.
  */
@@ -157,8 +160,44 @@ export function furthest(reached: Reached): MilestoneId | null {
   return null;
 }
 
-/** Everything done — the card leaves the board. */
-export function isComplete(reached: Reached): boolean {
+/**
+ * Have the goods arrived?
+ *
+ * THE FACT THIS BOARD WAS MISSING (owner, 2026-09-09). `PIO-2026010` was
+ * `Fully Received` on 2026-09-08 and settled to the rupiah, and Deal Lookup
+ * said exactly that — while the board still filed it under "Balance Paid" and
+ * offered "Log PIB / OPS", because `milestonesReached` never read the receipt.
+ * Two screens, one purchase order, two different answers.
+ *
+ * `actual_received_date` is the ledger's own record of arrival; the status is
+ * the fallback for a PO marked received without a date being typed. Partially
+ * Received deliberately does NOT count — half the goods is half a deal.
+ */
+export function goodsReceived(po: ProgressPo): boolean {
+  return Boolean(po.actual_received_date) || po.status === 'Fully Received';
+}
+
+/**
+ * Done — the card leaves the board.
+ *
+ * TWO WAYS TO BE FINISHED, and the second is the one that matters in practice.
+ *
+ * The original rule was "all seven milestones". It cannot be met by a real
+ * purchase order: a domestic supply has no PIB to pay, so `pib_paid` is false
+ * forever, and nobody goes back to tick "Docs Checked" on a deal whose goods
+ * are already on the shelf. Every settled PO would sit on the board for good,
+ * and the board's whole promise is that a card moves when the work is done.
+ *
+ * So the real terminal state is: THE GOODS ARE IN AND THE SUPPLIER IS PAID.
+ * There is nothing left to chase. The document ticks are progress markers on
+ * the way to that, not gates on it — and receipt implies them anyway, since
+ * goods do not clear customs without their papers.
+ *
+ * Received but NOT paid stays live, which is the point: that is the case worth
+ * chasing hardest.
+ */
+export function isComplete(reached: Reached, po: ProgressPo): boolean {
+  if (goodsReceived(po) && reached.balance_paid) return true;
   return MILESTONE_IDS.every((id) => reached[id]);
 }
 
@@ -171,8 +210,14 @@ export function isComplete(reached: Reached): boolean {
  * `furthest` does: on a PO paid in one go, `dp_paid` is false forever, and
  * offering "Log DP" on a fully-settled order is how a board starts giving
  * advice nobody should take.
+ *
+ * A finished deal offers nothing. "Log PIB / OPS" on goods already received
+ * and paid for is that same bad advice arriving by a different road — and a
+ * customs charge that lands after receipt is trued up on Landed Cost, which is
+ * the screen built for exactly that.
  */
-export function nextAction(reached: Reached): Milestone | null {
+export function nextAction(reached: Reached, po: ProgressPo): Milestone | null {
+  if (isComplete(reached, po)) return null;
   const done = furthest(reached);
   const from = done ? MILESTONE_IDS.indexOf(done) + 1 : 0;
   for (const m of MILESTONES.slice(from)) {
