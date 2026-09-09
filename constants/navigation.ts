@@ -190,6 +190,12 @@ export const DESTINATIONS: Destination[] = [
   { href: '/profitability', label: 'Profitability', group: 'Insights', section: null, cap: 'canViewEconomics', inNav: true,
     hint: 'GP per item / customer / rep, capital allocation, cash cycle',
     keywords: 'economics margin profit gp ccc dio dso dpo turnover position capital allocation gmroi' },
+  // The P&L is a TAB on Profitability, not a page: same facts, third question.
+  // Search-only, because the menu already names the room it lives in — but
+  // "profit and loss" and "laba rugi" are what someone actually types.
+  { href: '/profitability?tab=statement', label: 'P&L Statement', group: 'Insights', section: null, cap: 'canViewEconomics', inNav: false,
+    hint: 'Monthly, quarterly and yearly gross profit by category and item',
+    keywords: 'pl p&l profit and loss statement laba rugi income statement monthly quarterly yearly margin cogs tuc category item report' },
   // ── Catalog — the item and its back-office lenses (consolidated 2026-08-10) ─
   // The Item Hub (the 360° page — the pivot of the whole system) leads, then
   // the record itself, the market, and our price ladder. The sell team's

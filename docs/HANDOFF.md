@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-09** · head of `main` at that point: `42d38b6` (see §4, §6)
+**Last updated: 2026-09-09** · head of `main` at that point: `f066c08` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -121,6 +121,63 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 ---
 
 ## 4. What the previous threads did (for context, all shipped to main)
+
+### 2026-09-09 — the product P&L, and why its COGS column is mostly estimated
+
+Owner: *"a Monthly, Quarterly, Yearly Profit and Loss statement based on the
+Sales of Products vs. TUC/COGS of products, but categorized by Product
+Categories, and the Item names… where is the most logical and intuitive menu…
+make sure that ONLY OWNERS can access this."*
+
+**The menu answer was "it already has a home."** `/profitability` (Insights)
+was already owner-only on `canViewEconomics`, already carried GP per item, and
+already defined revenue and COGS in `lib/salesFacts.ts`. A separate P&L page
+would have been a second door onto one room and an invitation to a second
+definition of a sale. It is a THIRD TAB — Profitability · Position · P&L
+Statement — reachable in Spotlight as `/profitability?tab=statement`.
+
+- **`lib/plStatement.ts`** — a pure rollup of `SalesFact` into period × category
+  × item. `buildPL`, `periodKey`, `periodLabel`, `toCsvRows`. It computes
+  nothing about a sale; it buckets and groups. 22 tests.
+- **`components/profitability/PLStatementPanel.tsx`** — grain toggle
+  (Monthly / Quarterly / Yearly), a measure toggle for the period columns
+  (Gross profit / Revenue / Margin %), categories expanding to items, fixed
+  Revenue · COGS · GP · Margin columns on the right edge, CSV export.
+- **`lib/access.test.ts`** — two new guards: `canViewEconomics` must resolve to
+  `['owner']` exactly, and every other role must fail `canOpenPath`. A single
+  `true` in the role matrix would otherwise hand landed cost to the sell side.
+
+**Decisions worth keeping:** categories rank by GROSS PROFIT, not revenue —
+the whole point is that those two orders differ. One estimated line taints its
+whole total ("mostly from the ledger" is not a thing a margin can be). A reader
+without cost gets no margin at all rather than a 100% one. And the panel says
+*gross profit on goods only* out loud: there is no opex, salary, rent or tax in
+ICAPROC, so nothing below that line can be shown.
+
+**WHAT THE REPORT ACTUALLY SHOWS TODAY, and it is the finding of this thread.**
+Two months, four item-rows, Rp 5.8M revenue — because the sell side has barely
+been used: **192 costed goods-receipts in, 5 units ever delivered out.** And
+every one of those four rows' COGS is estimated. Three separate causes, all
+verified against `pg_trigger` and the ledger on 2026-09-09:
+
+1. **Two orphaned stock-outs.** `source_id 2f2c219f…`, 2026-07-21, 2 units,
+   both correctly costed — pointing at a delivery order that **no longer
+   exists**. A DO was deleted without its stock-out being reversed, so stock is
+   understated by 2 units and that cost can never attach to a sale.
+2. **`DO-20260721-0001` is `delivered` with no movements at all** — the gap
+   already logged on 2026-09-07, still open.
+3. **The two surviving DOs stamped `unit_cost_idr = 0`.** Root cause found:
+   they shipped from warehouse **`G63`**, whose balance row for those items
+   reads `avg_cost_idr = 0`; the real cost (857,279 / 446,949) sits in `MAIN`.
+   `stamp_stock_movement` prices an out at *that location's* average, found a
+   row, read 0, and stamped 0. The trigger is live and working as written — the
+   rule is wrong at the edge: when a location holds no cost, falling back to
+   the item's overall weighted average is better than recording zero.
+
+**Nothing was mutated** — all three need the owner's decision first.
+
+572 tests pass; `next build` clean; eslint unchanged on the touched files.
+
 
 ### 2026-09-09 — the sell side speaks Indonesian
 

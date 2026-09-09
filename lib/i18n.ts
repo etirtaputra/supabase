@@ -1449,6 +1449,11 @@ export const ID: Record<string, string> = {
   'Revert': 'Kembalikan',
   'Reject': 'Tolak',
   'View letter': 'Lihat surat',
+
+  // -- The product P&L (owner-only tab on Profitability, 2026-09-09) --------
+  'P&L Statement': 'Laporan Laba Rugi',
+  'Monthly, quarterly and yearly gross profit by category and item':
+    'Laba kotor bulanan, triwulanan dan tahunan per kategori dan barang',
 };
 
 const DICTS: Record<Lang, Record<string, string>> = { en: {}, id: ID };

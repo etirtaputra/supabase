@@ -32,6 +32,7 @@ import { useSettings } from '@/hooks/useSettings';
 import { buildSalesFacts } from '@/lib/salesFacts';
 import { measuredDio } from '@/lib/position';
 import PositionPanel from '@/components/profitability/PositionPanel';
+import PLStatementPanel from '@/components/profitability/PLStatementPanel';
 import { ITEM_SCORE_FACTORS, type ItemScoreResult, type ScoreBand } from '@/lib/itemScore';
 import { useItemScores } from '@/hooks/useItemScores';
 import { fetchReorderAlerts, type ReorderAlert } from '@/lib/reorder';
@@ -44,7 +45,7 @@ import { capitalCall, summariseCapital, VERDICT_LABEL, type CapitalVerdict, type
  * nature; the second is all-time by nature, which is why they cannot share a
  * period filter and therefore should not share a screen.
  */
-type Tab = 'flow' | 'position';
+type Tab = 'flow' | 'position' | 'statement';
 
 interface Comp {
   component_id: string; supplier_model: string; internal_description: string | null;
@@ -124,7 +125,9 @@ function EconomicsInner() {
     fetchReorderAlerts(supabase).then((alerts) => setReorderMap(new Map(alerts.map((a) => [a.component_id, a]))));
   }, [canView]);   // eslint-disable-line react-hooks/exhaustive-deps
 
-  const [tab, setTab] = useState<Tab>('flow');
+  const [tab, setTab] = useState<Tab>(
+    searchParams.get('tab') === 'statement' ? 'statement'
+      : searchParams.get('tab') === 'position' ? 'position' : 'flow');
   const [period, setPeriod] = useState<Period>(economicsPeriod);
   const [chip, setChip] = useState<Chip>('all');
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
@@ -217,6 +220,14 @@ function EconomicsInner() {
     avgCost: new Map([...bals].map(([cid, b]) => [cid, b.avg])),
     accountManagerOf: new Map([...customers].map(([id, c]) => [id, c.account_manager_id])),
   }), [dos, doItems, soItems, moves, orders, customers, bals]);
+
+  const compById = useMemo(() => new Map(comps.map((c) => [c.component_id, c])), [comps]);
+  const plNameOf = useCallback((id: string) => {
+    const c = compById.get(id);
+    return (c?.internal_description?.trim() || c?.supplier_model || id);
+  }, [compById]);
+  // An item with no category still has money; it is grouped, never dropped.
+  const plCategoryOf = useCallback((id: string) => compById.get(id)?.category || 'uncategorised', [compById]);
 
   const nowIso = useMemo(() => new Date().toISOString(), []);
   const cutoff = useMemo(() => {
@@ -430,18 +441,24 @@ function EconomicsInner() {
 
       <main className="max-w-[1600px] 2xl:max-w-[2120px] mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-5 space-y-5">
         <div className="flex items-center gap-1 border-b border-slate-800/80 -mt-1">
-          {([['flow', 'Profitability'], ['position', 'Position']] as [Tab, string][]).map(([k, label]) => (
+          {([['flow', 'Profitability'], ['position', 'Position'], ['statement', 'P&L Statement']] as [Tab, string][]).map(([k, label]) => (
             <button key={k} onClick={() => setTab(k)}
               className={`text-xs font-semibold px-3.5 py-2.5 border-b-2 -mb-px transition-colors ${tab === k ? 'border-emerald-400 text-emerald-300' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>
               {label}
             </button>
           ))}
           <span className="ml-auto text-[10px] text-slate-600 hidden sm:block pb-2">
-            {tab === 'flow' ? 'what shipped, and what it earned' : 'what is still held, and what it must still fetch'}
+            {tab === 'flow' ? 'what shipped, and what it earned'
+              : tab === 'position' ? 'what is still held, and what it must still fetch'
+              : 'what it all added up to, period by period'}
           </span>
         </div>
 
-        {tab === 'position' ? <PositionPanel /> : loading ? (
+        {tab === 'statement' ? (
+          loading
+            ? <div className="space-y-2">{[...Array(4)].map((_, i) => <div key={i} className="h-28 bg-slate-800/40 rounded-2xl animate-pulse" />)}</div>
+            : <PLStatementPanel facts={facts} nameOf={plNameOf} categoryOf={plCategoryOf} />
+        ) : tab === 'position' ? <PositionPanel /> : loading ? (
           <div className="space-y-2">{[...Array(4)].map((_, i) => <div key={i} className="h-28 bg-slate-800/40 rounded-2xl animate-pulse" />)}</div>
         ) : (
           <>

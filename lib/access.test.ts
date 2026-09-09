@@ -204,3 +204,41 @@ test('the EPC screens are guarded by the path they actually are', () => {
   assert.equal(canOpenPath(ROLE_PERMISSIONS.finance, '/proposals'), false);
   assert.equal(canOpenPath(ROLE_PERMISSIONS.sell_admin, '/proposals'), false);
 });
+
+/**
+ * THE P&L IS OWNER-ONLY, and that is a promise about money.
+ *
+ * `/profitability` carries the product P&L statement (revenue, landed cost and
+ * gross profit per category and item, 2026-09-09). Cost of goods is the one
+ * figure the house never shows the sell side — a rep who can read the margin
+ * can read what we pay, and every price negotiation after that is different.
+ *
+ * The gate is `canViewEconomics`, so a single `true` in the role matrix would
+ * hand the whole statement to a role nobody meant to give it to. Pinned here
+ * by name: adding a role to this list has to be a deliberate edit to a test
+ * that says out loud what is being handed over.
+ */
+test('only the owner can open the product P&L', () => {
+  const withEconomics = (Object.keys(ROLE_PERMISSIONS) as UserRole[])
+    .filter((r) => ROLE_PERMISSIONS[r].canViewEconomics);
+  assert.deepEqual(withEconomics, ['owner'],
+    `these roles can read cost of goods and gross profit: ${withEconomics.join(', ')}`);
+
+  for (const role of Object.keys(ROLE_PERMISSIONS) as UserRole[]) {
+    assert.equal(
+      canOpenPath(ROLE_PERMISSIONS[role], '/profitability'),
+      role === 'owner',
+      `${role} must ${role === 'owner' ? 'reach' : 'not reach'} /profitability`);
+  }
+});
+
+test('the P&L panel never renders a profit it cannot see the cost for', () => {
+  // The honesty doctrine, checked at the seam rather than only in the unit
+  // test: a reader without cost gets no margin, and the panel must not invent
+  // one from a zero COGS. `costKnown` is the flag that carries it.
+  const panel = readFileSync(join(process.cwd(), 'components', 'profitability', 'PLStatementPanel.tsx'), 'utf8');
+  assert.ok(panel.includes('costKnown'),
+    'PLStatementPanel must respect costKnown, or a hidden cost reads as 100% margin');
+  assert.ok(/gross profit on goods only/i.test(panel),
+    'the panel must say it is gross profit, never let a reader assume it is net');
+});
