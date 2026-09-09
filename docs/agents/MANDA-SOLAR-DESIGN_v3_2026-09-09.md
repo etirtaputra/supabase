@@ -5,7 +5,7 @@
 > MANDA and the ERP produce the same numbers for the same inputs.
 >
 > **Source of truth:** `lib/systemDesign/` in `etirtaputra/supabase`.
-> **Version:** written against `main` @ `ea5c06b`, 2026-09-09. Engine **v9**.
+> **Version:** written against `main` @ `5ae1ae9`, 2026-09-09. Engine **v9**.
 > **Regenerate this file whenever `lib/systemDesign/*.ts` changes.**
 >
 > **v9 changes nothing that was already computed.** Every golden number in
