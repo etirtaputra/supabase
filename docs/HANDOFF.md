@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-09** · head of `main` at that point: `7530beb` (see §4, §6)
+**Last updated: 2026-09-09** · head of `main` at that point: `1c888da` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -121,6 +121,43 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 ---
 
 ## 4. What the previous threads did (for context, all shipped to main)
+
+### 2026-09-09 (later still) — archived items were still priced
+
+Owner: *"When an item is archived in Item Editor, it shouldn't show in Selling
+Prices settings or Products."*
+
+**Half right, and the half that was wrong is worth recording.** `/products` has
+excluded archived items since the day archiving shipped (`5636640`), with a
+comment saying so. `/pricing` never did: it listed all **1,012** components
+against **1,007** active ones — the "71 of 1.012" in his screenshot was the
+tell. Two queries there, both fixed: the item list, and the margin-profile
+tally that would otherwise have counted rows the list no longer shows.
+
+**Why the existing guard could not have caught it.** `itemVisibility.test.ts`
+scans five named pickers and fires when one asks `isHiddenItem` without asking
+about archiving. Selling Prices never asked a visibility question at all — it
+just fetched everything. The bug was in code that was never written, which is
+precisely what a test for a present symptom cannot see.
+
+So the rule is now inverted at the fetch. `fetchAllComponents` still defaults
+to including archived rows (the readers that predate the column need them), but
+**every call site must declare which side it is on**: pass
+`{ activeOnly: true }`, or appear in `INCLUDES_ARCHIVED` with a reason someone
+could disagree with. The test enumerates every `.ts`/`.tsx` under `app/` and
+`components/` rather than a hardcoded list, so a NEW screen cannot inherit the
+wrong default silently. Verified by removing the filter and watching both new
+tests go red.
+
+Declared as deliberately including archived items, with reasons: the Item Hub
+(the 360° view of a retired item), Stock (an archived item still holds units
+somebody must clear), Profitability (an item archived today still sold last
+quarter), Tech Specs (comparison against a superseded model, never
+customer-facing) and Spotlight (finding a retired item by name is not a broken
+search).
+
+584 tests pass, three of them new; build clean; eslint unchanged.
+
 
 ### 2026-09-09 (later) — the correction: receipt does not settle the customs bill
 

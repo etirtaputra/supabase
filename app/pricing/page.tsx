@@ -114,7 +114,9 @@ export default function PricingPage() {
   const loadMarginProfiles = useCallback(async (): Promise<() => void> => {
     const [profiles, tally] = await Promise.all([
       fetchMarginProfiles(supabase),
-      supabase.from('3.0_components').select('margin_profile_id').limit(20000),
+      // Archived items are excluded here too, or the tally counts rows the
+      // list below will not show and "how many are unclassified" stops adding up.
+      supabase.from('3.0_components').select('margin_profile_id').is('archived_at', null).limit(20000),
     ]);
     const counts = new Map<string, number>();
     for (const r of ((tally.data ?? []) as { margin_profile_id: string | null }[])) {
@@ -160,7 +162,13 @@ export default function PricingPage() {
     const [tierRes, ovRes, allComps, balRes, custRes, logRes] = await Promise.all([
       supabase.from('21.0_price_tiers').select('*').order('sort_order'),
       supabase.from('21.1_item_tier_prices').select('price_id, component_id, tier_id, override_price_idr, override_discount_pct, updated_at, updated_by_email'),
-      fetchAllComponents<Comp>(supabase, 'component_id, supplier_model, internal_description, category, unit, selling_price_idr, margin_profile_id'),
+      // ARCHIVED ITEMS ARE NOT PRICED (owner, 2026-09-09). A retired item has
+      // no selling price worth setting, no margin floor worth auditing and no
+      // tier override worth keeping — so it does not belong on any tab of this
+      // screen. Archiving is a CATALOGUE decision made in the Item Editor, the
+      // same reasoning /products has carried since the feature shipped.
+      fetchAllComponents<Comp>(supabase, 'component_id, supplier_model, internal_description, category, unit, selling_price_idr, margin_profile_id',
+        { activeOnly: true }),
       supabase.from('30.1_stock_balances').select('component_id, qty_on_hand, avg_cost_idr'),
       supabase.from('20.0_customers').select('customer_id, tier'),
       // Newest first; capped because this only feeds a per-row popover, and the
