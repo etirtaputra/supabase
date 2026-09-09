@@ -7,9 +7,9 @@
  * ("what should this earn?"), so it moved to Catalog → Pricing Tiers, beside
  * the tier ladder and the margin bands that decide the answer.
  *
- * The four questions this file answers are the ones the owner asked for:
- * what has no price, what is priced below the floor, what is under-earning
- * against its band, and what we cannot judge at all.
+ * The questions this file answers are the ones the owner asked for: what has
+ * no price, what is priced below the floor, what is under-earning against its
+ * band, what is already inside it, and what we cannot judge at all.
  *
  * NOTHING HERE HARDCODES A NUMBER. Floors come from 21.0_price_tiers, bands
  * from 21.2_margin_profiles, cost from the stock ledger. An admin moves a band
@@ -21,6 +21,14 @@
 
 import { standingOf, type MarginProfile } from './marginProfiles.ts';
 
+/**
+ * The VERDICT on a row's price. Named "issue" because four of the five are
+ * problems, but the set is a verdict set, not a fault list: `in_band` is the
+ * healthy answer and belongs here for the same reason the others do — a person
+ * working this screen needs to filter on "which ones are already right" as much
+ * as on "which ones are wrong", and a verdict you cannot ask for is a verdict
+ * the screen does not really have. (Owner's ask, 2026-09-09.)
+ */
 export type PriceIssue =
   /** No net price at all — the item cannot be quoted. */
   | 'no_price'
@@ -28,6 +36,8 @@ export type PriceIssue =
   | 'below_floor'
   /** Legal, but earning less than its category is supposed to. Optimisation. */
   | 'below_band'
+  /** Inside the band. Nothing to do — the answer to "what is already right". */
+  | 'in_band'
   /** Earning more than the band. Not a fault; shown so it can be checked. */
   | 'above_band'
   /** No margin profile, or no cost — we do not know what it should earn. */
@@ -95,6 +105,7 @@ export function issuesFor(row: RowInput): Set<PriceIssue> {
   if (standing === 'unclassified') out.add('unclassified');
   else if (standing === 'below') out.add('below_band');
   else if (standing === 'above') out.add('above_band');
+  else out.add('in_band');
 
   return out;
 }
@@ -210,6 +221,7 @@ export const ISSUE_LABEL: Record<PriceIssue, string> = {
   no_price: 'No price',
   below_floor: 'Below floor',
   below_band: 'Under target',
+  in_band: 'Within target',
   above_band: 'Above target',
   unclassified: 'Unclassified',
 };

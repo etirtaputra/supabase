@@ -1395,7 +1395,7 @@ function SetPricingTab({
           them instead of the stacked row and floating "ONLY" label that made
           seven equal-looking switches read as one undifferentiated bank. */}
       <div className="flex flex-wrap items-center gap-1.5">
-        {(['no_price', 'below_floor', 'below_band', 'above_band', 'unclassified'] as PriceIssue[]).map((id) => (
+        {(['no_price', 'below_floor', 'below_band', 'in_band', 'above_band', 'unclassified'] as PriceIssue[]).map((id) => (
           <Chip key={id} label={ISSUE_LABEL[id]} count={counts.get(id) ?? 0} on={wanted.has(id)}
             tone="issue" onClick={() => { setWanted((w) => toggle(w, id)); setPage(200); }} />
         ))}

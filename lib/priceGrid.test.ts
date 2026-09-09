@@ -12,7 +12,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { issuesFor, matchesIssues, matchesScope, marginPct, priceForMargin, compareCells,
-         suggestRange, SCOPE_LABEL, type PriceScope } from './priceGrid.ts';
+         suggestRange, SCOPE_LABEL, ISSUE_LABEL,
+         type PriceIssue, type PriceScope } from './priceGrid.ts';
 import type { MarginProfile } from './marginProfiles.ts';
 
 const profile = (min: number, max: number): MarginProfile =>
@@ -92,7 +93,8 @@ test('the band is judged on the NET price, not the top tier', () => {
   // because it is a markup step, and judging it would say everything passes.
   const i = row({ profile: profile(20, 25) });
   assert.ok(!i.has('below_band'));
-  assert.ok(!i.has('above_band'), 'within the band is silent');
+  assert.ok(!i.has('above_band'));
+  assert.ok(i.has('in_band'), 'inside the band is a verdict, not a silence');
 });
 
 test('an under-earner is called out even though it breaks no floor', () => {
@@ -124,6 +126,64 @@ test('a row can be both below its floor and below its band', () => {
   assert.ok(i.has('below_band'));
 });
 
+/**
+ * "Within target" — the owner's ask, 2026-09-09.
+ *
+ * Every other chip answered "what is wrong". There was no way to ask the
+ * opposite question, and the healthy state was the ONE band verdict the engine
+ * computed and then dropped on the floor: standingOf() has returned 'within'
+ * since the profiles shipped, and issuesFor() mapped 'below', 'above' and
+ * 'unclassified' into the set while letting 'within' fall through.
+ *
+ * The absence was invisible on the screen because it looked like arithmetic —
+ * 833 + 2 + 0 + 105 + 65 does not equal 1,007, and nothing said where the rest
+ * had gone. They were the priced, classified, correctly-earning items: the ones
+ * a person reviewing pricing most wants to be able to see and skip.
+ */
+test('the four band verdicts are mutually exclusive', () => {
+  const cases = [
+    { profile: profile(30, 40) },   // 20% net → below
+    { profile: profile(20, 25) },   // 20% net → within
+    { profile: profile(5, 10) },    // 20% net → above
+    { profile: null },              // no profile → unclassified
+  ];
+  const band = ['below_band', 'in_band', 'above_band', 'unclassified'] as const;
+  for (const c of cases) {
+    const hits = band.filter((b) => row(c).has(b));
+    assert.equal(hits.length, 1, `expected exactly one band verdict, got ${hits.join(', ')}`);
+  }
+});
+
+test('every priced, classified row gets a band verdict — the counts must add up', () => {
+  // The bug this locks: a row that is priced and has a profile falls into no
+  // chip at all, so the chip counts silently undercount the catalogue.
+  for (const p of [profile(0, 100), profile(20, 20), profile(99, 100), profile(0, 1)]) {
+    const i = row({ profile: p });
+    const hasBand = i.has('below_band') || i.has('in_band') || i.has('above_band');
+    assert.ok(hasBand, `a priced row on band ${p.margin_target_min}-${p.margin_target_max} got no verdict`);
+  }
+});
+
+test('an unpriced item is not called within target either', () => {
+  assert.ok(!row({ net: null }).has('in_band'), 'no price is not a passing grade');
+});
+
+test('no landed cost is unclassified, never within target', () => {
+  const i = row({ cost: null });
+  assert.ok(!i.has('in_band'), 'we cannot say an item hits a band we cannot measure it against');
+  assert.ok(i.has('unclassified'));
+});
+
+test('within target and below floor can coexist, because they answer different questions', () => {
+  // The net earns 20% — squarely inside a 20–25 band — while an override has
+  // pushed tier 2 down to 850 against an 800 cost: 5.9%, under its 15% floor.
+  // Suppressing one because the other holds would hide a real compliance
+  // breach behind a healthy headline.
+  const i = row({ profile: profile(20, 25), priceByTier: new Map([['t1', 1000], ['t2', 850]]) });
+  assert.ok(i.has('in_band'));
+  assert.ok(i.has('below_floor'));
+});
+
 // ── the filter ─────────────────────────────────────────────────────────────
 
 test('no filter selected shows everything', () => {
@@ -137,10 +197,12 @@ test('the filter is OR across issues, so two boxes widen the list', () => {
   assert.ok(matchesIssues(i, new Set(['no_price', 'below_band'])));
 });
 
-test('a clean row survives no filter at all', () => {
+test('a clean row carries the in-band verdict and nothing else', () => {
   const clean = row({ profile: profile(15, 30) });
-  assert.equal(clean.size, 0, 'a well-priced, classified item reports nothing');
-  assert.ok(!matchesIssues(clean, new Set(['no_price', 'below_floor', 'below_band', 'unclassified'])));
+  assert.deepEqual([...clean], ['in_band'], 'a well-priced, classified item has one verdict: it is fine');
+  assert.ok(!matchesIssues(clean, new Set(['no_price', 'below_floor', 'below_band', 'unclassified'])),
+    'none of the fault filters may catch it');
+  assert.ok(matchesIssues(clean, new Set(['in_band'])), 'and "Within target" must');
 });
 
 // ── the suggestion ─────────────────────────────────────────────────────────
@@ -323,8 +385,31 @@ test('the pricing screen offers every scope the engine supports', () => {
   }
 });
 
+/**
+ * The same assertion for the verdict chips, and for the same reason.
+ *
+ * 'in_band' is what happens when the guard only covers half the screen: the
+ * scope row was pinned to SCOPE_LABEL in 2026-09-08 after `has_cost` turned out
+ * to be unreachable, while the issue row beside it stayed a hand-written list.
+ * A month later it was short a verdict. One row guarded, one not, is not a
+ * lesson learned — it is the same bug waiting on the other side of a divider.
+ */
+test('the pricing screen offers every verdict the engine can reach', () => {
+  const page = readFileSync(join(process.cwd(), 'app', 'pricing', 'page.tsx'), 'utf8');
+  const chipRow = page.match(/\(\[([^\]]*)\] as PriceIssue\[\]\)\.map/);
+  assert.ok(chipRow, 'could not find the issue chip row in app/pricing/page.tsx');
+  const offered = [...chipRow[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+  for (const issueKey of Object.keys(ISSUE_LABEL)) {
+    assert.ok(offered.includes(issueKey),
+      `ISSUE_LABEL has "${issueKey}" but the chip row does not offer it — the filter would be unreachable`);
+  }
+});
+
 test('every offered chip has a label, so none renders blank', () => {
   for (const scopeKey of Object.keys(SCOPE_LABEL) as PriceScope[]) {
     assert.ok(SCOPE_LABEL[scopeKey]?.trim(), `${scopeKey} has no label`);
+  }
+  for (const issueKey of Object.keys(ISSUE_LABEL) as PriceIssue[]) {
+    assert.ok(ISSUE_LABEL[issueKey]?.trim(), `${issueKey} has no label`);
   }
 });

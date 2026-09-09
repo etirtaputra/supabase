@@ -122,6 +122,51 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
+### 2026-09-09 (latest) — "Within target": the verdict the engine computed and threw away
+
+Owner: *"for selling prices list, we also need a filter 'Within target' or 'In
+target'."*
+
+The chip row on Selling Prices read `No price 833 · Below floor 2 · Under
+target 0 · Above target 105 · Unclassified 65`. Add those up against 1,007
+active items and a handful are unaccounted for — and nothing on the screen said
+where they had gone. They were the items that are priced, classified, and
+earning exactly what their band asks for: the ones a person reviewing pricing
+most wants to see and skip.
+
+**The verdict already existed.** `standingOf()` in `lib/marginProfiles.ts` has
+returned `'within'` since margin profiles shipped. `issuesFor()` mapped
+`'below'`, `'above'` and `'unclassified'` into the issue set and let `'within'`
+fall through to nothing. So the healthy state was computed on every row, every
+render, and discarded — which is why it was invisible rather than obviously
+missing.
+
+`PriceIssue` gains `in_band`, labelled **"Within target"**, sitting between
+Under and Above so the row reads as a ladder. The type's doc comment now says
+what it is: a VERDICT set, not a fault list. Four band verdicts, mutually
+exclusive, and every priced row with a profile lands on exactly one — both
+asserted, because the failure mode is silent undercounting rather than a wrong
+number.
+
+**`in_band` and `below_floor` can coexist, deliberately.** The band is judged on
+the item's own economics (net price against landed cost); a floor is per tier.
+An override can push tier 2 under its floor while the net sits squarely inside
+the band. Suppressing the breach because the headline is healthy would hide the
+thing that actually costs money.
+
+**The guard that should have caught this, and only covered half the screen.**
+Yesterday `has_cost` turned out to be fully built and unreachable, and the fix
+was a test pinning the SCOPE chip row to `SCOPE_LABEL`. The ISSUE row beside it
+stayed a hand-written list — and was already short a verdict. One row guarded
+and one not is not a lesson learned; it is the same bug on the other side of a
+divider. Both rows are now pinned to their label maps.
+
+Live count today: about 9 items are within target. Small, and that is the
+finding — 104 sit above their band, which is worth its own conversation.
+
+590 tests pass, six of them new; build clean.
+
+
 ### 2026-09-09 (later still) — archived items were still priced
 
 Owner: *"When an item is archived in Item Editor, it shouldn't show in Selling
