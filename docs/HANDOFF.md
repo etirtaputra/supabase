@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-09** · head of `main` at that point: `dc14dac` (see §4, §6)
+**Last updated: 2026-09-09** · head of `main` at that point: `7530beb` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -121,6 +121,49 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 ---
 
 ## 4. What the previous threads did (for context, all shipped to main)
+
+### 2026-09-09 (later) — the correction: receipt does not settle the customs bill
+
+Owner, on the fix above: *"that's true, i realized, PIB and OPS payment hasn't
+been entered. But at least it should provide an alarm."*
+
+**He was right and the earlier fix over-reached.** Making receipt short-circuit
+everything sent `PIO-2026010` quietly to Done with its customs bill unrecorded.
+Receipt short-circuits the PAPERWORK TICKS — goods do not clear customs without
+their papers. It does not short-circuit MONEY.
+
+Why it matters, and the reason this is an alarm rather than a tidiness note:
+PIB and OPS are part of **landed cost**. Until they are entered, the
+moving-average cost of everything that container brought in is understated,
+which understates COGS and overstates gross profit on every one of those items
+— including on the P&L shipped two commits earlier.
+
+- **`pibExpected(po)`** — currency decides. 28 of 30 received foreign-currency
+  POs carry PIB; 3 of 25 IDR ones do. Alarming on domestic orders would cry
+  wolf 22 times.
+- **`importCostsOutstanding()`** — received AND paid AND import AND no PIB.
+  `isComplete` now refuses to finish such a PO, so the card stays on the board.
+- **The board shows it**: red frame, "⚠ Goods received …", a line saying
+  *landed cost is understated until they are*, and a header count
+  "⚠ N awaiting PIB & OPS" listing the PO numbers on hover.
+
+**The board alone was not enough, which is the more important half.** It only
+renders POs with `track_progress`. Two imports have been sitting received with
+no customs bill and no board presence at all: **`EB.41206` (378 days,
+Chinaland Solar)** and **`PIO-2025019` (328 days, Huizhou Epever)**. So the
+same rule became the eighth attention signal, `landed_cost_open`, which reads
+every purchase order — `migrations/agent_attention.sql`, applied to production
+2026-09-09. The migration extends the live view in place via `pg_get_viewdef`
+rather than restating seven branches it could drift from, and is idempotent.
+
+`lib/agentApi.ts` gained the signal at `buy_side` capability; the schema pack
+was regenerated to **`ICAPROC-SCHEMA_v5_2026-09-09.md`** in the same commit, per
+the standing rule.
+
+**Still open, and now visible:** those two POs need their PIB / OPS entered, or
+a decision that they never had any. Until then their items' landed cost — and
+every margin computed from it — is too low.
+
 
 ### 2026-09-09 — the Progress board could not see that the goods had arrived
 

@@ -23,6 +23,7 @@ import { useMemo, useState } from 'react';
 import type { PurchaseOrder, POCost, Supplier } from '@/types/database';
 import {
   MILESTONES, milestonesReached, furthest, isComplete, nextAction, reachedCount, goodsReceived,
+  importCostsOutstanding,
   type MilestoneId, type Reached,
 } from '@/lib/poProgress';
 import { fmtIdr, fmtCcy, fmtDate } from '@/lib/formatters';
@@ -52,6 +53,8 @@ interface Card {
   supplier: string;
   done: boolean;
   count: number;
+  /** Goods in, supplier paid, customs bill never entered — landed cost is wrong. */
+  alarm: boolean;
 }
 
 /** One accent per column, walking cool → warm as money goes out. */
@@ -113,6 +116,7 @@ export default function ProgressBoard({
           supplier: supplierName.get(String(po.supplier_id)) ?? '',
           done: isComplete(reached, po),
           count: reachedCount(reached),
+          alarm: importCostsOutstanding(reached, po),
         };
       })
       .filter((c) => {
@@ -125,6 +129,7 @@ export default function ProgressBoard({
 
   const live = cards.filter((c) => !c.done);
   const done = cards.filter((c) => c.done);
+  const alarms = live.filter((c) => c.alarm);
 
   const byStage = (id: MilestoneId) => live.filter((c) => c.stage === id);
   // A tracked PO that has reached nothing at all still has to be visible, or
@@ -150,7 +155,9 @@ export default function ProgressBoard({
 
     return (
       <div key={String(c.po.po_id)}
-        className="rounded-lg bg-slate-800/70 border border-slate-700/60 p-3 hover:border-slate-600 transition-colors">
+        className={`rounded-lg p-3 transition-colors ${c.alarm
+          ? 'bg-red-500/[0.07] border border-red-500/50 hover:border-red-400/70'
+          : 'bg-slate-800/70 border border-slate-700/60 hover:border-slate-600'}`}>
         <button type="button" onClick={() => onOpenDeal(c.po)}
           className="text-left w-full group">
           <p className="text-[13px] font-semibold text-slate-100 leading-snug group-hover:text-sky-300 transition-colors">
@@ -167,9 +174,19 @@ export default function ProgressBoard({
         </div>
 
         {goodsReceived(c.po) && (
-          <p className="mt-1.5 text-[11px] text-emerald-300/90 flex items-center gap-1">
-            <span aria-hidden>✓</span>
+          <p className={`mt-1.5 text-[11px] flex items-center gap-1 ${c.alarm ? 'text-red-300' : 'text-emerald-300/90'}`}>
+            <span aria-hidden>{c.alarm ? '⚠' : '✓'}</span>
             Goods received{c.po.actual_received_date ? ` ${fmtDate(c.po.actual_received_date)}` : ''}
+          </p>
+        )}
+
+        {/* Not a nag about tidiness. Until PIB and OPS are entered the landed
+            cost of everything in that container is understated, so the margin
+            on every item it brought in reads too high. */}
+        {c.alarm && (
+          <p className="mt-1 text-[11px] text-red-300/90 leading-snug">
+            <span className="font-semibold">PIB &amp; OPS not recorded.</span>{' '}
+            Landed cost is understated until they are, so margins on this shipment read too high.
           </p>
         )}
 
@@ -250,6 +267,12 @@ export default function ProgressBoard({
         <input value={q} onChange={(e) => setQ(e.target.value)}
           placeholder="Filter by supplier, PI or PO…"
           className="flex-1 min-w-[200px] max-w-sm bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-sky-500/50" />
+        {alarms.length > 0 && (
+          <span className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-red-500/15 text-red-300 ring-1 ring-red-500/40 whitespace-nowrap"
+            title={`Received and paid, but the customs bill has never been entered: ${alarms.map((c) => c.po.po_number).join(', ')}`}>
+            ⚠ {alarms.length} awaiting PIB &amp; OPS
+          </span>
+        )}
         <span className="text-xs text-slate-500 tabular-nums">
           {live.length} live · {done.length} done
         </span>

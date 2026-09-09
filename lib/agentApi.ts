@@ -31,6 +31,9 @@ export const SIGNAL_CAPABILITY: Record<string, 'money' | 'buy_side' | 'any'> = {
   stock_short: 'any',
   unpriced: 'any',
   no_specs: 'any',
+  // Goods in, supplier paid, customs bill never entered. Buy-side because the
+  // fix is a payment row — and because the figure it protects is landed cost.
+  landed_cost_open: 'buy_side',
 };
 
 const MONEY_ROLES = ['owner', 'finance', 'buy_admin', 'sell_admin', 'data_entry'];

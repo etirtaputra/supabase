@@ -222,7 +222,49 @@ WHERE c.archived_at IS NULL
   AND c.category::text IN ('pv_module','on_grid_inverter','inverter_charger',
                            'batteries','solar_charge_controller','mounting')
   AND EXISTS (SELECT 1 FROM "30.1_stock_balances" b
-               WHERE b.component_id = c.component_id AND b.qty_on_hand > 0);
+               WHERE b.component_id = c.component_id AND b.qty_on_hand > 0)
+
+UNION ALL
+
+-- ── 8. Imports received whose customs bill was never entered ────────────────
+-- Owner, 2026-09-09: "at least it should provide an alarm."
+--
+-- PIB and OPS are part of LANDED COST. Until they are recorded, the
+-- moving-average cost of everything that container brought in is understated
+-- — which understates COGS and overstates gross profit on every one of those
+-- items, on the P&L and everywhere else. A missing payment row is a wrong
+-- margin, not a missing tick.
+--
+-- WHY THE PROGRESS BOARD IS NOT ENOUGH: it only shows POs with
+-- `track_progress`. `PIO-2025019` was received 2025-10-16, has no PIB, and has
+-- been off the board for 328 days. This signal reads every purchase order.
+--
+-- Currency decides whether a customs bill is owed at all. Checked 2026-09-09:
+-- 28 of 30 received foreign-currency POs carry PIB; only 3 of 25 IDR ones do.
+-- Alarming on domestic orders would cry wolf 22 times.
+SELECT
+  'landed_cost_open',
+  CASE WHEN COALESCE(po.actual_received_date, po.po_date) < CURRENT_DATE - 30
+       THEN 'high' ELSE 'medium' END,
+  COALESCE(s.supplier_name, 'Supplier not recorded'),
+  format('%s received %s with no PIB / OPS recorded — landed cost is understated',
+         po.po_number, COALESCE(po.actual_received_date::text, 'date not set')),
+  NULL::numeric,
+  (CURRENT_DATE - COALESCE(po.actual_received_date, po.po_date))::int,
+  '5.0_purchases',
+  po.po_id::text
+FROM "5.0_purchases" po
+LEFT JOIN "4.0_price_quotes" pq ON pq.quote_id = po.quote_id
+LEFT JOIN "2.0_suppliers" s ON s.supplier_id = COALESCE(po.supplier_id, pq.supplier_id)
+WHERE can_write_buy_side()
+  AND (po.status::text = 'Fully Received' OR po.actual_received_date IS NOT NULL)
+  AND COALESCE(po.currency, 'IDR') <> 'IDR'
+  AND COALESCE(po.status::text, '') NOT IN ('Cancelled','cancelled')
+  AND NOT EXISTS (
+    SELECT 1 FROM "6.0_po_costs" c
+     WHERE c.po_id = po.po_id
+       AND c.cost_category::text IN
+           ('local_import_duty','local_vat','local_income_tax','local_import_tax'));
 
 
 -- The digest an agent can read in one query for a daily message.

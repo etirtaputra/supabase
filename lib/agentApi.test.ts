@@ -24,8 +24,8 @@ test('owner sees everything', () => {
 test('the engineer login (MANDA) sees operations but no money and no buy side', () => {
   const seen = visibleKinds('engineer');
   assert.deepEqual(seen, ['no_specs', 'quote_quiet', 'stock_short', 'unpriced']);
-  // These are the two that matter: she must never be able to imply a zero.
-  assert.deepEqual(hiddenKinds('engineer'), ['ar_overdue', 'below_cost', 'po_late']);
+  // These are the ones that matter: she must never be able to imply a zero.
+  assert.deepEqual(hiddenKinds('engineer'), ['ar_overdue', 'below_cost', 'landed_cost_open', 'po_late']);
 });
 
 test('sell_admin sees money but not the buy side', () => {
@@ -33,12 +33,14 @@ test('sell_admin sees money but not the buy side', () => {
   assert.ok(seen.includes('ar_overdue'), 'AR is a sell-side responsibility');
   assert.ok(seen.includes('below_cost'));
   assert.ok(!seen.includes('po_late'), 'purchase orders are not theirs');
+  assert.ok(!seen.includes('landed_cost_open'), 'nor is the customs bill');
 });
 
 test('buy_admin sees the buy side and cost', () => {
   const seen = visibleKinds('buy_admin');
   assert.ok(seen.includes('po_late'));
   assert.ok(seen.includes('below_cost'));
+  assert.ok(seen.includes('landed_cost_open'), 'the buyer is who enters the customs bill');
 });
 
 test('a role nobody granted anything still sees the ungated signals only', () => {

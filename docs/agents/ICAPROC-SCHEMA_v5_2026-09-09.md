@@ -2,7 +2,7 @@
 
 > **Read this before your first query. Never guess a table name.**
 >
-> Written 2026-09-06, revised 2026-09-07, against `main` @ the commit that
+> Written 2026-09-06, revised 2026-09-07 and 2026-09-09, against `main` @ the commit that
 > carries it. Row counts are from those days and drift; the NAMES and the RULES
 > are what matter.
 >
@@ -235,14 +235,28 @@ Every response carries `visible_kinds` and `hidden_kinds` for your role.
 and "AR is outside what I can see" are different claims, and only one of them
 is honest when `ar_overdue` is in `hidden_kinds`.
 
-The seven signals: `ar_overdue` · `po_late` · `quote_quiet` · `below_cost` ·
-`stock_short` · `unpriced` · `no_specs`. Each row gives `severity`
+The eight signals: `ar_overdue` · `po_late` · `quote_quiet` · `below_cost` ·
+`stock_short` · `unpriced` · `no_specs` · `landed_cost_open`. Each row gives `severity`
 (high/medium/low), `subject`, `detail`, `amount_idr`, `age_days`, and
 `ref_table` + `ref_id` to drill into.
 
 Use these rather than writing your own aggregate over `25.0` and `26.0`: the
 rules are maintained in one place, and a hand-rolled version will disagree
 with the one the owner sees.
+
+**`landed_cost_open` is the one to escalate, not just report** (added
+2026-09-09). It fires when an IMPORT has been received and the supplier paid,
+but no PIB / OPS charge was ever entered against the PO. Those charges are part
+of landed cost: until they exist, the moving-average cost of everything that
+container brought in is understated, so COGS is understated and gross profit on
+every one of those items reads too high — on the P&L, on the item hub, in any
+margin you quote. A missing payment row is a wrong margin, not untidy data.
+
+Currency decides whether a customs bill is owed at all: 28 of 30 received
+foreign-currency POs carry PIB, against 3 of 25 IDR ones, so the signal only
+looks at non-IDR orders. Two POs were sitting in this state when it shipped —
+`EB.41206` (378 days) and `PIO-2025019` (328 days), neither of them on the
+Progress board, which only shows POs with `track_progress`.
 
 ### Designing — call the engine, never re-derive it
 

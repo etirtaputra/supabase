@@ -30,7 +30,7 @@ export const AGENT_DOCS: readonly AgentDoc[] = [
   {
     id: 'schema',
     title: 'ICAPROC schema map',
-    file: 'ICAPROC-SCHEMA_v4_2026-09-07.md',
+    file: 'ICAPROC-SCHEMA_v5_2026-09-09.md',
     audience: 'every agent, before its first query',
     first: true,
   },

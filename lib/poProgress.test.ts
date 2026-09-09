@@ -10,6 +10,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   milestonesReached, furthest, isComplete, nextAction, reachedCount, MILESTONE_IDS, goodsReceived,
+  pibExpected, importCostsOutstanding,
 } from './poProgress.ts';
 
 type AnyPo = Parameters<typeof milestonesReached>[0];
@@ -148,16 +149,60 @@ test('goods count as received from the date, or from the status alone', () => {
     'half the goods is half a deal');
 });
 
-test('received and paid is DONE, even with the ticks and PIB outstanding', () => {
-  // PIO-2026010 exactly: Fully Received 2026-09-08, settled to the rupiah, no
-  // PIB row, neither document ticked. The board filed it under Balance Paid
-  // and offered "Log PIB / OPS" while Deal Lookup called it finished.
-  const renasun = po({ status: 'Fully Received' as never, actual_received_date: '2026-09-08' });
-  const reached = milestonesReached(renasun, [cost('down_payment', 300), cost('balance_payment', 700)]);
+test('an import expects a customs bill; a domestic order does not', () => {
+  // 30 received foreign-currency POs, 28 with PIB. 25 received IDR POs, 3 with
+  // PIB. Currency is the signal (production data, 2026-09-09).
+  assert.ok(pibExpected(po({ currency: 'USD' as never })));
+  assert.ok(pibExpected(po({ currency: 'CNY' as never })));
+  assert.ok(!pibExpected(po({ currency: 'IDR' as never })));
+});
+
+test('THE ALARM: goods in, supplier paid, customs bill never recorded', () => {
+  // PIO-2026010 exactly, as it stood on 2026-09-09: Fully Received, settled to
+  // the rupiah, no PIB row. The first version of this rule sent it silently to
+  // Done. It must stay on the board — until PIB is entered, landed cost is
+  // understated and every margin on that container reads too high.
+  const renasun = po({ currency: 'USD' as never, status: 'Fully Received' as never,
+                       actual_received_date: '2026-09-08', total_value: 1000 });
+  const reached = milestonesReached(renasun, [cost('down_payment', 300, 'USD'), cost('balance_payment', 700, 'USD')]);
+  assert.ok(reached.balance_paid);
   assert.ok(!reached.pib_paid);
-  assert.ok(!reached.docs_checked);
-  assert.ok(isComplete(reached, renasun), 'the goods are in and the supplier is paid');
-  assert.equal(nextAction(reached, renasun), null, 'nothing left to chase');
+  assert.ok(importCostsOutstanding(reached, renasun), 'this is the alarm');
+  assert.ok(!isComplete(reached, renasun), 'it must NOT disappear into Done');
+  assert.equal(nextAction(reached, renasun)?.id, 'pib_paid', 'and it must name the work');
+});
+
+test('entering the customs bill clears the alarm and finishes the deal', () => {
+  // The same PO once local_vat / local_income_tax land on it.
+  const renasun = po({ currency: 'USD' as never, status: 'Fully Received' as never,
+                       actual_received_date: '2026-09-08', total_value: 1000 });
+  const reached = milestonesReached(renasun, [
+    cost('down_payment', 300, 'USD'), cost('balance_payment', 700, 'USD'),
+    cost('local_vat', 90, 'IDR'), cost('local_income_tax', 25, 'IDR'),
+  ]);
+  assert.ok(!importCostsOutstanding(reached, renasun));
+  assert.ok(isComplete(reached, renasun), 'ticks still not needed — those are paperwork');
+  assert.ok(!reached.docs_checked && !reached.hard_copy);
+});
+
+test('a domestic order owes no customs, so receipt and payment finish it', () => {
+  const p = po({ currency: 'IDR' as never, status: 'Fully Received' as never, total_value: 1000 });
+  const reached = milestonesReached(p, [cost('balance_payment', 1000, 'IDR')]);
+  assert.ok(!reached.pib_paid);
+  assert.ok(!importCostsOutstanding(reached, p), 'nothing cleared customs, nothing is owed');
+  assert.ok(isComplete(reached, p));
+});
+
+test('the alarm needs BOTH goods in and supplier paid — not one of them', () => {
+  const p = po({ currency: 'USD' as never, total_value: 1000 });
+  // Paid, not yet arrived: the customs bill is not due yet.
+  const paidOnly = milestonesReached(p, [cost('balance_payment', 1000, 'USD')]);
+  assert.ok(!importCostsOutstanding(paidOnly, p));
+  // Arrived, not paid: chase the balance first.
+  const arrived = po({ currency: 'USD' as never, status: 'Fully Received' as never, total_value: 1000 });
+  const unpaid = milestonesReached(arrived, [cost('down_payment', 300, 'USD')]);
+  assert.ok(!importCostsOutstanding(unpaid, arrived));
+  assert.equal(nextAction(unpaid, arrived)?.id, 'balance_paid');
 });
 
 test('received but NOT paid stays live — that is the one worth chasing', () => {
@@ -167,7 +212,7 @@ test('received but NOT paid stays live — that is the one worth chasing', () =>
   assert.equal(nextAction(reached, p)?.id, 'balance_paid');
 });
 
-test('a domestic PO with no PIB can still finish — the old rule made that impossible', () => {
+test('a domestic PO with no PIB can still finish — "all seven" made that impossible', () => {
   // Nothing clears customs, so pib_paid is false forever. Under "all seven"
   // this card sat on the board until the end of time.
   const p = po({ currency: 'IDR' as never, status: 'Fully Received' as never });

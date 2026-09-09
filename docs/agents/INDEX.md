@@ -5,8 +5,8 @@
 > copy in Google Drive is stale. Agent prompts point HERE, and this page names
 > the current file — otherwise every version bump would break every prompt.
 >
-> **Last updated: 2026-09-07** (the runbook joins the set; the schema pack
-> gains the totals rules; onboarding becomes an endpoint).
+> **Last updated: 2026-09-09** (v5: the landed-cost alarm; the schema pack
+> gains the eighth attention signal).
 
 ## The one call that beats this page
 
@@ -28,7 +28,7 @@ superseded now and finding out after acting on it.
 
 | Pack | Current file | For | Changed |
 |---|---|---|---|
-| **Schema map** | `ICAPROC-SCHEMA_v4_2026-09-07.md` | every agent, first | v4: totals & triggers (§5a), the sell-side write freeze (§3), onboarding (§5b) |
+| **Schema map** | `ICAPROC-SCHEMA_v5_2026-09-09.md` | every agent, first | v5: the landed\_cost\_open signal — imports received with no PIB/OPS |
 | **Purchasing runbook** | `PURCHASING-RUNBOOK_v2_2026-09-07.md` | Hermes, buy side | v2: versioned and moved here; the mechanism behind lines-before-totals; the price-quote exception |
 | **Solar design** | `MANDA-SOLAR-DESIGN_v2_2026-09-06.md` | MANDA, engineering | v2: engine v8, temperature-corrected strings |
 | **MANDA boot prompt** | `MANDA-BOOT-PROMPT_v2_2026-09-06.md` | MANDA's config | v2: string-reporting rule |

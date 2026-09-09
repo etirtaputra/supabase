@@ -178,6 +178,44 @@ export function goodsReceived(po: ProgressPo): boolean {
 }
 
 /**
+ * Does this purchase order owe customs money at all?
+ *
+ * An import does; a domestic supply does not. The production data separates
+ * the two cleanly (2026-09-09): of 30 received foreign-currency POs, 28 carry
+ * a PIB charge — of 25 received IDR POs, only 3 do. So currency is the signal,
+ * and it is the right one in principle too: goods bought abroad clear customs,
+ * goods bought in Jakarta do not.
+ *
+ * Getting this wrong in either direction costs something. Expecting PIB on
+ * every PO would alarm on 22 domestic orders that never owed a rupiah of duty,
+ * and an alarm that cries wolf is worse than none. Expecting it on none would
+ * miss what `PIO-2025019` has been doing for 328 days.
+ */
+export function pibExpected(po: ProgressPo): boolean {
+  return Boolean(po.currency) && po.currency !== 'IDR';
+}
+
+/**
+ * THE ALARM: the goods are in, the supplier is paid, and the import charges
+ * that belong to this shipment have never been recorded.
+ *
+ * Why this is not merely untidy (owner, 2026-09-09 — *"at least it should
+ * provide an alarm"*): PIB and OPS are part of LANDED COST. Until they are
+ * entered, the moving-average cost of everything in that container is
+ * understated, which understates COGS on the P&L, which overstates gross
+ * profit on every item that shipment brought in. A missing payment row is a
+ * wrong margin, not a missing tick.
+ *
+ * This is exactly what the first version of `isComplete` got wrong: it let
+ * receipt short-circuit EVERYTHING, so `PIO-2026010` went quietly to Done with
+ * its customs bill unrecorded. Receipt short-circuits the paperwork ticks. It
+ * does not short-circuit money.
+ */
+export function importCostsOutstanding(reached: Reached, po: ProgressPo): boolean {
+  return goodsReceived(po) && reached.balance_paid && pibExpected(po) && !reached.pib_paid;
+}
+
+/**
  * Done — the card leaves the board.
  *
  * TWO WAYS TO BE FINISHED, and the second is the one that matters in practice.
@@ -188,15 +226,17 @@ export function goodsReceived(po: ProgressPo): boolean {
  * are already on the shelf. Every settled PO would sit on the board for good,
  * and the board's whole promise is that a card moves when the work is done.
  *
- * So the real terminal state is: THE GOODS ARE IN AND THE SUPPLIER IS PAID.
- * There is nothing left to chase. The document ticks are progress markers on
- * the way to that, not gates on it — and receipt implies them anyway, since
- * goods do not clear customs without their papers.
+ * So the terminal state is: THE GOODS ARE IN, THE SUPPLIER IS PAID, AND ANY
+ * CUSTOMS BILL HAS BEEN RECORDED. The document ticks are progress markers on
+ * the way there, not gates on it — receipt implies them, since goods do not
+ * clear customs without their papers. The customs MONEY is different, and
+ * `importCostsOutstanding` keeps that card on the board until it is entered.
  *
- * Received but NOT paid stays live, which is the point: that is the case worth
- * chasing hardest.
+ * Received but NOT paid also stays live, which is the point: that is the case
+ * worth chasing hardest.
  */
 export function isComplete(reached: Reached, po: ProgressPo): boolean {
+  if (importCostsOutstanding(reached, po)) return false;
   if (goodsReceived(po) && reached.balance_paid) return true;
   return MILESTONE_IDS.every((id) => reached[id]);
 }
