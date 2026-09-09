@@ -287,44 +287,6 @@ Phase is read off the text: `nominal_ac_voltage_vac` containing `3L` or
 `cableSource: 'measured'`. Absent → `numPanels × 6` as before, `'default'`,
 and a warning.
 
-### 4.6 The six defaults v9 stopped hiding
-
-Every one of these came from one real design — PT Kayan Plantation, 440 kWp
-hybrid PV + BESS — where six sizing errors were caught by a senior engineer on
-review rather than by the engine. **The pattern is the same in all six, and it
-is the thing to learn: the engine had a plausible default for something the
-SITE should have answered, and applied it in silence. A number nobody chose
-reads exactly like a number somebody did.**
-
-| # | Input | Default | The engine now says |
-|---|---|---|---|
-| 1 | `demandFactor` | 1.0 | when it was not stated — housing estates are 40–60 %, not 100 % |
-| 2 | `powerLossFactorFs` | none, so ×1.25 | nothing; `inverterSizingMethod` states which rule ran |
-| 3 | — | — | when headroom is under 30 % |
-| 4 | — | — | when the bank's real string voltage is over 95 % of the port maximum |
-| 5 | `cableRunPerStringM` | 6 m/panel | when it was not stated — a rooftop figure, out by 5–10× on an estate |
-| 6 | `pshSource` | `'estimate'` | when it was not stated — PSH 3.5 vs 3.0 moves the array by 17 % |
-
-**What this means for MANDA in practice:**
-
-- **Ask for all four before designing.** A design that carries three
-  "not stated" warnings is not wrong, but it is undefended, and every one of
-  them is a question the customer or the drawing can answer in a sentence.
-- **A v9 design with no warnings is a different claim from a v8 design with no
-  warnings.** v8 silence meant nothing was checked. v9 silence means the four
-  questions were answered and the four thresholds cleared.
-- **Never report the load table's own sum as the sized load** when a demand
-  factor is set. `rawRunningW` and `runningW` are both in the result for
-  exactly this reason; quote both, or quote the one that was sized and say so.
-- **`batteryVoltageCheck: 'unknown'` is not `'ok'`.** It means the inverter's
-  `battery_voltage_range_vdc` is blank in Tech Specs — as of 2026-09-09 that is
-  49 of 50 inverter-chargers, so this check is nearly always unknown today. The
-  string voltage is still reported; check it by hand against the datasheet, and
-  say that you did.
-- **Headroom under 30 % is a warning, not a refusal.** The engine still picks
-  what it picked. Two 50 kW units on a 94.3 kW requirement is 6 % and is what
-  started this; three is the answer, and it is the engineer's to give.
-
 ### 4.4 Worked examples — verify MANDA against these
 
 **On-grid, 5500 VA single-phase, DC/AC 1.2, ICA100-36M (100 W, 26.91 Voc):**
@@ -377,6 +339,44 @@ the exact string found the test data and never the real data.
 
 **If MANDA ever sees a non-integer battery quantity, something is wrong
 upstream of the engine — stop and report it. The engine cannot produce one.**
+
+### 4.6 The six defaults v9 stopped hiding
+
+Every one of these came from one real design — PT Kayan Plantation, 440 kWp
+hybrid PV + BESS — where six sizing errors were caught by a senior engineer on
+review rather than by the engine. **The pattern is the same in all six, and it
+is the thing to learn: the engine had a plausible default for something the
+SITE should have answered, and applied it in silence. A number nobody chose
+reads exactly like a number somebody did.**
+
+| # | Input | Default | The engine now says |
+|---|---|---|---|
+| 1 | `demandFactor` | 1.0 | when it was not stated — housing estates are 40–60 %, not 100 % |
+| 2 | `powerLossFactorFs` | none, so ×1.25 | nothing; `inverterSizingMethod` states which rule ran |
+| 3 | — | — | when headroom is under 30 % |
+| 4 | — | — | when the bank's real string voltage is over 95 % of the port maximum |
+| 5 | `cableRunPerStringM` | 6 m/panel | when it was not stated — a rooftop figure, out by 5–10× on an estate |
+| 6 | `pshSource` | `'estimate'` | when it was not stated — PSH 3.5 vs 3.0 moves the array by 17 % |
+
+**What this means for MANDA in practice:**
+
+- **Ask for all four before designing.** A design that carries three
+  "not stated" warnings is not wrong, but it is undefended, and every one of
+  them is a question the customer or the drawing can answer in a sentence.
+- **A v9 design with no warnings is a different claim from a v8 design with no
+  warnings.** v8 silence meant nothing was checked. v9 silence means the four
+  questions were answered and the four thresholds cleared.
+- **Never report the load table's own sum as the sized load** when a demand
+  factor is set. `rawRunningW` and `runningW` are both in the result for
+  exactly this reason; quote both, or quote the one that was sized and say so.
+- **`batteryVoltageCheck: 'unknown'` is not `'ok'`.** It means the inverter's
+  `battery_voltage_range_vdc` is blank in Tech Specs — as of 2026-09-09 that is
+  49 of 50 inverter-chargers, so this check is nearly always unknown today. The
+  string voltage is still reported; check it by hand against the datasheet, and
+  say that you did.
+- **Headroom under 30 % is a warning, not a refusal.** The engine still picks
+  what it picked. Two 50 kW units on a 94.3 kW requirement is 6 % and is what
+  started this; three is the answer, and it is the engineer's to give.
 
 ---
 
