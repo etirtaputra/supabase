@@ -256,12 +256,12 @@ export default function SalesListPage() {
         {/* Phones: wordmark row then actions row — side-by-side squeezes the
             buttons into the wordmark. sm+ keeps the single row. */}
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-x-4 sm:gap-y-2.5">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Sales Orders · DQ → PQ → SO" />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle={t('Sales Orders · DQ → PQ → SO')} />
           {profile?.role === 'owner' && (
             <button onClick={() => router.push('/sales/library')}
               title={t('Owner-only: curated custom line texts that feed the item picker')}
               className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap">
-              Library
+              {t('Library')}
             </button>
           )}
         </div>
@@ -281,7 +281,7 @@ export default function SalesListPage() {
             <button onClick={() => router.push('/sales/new')}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 text-xs font-semibold whitespace-nowrap transition-colors">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-              New Quote
+              {t('New Quote')}
             </button>
             {/* Straight to a Sales Order — same editor, but Confirm Order is
                 the primary action: no quotation dance for a customer who
@@ -290,9 +290,9 @@ export default function SalesListPage() {
               title={t('Create a Sales Order directly — fill the customer and items, then Confirm Order in one step')}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-violet-500/40 text-violet-300 hover:bg-violet-500/10 text-xs font-semibold whitespace-nowrap transition-colors">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-              New Order
+              {t('New Order')}
             </button>
-            <DateRangeFilter value={range} onChange={(r) => { touched.current = true; setRange(r); }} label="Quote date" align="left" />
+            <DateRangeFilter value={range} onChange={(r) => { touched.current = true; setRange(r); }} label={t('Quote date')} align="left" />
             <select value={sort} onChange={(e) => { touched.current = true; setSort(e.target.value); setColSort(null); }}
               title={t('Order — the default lives in Settings › Lists')}
               className="text-xs bg-slate-900/80 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60">
@@ -459,7 +459,7 @@ export default function SalesListPage() {
                           {delStateOf(q) === 'partial' ? (
                             <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-teal-500/15 text-teal-300"
                               title={t('Some delivery orders are delivered, the rest still preparing — the order completes when every item has shipped')}>
-                              Partly Delivered
+                              {t('Partly Delivered')}
                             </span>
                           ) : (
                             <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS[q.status]?.cls ?? ''}`}>{t(STATUS[q.status]?.label ?? q.status)}</span>
@@ -550,7 +550,7 @@ export default function SalesListPage() {
                                     <>
                                       {qdos.map((d) => (
                                         <a key={d.do_id} href={`/sales/${q.quote_id}/do?do=${d.do_id}`} target="_blank" rel="noopener noreferrer"
-                                          title={d.status === 'delivered' ? 'Delivered' : 'Preparing'} className={docLink}>
+                                          title={d.status === 'delivered' ? t('Delivered') : t('Preparing')} className={docLink}>
                                           {d.do_number}{dot(d.status === 'delivered' ? 'bg-emerald-400' : 'bg-orange-400')}</a>
                                       ))}
                                       <span className="text-slate-600">
@@ -596,16 +596,17 @@ function CenterSpinner() {
 
 /** Tiny funnel-progress dots: Quote → Validated → Sent → SO → INV → Paid → DO. */
 function MilestoneDots({ status, paid, delivered }: { status: string; paid: boolean; delivered: boolean }) {
+  const { t } = useT();
   if (['cancelled', 'rejected'].includes(status)) return null;
   const idx = milestoneIndex(status);
   const steps = [
-    { l: 'Quote', on: true },
-    { l: 'Validated', on: idx >= 1 },
-    { l: 'Sent', on: idx >= 2 },
-    { l: 'Sales Order', on: idx >= 4 },
-    { l: 'Invoice', on: idx >= 5 },
-    { l: 'Paid', on: paid },
-    { l: 'Delivered', on: delivered },
+    { l: t('Quote'), on: true },
+    { l: t('Validated'), on: idx >= 1 },
+    { l: t('Sent'), on: idx >= 2 },
+    { l: t('Sales Order'), on: idx >= 4 },
+    { l: t('Invoice'), on: idx >= 5 },
+    { l: t('Paid'), on: paid },
+    { l: t('Delivered'), on: delivered },
   ];
   return (
     <span className="flex items-center gap-[3px]" title={steps.map((s) => `${s.on ? '✓' : '○'} ${s.l}`).join('\n')}>

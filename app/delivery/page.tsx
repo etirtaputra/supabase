@@ -159,7 +159,7 @@ export default function DeliveryPage() {
 
         <div className="flex flex-wrap items-center gap-3 justify-between">
           <div className="flex items-center gap-2">
-            <DateRangeFilter value={range} onChange={(r) => { rangeTouched.current = true; setRange(r); }} label="Delivery date" align="left" />
+            <DateRangeFilter value={range} onChange={(r) => { rangeTouched.current = true; setRange(r); }} label={t('Delivery date')} align="left" />
             <LayoutToggle value={layout} onChange={setLayout} />
           </div>
           <span className="text-[11px] text-slate-500 tabular-nums">
@@ -174,7 +174,7 @@ export default function DeliveryPage() {
             {loading ? (
               <div className="p-4 space-y-1.5">{[...Array(3)].map((_, i) => <div key={i} className="h-12 bg-slate-800/40 rounded-xl animate-pulse" />)}</div>
             ) : pending.length === 0 ? (
-              <div className="px-4 py-8 text-center text-slate-600 text-sm">Nothing waiting — confirmed orders appear here until they're delivered.</div>
+              <div className="px-4 py-8 text-center text-slate-600 text-sm">{t('Nothing waiting — confirmed orders appear here until they’re delivered.')}</div>
             ) : (
               <div className="divide-y divide-slate-800/60">
                 {pending.map((q) => {

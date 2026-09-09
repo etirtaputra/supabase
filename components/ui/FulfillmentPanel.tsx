@@ -29,6 +29,7 @@ const num = (v: unknown): number => { if (v === '' || v == null) return 0; const
 const today = () => new Date().toISOString().slice(0, 10);
 import { fetchWarehouses, defaultWarehouse, type Warehouse } from '@/lib/warehouses';
 import { fmtDay, fmtInt } from '@/lib/formatters';
+import { useT } from '@/hooks/useT';
 import { evalCell } from '@/lib/formula';
 
 const TIME_OF_DAY = ['Pagi (08–11)', 'Siang (11–14)', 'Sore (14–17)'];
@@ -50,6 +51,7 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
   onChanged: () => void;
   flash: (m: string) => void;
 }) {
+  const { t, tf } = useT();
   const supabase = createSupabaseClient();
   const [busy, setBusy] = useState(false);
   const [showInv, setShowInv] = useState(false);
@@ -118,11 +120,11 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
         qty: l.qty, unit_price: l.unit_price, line_total: l.qty * l.unit_price, sort_order: i,
       }));
       subtotal = invLines.reduce((s, l) => s + l.line_total, 0);
-      if (invLines.length === 0) { setBusy(false); flash('Nothing to invoice — enter a quantity'); return; }
+      if (invLines.length === 0) { setBusy(false); flash(t('Nothing to invoice — enter a quantity')); return; }
     } else {
       subtotal = (orderTotal * payload.pct / 100) / (1 + ppn / 100);
       invLines = [{ so_item_id: null, description: `Progress billing ${payload.pct}% — ${quote.order_number || quote.quote_number}`, unit: '', qty: 1, unit_price: subtotal, line_total: subtotal, sort_order: 0 }];
-      if (payload.pct <= 0) { setBusy(false); flash('Enter a percentage'); return; }
+      if (payload.pct <= 0) { setBusy(false); flash(t('Enter a percentage')); return; }
     }
     const ppnAmt = subtotal * ppn / 100;
     const { data: inv, error } = await supabase.from('25.0_sales_invoices').insert({
@@ -145,7 +147,7 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
   }
 
   async function deleteInvoice(inv: Invoice) {
-    if ((paidByInvoice[inv.invoice_id] ?? 0) > 0) { flash('Payments are recorded against this invoice — remove them first.'); return; }
+    if ((paidByInvoice[inv.invoice_id] ?? 0) > 0) { flash(t('Payments are recorded against this invoice — remove them first.')); return; }
     if (!window.confirm(`Delete ${inv.invoice_number}? The INV number will not be reused.`)) return;
     setBusy(true);
     const { error } = await supabase.from('25.0_sales_invoices').delete().eq('invoice_id', inv.invoice_id);
@@ -156,13 +158,13 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
     if (rest.length === 0 && quote.status === 'invoiced') patch.status = 'ordered';
     await patchOrder(patch);
     setBusy(false);
-    flash('Invoice deleted');
+    flash(t('Invoice deleted'));
     onChanged();
   }
 
   async function createDo(payload: { details: { date: string; time: string; method: string; via: string; address: string; mapUrl: string; contact: string }; lines: { so_item_id: string; component_id: string | null; description: string; unit: string; qty: number }[] }) {
     const kept = payload.lines.filter((l) => l.qty > 0);
-    if (kept.length === 0) { flash('Nothing to ship — enter a quantity'); return; }
+    if (kept.length === 0) { flash(t('Nothing to ship — enter a quantity')); return; }
     setBusy(true);
     const d = payload.details;
     const { data: doRow, error } = await supabase.from('24.0_delivery_orders').insert({
@@ -267,7 +269,7 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
   }
 
   async function deleteDo(d: DeliveryOrder) {
-    if (d.status === 'delivered') { flash('Reopen the DO first — a delivered DO cannot be deleted directly.'); return; }
+    if (d.status === 'delivered') { flash(t('Reopen the DO first — a delivered DO cannot be deleted directly.')); return; }
     if (!window.confirm(`Delete ${d.do_number}?`)) return;
     setBusy(true);
     const { error } = await supabase.from('24.0_delivery_orders').delete().eq('do_id', d.do_id);
@@ -278,7 +280,7 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
     if (rest.length === 0 && quote.status === 'preparing') patch.status = invoices.length ? 'invoiced' : 'ordered';
     await patchOrder(patch);
     setBusy(false);
-    flash('Delivery order deleted');
+    flash(t('Delivery order deleted'));
     onChanged();
   }
 
@@ -301,14 +303,14 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
             <span className="font-mono text-slate-200">{i.invoice_number}</span>
             {i.kind === 'progress' && <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300 font-semibold">{Number(i.pct ?? 0)}%</span>}
             <span className={`text-[11px] font-semibold px-2 py-0.5 rounded ${state === 'paid' ? 'bg-emerald-500/20 text-emerald-300' : state === 'partial' ? 'bg-amber-500/15 text-amber-300' : 'bg-red-500/10 text-red-400/90'}`}>
-              {state === 'paid' ? 'Paid' : state === 'partial' ? 'Partial' : 'Unpaid'}
+              {state === 'paid' ? t('Paid') : state === 'partial' ? t('Partial') : t('Unpaid')}
             </span>
             <span className="ml-auto tabular-nums text-slate-200 font-semibold whitespace-nowrap">Rp {fmtInt(total)}</span>
             <span className="text-slate-600 tabular-nums whitespace-nowrap">{fmtDay(i.issued_at)}</span>
             <a href={`/sales/${quote.quote_id}/print?inv=${i.invoice_id}`} target="_blank" rel="noopener noreferrer"
-              className="px-2 py-1 rounded-lg text-[10px] font-medium text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all">Print</a>
+              className="px-2 py-1 rounded-lg text-[10px] font-medium text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all">{t('Print')}</a>
             {canEdit && (
-              <button onClick={() => deleteInvoice(i)} disabled={busy} className="text-slate-600 hover:text-red-400 transition-colors" title="Delete invoice">×</button>
+              <button onClick={() => deleteInvoice(i)} disabled={busy} className="text-slate-600 hover:text-red-400 transition-colors" title={t('Delete invoice')}>×</button>
             )}
           </div>
         );
@@ -326,9 +328,9 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
             <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
               <span className="font-mono text-slate-200">{d.do_number}</span>
               <span className={`text-[11px] font-semibold px-2 py-0.5 rounded ${d.status === 'delivered' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-orange-500/15 text-orange-300'}`}>
-                {d.status === 'delivered' ? 'Delivered' : 'Preparing'}
+                {d.status === 'delivered' ? t('Delivered') : t('Preparing')}
               </span>
-              <span className="text-slate-500 truncate">{fmtInt(qty)} units{d.delivery_date ? ` · ${fmtDay(d.delivery_date)}` : ''}{d.delivery_method === 'pickup' ? ' · pick-up' : d.delivery_via ? ` · ${d.delivery_via}` : ''}</span>
+              <span className="text-slate-500 truncate">{tf('{n} units', { n: fmtInt(qty) })}{d.delivery_date ? ` · ${fmtDay(d.delivery_date)}` : ''}{d.delivery_method === 'pickup' ? ` · ${t('pick-up')}` : d.delivery_via ? ` · ${d.delivery_via}` : ''}</span>
               <span className="ml-auto flex items-center gap-1.5">
                 <a href={`/sales/${quote.quote_id}/do?do=${d.do_id}`} target="_blank" rel="noopener noreferrer"
                   className="px-2 py-1 rounded-lg text-[10px] font-medium text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all whitespace-nowrap">Surat Jalan</a>
@@ -336,16 +338,16 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
                   <>
                     <button onClick={() => markDelivered(d)} disabled={busy}
                       className="px-2 py-1 rounded-lg text-[10px] font-semibold text-emerald-300 hover:text-emerald-200 hover:bg-emerald-500/10 border border-emerald-500/25 transition-all disabled:opacity-40 whitespace-nowrap">
-                      Mark Delivered
+                      {t('Mark Delivered')}
                     </button>
-                    <button onClick={() => deleteDo(d)} disabled={busy} className="text-slate-600 hover:text-red-400 transition-colors" title="Delete DO">×</button>
+                    <button onClick={() => deleteDo(d)} disabled={busy} className="text-slate-600 hover:text-red-400 transition-colors" title={t('Delete DO')}>×</button>
                   </>
                 )}
                 {canEdit && d.status === 'delivered' && (
                   <button onClick={() => reopenDo(d)} disabled={busy}
-                    title="Reverse this DO's stock-out and put it back in Preparing"
+                    title={t('Reverse this DO’s stock-out and put it back in Preparing')}
                     className="px-2 py-1 rounded-lg text-[10px] font-medium text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all disabled:opacity-40">
-                    Reopen
+                    {t('Reopen')}
                   </button>
                 )}
               </span>
@@ -362,11 +364,11 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
   return (
     <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4 space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Fulfillment</h3>
+        <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">{t('Fulfillment')}</h3>
         <span className="text-[11px] text-slate-500">
-          {invoices.length} invoice{invoices.length !== 1 ? 's' : ''} · {dos.length} delivery order{dos.length !== 1 ? 's' : ''}
+          {tf('{inv} invoices · {dos} delivery orders', { inv: invoices.length, dos: dos.length })}
         </span>
-        {invoicedPct > 100.5 && <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/15 text-red-300">Invoiced {invoicedPct.toFixed(0)}% — over 100%</span>}
+        {invoicedPct > 100.5 && <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/15 text-red-300">{tf('Invoiced {pct}% — over 100%', { pct: invoicedPct.toFixed(0) })}</span>}
       </div>
 
       {/* Two boxes, one per flow — INVOICES owns billing (meter, button, its
@@ -376,16 +378,16 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
         <section className="rounded-xl border border-slate-800/80 bg-slate-950/30 p-3.5 space-y-3">
           <div className="flex justify-between items-baseline text-[11px]">
-            <span className="font-semibold uppercase tracking-widest text-slate-500">Invoices</span>
+            <span className="font-semibold uppercase tracking-widest text-slate-500">{t('Invoices')}</span>
             <span className="tabular-nums text-slate-300">Rp {fmtInt(invoicedTotal)} · {invoicedPct.toFixed(0)}%</span>
           </div>
           {meter(invoicedPct, invoicedPct >= 99.5 ? 'bg-emerald-500' : 'bg-amber-400')}
-          {orderTotal - invoicedTotal > 0.5 && <p className="text-[10px] text-slate-600">Rp {fmtInt(orderTotal - invoicedTotal)} left to invoice</p>}
+          {orderTotal - invoicedTotal > 0.5 && <p className="text-[10px] text-slate-600">{tf('Rp {amount} left to invoice', { amount: fmtInt(orderTotal - invoicedTotal) })}</p>}
           {canEdit && (
             <button onClick={() => setShowInv(true)} disabled={busy || invoicedPct >= 100}
-              title={invoicedPct >= 100 ? 'The order is fully invoiced' : 'Bill all or part of this order — pick the items and quantities in the next step'}
+              title={invoicedPct >= 100 ? t('The order is fully invoiced') : t('Bill all or part of this order — pick the items and quantities in the next step')}
               className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-emerald-300 hover:text-emerald-200 hover:bg-emerald-500/10 border border-emerald-500/25 transition-all disabled:opacity-40 whitespace-nowrap">
-              + New Invoice
+              + {t('New Invoice')}
             </button>
           )}
           {invoices.length > 0 && <InvoiceRows />}
@@ -393,24 +395,24 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
 
         <section className="rounded-xl border border-slate-800/80 bg-slate-950/30 p-3.5 space-y-3">
           <div className="flex justify-between items-baseline text-[11px]">
-            <span className="font-semibold uppercase tracking-widest text-slate-500">Delivery</span>
-            <span className="tabular-nums text-slate-300">{fmtInt(deliveredQty)} of {fmtInt(orderedQty)} units{shippedQty > deliveredQty ? ` · ${fmtInt(shippedQty - deliveredQty)} preparing` : ''}</span>
+            <span className="font-semibold uppercase tracking-widest text-slate-500">{t('Delivery')}</span>
+            <span className="tabular-nums text-slate-300">{tf('{done} of {all} units', { done: fmtInt(deliveredQty), all: fmtInt(orderedQty) })}{shippedQty > deliveredQty ? ` · ${tf('{n} preparing', { n: fmtInt(shippedQty - deliveredQty) })}` : ''}</span>
           </div>
           {meter(orderedQty > 0 ? (deliveredQty / orderedQty) * 100 : 0, fullyDelivered ? 'bg-emerald-500' : 'bg-orange-400')}
-          {orderedQty - shippedQty > 0.001 && <p className="text-[10px] text-slate-600">{fmtInt(orderedQty - shippedQty)} units not yet on a DO</p>}
+          {orderedQty - shippedQty > 0.001 && <p className="text-[10px] text-slate-600">{tf('{n} units not yet on a DO', { n: fmtInt(orderedQty - shippedQty) })}</p>}
           {canEdit && (
             <div className="flex items-center gap-2.5 flex-wrap">
               <button onClick={() => setShowDo(true)} disabled={busy || orderedQty - shippedQty <= 0.001}
-                title={orderedQty - shippedQty <= 0.001 ? 'Everything is already on a DO' : 'Ship all or part of this order — pick the items and quantities in the next step'}
+                title={orderedQty - shippedQty <= 0.001 ? t('Everything is already on a DO') : t('Ship all or part of this order — pick the items and quantities in the next step')}
                 className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-orange-300 hover:text-orange-200 hover:bg-orange-500/10 border border-orange-500/25 transition-all disabled:opacity-40 whitespace-nowrap">
-                + New Delivery Order
+                + {t('New Delivery Order')}
               </button>
               {/* Deliveries draw stock from this warehouse when a DO is marked delivered */}
               {warehouses.length > 1 && (
                 <label className="flex items-center gap-1.5 text-[11px] text-slate-500">
-                  Ship from
+                  {t('Source warehouse')}
                   <select value={shipFrom} onChange={(e) => setShipFrom(e.target.value)}
-                    title="Warehouse the stock-out is posted against when a DO is marked delivered"
+                    title={t('Warehouse the stock-out is posted against when a DO is marked delivered')}
                     className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 text-[11px] outline-none focus:border-emerald-500/60 cursor-pointer">
                     {warehouses.map((w) => <option key={w.code} value={w.code} className="bg-slate-900">{w.name}</option>)}
                   </select>
@@ -445,6 +447,7 @@ function InvoiceModal({ items, invoicedQtyByLine, orderTotal, invoicedTotal, ppn
   onClose: () => void;
   onSubmit: (p: { kind: 'items' | 'progress'; pct: number; lines: { so_item_id: string; description: string; unit: string; qty: number; unit_price: number }[]; issuedAt: string; notes: string }) => void;
 }) {
+  const { t, tf } = useT();
   const [kind, setKind] = useState<'items' | 'progress'>('items');
   const [qtys, setQtys] = useState<Record<string, string>>(() => {
     const m: Record<string, string> = {};
@@ -468,12 +471,12 @@ function InvoiceModal({ items, invoicedQtyByLine, orderTotal, invoicedTotal, ppn
       <div className="absolute inset-0 bg-black/60" />
       <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-canvas border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
         <div>
-          <h3 className="text-base font-bold text-white">New Invoice</h3>
-          <p className="text-[11px] text-slate-500 mt-0.5">Prefilled with everything still uninvoiced — post as-is for the full bill, or trim quantities / switch to a % of the order to split.</p>
+          <h3 className="text-base font-bold text-white">{t('New Invoice')}</h3>
+          <p className="text-[11px] text-slate-500 mt-0.5">{t('Prefilled with everything still uninvoiced — post as-is for the full bill, or trim quantities / switch to a % of the order to split.')}</p>
         </div>
 
         <div className="flex gap-2">
-          {[{ v: 'items' as const, l: 'By items & qty' }, { v: 'progress' as const, l: '% of order (DP / progress)' }].map((m) => (
+          {[{ v: 'items' as const, l: t('By items & qty') }, { v: 'progress' as const, l: t('% of order (DP / progress)') }].map((m) => (
             <button key={m.v} onClick={() => setKind(m.v)}
               className={`flex-1 px-3 py-2 rounded-xl text-sm font-semibold border transition-colors ${kind === m.v ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-slate-500'}`}>
               {m.l}
@@ -489,11 +492,11 @@ function InvoiceModal({ items, invoicedQtyByLine, orderTotal, invoicedTotal, ppn
               return (
                 <div key={l.item_id} className="flex items-center gap-3 px-3 py-2 text-xs">
                   <span className="text-slate-200 truncate flex-1">{l.description}</span>
-                  <span className="text-slate-600 tabular-nums whitespace-nowrap">{fmtInt(done)} / {fmtInt(l.quantity)} billed</span>
+                  <span className="text-slate-600 tabular-nums whitespace-nowrap">{tf('{done} / {all} billed', { done: fmtInt(done), all: fmtInt(l.quantity) })}</span>
                   <input value={qtys[l.item_id] ?? ''} inputMode="decimal"
                     onChange={(e) => setQtys((m) => ({ ...m, [l.item_id]: e.target.value }))}
                     onBlur={(e) => { const v = evalCell(e.target.value); if (v !== e.target.value) setQtys((m) => ({ ...m, [l.item_id]: v })); }}
-                    className={`${inpSm} ${num(qtys[l.item_id]) > left ? 'border-amber-500/60' : ''}`} title={`Remaining: ${fmtInt(left)}`} />
+                    className={`${inpSm} ${num(qtys[l.item_id]) > left ? 'border-amber-500/60' : ''}`} title={tf('Remaining: {n}', { n: fmtInt(left) })} />
                   <span className="text-slate-500 tabular-nums w-24 text-right">@ {fmtInt(l.unit_price)}</span>
                 </div>
               );
@@ -502,7 +505,7 @@ function InvoiceModal({ items, invoicedQtyByLine, orderTotal, invoicedTotal, ppn
         ) : (
           <div className="flex items-end gap-3">
             <div className="w-32">
-              <label className="block text-[11px] font-medium text-slate-500 mb-1">% of order total</label>
+              <label className="block text-[11px] font-medium text-slate-500 mb-1">{t('% of order total')}</label>
               <input value={pct} inputMode="decimal" onChange={(e) => setPct(e.target.value)}
                 onBlur={(e) => { const v = evalCell(e.target.value); if (v !== e.target.value) setPct(v); }}
                 className={`${inp} text-right tabular-nums`} />
@@ -517,29 +520,29 @@ function InvoiceModal({ items, invoicedQtyByLine, orderTotal, invoicedTotal, ppn
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">Invoice date</label>
+            <label className="block text-[11px] font-medium text-slate-500 mb-1">{t('Invoice date')}</label>
             <input type="date" value={issuedAt} onChange={(e) => setIssuedAt(e.target.value)} className={inp} />
           </div>
           <div>
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">Notes</label>
-            <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" className={inp} />
+            <label className="block text-[11px] font-medium text-slate-500 mb-1">{t('Notes')}</label>
+            <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={t('Optional')} className={inp} />
           </div>
         </div>
 
         <div className="flex items-center justify-between gap-3 pt-1">
           <p className="text-xs text-slate-400">
-            Subtotal <span className="tabular-nums text-slate-200">{fmtInt(subtotal)}</span> · incl. PPN{' '}
+            {t('Subtotal')} <span className="tabular-nums text-slate-200">{fmtInt(subtotal)}</span> · {t('incl. PPN')}{' '}
             <span className="tabular-nums font-bold text-emerald-300">Rp {fmtInt(grand)}</span>
           </p>
           <div className="flex gap-3">
-            <button onClick={onClose} className="px-4 py-2 rounded-xl text-slate-400 hover:text-white text-sm transition-colors">Cancel</button>
+            <button onClick={onClose} className="px-4 py-2 rounded-xl text-slate-400 hover:text-white text-sm transition-colors">{t('Cancel')}</button>
             <button disabled={busy}
               onClick={() => onSubmit({
                 kind, pct: num(pct), issuedAt, notes,
                 lines: items.map((l) => ({ so_item_id: l.item_id, description: l.description, unit: l.unit, qty: num(qtys[l.item_id]), unit_price: l.unit_price })),
               })}
               className="px-5 py-2 rounded-xl bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 text-sm font-semibold transition-colors disabled:opacity-50">
-              Create Invoice
+              {t('Create Invoice')}
             </button>
           </div>
         </div>
@@ -554,6 +557,7 @@ function DoModal({ items, shippedQtyByLine, contacts, shippingAddress, busy, onC
   onClose: () => void;
   onSubmit: (p: { details: { date: string; time: string; method: string; via: string; address: string; mapUrl: string; contact: string }; lines: { so_item_id: string; component_id: string | null; description: string; unit: string; qty: number }[] }) => void;
 }) {
+  const { t, tf } = useT();
   const [qtys, setQtys] = useState<Record<string, string>>(() => {
     const m: Record<string, string> = {};
     for (const l of items) m[l.item_id] = String(Math.max(0, l.quantity - (shippedQtyByLine[l.item_id] ?? 0)));
@@ -569,8 +573,8 @@ function DoModal({ items, shippedQtyByLine, contacts, shippingAddress, busy, onC
       <div className="absolute inset-0 bg-black/60" />
       <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-canvas border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
         <div>
-          <h3 className="text-base font-bold text-white">New Delivery Order</h3>
-          <p className="text-[11px] text-slate-500 mt-0.5">Prefilled with everything not yet on a DO — trim quantities to split the shipment. Stock moves when this DO is marked delivered.</p>
+          <h3 className="text-base font-bold text-white">{t('New Delivery Order')}</h3>
+          <p className="text-[11px] text-slate-500 mt-0.5">{t('Prefilled with everything not yet on a DO — trim quantities to split the shipment. Stock moves when this DO is marked delivered.')}</p>
         </div>
 
         <div className="rounded-xl border border-slate-800 divide-y divide-slate-800/60">
@@ -580,11 +584,11 @@ function DoModal({ items, shippedQtyByLine, contacts, shippingAddress, busy, onC
             return (
               <div key={l.item_id} className="flex items-center gap-3 px-3 py-2 text-xs">
                 <span className="text-slate-200 truncate flex-1">{l.description}</span>
-                <span className="text-slate-600 tabular-nums whitespace-nowrap">{fmtInt(shipped)} / {fmtInt(l.quantity)} on DOs</span>
+                <span className="text-slate-600 tabular-nums whitespace-nowrap">{tf('{done} / {all} on DOs', { done: fmtInt(shipped), all: fmtInt(l.quantity) })}</span>
                 <input value={qtys[l.item_id] ?? ''} inputMode="decimal"
                   onChange={(e) => setQtys((m) => ({ ...m, [l.item_id]: e.target.value }))}
                   onBlur={(e) => { const v = evalCell(e.target.value); if (v !== e.target.value) setQtys((m) => ({ ...m, [l.item_id]: v })); }}
-                  className={`${inpSm} ${num(qtys[l.item_id]) > left ? 'border-amber-500/60' : ''}`} title={`Remaining: ${fmtInt(left)}`} />
+                  className={`${inpSm} ${num(qtys[l.item_id]) > left ? 'border-amber-500/60' : ''}`} title={tf('Remaining: {n}', { n: fmtInt(left) })} />
                 <span className="text-slate-600 w-10">{l.unit}</span>
               </div>
             );
@@ -593,18 +597,18 @@ function DoModal({ items, shippedQtyByLine, contacts, shippingAddress, busy, onC
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">Target delivery date</label>
+            <label className="block text-[11px] font-medium text-slate-500 mb-1">{t('Target delivery date')}</label>
             <input type="date" value={d.date} onChange={(e) => set('date', e.target.value)} className={inp} />
           </div>
           <div>
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">Time of day</label>
+            <label className="block text-[11px] font-medium text-slate-500 mb-1">{t('Time of day')}</label>
             <select value={d.time} onChange={(e) => set('time', e.target.value)} className={inp}>
-              <option value="">— Anytime —</option>
-              {TIME_OF_DAY.map((t) => <option key={t} value={t}>{t}</option>)}
+              <option value="">{t('— Anytime —')}</option>
+              {TIME_OF_DAY.map((slot) => <option key={slot} value={slot}>{slot}</option>)}
             </select>
           </div>
           <div className="col-span-2 flex gap-2">
-            {[{ v: 'delivery', l: 'Delivery (we send)' }, { v: 'pickup', l: 'Customer pick-up' }].map((m) => (
+            {[{ v: 'delivery', l: t('Delivery (we send)') }, { v: 'pickup', l: t('Customer pick-up') }].map((m) => (
               <button key={m.v} onClick={() => set('method', m.v)}
                 className={`flex-1 px-3 py-2 rounded-xl text-sm font-semibold border transition-colors ${d.method === m.v ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-slate-500'}`}>
                 {m.l}
@@ -613,27 +617,27 @@ function DoModal({ items, shippedQtyByLine, contacts, shippingAddress, busy, onC
           </div>
           {!isPickup && (
             <div className="col-span-2">
-              <label className="block text-[11px] font-medium text-slate-500 mb-1">Through / carrier</label>
-              <input list="do-via" value={d.via} onChange={(e) => set('via', e.target.value)} placeholder="e.g. Armada sendiri, ekspedisi…" className={inp} />
+              <label className="block text-[11px] font-medium text-slate-500 mb-1">{t('Through / carrier')}</label>
+              <input list="do-via" value={d.via} onChange={(e) => set('via', e.target.value)} placeholder={t('e.g. Armada sendiri, ekspedisi…')} className={inp} />
               <datalist id="do-via">{VIA_SUGGESTIONS.map((v) => <option key={v} value={v} />)}</datalist>
             </div>
           )}
           {!isPickup && (
             <div className="col-span-2">
-              <label className="block text-[11px] font-medium text-slate-500 mb-1">Delivery address</label>
+              <label className="block text-[11px] font-medium text-slate-500 mb-1">{t('Delivery address')}</label>
               <textarea value={d.address} onChange={(e) => set('address', e.target.value)} rows={2} className={inp} />
             </div>
           )}
           {!isPickup && (
             <div className="col-span-2">
-              <label className="block text-[11px] font-medium text-slate-500 mb-1">Google Maps link</label>
+              <label className="block text-[11px] font-medium text-slate-500 mb-1">{t('Google Maps link')}</label>
               <input value={d.mapUrl} onChange={(e) => set('mapUrl', e.target.value)} placeholder="https://maps.app.goo.gl/…" className={inp} />
             </div>
           )}
           <div className="col-span-2">
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">Contact person (on site)</label>
+            <label className="block text-[11px] font-medium text-slate-500 mb-1">{t('Contact person (on site)')}</label>
             <input list="do-contact" value={d.contact} onChange={(e) => set('contact', e.target.value)}
-              placeholder={contacts.length ? 'Pick a customer contact or type one…' : 'Name · phone'} className={inp} />
+              placeholder={contacts.length ? t('Pick a customer contact or type one…') : t('Name · phone')} className={inp} />
             <datalist id="do-contact">
               {contacts.map((c) => <option key={`${c.name}-${c.phone}`} value={`${c.name}${c.phone ? ` · ${c.phone}` : ''}`}>{c.title}</option>)}
             </datalist>
@@ -641,16 +645,16 @@ function DoModal({ items, shippedQtyByLine, contacts, shippingAddress, busy, onC
         </div>
 
         <div className="flex items-center justify-between gap-3 pt-1">
-          <p className="text-xs text-slate-400">Shipping <span className="tabular-nums font-bold text-orange-300">{fmtInt(totalQty)}</span> units on this DO</p>
+          <p className="text-xs text-slate-400">{t('Shipping')} <span className="tabular-nums font-bold text-orange-300">{fmtInt(totalQty)}</span> {t('units on this DO')}</p>
           <div className="flex gap-3">
-            <button onClick={onClose} className="px-4 py-2 rounded-xl text-slate-400 hover:text-white text-sm transition-colors">Cancel</button>
+            <button onClick={onClose} className="px-4 py-2 rounded-xl text-slate-400 hover:text-white text-sm transition-colors">{t('Cancel')}</button>
             <button disabled={busy}
               onClick={() => onSubmit({
                 details: d,
                 lines: items.map((l) => ({ so_item_id: l.item_id, component_id: l.component_id, description: l.description, unit: l.unit, qty: num(qtys[l.item_id]) })),
               })}
               className="px-5 py-2 rounded-xl bg-orange-500/15 text-orange-300 ring-1 ring-orange-500/30 hover:bg-orange-500/25 text-sm font-semibold transition-colors disabled:opacity-50">
-              Create Delivery Order
+              {t('Create Delivery Order')}
             </button>
           </div>
         </div>

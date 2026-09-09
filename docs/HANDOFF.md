@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-07** · head of `main` at that point: `2902c98` (see §4, §6)
+**Last updated: 2026-09-09** · head of `main` at that point: `42d38b6` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -121,6 +121,56 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 ---
 
 ## 4. What the previous threads did (for context, all shipped to main)
+
+### 2026-09-09 — the sell side speaks Indonesian
+
+Owner: *"Continue translating to Indonesian especially for the Sales Side menus,
+including the Field Descriptions and Buttons. I realized that my sales support
+admin is poor in English."* Then: *"including the Support letters / Surat
+Dukungan. She will be handling this part as well."*
+
+**The gap was not a missing translation, it was a missing wire.** `lib/i18n.ts`
+had 617 entries and the Sales LIST already spoke Indonesian — but
+`app/sales/[id]/page.tsx`, the 2,300-line quotation editor where that person
+spends the day, had never imported `useT` at all. Neither had
+`components/ui/FulfillmentPanel.tsx` (invoices and delivery orders, rendered
+inside that same page), `app/sales/library/page.tsx`, or
+`app/support-letters/page.tsx`. Nothing was mistranslated; nothing had been
+offered for translation.
+
+Wired and translated, ~330 new phrase-book entries (617 → 944):
+
+- **Quotation editor** — command bar (Validasi · Konfirmasi Pesanan · Tolak ·
+  Revisi), header fields, line rows, the price popover, the lead-time control,
+  the totals card including the owner-only GP block, the activity log, the
+  payments panel and both modals.
+- **Fulfillment panel** — Pemenuhan: faktur and surat jalan, their meters,
+  the New Invoice and New Delivery Order modals.
+- **Description library** and **Surat Dukungan**, list and editor both.
+- The leftovers on the Sales list, Delivery queue and Invoice list.
+
+**Five traps this hit, all worth knowing before the next screen:**
+
+1. **`t` shadowing.** Four components already used `t` as a local (`const t =
+   draft.trim()`, `tierOptions.map((t) =>`, `TIME_OF_DAY.map((t) =>`). Renamed
+   the locals; the translator gets the name.
+2. **`<option>` without a `value`.** `{LEAD_TIMES.map((l) => <option>{l}</option>)}`
+   stores its CHILD text. Translating the child would have written Indonesian
+   lead times into the database. Every such option now carries `value={l}`
+   with only the label translated.
+3. **The fragment guard.** `lib/i18n.test.ts` rejects a short entry ending on a
+   preposition — "Received in", "Fee received on", "Created by", "Ship from",
+   "customer is on" were all rewritten as whole phrases or `tf()` sentences.
+4. **Entries equal to their own English.** `Status`, `Subtotal`, `Total`,
+   `pcs`, `ls / pcs`, `PPN %` are the same word in Indonesian. The identical
+   ones are declared in `KEEPERS`; the rest were left unwrapped.
+5. **Escaped apostrophes.** `t('… customer\'s tier')` puts a backslash in the
+   source, so the orphan guard could not find the English side and reported the
+   entry as dead. Switched to the typographic `’` the rest of the app uses.
+
+548 tests pass (the i18n guards among them), `next build` clean, eslint one
+problem FEWER than before across the touched files.
+
 
 ### 2026-09-07 — the agent document set becomes enforceable
 

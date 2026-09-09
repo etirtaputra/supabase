@@ -24,6 +24,7 @@ import { tierPriceFor } from '@/lib/tierPricing';
 import { evalCell } from '@/lib/formula';
 import { fmtDay, fmtDayTime, fmtInt } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
+import { useT } from '@/hooks/useT';
 import { fetchBankAccounts, fetchAccountCompanies, accountLabelWithCompany, defaultAccountFor, type BankAccount } from '@/lib/banks';
 import Autocomplete from '@/components/ui/Autocomplete';
 import { todayISO } from '@/lib/dateRange';
@@ -137,6 +138,7 @@ const mapLine = (it: DbLine): EditLine => ({
 });
 
 export default function SalesQuotePage() {
+  const { t, tf } = useT();
   const supabase = createSupabaseClient();
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
@@ -1118,7 +1120,7 @@ export default function SalesQuotePage() {
   if (!canEdit) return <CenterSpinner />;
   if (notFound) return (
     <div className="min-h-screen bg-chrome flex flex-col items-center justify-center gap-3 text-slate-400">
-      <p>Sales quote not found.</p>
+      <p>{t('Sales quote not found.')}</p>
       <button onClick={() => router.push('/sales')} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 text-sm">← Back to Sales</button>
     </div>
   );
@@ -1175,27 +1177,27 @@ export default function SalesQuotePage() {
              the milestone strip, instead of a bar hiding at the page bottom. ── */}
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 pt-3 sm:pt-4">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Sales · Quotation" mobileNav={false} />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle={t('Sales · Quotation')} mobileNav={false} />
         </div>
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-2 sm:py-2.5 flex items-center gap-2 sm:gap-2.5 overflow-x-auto scrollbar-none">
           {leaveArmed ? (
             <span className="flex items-center gap-2 flex-shrink-0">
-              <span className="text-[11px] text-amber-300 font-semibold whitespace-nowrap">Unsaved —</span>
+              <span className="text-[11px] text-amber-300 font-semibold whitespace-nowrap">{t('Unsaved —')}</span>
               <button onClick={async () => { await persist(); router.push('/sales'); }}
-                className="text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-colors whitespace-nowrap">Save & leave</button>
+                className="text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-colors whitespace-nowrap">{t('Save & leave')}</button>
               <button onClick={() => router.push('/sales')}
-                className="text-[11px] font-medium px-2.5 py-1.5 rounded-lg border border-white/[0.06] text-slate-400 hover:text-red-300 hover:bg-red-500/10 transition-all">Discard</button>
-              <button onClick={() => setLeaveArmed(false)} title="Stay on this quote"
+                className="text-[11px] font-medium px-2.5 py-1.5 rounded-lg border border-white/[0.06] text-slate-400 hover:text-red-300 hover:bg-red-500/10 transition-all">{t('Discard')}</button>
+              <button onClick={() => setLeaveArmed(false)} title={t('Stay on this quote')}
                 className="text-slate-500 hover:text-white px-1 transition-colors">✕</button>
             </span>
           ) : (
-            <button onClick={backToList} title="Back to the sales list"
-              className="flex-shrink-0 text-[11px] font-medium text-slate-400 hover:text-white px-2.5 py-1.5 border border-white/[0.06] rounded-lg hover:bg-white/10 transition-all whitespace-nowrap">←&nbsp;List</button>
+            <button onClick={backToList} title={t('Back to the sales list')}
+              className="flex-shrink-0 text-[11px] font-medium text-slate-400 hover:text-white px-2.5 py-1.5 border border-white/[0.06] rounded-lg hover:bg-white/10 transition-all whitespace-nowrap">←&nbsp;{t('List')}</button>
           )}
           {/* Identity: the SQ number exists from the FIRST (auto)save — a
               draft carries its own unique number, not a placeholder. */}
           <h1 className="text-sm sm:text-base font-bold text-white whitespace-nowrap flex-shrink-0">
-            {displayDocNumber(editing) || 'New Sales Quote'}
+            {displayDocNumber(editing) || t('New Sales Quote')}
           </h1>
           {(editing.revision ?? 0) > 0 && (
             <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-sky-500/15 text-sky-300">Rev {editing.revision}</span>
@@ -1214,42 +1216,42 @@ export default function SalesQuotePage() {
           )}
           {st !== 'delivered' && dos.some((d) => d.status === 'delivered') ? (
             <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-teal-500/15 text-teal-300"
-              title="Some delivery orders are delivered, the rest still preparing — the order completes when every item has shipped">
-              Partly Delivered
+              title={t('Some delivery orders are delivered, the rest still preparing — the order completes when every item has shipped')}>
+              {t('Partly Delivered')}
             </span>
           ) : (
             <span className={`flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS[st]?.cls ?? ''}`}
-              title={st === 'draft' && asOrder ? 'Entered via + New Order — the SO number stamps when you Confirm Order' : undefined}>
-              {st === 'draft' && asOrder ? 'Draft order' : STATUS[st]?.label ?? st}
+              title={st === 'draft' && asOrder ? t('Entered via + New Order — the SO number stamps when you Confirm Order') : undefined}>
+              {st === 'draft' && asOrder ? t('Draft order') : t(STATUS[st]?.label ?? st)}
             </span>
           )}
           {/* After-sales quote — repair/replacement, badge links back to the case */}
           {(caseInfo || editing.case_id) && (
             <a href="/aftersales" target="_blank" rel="noopener noreferrer"
               className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-orange-500/15 text-orange-300 ring-1 ring-orange-500/30 hover:bg-orange-500/25 transition-colors"
-              title="After-sales quote — open the case list">
-              Service{caseInfo?.case_number ? ` · ${caseInfo.case_number}` : ''}
+              title={t('After-sales quote — open the case list')}>
+              {t('Service')}{caseInfo?.case_number ? ` · ${caseInfo.case_number}` : ''}
             </a>
           )}
           {expired && (
             <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30"
-              title={`Offer expired ${fmtDay(editing.valid_until!)} — Revise to re-issue with fresh validity`}>
-              Expired {fmtDay(editing.valid_until!)}
+              title={tf('Offer expired {date} — Revise to re-issue with fresh validity', { date: fmtDay(editing.valid_until!) })}>
+              {t('Expired')} {fmtDay(editing.valid_until!)}
             </span>
           )}
           {showPayments && fullyPaid && (
-            <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40">Paid</span>
+            <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40">{t('Paid')}</span>
           )}
           {/* Delivered with money open is its own state — goods are gone, so
               the missing rupiah outranks a mere "partial" note. */}
           {showPayments && !fullyPaid && st === 'delivered' && (
             <span className={`flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold ${received > 0 ? 'bg-amber-500/15 text-amber-300' : 'bg-red-500/10 text-red-300'}`}
-              title={`Delivered, but Rp ${fmtInt(billTotal - received)} has not been received`}>
-              Outstanding
+              title={tf('Delivered, but Rp {amount} has not been received', { amount: fmtInt(billTotal - received) })}>
+              {t('Outstanding')}
             </span>
           )}
           {showPayments && !fullyPaid && received > 0 && st !== 'delivered' && (
-            <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/15 text-amber-300">Partial</span>
+            <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/15 text-amber-300">{t('Partial')}</span>
           )}
           <span className="hidden lg:flex gap-2 flex-shrink-0">
             {/* Derived from the REAL child documents, not the legacy mirror of
@@ -1268,8 +1270,8 @@ export default function SalesQuotePage() {
           {/* Actions — right side of the same bar */}
           <span className="ml-auto flex items-center gap-2 flex-shrink-0">
             {autoSavedAt && draftLike && (
-              <span className="hidden md:inline text-[10px] text-slate-600 whitespace-nowrap" title="Drafts save themselves shortly after every change">
-                Auto-saved {fmtDayTime(autoSavedAt)}
+              <span className="hidden md:inline text-[10px] text-slate-600 whitespace-nowrap" title={t('Drafts save themselves shortly after every change')}>
+                {t('Auto-saved')} {fmtDayTime(autoSavedAt)}
               </span>
             )}
             {busy && <span className="w-4 h-4 border-2 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin flex-shrink-0" />}
@@ -1279,32 +1281,32 @@ export default function SalesQuotePage() {
                 emerald = the natural next step, red = destructive, sky = revise. */}
             <button onClick={save} disabled={busy || !dirty} title="Ctrl+S / Cmd+S"
               className="flex-shrink-0 flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-all disabled:opacity-40">
-              {busy ? 'Saving…' : 'Save'}
+              {busy ? t('Saving…') : t('Save')}
               <span className="hidden sm:inline text-white/50 text-[9px] font-normal">⌘S</span>
             </button>
-            <button onClick={printPdf} disabled={busy} title="Print / PDF"
+            <button onClick={printPdf} disabled={busy} title={t('Print / PDF')}
               className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all disabled:opacity-40 whitespace-nowrap">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z" /></svg>
               PDF
             </button>
             {actions.map((a) => (
               <button key={a.to} onClick={() => transition(a.to)} disabled={busy}
-                title={a.to === 'ordered' ? 'Confirming reserves these quantities from Live Stock' : undefined}
+                title={a.to === 'ordered' ? t('Confirming reserves these quantities from Live Stock') : undefined}
                 className={`flex-shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-[11px] border transition-all disabled:opacity-40 ${a.danger
                   ? 'font-medium text-red-400/90 hover:text-red-300 hover:bg-red-500/10 border-white/[0.06]'
                   : a.primary
                     ? 'font-semibold text-emerald-300 hover:text-emerald-200 hover:bg-emerald-500/10 border-emerald-500/25'
                     : 'font-medium text-slate-400 hover:text-white hover:bg-white/10 border-white/[0.06]'}`}>
-                {a.label}
+                {t(a.label)}
               </button>
             ))}
             {canRevise && (
               <button onClick={revise} disabled={busy}
                 title={reviseBumps
-                  ? 'Re-open for edits as a new revision (Rev n) — the customer has seen this quote'
-                  : 'Re-open for edits — not sent yet, so it keeps the same revision number'}
+                  ? t('Re-open for edits as a new revision (Rev n) — the customer has seen this quote')
+                  : t('Re-open for edits — not sent yet, so it keeps the same revision number')}
                 className="flex-shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-[11px] font-medium text-sky-300/90 hover:text-sky-200 hover:bg-sky-500/10 border border-white/[0.06] transition-all disabled:opacity-40">
-                Revise
+                {t('Revise')}
               </button>
             )}
           </span>
@@ -1346,28 +1348,28 @@ export default function SalesQuotePage() {
         )}
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4">
-          <FieldBox label="Customer" full>
+          <FieldBox label={t('Customer')} full>
             <CustomerPicker customers={customers} value={editing.customer_id} onPick={(cid) => setHeader('customer_id', cid)} />
           </FieldBox>
-          <FieldBox label="Selling company" full>
+          <FieldBox label={t('Selling company')} full>
             <select value={editing.company_id ?? ''} onChange={(e) => setHeader('company_id', e.target.value || null)} className={inp}>
-              <option value="">— Select company —</option>
+              <option value="">{t('— Select company —')}</option>
               {companies.map((c) => <option key={c.company_id} value={c.company_id}>{c.legal_name}</option>)}
             </select>
           </FieldBox>
-          <FieldBox label="Quote date">
+          <FieldBox label={t('Quote date')}>
             <input type="date" value={editing.quote_date} onChange={(e) => setHeader('quote_date', e.target.value)} className={inp} />
             {/* Always right under the box — a fixed control, not one that
                 appears and vanishes. Muted when the date is already today. */}
             <span className="mt-1.5 block">
               <button onClick={() => setHeader('quote_date', todayIso)} disabled={editing.quote_date === todayIso}
-                title={editing.quote_date === todayIso ? 'The quote is already dated today' : undefined}
+                title={editing.quote_date === todayIso ? t('The quote is already dated today') : undefined}
                 className="px-2 py-1 rounded-lg border border-white/[0.06] text-[10px] font-medium text-slate-400 hover:text-white hover:bg-white/10 transition-all disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-400">
-                Set to today&rsquo;s date
+                {t('Set to today’s date')}
               </button>
             </span>
           </FieldBox>
-          <FieldBox label="Valid until">
+          <FieldBox label={t('Valid until')}>
             <input type="date" value={editing.valid_until ?? ''} onChange={(e) => setHeader('valid_until', e.target.value || null)} className={inp} />
             {/* Segmented preset control — one hairline outline, divided cells,
                 the active span tinted; same ghost grammar as the command bar. */}
@@ -1378,7 +1380,7 @@ export default function SalesQuotePage() {
                   const active = editing.valid_until === target;
                   return (
                     <button key={d} onClick={() => setHeader('valid_until', target)}
-                      title={`Valid until ${fmtDay(target)} (quote date + ${d} days)`}
+                      title={tf('Valid until {date} (quote date + {days} days)', { date: fmtDay(target), days: d })}
                       className={`px-2 py-1 text-[10px] transition-all ${active
                         ? 'bg-emerald-500/15 text-emerald-300 font-semibold'
                         : 'text-slate-400 hover:text-white hover:bg-white/10 font-medium'}`}>
@@ -1391,22 +1393,22 @@ export default function SalesQuotePage() {
                 {editing.valid_until
                   ? (() => {
                       const days = Math.round((new Date(`${editing.valid_until}T12:00:00`).getTime() - new Date(`${editing.quote_date}T12:00:00`).getTime()) / 86400000);
-                      return days >= 0 ? `${days} day${days !== 1 ? 's' : ''}` : 'before quote date';
+                      return days >= 0 ? tf('{days} days', { days }) : t('before quote date');
                     })()
-                  : 'no expiry'}
+                  : t('no expiry')}
               </span>
             </span>
           </FieldBox>
           <FieldBox label="PPN %">
             <input value={String(editing.ppn_pct)} onChange={(e) => setHeader('ppn_pct', num(e.target.value) as any)} className={`${inp} tabular-nums`} />
           </FieldBox>
-          <FieldBox label="Payment terms" full>
+          <FieldBox label={t('Payment terms')} full>
             <TermSelect value={editing.payment_terms ?? ''} options={salesPaymentTermsOptions}
-              placeholder="— Select payment terms —" onChange={(v) => setHeader('payment_terms', v)} />
+              placeholder={t('— Select payment terms —')} onChange={(v) => setHeader('payment_terms', v)} />
           </FieldBox>
-          <FieldBox label="Delivery terms" full>
+          <FieldBox label={t('Delivery terms')} full>
             <TermSelect value={editing.delivery_terms ?? ''} options={salesDeliveryTermsOptions}
-              placeholder="— Select delivery terms —" onChange={(v) => setHeader('delivery_terms', v)} />
+              placeholder={t('— Select delivery terms —')} onChange={(v) => setHeader('delivery_terms', v)} />
           </FieldBox>
         </div>
 
@@ -1421,7 +1423,7 @@ export default function SalesQuotePage() {
                 unitCost={canGP && l.component_id ? unitCost[l.component_id] ?? null : null}
                 successor={(() => {
                   const sid = l.component_id ? successors.get(l.component_id) : undefined;
-                  return sid ? { id: sid, name: compName(compById.get(sid)) || 'newer item' } : null;
+                  return sid ? { id: sid, name: compName(compById.get(sid)) || t('newer item') } : null;
                 })()}
                 linkedName={l.component_id ? compName(compById.get(l.component_id)) : ''}
                 tierOptions={l.component_id ? tierOptionsFor(l.component_id) : []}
@@ -1440,23 +1442,23 @@ export default function SalesQuotePage() {
               onDrop={(e) => { e.preventDefault(); if (drag.dragKey) moveLines(drag.dragKey, '__end__'); endDrag(); }}
               className={`h-9 rounded-xl border border-dashed flex items-center justify-center text-[10px] transition-colors ${dropEnd ? DROP_ZONE.over : DROP_ZONE.idle}`}
             >
-              Drop here to move to the end
+              {t('Drop here to move to the end')}
             </div>
           )}
           <div className="flex flex-wrap gap-2 pt-1">
-            <button onClick={addItem} className="px-3.5 py-2 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs font-semibold transition-colors">+ Add item</button>
-            <button onClick={addSection} className="px-3.5 py-2 rounded-xl bg-slate-800/60 text-slate-300 hover:bg-slate-700 text-xs font-semibold transition-colors">+ Add section</button>
+            <button onClick={addItem} className="px-3.5 py-2 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs font-semibold transition-colors">+ {t('Add item')}</button>
+            <button onClick={addSection} className="px-3.5 py-2 rounded-xl bg-slate-800/60 text-slate-300 hover:bg-slate-700 text-xs font-semibold transition-colors">+ {t('Add section')}</button>
             <button onClick={() => setSystemDesignerOpen(true)}
-              title="Size the whole system — inverter, battery bank, array, structure and balance of system — from the PLN connection or the load table, priced at this customer's tier"
+              title={t('Size the whole system — inverter, battery bank, array, structure and balance of system — from the PLN connection or the load table, priced at this customer’s tier')}
               className="px-3.5 py-2 rounded-xl border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 text-xs font-semibold transition-colors">
-              {systemDesign?.engine === 'system' && hasDesignLines ? '⚡ System design ·  regenerate' : '⚡ Design system'}
+              {systemDesign?.engine === 'system' && hasDesignLines ? `⚡ ${t('System design ·  regenerate')}` : `⚡ ${t('Design system')}`}
             </button>
             <button onClick={() => setDesignerOpen(true)}
-              title="Size the mounting structure from the array — rails, clamps, supports, grounding — priced at this customer's tier"
+              title={t('Size the mounting structure from the array — rails, clamps, supports, grounding — priced at this customer’s tier')}
               className="px-3.5 py-2 rounded-xl border border-sky-500/40 text-sky-300 hover:bg-sky-500/10 text-xs font-semibold transition-colors">
-              {systemDesign?.engine !== 'system' && hasDesignLines ? '⚙ Mounting design ·  regenerate' : '⚙ Design mounting'}
+              {systemDesign?.engine !== 'system' && hasDesignLines ? `⚙ ${t('Mounting design ·  regenerate')}` : `⚙ ${t('Design mounting')}`}
             </button>
-            <span className="text-[11px] text-slate-600 self-center">Pick a catalog product to autofill price, or just type a custom item.</span>
+            <span className="text-[11px] text-slate-600 self-center">{t('Pick a catalog product to autofill price, or just type a custom item.')}</span>
           </div>
         </div>
 
@@ -1464,34 +1466,34 @@ export default function SalesQuotePage() {
             columns share top and bottom edges instead of a ragged gap. */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
           <div className="flex flex-col">
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">Notes / terms</label>
+            <label className="block text-[11px] font-medium text-slate-500 mb-1">{t('Notes / terms')}</label>
             <textarea value={editing.notes} onChange={(e) => setHeader('notes', e.target.value)} rows={4}
               className={`${inp} flex-1 min-h-[96px] resize-y rounded-2xl`} />
           </div>
           <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4 space-y-2 text-sm">
-            <Row label="Subtotal" value={fmtInt(totals.subtotal)} />
+            <Row label={t('Subtotal')} value={fmtInt(totals.subtotal)} />
             <Row label={`PPN (${num(editing.ppn_pct)}%)`} value={fmtInt(totals.ppn)} />
             <div className="border-t border-slate-800 pt-2 flex justify-between items-baseline">
-              <span className="text-slate-300 font-semibold">Grand Total</span>
+              <span className="text-slate-300 font-semibold">{t('Grand Total')}</span>
               <span className="text-xl font-extrabold text-emerald-300 tabular-nums">IDR {fmtInt(totals.grand)}</span>
             </div>
-            {cust?.tier && <p className="text-[10px] text-slate-600">Prices auto-filled at the customer’s <span className="text-slate-400">{cust.tier}</span> tier.</p>}
+            {cust?.tier && <p className="text-[10px] text-slate-600">{t('Prices auto-filled at the customer’s')} <span className="text-slate-400">{cust.tier}</span> {t('tier.')}</p>}
             {/* Owner-only order margin — same basis as the per-line chips. */}
             {gpTotals && gpTotals.costed > 0 && (
               <div className="border-t border-slate-800 pt-2 space-y-1">
                 <div className="flex justify-between text-xs text-slate-500">
-                  <span title="Σ current moving-average landed cost × qty over lines linked to a costed catalog item">Est. COGS · avg landed cost</span>
+                  <span title={t('Σ current moving-average landed cost × qty over lines linked to a costed catalog item')}>{t('Est. COGS · avg landed cost')}</span>
                   <span className="tabular-nums">{fmtInt(gpTotals.cogs)}</span>
                 </div>
                 <div className="flex justify-between items-baseline text-xs">
-                  <span className="text-slate-400 font-semibold">Est. gross profit <span className="text-slate-600 font-normal">· owner-only</span></span>
+                  <span className="text-slate-400 font-semibold">{t('Est. gross profit')} <span className="text-slate-600 font-normal">· {t('owner-only')}</span></span>
                   <span className={`tabular-nums font-bold ${gpTotals.gp < 0 ? 'text-red-300' : 'text-emerald-300'}`}>
                     {fmtInt(gpTotals.gp)}{gpTotals.margin != null ? ` · ${gpTotals.margin.toFixed(1)}%` : ''}
                   </span>
                 </div>
                 {gpTotals.costed < gpTotals.items && (
                   <p className="text-[10px] text-amber-400/80">
-                    {gpTotals.items - gpTotals.costed} line{gpTotals.items - gpTotals.costed !== 1 ? 's' : ''} without a landed cost — excluded from the estimate.
+                    {tf('{n} lines without a landed cost — excluded from the estimate.', { n: gpTotals.items - gpTotals.costed })}
                   </p>
                 )}
               </div>
@@ -1543,6 +1545,7 @@ function CenterSpinner() {
 function CustomerPicker({ customers, value, onPick }: {
   customers: Customer[]; value: string | null; onPick: (customerId: string | null) => void;
 }) {
+  const { t } = useT();
   const sel = value ? customers.find((c) => c.customer_id === value) : undefined;
   const selName = sel ? (sel.display_name || sel.legal_name) : '';
   const [text, setText] = useState(selName);
@@ -1551,11 +1554,11 @@ function CustomerPicker({ customers, value, onPick }: {
   return (
     <Autocomplete
       value={text} onChange={setText} suggestions={names}
-      placeholder="Type to search customers…" inputClassName={inp}
+      placeholder={t('Type to search customers…')} inputClassName={inp}
       onCommit={(v) => {
-        const t = v.trim().toLowerCase();
-        if (!t) { onPick(null); return; }
-        const m = customers.find((c) => (c.display_name || c.legal_name).trim().toLowerCase() === t);
+        const typed = v.trim().toLowerCase();
+        if (!typed) { onPick(null); return; }
+        const m = customers.find((c) => (c.display_name || c.legal_name).trim().toLowerCase() === typed);
         if (m) onPick(m.customer_id);
         else setText(selName); // unknown text never silently clears the pick
       }}
@@ -1579,13 +1582,14 @@ const LOG_LABELS: Record<string, { label: string; cls: string }> = {
 };
 
 function ActivityPanel({ logs }: { logs: LogRow[] }) {
+  const { t, tf } = useT();
   const [showAll, setShowAll] = useState(false);
   const visible = showAll ? logs : logs.slice(0, 8);
   return (
     <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4 space-y-3">
       <div className="flex flex-wrap items-baseline gap-3">
-        <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Activity</h3>
-        <span className="text-[11px] text-slate-600">every change on this document — who and when</span>
+        <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">{t('Activity')}</h3>
+        <span className="text-[11px] text-slate-600">{t('every change on this document — who and when')}</span>
       </div>
       <div className="rounded-xl border border-slate-800 divide-y divide-slate-800/60">
         {visible.map((l) => {
@@ -1593,7 +1597,7 @@ function ActivityPanel({ logs }: { logs: LogRow[] }) {
           return (
             <div key={l.log_id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-1.5 text-[11px]">
               <span className="text-slate-600 tabular-nums whitespace-nowrap w-32 flex-shrink-0">{fmtDayTime(l.at)}</span>
-              <span className={`font-semibold whitespace-nowrap ${m.cls}`}>{m.label}</span>
+              <span className={`font-semibold whitespace-nowrap ${m.cls}`}>{t(m.label)}</span>
               {l.detail && <span className="text-slate-400 font-mono text-[10px] truncate">{l.detail}</span>}
               <span className="ml-auto text-slate-600 truncate">{l.actor_email}</span>
             </div>
@@ -1603,7 +1607,7 @@ function ActivityPanel({ logs }: { logs: LogRow[] }) {
       {logs.length > 8 && (
         <button onClick={() => setShowAll((v) => !v)}
           className="px-2 py-1 rounded-lg border border-white/[0.06] text-[10px] font-medium text-slate-400 hover:text-white hover:bg-white/10 transition-all">
-          {showAll ? 'Show fewer' : `Show all ${logs.length}`}
+          {showAll ? t('Show fewer') : tf('Show all {n}', { n: logs.length })}
         </button>
       )}
     </div>
@@ -1652,6 +1656,7 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, unitCost
   /** Everything the grip needs to start a drag — from useDragReorder. */
   dragHandle: React.DOMAttributes<HTMLElement> & { draggable: boolean };
 }) {
+  const { t, tf } = useT();
   // Price-intel popover, EPC-style: HOVER opens it when this customer has
   // bought/quoted the item before (the nudge that matters); FOCUS opens it
   // whenever there is anything to show (editing the price = wanting options).
@@ -1669,19 +1674,19 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, unitCost
   const [priceDraft, setPriceDraft] = useState<string | null>(null);
   const commitCell = (draft: string | null, valueKey: 'quantity' | 'unit_price', formulaKey: 'qty_formula' | 'price_formula') => {
     if (draft == null) return;
-    const t = draft.trim();
-    if (t.startsWith('=')) {
-      const v = evalCell(t);
-      if (v !== t) onField({ [valueKey]: v, [formulaKey]: t });
+    const raw = draft.trim();
+    if (raw.startsWith('=')) {
+      const v = evalCell(raw);
+      if (v !== raw) onField({ [valueKey]: v, [formulaKey]: raw });
       // invalid formula: leave the line untouched — the field reverts on blur
     } else {
-      onField({ [valueKey]: t, [formulaKey]: '' });
+      onField({ [valueKey]: raw, [formulaKey]: '' });
     }
   };
   // Badge sits on the RIGHT — the numbers are left-aligned, so the right edge
   // is the quiet corner of the field.
   const fBadge = (formula: string, editing: boolean) => (formula && !editing ? (
-    <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] font-bold text-sky-500/80 italic pointer-events-none select-none" title={`Formula: ${formula}`}>ƒ</span>
+    <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] font-bold text-sky-500/80 italic pointer-events-none select-none" title={tf('Formula: {formula}', { formula })}>ƒ</span>
   ) : null);
   const grip = (title: string) => (
     <span
@@ -1695,16 +1700,16 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, unitCost
   if (line.is_section) {
     return (
       <div className="flex flex-wrap items-center gap-2 bg-emerald-500/[0.06] border border-emerald-500/20 border-l-2 border-l-emerald-500/50 rounded-xl px-3 py-2.5 mt-3">
-        {grip('Drag to move this section together with its items')}
-        <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-500/70 flex-shrink-0">Section</span>
-        <input value={line.description} onChange={(e) => onField({ description: e.target.value })} placeholder="Section title (e.g. Solar Panels)"
+        {grip(t('Drag to move this section together with its items'))}
+        <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-500/70 flex-shrink-0">{t('Section')}</span>
+        <input value={line.description} onChange={(e) => onField({ description: e.target.value })} placeholder={t('Section title (e.g. Solar Panels)')}
           className="flex-1 min-w-[140px] bg-transparent outline-none text-sm font-bold text-slate-100 placeholder:text-slate-600" />
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] text-slate-500 whitespace-nowrap">Lead time</span>
-          <input value={line.lead_time} onChange={(e) => onField({ lead_time: e.target.value })} placeholder="e.g. 4–6 weeks"
+          <span className="text-[10px] text-slate-500 whitespace-nowrap">{t('Lead time')}</span>
+          <input value={line.lead_time} onChange={(e) => onField({ lead_time: e.target.value })} placeholder={t('e.g. 4–6 weeks')}
             className="w-28 px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 focus:border-emerald-500/50 outline-none text-xs text-white placeholder:text-slate-600" />
         </div>
-        <button onClick={onRemove} className="text-slate-600 hover:text-red-400 transition-colors flex-shrink-0" title="Remove">×</button>
+        <button onClick={onRemove} className="text-slate-600 hover:text-red-400 transition-colors flex-shrink-0" title={t('Remove')}>×</button>
       </div>
     );
   }
@@ -1714,9 +1719,9 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, unitCost
     <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl px-3 py-2.5">
       {/* One aligned row on desktop: product grows, numbers in fixed columns */}
       <div className="flex flex-col lg:flex-row lg:items-end gap-2">
-        <div className="hidden lg:flex items-center self-center">{grip('Drag to reorder')}</div>
+        <div className="hidden lg:flex items-center self-center">{grip(t('Drag to reorder'))}</div>
         <div className="flex-1 min-w-0">
-          <LabeledField label="Product / description">
+          <LabeledField label={t('Product / description')}>
             <ProductAutocomplete comps={comps} extras={extras} value={line.description} onText={(t) => onField({ description: t })} onPick={onPick} onPickExtra={onPickExtra} />
           </LabeledField>
         </div>
@@ -1724,7 +1729,7 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, unitCost
           {/* Qty and Unit price accept Excel-style formulas (shared evalCell
               with the EPC editor): the field shows the value, the ƒ badge says
               a formula backs it, focus brings the formula back for editing. */}
-          <LabeledField label={`Qty${short ? ' ⚠' : ''}`} labelCls={short ? 'text-red-400' : ''}>
+          <LabeledField label={`${t('Qty')}${short ? ' ⚠' : ''}`} labelCls={short ? 'text-red-400' : ''}>
             <span className="relative block">
               {fBadge(line.qty_formula, qtyDraft != null)}
               <input value={qtyDraft ?? line.quantity}
@@ -1734,7 +1739,7 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, unitCost
                 placeholder="0" className={`${inpSm} tabular-nums`} />
             </span>
           </LabeledField>
-          <LabeledField label="Unit">
+          <LabeledField label={t('Unit')}>
             <input value={line.unit} onChange={(e) => onField({ unit: e.target.value })} placeholder="pcs" className={inpSm} />
           </LabeledField>
           <div className="relative"
@@ -1742,10 +1747,10 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, unitCost
             onMouseLeave={scheduleClose}
           >
             <LabeledField label={mineHistory ? (
-              <span className="inline-flex items-center gap-1" title="This customer has bought or quoted this item before — hover the price for the log">
-                Unit price <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+              <span className="inline-flex items-center gap-1" title={t('This customer has bought or quoted this item before — hover the price for the log')}>
+                {t('Unit price')} <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
               </span>
-            ) : 'Unit price'}>
+            ) : t('Unit price')}>
               <span className="relative block">
                 {fBadge(line.price_formula, priceDraft != null)}
                 <input value={priceDraft ?? line.unit_price}
@@ -1753,7 +1758,7 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, unitCost
                   onChange={(e) => setPriceDraft(e.target.value)}
                   onBlur={() => { commitCell(priceDraft, 'unit_price', 'price_formula'); setPriceDraft(null); scheduleClose(); }}
                   onKeyDown={(e) => { if (e.key === 'Escape') setPriceOpen(false); }}
-                  placeholder="0" title="Any typed price overrides the tier"
+                  placeholder="0" title={t('Any typed price overrides the tier')}
                   className={`${inpSm} tabular-nums ${mineHistory ? 'cursor-help border-emerald-500/30' : ''}`} />
               </span>
             </LabeledField>
@@ -1764,11 +1769,11 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, unitCost
                 onHoverIn={cancelClose} onHoverOut={scheduleClose} />
             )}
           </div>
-          <LabeledField label="Line total">
+          <LabeledField label={t('Line total')}>
             <div className="px-2 py-1.5 text-right tabular-nums text-sm font-semibold text-slate-200">{fmtInt(qty * num(line.unit_price))}</div>
           </LabeledField>
         </div>
-        <button onClick={onRemove} className="text-slate-600 hover:text-red-400 transition-colors text-lg leading-none px-1 self-start lg:self-end lg:pb-1.5 flex-shrink-0" title="Remove line">×</button>
+        <button onClick={onRemove} className="text-slate-600 hover:text-red-400 transition-colors text-lg leading-none px-1 self-start lg:self-end lg:pb-1.5 flex-shrink-0" title={t('Remove line')}>×</button>
       </div>
       {/* Meta row: catalog link, live stock, comment toggle. An INVISIBLE twin
           of the drag grip leads the row, so the chips align with the Product /
@@ -1780,28 +1785,28 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, unitCost
           {line.component_id ? (
             <span className="inline-flex items-center gap-1.5 text-[10px] text-slate-500 bg-slate-800/60 border border-slate-700/60 rounded-md px-1.5 py-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
-              <span className="truncate max-w-[200px]">{linkedName || 'Catalog item'}</span>
-              <span className={`tabular-nums ${short ? 'text-red-400' : 'text-slate-500'}`}>· live {available != null ? fmtInt(available) : '—'}{short ? ' — short' : ''}</span>
+              <span className="truncate max-w-[200px]">{linkedName || t('Catalog item')}</span>
+              <span className={`tabular-nums ${short ? 'text-red-400' : 'text-slate-500'}`}>· {t('live')} {available != null ? fmtInt(available) : '—'}{short ? ` — ${t('short')}` : ''}</span>
               {canHub && (
                 <a href={`/items/${line.component_id}`} target="_blank" rel="noopener noreferrer"
-                  className="text-slate-600 hover:text-emerald-300 transition-colors" title="Open the item hub — stock, prices and history on one page">↗</a>
+                  className="text-slate-600 hover:text-emerald-300 transition-colors" title={t('Open the item hub — stock, prices and history on one page')}>↗</a>
               )}
-              <button onClick={() => onField({ component_id: null })} className="text-slate-600 hover:text-red-400 transition-colors" title="Unlink from catalog (keep as custom entry)">×</button>
+              <button onClick={() => onField({ component_id: null })} className="text-slate-600 hover:text-red-400 transition-colors" title={t('Unlink from catalog (keep as custom entry)')}>×</button>
             </span>
           ) : (
-            <span className="text-[10px] text-slate-600 italic">Custom entry</span>
+            <span className="text-[10px] text-slate-600 italic">{t('Custom entry')}</span>
           )}
           {successor && (
             canHub ? (
               <a href={`/items/${successor.id}`} target="_blank" rel="noopener noreferrer"
-                title={`This item is replaced by ${successor.name} — open the newer item`}
+                title={tf('This item is replaced by {name} — open the newer item', { name: successor.name })}
                 className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-300 text-[10px] font-semibold hover:bg-amber-500/20 transition-colors">
-                ↑ Newer version: <span className="truncate max-w-[160px]">{successor.name}</span> ↗
+                ↑ {t('Newer version:')} <span className="truncate max-w-[160px]">{successor.name}</span> ↗
               </a>
             ) : (
-              <span title={`This item is replaced by ${successor.name}`}
+              <span title={tf('This item is replaced by {name}', { name: successor.name })}
                 className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-300 text-[10px] font-semibold">
-                ↑ Newer version: <span className="truncate max-w-[160px]">{successor.name}</span>
+                ↑ {t('Newer version:')} <span className="truncate max-w-[160px]">{successor.name}</span>
               </span>
             )
           )}
@@ -1816,7 +1821,7 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, unitCost
             return (
               <span className={`inline-flex items-center gap-1 text-[10px] font-semibold tabular-nums border rounded-md px-1.5 py-0.5 ${
                 gp < 0 ? 'text-red-300 bg-red-500/10 border-red-500/30' : 'text-emerald-300 bg-emerald-500/[0.08] border-emerald-500/25'}`}
-                title={`Owner-only — est. gross profit at the current moving-average landed cost of Rp ${fmtInt(unitCost)}/unit:\n(${fmtInt(price)} − ${fmtInt(unitCost)}) × ${fmtInt(qty)} = Rp ${fmtInt(gp)}`}>
+                title={`${tf('Owner-only — est. gross profit at the current moving-average landed cost of Rp {cost}/unit:', { cost: fmtInt(unitCost) })}\n(${fmtInt(price)} − ${fmtInt(unitCost)}) × ${fmtInt(qty)} = Rp ${fmtInt(gp)}`}>
                 GP {fmtInt(gp)} · {marginPct.toFixed(1)}%
               </span>
             );
@@ -1826,7 +1831,7 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, unitCost
               stock can't cover must not claim "Ready" (and blank needs a real
               value) — the control turns amber and says so. */}
           <span className="inline-flex items-center gap-1.5 flex-wrap">
-            <span className="text-[10px] text-slate-500 whitespace-nowrap">Lead time</span>
+            <span className="text-[10px] text-slate-500 whitespace-nowrap">{t('Lead time')}</span>
             {line.lead_time === '' || (LEAD_TIMES.includes(line.lead_time) && line.lead_time !== 'Custom') ? (
               <select value={line.lead_time} onChange={(e) => onField({ lead_time: e.target.value })}
                 className={`bg-slate-950 border rounded-lg px-1.5 py-0.5 text-[11px] outline-none focus:border-emerald-500/50 transition-colors ${
@@ -1835,19 +1840,19 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, unitCost
                     : 'border-slate-800 text-slate-300'
                 }`}>
                 <option value="">—</option>
-                {LEAD_TIMES.map((l) => <option key={l}>{l}</option>)}
+                {LEAD_TIMES.map((l) => <option key={l} value={l}>{t(l)}</option>)}
               </select>
             ) : (
               <span className="inline-flex items-center gap-1">
                 <input value={line.lead_time === 'Custom' ? '' : line.lead_time} autoFocus={line.lead_time === 'Custom'}
-                  onChange={(e) => onField({ lead_time: e.target.value })} placeholder="e.g. 4 bulan"
+                  onChange={(e) => onField({ lead_time: e.target.value })} placeholder={t('e.g. 4 bulan')}
                   className="w-24 bg-slate-950 border border-slate-800 focus:border-emerald-500/50 rounded-lg px-1.5 py-0.5 text-[11px] text-slate-300 outline-none transition-colors" />
-                <button onClick={() => onField({ lead_time: '' })} className="text-slate-600 hover:text-slate-300 transition-colors text-xs" title="Back to preset list">↺</button>
+                <button onClick={() => onField({ lead_time: '' })} className="text-slate-600 hover:text-slate-300 transition-colors text-xs" title={t('Back to preset list')}>↺</button>
               </span>
             )}
             {short && (line.lead_time === 'Ready' || line.lead_time === '') && (
-              <span className="text-[10px] text-amber-400 whitespace-nowrap" title="Live stock cannot cover this quantity">
-                ⚠ {line.lead_time === 'Ready' ? 'no stock for “Ready” — set the real lead time' : 'set the lead time — stock can’t cover this qty'}
+              <span className="text-[10px] text-amber-400 whitespace-nowrap" title={t('Live stock cannot cover this quantity')}>
+                ⚠ {line.lead_time === 'Ready' ? t('no stock for “Ready” — set the real lead time') : t('set the lead time — stock can’t cover this qty')}
               </span>
             )}
             {/* The suggestion: stock covers the qty → Ready; otherwise the
@@ -1859,17 +1864,17 @@ function LineCard({ line, comps, extras, available, linkedName, canHub, unitCost
                     ? 'border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10'
                     : 'border-sky-500/30 text-sky-400 hover:bg-sky-500/10'
                 }`}>
-                suggest: {leadSuggestion.value}
+                {t('suggest:')} {t(leadSuggestion.value)}
               </button>
             )}
           </span>
           <button onClick={() => onField({ showNote: !line.showNote })} className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors ml-auto">
-            {line.showNote || line.note ? 'Comment' : '+ Comment'}
+            {line.showNote || line.note ? t('Comment') : `+ ${t('Comment')}`}
           </button>
         </div>
       </div>
       {(line.showNote || line.note) && (
-        <input value={line.note} onChange={(e) => onField({ note: e.target.value })} placeholder="Comment / extra description (toggle in PDF)" className={`${inpSm} mt-1.5`} />
+        <input value={line.note} onChange={(e) => onField({ note: e.target.value })} placeholder={t('Comment / extra description (toggle in PDF)')} className={`${inpSm} mt-1.5`} />
       )}
     </div>
   );
@@ -1886,6 +1891,7 @@ function PricePopover({ tierOptions, history, customerTier, current, onPickPrice
   tierOptions: TierOption[]; history: PriceHistEntry[]; customerTier: string; current: number;
   onPickPrice: (p: number) => void; onHoverIn: () => void; onHoverOut: () => void;
 }) {
+  const { t, tf } = useT();
   return (
     <>
       {/* Hover-driven, EPC-style: entering the panel cancels the grace-close;
@@ -1895,20 +1901,20 @@ function PricePopover({ tierOptions, history, customerTier, current, onPickPrice
         {tierOptions.length > 0 && (
           <>
             <p className="px-1.5 pt-0.5 pb-1 text-[9px] font-bold uppercase tracking-widest text-slate-600">
-              Tier prices{customerTier ? <span className="normal-case tracking-normal font-normal"> · customer is on <span className="text-emerald-400">{customerTier}</span></span> : ''}
+              {t('Tier prices')}{customerTier ? <span className="normal-case tracking-normal font-normal"> · {tf('customer is on {tier}', { tier: customerTier })}</span> : ''}
             </p>
-            {tierOptions.map((t) => (
-              <button key={t.tier_id} disabled={t.price == null}
-                onMouseDown={(e) => { e.preventDefault(); if (t.price != null) onPickPrice(t.price); }}
+            {tierOptions.map((opt) => (
+              <button key={opt.tier_id} disabled={opt.price == null}
+                onMouseDown={(e) => { e.preventDefault(); if (opt.price != null) onPickPrice(opt.price); }}
                 className={`w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors disabled:opacity-40 ${
-                  t.chosen ? 'bg-emerald-500/10 text-emerald-300' : 'text-slate-300 hover:bg-white/10'
+                  opt.chosen ? 'bg-emerald-500/10 text-emerald-300' : 'text-slate-300 hover:bg-white/10'
                 }`}>
                 <span className="flex items-center gap-1.5">
-                  {t.code}
-                  {t.chosen && <span className="text-[8px] font-bold uppercase tracking-wider text-emerald-500">customer’s tier</span>}
+                  {opt.code}
+                  {opt.chosen && <span className="text-[8px] font-bold uppercase tracking-wider text-emerald-500">{t('customer’s tier')}</span>}
                 </span>
-                <span className={`tabular-nums font-semibold ${t.price != null && Math.round(t.price) === Math.round(current) ? 'text-emerald-300' : ''}`}>
-                  {t.price != null ? fmtInt(t.price) : '—'}
+                <span className={`tabular-nums font-semibold ${opt.price != null && Math.round(opt.price) === Math.round(current) ? 'text-emerald-300' : ''}`}>
+                  {opt.price != null ? fmtInt(opt.price) : '—'}
                 </span>
               </button>
             ))}
@@ -1917,7 +1923,7 @@ function PricePopover({ tierOptions, history, customerTier, current, onPickPrice
         {history.length > 0 && (
           <>
             <p className={`px-1.5 pb-1 text-[9px] font-bold uppercase tracking-widest text-slate-600 ${tierOptions.length ? 'pt-2 border-t border-slate-800 mt-1.5' : 'pt-0.5'}`}>
-              Sold before
+              {t('Sold before')}
             </p>
             {history.map((h, i) => (
               <button key={i} onMouseDown={(e) => { e.preventDefault(); onPickPrice(h.price); }}
@@ -1927,7 +1933,7 @@ function PricePopover({ tierOptions, history, customerTier, current, onPickPrice
                   <span className="tabular-nums font-semibold text-slate-200 flex-shrink-0">{fmtInt(h.price)}</span>
                 </span>
                 <span className="flex items-center justify-between gap-2 text-[10px] text-slate-600">
-                  <span>{h.quote_number}{h.mine ? ' · this customer' : ''}</span>
+                  <span>{h.quote_number}{h.mine ? ` · ${t('this customer')}` : ''}</span>
                   <span className="tabular-nums">×{fmtInt(h.qty)} · {fmtDay(h.date)}</span>
                 </span>
               </button>
@@ -1935,10 +1941,10 @@ function PricePopover({ tierOptions, history, customerTier, current, onPickPrice
           </>
         )}
         {tierOptions.length === 0 && history.length === 0 && (
-          <p className="px-2 py-3 text-[11px] text-slate-600">No tier prices or sales history for this item yet.</p>
+          <p className="px-2 py-3 text-[11px] text-slate-600">{t('No tier prices or sales history for this item yet.')}</p>
         )}
         <p className="px-1.5 pt-1.5 pb-0.5 text-[9px] text-slate-700 border-t border-slate-800 mt-1.5">
-          Click a price to use it — or just type your own in the field.
+          {t('Click a price to use it — or just type your own in the field.')}
         </p>
       </div>
     </>
@@ -1952,6 +1958,7 @@ function PaymentsPanel({ receipts, billTotal, received, canRecord, quoteId, comp
   invoices: Invoice[]; paidByInvoice: Record<string, number>;
   onChanged: () => void; flash: (m: string) => void;
 }) {
+  const { t } = useT();
   const supabase = createSupabaseClient();
   const [showModal, setShowModal] = useState(false);
   const outstanding = Math.max(0, billTotal - received);
@@ -1968,7 +1975,7 @@ function PaymentsPanel({ receipts, billTotal, received, canRecord, quoteId, comp
   return (
     <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4 space-y-3">
       <div className="flex flex-wrap items-center gap-3">
-        <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Payments · {docNumber}</h3>
+        <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">{t('Payments')} · {docNumber}</h3>
         <div className="flex items-center gap-2 ml-auto">
           <div className="w-28 h-1.5 bg-slate-700 rounded-full overflow-hidden">
             <div className={`h-full rounded-full ${pct >= 100 ? 'bg-emerald-500' : pct > 0 ? 'bg-amber-400' : 'bg-slate-600'}`} style={{ width: `${pct}%` }} />
@@ -1978,9 +1985,9 @@ function PaymentsPanel({ receipts, billTotal, received, canRecord, quoteId, comp
       </div>
 
       <div className="grid grid-cols-3 gap-3 text-center">
-        <MiniStat label="Order total" value={fmtInt(billTotal)} cls="text-slate-200" />
-        <MiniStat label="Received" value={fmtInt(received)} cls={received > 0 ? 'text-emerald-300' : 'text-slate-500'} />
-        <MiniStat label="Outstanding" value={fmtInt(outstanding)} cls={outstanding > 0 ? 'text-amber-300' : 'text-emerald-400'} />
+        <MiniStat label={t('Order total')} value={fmtInt(billTotal)} cls="text-slate-200" />
+        <MiniStat label={t('Received')} value={fmtInt(received)} cls={received > 0 ? 'text-emerald-300' : 'text-slate-500'} />
+        <MiniStat label={t('Outstanding')} value={fmtInt(outstanding)} cls={outstanding > 0 ? 'text-amber-300' : 'text-emerald-400'} />
       </div>
 
       {receipts.length > 0 && (
@@ -1989,14 +1996,14 @@ function PaymentsPanel({ receipts, billTotal, received, canRecord, quoteId, comp
             <div key={r.receipt_id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-xs">
               <span className="font-mono text-[10px] text-slate-500">{r.receipt_number}</span>
               {r.invoice_id && invNumById.has(r.invoice_id) && (
-                <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-lime-500/10 text-lime-300/90" title="This payment is applied to this invoice">{invNumById.get(r.invoice_id)}</span>
+                <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-lime-500/10 text-lime-300/90" title={t('This payment is applied to this invoice')}>{invNumById.get(r.invoice_id)}</span>
               )}
-              <span className="text-slate-400">{RECEIPT_CATS.find((c) => c.value === r.category)?.label ?? r.category}</span>
-              <span className="text-slate-500">{METHOD_LABELS[r.payment_method] ?? r.payment_method}{r.bank_ref ? ` · ${r.bank_ref}` : ''}</span>
+              <span className="text-slate-400">{t(RECEIPT_CATS.find((c) => c.value === r.category)?.label ?? r.category)}</span>
+              <span className="text-slate-500">{t(METHOD_LABELS[r.payment_method] ?? r.payment_method)}{r.bank_ref ? ` · ${r.bank_ref}` : ''}</span>
               <span className="ml-auto tabular-nums text-emerald-200 font-semibold">{fmtInt(Number(r.amount))}</span>
               <span className="text-slate-600 tabular-nums">{fmtDay(r.payment_date)}</span>
               {canRecord && (
-                <button onClick={() => removeReceipt(r)} className="text-slate-600 hover:text-red-400 transition-colors" title="Remove payment">×</button>
+                <button onClick={() => removeReceipt(r)} className="text-slate-600 hover:text-red-400 transition-colors" title={t('Remove payment')}>×</button>
               )}
             </div>
           ))}
@@ -2006,10 +2013,10 @@ function PaymentsPanel({ receipts, billTotal, received, canRecord, quoteId, comp
       {canRecord ? (
         <button onClick={() => setShowModal(true)}
           className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-emerald-300 hover:text-emerald-200 hover:bg-emerald-500/10 border border-emerald-500/25 transition-all">
-          + Record Payment
+          + {t('Record Payment')}
         </button>
       ) : (
-        <p className="text-[10px] text-slate-600">Payments are recorded by Finance / Owner.</p>
+        <p className="text-[10px] text-slate-600">{t('Payments are recorded by Finance / Owner.')}</p>
       )}
 
       {showModal && (
@@ -2035,6 +2042,7 @@ function RecordPaymentModal({ quoteId, companyId, outstanding, received, invoice
   invoices: Invoice[]; paidByInvoice: Record<string, number>;
   onClose: () => void; onDone: () => void; flash: (m: string) => void;
 }) {
+  const { t, tf } = useT();
   const supabase = createSupabaseClient();
   // The payment applies to an INVOICE — that link is what turns the invoice's
   // UNPAID badge into PARTIAL/PAID. Defaults to the first invoice still owed;
@@ -2082,8 +2090,8 @@ function RecordPaymentModal({ quoteId, companyId, outstanding, received, invoice
       bank_account_id: bankId || null,
     });
     setBusy(false);
-    if (error) { flash(`Failed: ${error.message}`); return; }
-    flash('Payment recorded');
+    if (error) { flash(tf('Failed: {message}', { message: error.message })); return; }
+    flash(t('Payment recorded'));
     onDone();
   }
 
@@ -2091,11 +2099,11 @@ function RecordPaymentModal({ quoteId, companyId, outstanding, received, invoice
     <div className="fixed inset-0 z-[100] flex items-center justify-center px-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60" />
       <div className="relative w-full max-w-md bg-canvas border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-3" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-base font-bold text-white">Record customer payment</h3>
+        <h3 className="text-base font-bold text-white">{t('Record customer payment')}</h3>
 
         <div className="grid grid-cols-2 gap-3">
           {invoices.length > 0 && (
-            <FieldBox label="For invoice" full>
+            <FieldBox label={t('For invoice')} full>
               <select value={invId}
                 onChange={(e) => { setInvId(e.target.value); setAmount(fillFor(e.target.value)); }}
                 className={inp}>
@@ -2103,20 +2111,20 @@ function RecordPaymentModal({ quoteId, companyId, outstanding, received, invoice
                   const o = invOutstanding(i.invoice_id);
                   return (
                     <option key={i.invoice_id} value={i.invoice_id}>
-                      {i.invoice_number} — {o > 0.5 ? `Rp ${fmtInt(o)} outstanding` : 'PAID'}
+                      {i.invoice_number} — {o > 0.5 ? tf('Rp {amount} outstanding', { amount: fmtInt(o) }) : t('PAID')}
                     </option>
                   );
                 })}
-                <option value="">Whole order (not tied to an invoice)</option>
+                <option value="">{t('Whole order (not tied to an invoice)')}</option>
               </select>
             </FieldBox>
           )}
-          <FieldBox label="Type" full>
+          <FieldBox label={t('Type')} full>
             <select value={category} onChange={(e) => setCategory(e.target.value)} className={inp}>
-              {RECEIPT_CATS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+              {RECEIPT_CATS.map((c) => <option key={c.value} value={c.value}>{t(c.label)}</option>)}
             </select>
           </FieldBox>
-          <FieldBox label="Amount (IDR)" full>
+          <FieldBox label={t('Amount (IDR)')} full>
             <div className="flex gap-2">
               {/* =formulas evaluate on blur (shared evalCell) — "=2181773/2"
                   is how a split amount actually gets typed. */}
@@ -2125,41 +2133,41 @@ function RecordPaymentModal({ quoteId, companyId, outstanding, received, invoice
                 placeholder="0" className={`${inp} text-right tabular-nums`} />
               {(invId ? invOutstanding(invId) : outstanding) > 0 && (
                 <button onClick={() => setAmount(fillFor(invId))}
-                  title={invId ? 'Fill this invoice’s outstanding amount' : 'Fill the order’s outstanding amount'}
+                  title={invId ? t('Fill this invoice’s outstanding amount') : t('Fill the order’s outstanding amount')}
                   className="px-3 rounded-lg text-[11px] font-medium text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] whitespace-nowrap transition-all">
-                  Fill remaining
+                  {t('Fill remaining')}
                 </button>
               )}
             </div>
           </FieldBox>
-          <FieldBox label="Method">
+          <FieldBox label={t('Method')}>
             <select value={method} onChange={(e) => setMethod(e.target.value)} className={inp}>
-              {Object.entries(METHOD_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              {Object.entries(METHOD_LABELS).map(([v, l]) => <option key={v} value={v}>{t(l)}</option>)}
             </select>
           </FieldBox>
-          <FieldBox label="Payment date">
+          <FieldBox label={t('Payment date')}>
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inp} />
           </FieldBox>
-          <FieldBox label="Received in" full>
+          <FieldBox label={t('Received in account')} full>
             <select value={bankId} onChange={(e) => setBankId(e.target.value)} className={inp}>
-              <option value="">— not recorded —</option>
+              <option value="">{t('— not recorded —')}</option>
               {banks.map((b) => <option key={b.bank_account_id} value={b.bank_account_id}>{accountLabelWithCompany(b, bankCompanies)}</option>)}
             </select>
           </FieldBox>
-          <FieldBox label="Bank ref / cheque no." full>
-            <input value={bankRef} onChange={(e) => setBankRef(e.target.value)} placeholder="Optional reference" className={inp} />
+          <FieldBox label={t('Bank ref / cheque no.')} full>
+            <input value={bankRef} onChange={(e) => setBankRef(e.target.value)} placeholder={t('Optional reference')} className={inp} />
           </FieldBox>
-          <FieldBox label="Notes" full>
-            <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" className={inp} />
+          <FieldBox label={t('Notes')} full>
+            <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={t('Optional')} className={inp} />
           </FieldBox>
         </div>
 
         <div className="flex justify-end gap-3 pt-1">
-          <button onClick={onClose} className="px-4 py-2 rounded-xl text-slate-400 hover:text-white text-sm transition-colors">Cancel</button>
+          <button onClick={onClose} className="px-4 py-2 rounded-xl text-slate-400 hover:text-white text-sm transition-colors">{t('Cancel')}</button>
           <button onClick={submit} disabled={busy}
             className="px-5 py-2 rounded-xl bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 text-sm font-semibold transition-colors disabled:opacity-50 flex items-center gap-2">
             {busy && <span className="w-3.5 h-3.5 border-2 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin" />}
-            Record payment
+            {t('Record payment')}
           </button>
         </div>
       </div>
@@ -2175,6 +2183,7 @@ function DeliveryOrderModal({ initial, contacts, isEdit, busy, onClose, onSubmit
   initial: DeliveryDetails; contacts: CustContact[]; isEdit: boolean; busy: boolean;
   onClose: () => void; onSubmit: (d: DeliveryDetails) => void;
 }) {
+  const { t } = useT();
   const [d, setD] = useState<DeliveryDetails>(initial);
   const set = <K extends keyof DeliveryDetails>(k: K, v: DeliveryDetails[K]) => setD((x) => ({ ...x, [k]: v }));
   const isPickup = d.method === 'pickup';
@@ -2184,26 +2193,26 @@ function DeliveryOrderModal({ initial, contacts, isEdit, busy, onClose, onSubmit
       <div className="absolute inset-0 bg-black/60" />
       <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto bg-canvas border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-3" onClick={(e) => e.stopPropagation()}>
         <div>
-          <h3 className="text-base font-bold text-white">{isEdit ? 'Edit delivery details' : 'Create Delivery Order'}</h3>
+          <h3 className="text-base font-bold text-white">{isEdit ? t('Edit delivery details') : t('Create Delivery Order')}</h3>
           <p className="text-[11px] text-slate-500 mt-0.5">
-            {isEdit ? 'Update the warehouse instructions for this DO.' : 'This issues the DO number and moves the order to “Preparing Items” — the warehouse team\'s instruction to pick and pack.'}
+            {isEdit ? t('Update the warehouse instructions for this DO.') : t('This issues the DO number and moves the order to “Preparing Items” — the warehouse team’s instruction to pick and pack.')}
           </p>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <FieldBox label="Target delivery date">
+          <FieldBox label={t('Target delivery date')}>
             <input type="date" value={d.date} onChange={(e) => set('date', e.target.value)} className={inp} />
           </FieldBox>
-          <FieldBox label="Time of day">
+          <FieldBox label={t('Time of day')}>
             <select value={d.time} onChange={(e) => set('time', e.target.value)} className={inp}>
-              <option value="">— Anytime —</option>
-              {TIME_OF_DAY.map((t) => <option key={t} value={t}>{t}</option>)}
+              <option value="">{t('— Anytime —')}</option>
+              {TIME_OF_DAY.map((slot) => <option key={slot} value={slot}>{slot}</option>)}
               {d.time && !TIME_OF_DAY.includes(d.time) && <option value={d.time}>{d.time}</option>}
             </select>
           </FieldBox>
-          <FieldBox label="Method" full>
+          <FieldBox label={t('Method')} full>
             <div className="flex gap-2">
-              {[{ v: 'delivery', l: 'Delivery (we send)' }, { v: 'pickup', l: 'Customer pick-up' }].map((m) => (
+              {[{ v: 'delivery', l: t('Delivery (we send)') }, { v: 'pickup', l: t('Customer pick-up') }].map((m) => (
                 <button key={m.v} onClick={() => set('method', m.v)}
                   className={`flex-1 px-3 py-2 rounded-xl text-sm font-semibold border transition-colors ${d.method === m.v ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-slate-500'}`}>
                   {m.l}
@@ -2212,29 +2221,29 @@ function DeliveryOrderModal({ initial, contacts, isEdit, busy, onClose, onSubmit
             </div>
           </FieldBox>
           {!isPickup && (
-            <FieldBox label="Through / carrier" full>
+            <FieldBox label={t('Through / carrier')} full>
               <input list="via-suggestions" value={d.via} onChange={(e) => set('via', e.target.value)}
-                placeholder="e.g. Armada sendiri, ekspedisi…" className={inp} />
+                placeholder={t('e.g. Armada sendiri, ekspedisi…')} className={inp} />
               <datalist id="via-suggestions">
                 {VIA_SUGGESTIONS.map((v) => <option key={v} value={v} />)}
               </datalist>
             </FieldBox>
           )}
           {!isPickup && (
-            <FieldBox label="Delivery address" full>
+            <FieldBox label={t('Delivery address')} full>
               <textarea value={d.address} onChange={(e) => set('address', e.target.value)} rows={3}
-                placeholder="Street address for the driver" className={inp} />
+                placeholder={t('Street address for the driver')} className={inp} />
             </FieldBox>
           )}
           {!isPickup && (
-            <FieldBox label="Google Maps link" full>
+            <FieldBox label={t('Google Maps link')} full>
               <input value={d.mapUrl} onChange={(e) => set('mapUrl', e.target.value)}
                 placeholder="https://maps.app.goo.gl/…" className={inp} />
             </FieldBox>
           )}
-          <FieldBox label="Contact person (on site)" full>
+          <FieldBox label={t('Contact person (on site)')} full>
             <input list="do-contacts" value={d.contact} onChange={(e) => set('contact', e.target.value)}
-              placeholder={contacts.length ? 'Pick a customer contact or type one…' : 'Name · phone'} className={inp} />
+              placeholder={contacts.length ? t('Pick a customer contact or type one…') : t('Name · phone')} className={inp} />
             <datalist id="do-contacts">
               {contacts.map((c) => (
                 <option key={`${c.name}-${c.phone}`} value={`${c.name}${c.phone ? ` · ${c.phone}` : ''}`}>{c.title}</option>
@@ -2244,11 +2253,11 @@ function DeliveryOrderModal({ initial, contacts, isEdit, busy, onClose, onSubmit
         </div>
 
         <div className="flex justify-end gap-3 pt-1">
-          <button onClick={onClose} className="px-4 py-2 rounded-xl text-slate-400 hover:text-white text-sm transition-colors">Cancel</button>
+          <button onClick={onClose} className="px-4 py-2 rounded-xl text-slate-400 hover:text-white text-sm transition-colors">{t('Cancel')}</button>
           <button onClick={() => onSubmit(d)} disabled={busy}
             className="px-5 py-2 rounded-xl bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 text-sm font-semibold transition-colors disabled:opacity-50 flex items-center gap-2">
             {busy && <span className="w-3.5 h-3.5 border-2 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin" />}
-            {isEdit ? 'Save details' : 'Create Delivery Order'}
+            {isEdit ? t('Save details') : t('Create Delivery Order')}
           </button>
         </div>
       </div>
@@ -2260,6 +2269,7 @@ function ProductAutocomplete({ comps, extras, value, onText, onPick, onPickExtra
   comps: Comp[]; extras: Extra[]; value: string;
   onText: (t: string) => void; onPick: (c: Comp) => void; onPickExtra: (x: Extra) => void;
 }) {
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const results = useMemo(() => {
@@ -2293,7 +2303,7 @@ function ProductAutocomplete({ comps, extras, value, onText, onPick, onPickExtra
     <div className="relative">
       <input value={value} onChange={(e) => { onText(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)} onKeyDown={onKey}
-        placeholder="Type a product or custom item…" autoComplete="off" className={inpSm} />
+        placeholder={t('Type a product or custom item…')} autoComplete="off" className={inpSm} />
       {open && total > 0 && (
         <div className="absolute z-30 left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-slate-900 border border-emerald-500/40 rounded-lg shadow-2xl">
           {results.map((c, i) => (

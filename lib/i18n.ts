@@ -53,7 +53,7 @@ export const KEEPERS: readonly string[] = [
   // Words Indonesian spells identically — a phrase-book entry for one of
   // these would equal its own English and fail the test, so it lives here
   // instead of being a translation that translates nothing.
-  'Admin', 'Menu',
+  'Admin', 'Menu', 'Status', 'Subtotal', 'Total', 'SVC', 'LIB', 'PREV',
 ];
 
 /** Is this string left in English on purpose, rather than simply untranslated? */
@@ -1019,6 +1019,436 @@ export const ID: Record<string, string> = {
     'Ada ongkos kirim, bea masuk atau pelunasan yang dicatat setelah hari ini? Sesuaikan biaya barang yang baru diterima.',
   'Back to Deal Lookup — the PI → PO → payment record':
     'Kembali ke Telusur Transaksi — catatan PI → PO → pembayaran',
+
+  // ── SELL SIDE, in full (owner's rule, 2026-09-08) ────────────────────────
+  //
+  // "Continue translating to Indonesian especially for the Sales Side menus,
+  // including the Field Descriptions and Buttons. My sales support admin is
+  // poor in English." The Sales list already spoke Indonesian; the quotation
+  // EDITOR — where that person spends the day — had never been wired to the
+  // translator at all, nor had the description library or Surat Dukungan.
+  //
+  // House vocabulary held to here: quotation → penawaran · line → baris ·
+  // lead time → waktu kirim · fee → biaya · letter → surat · draft → draf.
+
+  // Command bar and document identity
+  'Sales · Quotation': 'Penjualan · Penawaran',
+  'New Sales Quote': 'Penawaran Penjualan Baru',
+  'List': 'Daftar',
+  'Back to the sales list': 'Kembali ke daftar penjualan',
+  'Unsaved —': 'Belum disimpan —',
+  'Save & leave': 'Simpan & keluar',
+  'Discard': 'Buang perubahan',
+  'Stay on this quote': 'Tetap di penawaran ini',
+  'Draft order': 'Draf pesanan',
+  'Entered via + New Order — the SO number stamps when you Confirm Order':
+    'Dibuat lewat + Pesanan Baru — nomor SO tercetak saat Anda menekan Konfirmasi Pesanan',
+  'Partly Delivered': 'Terkirim sebagian',
+  'Service': 'Servis',
+  'After-sales quote — open the case list': 'Penawaran purnajual — buka daftar kasus',
+  'Offer expired {date} — Revise to re-issue with fresh validity':
+    'Penawaran kedaluwarsa {date} — pilih Revisi untuk menerbitkan ulang dengan masa berlaku baru',
+  'Delivered, but Rp {amount} has not been received':
+    'Sudah dikirim, tetapi Rp {amount} belum diterima',
+  'Auto-saved': 'Tersimpan otomatis',
+  'Drafts save themselves shortly after every change':
+    'Draf tersimpan sendiri sesaat setelah setiap perubahan',
+  'Print / PDF': 'Cetak / PDF',
+  'Confirming reserves these quantities from Live Stock':
+    'Konfirmasi akan memesan jumlah ini dari Stok Langsung',
+  'Revise': 'Revisi',
+  'Re-open for edits as a new revision (Rev n) — the customer has seen this quote':
+    'Buka kembali sebagai revisi baru (Rev n) — pelanggan sudah melihat penawaran ini',
+  'Re-open for edits — not sent yet, so it keeps the same revision number':
+    'Buka kembali untuk diubah — belum terkirim, jadi nomor revisinya tetap',
+  'Sales quote not found.': 'Penawaran penjualan tidak ditemukan.',
+
+  // Header fields
+  'Customer': 'Pelanggan',
+  'Type to search customers…': 'Ketik untuk mencari pelanggan…',
+  'Selling company': 'Perusahaan penjual',
+  '— Select company —': '— Pilih perusahaan —',
+  'Quote date': 'Tanggal penawaran',
+  'Set to today’s date': 'Pakai tanggal hari ini',
+  'The quote is already dated today': 'Penawaran sudah bertanggal hari ini',
+  'Valid until': 'Berlaku sampai',
+  'Valid until {date} (quote date + {days} days)':
+    'Berlaku sampai {date} (tanggal penawaran + {days} hari)',
+  '{days} days': '{days} hari',
+  'before quote date': 'sebelum tanggal penawaran',
+  'no expiry': 'tanpa batas waktu',
+  'Payment terms': 'Syarat pembayaran',
+  '— Select payment terms —': '— Pilih syarat pembayaran —',
+  'Delivery terms': 'Syarat pengiriman',
+  '— Select delivery terms —': '— Pilih syarat pengiriman —',
+
+  // Lines
+  'Add item': 'Tambah item',
+  'Add section': 'Tambah bagian',
+  'Section': 'Bagian',
+  'Section title (e.g. Solar Panels)': 'Judul bagian (mis. Panel Surya)',
+  'Drag to reorder': 'Seret untuk mengubah urutan',
+  'Drag to move this section together with its items':
+    'Seret untuk memindahkan bagian ini beserta isinya',
+  'Drop here to move to the end': 'Lepas di sini untuk memindahkan ke urutan terakhir',
+  'Product / description': 'Produk / deskripsi',
+  'Type a product or custom item…': 'Ketik produk atau item manual…',
+  'Pick a catalog product to autofill price, or just type a custom item.':
+    'Pilih produk katalog agar harganya terisi sendiri, atau ketik item manual.',
+  'Qty': 'Jml',
+  'Unit': 'Satuan',
+  'Unit price': 'Harga satuan',
+  'Any typed price overrides the tier': 'Harga yang diketik mengalahkan harga tingkat',
+  'Line total': 'Total baris',
+  'Remove': 'Hapus',
+  'Remove line': 'Hapus baris',
+  'Catalog item': 'Item katalog',
+  'Custom entry': 'Entri manual',
+  'live': 'tersedia',
+  'short': 'kurang',
+  'Open the item hub — stock, prices and history on one page':
+    'Buka halaman barang — stok, harga dan riwayat dalam satu halaman',
+  'Unlink from catalog (keep as custom entry)':
+    'Lepas dari katalog (tetap sebagai entri manual)',
+  'newer item': 'barang lebih baru',
+  'Newer version:': 'Versi lebih baru:',
+  'This item is replaced by {name}': 'Barang ini digantikan oleh {name}',
+  'This item is replaced by {name} — open the newer item':
+    'Barang ini digantikan oleh {name} — buka barang yang lebih baru',
+  'Formula: {formula}': 'Rumus: {formula}',
+  'Owner-only — est. gross profit at the current moving-average landed cost of Rp {cost}/unit:':
+    'Khusus pemilik — perkiraan laba kotor pada biaya sampai gudang rata-rata bergerak Rp {cost}/unit:',
+  'Comment': 'Komentar',
+  'Comment / extra description (toggle in PDF)':
+    'Komentar / keterangan tambahan (bisa ditampilkan di PDF)',
+
+  // Lead time
+  'Lead time': 'Waktu kirim',
+  'Ready': 'Siap',
+  'Custom': 'Isi sendiri',
+  'e.g. 4–6 weeks': 'mis. 4–6 minggu',
+  'e.g. 4 bulan': 'mis. 4 bulan',
+  'Back to preset list': 'Kembali ke daftar pilihan',
+  'Live stock cannot cover this quantity': 'Stok tersedia tidak mencukupi jumlah ini',
+  'no stock for “Ready” — set the real lead time':
+    'stok tidak ada untuk “Siap” — isi waktu kirim yang sebenarnya',
+  'set the lead time — stock can’t cover this qty':
+    'isi waktu kirim — stok tidak mencukupi jumlah ini',
+  'suggest:': 'saran:',
+
+  // Price popover
+  'Tier prices': 'Harga per tingkat',
+  'customer is on {tier}': 'pelanggan ada di tingkat {tier}',
+  'customer’s tier': 'tingkat pelanggan',
+  'Sold before': 'Pernah terjual',
+  'this customer': 'pelanggan ini',
+  'No tier prices or sales history for this item yet.':
+    'Belum ada harga tingkat maupun riwayat penjualan untuk barang ini.',
+  'Click a price to use it — or just type your own in the field.':
+    'Klik sebuah harga untuk memakainya — atau ketik harga Anda sendiri di kolomnya.',
+
+  // Totals
+  'Notes / terms': 'Catatan / ketentuan',
+  'Grand Total': 'Total Akhir',
+  'Prices auto-filled at the customer’s': 'Harga terisi otomatis pada tingkat',
+  'tier.': 'pelanggan.',
+  'Est. COGS · avg landed cost': 'Perk. HPP · rata-rata biaya sampai gudang',
+  'Σ current moving-average landed cost × qty over lines linked to a costed catalog item':
+    'Σ biaya sampai gudang rata-rata bergerak × jumlah, atas baris yang terhubung ke item katalog bernilai',
+  'Est. gross profit': 'Perk. laba kotor',
+  'owner-only': 'khusus pemilik',
+  '{n} lines without a landed cost — excluded from the estimate.':
+    '{n} baris tanpa biaya sampai gudang — tidak dihitung dalam perkiraan.',
+
+  // Designers
+  'Design system': 'Desain sistem',
+  'System design ·  regenerate': 'Desain sistem ·  buat ulang',
+  'Size the whole system — inverter, battery bank, array, structure and balance of system — from the PLN connection or the load table, priced at this customer’s tier':
+    'Hitung seluruh sistem — inverter, bank baterai, larik panel, struktur dan kelengkapannya — dari daya PLN atau tabel beban, dengan harga tingkat pelanggan ini',
+  'Design mounting': 'Desain dudukan',
+  'Mounting design ·  regenerate': 'Desain dudukan ·  buat ulang',
+  'Size the mounting structure from the array — rails, clamps, supports, grounding — priced at this customer’s tier':
+    'Hitung struktur dudukan dari larik panel — rel, klem, penyangga, pembumian — dengan harga tingkat pelanggan ini',
+
+  // Activity log
+  'Activity': 'Aktivitas',
+  'every change on this document — who and when':
+    'setiap perubahan pada dokumen ini — siapa dan kapan',
+  'Show fewer': 'Tampilkan lebih sedikit',
+  'Show all {n}': 'Tampilkan semua {n}',
+  'Invoice created': 'Faktur dibuat',
+  'Invoice deleted': 'Faktur dihapus',
+  'DO created': 'Surat jalan dibuat',
+  'DO reopened': 'Surat jalan dibuka kembali',
+  'DO deleted': 'Surat jalan dihapus',
+  'Payment recorded': 'Pembayaran tercatat',
+  'Payment removed': 'Pembayaran dihapus',
+  'Revised': 'Direvisi',
+
+  // Payments
+  'Order total': 'Total pesanan',
+  'Received in account': 'Diterima di rekening',
+  'This payment is applied to this invoice': 'Pembayaran ini dibukukan ke faktur tersebut',
+  'Remove payment': 'Hapus pembayaran',
+  'Record Payment': 'Catat Pembayaran',
+  'Record customer payment': 'Catat pembayaran pelanggan',
+  'Record payment': 'Catat pembayaran',
+  'Payments are recorded by Finance / Owner.': 'Pembayaran dicatat oleh Keuangan / Pemilik.',
+  'For invoice': 'Untuk faktur',
+  'Rp {amount} outstanding': 'sisa Rp {amount}',
+  'PAID': 'LUNAS',
+  'Whole order (not tied to an invoice)': 'Seluruh pesanan (tidak terikat ke satu faktur)',
+  'Type': 'Jenis',
+  'Down Payment (DP)': 'Uang Muka (DP)',
+  'Balance Payment': 'Pelunasan',
+  'Amount (IDR)': 'Jumlah (IDR)',
+  'Fill remaining': 'Isi sisanya',
+  'Fill this invoice’s outstanding amount': 'Isi sisa tagihan faktur ini',
+  'Fill the order’s outstanding amount': 'Isi sisa tagihan pesanan ini',
+  'Method': 'Metode',
+  'Bank Transfer': 'Transfer Bank',
+  'Cheque': 'Cek',
+  'Giro': 'Bilyet Giro',
+  'Other': 'Lainnya',
+  'Payment date': 'Tanggal pembayaran',
+  '— not recorded —': '— tidak dicatat —',
+  'Bank ref / cheque no.': 'Ref bank / no. cek',
+  'Optional reference': 'Referensi, jika ada',
+  'Notes': 'Catatan',
+  'Optional': 'Opsional',
+  'Failed: {message}': 'Gagal: {message}',
+
+  // Delivery order modal
+  'Create Delivery Order': 'Buat Surat Jalan',
+  'Edit delivery details': 'Ubah rincian pengiriman',
+  'Update the warehouse instructions for this DO.':
+    'Perbarui instruksi gudang untuk surat jalan ini.',
+  'This issues the DO number and moves the order to “Preparing Items” — the warehouse team’s instruction to pick and pack.':
+    'Ini menerbitkan nomor surat jalan dan memindahkan pesanan ke “Menyiapkan Barang” — instruksi bagi tim gudang untuk mengambil dan mengemas.',
+  'Target delivery date': 'Target tanggal kirim',
+  'Time of day': 'Waktu pengiriman',
+  '— Anytime —': '— Kapan saja —',
+  'Delivery (we send)': 'Dikirim (oleh kami)',
+  'Customer pick-up': 'Diambil pelanggan',
+  'Through / carrier': 'Melalui / ekspedisi',
+  'e.g. Armada sendiri, ekspedisi…': 'mis. Armada sendiri, ekspedisi…',
+  'Delivery address': 'Alamat pengiriman',
+  'Street address for the driver': 'Alamat lengkap untuk pengemudi',
+  'Google Maps link': 'Tautan Google Maps',
+  'Contact person (on site)': 'Narahubung (di lokasi)',
+  'Pick a customer contact or type one…': 'Pilih kontak pelanggan atau ketik sendiri…',
+  'Name · phone': 'Nama · telepon',
+  'Save details': 'Simpan rincian',
+
+  // ── Description library ──────────────────────────────────────────────────
+  'Back to Sales': 'Kembali ke Penjualan',
+  'Curated custom line texts that appear as': 'Teks baris manual pilihan yang muncul sebagai saran',
+  'suggestions in the Sales Quote item picker for every sales user. Only owners see and manage this page.':
+    'di pemilih barang Penawaran Penjualan untuk semua pengguna penjualan. Hanya pemilik yang melihat dan mengelola halaman ini.',
+  'After-sales': 'Purnajual',
+  'Repair & component-replacement texts — offered first on quotes linked to a case.':
+    'Teks perbaikan & penggantian komponen — ditawarkan lebih dulu pada penawaran yang terkait sebuah kasus.',
+  'New entry — description': 'Entri baru — deskripsi',
+  'e.g. Instalasi dan komisioning sistem': 'mis. Instalasi dan komisioning sistem',
+  'Default price (IDR)': 'Harga bawaan (IDR)',
+  'optional': 'opsional',
+  'Add': 'Tambah',
+  'Search entries…': 'Cari entri…',
+  'No library entries yet — add your first above.':
+    'Belum ada entri pustaka — tambahkan yang pertama di atas.',
+  'No matches.': 'Tidak ada yang cocok.',
+  'unit': 'satuan',
+  'price': 'harga',
+  'no price': 'tanpa harga',
+  'Delete': 'Hapus',
+  'Used in sales quotes': 'Terpakai di penawaran penjualan',
+  'custom lines your team already typed, not in the library yet. Adding one makes it a suggested entry for everyone.':
+    'baris manual yang sudah diketik tim Anda, belum masuk pustaka. Menambahkannya menjadikannya saran bagi semua orang.',
+  'Times used in sales quotes': 'Berapa kali dipakai di penawaran penjualan',
+  'Add to library': 'Tambahkan ke pustaka',
+
+  // ── Support letters · Surat Dukungan ─────────────────────────────────────
+  'Support Letters · Surat Dukungan': 'Surat Dukungan · Daftar',
+  'New Letter': 'Surat Baru',
+  'Search number, customer, project, end user, item…':
+    'Cari nomor, pelanggan, proyek, pengguna akhir, barang…',
+  'All statuses': 'Semua status',
+  'All customers': 'Semua pelanggan',
+  'All sales': 'Semua sales',
+  'Unassigned': 'Belum ditugaskan',
+  'The administration fee: which letters are still waiting on payment':
+    'Biaya administrasi: surat mana yang masih menunggu pembayaran',
+  'Fee: any': 'Biaya: semua',
+  'Fee unpaid': 'Biaya belum dibayar',
+  'Fee paid': 'Biaya sudah dibayar',
+  'Letter date': 'Tanggal surat',
+  '{shown} of {total} letters': '{shown} dari {total} surat',
+  'projects backed': 'proyek didukung',
+  'resellers': 'reseller',
+  '{n} awaiting the fee': '{n} menunggu pembayaran biaya',
+  'Number': 'Nomor',
+  'Date': 'Tanggal',
+  'Project': 'Proyek',
+  'End user': 'Pengguna akhir',
+  'Items': 'Barang',
+  'Creator': 'Dibuat oleh',
+  'Fee': 'Biaya',
+  'Actions': 'Tindakan',
+  'No support letters yet — the first one takes about a minute.':
+    'Belum ada surat dukungan — yang pertama hanya butuh sekitar satu menit.',
+  'No letter matches.': 'Tidak ada surat yang cocok.',
+  'Issued': 'Diterbitkan',
+  'Fee received {date} — click to clear': 'Biaya diterima {date} — klik untuk membatalkan',
+  'Click when the fee lands — the letter flips to Issued':
+    'Klik saat biaya masuk — status surat berubah menjadi Diterbitkan',
+  'Paid {date}': 'Dibayar {date}',
+  'Open the printable Surat Dukungan': 'Buka Surat Dukungan siap cetak',
+  'Print': 'Cetak',
+  'Start a new letter from this one — same customer and items, new project':
+    'Mulai surat baru dari surat ini — pelanggan dan barang sama, proyek baru',
+  'Duplicate': 'Duplikat',
+  'no end user': 'tanpa pengguna akhir',
+  'Fee received': 'Biaya diterima',
+  'Supported': 'Didukung',
+  'Addressed': 'Ditujukan',
+  'Brands': 'Merek',
+  'Materials': 'Material',
+  'none listed': 'tidak ada',
+  'A Surat Dukungan states our backing as principal. The clauses are pre-formatted and the item warranties come from the item master — set them in':
+    'Surat Dukungan menyatakan dukungan kami sebagai prinsipal. Klausulnya sudah baku dan garansi barang diambil dari data induk barang — aturlah di',
+  'and every future letter quotes them correctly.':
+    'dan setiap surat berikutnya akan mengutipnya dengan benar.',
+  'New Surat Dukungan': 'Surat Dukungan Baru',
+  'Support letter': 'Surat dukungan',
+  'Customer we support *': 'Pelanggan yang kami dukung *',
+  'Their signatory (Nama)': 'Penanda tangan mereka (Nama)',
+  'e.g. Denny Yusni Arman': 'mis. Denny Yusni Arman',
+  'Their title (Jabatan)': 'Jabatan mereka',
+  'Their company + address (as printed)': 'Perusahaan + alamat mereka (seperti tercetak)',
+  'Project / Pekerjaan *': 'Proyek / Pekerjaan *',
+  'pick a tender you have backed before and its owner fills itself':
+    'pilih tender yang pernah Anda dukung, pemiliknya akan terisi sendiri',
+  'e.g. RTWS Package Fabrication and Installation Services Projects Zona 9 (II)':
+    'mis. RTWS Package Fabrication and Installation Services Projects Zona 9 (II)',
+  'Addressed to — end user': 'Ditujukan kepada — pengguna akhir',
+  'e.g. PT Pertamina Hulu Sanga Sanga': 'mis. PT Pertamina Hulu Sanga Sanga',
+  'End-user address': 'Alamat pengguna akhir',
+  'type and warranty come from the item master':
+    'tipe dan garansi diambil dari data induk barang',
+  'Search catalog…': 'Cari katalog…',
+  'Solar Modules': 'Modul Surya',
+  'Remove row': 'Hapus baris',
+  'Brands (Merk) — printed in the opening line':
+    'Merek — dicetak pada kalimat pembuka',
+  'Blank uses the items’ own brands:': 'Dikosongkan berarti memakai merek barangnya sendiri:',
+  'Sales handling this': 'Sales yang menangani',
+  '— unassigned —': '— belum ditugaskan —',
+  'Our signatory': 'Penanda tangan kami',
+  'e.g. Wendy Yusson Abadi': 'mis. Wendy Yusson Abadi',
+  'Signatory title': 'Jabatan penanda tangan',
+  'Issuing company': 'Perusahaan penerbit',
+  'Place · number code': 'Tempat · kode nomor',
+  'The letters inside the document number (013-ISL-SD-VII-2026)':
+    'Huruf di dalam nomor dokumen (013-ISL-SD-VII-2026)',
+  'Administration fee (Rp)': 'Biaya administrasi (Rp)',
+  'Fee received date': 'Tanggal biaya diterima',
+  'Internal note': 'Catatan internal',
+  'Not printed': 'Tidak dicetak',
+  'Letter body — standard clauses (pre-filled)':
+    'Isi surat — klausul baku (sudah terisi)',
+  'Undertakings — one per line, numbered when printed':
+    'Pernyataan — satu per baris, dinomori saat dicetak',
+  'Validity clause': 'Klausul masa berlaku',
+  'Closing': 'Penutup',
+  'Delete {name}?': 'Hapus {name}?',
+  'this letter': 'surat ini',
+  'Yes': 'Ya',
+  'No': 'Tidak',
+  'Create letter': 'Buat surat',
+  'Pick the customer this letter supports.': 'Pilih pelanggan yang didukung surat ini.',
+  'Name the project (Pekerjaan) — it is what the letter is for.':
+    'Isi nama proyek (Pekerjaan) — itulah yang didukung surat ini.',
+  'Support letter created.': 'Surat dukungan dibuat.',
+  'Support letter saved.': 'Surat dukungan tersimpan.',
+  'Fee marked received — the letter is ready to issue.':
+    'Biaya ditandai diterima — surat siap diterbitkan.',
+  'Payment cleared.': 'Tanda pembayaran dibatalkan.',
+  'Letter deleted.': 'Surat dihapus.',
+
+  // ── Fulfillment panel: invoices and delivery orders, inside the quotation ──
+  'Fulfillment': 'Pemenuhan',
+  '{inv} invoices · {dos} delivery orders': '{inv} faktur · {dos} surat jalan',
+  'Invoiced {pct}% — over 100%': 'Difakturkan {pct}% — lebih dari 100%',
+  'Rp {amount} left to invoice': 'Rp {amount} belum difakturkan',
+  'The order is fully invoiced': 'Pesanan sudah difakturkan seluruhnya',
+  'Bill all or part of this order — pick the items and quantities in the next step':
+    'Tagih seluruh atau sebagian pesanan ini — pilih barang dan jumlahnya di langkah berikutnya',
+  'New Invoice': 'Faktur Baru',
+  'Delete invoice': 'Hapus faktur',
+  'Payments are recorded against this invoice — remove them first.':
+    'Ada pembayaran yang tercatat pada faktur ini — hapus dulu pembayarannya.',
+  '{done} of {all} units': '{done} dari {all} unit',
+  '{n} preparing': '{n} sedang disiapkan',
+  '{n} units not yet on a DO': '{n} unit belum masuk surat jalan',
+  'Everything is already on a DO': 'Semuanya sudah masuk surat jalan',
+  'Ship all or part of this order — pick the items and quantities in the next step':
+    'Kirim seluruh atau sebagian pesanan ini — pilih barang dan jumlahnya di langkah berikutnya',
+  'New Delivery Order': 'Surat Jalan Baru',
+  'Source warehouse': 'Gudang asal',
+  'Warehouse the stock-out is posted against when a DO is marked delivered':
+    'Gudang yang stoknya dikurangi saat surat jalan ditandai terkirim',
+  '{n} units': '{n} unit',
+  'pick-up': 'diambil sendiri',
+  'Mark Delivered': 'Tandai Terkirim',
+  'Delete DO': 'Hapus surat jalan',
+  'Reopen': 'Buka kembali',
+  'Reverse this DO’s stock-out and put it back in Preparing':
+    'Batalkan pengurangan stok surat jalan ini dan kembalikan ke status Menyiapkan',
+  'Reopen the DO first — a delivered DO cannot be deleted directly.':
+    'Buka kembali surat jalannya dulu — surat jalan yang sudah terkirim tidak bisa langsung dihapus.',
+  'Delivery order deleted': 'Surat jalan dihapus',
+
+  'Prefilled with everything still uninvoiced — post as-is for the full bill, or trim quantities / switch to a % of the order to split.':
+    'Sudah terisi dengan semua yang belum difakturkan — simpan apa adanya untuk tagihan penuh, atau kurangi jumlahnya / ganti ke % dari pesanan untuk memecahnya.',
+  'By items & qty': 'Per barang & jumlah',
+  '% of order (DP / progress)': '% dari pesanan (DP / termin)',
+  '{done} / {all} billed': '{done} / {all} difakturkan',
+  'Remaining: {n}': 'Sisa: {n}',
+  '% of order total': '% dari total pesanan',
+  'Invoice date': 'Tanggal faktur',
+  'incl. PPN': 'termasuk PPN',
+  'Create Invoice': 'Buat Faktur',
+  'Nothing to invoice — enter a quantity': 'Tidak ada yang difakturkan — isi jumlahnya',
+  'Enter a percentage': 'Isi persentasenya',
+
+  'Prefilled with everything not yet on a DO — trim quantities to split the shipment. Stock moves when this DO is marked delivered.':
+    'Sudah terisi dengan semua yang belum masuk surat jalan — kurangi jumlahnya untuk memecah pengiriman. Stok berkurang saat surat jalan ini ditandai terkirim.',
+  '{done} / {all} on DOs': '{done} / {all} masuk surat jalan',
+  'Shipping': 'Mengirim',
+  'units on this DO': 'unit pada surat jalan ini',
+  'Nothing to ship — enter a quantity': 'Tidak ada yang dikirim — isi jumlahnya',
+
+  // ── Sales list, delivery queue and invoice list — the last English left ──
+  'Sales Orders · DQ → PQ → SO': 'Pesanan Penjualan · DQ → PQ → SO',
+  'Library': 'Pustaka',
+  'New Quote': 'Penawaran Baru',
+  'New Order': 'Pesanan Baru',
+  'Sales Order': 'Pesanan Penjualan',
+  'Quote (PQ)': 'Penawaran (PQ)',
+  'Order (SO)': 'Pesanan (SO)',
+  'Payment': 'Pembayaran',
+  'Delivery date': 'Tanggal kirim',
+  'Nothing waiting — confirmed orders appear here until they’re delivered.':
+    'Tidak ada antrean — pesanan yang sudah dikonfirmasi muncul di sini sampai terkirim.',
+  'Unpaid only': 'Hanya yang belum dibayar',
+
+  // Status transitions on the quotation command bar — the buttons that move a
+  // document down the ladder. Stored in English, shown in the reader's language.
+  'Validate': 'Validasi',
+  'Confirm Order': 'Konfirmasi Pesanan',
+  'Revert': 'Kembalikan',
+  'Reject': 'Tolak',
+  'View letter': 'Lihat surat',
 };
 
 const DICTS: Record<Lang, Record<string, string>> = { en: {}, id: ID };

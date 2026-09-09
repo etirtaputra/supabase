@@ -24,6 +24,7 @@ import { useSettings } from '@/hooks/useSettings';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
+import { useT } from '@/hooks/useT';
 import RichDropdown from '@/components/ui/RichDropdown';
 import LayoutToggle from '@/components/ui/LayoutToggle';
 import DateRangeFilter from '@/components/ui/DateRangeFilter';
@@ -69,6 +70,7 @@ const DEFAULT_DIR: Record<SortKey, 1 | -1> = {
 };
 
 export default function SupportLettersPage() {
+  const { t, tf } = useT();
   const supabase = createSupabaseClient();
   const router = useRouter();
   const settings = useSettings();
@@ -417,8 +419,8 @@ export default function SupportLettersPage() {
 
   async function save() {
     if (!canEdit || busy) return;
-    if (!draft.customer_id && !draft.supported_company_name?.trim()) { flash('Pick the customer this letter supports.'); return; }
-    if (!draft.project_name?.trim()) { flash('Name the project (Pekerjaan) — it is what the letter is for.'); return; }
+    if (!draft.customer_id && !draft.supported_company_name?.trim()) { flash(t('Pick the customer this letter supports.')); return; }
+    if (!draft.project_name?.trim()) { flash(t('Name the project (Pekerjaan) — it is what the letter is for.')); return; }
     setBusy(true);
     try {
       const row = {
@@ -476,7 +478,7 @@ export default function SupportLettersPage() {
         if (error) throw error;
       }
       setEditing(null);
-      flash(editing === 'new' ? 'Support letter created.' : 'Support letter saved.');
+      flash(editing === 'new' ? t('Support letter created.') : t('Support letter saved.'));
       load();
     } catch (e) {
       flash(`Could not save — ${(e as Error).message}`);
@@ -491,7 +493,7 @@ export default function SupportLettersPage() {
       .update({ fee_paid_at: paid, ...(paid && l.status === 'draft' ? { status: 'issued' } : {}) })
       .eq('letter_id', l.letter_id);
     if (error) { flash(`Could not update — ${error.message}`); return; }
-    flash(paid ? 'Fee marked received — the letter is ready to issue.' : 'Payment cleared.');
+    flash(paid ? t('Fee marked received — the letter is ready to issue.') : t('Payment cleared.'));
     load();
   }
 
@@ -499,7 +501,7 @@ export default function SupportLettersPage() {
     if (!canEdit) return;
     const { error } = await supabase.from('28.0_support_letters').delete().eq('letter_id', l.letter_id);
     if (error) { flash(`Could not delete — ${error.message}`); return; }
-    flash('Letter deleted.'); load();
+    flash(t('Letter deleted.')); load();
   }
 
   if (authLoading || !user) {
@@ -514,7 +516,7 @@ export default function SupportLettersPage() {
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1400px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-x-4 sm:gap-y-2.5">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Support Letters · Surat Dukungan" />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle={t('Support Letters · Surat Dukungan')} />
         </div>
       </div>
 
@@ -527,7 +529,7 @@ export default function SupportLettersPage() {
             <button onClick={() => openEditor('new')}
               className="flex items-center gap-1.5 px-3 h-10 rounded-xl border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 text-xs font-semibold whitespace-nowrap transition-colors flex-shrink-0">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-              New Letter
+              {t('New Letter')}
             </button>
           )}
           {/* Search — suggests as you type, from what is already on file */}
@@ -538,7 +540,7 @@ export default function SupportLettersPage() {
               onFocus={() => setShowSuggest(true)}
               onBlur={() => setTimeout(() => setShowSuggest(false), 150)}
               onKeyDown={(e) => { if (e.key === 'Escape') { setShowSuggest(false); (e.target as HTMLInputElement).blur(); } }}
-              placeholder="Search number, customer, project, end user, item…"
+              placeholder={t('Search number, customer, project, end user, item…')}
               className="w-full pl-10 pr-8 h-10 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors" />
             {search && (
               <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-300 text-sm">×</button>
@@ -557,37 +559,37 @@ export default function SupportLettersPage() {
             )}
           </div>
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as '' | LetterStatus)} className={selCls}>
-            <option value="">All statuses</option>
-            {(Object.keys(LETTER_STATUS) as LetterStatus[]).map((k) => <option key={k} value={k}>{LETTER_STATUS[k].label}</option>)}
+            <option value="">{t('All statuses')}</option>
+            {(Object.keys(LETTER_STATUS) as LetterStatus[]).map((k) => <option key={k} value={k}>{t(LETTER_STATUS[k].label)}</option>)}
           </select>
           <select value={custFilter} onChange={(e) => setCustFilter(e.target.value)} className={`${selCls} max-w-[190px]`}>
-            <option value="">All customers</option>
+            <option value="">{t('All customers')}</option>
             {customers.map((c) => <option key={c.customer_id} value={c.customer_id}>{c.display_name || c.legal_name}</option>)}
           </select>
           <select value={repFilter} onChange={(e) => setRepFilter(e.target.value)} className={selCls}>
-            <option value="">All sales</option>
-            <option value="unassigned">Unassigned</option>
+            <option value="">{t('All sales')}</option>
+            <option value="unassigned">{t('Unassigned')}</option>
             {profiles.map((p) => <option key={p.id} value={p.id}>{p.display_name || p.email.split('@')[0]}</option>)}
           </select>
           <select value={payFilter} onChange={(e) => setPayFilter(e.target.value as '' | 'paid' | 'unpaid')} className={selCls}
-            title="The administration fee: which letters are still waiting on payment">
-            <option value="">Fee: any</option>
-            <option value="unpaid">Fee unpaid</option>
-            <option value="paid">Fee paid</option>
+            title={t('The administration fee: which letters are still waiting on payment')}>
+            <option value="">{t('Fee: any')}</option>
+            <option value="unpaid">{t('Fee unpaid')}</option>
+            <option value="paid">{t('Fee paid')}</option>
           </select>
-          <DateRangeFilter value={range} onChange={setRange} label="Letter date" />
+          <DateRangeFilter value={range} onChange={setRange} label={t('Letter date')} />
           <LayoutToggle value={layout} onChange={setLayout} />
         </div>
 
         {/* Register summary — what the module is FOR: knowing the book */}
         {!loading && letters.length > 0 && (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500">
-            <span><span className="text-slate-300 font-semibold tabular-nums">{fmtInt(rows.length)}</span> of {fmtInt(letters.length)} letters</span>
-            <span><span className="text-slate-300 font-semibold tabular-nums">{fmtInt(new Set(letters.map((l) => l.project_name.trim().toLowerCase()).filter(Boolean)).size)}</span> projects backed</span>
-            <span><span className="text-slate-300 font-semibold tabular-nums">{fmtInt(new Set(letters.map((l) => l.customer_id).filter(Boolean)).size)}</span> resellers</span>
+            <span>{tf('{shown} of {total} letters', { shown: fmtInt(rows.length), total: fmtInt(letters.length) })}</span>
+            <span><span className="text-slate-300 font-semibold tabular-nums">{fmtInt(new Set(letters.map((l) => l.project_name.trim().toLowerCase()).filter(Boolean)).size)}</span> {t('projects backed')}</span>
+            <span><span className="text-slate-300 font-semibold tabular-nums">{fmtInt(new Set(letters.map((l) => l.customer_id).filter(Boolean)).size)}</span> {t('resellers')}</span>
             {unpaidCount > 0 && (
               <button onClick={() => setPayFilter('unpaid')} className="text-amber-300 hover:text-amber-200 transition-colors">
-                {fmtInt(unpaidCount)} awaiting the fee →
+                {tf('{n} awaiting the fee', { n: fmtInt(unpaidCount) })} →
               </button>
             )}
           </div>
@@ -598,17 +600,17 @@ export default function SupportLettersPage() {
           <table className={`w-full min-w-[1100px] ${compact ? 'dense-rows' : ''}`}>
             <thead>
               <tr className="border-b border-slate-800 text-[10px] uppercase tracking-widest text-slate-500">
-                <Th label="Number" k="number" sort={sort} onSort={toggleSort} className="px-4" />
-                <Th label="Date" k="date" sort={sort} onSort={toggleSort} />
-                <Th label="Customer" k="customer" sort={sort} onSort={toggleSort} />
-                <Th label="Project" k="project" sort={sort} onSort={toggleSort} />
-                <Th label="End user" k="enduser" sort={sort} onSort={toggleSort} />
-                <Th label="Items" k="items" sort={sort} onSort={toggleSort} right />
-                <Th label="Sales" k="rep" sort={sort} onSort={toggleSort} />
-                <Th label="Created by" k="author" sort={sort} onSort={toggleSort} />
-                <Th label="Fee" k="fee" sort={sort} onSort={toggleSort} />
-                <Th label="Status" k="status" sort={sort} onSort={toggleSort} />
-                <th className="px-4 py-2.5 text-right font-semibold">Actions</th>
+                <Th label={t('Number')} k="number" sort={sort} onSort={toggleSort} className="px-4" />
+                <Th label={t('Date')} k="date" sort={sort} onSort={toggleSort} />
+                <Th label={t('Customer')} k="customer" sort={sort} onSort={toggleSort} />
+                <Th label={t('Project')} k="project" sort={sort} onSort={toggleSort} />
+                <Th label={t('End user')} k="enduser" sort={sort} onSort={toggleSort} />
+                <Th label={t('Items')} k="items" sort={sort} onSort={toggleSort} right />
+                <Th label={t('Sales')} k="rep" sort={sort} onSort={toggleSort} />
+                <Th label={t('Creator')} k="author" sort={sort} onSort={toggleSort} />
+                <Th label={t('Fee')} k="fee" sort={sort} onSort={toggleSort} />
+                <Th label={t('Status')} k="status" sort={sort} onSort={toggleSort} />
+                <th className="px-4 py-2.5 text-right font-semibold">{t('Actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
@@ -616,7 +618,7 @@ export default function SupportLettersPage() {
                 [...Array(6)].map((_, i) => <tr key={i}><td colSpan={11} className="px-4 py-2"><div className="h-9 bg-slate-800/40 rounded-lg animate-pulse" /></td></tr>)
               ) : rows.length === 0 ? (
                 <tr><td colSpan={11} className="px-4 py-12 text-center text-slate-600 text-sm">
-                  {letters.length === 0 ? 'No support letters yet — the first one takes about a minute.' : 'No letter matches.'}
+                  {letters.length === 0 ? t('No support letters yet — the first one takes about a minute.') : t('No letter matches.')}
                 </td></tr>
               ) : rows.map((l) => {
                 const its = itemsByLetter.get(l.letter_id) ?? [];
@@ -642,26 +644,26 @@ export default function SupportLettersPage() {
                     <td className="px-3 py-2 whitespace-nowrap">
                       {Number(l.fee_amount) > 0 ? (
                         <button onClick={(e) => { e.stopPropagation(); markPaid(l); }} disabled={!canEdit}
-                          title={l.fee_paid_at ? `Fee received ${fmtDay(l.fee_paid_at)} — click to clear` : 'Click when the fee lands — the letter flips to Issued'}
+                          title={l.fee_paid_at ? tf('Fee received {date} — click to clear', { date: fmtDay(l.fee_paid_at) }) : t('Click when the fee lands — the letter flips to Issued')}
                           className={`px-1.5 py-0.5 rounded text-[10px] font-semibold transition-colors ${
                             l.fee_paid_at ? 'bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25' : 'bg-amber-500/15 text-amber-300 hover:bg-amber-500/25'
                           } ${canEdit ? '' : 'cursor-default'}`}>
-                          {l.fee_paid_at ? `Paid ${fmtDay(l.fee_paid_at)}` : `Unpaid · ${fmtRupiah(Number(l.fee_amount))}`}
+                          {l.fee_paid_at ? tf('Paid {date}', { date: fmtDay(l.fee_paid_at) }) : `${t('Unpaid')} · ${fmtRupiah(Number(l.fee_amount))}`}
                         </button>
                       ) : <span className="text-slate-700 text-[10px]">—</span>}
                     </td>
-                    <td className="px-3 py-2"><span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${st.cls}`}>{st.label}</span></td>
+                    <td className="px-3 py-2"><span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${st.cls}`}>{t(st.label)}</span></td>
                     <td className="px-4 py-2">
                       <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
                         <a href={`/support-letters/${l.letter_id}/print`} target="_blank" rel="noopener noreferrer"
-                          title="Open the printable Surat Dukungan"
-                          className="px-2 py-1 rounded-lg text-[10px] font-semibold border border-slate-700/70 text-slate-400 hover:text-emerald-300 hover:border-emerald-500/40 transition-colors">Print</a>
+                          title={t('Open the printable Surat Dukungan')}
+                          className="px-2 py-1 rounded-lg text-[10px] font-semibold border border-slate-700/70 text-slate-400 hover:text-emerald-300 hover:border-emerald-500/40 transition-colors">{t('Print')}</a>
                         {canEdit && (
-                          <button onClick={() => openEditor('new', l)} title="Start a new letter from this one — same customer and items, new project"
-                            className="px-2 py-1 rounded-lg text-[10px] font-semibold border border-slate-700/70 text-slate-400 hover:text-sky-300 hover:border-sky-500/40 transition-colors">Duplicate</button>
+                          <button onClick={() => openEditor('new', l)} title={t('Start a new letter from this one — same customer and items, new project')}
+                            className="px-2 py-1 rounded-lg text-[10px] font-semibold border border-slate-700/70 text-slate-400 hover:text-sky-300 hover:border-sky-500/40 transition-colors">{t('Duplicate')}</button>
                         )}
                         <button onClick={() => openEditor(l)}
-                          className="px-2 py-1 rounded-lg text-[10px] font-semibold border border-slate-700/70 text-slate-400 hover:text-white transition-colors">{canEdit ? 'Edit' : 'View'}</button>
+                          className="px-2 py-1 rounded-lg text-[10px] font-semibold border border-slate-700/70 text-slate-400 hover:text-white transition-colors">{canEdit ? t('Edit') : t('View letter')}</button>
                       </div>
                     </td>
                   </tr>
@@ -674,18 +676,18 @@ export default function SupportLettersPage() {
         {/* ── Cards (mobile) ── */}
         <div className="md:hidden space-y-2">
           {loading ? [...Array(4)].map((_, i) => <div key={i} className="h-20 bg-slate-800/40 rounded-2xl animate-pulse" />)
-            : rows.length === 0 ? <p className="text-slate-500 text-xs italic py-10 text-center">No letter matches.</p>
+            : rows.length === 0 ? <p className="text-slate-500 text-xs italic py-10 text-center">{t('No letter matches.')}</p>
             : rows.map((l) => {
               const its = itemsByLetter.get(l.letter_id) ?? [];
               const st = LETTER_STATUS[l.status] ?? LETTER_STATUS.draft;
               return (
                 <div key={l.letter_id} className="bg-slate-900/50 border border-slate-800 rounded-2xl px-3.5 py-3 space-y-1.5">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono text-[11px] text-emerald-300">{l.letter_number || 'draft'}</span>
-                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold ${st.cls}`}>{st.label}</span>
+                    <span className="font-mono text-[11px] text-emerald-300">{l.letter_number || t('draft')}</span>
+                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold ${st.cls}`}>{t(st.label)}</span>
                     {Number(l.fee_amount) > 0 && (
                       <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold ${l.fee_paid_at ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300'}`}>
-                        {l.fee_paid_at ? 'Fee paid' : 'Fee unpaid'}
+                        {l.fee_paid_at ? t('Fee paid') : t('Fee unpaid')}
                       </span>
                     )}
                     <span className="ml-auto text-[10px] text-slate-500">{fmtDay(l.letter_date)}</span>
@@ -693,16 +695,16 @@ export default function SupportLettersPage() {
                   <p className="text-sm font-semibold text-white truncate">{custName(l.customer_id, l.supported_company_name) || '—'}</p>
                   <p className="text-[11px] text-slate-400">{l.project_name || '—'}</p>
                   <p className="text-[10px] text-slate-500">
-                    {l.end_user_name || 'no end user'} · {its.length} item{its.length !== 1 ? 's' : ''}
+                    {l.end_user_name || t('no end user')} · {tf('{n} items', { n: its.length })}
                     {repName(l.sales_rep_id) ? ` · ${repName(l.sales_rep_id)}` : ''}
                   </p>
                   <div className="flex items-center gap-1.5 pt-0.5">
                     <a href={`/support-letters/${l.letter_id}/print`} target="_blank" rel="noopener noreferrer"
-                      className="px-2 py-1 rounded-lg text-[10px] font-semibold border border-slate-700/70 text-slate-400">Print</a>
-                    {canEdit && <button onClick={() => openEditor('new', l)} className="px-2 py-1 rounded-lg text-[10px] font-semibold border border-slate-700/70 text-slate-400">Duplicate</button>}
-                    <button onClick={() => openEditor(l)} className="px-2 py-1 rounded-lg text-[10px] font-semibold border border-slate-700/70 text-slate-400">{canEdit ? 'Edit' : 'View'}</button>
+                      className="px-2 py-1 rounded-lg text-[10px] font-semibold border border-slate-700/70 text-slate-400">{t('Print')}</a>
+                    {canEdit && <button onClick={() => openEditor('new', l)} className="px-2 py-1 rounded-lg text-[10px] font-semibold border border-slate-700/70 text-slate-400">{t('Duplicate')}</button>}
+                    <button onClick={() => openEditor(l)} className="px-2 py-1 rounded-lg text-[10px] font-semibold border border-slate-700/70 text-slate-400">{canEdit ? t('Edit') : t('View letter')}</button>
                     {canEdit && Number(l.fee_amount) > 0 && !l.fee_paid_at && (
-                      <button onClick={() => markPaid(l)} className="ml-auto px-2 py-1 rounded-lg text-[10px] font-semibold bg-amber-500/15 text-amber-300">Fee received</button>
+                      <button onClick={() => markPaid(l)} className="ml-auto px-2 py-1 rounded-lg text-[10px] font-semibold bg-amber-500/15 text-amber-300">{t('Fee received')}</button>
                     )}
                   </div>
                 </div>
@@ -717,15 +719,15 @@ export default function SupportLettersPage() {
           const its = itemsByLetter.get(l.letter_id) ?? [];
           return (
             <div className="hidden md:block bg-slate-950/40 border border-slate-800 rounded-2xl px-4 py-3 space-y-1.5 text-[11px]">
-              <p className="flex gap-2"><span className="w-24 text-slate-600 uppercase tracking-widest text-[9px] pt-0.5">Supported</span>
+              <p className="flex gap-2"><span className="w-24 text-slate-600 uppercase tracking-widest text-[9px] pt-0.5">{t('Supported')}</span>
                 <span className="text-slate-300">{l.supported_person_name}{l.supported_person_title ? ` · ${l.supported_person_title}` : ''} — {l.supported_company_name}</span></p>
-              <p className="flex gap-2"><span className="w-24 text-slate-600 uppercase tracking-widest text-[9px] pt-0.5">Addressed</span>
+              <p className="flex gap-2"><span className="w-24 text-slate-600 uppercase tracking-widest text-[9px] pt-0.5">{t('Addressed')}</span>
                 <span className="text-slate-300">{l.end_user_name || '—'}{l.end_user_address ? ` · ${l.end_user_address}` : ''}</span></p>
-              <p className="flex gap-2"><span className="w-24 text-slate-600 uppercase tracking-widest text-[9px] pt-0.5">Brands</span>
+              <p className="flex gap-2"><span className="w-24 text-slate-600 uppercase tracking-widest text-[9px] pt-0.5">{t('Brands')}</span>
                 <span className="text-slate-300">{l.brands || '—'}</span></p>
-              <p className="flex gap-2"><span className="w-24 text-slate-600 uppercase tracking-widest text-[9px] pt-0.5">Materials</span>
+              <p className="flex gap-2"><span className="w-24 text-slate-600 uppercase tracking-widest text-[9px] pt-0.5">{t('Materials')}</span>
                 <span className="flex-1 space-y-0.5">
-                  {its.length === 0 ? <span className="text-slate-600 italic">none listed</span> : its.map((i) => (
+                  {its.length === 0 ? <span className="text-slate-600 italic">{t('none listed')}</span> : its.map((i) => (
                     <span key={i.item_id} className="flex flex-wrap items-center gap-x-2">
                       <span className="text-slate-400">{i.category_label}</span>
                       {i.component_id ? (
@@ -740,9 +742,7 @@ export default function SupportLettersPage() {
         })()}
 
         <p className="text-[10px] text-slate-600 max-w-3xl">
-          A Surat Dukungan states our backing as principal. The clauses are pre-formatted and the item warranties come
-          from the item master — set them in <Link href="/products" className="text-emerald-500/80 hover:text-emerald-300">Products</Link> and every
-          future letter quotes them correctly.
+          {t('A Surat Dukungan states our backing as principal. The clauses are pre-formatted and the item warranties come from the item master — set them in')} <Link href="/products" className="text-emerald-500/80 hover:text-emerald-300">{t('Products')}</Link> {t('and every future letter quotes them correctly.')}
         </p>
       </main>
 
@@ -754,7 +754,7 @@ export default function SupportLettersPage() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h3 className="font-semibold text-white">
-                  {editing === 'new' ? 'New Surat Dukungan' : (editing.letter_number || 'Support letter')}
+                  {editing === 'new' ? t('New Surat Dukungan') : (editing.letter_number || t('Support letter'))}
                 </h3>
                 <p className="text-[10px] text-slate-600 mt-0.5">
                   {editing === 'new'
@@ -773,28 +773,28 @@ export default function SupportLettersPage() {
                   forward its clicks and fight the dropdown, so caption + widget
                   sit in a plain block. */}
               <div className="block sm:col-span-2">
-                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Customer we support *</span>
+                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Customer we support *')}</span>
                 <fieldset disabled={!canEdit} className={!canEdit ? 'opacity-60 pointer-events-none' : ''}>
                   <RichDropdown
                     options={customerOptions}
                     value={draft.customer_id ?? null}
-                    placeholder="Search customer…"
+                    placeholder={t('Search customer…')}
                     config={{ labelKey: 'name', valueKey: 'customer_id', subLabelKey: 'sub' }}
                     onChange={(v: any) => pickCustomer(v ? String(v) : null)} />
                 </fieldset>
               </div>
               <label className="block">
-                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Their signatory (Nama)</span>
+                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Their signatory (Nama)')}</span>
                 <input list="sl-person-names" className={inputCls} value={draft.supported_person_name ?? ''} disabled={!canEdit}
-                  placeholder="e.g. Denny Yusni Arman" onChange={(e) => set('supported_person_name', e.target.value)} />
+                  placeholder={t('e.g. Denny Yusni Arman')} onChange={(e) => set('supported_person_name', e.target.value)} />
               </label>
               <label className="block">
-                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Their title (Jabatan)</span>
+                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Their title (Jabatan)')}</span>
                 <input list="sl-person-titles" className={inputCls} value={draft.supported_person_title ?? ''} disabled={!canEdit}
                   placeholder="Direktur" onChange={(e) => set('supported_person_title', e.target.value)} />
               </label>
               <label className="block sm:col-span-2">
-                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Their company + address (as printed)</span>
+                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Their company + address (as printed)')}</span>
                 <input list="sl-company-names" className={`${inputCls} mb-2`} value={draft.supported_company_name ?? ''} disabled={!canEdit}
                   placeholder="PT …" onChange={(e) => set('supported_company_name', e.target.value)} />
                 <textarea rows={2} className={areaCls} value={draft.supported_company_address ?? ''} disabled={!canEdit}
@@ -806,19 +806,19 @@ export default function SupportLettersPage() {
             <div className="grid sm:grid-cols-2 gap-3 border-t border-slate-800 pt-3">
               <label className="block sm:col-span-2">
                 <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">
-                  Project / Pekerjaan * <span className="normal-case tracking-normal text-slate-600">— pick a tender you have backed before and its owner fills itself</span>
+                  {t('Project / Pekerjaan *')} <span className="normal-case tracking-normal text-slate-600">— {t('pick a tender you have backed before and its owner fills itself')}</span>
                 </span>
                 <input list="sl-projects" className={inputCls} value={draft.project_name ?? ''} disabled={!canEdit}
-                  placeholder="e.g. RTWS Package Fabrication and Installation Services Projects Zona 9 (II)"
+                  placeholder={t('e.g. RTWS Package Fabrication and Installation Services Projects Zona 9 (II)')}
                   onChange={(e) => onProjectChange(e.target.value)} />
               </label>
               <label className="block">
-                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Addressed to — end user</span>
+                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Addressed to — end user')}</span>
                 <input list="sl-endusers" className={inputCls} value={draft.end_user_name ?? ''} disabled={!canEdit}
-                  placeholder="e.g. PT Pertamina Hulu Sanga Sanga" onChange={(e) => onEndUserChange(e.target.value)} />
+                  placeholder={t('e.g. PT Pertamina Hulu Sanga Sanga')} onChange={(e) => onEndUserChange(e.target.value)} />
               </label>
               <label className="block">
-                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">End-user address</span>
+                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('End-user address')}</span>
                 <input list="sl-enduser-addresses" className={inputCls} value={draft.end_user_address ?? ''} disabled={!canEdit}
                   placeholder="Alamat penerima" onChange={(e) => set('end_user_address', e.target.value)} />
               </label>
@@ -828,10 +828,10 @@ export default function SupportLettersPage() {
             <div className="border-t border-slate-800 pt-3">
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-[10px] uppercase tracking-widest text-slate-500">Material yang didukung</span>
-                <span className="text-[10px] text-slate-600">type and warranty come from the item master</span>
+                <span className="text-[10px] text-slate-600">{t('type and warranty come from the item master')}</span>
               </div>
               <div className="hidden sm:grid grid-cols-[minmax(0,1.5fr)_minmax(0,1.1fr)_minmax(0,1.4fr)_110px_24px] gap-2 px-1 pb-1 text-[9px] font-bold uppercase tracking-wider text-slate-600">
-                <span>Catalog item</span><span>Nama Barang</span><span>Tipe</span><span>Garansi</span><span />
+                <span>{t('Catalog item')}</span><span>Nama Barang</span><span>Tipe</span><span>Garansi</span><span />
               </div>
               <div className="space-y-1.5">
                 {draftItems.map((it) => (
@@ -840,12 +840,12 @@ export default function SupportLettersPage() {
                       <fieldset disabled={!canEdit} className={!canEdit ? 'opacity-60 pointer-events-none' : ''}>
                         <RichDropdown options={compOptions} value={it.component_id}
                           config={{ labelKey: 'label', valueKey: 'component_id', subLabelKey: 'sub' }}
-                          placeholder="Search catalog…"
+                          placeholder={t('Search catalog…')}
                           onChange={(v: any) => pickComponent(it.key, v ? String(v) : null)} />
                       </fieldset>
                     </div>
                     <input list="sl-item-categories" className={`${inputCls} col-span-2 sm:col-span-1`} value={it.category_label} disabled={!canEdit}
-                      placeholder="Solar Modules" onChange={(e) => setItem(it.key, { category_label: e.target.value })} />
+                      placeholder={t('Solar Modules')} onChange={(e) => setItem(it.key, { category_label: e.target.value })} />
                     <input list="sl-item-types" className={`${inputCls} col-span-2 sm:col-span-1`} value={it.type_text} disabled={!canEdit}
                       placeholder="ICA Solar ICA200-72M 200Wp Mono" onChange={(e) => setItem(it.key, { type_text: e.target.value })} />
                     <input list="sl-item-warranties" className={inputCls} value={it.warranty_text} disabled={!canEdit}
@@ -853,18 +853,18 @@ export default function SupportLettersPage() {
                     {canEdit && (
                       <button onClick={() => setDraftItems((a) => (a.length > 1 ? a.filter((x) => x.key !== it.key) : a))}
                         className="text-slate-600 hover:text-red-400 transition-colors text-base leading-none justify-self-end px-1"
-                        title="Remove row">×</button>
+                        title={t('Remove row')}>×</button>
                     )}
                   </div>
                 ))}
               </div>
               <label className="block mt-2.5">
-                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Brands (Merk) — printed in the opening line</span>
+                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Brands (Merk) — printed in the opening line')}</span>
                 <input list="sl-brands" className={inputCls} value={draft.brands ?? ''} disabled={!canEdit}
                   placeholder={derivedBrands || 'ICA SOLAR, ICAL, EPEVER'}
                   onChange={(e) => set('brands', e.target.value)} />
                 {!((draft.brands ?? '').trim()) && derivedBrands && (
-                  <span className="text-[10px] text-slate-600">Blank uses the items&apos; own brands: {derivedBrands}</span>
+                  <span className="text-[10px] text-slate-600">{t('Blank uses the items’ own brands:')} {derivedBrands}</span>
                 )}
               </label>
             </div>
@@ -872,90 +872,90 @@ export default function SupportLettersPage() {
             {/* Ours + admin */}
             <div className="grid sm:grid-cols-2 gap-3 border-t border-slate-800 pt-3">
               <label className="block">
-                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Letter date</span>
+                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Letter date')}</span>
                 <input type="date" className={inputCls} value={(draft.letter_date ?? '').slice(0, 10)} disabled={!canEdit}
                   onChange={(e) => set('letter_date', e.target.value)} />
               </label>
               <label className="block">
-                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Sales handling this</span>
+                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Sales handling this')}</span>
                 <select className={inputCls} value={draft.sales_rep_id ?? ''} disabled={!canEdit}
                   onChange={(e) => set('sales_rep_id', e.target.value || null)}>
-                  <option value="">— unassigned —</option>
+                  <option value="">{t('— unassigned —')}</option>
                   {profiles.map((p) => <option key={p.id} value={p.id}>{p.display_name || p.email}</option>)}
                 </select>
               </label>
               <label className="block">
-                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Our signatory</span>
+                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Our signatory')}</span>
                 <input list="sl-signatories" className={inputCls} value={draft.signatory_name ?? ''} disabled={!canEdit}
-                  placeholder="e.g. Wendy Yusson Abadi" onChange={(e) => set('signatory_name', e.target.value)} />
+                  placeholder={t('e.g. Wendy Yusson Abadi')} onChange={(e) => set('signatory_name', e.target.value)} />
               </label>
               <label className="block">
-                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Signatory title</span>
+                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Signatory title')}</span>
                 <input list="sl-sign-titles" className={inputCls} value={draft.signatory_title ?? ''} disabled={!canEdit}
                   placeholder="Direktur" onChange={(e) => set('signatory_title', e.target.value)} />
               </label>
               <label className="block">
-                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Issuing company</span>
+                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Issuing company')}</span>
                 <select className={inputCls} value={draft.company_id ?? ''} disabled={!canEdit}
                   onChange={(e) => set('company_id', e.target.value || null)}>
-                  <option value="">{settings.companyName || '— none —'}</option>
+                  <option value="">{settings.companyName || t('— none —')}</option>
                   {companies.map((c) => <option key={c.company_id} value={c.company_id}>{c.legal_name}</option>)}
                 </select>
               </label>
               <label className="block">
-                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Place · number code</span>
+                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Place · number code')}</span>
                 <div className="flex gap-2">
                   <input list="sl-places" className={inputCls} value={draft.place_of_issue ?? ''} disabled={!canEdit}
                     placeholder="Jakarta" onChange={(e) => set('place_of_issue', e.target.value)} />
                   <input className={`${inputCls} w-24`} value={draft.company_code ?? ''} disabled={!canEdit}
-                    title="The letters inside the document number (013-ISL-SD-VII-2026)"
+                    title={t('The letters inside the document number (013-ISL-SD-VII-2026)')}
                     placeholder="ISL" onChange={(e) => set('company_code', e.target.value.toUpperCase())} />
                 </div>
               </label>
               <label className="block">
-                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Administration fee (Rp)</span>
+                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Administration fee (Rp)')}</span>
                 <input className={`${inputCls} tabular-nums`} inputMode="numeric" disabled={!canEdit}
                   value={Number(draft.fee_amount) ? fmtInt(Number(draft.fee_amount)) : ''}
                   placeholder={fmtInt(DEFAULT_LETTER_FEE)}
                   onChange={(e) => set('fee_amount', Number(e.target.value.replace(/[^\d]/g, '')) || 0)} />
               </label>
               <label className="block">
-                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Fee received on</span>
+                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Fee received date')}</span>
                 <input type="date" className={inputCls} value={(draft.fee_paid_at ?? '').slice(0, 10)} disabled={!canEdit}
                   onChange={(e) => set('fee_paid_at', e.target.value || null)} />
               </label>
               <label className="block">
-                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Status</span>
+                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Status')}</span>
                 <select className={inputCls} value={draft.status ?? 'draft'} disabled={!canEdit}
                   onChange={(e) => set('status', e.target.value as LetterStatus)}>
-                  {(Object.keys(LETTER_STATUS) as LetterStatus[]).map((k) => <option key={k} value={k}>{LETTER_STATUS[k].label}</option>)}
+                  {(Object.keys(LETTER_STATUS) as LetterStatus[]).map((k) => <option key={k} value={k}>{t(LETTER_STATUS[k].label)}</option>)}
                 </select>
               </label>
               <label className="block">
-                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Internal note</span>
+                <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Internal note')}</span>
                 <input className={inputCls} value={draft.notes ?? ''} disabled={!canEdit}
-                  placeholder="Not printed" onChange={(e) => set('notes', e.target.value)} />
+                  placeholder={t('Not printed')} onChange={(e) => set('notes', e.target.value)} />
               </label>
             </div>
 
             {/* The pre-formatted body — editable per letter, never retyped */}
             <details className="border-t border-slate-800 pt-3">
               <summary className="text-[10px] uppercase tracking-widest text-slate-500 cursor-pointer hover:text-slate-300">
-                Letter body — standard clauses (pre-filled)
+                {t('Letter body — standard clauses (pre-filled)')}
               </summary>
               <div className="space-y-3 mt-2.5">
                 <label className="block">
-                  <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Undertakings — one per line, numbered when printed</span>
+                  <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Undertakings — one per line, numbered when printed')}</span>
                   <textarea rows={4} className={areaCls} value={draft.statements ?? ''} disabled={!canEdit}
                     onChange={(e) => set('statements', e.target.value)} />
                 </label>
                 <label className="block">
-                  <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Validity clause</span>
+                  <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Validity clause')}</span>
                   <textarea rows={2} className={areaCls} value={draft.validity_note ?? ''} disabled={!canEdit}
                     onChange={(e) => set('validity_note', e.target.value)} />
                 </label>
                 <label className="block">
-                  <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Closing</span>
+                  <span className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Closing')}</span>
                   <textarea rows={2} className={areaCls} value={draft.closing_note ?? ''} disabled={!canEdit}
                     onChange={(e) => set('closing_note', e.target.value)} />
                 </label>
@@ -985,28 +985,28 @@ export default function SupportLettersPage() {
               {canEdit && editing !== 'new' ? (
                 confirmDelete ? (
                   <span className="flex items-center gap-2 text-[11px]">
-                    <span className="text-red-400">Delete {editing.letter_number || 'this letter'}?</span>
+                    <span className="text-red-400">{tf('Delete {name}?', { name: editing.letter_number || t('this letter') })}</span>
                     <button onClick={() => { remove(editing); setEditing(null); }}
-                      className="px-2 py-1 rounded-md bg-red-600 hover:bg-red-500 text-white font-bold transition-colors">Yes</button>
+                      className="px-2 py-1 rounded-md bg-red-600 hover:bg-red-500 text-white font-bold transition-colors">{t('Yes')}</button>
                     <button onClick={() => setConfirmDelete(false)}
-                      className="px-2 py-1 rounded-md border border-slate-700 text-slate-400 hover:text-white transition-colors">No</button>
+                      className="px-2 py-1 rounded-md border border-slate-700 text-slate-400 hover:text-white transition-colors">{t('No')}</button>
                   </span>
                 ) : (
                   <button onClick={() => setConfirmDelete(true)}
-                    className="text-[11px] text-slate-600 hover:text-red-400 transition-colors">Delete</button>
+                    className="text-[11px] text-slate-600 hover:text-red-400 transition-colors">{t('Delete')}</button>
                 )
               ) : <span />}
               <div className="flex gap-3">
                 {editing !== 'new' && (
                   <a href={`/support-letters/${editing.letter_id}/print`} target="_blank" rel="noopener noreferrer"
-                    className="px-4 py-2 rounded-lg text-slate-300 border border-slate-700 hover:bg-slate-800 text-sm transition-colors">Print →</a>
+                    className="px-4 py-2 rounded-lg text-slate-300 border border-slate-700 hover:bg-slate-800 text-sm transition-colors">{t('Print')} →</a>
                 )}
                 <button onClick={() => setEditing(null)} disabled={busy}
-                  className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors disabled:opacity-50">Cancel</button>
+                  className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors disabled:opacity-50">{t('Cancel')}</button>
                 {canEdit && (
                   <button onClick={save} disabled={busy}
                     className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-colors disabled:opacity-50">
-                    {busy ? 'Saving…' : editing === 'new' ? 'Create letter' : 'Save'}
+                    {busy ? t('Saving…') : editing === 'new' ? t('Create letter') : t('Save')}
                   </button>
                 )}
               </div>

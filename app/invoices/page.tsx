@@ -171,7 +171,7 @@ export default function InvoicesPage() {
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('Search invoice number, customer…')}
               className="w-full pl-10 pr-4 h-11 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors" />
           </div>
-          <DateRangeFilter value={range} onChange={(r) => { touched.current = true; setRange(r); }} label="Issued" />
+          <DateRangeFilter value={range} onChange={(r) => { touched.current = true; setRange(r); }} label={t('Issued')} />
           <select value={sort} onChange={(e) => { touched.current = true; setSort(e.target.value); }}
             title={t('Order — the default lives in Settings › Lists')}
             className="text-xs bg-slate-900/80 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60">
@@ -179,7 +179,7 @@ export default function InvoicesPage() {
           </select>
           <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
             <input type="checkbox" checked={unpaidOnly} onChange={(e) => setUnpaidOnly(e.target.checked)} className="accent-emerald-500 w-4 h-4" />
-            Unpaid only
+            {t('Unpaid only')}
           </label>
           <span className="text-xs text-slate-600 tabular-nums">{rows.length} invoice{rows.length !== 1 ? 's' : ''}</span>
           <LayoutToggle value={layout} onChange={setLayout} />
