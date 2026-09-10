@@ -237,14 +237,34 @@ test('the tier headings name the tier and claim no arithmetic', () => {
  * Owner: *"the filter options need to be two rows like in Selling Prices…
  * change the format to tick that applies."*
  */
-test('the filter bar is two rows, and the three filters are ticks', () => {
+test('the filter bar is two rows, and the three filters are counted chips', () => {
   const src = page();
-  assert.ok(src.includes('function TickChip'), 'the tick chips are gone');
+  assert.ok(src.includes('function FilterChip'), 'the filter chips are gone');
   for (const n of ['pricedOnly', 'stockOnly', 'justArrived']) {
-    assert.ok(new RegExp(`TickChip on=\\{${n}\\}`).test(src), `${n} is not a tick`);
+    assert.ok(new RegExp(`FilterChip on=\\{${n}\\}`).test(src), `${n} is not a chip`);
   }
   // The Show dropdown they replaced.
   assert.ok(!/BarMenu width=\{256\}/.test(src), 'the Show dropdown is back');
-  // A phone needs a 44px target; the shared bar height gives it.
+  // A phone needs a real tap target; the shared bar height gives the toolbar
+  // one and the chips carry their own.
   assert.match(src, /const BAR_H\s*=\s*'h-11 sm:h-9'/, 'the toolbar lost its phone-sized tap target');
+  assert.match(src, /py-2 sm:py-1/, 'the chips lost their phone-sized tap target');
+});
+
+/**
+ * The chips carry a COUNT, which is the whole reason Selling Prices' chip row
+ * works: you can see the size of a subset before committing to looking at it.
+ * The first attempt drew a checkbox and stood the chip at toolbar height —
+ * three more buttons in a bar that already had four, and no information.
+ */
+test('each filter chip says how many items it holds', () => {
+  const src = page();
+  assert.ok(src.includes('const tickCounts'), 'the chip counts are gone');
+  for (const n of ['tickCounts.priced', 'tickCounts.inStock', 'tickCounts.isNew']) {
+    assert.ok(src.includes(`count={${n}}`), `${n} is not on a chip`);
+  }
+  // Counted over the catalogue, not over what the other filters left — a count
+  // that moves when you touch a different chip answers the wrong question.
+  assert.match(src, /for \(const c of comps\) \{[\s\S]{0,400}?priced\+\+/,
+    'the chip counts are no longer taken over the whole catalogue');
 });

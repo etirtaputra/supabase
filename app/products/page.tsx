@@ -195,7 +195,7 @@ function ProductsInner() {
   const [filterCategory, setFilterCategory] = useState('');
   // Priced only is the DEFAULT view (owner, 2026-08-14): the sales list is for
   // quoting, and an item with no sell price cannot be quoted. Untick to see the
-  // rest; "Clear ×" returns to the default (priced) view, not to everything.
+  // rest; "Clear" returns to the default (priced) view, not to everything.
   // ?new=1 (the dashboard's New arrivals panel) opens this list on what just
   // landed — and turns OFF "priced only", because the whole reason to follow
   // that link is usually the items nobody has priced yet.
@@ -291,6 +291,23 @@ function ProductsInner() {
     window.addEventListener('mousemove', move);
     window.addEventListener('mouseup', up);
   }, [descW]);
+  /**
+   * The Description column's width — ON THE COLUMN, not on the text inside it.
+   *
+   * It used to cap only the inner span, and let the table give the column
+   * whatever width was left over. So the name truncated at 380px while the
+   * header's right edge — and the drag handle riding on it — sat 400px further
+   * out, over empty space (owner, 2026-09-10: *"the description border
+   * scrolling is too far away from the real description"*). A handle that is
+   * not on the edge it moves is not a handle, it is a decoration you have to
+   * hunt for.
+   *
+   * Capping the CELL makes the two the same edge by construction: the text
+   * truncates because it ran out of column, which is what the handle adjusts.
+   */
+  const descCellCls = descW == null ? 'w-[clamp(20rem,42vw,64rem)] max-w-[clamp(20rem,42vw,64rem)]' : '';
+  const descCellStyle = descW != null ? { width: descW, maxWidth: descW } : undefined;
+
   const resetDescWidth = useCallback(() => {
     setDescW(null);
     try { localStorage.removeItem('products:descWidth'); } catch {}
@@ -595,6 +612,26 @@ function ProductsInner() {
     setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: DEFAULT_DIR[key] }));
   };
 
+  /**
+   * How many items each tick would show — the number ON the chip.
+   *
+   * Counted over the WHOLE catalogue, not over what the other filters have
+   * already narrowed (the Selling Prices rule). A count that moved every time
+   * you touched a different chip would be answering "how many are left" when
+   * the question a chip is asked is "how big is this set". The header count
+   * beside the search box is the one that reports what is actually on screen.
+   */
+  const tickCounts = useMemo(() => {
+    const cutoff = arrivalCutoffIso(newArrivalDays);
+    let priced = 0, inStock = 0, isNew = 0;
+    for (const c of comps) {
+      if (Number(c.selling_price_idr) > 0) priced++;
+      if ((physical[c.component_id] ?? 0) > 0 || (incoming[c.component_id] ?? 0) > 0) inStock++;
+      if ((arrivals[c.component_id]?.first ?? '') >= cutoff) isNew++;
+    }
+    return { priced, inStock, isNew };
+  }, [comps, physical, incoming, arrivals, newArrivalDays]);
+
   const hasFilters = !!(search.trim() || filterCategory || stockOnly || justArrived);
   // What the "Show" button says. Named, not counted: "Priced" is on by
   // default, and a default nobody can see is a narrowed list passing for the
@@ -809,8 +846,15 @@ function ProductsInner() {
             </select>
             {/* View — how dense the list is, and which columns it shows. Owner-
                 hidden columns are not offered at all: a personal toggle can
-                never reveal what Settings › Lists hid. */}
-            <BarMenu width={208} title={t('List density and which columns the table shows')} label={t('View')}>
+                never reveal what Settings › Lists hid.
+
+                Pushed to the far right on a wide screen (Selling Prices puts
+                its actions there too). Left-aligned, the row ran out after
+                four short controls and left a third of the bar empty, so the
+                two rows read as two ragged runs rather than as a bar. It is
+                also the only control here that is not about WHICH items — it
+                is about how they are drawn — so the gap is doing work. */}
+            <BarMenu width={208} className="sm:ml-auto" title={t('List density and which columns the table shows')} label={t('View')}>
               <p className="px-2 pb-1 text-[10px] uppercase tracking-widest text-slate-600">{t('Density')}</p>
               {([['compact', t('Compact')], ['card', t('Card')]] as const).map(([v, lbl]) => (
                 <button key={v} onClick={() => setLayout(v)}
@@ -843,7 +887,7 @@ function ProductsInner() {
             </BarMenu>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             {/* "Text quote", not "Quote" — this builds a WhatsApp MESSAGE, it
                 never creates a Sales Quotation document (owner, 2026-08-06). */}
             <button onClick={() => setMulti((m) => !m)}
@@ -856,22 +900,30 @@ function ProductsInner() {
               {multi ? `Text quote mode · ${basket.items.length}` : 'Text quote mode'}
             </button>
             <DateRangeFilter value={range} onChange={(r) => { listTouched.current = true; setRange(r); }} label="Order date" />
-            {/* A tick that shows its own state. Inside a "Show" dropdown the
+            {/* A divider, the Selling Prices device. The mode button and the
+                date range to the left do not FILTER the list — one changes what
+                a tap does, the other sets the window the sold-in-period figure
+                counts over. Three filters and two things that are not filters,
+                all the same shape in one run, is what made the row read as an
+                undifferentiated bank. */}
+            <span className="hidden sm:block w-px self-stretch bg-slate-800 mx-1" aria-hidden />
+            {/* The counts are the point. Inside the old "Show" dropdown the
                 default — Priced, on out of the box — was invisible, so a
-                filtered list read as the whole catalogue until somebody opened
-                the menu to check. */}
-            <TickChip on={pricedOnly} onClick={() => setPricedOnly((v) => !v)} label={t('Priced')}
+                filtered list read as the whole catalogue; now the chip says
+                both that it is on AND how many it is holding. */}
+            <FilterChip on={pricedOnly} count={tickCounts.priced} onClick={() => setPricedOnly((v) => !v)} label={t('Priced')}
               title={t('Only items with a sell price set — the default view; untick to include unpriced items')} />
-            <TickChip on={stockOnly} onClick={() => setStockOnly((v) => !v)} label={t('In stock')}
+            <FilterChip on={stockOnly} count={tickCounts.inStock} onClick={() => setStockOnly((v) => !v)} label={t('In stock')}
               title={t('On the shelf now, or on a purchase order not yet fully received')} />
             {/* "New", not "Just arrived" (owner, 2026-08-27). The window is
                 Settings › Defaults › newArrivalDays, the same one the
                 dashboard's New arrivals panel uses. */}
-            <TickChip on={justArrived} onClick={() => setJustArrived((v) => !v)} label={t('New')} accent="sky"
+            <FilterChip on={justArrived} count={tickCounts.isNew} onClick={() => setJustArrived((v) => !v)} label={t('New')} tone="sky"
               title={tf('Products we had never carried until their first stock landed, in the last {days} days. Fresh stock of an item we already sell is not new — the Live figure says that.', { days: newArrivalDays })} />
             {hasFilters && (
+              // A text link, not a fifth bordered control (Selling Prices).
               <button onClick={() => { setSearch(''); setFilterCategory(''); setStockOnly(false); setJustArrived(false); setPricedOnly(true); }}
-                className={`${BAR_H} inline-flex items-center text-[12px] text-slate-500 hover:text-white px-2 transition-colors`}>{t('Clear ×')}</button>
+                className="ml-1 text-[11px] text-slate-500 hover:text-slate-300 underline underline-offset-2">{t('Clear')}</button>
             )}
           </div>
         </div>
@@ -893,7 +945,8 @@ function ProductsInner() {
                 {/* Sticky: the item name stays anchored while the numeric
                     columns scroll horizontally, so a row never loses its label.
                     Every column sorts — click toggles ▲/▼. */}
-                <Th label="Description" active={sort.key === 'name'} dir={sort.dir} onClick={() => toggleSort('name')} className="px-4 sticky left-0 z-20 bg-chrome"
+                <Th label="Description" active={sort.key === 'name'} dir={sort.dir} onClick={() => toggleSort('name')}
+                  className={`px-4 sticky left-0 z-20 bg-chrome ${descCellCls}`} style={descCellStyle}
                   resizer={
                     <span onMouseDown={startDescResize} onDoubleClick={resetDescWidth}
                       title={t('Drag to set the Description width — double-click to reset')}
@@ -942,13 +995,13 @@ function ProductsInner() {
                 <Fragment key={r.c.component_id}>
                   <tr onClick={() => setExpanded((e) => (e === r.c.component_id ? null : r.c.component_id))}
                     className={`cursor-pointer transition-colors ${expanded === r.c.component_id ? 'bg-raised' : 'bg-chrome hover:bg-rail'}`}>
-                    <td className="px-4 py-2 sticky left-0 z-10 bg-inherit">
+                    <td className={`px-4 py-2 sticky left-0 z-10 bg-inherit ${descCellCls}`} style={descCellStyle}>
                       <span className="flex items-start gap-1.5">
-                        {/* Grow the name with the viewport — a wide monitor
-                            shows the whole description; it only truncates when
-                            the row would otherwise overflow. Floor keeps mid
-                            screens sane, ceiling stops an absurd column on 4K. */}
-                        <span className="min-w-0">
+                        {/* The name shrinks and the tags beside it do not, so
+                            a long description gives way to the NEW badge and
+                            the hub link rather than shoving them out of the
+                            column. */}
+                        <span className="min-w-0 flex-1">
                           {/* Our description, alone. The dim mono line under
                               it used to carry the SUPPLIER's model — the house
                               identity pattern, right on a buy-side screen and
@@ -957,8 +1010,7 @@ function ProductsInner() {
                               it. It is still on the Item Editor and the Item
                               Hub, where naming a row by what we bought is the
                               point. (Owner, 2026-09-10.) */}
-                          <span className={`block text-sm text-slate-100 font-medium truncate ${descW == null ? 'max-w-[clamp(20rem,42vw,64rem)]' : ''}`}
-                            style={descW != null ? { maxWidth: descW } : undefined}>{sellDescOf(r.c)}</span>
+                          <span className="block text-sm text-slate-100 font-medium truncate">{sellDescOf(r.c)}</span>
                         </span>
                         <ArrivalTag days={newArrivalDays} a={arrivals[r.c.component_id]} />
                         <SupersededTag succId={successors.get(r.c.component_id)} comps={comps} canHub={canHub} />
@@ -1194,8 +1246,8 @@ function ProductsInner() {
  * and last in the row. "Show" is on phones and sits mid-row, where a 256px
  * panel anchored to either edge runs off the screen.
  */
-function BarMenu({ label, title, active, width, children }: {
-  label: string; title: string; active?: boolean; width: number; children: React.ReactNode;
+function BarMenu({ label, title, active, width, className, children }: {
+  label: string; title: string; active?: boolean; width: number; className?: string; children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
@@ -1232,7 +1284,7 @@ function BarMenu({ label, title, active, width, children }: {
   return (
     <>
       <button ref={btnRef} onClick={toggle} title={title}
-        className={`${BAR_H} px-2.5 inline-flex items-center rounded-lg border text-[12.5px] font-medium whitespace-nowrap transition-colors ${
+        className={`${BAR_H} px-2.5 inline-flex items-center rounded-lg border text-[12.5px] font-medium whitespace-nowrap transition-colors ${className ?? ''} ${
           active ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white hover:border-slate-600'
         }`}>
         {label} ▾
@@ -1280,35 +1332,39 @@ const BAR_BOX = 'bg-slate-800 border border-slate-700 rounded-lg outline-none fo
 const selCls  = `${BAR_H} px-2.5 ${BAR_BOX} text-slate-300 text-[12.5px] cursor-pointer`;
 
 /**
- * A filter that shows its own state — a tick when it applies, nothing when it
- * does not (owner, 2026-09-10: *"change the format to tick that applies"*).
+ * A filter chip — THE Selling Prices chip, not a second design of one.
  *
- * These three used to live inside a "Show" dropdown whose button listed what
- * was on. That worked and still hid the thing that matters: PRICED IS ON BY
- * DEFAULT, and a default nobody can see is a filtered list passing for the
- * whole catalogue. A chip is the state, not a report of it.
+ * The first attempt at "tick that applies" drew a literal checkbox and stood
+ * the chip at the toolbar's own height, so the three filters read as three
+ * more buttons in a bar that already had four. Selling Prices had solved this
+ * already and the instruction named it: small, no box, **a count**, and colour
+ * carrying the state. The count is the part that matters — it turns a filter
+ * into a worklist, because you can see the size of a subset before you commit
+ * to looking at it.
  *
- * `h-11` on a phone, not `h-9`: 44px is the tap target that stops a thumb
- * missing, and these are the controls a rep actually reaches for while
- * standing in front of a customer.
+ * A chip whose count is zero and which is not currently on is disabled rather
+ * than hidden: a filter that vanishes when it would return nothing is a filter
+ * nobody can learn.
+ *
+ * `py-2 sm:py-1` — 34px of thumb on a phone against 26px on a mouse. Selling
+ * Prices lives with 26 everywhere; this list gets used standing up.
  */
-function TickChip({ on, onClick, label, title, accent = 'emerald' }: {
-  on: boolean; onClick: () => void; label: string; title?: string; accent?: 'emerald' | 'sky';
+function FilterChip({ label, count, on, onClick, title, tone = 'emerald' }: {
+  label: string; count: number; on: boolean; onClick: () => void; title?: string; tone?: 'emerald' | 'sky';
 }) {
-  const onCls = accent === 'sky'
-    ? 'bg-sky-500/15 border-sky-500/40 text-sky-300'
-    : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300';
+  const dead = count === 0 && !on;
+  const onCls = tone === 'sky'
+    ? 'bg-sky-500/15 text-sky-300 border-sky-500/40'
+    : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40';
   return (
-    <button type="button" onClick={onClick} title={title} aria-pressed={on}
-      className={`${BAR_H} inline-flex items-center gap-1.5 px-2.5 rounded-lg border text-[12.5px] font-medium transition-colors whitespace-nowrap ${
-        on ? onCls : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white hover:border-slate-600'
-      }`}>
-      {/* The box is always drawn, so an unticked filter still reads as a
-          filter rather than as a label somebody put in the toolbar. */}
-      <span className={`w-3.5 h-3.5 rounded flex items-center justify-center border text-[9px] leading-none ${
-        on ? 'border-current' : 'border-slate-600'
-      }`}>{on ? '✓' : ''}</span>
+    <button type="button" disabled={dead} onClick={onClick} title={title} aria-pressed={on}
+      className={`inline-flex items-center gap-1.5 pl-2.5 pr-2 py-2 sm:py-1 rounded-lg text-[11.5px] font-semibold border transition-colors ${
+        dead ? 'text-slate-600 border-slate-800 cursor-default'
+        : on ? onCls
+        : 'text-slate-400 border-slate-700 hover:border-slate-600 hover:text-slate-200'}`}>
       {label}
+      <span className={`tabular-nums text-[10.5px] font-medium px-1 rounded ${
+        dead ? 'text-slate-700' : on ? 'bg-black/25' : 'text-slate-500'}`}>{fmtInt(count)}</span>
     </button>
   );
 }
@@ -1322,9 +1378,9 @@ function CenterSpinner() {
  *  tooltip-only note. align-top keeps every label on ONE baseline — without
  *  it, a cell carrying a hint centres its two lines and floats its label
  *  above the single-line headers beside it. */
-function Th({ label, hint, tip, right, center, active, dir, onClick, className, resizer }: { label: string; hint?: string; tip?: string; right?: boolean; center?: boolean; active: boolean; dir: 1 | -1; onClick: () => void; className?: string; resizer?: React.ReactNode }) {
+function Th({ label, hint, tip, right, center, active, dir, onClick, className, style, resizer }: { label: string; hint?: string; tip?: string; right?: boolean; center?: boolean; active: boolean; dir: 1 | -1; onClick: () => void; className?: string; style?: React.CSSProperties; resizer?: React.ReactNode }) {
   return (
-    <th className={`font-semibold py-2.5 align-top ${resizer ? 'relative' : ''} ${right ? 'text-right' : center ? 'text-center' : 'text-left'} ${className ?? 'px-3'}`}>
+    <th style={style} className={`font-semibold py-2.5 align-top ${resizer ? 'relative' : ''} ${right ? 'text-right' : center ? 'text-center' : 'text-left'} ${className ?? 'px-3'}`}>
       <button onClick={onClick} className={`inline-flex items-center gap-1 uppercase tracking-widest leading-none transition-colors ${active ? 'text-emerald-400' : 'hover:text-slate-300'}`} title={tip ?? hint}>
         {label}
         <span className="text-[8px]">{active ? (dir === 1 ? '▲' : '▼') : '↕'}</span>
