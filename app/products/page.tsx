@@ -196,16 +196,18 @@ function ProductsInner() {
   // Priced only is the DEFAULT view (owner, 2026-08-14): the sales list is for
   // quoting, and an item with no sell price cannot be quoted. Untick to see the
   // rest; "Clear" returns to the default (priced) view, not to everything.
-  // ?new=1 (the dashboard's New arrivals panel) opens this list on what just
-  // landed — and turns OFF "priced only", because the whole reason to follow
-  // that link is usually the items nobody has priced yet.
+  // ?new=1 (the dashboard's New arrivals panel) opens this list with the new
+  // products PINNED TO THE TOP — and turns OFF "priced only", because the
+  // whole reason to follow that link is usually the items nobody has priced
+  // yet. It used to filter to them; now you land on them with the catalogue
+  // still underneath, which is the point of a pin.
   const arrivedDeepLink = searchParams.get('new') === '1';
   const [pricedOnly, setPricedOnly] = useState(!arrivedDeepLink);
   const [stockOnly, setStockOnly] = useState(false);
-  const [justArrived, setJustArrived] = useState(arrivedDeepLink);
+  const [newFirst, setNewFirst] = useState(arrivedDeepLink);
   // First/last goods-receipt date per item (30.0 ledger, GRN in-movements) —
-  // powers the "New" product tag and the New filter. `first` is the item's
-  // first-ever goods receipt, which is the one that decides it.
+  // powers the "New" product tag and the "New first" pin. `first` is the
+  // item's first-ever goods receipt, which is the one that decides it.
   const [arrivals, setArrivals] = useState<Record<string, { first: string; last: string }>>({});
   const listDefaults = useListDefaults('products');
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'traded', dir: -1 });
@@ -574,9 +576,8 @@ function ProductsInner() {
         if (filterCategory && c.category !== filterCategory) return false;
         if (pricedOnly && !(Number(c.selling_price_idr) > 0)) return false;
         if (stockOnly && phys <= 0 && inc <= 0) return false;
-        // FIRST receipt, not the last: "New" is a new product, and a restock
-        // of a decade-old item is not one. (Owner, 2026-09-10.)
-        if (justArrived && (arrivals[c.component_id]?.first ?? '') < cutoff) return false;
+        // "New first" does NOT filter — see the sort below. It used to, and
+        // ticking it threw away 1,000 items to show you 12.
         if (!q) return true;
         return [c.supplier_model, c.internal_description, c.brand, c.category, c.warranty].filter(Boolean).join(' ').toLowerCase().includes(q);
       });
@@ -584,6 +585,16 @@ function ProductsInner() {
     const { key, dir } = sort;
     const cmpText = (a: string | null, b: string | null) => (a || '').localeCompare(b || '') || 0;
     list.sort((a, b) => {
+      // NEW FIRST is a pin, not a sort key: it floats the new products to the
+      // top and leaves everything below them in whatever order the sort asked
+      // for. That is why it can coexist with "Last updated ↓" instead of
+      // replacing it, and why it lives on a chip rather than in the Sort menu
+      // — a single-select dropdown cannot express a modifier.
+      if (newFirst) {
+        const an = (arrivals[a.c.component_id]?.first ?? '') >= cutoff ? 1 : 0;
+        const bn = (arrivals[b.c.component_id]?.first ?? '') >= cutoff ? 1 : 0;
+        if (an !== bn) return bn - an;
+      }
       let d = 0;
       if (key === 'traded') d = a.sold - b.sold;
       else if (key === 'activity') d = a.activity - b.activity;
@@ -605,7 +616,7 @@ function ProductsInner() {
         || (a.c.supplier_model || '').localeCompare(b.c.supplier_model || '');
     });
     return list;
-  }, [comps, physical, reserved, incoming, etaByComp, activityByComp, soldInRange, search, filterCategory, pricedOnly, stockOnly, justArrived, arrivals, sort]);
+  }, [comps, physical, reserved, incoming, etaByComp, activityByComp, soldInRange, search, filterCategory, pricedOnly, stockOnly, newFirst, arrivals, sort]);
 
   const toggleSort = (key: SortKey) => {
     listTouched.current = true;
@@ -632,16 +643,7 @@ function ProductsInner() {
     return { priced, inStock, isNew };
   }, [comps, physical, incoming, arrivals, newArrivalDays]);
 
-  const hasFilters = !!(search.trim() || filterCategory || stockOnly || justArrived);
-  // What the "Show" button says. Named, not counted: "Priced" is on by
-  // default, and a default nobody can see is a narrowed list passing for the
-  // whole catalogue. Short forms here — the menu carries the full wording.
-  const showOn = useMemo(() => [
-    pricedOnly ? t('Priced') : null,
-    stockOnly ? t('In stock') : null,
-    justArrived ? t('New') : null,
-  ].filter(Boolean) as string[], [pricedOnly, stockOnly, justArrived, t]);
-
+  const hasFilters = !!(search.trim() || filterCategory || stockOnly || newFirst);
   async function saveMeta(componentId: string, patch: Partial<Pick<Comp, 'warranty' | 'datasheet_url' | 'warranty_value' | 'warranty_unit' | 'perf_warranty_value' | 'perf_warranty_unit'>>) {
     const { error } = await supabase.from('3.0_components').update(patch).eq('component_id', componentId);
     if (error) { flash(`Failed: ${error.message}`); return; }
@@ -915,14 +917,27 @@ function ProductsInner() {
               title={t('Only items with a sell price set — the default view; untick to include unpriced items')} />
             <FilterChip on={stockOnly} count={tickCounts.inStock} onClick={() => setStockOnly((v) => !v)} label={t('In stock')}
               title={t('On the shelf now, or on a purchase order not yet fully received')} />
-            {/* "New", not "Just arrived" (owner, 2026-08-27). The window is
-                Settings › Defaults › newArrivalDays, the same one the
-                dashboard's New arrivals panel uses. */}
-            <FilterChip on={justArrived} count={tickCounts.isNew} onClick={() => setJustArrived((v) => !v)} label={t('New')} tone="sky"
-              title={tf('Products we had never carried until their first stock landed, in the last {days} days. Fresh stock of an item we already sell is not new — the Live figure says that.', { days: newArrivalDays })} />
+            {/* SEPARATED, because it is not a filter (owner's idea,
+                2026-09-10: *"when user clicks for filter for New, it just puts
+                the new items at the top, but the rest of the items is still
+                showing"*).
+
+                He is right, and the reason generalises: "New" is a
+                LOOK-AT-THIS-FIRST, not a SHOW-ONLY-THIS. Ticking it used to
+                throw away a thousand items to show you twelve, so anyone
+                browsing had to tick it, look, and untick it again to get their
+                list back. A pin gives you both at once.
+
+                It carries an ↑ and sits past its own divider so it does not
+                read as a third subtracting filter. Two chips that look
+                identical and do opposite things to the row count is the same
+                fault as a colour that means two things. */}
+            <span className="hidden sm:block w-px self-stretch bg-slate-800 mx-1" aria-hidden />
+            <FilterChip on={newFirst} count={tickCounts.isNew} onClick={() => setNewFirst((v) => !v)} label={t('↑ New first')} tone="sky"
+              title={tf('Floats products we had never carried until their first stock landed in the last {days} days to the top of the list, without hiding anything else. Fresh stock of an item we already sell is not new — the Live figure says that.', { days: newArrivalDays })} />
             {hasFilters && (
               // A text link, not a fifth bordered control (Selling Prices).
-              <button onClick={() => { setSearch(''); setFilterCategory(''); setStockOnly(false); setJustArrived(false); setPricedOnly(true); }}
+              <button onClick={() => { setSearch(''); setFilterCategory(''); setStockOnly(false); setNewFirst(false); setPricedOnly(true); }}
                 className="ml-1 text-[11px] text-slate-500 hover:text-slate-300 underline underline-offset-2">{t('Clear')}</button>
             )}
           </div>

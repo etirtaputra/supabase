@@ -748,8 +748,9 @@ export const ID: Record<string, string> = {
     'Ada di gudang sekarang, atau sedang di PO yang belum diterima penuh',
   // "New" = a product we have never carried, not a restock. Fresh stock of a
   // known item is already visible in the Live figure (owner, 2026-09-10).
-  'Products we had never carried until their first stock landed, in the last {days} days. Fresh stock of an item we already sell is not new — the Live figure says that.':
-    'Produk yang belum pernah kita bawa sampai stok pertamanya datang, dalam {days} hari terakhir. Stok baru dari barang yang sudah biasa kita jual bukan barang baru — itu sudah terlihat di angka Tersedia.',
+  '↑ New first': '↑ Yang baru di atas',
+  'Floats products we had never carried until their first stock landed in the last {days} days to the top of the list, without hiding anything else. Fresh stock of an item we already sell is not new — the Live figure says that.':
+    'Menaikkan produk yang belum pernah kita bawa sampai stok pertamanya datang dalam {days} hari terakhir ke bagian atas daftar, tanpa menyembunyikan yang lain. Stok baru dari barang yang sudah biasa kita jual bukan barang baru — itu sudah terlihat di angka Tersedia.',
   'Search description, model, category…': 'Cari deskripsi, model, kategori…',
   'Reserved on orders:': 'Dipesan pada order:',
   'Already committed on confirmed sales orders — the difference between the Live and Physical figures':

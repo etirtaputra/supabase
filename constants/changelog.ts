@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-09-10T11:00:00Z',
+    title: '\u201cNew\u201d di Daftar Produk sekarang menaikkan, bukan menyaring',
+    details: [
+      'Centang **\u2191 Yang baru di atas** menaikkan produk baru ke bagian atas daftar dan TIDAK menyembunyikan apa pun. Hilangkan centangnya, daftar kembali ke urutan yang dipilih di Sort.',
+      'Sebelumnya dia menyaring \u2014 membuang seribu barang untuk menampilkan dua belas. Jadi siapa pun yang sedang menelusuri harus centang, lihat, lalu hapus centang lagi supaya daftarnya balik. Padahal \u201clihat ini duluan\u201d itu permintaan yang berbeda dari \u201ctampilkan ini saja\u201d.',
+      'Chip-nya dipisahkan dengan garis dan diberi tanda \u2191, supaya tidak terbaca sebagai filter ketiga. Dua chip yang bentuknya sama tapi efeknya berlawanan terhadap jumlah baris adalah kesalahan yang sama seperti satu warna yang punya dua arti.',
+      'Kaitannya juga ikut: panel New arrivals di Dashboard sekarang membuka daftar ini dengan produk baru di atas, katalognya tetap ada di bawahnya.',
+    ],
+  },
+  {
     at: '2026-09-10T09:00:00Z',
     title: 'Daftar Produk: hanya deskripsi kita, filter dua baris, panel baris dirampingkan',
     details: [

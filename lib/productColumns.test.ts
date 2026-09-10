@@ -186,12 +186,32 @@ test('there is no brand filter, and the mobile card stopped leaking the brand', 
 test('"New" means a product we have never carried, not a restock', () => {
   const src = page();
   assert.ok(src.includes('function isNewProduct'), 'the new-product test is gone');
-  assert.ok(/justArrived && \(arrivals\[c\.component_id\]\?\.first/.test(src),
-    'the New filter keys on the LAST receipt again — that is a restock, not a new product');
   assert.ok(!src.includes("'New stock'"), 'the restock badge is back');
   // The word survives in the comments that explain the rule, which is the
   // point; what must not survive is a 'restock' VALUE anything can branch on.
   assert.ok(!/'restock'/.test(src), "a 'restock' tag value is back");
+});
+
+/**
+ * "New first" PINS, it does not filter (owner, 2026-09-10: *"it just puts the
+ * new items at the top, but the rest of the items is still showing"*).
+ *
+ * As a filter it threw away a thousand items to show you twelve, so anyone
+ * browsing had to tick it, look, and untick it to get their list back. The
+ * distinction it turns on is real and general: LOOK AT THIS FIRST is not the
+ * same request as SHOW ONLY THIS, and a chip that looks like the two beside it
+ * must not do the opposite thing to the row count.
+ */
+test('New first floats new products up and hides nothing', () => {
+  const src = page();
+  // It must not appear in the filter predicate at all.
+  const filterBlock = src.slice(src.indexOf('.filter(({ c, phys, inc })'), src.indexOf('const { key, dir } = sort;'));
+  assert.ok(!/newFirst/.test(filterBlock), 'New first is subtracting rows again');
+  // It must run BEFORE the sort key, or it is not a pin.
+  assert.match(src, /list\.sort\(\(a, b\) => \{[\s\S]{0,900}?if \(newFirst\)[\s\S]{0,300}?if \(an !== bn\) return bn - an;[\s\S]{0,80}?let d = 0;/,
+    'the pin does not run ahead of the chosen sort');
+  // And it must say what it does.
+  assert.ok(src.includes("t('↑ New first')"), 'the chip no longer says it reorders rather than filters');
 });
 
 /**
@@ -240,7 +260,7 @@ test('the tier headings name the tier and claim no arithmetic', () => {
 test('the filter bar is two rows, and the three filters are counted chips', () => {
   const src = page();
   assert.ok(src.includes('function FilterChip'), 'the filter chips are gone');
-  for (const n of ['pricedOnly', 'stockOnly', 'justArrived']) {
+  for (const n of ['pricedOnly', 'stockOnly', 'newFirst']) {
     assert.ok(new RegExp(`FilterChip on=\\{${n}\\}`).test(src), `${n} is not a chip`);
   }
   // The Show dropdown they replaced.

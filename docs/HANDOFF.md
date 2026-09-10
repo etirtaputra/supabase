@@ -122,6 +122,53 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
+### 2026-09-10 (latest) — "New" pins instead of filtering, and two layout fixes
+
+Owner: *"for 'New', I think the better way to display is when user clicks for
+filter for New, it just puts the new items at the top, but the rest of the
+items is still showing… What do you think?"*
+
+**Agreed, and the reason generalises.** "New" is a LOOK-AT-THIS-FIRST, not a
+SHOW-ONLY-THIS. As a filter it threw away a thousand items to show twelve, so
+anyone browsing had to tick it, look, and untick it to get their list back. It
+now floats new products to the top and leaves everything below in whatever
+order the Sort menu asked for.
+
+**One change to his proposal:** it no longer looks like the two chips beside
+it. It sits past its own divider and reads "↑ New first". Two chips with the
+same shape doing opposite things to the row count is the same fault as a colour
+that carries two meanings — and this list had just been through that argument
+with the price arrows. A pin lives on a chip rather than in the Sort menu
+because a single-select dropdown cannot express a modifier: the pin runs ahead
+of the chosen sort, it does not replace it.
+
+`?new=1` from the dashboard's New arrivals panel follows: it now opens the list
+with the new products pinned to the top rather than filtered to, catalogue
+still underneath. It still turns "Priced" off, since the reason to follow that
+link is usually the items nobody has priced yet.
+
+**Also this round, after "still not liking the filter layout":**
+
+- The filter chips are now the SELLING PRICES chips, which is what had been
+  asked for and what I had not actually copied — small, no drawn box, colour
+  carrying state, and **a count**. The count is what makes a chip a worklist:
+  you can see the size of a subset before committing to look at it. Counted
+  over the whole catalogue, not over what the other filters left, because a
+  count that moved when you touched a different chip would answer "how many are
+  left" when the question a chip is asked is "how big is this set".
+- A divider before them: Text quote mode and the date range are not filters.
+  Clear is a text link again, not a fifth bordered control. View is pushed
+  right on wide screens, where the row used to run out and leave a third of the
+  bar empty.
+- **The Description resize handle** sat 400px from where the text truncated.
+  The width was capped on the inner TEXT while the table gave the COLUMN
+  whatever slack was left over. Capping the cell makes them the same edge by
+  construction — the text truncates because it ran out of column, which is what
+  the handle adjusts.
+
+640 tests pass, three of them new; build clean.
+
+
 ### 2026-09-10 (latest) — Products: what a sell-side screen may say
 
 Six owner changes plus two sent mid-build. The through-line in all of them is
