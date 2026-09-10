@@ -122,6 +122,34 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
+### 2026-09-10 (latest) — the Products sort menu and mode button speak Indonesian
+
+Owner: *"text quote mode and the sorting by asc desc order needs to be
+translated to Indonesian too."*
+
+Both done, plus the thing they are attached to. `SORT_LABELS` was a plain
+record rendered raw; it now goes through `t()`, and **so do the column
+headers** — they are the same vocabulary in another place, and a menu offering
+"Nama ↑" above a header still reading NAME makes the reader do the matching.
+That half-state is invisible to anyone testing in English, which is why there
+is now a test for it.
+
+**The arrows are deliberately NOT translated.** ↑ and ↓ are the direction
+itself, not a word for it; a phrase book that swallows them will eventually be
+handed a translation pointing the wrong way. Asserted.
+
+"Text quote mode" → "Mode penawaran teks", not "Penawaran" alone: this builds a
+WhatsApp MESSAGE and never creates a Sales Quotation document (owner,
+2026-08-06), and the shorter word would lose that.
+
+Also finished the legend under the filter bar, which read *"Stock reads
+Tersedia/Fisik — e.g. 100/150 means…"* — the two terms went through the phrase
+book and the sentence explaining them did not. Half a translated sentence is
+worse than either whole one.
+
+646 tests pass, two of them new; build clean.
+
+
 ### 2026-09-10 (later) — one control size, and where the two heights came from
 
 Owner: *"it's important for me to use the same border size. always. to

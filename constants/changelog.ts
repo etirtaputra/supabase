@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-09-10T13:00:00Z',
+    title: 'Daftar Produk: menu urutan, mode penawaran teks, dan judul kolom kini berbahasa Indonesia',
+    details: [
+      'Menu Sort sekarang berbahasa Indonesia \u2014 Terakhir diperbarui, Paling laku (periode), Harga net (Tier-1), Stok tersedia, Nama, Merek, Kategori, Kapasitas, Garansi, Punya datasheet \u2014 lengkap dengan arah \u2191\u2193.',
+      'Judul kolom tabel ikut diterjemahkan, karena itu kosakata yang sama. Menu yang menawarkan \u201cNama \u2191\u201d di atas kolom yang tetap tertulis NAME memaksa pembacanya mencocokkan sendiri.',
+      'Panah \u2191\u2193 TIDAK diterjemahkan dan tidak boleh: arah itu bukan kata.',
+      '\u201cText quote mode\u201d jadi \u201cMode penawaran teks\u201d \u2014 bukan \u201cPenawaran\u201d saja, supaya bedanya dengan dokumen Penawaran Penjualan tetap terjaga.',
+      'Baris keterangan di bawah bar filter dulu setengah diterjemahkan (\u201cStock reads Tersedia/Fisik \u2014 e.g. 100/150 means\u2026\u201d). Sekarang satu kalimat, satu bahasa.',
+    ],
+  },
+  {
     at: '2026-09-10T12:00:00Z',
     title: 'Satu ukuran kontrol di semua bar filter',
     details: [

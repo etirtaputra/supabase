@@ -842,8 +842,11 @@ function ProductsInner() {
               className={`${BAR_SELECT} flex-1 sm:flex-none min-w-0`}>
               {sortKeys.map((k) => (
                 <Fragment key={k}>
-                  <option value={`${k}:${DEFAULT_DIR[k]}`}>{SORT_LABELS[k]} {DEFAULT_DIR[k] === -1 ? '↓' : '↑'}</option>
-                  <option value={`${k}:${-DEFAULT_DIR[k]}`}>{SORT_LABELS[k]} {DEFAULT_DIR[k] === -1 ? '↑' : '↓'}</option>
+                  {/* The arrows are NOT translated and must not be: ↑↓ is the
+                      direction itself, not a word for it. Only the name of the
+                      thing being sorted goes through the phrase book. */}
+                  <option value={`${k}:${DEFAULT_DIR[k]}`}>{t(SORT_LABELS[k])} {DEFAULT_DIR[k] === -1 ? '↓' : '↑'}</option>
+                  <option value={`${k}:${-DEFAULT_DIR[k]}`}>{t(SORT_LABELS[k])} {DEFAULT_DIR[k] === -1 ? '↑' : '↓'}</option>
                 </Fragment>
               ))}
             </select>
@@ -895,10 +898,10 @@ function ProductsInner() {
                 never creates a Sales Quotation document (owner, 2026-08-06). */}
             <button onClick={() => setMulti((m) => !m)}
               title={multi
-                ? 'Tapping a price adds the item to the WhatsApp text quote at that price. Tap again to remove, tap another tier to move it. This never creates a Sales Quotation document.'
-                : 'Collect several products into one WhatsApp text message — no Sales Quotation document is created'}
+                ? t('Tapping a price adds the item to the WhatsApp text quote at that price. Tap again to remove, tap another tier to move it. This never creates a Sales Quotation document.')
+                : t('Collect several products into one WhatsApp text message — no Sales Quotation document is created')}
               className={`${BAR_BTN} px-2.5 ${multi ? BAR_BTN_ON : BAR_BTN_OFF}`}>
-              {multi ? `Text quote mode · ${basket.items.length}` : 'Text quote mode'}
+              {multi ? tf('Text quote mode · {n}', { n: basket.items.length }) : t('Text quote mode')}
             </button>
             <DateRangeFilter value={range} onChange={(r) => { listTouched.current = true; setRange(r); }} label="Order date" />
             {/* A divider, the Selling Prices device. The mode button and the
@@ -943,8 +946,11 @@ function ProductsInner() {
         </div>
 
         <p className="hidden md:block text-[11px] text-slate-600">
-          Stock reads <span className="text-slate-400">{t('Live/Physical')}</span> — e.g. 100/150 means 150 in the warehouse, 100 still free to sell (50 reserved on confirmed orders).{' '}
-          <span className="text-slate-400">{t('Incoming')}</span> = on POs not yet fully received. Click a price to copy it; click a row for warranty, datasheet, specs and the last orders &amp; deliveries.
+          {/* One sentence, one language. This read "Stock reads Tersedia/Fisik
+              — e.g. 100/150 means…": the two terms went through the phrase
+              book and the sentence explaining them did not, so the line was
+              half-translated, which is worse than either whole. */}
+          {t('Stock reads Live/Physical — e.g. 100/150 means 150 in the warehouse, 100 still free to sell (50 reserved on confirmed orders). Incoming = on POs not yet fully received. Click a price to copy it; click a row for warranty, datasheet, specs and the last orders & deliveries.')}
         </p>
 
         {/* ── Desktop table ── */}
@@ -959,7 +965,7 @@ function ProductsInner() {
                 {/* Sticky: the item name stays anchored while the numeric
                     columns scroll horizontally, so a row never loses its label.
                     Every column sorts — click toggles ▲/▼. */}
-                <Th label="Description" active={sort.key === 'name'} dir={sort.dir} onClick={() => toggleSort('name')}
+                <Th label={t('Description')} active={sort.key === 'name'} dir={sort.dir} onClick={() => toggleSort('name')}
                   className={`px-4 sticky left-0 z-20 bg-chrome ${descCellCls}`} style={descCellStyle}
                   resizer={
                     <span onMouseDown={startDescResize} onDoubleClick={resetDescWidth}
@@ -968,8 +974,8 @@ function ProductsInner() {
                       <span className={`w-px h-4 transition-colors ${descW != null ? 'bg-emerald-500/50' : 'bg-slate-700'} group-hover/rsz:bg-emerald-400`} />
                     </span>
                   } />
-                {colShown('stock') && <Th label="Stock" right active={sort.key === 'stock'} dir={sort.dir} onClick={() => toggleSort('stock')} hint="Live/Physical" />}
-                {colShown('incoming') && <Th label="Incoming" right active={sort.key === 'incoming'} dir={sort.dir} onClick={() => toggleSort('incoming')} />}
+                {colShown('stock') && <Th label={t('Stock')} right active={sort.key === 'stock'} dir={sort.dir} onClick={() => toggleSort('stock')} hint={t('Live/Physical')} />}
+                {colShown('incoming') && <Th label={t('Incoming')} right active={sort.key === 'incoming'} dir={sort.dir} onClick={() => toggleSort('incoming')} />}
                 {/* One column per active tier. Only the FIRST sorts: the chain
                     marks every tier up from the net, so ordering by Tier 3
                     would produce the same order as ordering by Tier 1 while
@@ -994,10 +1000,10 @@ function ProductsInner() {
                         <span className="uppercase tracking-widest leading-none">{pc.label}</span>
                       </th>
                 ))}
-                {colShown('brand') && <Th label="Brand" active={sort.key === 'brand'} dir={sort.dir} onClick={() => toggleSort('brand')} />}
-                {colShown('category') && <Th label="Category" active={sort.key === 'category'} dir={sort.dir} onClick={() => toggleSort('category')} />}
-                {colShown('capacity') && <Th label="Capacity" right active={sort.key === 'capacity'} dir={sort.dir} onClick={() => toggleSort('capacity')} />}
-                {colShown('updated') && <Th label="Updated" right active={sort.key === 'updated'} dir={sort.dir} onClick={() => toggleSort('updated')} />}
+                {colShown('brand') && <Th label={t('Brand')} active={sort.key === 'brand'} dir={sort.dir} onClick={() => toggleSort('brand')} />}
+                {colShown('category') && <Th label={t('Category')} active={sort.key === 'category'} dir={sort.dir} onClick={() => toggleSort('category')} />}
+                {colShown('capacity') && <Th label={t('Capacity')} right active={sort.key === 'capacity'} dir={sort.dir} onClick={() => toggleSort('capacity')} />}
+                {colShown('updated') && <Th label={t('Updated')} right active={sort.key === 'updated'} dir={sort.dir} onClick={() => toggleSort('updated')} />}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">

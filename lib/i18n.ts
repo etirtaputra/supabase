@@ -714,6 +714,36 @@ export const ID: Record<string, string> = {
   'Clear ×': 'Hapus ×',
   'Live/Physical': 'Tersedia/Fisik',
   'Incoming': 'Transit',
+  // The Products sort menu and the column headers it drives. They are one
+  // vocabulary: translating "Nama ↑" in the menu while the header it sorts
+  // still reads NAME is exactly the drift the phrase book exists to stop.
+  // The ↑↓ arrows never translate — a direction is not a word.
+  'Description': 'Deskripsi',
+  'Stock reads Live/Physical — e.g. 100/150 means 150 in the warehouse, 100 still free to sell (50 reserved on confirmed orders). Incoming = on POs not yet fully received. Click a price to copy it; click a row for warranty, datasheet, specs and the last orders & deliveries.':
+    'Stok ditulis Tersedia/Fisik — misalnya 100/150 berarti ada 150 di gudang, 100 masih bebas dijual (50 sudah dipesan pada order yang dikonfirmasi). Transit = ada di PO yang belum diterima penuh. Klik sebuah harga untuk menyalinnya; klik barisnya untuk garansi, datasheet, spesifikasi, serta pesanan dan pengiriman terakhir.',
+  'Brand': 'Merek',
+  'Capacity': 'Kapasitas',
+  'Updated': 'Diperbarui',
+  'Most sold (period)': 'Paling laku (periode)',
+  'Most traded': 'Paling sering keluar-masuk',
+  'Last updated': 'Terakhir diperbarui',
+  // "Net price" is the sales desk's own phrase — kept, per the note above on
+  // "harga net" — with the tier it means spelled out beside it.
+  'Net price (Tier 1)': 'Harga net (Tier-1)',
+  'Live stock': 'Stok tersedia',
+  'Name': 'Nama',
+  'Category': 'Kategori',
+  'Warranty': 'Garansi',
+  'Has datasheet': 'Punya datasheet',
+  // "Text quote", never "Quote": this builds a WhatsApp MESSAGE and never
+  // creates a Sales Quotation document (owner, 2026-08-06). "Penawaran teks"
+  // keeps that distinction; "Penawaran" alone would lose it.
+  'Text quote mode': 'Mode penawaran teks',
+  'Text quote mode · {n}': 'Mode penawaran teks · {n}',
+  'Collect several products into one WhatsApp text message — no Sales Quotation document is created':
+    'Kumpulkan beberapa barang jadi satu pesan WhatsApp — tidak ada dokumen Penawaran Penjualan yang dibuat',
+  'Tapping a price adds the item to the WhatsApp text quote at that price. Tap again to remove, tap another tier to move it. This never creates a Sales Quotation document.':
+    'Menyentuh sebuah harga menambahkan barang itu ke penawaran teks WhatsApp pada harga tersebut. Sentuh lagi untuk menghapus, sentuh tier lain untuk memindahkannya. Ini tidak pernah membuat dokumen Penawaran Penjualan.',
   'No products match.': 'Tidak ada barang yang cocok.',
   '↑ Newer version': '↑ Versi lebih baru',
   'Import products — preview': 'Impor barang — pratinjau',

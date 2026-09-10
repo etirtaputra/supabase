@@ -289,3 +289,35 @@ test('each filter chip says how many items it holds', () => {
   assert.match(src, /for \(const c of comps\) \{[\s\S]{0,400}?priced\+\+/,
     'the chip counts are no longer taken over the whole catalogue');
 });
+
+
+/**
+ * The sort menu and the column headers are ONE vocabulary, so they translate
+ * together or not at all (owner, 2026-09-10: *"text quote mode and the sorting
+ * by asc desc order needs to be translated to Indonesian too"*).
+ *
+ * Half-translating them is the specific failure: a menu offering "Nama ↑"
+ * above a table whose header still says NAME makes the reader do the matching,
+ * and it is invisible to anyone testing in English.
+ */
+test('the sort menu and the headers it drives both go through the phrase book', () => {
+  const src = page();
+  // Every option label is translated…
+  assert.ok(!/\{SORT_LABELS\[k\]\}/.test(src), 'a sort option renders its English label raw');
+  assert.equal((src.match(/\{t\(SORT_LABELS\[k\]\)\}/g) ?? []).length, 2,
+    'both directions of every sort option must be translated');
+  // …and so is every column header, which is the same word in another place.
+  const rawHeaders = [...src.matchAll(/<Th label="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(rawHeaders, [], `these headers are hardcoded English: ${rawHeaders.join(', ')}`);
+});
+
+/**
+ * The direction arrows must NOT go through it. ↑ and ↓ are the direction
+ * itself, not a word for it, and a phrase book that swallows them will one day
+ * be handed a translation that points the wrong way.
+ */
+test('the sort arrows are never translated', () => {
+  const src = page();
+  assert.ok(!/t\('[↑↓]'\)/.test(src), 'a bare direction arrow is being translated');
+  assert.match(src, /DEFAULT_DIR\[k\] === -1 \? '↓' : '↑'/, 'the arrows are no longer literal');
+});
