@@ -50,6 +50,7 @@ import { fmtDay, fmtDate, fmtInt, fmtRupiah } from '@/lib/formatters';
 import { INCOMING_PO_STATUSES, itemArrivals, itemArrivalDetails, type ItemArrival, type ArrivalDetail, type OpenPo, type ReceivedPo } from '@/lib/inTransit';
 import { useSettings } from '@/hooks/useSettings';
 import { PRODUCT_COLS, LEGACY_PRODUCT_COLS } from '@/constants/productColumns';
+import { BAR_SELECT, BAR_INPUT, BAR_BTN, BAR_BTN_OFF, BAR_BTN_ON, BAR_BTN_ON_SKY } from '@/constants/controls';
 import QuoteBasket, { useQuoteBasket } from '@/components/ui/QuoteBasket';
 import SpecRenderer from '@/components/ui/SpecRenderer';
 import { buildPriceSnippet, copyOnly } from '@/lib/whatsappQuote';
@@ -823,7 +824,7 @@ function ProductsInner() {
             <div className="relative w-full sm:w-72 flex-shrink-0">
               <svg className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('Search description, model, category…')}
-                className={`w-full pl-10 pr-3 ${BAR_H} ${BAR_BOX} text-white text-[13px] placeholder:text-slate-500`} />
+                className={`w-full pl-10 ${BAR_INPUT}`} />
             </div>
             {/* The count sits BESIDE the field, not inside it (Selling Prices
                 pattern). Inside, `pr-24` took six of the field's twenty rems
@@ -832,13 +833,13 @@ function ProductsInner() {
               {rows.length === comps.length ? `${comps.length} items` : `${rows.length} of ${comps.length}`}
             </span>
             <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}
-              className={`${selCls} flex-1 sm:flex-none min-w-0`}>
+              className={`${BAR_SELECT} flex-1 sm:flex-none min-w-0`}>
               <option value="">{t('All categories')}</option>
               {categories.map((c) => <option key={c} value={c}>{humanize(c)}</option>)}
             </select>
             {/* Sort — the dropdown drives mobile; desktop headers also sort */}
             <select value={`${sort.key}:${sort.dir}`} onChange={(e) => { const [k, d] = e.target.value.split(':'); setSort({ key: k as SortKey, dir: Number(d) as 1 | -1 }); }}
-              className={`${selCls} flex-1 sm:flex-none min-w-0`}>
+              className={`${BAR_SELECT} flex-1 sm:flex-none min-w-0`}>
               {sortKeys.map((k) => (
                 <Fragment key={k}>
                   <option value={`${k}:${DEFAULT_DIR[k]}`}>{SORT_LABELS[k]} {DEFAULT_DIR[k] === -1 ? '↓' : '↑'}</option>
@@ -896,9 +897,7 @@ function ProductsInner() {
               title={multi
                 ? 'Tapping a price adds the item to the WhatsApp text quote at that price. Tap again to remove, tap another tier to move it. This never creates a Sales Quotation document.'
                 : 'Collect several products into one WhatsApp text message — no Sales Quotation document is created'}
-              className={`${BAR_H} inline-flex items-center text-[12.5px] font-medium px-2.5 rounded-lg border transition-colors whitespace-nowrap ${
-                multi ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white hover:border-slate-600'
-              }`}>
+              className={`${BAR_BTN} px-2.5 ${multi ? BAR_BTN_ON : BAR_BTN_OFF}`}>
               {multi ? `Text quote mode · ${basket.items.length}` : 'Text quote mode'}
             </button>
             <DateRangeFilter value={range} onChange={(r) => { listTouched.current = true; setRange(r); }} label="Order date" />
@@ -1299,9 +1298,7 @@ function BarMenu({ label, title, active, width, className, children }: {
   return (
     <>
       <button ref={btnRef} onClick={toggle} title={title}
-        className={`${BAR_H} px-2.5 inline-flex items-center rounded-lg border text-[12.5px] font-medium whitespace-nowrap transition-colors ${className ?? ''} ${
-          active ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white hover:border-slate-600'
-        }`}>
+        className={`${BAR_BTN} px-2.5 ${className ?? ''} ${active ? BAR_BTN_ON : BAR_BTN_OFF}`}>
         {label} ▾
       </button>
       {open && pos && createPortal(
@@ -1330,55 +1327,39 @@ function MenuCheck({ checked, onChange, label, title, accent = 'emerald' }: {
 }
 
 /**
- * The toolbar's control surface, in one place so it cannot drift again.
+ * The toolbar's control surface lives in `constants/controls.ts`.
  *
- * The bar had grown three: `rounded-xl` + `slate-900/80` for the search and
- * the selects, `rounded-lg` + `slate-900/60` + a `slate-800` border for the
- * BarMenus, and `rounded-lg` with no fill for Text quote mode. Three radii and
- * three fills across eight controls read as an accident, which is what made
- * the row look off however carefully it was spaced.
+ * It used to live HERE, and that is precisely how the bar came to hold two
+ * heights: 36px selects beside 26px filter chips, because the chips were
+ * copied from Selling Prices where they were also 26px beside 36px selects.
+ * Neither screen was wrong on its own terms and both looked ragged.
  *
- * These are the Selling Prices tokens (app/pricing SetPricingTab): one radius,
- * one fill, one border, one focus ring. Height stays `h-11 sm:h-9` — the
- * shared DateRangeFilter sits in this row and uses it.
+ * Owner's standing rule, 2026-09-10: *"it's important for me to use the same
+ * border size. always. to maintain consistencies and uniformity."* A rule
+ * stated as "always" needs one definition or it becomes a convention people
+ * remember for a while — `controls.test.ts` fails if a screen writes its own.
  */
-const BAR_H   = 'h-11 sm:h-9';
-const BAR_BOX = 'bg-slate-800 border border-slate-700 rounded-lg outline-none focus:ring-1 focus:ring-emerald-500/40 transition-colors';
-const selCls  = `${BAR_H} px-2.5 ${BAR_BOX} text-slate-300 text-[12.5px] cursor-pointer`;
 
 /**
- * A filter chip — THE Selling Prices chip, not a second design of one.
+ * A filter chip — the same box every other control in the bar wears.
  *
- * The first attempt at "tick that applies" drew a literal checkbox and stood
- * the chip at the toolbar's own height, so the three filters read as three
- * more buttons in a bar that already had four. Selling Prices had solved this
- * already and the instruction named it: small, no box, **a count**, and colour
- * carrying the state. The count is the part that matters — it turns a filter
- * into a worklist, because you can see the size of a subset before you commit
- * to looking at it.
- *
- * A chip whose count is zero and which is not currently on is disabled rather
- * than hidden: a filter that vanishes when it would return nothing is a filter
- * nobody can learn.
- *
- * `py-2 sm:py-1` — 34px of thumb on a phone against 26px on a mouse. Selling
- * Prices lives with 26 everywhere; this list gets used standing up.
+ * It carries a COUNT, which is what turns a filter into a worklist: you can
+ * see the size of a subset before committing to look at it. A chip whose count
+ * is zero and which is not on is disabled rather than hidden, because a filter
+ * that vanishes when it would return nothing is a filter nobody can learn.
  */
 function FilterChip({ label, count, on, onClick, title, tone = 'emerald' }: {
   label: string; count: number; on: boolean; onClick: () => void; title?: string; tone?: 'emerald' | 'sky';
 }) {
   const dead = count === 0 && !on;
-  const onCls = tone === 'sky'
-    ? 'bg-sky-500/15 text-sky-300 border-sky-500/40'
-    : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40';
   return (
     <button type="button" disabled={dead} onClick={onClick} title={title} aria-pressed={on}
-      className={`inline-flex items-center gap-1.5 pl-2.5 pr-2 py-2 sm:py-1 rounded-lg text-[11.5px] font-semibold border transition-colors ${
-        dead ? 'text-slate-600 border-slate-800 cursor-default'
-        : on ? onCls
-        : 'text-slate-400 border-slate-700 hover:border-slate-600 hover:text-slate-200'}`}>
+      className={`${BAR_BTN} gap-1.5 pl-2.5 pr-2 ${
+        dead ? 'bg-slate-800/40 border-slate-800 text-slate-600 cursor-default'
+        : on ? (tone === 'sky' ? BAR_BTN_ON_SKY : BAR_BTN_ON)
+        : BAR_BTN_OFF}`}>
       {label}
-      <span className={`tabular-nums text-[10.5px] font-medium px-1 rounded ${
+      <span className={`tabular-nums text-[11px] font-semibold px-1 rounded ${
         dead ? 'text-slate-700' : on ? 'bg-black/25' : 'text-slate-500'}`}>{fmtInt(count)}</span>
     </button>
   );

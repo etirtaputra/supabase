@@ -122,6 +122,36 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
+### 2026-09-10 (later) — one control size, and where the two heights came from
+
+Owner: *"it's important for me to use the same border size. always. to
+maintain consistencies and uniformity."*
+
+**Why this needed a shared file and a test rather than a tidy-up.** The rule
+was already being followed — twice, with different numbers. Products' toolbar
+stood at 36px because its own local `BAR_H` said so. Selling Prices' chips
+stood at 26px because that file said so. Each screen was internally consistent;
+the two disagreed; and the Products filter bar, which had just borrowed its
+chips from Selling Prices, ended up carrying both heights in one row. A
+convention with two homes is a convention with none.
+
+`constants/controls.ts` now holds `BAR_H`, `BAR_BOX`, `BAR_SELECT`,
+`BAR_INPUT`, `BAR_BTN` and its on/off states. Products, Selling Prices and the
+shared `DateRangeFilter` all import them — that last one is the neat
+illustration: it sits in BOTH bars and was stating the height itself, so it was
+one of the two sources of the disagreement.
+
+`lib/controls.test.ts` enumerates every `.ts`/`.tsx` under `app/` and
+`components/` and fails if one writes `h-11 sm:h-9` without importing the
+tokens, so a NEW screen cannot reintroduce it. It also asserts the on and off
+states share a border WIDTH — a chip that grows by 1px when clicked shoves its
+neighbours, which is how a row starts feeling loose.
+
+Added to `CLAUDE.md` as a standing rule.
+
+644 tests pass, four of them new; build clean.
+
+
 ### 2026-09-10 (latest) — "New" pins instead of filtering, and two layout fixes
 
 Owner: *"for 'New', I think the better way to display is when user clicks for

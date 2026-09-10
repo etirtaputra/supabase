@@ -265,10 +265,11 @@ test('the filter bar is two rows, and the three filters are counted chips', () =
   }
   // The Show dropdown they replaced.
   assert.ok(!/BarMenu width=\{256\}/.test(src), 'the Show dropdown is back');
-  // A phone needs a real tap target; the shared bar height gives the toolbar
-  // one and the chips carry their own.
-  assert.match(src, /const BAR_H\s*=\s*'h-11 sm:h-9'/, 'the toolbar lost its phone-sized tap target');
-  assert.match(src, /py-2 sm:py-1/, 'the chips lost their phone-sized tap target');
+  // Every control in the bar stands at the same height, chips included —
+  // the owner's standing rule, enforced in lib/controls.test.ts. The chips
+  // must dress from the shared button token rather than sizing themselves.
+  assert.match(src, /from '@\/constants\/controls'/, 'the bar no longer uses the shared tokens');
+  assert.match(src, /\$\{BAR_BTN\} gap-1\.5 pl-2\.5 pr-2/, 'the chip builds its own box again');
 });
 
 /**

@@ -38,6 +38,7 @@ import {
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 import { formatCategory } from '@/lib/formatCategory';
 import { useSettings } from '@/hooks/useSettings';
+import { BAR_SELECT, BAR_INPUT, BAR_BTN, BAR_BTN_OFF, BAR_BTN_ON, BAR_BTN_ON_SKY } from '@/constants/controls';
 
 interface Tier {
   tier_id: string; tier_code: string; name: string;
@@ -1139,13 +1140,12 @@ function Chip({ label, count, on, tone, onClick }: {
   const dead = count === 0 && !on;
   return (
     <button type="button" disabled={dead} onClick={onClick}
-      className={`inline-flex items-center gap-1.5 pl-2.5 pr-2 py-1 rounded-lg text-[11.5px] font-semibold border transition-colors ${
-        dead ? 'text-slate-600 border-slate-800 cursor-default'
-        : on ? (tone === 'issue' ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
-                                : 'bg-sky-500/15 text-sky-300 border-sky-500/40')
-        : 'text-slate-400 border-slate-700 hover:border-slate-600 hover:text-slate-200'}`}>
+      className={`${BAR_BTN} gap-1.5 pl-2.5 pr-2 ${
+        dead ? 'bg-slate-800/40 border-slate-800 text-slate-600 cursor-default'
+        : on ? (tone === 'issue' ? BAR_BTN_ON : BAR_BTN_ON_SKY)
+        : BAR_BTN_OFF}`}>
       {label}
-      <span className={`tabular-nums text-[10.5px] font-medium px-1 rounded ${
+      <span className={`tabular-nums text-[11px] font-semibold px-1 rounded ${
         dead ? 'text-slate-700' : on ? 'bg-black/25' : 'text-slate-500'}`}>{fmtInt(count)}</span>
     </button>
   );
@@ -1348,10 +1348,10 @@ function SetPricingTab({
       <div className="flex flex-wrap items-center gap-2">
         <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(200); }}
           placeholder="Search item, model or category…"
-          className="w-full sm:w-72 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-[13px] text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/40" />
+          className={`w-full sm:w-72 ${BAR_INPUT}`} />
         <select value={catFilter} onChange={(e) => { setCatFilter(e.target.value); setPage(200); }}
           title="Product category"
-          className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-[12.5px] text-slate-300 focus:outline-none focus:ring-1 focus:ring-emerald-500/40">
+          className={BAR_SELECT}>
           <option value="">All categories</option>
           {categories.map((c) => (
             <option key={c.value || 'none'} value={c.value || 'none'}>{c.label} ({c.count})</option>
@@ -1359,7 +1359,7 @@ function SetPricingTab({
         </select>
         <select value={profileFilter} onChange={(e) => { setProfileFilter(e.target.value); setPage(200); }}
           title="Margin profile — what the item is supposed to earn"
-          className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-2 text-[12.5px] text-slate-300 focus:outline-none focus:ring-1 focus:ring-emerald-500/40">
+          className={BAR_SELECT}>
           <option value="">All margin profiles</option>
           {[...profileById.values()].map((pr) => (
             <option key={pr.id} value={pr.id}>{pr.label} · {bandOf(pr)}</option>
@@ -1747,11 +1747,10 @@ function PriceHistoryTab({ log, compById, tiers }: {
       <div className="flex flex-wrap items-center gap-2">
         <input value={q} onChange={(e) => { setQ(e.target.value); setPage(100); }}
           placeholder="Search item, model or who changed it…"
-          className="w-full sm:w-80 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-[13px] text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/40" />
+          className={`w-full sm:w-80 ${BAR_INPUT}`} />
         <button type="button" onClick={() => { setOnly(only === 'out' ? '' : 'out'); setPage(100); }}
-          className={`px-2.5 py-1 rounded-lg text-[11.5px] font-semibold border transition-colors ${
-            only === 'out' ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
-                           : 'text-slate-400 border-slate-700 hover:border-slate-600 hover:text-slate-200'}`}>
+          className={`${BAR_BTN} px-2.5 ${
+            only === 'out' ? 'bg-amber-500/15 text-amber-300 border-amber-500/40' : BAR_BTN_OFF}`}>
           Landed outside target <span className="tabular-nums opacity-70">{fmtInt(outCount)}</span>
         </button>
         <span className="text-xs text-slate-500 tabular-nums">{fmtInt(rows.length)} changes</span>

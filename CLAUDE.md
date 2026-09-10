@@ -51,6 +51,22 @@ that changes any pack finishes the job:
    to paste into Telegram — what changed, what to re-read, what belief to drop.
    A pack nobody was told about is a pack nobody reads.
 
+## One control size (owner's standing rule, 2026-09-10)
+
+> *"It's important for me to use the same border size. always. to maintain
+> consistencies and uniformity."*
+
+Every control in a filter/toolbar row — input, select, menu button, mode
+toggle, filter chip, date range — dresses from **`constants/controls.ts`**
+(`BAR_H`, `BAR_BOX`, `BAR_SELECT`, `BAR_INPUT`, `BAR_BTN` + its states). One
+height (`h-11` phone / `h-9` desktop), one radius, one border.
+
+Never write those values into a screen. `lib/controls.test.ts` fails the build
+when a file outside `constants/controls.ts` states the bar height itself — that
+guard exists because the rule was already being followed on two screens
+separately, with different numbers, and the row that borrowed a control from
+one into the other ended up carrying both.
+
 ## Mission (why ICAPROC exists)
 
 ICAPROC is the company's bid to **own its own operating system** — a full ERP

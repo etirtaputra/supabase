@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-09-10T12:00:00Z',
+    title: 'Satu ukuran kontrol di semua bar filter',
+    details: [
+      'Semua kontrol di baris filter \u2014 kotak pencarian, dropdown, tombol menu, tombol mode, chip filter, rentang tanggal \u2014 sekarang setinggi dan seberbingkai sama. Di Daftar Produk maupun Selling Prices.',
+      'Aturannya sebenarnya sudah dipatuhi \u2014 dua kali, dengan angka berbeda. Toolbar Produk 36px karena filenya sendiri bilang begitu; chip Selling Prices 26px karena filenya bilang begitu. Masing-masing konsisten di layarnya sendiri, keduanya tidak sama, dan begitu chip dari satu layar dipakai di layar lain, satu baris jadi memuat dua tinggi sekaligus.',
+      'Sekarang satu tempat: `constants/controls.ts`. Ada tes yang menolak build kalau ada layar menulis ulang tingginya sendiri \u2014 supaya layar baru tidak mengulang hal yang sama.',
+    ],
+  },
+  {
     at: '2026-09-10T11:00:00Z',
     title: '\u201cNew\u201d di Daftar Produk sekarang menaikkan, bukan menyaring',
     details: [

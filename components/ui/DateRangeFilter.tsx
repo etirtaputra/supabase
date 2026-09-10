@@ -7,6 +7,7 @@ import {
 } from '@/lib/dateRange';
 import { fmtDay } from '@/lib/formatters';
 import { useT } from '@/hooks/useT';
+import { BAR_BTN, BAR_BTN_OFF } from '@/constants/controls';
 
 /**
  * The date filter every list shares: quick presets (this week / month /
@@ -149,9 +150,11 @@ export default function DateRangeFilter({
     <>
       <button ref={btnRef} onClick={() => setOpen((o) => !o)}
         title={`${label}: ${summary}`}
-        className={`flex items-center gap-1.5 text-xs h-11 sm:h-9 px-3 rounded-lg border whitespace-nowrap transition-colors ${
-          active ? tone : 'border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800'
-        }`}>
+        // The shared filter-bar button. This component sits in the Products
+        // and Selling Prices bars beside their selects and chips, so it wears
+        // the same box they do — it used to state the height itself, which is
+        // one of the two places the bar's heights came from.
+        className={`${BAR_BTN} gap-1.5 px-3 ${active ? tone : BAR_BTN_OFF}`}>
         <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
           <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
