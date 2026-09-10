@@ -122,6 +122,49 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
+### 2026-09-10 — the price arrow, and where a colour may carry an opinion
+
+Owner: *"i reverted the color when price goes up it should be red instead of
+green, because it is bad. But i made a mistake… at first i wanted to revert the
+color because when material price goes up, it means it's bad. But i now realize
+it's not intuitive."*
+
+**Up is green again, down is red** — Product Cost Lookup, Item Cost Forensics,
+and the category-trend ticker on Spend Overview.
+
+Worth recording WHY, because the reverted premise was correct. A rise in
+material cost is bad news. The conclusion still failed, and the reason is that
+a red ▲ makes the colour answer a different question from the arrow: the reader
+has to work out whether the colour is about the direction of the number or
+about somebody's opinion of it. **A colour can say direction unambiguously. It
+cannot carry two meanings.** Judgement still gets said — in the word beside the
+arrow ("rising"), in a warning, in a margin figure that reddens on its own
+terms. Words can hold a value judgement without making the reader guess.
+
+**The rule has now been flipped twice, and both times it was written out inline
+at every call site.** So "flip it" meant grepping for colour names and hoping
+the grep was complete. It is `lib/priceMovement.ts` now — `priceMovement()`,
+`PRICE_ARROW`, `PRICE_TONE`, `PRICE_INK`, `PRICE_WORD` — and
+`priceMovement.test.ts` reads all three screens and fails if any of them picks
+a direction colour or arrow for itself again. A third flip is one line.
+
+The Spend Overview ticker also gained a **0.5 % deadband** (it already had the
+thresholds, they were just written twice, once per block): an average that
+moved a fifth of a percent is not a category "rising".
+
+**Deliberately NOT changed, and this is the interesting boundary.** The
+cost-impact preview on a proposal (`app/proposals/[id]/page.tsx`) and the stock
+reconciliation variances look like price deltas and are not. "This cost update
+takes Rp 4.2 m out of THIS proposal" is a judgement about money now, and it
+sits in the same row as a gross-margin figure that goes red on its own terms —
+colouring the rise green there would put two contradictory colours on one line.
+A ticker reports; a variance judges. Only the reporting ones follow this rule,
+and the module says so, because a convention with no stated scope spreads by
+resemblance.
+
+623 tests pass, ten of them new; build clean.
+
+
 ### 2026-09-09 (latest) — system engine v9: six defaults that were applied in silence
 
 From MANDA, after PT Kayan Plantation (440 kWp hybrid PV + BESS): six sizing

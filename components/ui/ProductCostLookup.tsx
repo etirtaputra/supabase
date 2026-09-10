@@ -7,6 +7,7 @@ import type {
 import { PRINCIPAL_CATS, BANK_FEE_CATS, TAX_CATS, BALANCE_CATS } from '@/constants/costCategories';
 import { computeTUCMap } from '@/lib/computeTUC';
 import { fmtIdr, fmtNum } from '@/lib/formatters';
+import { priceMovement, PRICE_ARROW, PRICE_TONE } from '@/lib/priceMovement';
 
 const COST_LABELS: Record<string, string> = {
   down_payment: 'Down Payment', balance_payment: 'Balance Payment',
@@ -351,11 +352,14 @@ export default function ProductCostLookup({
                         <p className="text-sm font-semibold text-slate-200 tabular-nums">{fmtAmt(lq!.price, lq!.currency)}</p>
                         <div className="flex items-center gap-1.5 mt-0.5">
                           <span className="text-[10px] text-slate-600 whitespace-nowrap">{fmtDate(lq!.date)}</span>
-                          {priceDelta != null && (
-                            <span className={`text-[10px] font-semibold tabular-nums ${priceDelta > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                              {priceDelta > 0 ? '▲' : '▼'} {Math.abs(priceDelta).toFixed(1)}%
-                            </span>
-                          )}
+                          {priceDelta != null && (() => {
+                            const move = priceMovement(priceDelta);
+                            return (
+                              <span className={`text-[10px] font-semibold tabular-nums ${PRICE_TONE[move]}`}>
+                                {PRICE_ARROW[move]} {Math.abs(priceDelta).toFixed(1)}%
+                              </span>
+                            );
+                          })()}
                         </div>
                       </div>
                     ) : lpo ? (

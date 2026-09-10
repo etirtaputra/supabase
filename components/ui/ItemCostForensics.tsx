@@ -23,6 +23,7 @@ import type {
 import { PRINCIPAL_CATS, BANK_FEE_CATS, TAX_CATS, BALANCE_CATS } from '@/constants/costCategories';
 import { computeTUCMap, fxRateOf, fxAgeDays, FX_STALE_DAYS, type FxRate, type TUCResult } from '@/lib/computeTUC';
 import { fmtCcy, fmtDay, fmtIdr, fmtInt } from '@/lib/formatters';
+import { priceMovement, PRICE_ARROW, PRICE_TONE } from '@/lib/priceMovement';
 import DealLink from './DealLink';
 
 const COST_LABELS: Record<string, string> = {
@@ -233,12 +234,15 @@ export default function ItemCostForensics({
                 <p className="text-sm font-semibold text-slate-200 tabular-nums">{fmtCcy(lq!.price, lq!.currency)}</p>
                 <p className="text-[10px] text-slate-600 mt-0.5">
                   {fmtDay(lq!.date)} <span className="text-emerald-600/70 font-medium">Quote</span>
-                  {quoteDelta != null && (
-                    <span className={`ml-1.5 font-semibold tabular-nums ${quoteDelta > 0 ? 'text-rose-400' : 'text-emerald-400'}`}
-                      title="vs the previous supplier quote">
-                      {quoteDelta > 0 ? '▲' : '▼'} {Math.abs(quoteDelta).toFixed(1)}%
-                    </span>
-                  )}
+                  {quoteDelta != null && (() => {
+                    const move = priceMovement(quoteDelta);
+                    return (
+                      <span className={`ml-1.5 font-semibold tabular-nums ${PRICE_TONE[move]}`}
+                        title="vs the previous supplier quote">
+                        {PRICE_ARROW[move]} {Math.abs(quoteDelta).toFixed(1)}%
+                      </span>
+                    );
+                  })()}
                 </p>
               </div>
             ) : lpo ? (

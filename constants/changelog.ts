@@ -20,6 +20,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-09-10T04:00:00Z',
+    title: 'Panah harga: naik hijau, turun merah',
+    details: [
+      'Warnanya dikembalikan: harga NAIK sekarang hijau, TURUN merah \u2014 di Product Cost Lookup, Item Cost Forensics, dan ticker tren kategori di Spend Overview.',
+      'Sempat dibalik (naik = merah) dengan alasan yang benar: harga material naik itu kabar buruk. Tapi hasilnya justru bikin berhenti sejenak \u2014 pembaca harus menebak dulu warnanya bicara soal APA: arah angkanya, atau penilaian kita atas angka itu.',
+      '**Aturannya sekarang: warna menjelaskan PANAHNYA, bukan akibatnya.** Penilaian tetap disampaikan \u2014 lewat kata (\u201crising\u201d/\u201cfalling\u201d di ticker), lewat peringatan, lewat angka margin yang memerah atas alasannya sendiri. Kata bisa membawa penilaian tanpa bikin pembaca menebak. Warna tidak bisa membawa dua arti sekaligus.',
+      'Aturan ini sudah dua kali dibalik, dan dua kali itu ditulis ulang di setiap layar \u2014 jadi \u201cbalik lagi\u201d berarti berburu pakai grep dan berharap tidak ada yang terlewat. Sekarang satu tempat (`lib/priceMovement.ts`) dengan tes yang membaca layar-layarnya dan gagal kalau ada yang menulis warnanya sendiri lagi.',
+      'Ticker Spend Overview juga dapat deadband 0,5%: rata-rata yang bergerak seperlima persen itu bukan kategori \u201crising\u201d, itu cuma riak angka.',
+      'TIDAK ikut berubah: panel dampak biaya di Proposal dan selisih rekonsiliasi stok. Itu bukan laporan pergerakan harga, itu penilaian atas uang sekarang \u2014 dan di baris yang sama ada angka margin yang memerah. Dua warna yang bertentangan dalam satu baris lebih buruk daripada konvensi mana pun.',
+    ],
+  },
+  {
     at: '2026-09-09T13:00:00Z',
     title: 'Design System v9: enam angka yang dulu diam sekarang bersuara',
     details: [

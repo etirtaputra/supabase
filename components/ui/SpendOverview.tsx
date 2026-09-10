@@ -5,6 +5,7 @@ import { PRINCIPAL_CATS } from '../../constants/costCategories';
 import type { Component, Supplier, PriceQuote, PurchaseOrder, PurchaseLineItem, POCost, PriceQuoteLineItem } from '../../types/database';
 import { fmtRupiah } from '../../lib/formatters';
 import FitText from './FitText';
+import { priceMovement, PRICE_ARROW, PRICE_INK, PRICE_WORD } from '../../lib/priceMovement';
 
 /**
  * The categorical chart colours, as THEME TOKENS rather than hex.
@@ -533,11 +534,12 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
           {/* Ticker tiles — inspired by market performance widget */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
             {categoryTrends.map((ct) => {
-              const isUp   = ct.hasData && ct.avgDeltaPct >  0.5;
-              const isDown = ct.hasData && ct.avgDeltaPct < -0.5;
+              // 0.5 % is the deadband: an average that moved a fifth of a
+              // percent is not a category "rising", it is arithmetic noise.
+              const move   = ct.hasData ? priceMovement(ct.avgDeltaPct, 0.5) : 'unknown';
               const color  = PALETTE[ct.colorIndex % PALETTE.length];
-              const deltaColor = ink(!ct.hasData ? '--c-slate-600' : isUp ? '--c-red-400' : isDown ? '--c-emerald-400' : '--c-slate-400');
-              const arrow  = isUp ? '↑' : isDown ? '↓' : '→';
+              const deltaColor = ink(PRICE_INK[move]);
+              const arrow  = PRICE_ARROW[move];
               const initials = ct.category.split(' ').map((w) => w[0] ?? '').join('').slice(0, 2).toUpperCase();
               return (
                 <div key={ct.category} className={`bg-slate-900/70 border border-slate-800 rounded-xl p-4 text-center hover:border-slate-700 transition-colors ${!ct.hasData ? 'opacity-35' : ''}`}>
@@ -551,7 +553,7 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
                       <p className="text-2xl font-bold tabular-nums leading-none" style={{ color: deltaColor }}>
                         {ct.avgDeltaPct > 0 ? '+' : ''}{ct.avgDeltaPct.toFixed(2)}%
                       </p>
-                      <p className="text-[11px] mt-1 font-medium" style={{ color: deltaColor }}>{arrow} {isUp ? 'rising' : isDown ? 'falling' : 'stable'}</p>
+                      <p className="text-[11px] mt-1 font-medium" style={{ color: deltaColor }}>{arrow} {PRICE_WORD[move]}</p>
                       <p className="text-[10px] text-slate-600 mt-1">{ct.count} item{ct.count !== 1 ? 's' : ''}</p>
                     </>
                   ) : (
@@ -568,11 +570,10 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
           {/* Detail cards — top 5 contributors per category */}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {categoryTrends.map((ct) => {
-              const isUp   = ct.hasData && ct.avgDeltaPct >  0.5;
-              const isDown = ct.hasData && ct.avgDeltaPct < -0.5;
+              const move   = ct.hasData ? priceMovement(ct.avgDeltaPct, 0.5) : 'unknown';
               const color  = PALETTE[ct.colorIndex % PALETTE.length];
-              const deltaColor = ink(!ct.hasData ? '--c-slate-600' : isUp ? '--c-red-400' : isDown ? '--c-emerald-400' : '--c-slate-400');
-              const headerBg   = !ct.hasData ? tint('--c-slate-600', 0.04) : isUp ? tint('--c-red-400', 0.07) : isDown ? tint('--c-emerald-400', 0.07) : tint('--c-slate-400', 0.04);
+              const deltaColor = ink(PRICE_INK[move]);
+              const headerBg   = tint(PRICE_INK[move], move === 'up' || move === 'down' ? 0.07 : 0.04);
               return (
                 <div key={ct.category} className={`bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden ${!ct.hasData ? 'opacity-35' : ''}`}>
                   {/* Card header */}
