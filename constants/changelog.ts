@@ -20,6 +20,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-09-10T09:00:00Z',
+    title: 'Daftar Produk: hanya deskripsi kita, filter dua baris, panel baris dirampingkan',
+    details: [
+      '**Daftar harga di panel baris dihapus.** Tier-1/2/3 sudah tampil di tabel; menampilkannya lagi saat baris dibuka cuma salinan kedua. Panelnya sekarang hanya berisi yang tidak muat di baris: garansi, datasheet, spesifikasi teknis, pesanan pelanggan terakhir, dan pengiriman terakhir. Angka \u201cdipesan pada order\u201d dan tautan Pusat Barang tetap ada \u2014 keduanya cuma ada di sana.',
+      '**Hanya deskripsi internal kita.** Baris mono abu-abu di bawah nama barang dulu menampilkan model dari supplier. Itu pola yang benar di layar pembelian dan salah di layar yang dipakai menawarkan ke pelanggan. Kalau deskripsi kita kosong, sekarang ditulis kosong \u2014 bukan diam-diam dipinjamkan tulisan supplier.',
+      '**Filter merek dihapus** \u2014 dropdown-nya membeberkan seluruh daftar merek supplier yang kita bawa ke siapa pun yang membukanya. Kolom dan pengurutan merek tetap ada dan tetap terkunci pada peran yang boleh melihatnya. Ketemu sekalian: di tampilan ponsel merek tadinya selalu ditampilkan, padahal di tabel laptop disembunyikan untuk peran yang sama. Sekarang satu aturan untuk keduanya.',
+      '**Bar filter jadi dua baris** (pola Selling Prices). Baris pertama cara mencari: pencarian, kategori, urutan, tampilan. Baris kedua isi daftarnya: mode kutipan teks, rentang tanggal, dan tiga centang.',
+      '**Priced / In stock / New jadi centang, bukan dropdown.** Di dalam dropdown, setelan bawaan \u201cPriced\u201d tidak kelihatan \u2014 dan setelan bawaan yang tidak kelihatan bikin daftar tersaring terbaca seperti seluruh katalog.',
+      '**\u201cNew\u201d = produk baru, bukan stok baru.** Dulu yang dipakai tanggal penerimaan TERAKHIR \u2014 itu restock. Sekarang yang dipakai penerimaan PERTAMA barang itu. Label biru \u201cNew stock\u201d dihapus: dia cuma mengulang angka di kolom sebelahnya, dan label yang mengulang bikin orang belajar mengabaikan dua-duanya. Stok baru sudah terlihat di angka Tersedia.',
+      '**Tulisan \u201cnet\u201d dan \u201c+5%\u201d di bawah judul kolom tier dihapus.** Itu aturan yang DISETEL, bukan janji atas baris yang sedang dibaca: harga khusus per barang menggantikan harga tier itu langsung, dan tier di atasnya menghitung dari harga khusus tersebut. Benar untuk kebanyakan baris dan diam-diam salah untuk baris yang sengaja diatur ulang.',
+      'Ponsel: satu chip per tier di kedua kerapatan (mode compact dulu hanya menampilkan harga net \u2014 jadi justru tampilan paling ringkas yang tidak bisa menjawab \u201cTier-2 bayar berapa?\u201d, padahal di ponsel itulah pertanyaannya), target sentuh chip 32px, kontrol filter 44px.',
+    ],
+  },
+  {
     at: '2026-09-10T06:00:00Z',
     title: 'Daftar Produk: tiga harga tier tampil langsung, garansi & datasheet pindah ke dalam baris',
     details: [

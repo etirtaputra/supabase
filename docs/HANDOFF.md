@@ -122,6 +122,63 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
+### 2026-09-10 (latest) — Products: what a sell-side screen may say
+
+Six owner changes plus two sent mid-build. The through-line in all of them is
+one idea: **this page is the sell side, and a screen should say what its own
+audience needs and nothing more.**
+
+**The price list left the row expansion.** *"Since the Tier 1, 2, 3 is already
+displayed upfront, there's no need to have PRICE LIST - tap to copy again."*
+Five props went with it — `activeTiers`, `tierPrice`, `onPrice`, `multi`,
+`pickedAt` — which is the measure of how much of that panel was a second copy
+of the row above it. What it alone carried stays: the reserved figure (it
+explains the gap between Live and Physical two columns left) and the Item Hub
+link. The panel is now warranty, datasheet, tech specs, last customer orders,
+last deliveries.
+
+**Our description, never the supplier's.** The dim mono sub-line carried
+`supplier_model`. `descOf` still falls back to it because the Item Editor has
+to name every row somehow; `sellDescOf` refuses the fallback, so a missing
+description reads as missing rather than borrowing the supplier's words. 0 of
+1,012 active items are in that state (checked), so it is a guard, not a display.
+
+**No brand filter** — *"this is sensitive information"*. The dropdown was the
+disclosure: it enumerated every supplier brand we carry to whoever opened it.
+The column and the sort stay, gated by `canViewBrand` as always; a column a
+buy-side user may already read is a different act. **Found while doing it:** the
+mobile card printed the brand unconditionally, so a sales login saw on a phone
+exactly what the table withheld on a laptop.
+
+**Two-row filter bar**, the Selling Prices pattern. Row one is how you find
+things; row two is what the list is showing. One wrapping row was tidy only
+until it wrapped — and it wrapped on every machine narrower than a 1920
+monitor, so the break landed wherever the viewport put it and the bar read
+differently on each person's screen. **The three filters became ticks**: inside
+the old Show dropdown the default (Priced, on out of the box) was invisible,
+and a default nobody can see is a filtered list passing for the whole catalogue.
+
+**"New" means a new PRODUCT.** *"New Stock will be reflected in the Live
+Stock."* The filter keyed on the LAST goods receipt, which is a restock; it
+keys on the first-ever receipt now. The sky "New stock" badge is gone — it
+repeated the number in the column beside it, and a badge that repeats its
+neighbour teaches people to read past both.
+
+**No "net" or "+5%" under the tier headings.** *"That might not be squarely
+true."* Correct, and worth writing down: a per-item override replaces a tier's
+price outright and every tier above chains from the override, so the step is
+the CONFIGURED rule, not a promise about the row being read. A label that is
+true of most rows and quietly false of the ones somebody deliberately repriced
+is worse than no label.
+
+**Mobile.** One chip per tier in both densities — compact mode used to show
+only the net, so the tightest view was the one that could not answer "what does
+a Tier-2 customer pay?", which on a phone is the entire question. Chip targets
+32px, toolbar controls 44px, category and sort share a row.
+
+638 tests pass, six of them new; build clean.
+
+
 ### 2026-09-10 (later) — the Product list shows what matters
 
 Owner: *"The list should display: Description | Stock | Incoming | Tier 1 |
