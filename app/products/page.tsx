@@ -1,8 +1,11 @@
 /**
  * ICAPROC — Sell-side: Products
  * The sell-side catalog, built for selling: price + stock first.
- *  - Columns: Description · Sell Price (tiered) · Stock (Live/Physical + unit) ·
- *    Incoming · Brand · Category · Capacity · Warranty · Datasheet · Updated.
+ *  - Columns: Description · Stock (Live/Physical + unit) · Incoming · one
+ *    column per active price tier · Brand · Category · Capacity · Updated.
+ *    Warranty and the datasheet live in the row expansion, not the table
+ *    (owner, 2026-09-10) — neither answers a question somebody scanning a
+ *    price list is asking, and both are editable where they now sit.
  *  - Default sort = trading activity (POs + supplier quotes + sales quotes);
  *    headers sort by price/stock/brand/category/capacity/updated asc/desc.
  *  - Row expand: full tier price list, warranty & datasheet (editable), last 10
@@ -46,7 +49,7 @@ import { formatCategory as humanize } from '@/lib/formatCategory';
 import { fmtDay, fmtDate, fmtInt, fmtRupiah } from '@/lib/formatters';
 import { INCOMING_PO_STATUSES, itemArrivals, itemArrivalDetails, type ItemArrival, type ArrivalDetail, type OpenPo, type ReceivedPo } from '@/lib/inTransit';
 import { useSettings } from '@/hooks/useSettings';
-import { PRODUCT_COLS } from '@/constants/productColumns';
+import { PRODUCT_COLS, LEGACY_PRODUCT_COLS } from '@/constants/productColumns';
 import QuoteBasket, { useQuoteBasket } from '@/components/ui/QuoteBasket';
 import SpecRenderer from '@/components/ui/SpecRenderer';
 import { buildPriceSnippet, copyOnly } from '@/lib/whatsappQuote';
@@ -109,8 +112,11 @@ const descOf = (c: { internal_description: string | null; supplier_model: string
 
 type SortKey = 'traded' | 'activity' | 'updated' | 'price' | 'stock' | 'incoming' | 'name' | 'brand' | 'category' | 'capacity' | 'warranty' | 'sheet';
 const SORT_LABELS: Record<SortKey, string> = {
-  traded: 'Most sold (period)', activity: 'Most traded', updated: 'Last updated', price: 'Sell price',
+  traded: 'Most sold (period)', activity: 'Most traded', updated: 'Last updated', price: 'Net price (Tier 1)',
   stock: 'Live stock', incoming: 'Incoming', name: 'Name', brand: 'Brand', category: 'Category',
+  // Warranty and Sheet left the table on 2026-09-10 but stayed here: sorting
+  // by "has a datasheet" is still a real question, and the answer is one click
+  // away in the row expansion.
   capacity: 'Capacity', warranty: 'Warranty', sheet: 'Has datasheet',
 };
 // Text columns default ascending; numeric/recency default descending.
@@ -208,7 +214,9 @@ function ProductsInner() {
   useEffect(() => {
     try {
       const raw = localStorage.getItem('products:hiddenCols');
-      if (raw) setUserHiddenCols(new Set((JSON.parse(raw) as string[]).filter((k) => PRODUCT_COLS.some((c) => c.key === k))));
+      if (raw) setUserHiddenCols(new Set((JSON.parse(raw) as string[])
+        .map((k) => (k in LEGACY_PRODUCT_COLS ? LEGACY_PRODUCT_COLS[k] : k))
+        .filter((k): k is string => !!k && PRODUCT_COLS.some((c) => c.key === k))));
     } catch {}
   }, []);
   const toggleCol = (key: string) => {
@@ -219,12 +227,21 @@ function ProductsInner() {
       return next;
     });
   };
-  const enforcedHidden = useMemo(() => new Set(settings.productHiddenColumns), [settings.productHiddenColumns]);
+  // An owner's stored hide is migrated, not dropped: "Sell Price" hidden used
+  // to mean "these people do not see prices", and letting the retired key fall
+  // on the floor would have turned prices back on for them silently.
+  const enforcedHidden = useMemo(() => {
+    const out = new Set<string>();
+    for (const k of settings.productHiddenColumns) {
+      const mapped = k in LEGACY_PRODUCT_COLS ? LEGACY_PRODUCT_COLS[k] : k;
+      if (mapped) out.add(mapped);
+    }
+    return out;
+  }, [settings.productHiddenColumns]);
   const colOffered = useCallback((k: string) =>
     !enforcedHidden.has(k) && (k !== 'brand' || (!!profile && ROLE_PERMISSIONS[profile.role].canViewBrand)),
     [enforcedHidden, profile]);
   const colShown = useCallback((k: string) => colOffered(k) && !userHiddenCols.has(k), [colOffered, userHiddenCols]);
-  const visibleColCount = 1 + PRODUCT_COLS.filter((c) => colShown(c.key)).length;
   // PO numbers are buy-side documents — a sales login gets the dates without them
   const canSeePo = !!profile && ROLE_PERMISSIONS[profile.role].buySide;
 
@@ -414,6 +431,29 @@ function ProductsInner() {
   useEffect(() => { if (canView) fetchAll(); }, [canView, fetchAll]);
 
   const activeTiers = useMemo(() => [...tiers].filter((tr) => tr.is_active).sort((a, b) => a.sort_order - b.sort_order), [tiers]);
+
+  /**
+   * The price columns: one per active tier — or, when the tier ladder is empty
+   * or switched off, a single "Sell price" column carrying the net.
+   *
+   * That fallback is not decoration. The tiers are DATA (`21.0_price_tiers`);
+   * deactivate them all and a table that renders "one column per tier" renders
+   * NO price at all, and a price list with no prices is a worse outcome than
+   * any tier arrangement. The net is always knowable, so there is always a
+   * column. `tier` is null on the fallback, which is what "this is the net,
+   * not a tier" means downstream.
+   */
+  const priceCols = useMemo(
+    () => (activeTiers.length ? activeTiers.map((tier) => ({ tier, label: tier.name }))
+                              : [{ tier: null as Tier | null, label: 'Sell price' }]),
+    [activeTiers]);
+
+  // `tiers` is one key and as many columns as there are price columns, so the
+  // colSpan of the expanded row has to count them rather than count the key.
+  const visibleColCount = useMemo(() =>
+    1 + PRODUCT_COLS.filter((c) => colShown(c.key))
+      .reduce((n, c) => n + (c.key === 'tiers' ? priceCols.length : 1), 0),
+    [colShown, priceCols]);
   const ovByKey = useMemo(() => { const m = new Map<string, Override>(); for (const o of overrides) m.set(`${o.component_id}:${o.tier_id}`, o); return m; }, [overrides]);
 
   // Markup chain: entered price = Tier-1 net; each next tier = prev ÷ (1−step%),
@@ -559,13 +599,26 @@ function ProductsInner() {
   } | null>(null);
 
   function exportCsv() {
-    // Exports the FILTERED list, sorted as shown; brand/model only for buy-side viewers
-    const headers = ['component_id', 'description', ...(canViewBrand ? ['model', 'brand'] : []), 'category', 'unit', 'capacity', 'selling_price_idr', 'warranty', 'live_stock', 'physical_stock', 'incoming'];
+    // Exports the FILTERED list, sorted as shown; brand/model only for buy-side viewers.
+    //
+    // The upper tiers travel too, now that the table shows them — an export is
+    // meant to be the list you were looking at. `selling_price_idr` keeps its
+    // name and its place because it is the IMPORT contract (the net is the only
+    // price anyone can write back; the rest are computed by the markup chain),
+    // and the tier columns are marked "calc" so nobody edits one expecting it
+    // to stick. Warranty stays: it left the table, not the row.
+    const upperTiers = activeTiers.slice(1);
+    const headers = ['component_id', 'description', ...(canViewBrand ? ['model', 'brand'] : []),
+      'category', 'unit', 'capacity', 'selling_price_idr',
+      ...upperTiers.map((tr) => `${tr.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}_calc`),
+      'warranty', 'live_stock', 'physical_stock', 'incoming'];
     const data = rows.map((r) => [
       r.c.component_id, descOf(r.c),
       ...(canViewBrand ? [r.c.supplier_model ?? '', r.c.brand ?? ''] : []),
       r.c.category ?? '', r.c.unit ?? '', r.c.norm_value ?? '',
-      r.c.selling_price_idr ?? '', warrantyLabel(r.c) ?? '',
+      r.c.selling_price_idr ?? '',
+      ...upperTiers.map((tr) => tierPrice(r.c, tr) ?? ''),
+      warrantyLabel(r.c) ?? '',
       r.live, r.phys, r.inc,
     ]);
     downloadCsv(`products-${new Date().toISOString().slice(0, 10)}`, headers, data);
@@ -803,12 +856,12 @@ function ProductsInner() {
 
         <p className="hidden md:block text-[11px] text-slate-600">
           Stock reads <span className="text-slate-400">{t('Live/Physical')}</span> — e.g. 100/150 means 150 in the warehouse, 100 still free to sell (50 reserved on confirmed orders).{' '}
-          <span className="text-slate-400">{t('Incoming')}</span> = on POs not yet fully received. Click a row for tier prices + last orders &amp; deliveries.
+          <span className="text-slate-400">{t('Incoming')}</span> = on POs not yet fully received. Click a price to copy it; click a row for warranty, datasheet and the last orders &amp; deliveries.
         </p>
 
         {/* ── Desktop table ── */}
         <div className="hidden md:block bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-x-auto">
-          <table className={`w-full min-w-[1000px] ${compact ? 'dense-rows' : ''}`}>
+          <table className={`w-full min-w-[1120px] ${compact ? 'dense-rows' : ''}`}>
             <thead>
               {/* bg-chrome on the ROW, not only the sticky cell — the sticky
                   Description header needs an opaque background to cover
@@ -826,14 +879,27 @@ function ProductsInner() {
                       <span className={`w-px h-4 transition-colors ${descW != null ? 'bg-emerald-500/50' : 'bg-slate-700'} group-hover/rsz:bg-emerald-400`} />
                     </span>
                   } />
-                {colShown('price') && <Th label="Sell Price" right active={sort.key === 'price'} dir={sort.dir} onClick={() => toggleSort('price')} />}
                 {colShown('stock') && <Th label="Stock" right active={sort.key === 'stock'} dir={sort.dir} onClick={() => toggleSort('stock')} hint="Live/Physical" />}
                 {colShown('incoming') && <Th label="Incoming" right active={sort.key === 'incoming'} dir={sort.dir} onClick={() => toggleSort('incoming')} />}
+                {/* One column per active tier. Only the FIRST sorts: the chain
+                    marks every tier up from the net, so ordering by Tier 3
+                    would produce the same order as ordering by Tier 1 while
+                    looking like it might not. */}
+                {colShown('tiers') && priceCols.map((pc, i) => (
+                  i === 0
+                    ? <Th key={pc.tier?.tier_id ?? 'net'} label={pc.label} right active={sort.key === 'price'} dir={sort.dir}
+                        onClick={() => toggleSort('price')} hint="net"
+                        tip="The price entered on the item — every other tier marks up from it" />
+                    : <th key={pc.tier!.tier_id} className="font-semibold py-2.5 align-top px-3 text-right">
+                        <span className="uppercase tracking-widest leading-none">{pc.label}</span>
+                        <span className="block normal-case tracking-normal text-[9px] text-slate-600 font-normal mt-1 leading-none">
+                          +{Number(pc.tier!.default_discount_pct) || 0}%
+                        </span>
+                      </th>
+                ))}
                 {colShown('brand') && <Th label="Brand" active={sort.key === 'brand'} dir={sort.dir} onClick={() => toggleSort('brand')} />}
                 {colShown('category') && <Th label="Category" active={sort.key === 'category'} dir={sort.dir} onClick={() => toggleSort('category')} />}
                 {colShown('capacity') && <Th label="Capacity" right active={sort.key === 'capacity'} dir={sort.dir} onClick={() => toggleSort('capacity')} />}
-                {colShown('warranty') && <Th label="Warranty" active={sort.key === 'warranty'} dir={sort.dir} onClick={() => toggleSort('warranty')} tip="Sort by period length — 10 years ranks above 18 months above 90 days" />}
-                {colShown('sheet') && <Th label="Sheet" center active={sort.key === 'sheet'} dir={sort.dir} onClick={() => toggleSort('sheet')} tip="Sort by whether the item has a datasheet" />}
                 {colShown('updated') && <Th label="Updated" right active={sort.key === 'updated'} dir={sort.dir} onClick={() => toggleSort('updated')} />}
               </tr>
             </thead>
@@ -876,43 +942,37 @@ function ProductsInner() {
                         )}
                       </span>
                     </td>
-                    {colShown('price') && <td className="px-3 py-2 text-right whitespace-nowrap">
-                      {r.c.selling_price_idr ? (
-                        <button onClick={(e) => { e.stopPropagation(); onPrice(r.c, r.c.selling_price_idr!); }}
-                          title={multi ? 'Click to add at this price' : 'Click to copy this price (excl. PPN) for WhatsApp'}
-                          className={`block ml-auto tabular-nums text-sm transition-colors ${
-                            pickedAt(r.c) ? 'text-emerald-300 font-semibold' : 'text-slate-200 hover:text-emerald-300'
-                          }`}>
-                          {pickedAt(r.c) && '✓ '}{fmtRupiah(r.c.selling_price_idr)}
-                        </button>
-                      ) : <span className="block tabular-nums text-sm text-slate-700">—</span>}
-                      {activeTiers.length > 0 && r.c.selling_price_idr ? (
-                        <span className="block text-[10px] text-slate-500 tabular-nums">{activeTiers.length} tier{activeTiers.length > 1 ? 's' : ''} ▾</span>
-                      ) : null}
-                    </td>}
                     {colShown('stock') && <td className="px-3 py-2 text-right whitespace-nowrap">
                       <StockCell live={r.live} phys={r.phys} unit={r.c.unit} />
                     </td>}
                     {colShown('incoming') && <td className="px-3 py-2 text-right tabular-nums text-sky-300/80">
                       {r.inc ? <IncomingCell qty={r.inc} unit={r.c.unit} details={etaDetails[r.c.component_id] ?? []} showPo={canSeePo} /> : <span className="text-slate-700">0</span>}
                     </td>}
+                    {colShown('tiers') && priceCols.map((pc, i) => {
+                      // Tier 1 IS the net price (lib/tierPricing), so the first
+                      // column carries exactly the number the old single Sell
+                      // Price column did — the swap loses nothing.
+                      const p = i === 0 ? r.c.selling_price_idr : tierPrice(r.c, pc.tier!);
+                      const key = i === 0 ? '' : pc.tier!.tier_id;
+                      const on = pickedAt(r.c, key);
+                      return (
+                        <td key={pc.tier?.tier_id ?? 'net'} className="px-3 py-2 text-right whitespace-nowrap">
+                          {p != null && p > 0 ? (
+                            <button onClick={(e) => { e.stopPropagation(); onPrice(r.c, p, i === 0 ? undefined : pc.label, key); }}
+                              title={multi ? tf('Click to add at {tier}', { tier: pc.label }) : tf('Click to copy the {tier} price (excl. PPN) for WhatsApp', { tier: pc.label })}
+                              className={`block ml-auto tabular-nums transition-colors ${i === 0 ? 'text-sm' : 'text-[13px]'} ${
+                                on ? 'text-emerald-300 font-semibold'
+                                   : i === 0 ? 'text-slate-200 hover:text-emerald-300' : 'text-slate-400 hover:text-emerald-300'
+                              }`}>
+                              {on && '✓ '}{fmtRupiah(p)}
+                            </button>
+                          ) : <span className="block tabular-nums text-sm text-slate-700">—</span>}
+                        </td>
+                      );
+                    })}
                     {colShown('brand') && <td className="px-3 py-2 text-xs text-slate-400 whitespace-nowrap">{r.c.brand || '—'}</td>}
                     {colShown('category') && <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{r.c.category ? humanize(r.c.category) : '—'}</td>}
                     {colShown('capacity') && <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400">{r.c.norm_value != null && Number(r.c.norm_value) !== 0 ? Number(r.c.norm_value).toLocaleString('en-US') : '—'}</td>}
-                    {colShown('warranty') && <td className="px-3 py-2 text-xs text-slate-400 whitespace-nowrap">
-                      {warrantyLabel(r.c) || <span className="text-slate-700">—</span>}
-                      {fmtWarranty(r.c.perf_warranty_value, r.c.perf_warranty_unit) && (
-                        <span className="text-slate-600" title={t('Performance warranty — PV output guarantee')}> · perf {fmtWarranty(r.c.perf_warranty_value, r.c.perf_warranty_unit)}</span>
-                      )}
-                    </td>}
-                    {colShown('sheet') && <td className="px-3 py-2 text-center">
-                      {r.c.datasheet_url ? (
-                        <a href={r.c.datasheet_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
-                          title={t('Open datasheet')} className="inline-flex text-sky-400 hover:text-sky-300 transition-colors">
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 010 5.656l-4 4a4 4 0 01-5.656-5.656l1.1-1.1m9.556-3.9l1.1-1.1a4 4 0 10-5.656-5.656l-4 4a4 4 0 000 5.656" /></svg>
-                        </a>
-                      ) : <span className="text-slate-700">—</span>}
-                    </td>}
                     {colShown('updated') && <td className="px-3 py-2 text-right text-[11px] text-slate-500 tabular-nums whitespace-nowrap">{fmtDay(r.c.updated_at)}</td>}
                   </tr>
                   {expanded === r.c.component_id && (

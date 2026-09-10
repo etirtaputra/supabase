@@ -20,6 +20,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-09-10T06:00:00Z',
+    title: 'Daftar Produk: tiga harga tier tampil langsung, garansi & datasheet pindah ke dalam baris',
+    details: [
+      'Kolomnya sekarang: Deskripsi | Stok | Incoming | Tier-1 | Tier-2 | Tier-3 | Kategori | Diperbarui.',
+      'Dulu ada satu kolom \u201cSell Price\u201d yang menampilkan harga net lalu menulis \u201c3 tiers \u25be\u201d \u2014 artinya jawaban atas \u201cpelanggan Tier-2 bayar berapa?\u201d selalu berjarak satu klik. Sekarang ketiganya kelihatan sekaligus, dan tiap harga tetap bisa diklik untuk disalin atau dimasukkan ke penawaran teks.',
+      'Tidak ada yang hilang dalam pertukaran ini: harga net ITU Tier-1 (`lib/tierPricing.ts`), jadi kolom pertama persis angka yang dulu ada di kolom Sell Price. Kolom Tier-2 dan Tier-3 menyebutkan langkah markup-nya (+5%) di bawah judulnya.',
+      '**Garansi dan Sheet keluar dari tabel, bukan dari barisnya.** Keduanya ada di panel yang terbuka saat baris diklik \u2014 di sana malah bisa diedit \u2014 dan keduanya masih bisa dipakai mengurutkan lewat menu Sort. Tidak satu pun dari keduanya menjawab pertanyaan yang sedang ditanyakan orang saat menelusuri daftar harga.',
+      'Kalau semua tier dinonaktifkan, tabel tetap menampilkan satu kolom \u201cSell price\u201d berisi net. Daftar harga tanpa harga adalah hasil yang lebih buruk daripada susunan tier mana pun.',
+      'Yang sudah pernah menyembunyikan \u201cSell Price\u201d di Settings \u203a Lists tetap tersembunyi \u2014 kuncinya dipetakan ke kolom tier yang baru, bukan dibuang. Kunci yang dibuang berarti harga menyala lagi diam-diam buat semua orang di hari rilis.',
+      'Ekspor CSV ikut membawa harga tier atas (ditandai `_calc`, karena yang bisa ditulis balik lewat impor hanya harga net).',
+    ],
+  },
+  {
     at: '2026-09-10T04:00:00Z',
     title: 'Panah harga: naik hijau, turun merah',
     details: [

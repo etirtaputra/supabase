@@ -122,6 +122,49 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
+### 2026-09-10 (later) — the Product list shows what matters
+
+Owner: *"The list should display: Description | Stock | Incoming | Tier 1 |
+Tier 2 | Tier 3 | Category | Updated. And keep the Warranty and Sheet inside
+the dropdown when users click. This way it shows what matters."*
+
+**One "Sell Price" column became one column per active tier.** The old column
+showed the net and then wrote "3 tiers ▾" underneath — so the answer to "what
+does a Tier-2 customer pay?" was permanently one click away, on a screen whose
+entire job is answering that. Three columns, each still click-to-copy and
+click-to-add-to-a-text-quote.
+
+**Nothing was lost in the swap, and the reason is a rule worth keeping in
+mind:** the net price IS Tier 1 (`lib/tierPricing.ts` — "the price entered on
+an item IS the NET price = Tier-1"), so the first tier column carries exactly
+the number the old column did. `productColumns.test.ts` asserts that sentence
+is still in `tierPricing.ts`; the day it stops being true, this table starts
+under-reporting and the test says so.
+
+**Warranty and Sheet left the TABLE, not the ROW.** Both are in the expansion,
+where they are also editable, and both are still sortable from the Sort menu —
+the question survived the column. The test asserts all three, because "moved"
+and "deleted" look identical in a diff that only removes lines.
+
+**Two things that would have gone wrong quietly:**
+
+- The tiers are DATA (`21.0_price_tiers`). Switch them all off and a table that
+  renders "one column per tier" renders no price at all. There is a fallback
+  column carrying the net, because a price list with no prices is worse than
+  any tier arrangement.
+- An owner who hid "Sell Price" in Settings › Lists meant *"these people do not
+  see prices"*. Dropping the retired `price` key would have turned prices back
+  on for them the day this shipped, silently. `LEGACY_PRODUCT_COLS` maps it to
+  `tiers`, and the test refuses a retired key that maps nowhere without saying
+  so.
+
+Also: the legend under the toolbar still said "click a row for tier prices",
+which had just stopped being true; the CSV export now carries the upper tiers
+too, marked `_calc` because only the net can be written back by import.
+
+632 tests pass, nine of them new; build clean.
+
+
 ### 2026-09-10 — the price arrow, and where a colour may carry an opinion
 
 Owner: *"i reverted the color when price goes up it should be red instead of
