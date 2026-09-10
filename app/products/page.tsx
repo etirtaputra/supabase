@@ -828,9 +828,17 @@ function ProductsInner() {
             </div>
             {/* The count sits BESIDE the field, not inside it (Selling Prices
                 pattern). Inside, `pr-24` took six of the field's twenty rems
-                and cut the placeholder off mid-word. */}
-            <span className="text-xs text-slate-500 tabular-nums whitespace-nowrap">
-              {rows.length === comps.length ? `${comps.length} items` : `${rows.length} of ${comps.length}`}
+                and cut the placeholder off mid-word.
+
+                NOT ON A PHONE, though — there it moves to the end of the chip
+                row below. 366px of usable width had to carry two selects and
+                the View button, and "117 of 1012" was taking 90 of them, which
+                is why the dropdowns read "All categ⌄" and "Last upd⌄". A label
+                clipped mid-word is worse than a number one line lower: the
+                number is still legible where it lands, and a control that
+                cannot say what it does is not a control. */}
+            <span className="hidden sm:inline text-xs text-slate-500 tabular-nums whitespace-nowrap">
+              {rows.length === comps.length ? tf('{n} items', { n: comps.length }) : tf('{n} of {total}', { n: rows.length, total: comps.length })}
             </span>
             <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}
               className={`${BAR_SELECT} flex-1 sm:flex-none min-w-0`}>
@@ -940,8 +948,12 @@ function ProductsInner() {
             {hasFilters && (
               // A text link, not a fifth bordered control (Selling Prices).
               <button onClick={() => { setSearch(''); setFilterCategory(''); setStockOnly(false); setNewFirst(false); setPricedOnly(true); }}
-                className="ml-1 text-[11px] text-slate-500 hover:text-slate-300 underline underline-offset-2">{t('Clear')}</button>
+                className="ml-1 text-xs sm:text-[11px] text-slate-500 hover:text-slate-300 underline underline-offset-2">{t('Clear')}</button>
             )}
+            {/* The result count, phone only — see the note in row one. */}
+            <span className="sm:hidden ml-auto text-xs text-slate-500 tabular-nums whitespace-nowrap">
+              {rows.length === comps.length ? tf('{n} items', { n: comps.length }) : tf('{n} of {total}', { n: rows.length, total: comps.length })}
+            </span>
           </div>
         </div>
 
@@ -1108,8 +1120,15 @@ function ProductsInner() {
                 <button onClick={() => setExpanded(open ? null : r.c.component_id)} className={`w-full text-left ${compact ? 'px-3 py-2' : 'px-3.5 py-3'}`}>
                   <div className="flex items-start gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm text-slate-100 font-medium truncate flex items-center gap-1.5">
-                        <span className="truncate">{sellDescOf(r.c)}</span>
+                      {/* TWO LINES on a phone, not one clipped one. A table
+                          column has to truncate — every row shares its width.
+                          A card does not: it is as tall as its content, and
+                          "ICA SOLAR ICA100-36M 100Wp Mono 900…" cut mid-spec
+                          is the one string on the screen a person actually
+                          needs to read. `line-clamp-2` keeps a runaway
+                          description from owning the card. */}
+                      <p className="text-sm text-slate-100 font-medium flex items-start gap-1.5">
+                        <span className="min-w-0 line-clamp-2 sm:truncate leading-snug">{sellDescOf(r.c)}</span>
                         <ArrivalTag days={newArrivalDays} a={arrivals[r.c.component_id]} />
                       </p>
                       {!compact && (
@@ -1117,7 +1136,7 @@ function ProductsInner() {
                         // column has always been gated on canViewBrand — so a
                         // sales login saw on a phone exactly what the table
                         // withheld on a laptop. One rule, both viewports.
-                        <p className="text-[11px] text-slate-500 truncate">
+                        <p className="text-xs sm:text-[11px] text-slate-500 truncate">
                           {[canViewBrand ? r.c.brand : '', r.c.category ? humanize(r.c.category) : '', r.c.norm_value ? Number(r.c.norm_value).toLocaleString('en-US') : ''].filter(Boolean).join(' · ') || '—'}
                         </p>
                       )}
@@ -1137,19 +1156,19 @@ function ProductsInner() {
                   </div>
                   {/* Highlights: stock (Live colored / Physical muted) + tap-to-copy prices */}
                   <div className={`flex flex-wrap items-center gap-1.5 ${compact ? 'mt-1.5' : 'mt-2'}`}>
-                    <span className="px-2 py-1 rounded-lg bg-slate-800/80 text-[11px] font-bold tabular-nums">
+                    <span className="px-2 py-1 rounded-lg bg-slate-800/80 text-xs sm:text-[11px] font-bold tabular-nums">
                       <span className={r.live > 0 ? 'text-emerald-300' : r.live < 0 ? 'text-red-300' : 'text-slate-500'}>{fmtInt(r.live)}</span>
                       <span className="text-slate-500">/{fmtInt(r.phys)}</span>
                       {r.c.unit && <span className="text-slate-600 font-normal"> {r.c.unit}</span>}
                     </span>
-                    {r.inc > 0 && <span className="px-2 py-1 rounded-lg bg-sky-500/10 text-sky-300 text-[11px] tabular-nums">+{fmtInt(r.inc)} incoming</span>}
+                    {r.inc > 0 && <span className="px-2 py-1 rounded-lg bg-sky-500/10 text-sky-300 text-xs sm:text-[11px] tabular-nums">+{fmtInt(r.inc)} {t('incoming')}</span>}
                     {r.eta?.nearest && (r.eta.overdue ? (
-                      <span className="px-2 py-1 rounded-lg bg-amber-500/15 text-amber-300 text-[11px] tabular-nums"
+                      <span className="px-2 py-1 rounded-lg bg-amber-500/15 text-amber-300 text-xs sm:text-[11px] tabular-nums"
                         title={`Expected ${fmtDate(r.eta.nearest)} · ${r.eta.source === 'lead' ? 'estimated from measured lead time' : 'supplier ETA'} · past due, not yet received`}>
                         ⚠ {Math.max(1, Math.round((Date.now() - Date.parse(`${r.eta.nearest}T00:00:00Z`)) / 86_400_000))}d late
                       </span>
                     ) : (
-                      <span className="px-2 py-1 rounded-lg bg-slate-800/60 text-slate-400 text-[11px]"
+                      <span className="px-2 py-1 rounded-lg bg-slate-800/60 text-slate-400 text-xs sm:text-[11px]"
                         title={r.eta.source === 'lead' ? 'Estimated from this supplier’s measured lead time' : 'Supplier ETA'}>
                         ETA {fmtDate(r.eta.nearest)}
                       </span>
@@ -1173,7 +1192,7 @@ function ProductsInner() {
                         <span key={pc.tier?.tier_id ?? 'net'} role="button" tabIndex={0}
                           onClick={(e) => { e.stopPropagation(); onPrice(r.c, p, i === 0 ? undefined : pc.label, key); }}
                           title={multi ? `Tap to add at ${pc.label}` : `Tap to copy the ${pc.label} price`}
-                          className={`px-2 py-1.5 rounded-lg text-[11px] tabular-nums transition-colors ${
+                          className={`px-2 py-1.5 rounded-lg text-xs sm:text-[11px] tabular-nums transition-colors ${
                             on ? 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40'
                                : i === 0 ? 'bg-slate-800 text-slate-200 active:text-emerald-300'
                                          : 'bg-slate-800/60 text-slate-400 active:text-emerald-300'
@@ -1365,7 +1384,7 @@ function FilterChip({ label, count, on, onClick, title, tone = 'emerald' }: {
         : on ? (tone === 'sky' ? BAR_BTN_ON_SKY : BAR_BTN_ON)
         : BAR_BTN_OFF}`}>
       {label}
-      <span className={`tabular-nums text-[11px] font-semibold px-1 rounded ${
+      <span className={`tabular-nums text-xs sm:text-[11px] font-semibold px-1 rounded ${
         dead ? 'text-slate-700' : on ? 'bg-black/25' : 'text-slate-500'}`}>{fmtInt(count)}</span>
     </button>
   );

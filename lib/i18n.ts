@@ -187,6 +187,7 @@ export const ID: Record<string, string> = {
   'At stake': 'Nilai tertahan',
   '{n} item': '{n} barang',
   '{n} items': '{n} barang',
+  '{n} of {total}': '{n} dari {total}',
   'Nothing is blocked — every confirmed order can ship, and no invoice or quotation is waiting on a chase.':
     'Tidak ada yang tertahan — semua pesanan yang dikonfirmasi bisa dikirim, dan tidak ada faktur atau penawaran yang menunggu ditagih.',
   '{n} order cannot ship': '{n} pesanan tidak bisa dikirim',
@@ -714,6 +715,8 @@ export const ID: Record<string, string> = {
   'Clear ×': 'Hapus ×',
   'Live/Physical': 'Tersedia/Fisik',
   'Incoming': 'Transit',
+  // Lower case, mid-sentence on the phone card: "+1.200 transit".
+  'incoming': 'transit',
   // The Products sort menu and the column headers it drives. They are one
   // vocabulary: translating "Nama ↑" in the menu while the header it sorts
   // still reads NAME is exactly the drift the phrase book exists to stop.

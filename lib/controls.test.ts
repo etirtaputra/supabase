@@ -100,3 +100,39 @@ test('the chips and the mode buttons are built from the same button token', () =
   const uses = (src.match(/\$\{BAR_BTN\}/g) ?? []).length;
   assert.ok(uses >= 3, `only ${uses} controls use BAR_BTN — a bar control is being drawn by hand`);
 });
+
+
+/**
+ * A bar input must be 16px on a phone, and this is the least taste-driven rule
+ * in the file.
+ *
+ * iOS Safari zooms the whole page when you focus an input under 16px, and it
+ * does not zoom back out. At 13px the Products search did that every time
+ * somebody searched on a phone: tap the box, the layout jumps, pinch to
+ * recover. `text-base` is exactly 16px.
+ *
+ * It is easy to undo by accident, because on a desktop browser — where anyone
+ * would be testing — 13px and 16px both look fine and 13 looks tidier.
+ */
+test('a bar input is 16px on a phone, so iOS does not zoom the page', () => {
+  assert.match(BAR_INPUT, /(^|\s)text-base(\s|$)/, 'the phone size is not 16px');
+  assert.match(BAR_INPUT, /sm:text-\[13px\]/, 'the desktop size is gone');
+  // The order matters: an unprefixed utility after a `sm:` one still loses to
+  // it at the breakpoint, but writing the base size second reads as an
+  // override and invites someone to "tidy" the wrong one away.
+  assert.ok(BAR_INPUT.indexOf('text-base') < BAR_INPUT.indexOf('sm:text-['),
+    'write the phone size first — it is the base, not the exception');
+});
+
+/**
+ * Selects and buttons step DOWN half a point at the breakpoint, not up: a
+ * phone is held further from the eye than a monitor sits.
+ */
+test('selects and buttons carry a phone size and a desktop size', () => {
+  for (const [name, token] of [['BAR_SELECT', BAR_SELECT], ['BAR_BTN', BAR_BTN]] as const) {
+    const phone = token.match(/(?:^|\s)text-\[(\d+(?:\.\d+)?)px\]/)?.[1];
+    const desk = token.match(/sm:text-\[(\d+(?:\.\d+)?)px\]/)?.[1];
+    assert.ok(phone && desk, `${name} does not state both sizes`);
+    assert.ok(Number(phone) > Number(desk), `${name} is not larger on a phone than on a monitor`);
+  }
+});

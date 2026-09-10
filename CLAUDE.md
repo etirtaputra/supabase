@@ -67,6 +67,13 @@ guard exists because the rule was already being followed on two screens
 separately, with different numbers, and the row that borrowed a control from
 one into the other ended up carrying both.
 
+Each token carries a phone size and a desktop size, and both are load-bearing:
+**a text input is 16px on a phone** (under 16, iOS Safari zooms the page on
+focus and does not zoom back), selects and buttons step down half a point at
+`sm`, and the 44px tap target becomes 36px. This is easy to undo by accident,
+because on the desktop browser you would be testing in, the wrong value looks
+tidier — so it is asserted.
+
 ## Mission (why ICAPROC exists)
 
 ICAPROC is the company's bid to **own its own operating system** — a full ERP

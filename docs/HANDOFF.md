@@ -122,6 +122,38 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
+### 2026-09-10 (latest) — Products type scale for phones
+
+Owner: *"im liking the layout and border size consistency now, but i need the
+font to be optimized for mobile."*
+
+**The search box is 16px on a phone, and that is the least taste-driven change
+in the set.** iOS Safari zooms the whole page when you focus an input under
+16px and does not zoom back out — so every search on a phone made the layout
+jump and left the user pinching to recover. At 13px this list did it every
+time. Asserted in `controls.test.ts`, because on a desktop browser (where
+anyone would be testing) 13px and 16px both look fine and 13 looks tidier.
+
+**"All categ⌄" and "Last upd⌄" were truncated for a findable reason:** 366px of
+usable width had to carry two selects and the View button, and the result count
+"117 of 1012" was taking 90 of them. On a phone the count now sits at the end
+of the chip row instead. A label clipped mid-word is worse than a number one
+line lower — the number is still legible where it lands, and a control that
+cannot say what it does is not a control.
+
+**Item names on the phone card wrap to two lines instead of truncating.** A
+table column has to truncate; every row shares its width. A card does not — it
+is as tall as its content, and the description is the one string on that screen
+somebody actually needs to read.
+
+Everything else steps up half a point on a phone and back down at `sm`: chip
+counts, tier prices, stock and ETA chips, the meta line. The reasoning is in
+`constants/controls.ts` — a phone is held further from the eye than a monitor
+sits, so the phone size is the base and the desktop size is the exception.
+
+648 tests pass, two of them new; build clean.
+
+
 ### 2026-09-10 (latest) — the Products sort menu and mode button speak Indonesian
 
 Owner: *"text quote mode and the sorting by asc desc order needs to be

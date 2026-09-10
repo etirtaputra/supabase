@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-09-10T14:00:00Z',
+    title: 'Daftar Produk: ukuran huruf ditata untuk layar ponsel',
+    details: [
+      'Kotak pencarian jadi 16px di ponsel. Ini bukan soal selera: di bawah 16px, Safari iOS otomatis memperbesar seluruh halaman begitu kolom disentuh, dan tidak mengembalikannya \u2014 jadi setiap kali orang mencari di HP, tampilannya melompat dan harus dicubit balik.',
+      'Dropdown \u201cSemua kategori\u201d dan \u201cTerakhir diperbarui\u201d tadinya terpotong jadi \u201cSemua kateg\u2026\u201d karena angka hasil (\u201c117 dari 1012\u201d) memakan lebar barisnya. Di ponsel angka itu sekarang pindah ke ujung baris chip di bawahnya. Label yang terpotong di tengah kata lebih buruk daripada angka yang turun satu baris.',
+      'Nama barang di kartu ponsel sekarang boleh dua baris, tidak dipotong. Kolom tabel memang harus memotong \u2014 semua baris berbagi lebar yang sama \u2014 tapi kartu tidak: tingginya mengikuti isinya, dan nama barang justru satu-satunya teks yang benar-benar perlu dibaca.',
+      'Ukuran huruf chip, harga tier, dan keterangan stok naik sedikit di ponsel, lalu kembali ke ukuran desktop di layar lebar.',
+    ],
+  },
+  {
     at: '2026-09-10T13:00:00Z',
     title: 'Daftar Produk: menu urutan, mode penawaran teks, dan judul kolom kini berbahasa Indonesia',
     details: [
