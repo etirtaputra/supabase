@@ -60,31 +60,32 @@ import { inRange, type DateRange } from '@/lib/dateRange';
 import { successorMap } from '@/lib/successors';
 import { WARRANTY_UNITS, fmtWarranty, warrantyLabel } from '@/lib/warranty';
 import { useT } from '@/hooks/useT';
-// "Just arrived" window: a goods receipt in the last N days makes stock NEW.
-// The item's FIRST-ever receipt inside the window = a brand-new product.
-// The length is Settings › Defaults, shared with the dashboard's New arrivals
-// panel — one definition of "new", not one per screen.
+// "New" means a NEW PRODUCT — something we have never carried before, whose
+// first-ever goods receipt landed inside the window. It does NOT mean fresh
+// stock of a thing we have always sold (owner, 2026-09-10: *"'New' is only for
+// New Product, not new Stock. New Stock will be reflected in the Live Stock"*).
+//
+// There used to be a second, sky-coloured "New stock" badge for a restock. It
+// was true and it was noise: the Live figure two columns over already says a
+// pallet landed, and a badge that repeats a number beside it teaches people to
+// read past both. A tag earns its place by saying something the row cannot.
+//
+// The window length is Settings › Defaults, shared with the dashboard's New
+// arrivals panel — one definition of "new", not one per screen.
 const arrivalCutoffIso = (days: number) => {
   const d = new Date(); d.setDate(d.getDate() - days);
   return d.toISOString().slice(0, 10);
 };
-/** 'new' = first stock ever, just landed · 'restock' = fresh stock of a known item. */
-function arrivalTagOf(a: { first: string; last: string } | undefined, days: number): 'new' | 'restock' | null {
-  const cutoff = arrivalCutoffIso(days);
-  if (!a || a.last < cutoff) return null;
-  return a.first >= cutoff ? 'new' : 'restock';
+/** Is this a product we have never carried until now? `first` is its first receipt EVER. */
+function isNewProduct(a: { first: string; last: string } | undefined, days: number): boolean {
+  return !!a && a.first >= arrivalCutoffIso(days);
 }
 function ArrivalTag({ a, days }: { a: { first: string; last: string } | undefined; days: number }) {
-  const tag = arrivalTagOf(a, days);
-  if (!tag) return null;
+  if (!isNewProduct(a, days)) return null;
   return (
-    <span
-      title={tag === 'new' ? `New product — first stock arrived ${a!.first}` : `New stock — arrived ${a!.last}`}
-      className={`flex-shrink-0 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wide ring-1 ${
-        tag === 'new'
-          ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/30'
-          : 'bg-sky-500/15 text-sky-300 ring-sky-500/30'}`}>
-      {tag === 'new' ? 'New' : 'New stock'}
+    <span title={`New product — first ever stock arrived ${a!.first}`}
+      className="flex-shrink-0 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wide ring-1 bg-emerald-500/15 text-emerald-300 ring-emerald-500/30">
+      New
     </span>
   );
 }
@@ -109,6 +110,23 @@ function SupersededTag({ succId, comps, canHub }: { succId?: string; comps: { co
 
 const descOf = (c: { internal_description: string | null; supplier_model: string }) =>
   (c.internal_description && c.internal_description.trim()) || c.supplier_model || '(no description)';
+
+/**
+ * What a SELL-SIDE screen may call an item: our own description, and nothing
+ * else (owner, 2026-09-10: *"the rule is that we only display Our Internal
+ * Description"*).
+ *
+ * `descOf` falls back to `supplier_model` because a buy-side screen has to
+ * name a row somehow, and on the Item Editor the supplier's model IS the
+ * useful name. Here that fallback is the leak: it puts the supplier's own
+ * wording on a page built for quoting customers, and it does it silently — the
+ * row looks named either way. So this one refuses the fallback and says the
+ * description is missing, which is a data gap somebody can fix rather than a
+ * disclosure nobody notices. (0 of 1,012 active items are in that state today,
+ * checked 2026-09-10, so this is a guard, not a display.)
+ */
+const sellDescOf = (c: { internal_description: string | null }) =>
+  (c.internal_description && c.internal_description.trim()) || '(no description — set one in Items)';
 
 type SortKey = 'traded' | 'activity' | 'updated' | 'price' | 'stock' | 'incoming' | 'name' | 'brand' | 'category' | 'capacity' | 'warranty' | 'sheet';
 const SORT_LABELS: Record<SortKey, string> = {
@@ -175,7 +193,6 @@ function ProductsInner() {
 
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
   const [filterCategory, setFilterCategory] = useState('');
-  const [filterBrand, setFilterBrand] = useState('');
   // Priced only is the DEFAULT view (owner, 2026-08-14): the sales list is for
   // quoting, and an item with no sell price cannot be quoted. Untick to see the
   // rest; "Clear ×" returns to the default (priced) view, not to everything.
@@ -187,7 +204,8 @@ function ProductsInner() {
   const [stockOnly, setStockOnly] = useState(false);
   const [justArrived, setJustArrived] = useState(arrivedDeepLink);
   // First/last goods-receipt date per item (30.0 ledger, GRN in-movements) —
-  // powers the "New" / "New stock" tags and the Just-arrived filter.
+  // powers the "New" product tag and the New filter. `first` is the item's
+  // first-ever goods receipt, which is the one that decides it.
   const [arrivals, setArrivals] = useState<Record<string, { first: string; last: string }>>({});
   const listDefaults = useListDefaults('products');
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'traded', dir: -1 });
@@ -464,7 +482,12 @@ function ProductsInner() {
   }, [ovByKey, activeTiers]);
 
   const categories = useMemo(() => [...new Set(comps.map((c) => c.category).filter(Boolean))].sort() as string[], [comps]);
-  const brands = useMemo(() => canViewBrand ? [...new Set(comps.map((c) => c.brand).filter(Boolean))].sort() as string[] : [], [comps, canViewBrand]);
+  // No brand FILTER (owner, 2026-09-10: "we don't need to filter by brand
+  // because this is sensitive information"). The dropdown was the disclosure —
+  // it enumerated every supplier brand we carry to anyone who opened it, which
+  // is a different act from letting a buy-side user sort a column they can
+  // already see. Search still matches on brand for roles that may see it: a
+  // match reveals nothing the searcher did not already type.
   // Sort keys available to this role — brand sort only when brands are visible.
   const sortKeys = useMemo(() => (Object.keys(SORT_LABELS) as SortKey[]).filter((k) => canViewBrand || k !== 'brand'), [canViewBrand]);
 
@@ -532,10 +555,11 @@ function ProductsInner() {
       })
       .filter(({ c, phys, inc }) => {
         if (filterCategory && c.category !== filterCategory) return false;
-        if (filterBrand && c.brand !== filterBrand) return false;
         if (pricedOnly && !(Number(c.selling_price_idr) > 0)) return false;
         if (stockOnly && phys <= 0 && inc <= 0) return false;
-        if (justArrived && (arrivals[c.component_id]?.last ?? '') < cutoff) return false;
+        // FIRST receipt, not the last: "New" is a new product, and a restock
+        // of a decade-old item is not one. (Owner, 2026-09-10.)
+        if (justArrived && (arrivals[c.component_id]?.first ?? '') < cutoff) return false;
         if (!q) return true;
         return [c.supplier_model, c.internal_description, c.brand, c.category, c.warranty].filter(Boolean).join(' ').toLowerCase().includes(q);
       });
@@ -564,14 +588,14 @@ function ProductsInner() {
         || (a.c.supplier_model || '').localeCompare(b.c.supplier_model || '');
     });
     return list;
-  }, [comps, physical, reserved, incoming, etaByComp, activityByComp, soldInRange, search, filterCategory, filterBrand, pricedOnly, stockOnly, justArrived, arrivals, sort]);
+  }, [comps, physical, reserved, incoming, etaByComp, activityByComp, soldInRange, search, filterCategory, pricedOnly, stockOnly, justArrived, arrivals, sort]);
 
   const toggleSort = (key: SortKey) => {
     listTouched.current = true;
     setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: DEFAULT_DIR[key] }));
   };
 
-  const hasFilters = !!(search.trim() || filterCategory || filterBrand || stockOnly || justArrived);
+  const hasFilters = !!(search.trim() || filterCategory || stockOnly || justArrived);
   // What the "Show" button says. Named, not counted: "Priced" is on by
   // default, and a default nobody can see is a narrowed list passing for the
   // whole catalogue. Short forms here — the menu carries the full wording.
@@ -736,127 +760,125 @@ function ProductsInner() {
       </div>
 
       <main className="max-w-[1600px] 2xl:max-w-[2120px] mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-5 space-y-4">
-        {/* Search + filters ─────────────────────────────────────────────
-            Thirteen controls in one wrapping row needed 1,724px to sit on a
-            line; a 1536 laptop gives the row 1,488px and a 1366 gives 1,318,
-            so it wrapped to two rows on every machine except a 1920 monitor
-            (measured 2026-08-27). Grouping the three tick-boxes under "Show"
-            and density + columns under "View" took it to eight controls.
-            The count later moved back OUT of the search field — see the span
-            below — which is re-measured in the comment there. */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Capped, not flex-1 (owner, 2026-08-31, house pattern from Selling
-              Prices): a search that grows with the monitor becomes a banner on
-              a wide screen while the filters bunch at the far right.
-              18rem, matching Selling Prices — the count moving out of the
-              field cost the row 95px, and 20rem left only 1px of slack at a
-              1366 laptop (measured: 1,317px of controls into 1,318px of row).
-              18rem brings it to 1,285px. */}
-          <div className="relative w-full sm:w-72 flex-shrink-0">
-            <svg className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={canViewBrand ? 'Search model, description, brand…' : 'Search description, category…'}
-              className={`w-full pl-10 pr-3 ${BAR_H} ${BAR_BOX} text-white text-[13px] placeholder:text-slate-500`} />
-          </div>
-          {/* The count sits BESIDE the field, not inside it (Selling Prices
-              pattern). Inside, `pr-24` took six of the field's twenty rems,
-              leaving 184px for a 295px placeholder — the row saved 95px and
-              spent it on a prompt cut off mid-word ("…description, b"). The
-              shortened placeholder is 229px and the field now offers 236px. */}
-          <span className="text-xs text-slate-500 tabular-nums whitespace-nowrap">
-            {rows.length === comps.length ? `${comps.length} items` : `${rows.length} of ${comps.length}`}
-          </span>
-          <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className={selCls}>
-            <option value="">{t('All categories')}</option>
-            {categories.map((c) => <option key={c} value={c}>{humanize(c)}</option>)}
-          </select>
-          {canViewBrand && (
-            <select value={filterBrand} onChange={(e) => setFilterBrand(e.target.value)} className={selCls}>
-              <option value="">{t('All brands')}</option>
-              {brands.map((b) => <option key={b} value={b}>{b}</option>)}
+        {/* Search + filters — TWO ROWS (owner, 2026-09-10, the Selling
+            Prices pattern).
+            ROW 1 is how you find things: search, category, sort, view.
+            ROW 2 is what the list is showing: the quote mode, the date range
+            it counts sales over, and the three ticks.
+
+            One wrapping row was tidy only until it wrapped, and it wrapped on
+            every machine narrower than a 1920 monitor — so the break landed
+            wherever the viewport put it, which meant the row read differently
+            on each person's screen. Two rows break in the same place for
+            everybody, and the split is by MEANING rather than by pixels.
+
+            The three ticks left the "Show" dropdown and became chips: a
+            default you cannot see is a filtered list passing for the whole
+            catalogue, and "Priced" is on out of the box. */}
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Capped, not flex-1 (owner, 2026-08-31, house pattern from
+                Selling Prices): a search that grows with the monitor becomes a
+                banner on a wide screen while the filters bunch at the far
+                right. Full width on a phone, where there is nothing to bunch. */}
+            <div className="relative w-full sm:w-72 flex-shrink-0">
+              <svg className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('Search description, model, category…')}
+                className={`w-full pl-10 pr-3 ${BAR_H} ${BAR_BOX} text-white text-[13px] placeholder:text-slate-500`} />
+            </div>
+            {/* The count sits BESIDE the field, not inside it (Selling Prices
+                pattern). Inside, `pr-24` took six of the field's twenty rems
+                and cut the placeholder off mid-word. */}
+            <span className="text-xs text-slate-500 tabular-nums whitespace-nowrap">
+              {rows.length === comps.length ? `${comps.length} items` : `${rows.length} of ${comps.length}`}
+            </span>
+            <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}
+              className={`${selCls} flex-1 sm:flex-none min-w-0`}>
+              <option value="">{t('All categories')}</option>
+              {categories.map((c) => <option key={c} value={c}>{humanize(c)}</option>)}
             </select>
-          )}
-          {/* Sort — the dropdown drives mobile; desktop headers also sort */}
-          <select value={`${sort.key}:${sort.dir}`} onChange={(e) => { const [k, d] = e.target.value.split(':'); setSort({ key: k as SortKey, dir: Number(d) as 1 | -1 }); }} className={selCls}>
-            {sortKeys.map((k) => (
-              <Fragment key={k}>
-                <option value={`${k}:${DEFAULT_DIR[k]}`}>{SORT_LABELS[k]} {DEFAULT_DIR[k] === -1 ? '↓' : '↑'}</option>
-                <option value={`${k}:${-DEFAULT_DIR[k]}`}>{SORT_LABELS[k]} {DEFAULT_DIR[k] === -1 ? '↑' : '↓'}</option>
-              </Fragment>
-            ))}
-          </select>
-          {/* Show — Priced, In stock and New under one control. The button
-              NAMES what is on rather than counting it: "Priced" is on by
-              default, and a default you cannot see is a filtered list passing
-              for the whole catalogue. Same reason the date button always
-              states its range. */}
-          <BarMenu width={256} active={showOn.length > 0}
-            title={t('Choose which items the list shows')}
-            label={showOn.length ? tf('Show · {list}', { list: showOn.join(', ') }) : t('Show')}>
-            <MenuCheck checked={pricedOnly} onChange={setPricedOnly} label={t('Priced')}
+            {/* Sort — the dropdown drives mobile; desktop headers also sort */}
+            <select value={`${sort.key}:${sort.dir}`} onChange={(e) => { const [k, d] = e.target.value.split(':'); setSort({ key: k as SortKey, dir: Number(d) as 1 | -1 }); }}
+              className={`${selCls} flex-1 sm:flex-none min-w-0`}>
+              {sortKeys.map((k) => (
+                <Fragment key={k}>
+                  <option value={`${k}:${DEFAULT_DIR[k]}`}>{SORT_LABELS[k]} {DEFAULT_DIR[k] === -1 ? '↓' : '↑'}</option>
+                  <option value={`${k}:${-DEFAULT_DIR[k]}`}>{SORT_LABELS[k]} {DEFAULT_DIR[k] === -1 ? '↑' : '↓'}</option>
+                </Fragment>
+              ))}
+            </select>
+            {/* View — how dense the list is, and which columns it shows. Owner-
+                hidden columns are not offered at all: a personal toggle can
+                never reveal what Settings › Lists hid. */}
+            <BarMenu width={208} title={t('List density and which columns the table shows')} label={t('View')}>
+              <p className="px-2 pb-1 text-[10px] uppercase tracking-widest text-slate-600">{t('Density')}</p>
+              {([['compact', t('Compact')], ['card', t('Card')]] as const).map(([v, lbl]) => (
+                <button key={v} onClick={() => setLayout(v)}
+                  className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${
+                    layout === v ? 'bg-emerald-500/15 text-emerald-300' : 'text-slate-300 hover:bg-white/5'
+                  }`}>
+                  <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+                    {v === 'compact'
+                      ? <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                      : <path strokeLinecap="round" strokeLinejoin="round" d="M4 5h16v6H4zM4 13h16v6H4z" />}
+                  </svg>
+                  {lbl}
+                </button>
+              ))}
+              <div className="hidden md:block">
+                <p className="px-2 pt-1.5 mt-1 border-t border-slate-800 text-[10px] uppercase tracking-widest text-slate-600">{t('Columns')}</p>
+                {PRODUCT_COLS.filter((c) => colOffered(c.key)).map((c) => (
+                  <label key={c.key} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer text-xs text-slate-300">
+                    <input type="checkbox" checked={!userHiddenCols.has(c.key)} onChange={() => toggleCol(c.key)}
+                      className="accent-emerald-500" />
+                    {c.label}
+                  </label>
+                ))}
+                {settings.productHiddenColumns.length > 0 && (
+                  <p className="px-2 pt-1.5 mt-1 border-t border-slate-800 text-[10px] text-slate-600">
+                    {settings.productHiddenColumns.length} column{settings.productHiddenColumns.length !== 1 ? 's' : ''} hidden for everyone in Settings › Lists.
+                  </p>
+                )}
+              </div>
+            </BarMenu>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* "Text quote", not "Quote" — this builds a WhatsApp MESSAGE, it
+                never creates a Sales Quotation document (owner, 2026-08-06). */}
+            <button onClick={() => setMulti((m) => !m)}
+              title={multi
+                ? 'Tapping a price adds the item to the WhatsApp text quote at that price. Tap again to remove, tap another tier to move it. This never creates a Sales Quotation document.'
+                : 'Collect several products into one WhatsApp text message — no Sales Quotation document is created'}
+              className={`${BAR_H} inline-flex items-center text-[12.5px] font-medium px-2.5 rounded-lg border transition-colors whitespace-nowrap ${
+                multi ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white hover:border-slate-600'
+              }`}>
+              {multi ? `Text quote mode · ${basket.items.length}` : 'Text quote mode'}
+            </button>
+            <DateRangeFilter value={range} onChange={(r) => { listTouched.current = true; setRange(r); }} label="Order date" />
+            {/* A tick that shows its own state. Inside a "Show" dropdown the
+                default — Priced, on out of the box — was invisible, so a
+                filtered list read as the whole catalogue until somebody opened
+                the menu to check. */}
+            <TickChip on={pricedOnly} onClick={() => setPricedOnly((v) => !v)} label={t('Priced')}
               title={t('Only items with a sell price set — the default view; untick to include unpriced items')} />
-            <MenuCheck checked={stockOnly} onChange={setStockOnly} label={t('In stock / incoming')} />
+            <TickChip on={stockOnly} onClick={() => setStockOnly((v) => !v)} label={t('In stock')}
+              title={t('On the shelf now, or on a purchase order not yet fully received')} />
             {/* "New", not "Just arrived" (owner, 2026-08-27). The window is
                 Settings › Defaults › newArrivalDays, the same one the
-                dashboard's New arrivals panel uses — the tooltip carries the
-                meaning the shorter label sheds. */}
-            <MenuCheck checked={justArrived} onChange={setJustArrived} accent="sky" label={t('New')}
-              title={tf('Items whose goods receipt landed in the last {days} days — new products and fresh stock', { days: newArrivalDays })} />
-          </BarMenu>
-          {hasFilters && (
-            <button onClick={() => { setSearch(''); setFilterCategory(''); setFilterBrand(''); setStockOnly(false); setJustArrived(false); setPricedOnly(true); }}
-              className={`${BAR_H} inline-flex items-center text-[12px] text-slate-500 hover:text-white px-2 transition-colors`}>{t('Clear ×')}</button>
-          )}
-          {/* "Text quote", not "Quote" — this builds a WhatsApp MESSAGE, it
-              never creates a Sales Quotation document (owner, 2026-08-06). */}
-          <button onClick={() => setMulti((m) => !m)}
-            title={multi
-              ? 'Tapping a price adds the item to the WhatsApp text quote at that price. Tap again to remove, tap another tier to move it. This never creates a Sales Quotation document.'
-              : 'Collect several products into one WhatsApp text message — no Sales Quotation document is created'}
-            className={`${BAR_H} inline-flex items-center text-[12.5px] font-medium px-2.5 rounded-lg border transition-colors whitespace-nowrap ${
-              multi ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white hover:border-slate-600'
-            }`}>
-            {multi ? `Text quote mode · ${basket.items.length}` : 'Text quote mode'}
-          </button>
-          <DateRangeFilter value={range} onChange={(r) => { listTouched.current = true; setRange(r); }} label="Order date" />
-          {/* View — how dense the list is, and which columns it shows. Owner-
-              hidden columns are not offered at all: a personal toggle can never
-              reveal what Settings › Lists hid. */}
-          <BarMenu width={208} title={t('List density and which columns the table shows')} label={t('View')}>
-            <p className="px-2 pb-1 text-[10px] uppercase tracking-widest text-slate-600">{t('Density')}</p>
-            {([['compact', t('Compact')], ['card', t('Card')]] as const).map(([v, lbl]) => (
-              <button key={v} onClick={() => setLayout(v)}
-                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${
-                  layout === v ? 'bg-emerald-500/15 text-emerald-300' : 'text-slate-300 hover:bg-white/5'
-                }`}>
-                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
-                  {v === 'compact'
-                    ? <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                    : <path strokeLinecap="round" strokeLinejoin="round" d="M4 5h16v6H4zM4 13h16v6H4z" />}
-                </svg>
-                {lbl}
-              </button>
-            ))}
-            <div className="hidden md:block">
-              <p className="px-2 pt-1.5 mt-1 border-t border-slate-800 text-[10px] uppercase tracking-widest text-slate-600">{t('Columns')}</p>
-              {PRODUCT_COLS.filter((c) => colOffered(c.key)).map((c) => (
-                <label key={c.key} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer text-xs text-slate-300">
-                  <input type="checkbox" checked={!userHiddenCols.has(c.key)} onChange={() => toggleCol(c.key)}
-                    className="accent-emerald-500" />
-                  {c.label}
-                </label>
-              ))}
-              {settings.productHiddenColumns.length > 0 && (
-                <p className="px-2 pt-1.5 mt-1 border-t border-slate-800 text-[10px] text-slate-600">
-                  {settings.productHiddenColumns.length} column{settings.productHiddenColumns.length !== 1 ? 's' : ''} hidden for everyone in Settings › Lists.
-                </p>
-              )}
-            </div>
-          </BarMenu>
+                dashboard's New arrivals panel uses. */}
+            <TickChip on={justArrived} onClick={() => setJustArrived((v) => !v)} label={t('New')} accent="sky"
+              title={tf('Products we had never carried until their first stock landed, in the last {days} days. Fresh stock of an item we already sell is not new — the Live figure says that.', { days: newArrivalDays })} />
+            {hasFilters && (
+              <button onClick={() => { setSearch(''); setFilterCategory(''); setStockOnly(false); setJustArrived(false); setPricedOnly(true); }}
+                className={`${BAR_H} inline-flex items-center text-[12px] text-slate-500 hover:text-white px-2 transition-colors`}>{t('Clear ×')}</button>
+            )}
+          </div>
         </div>
 
         <p className="hidden md:block text-[11px] text-slate-600">
           Stock reads <span className="text-slate-400">{t('Live/Physical')}</span> — e.g. 100/150 means 150 in the warehouse, 100 still free to sell (50 reserved on confirmed orders).{' '}
-          <span className="text-slate-400">{t('Incoming')}</span> = on POs not yet fully received. Click a price to copy it; click a row for warranty, datasheet and the last orders &amp; deliveries.
+          <span className="text-slate-400">{t('Incoming')}</span> = on POs not yet fully received. Click a price to copy it; click a row for warranty, datasheet, specs and the last orders &amp; deliveries.
         </p>
 
         {/* ── Desktop table ── */}
@@ -888,13 +910,21 @@ function ProductsInner() {
                 {colShown('tiers') && priceCols.map((pc, i) => (
                   i === 0
                     ? <Th key={pc.tier?.tier_id ?? 'net'} label={pc.label} right active={sort.key === 'price'} dir={sort.dir}
-                        onClick={() => toggleSort('price')} hint="net"
-                        tip="The price entered on the item — every other tier marks up from it" />
+                        onClick={() => toggleSort('price')}
+                        tip="The price entered on the item — every other tier chains up from it, unless that tier carries an override" />
                     : <th key={pc.tier!.tier_id} className="font-semibold py-2.5 align-top px-3 text-right">
+                        {/* No "+5%" under the name, and no "net" under Tier-1.
+                            Both were the CONFIGURED rule, and neither is a
+                            promise about the row you are looking at: a per-item
+                            override replaces a tier's price outright and every
+                            tier above it chains from the override instead. A
+                            column heading that is true of most rows and quietly
+                            false of the ones somebody deliberately repriced is
+                            worse than a heading that just names the tier.
+                            (Owner, 2026-09-10: "that might not be squarely
+                            true.") The rule itself still lives on Selling
+                            Prices, where it can be seen per item. */}
                         <span className="uppercase tracking-widest leading-none">{pc.label}</span>
-                        <span className="block normal-case tracking-normal text-[9px] text-slate-600 font-normal mt-1 leading-none">
-                          +{Number(pc.tier!.default_discount_pct) || 0}%
-                        </span>
                       </th>
                 ))}
                 {colShown('brand') && <Th label="Brand" active={sort.key === 'brand'} dir={sort.dir} onClick={() => toggleSort('brand')} />}
@@ -919,16 +949,16 @@ function ProductsInner() {
                             the row would otherwise overflow. Floor keeps mid
                             screens sane, ceiling stops an absurd column on 4K. */}
                         <span className="min-w-0">
+                          {/* Our description, alone. The dim mono line under
+                              it used to carry the SUPPLIER's model — the house
+                              identity pattern, right on a buy-side screen and
+                              wrong here: this page exists to quote customers,
+                              and the supplier's own wording has no business on
+                              it. It is still on the Item Editor and the Item
+                              Hub, where naming a row by what we bought is the
+                              point. (Owner, 2026-09-10.) */}
                           <span className={`block text-sm text-slate-100 font-medium truncate ${descW == null ? 'max-w-[clamp(20rem,42vw,64rem)]' : ''}`}
-                            style={descW != null ? { maxWidth: descW } : undefined}>{descOf(r.c)}</span>
-                          {/* The model under the name, dim and mono — the house
-                              identity pattern. Suppressed when the description
-                              IS the model (descOf falls back to it), so the row
-                              never says the same thing twice. */}
-                          {r.c.supplier_model && descOf(r.c) !== r.c.supplier_model && (
-                            <span className={`block text-[11px] font-mono text-slate-500 truncate ${descW == null ? 'max-w-[clamp(20rem,42vw,64rem)]' : ''}`}
-                              style={descW != null ? { maxWidth: descW } : undefined}>{r.c.supplier_model}</span>
-                          )}
+                            style={descW != null ? { maxWidth: descW } : undefined}>{sellDescOf(r.c)}</span>
                         </span>
                         <ArrivalTag days={newArrivalDays} a={arrivals[r.c.component_id]} />
                         <SupersededTag succId={successors.get(r.c.component_id)} comps={comps} canHub={canHub} />
@@ -978,10 +1008,9 @@ function ProductsInner() {
                   {expanded === r.c.component_id && (
                     <tr>
                       <td colSpan={visibleColCount} className="px-4 pb-4 pt-1 bg-slate-950/40">
-                        <ProductDetail row={r} activeTiers={activeTiers} tierPrice={tierPrice} canHub={canHub}
+                        <ProductDetail row={r} canHub={canHub}
                           orders={ordersByComp[r.c.component_id] ?? []} deliveries={deliveriesByComp[r.c.component_id] ?? []}
-                          canEditMeta={canEditMeta} onSaveMeta={(patch) => saveMeta(r.c.component_id, patch)}
-                          onPrice={onPrice} multi={multi} pickedAt={pickedAt} />
+                          canEditMeta={canEditMeta} onSaveMeta={(patch) => saveMeta(r.c.component_id, patch)} />
                       </td>
                     </tr>
                   )}
@@ -1008,12 +1037,16 @@ function ProductsInner() {
                   <div className="flex items-start gap-2">
                     <div className="min-w-0 flex-1">
                       <p className="text-sm text-slate-100 font-medium truncate flex items-center gap-1.5">
-                        <span className="truncate">{descOf(r.c)}</span>
+                        <span className="truncate">{sellDescOf(r.c)}</span>
                         <ArrivalTag days={newArrivalDays} a={arrivals[r.c.component_id]} />
                       </p>
                       {!compact && (
+                        // The brand was unconditional here while the desktop
+                        // column has always been gated on canViewBrand — so a
+                        // sales login saw on a phone exactly what the table
+                        // withheld on a laptop. One rule, both viewports.
                         <p className="text-[11px] text-slate-500 truncate">
-                          {[r.c.brand, r.c.category ? humanize(r.c.category) : '', r.c.norm_value ? Number(r.c.norm_value).toLocaleString('en-US') : ''].filter(Boolean).join(' · ') || '—'}
+                          {[canViewBrand ? r.c.brand : '', r.c.category ? humanize(r.c.category) : '', r.c.norm_value ? Number(r.c.norm_value).toLocaleString('en-US') : ''].filter(Boolean).join(' · ') || '—'}
                         </p>
                       )}
                     </div>
@@ -1049,40 +1082,43 @@ function ProductsInner() {
                         ETA {fmtDate(r.eta.nearest)}
                       </span>
                     ))}
-                    {r.c.selling_price_idr ? (
-                      <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); onPrice(r.c, r.c.selling_price_idr!); }}
-                        title={multi ? 'Tap to add at this price' : 'Tap to copy this price'}
-                        className={`px-2 py-1 rounded-lg text-[11px] font-semibold tabular-nums transition-colors ${
-                          pickedAt(r.c) ? 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40' : 'bg-slate-800 text-slate-200 active:text-emerald-300'
-                        }`}>
-                        {pickedAt(r.c) && '✓ '}{fmtRupiah(r.c.selling_price_idr)}
-                      </span>
-                    ) : null}
-                    {compact ? null : activeTiers.map((tier) => {
-                      const p = tierPrice(r.c, tier);
-                      return p != null ? (
-                        <span key={tier.tier_id} role="button" tabIndex={0}
-                          onClick={(e) => { e.stopPropagation(); onPrice(r.c, p, tier.name, tier.tier_id); }}
-                          title={multi ? `Tap to add at ${tier.name}` : `Tap to copy the ${tier.name} price`}
-                          className={`px-2 py-1 rounded-lg text-[11px] tabular-nums transition-colors ${
-                            pickedAt(r.c, tier.tier_id)
-                              ? 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40'
-                              : 'bg-slate-800/60 text-slate-400 active:text-emerald-300'
+                    {/* One chip per tier, in BOTH densities.
+                        There used to be a separate "net price" chip and then
+                        the tier chips beside it — which showed the same number
+                        twice, because the net IS Tier-1. Compact mode dropped
+                        the tiers and kept only the net, so the tight view was
+                        the one that could not answer "what does a Tier-2
+                        customer pay?". On a phone that is the whole question:
+                        a rep is standing in front of somebody.
+                        The chips are `py-1.5` so a thumb lands on 32px of
+                        target rather than 26px. */}
+                    {priceCols.map((pc, i) => {
+                      const p = i === 0 ? r.c.selling_price_idr : tierPrice(r.c, pc.tier!);
+                      if (p == null || p <= 0) return null;
+                      const key = i === 0 ? '' : pc.tier!.tier_id;
+                      const on = pickedAt(r.c, key);
+                      return (
+                        <span key={pc.tier?.tier_id ?? 'net'} role="button" tabIndex={0}
+                          onClick={(e) => { e.stopPropagation(); onPrice(r.c, p, i === 0 ? undefined : pc.label, key); }}
+                          title={multi ? `Tap to add at ${pc.label}` : `Tap to copy the ${pc.label} price`}
+                          className={`px-2 py-1.5 rounded-lg text-[11px] tabular-nums transition-colors ${
+                            on ? 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40'
+                               : i === 0 ? 'bg-slate-800 text-slate-200 active:text-emerald-300'
+                                         : 'bg-slate-800/60 text-slate-400 active:text-emerald-300'
                           }`}>
-                          {pickedAt(r.c, tier.tier_id) && '✓ '}{tier.name} <span className="text-slate-200 font-semibold">{fmtRupiah(p)}</span>
+                          {on && '✓ '}<span className="text-slate-500">{pc.label}</span>{' '}
+                          <span className={on ? 'font-semibold' : 'text-slate-200 font-semibold'}>{fmtRupiah(p)}</span>
                         </span>
-                      ) : null;
+                      );
                     })}
-                    {!compact && warrantyLabel(r.c) && <span className="px-2 py-1 rounded-lg bg-slate-800/60 text-[11px] text-slate-400">Warranty {warrantyLabel(r.c)}{fmtWarranty(r.c.perf_warranty_value, r.c.perf_warranty_unit) ? ` · perf ${fmtWarranty(r.c.perf_warranty_value, r.c.perf_warranty_unit)}` : ''}</span>}
                     <SupersededTag succId={successors.get(r.c.component_id)} comps={comps} canHub={canHub} />
                   </div>
                 </button>
                 {open && (
                   <div className="px-3.5 pb-3.5">
-                    <ProductDetail row={r} activeTiers={activeTiers} tierPrice={tierPrice} canHub={canHub}
+                    <ProductDetail row={r} canHub={canHub}
                       orders={ordersByComp[r.c.component_id] ?? []} deliveries={deliveriesByComp[r.c.component_id] ?? []}
-                      canEditMeta={canEditMeta} onSaveMeta={(patch) => saveMeta(r.c.component_id, patch)}
-                          onPrice={onPrice} multi={multi} pickedAt={pickedAt} />
+                      canEditMeta={canEditMeta} onSaveMeta={(patch) => saveMeta(r.c.component_id, patch)} />
                   </div>
                 )}
               </div>
@@ -1243,6 +1279,40 @@ const BAR_H   = 'h-11 sm:h-9';
 const BAR_BOX = 'bg-slate-800 border border-slate-700 rounded-lg outline-none focus:ring-1 focus:ring-emerald-500/40 transition-colors';
 const selCls  = `${BAR_H} px-2.5 ${BAR_BOX} text-slate-300 text-[12.5px] cursor-pointer`;
 
+/**
+ * A filter that shows its own state — a tick when it applies, nothing when it
+ * does not (owner, 2026-09-10: *"change the format to tick that applies"*).
+ *
+ * These three used to live inside a "Show" dropdown whose button listed what
+ * was on. That worked and still hid the thing that matters: PRICED IS ON BY
+ * DEFAULT, and a default nobody can see is a filtered list passing for the
+ * whole catalogue. A chip is the state, not a report of it.
+ *
+ * `h-11` on a phone, not `h-9`: 44px is the tap target that stops a thumb
+ * missing, and these are the controls a rep actually reaches for while
+ * standing in front of a customer.
+ */
+function TickChip({ on, onClick, label, title, accent = 'emerald' }: {
+  on: boolean; onClick: () => void; label: string; title?: string; accent?: 'emerald' | 'sky';
+}) {
+  const onCls = accent === 'sky'
+    ? 'bg-sky-500/15 border-sky-500/40 text-sky-300'
+    : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300';
+  return (
+    <button type="button" onClick={onClick} title={title} aria-pressed={on}
+      className={`${BAR_H} inline-flex items-center gap-1.5 px-2.5 rounded-lg border text-[12.5px] font-medium transition-colors whitespace-nowrap ${
+        on ? onCls : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white hover:border-slate-600'
+      }`}>
+      {/* The box is always drawn, so an unticked filter still reads as a
+          filter rather than as a label somebody put in the toolbar. */}
+      <span className={`w-3.5 h-3.5 rounded flex items-center justify-center border text-[9px] leading-none ${
+        on ? 'border-current' : 'border-slate-600'
+      }`}>{on ? '✓' : ''}</span>
+      {label}
+    </button>
+  );
+}
+
 function CenterSpinner() {
   return <div className="min-h-screen bg-chrome flex items-center justify-center"><div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" /></div>;
 }
@@ -1318,17 +1388,20 @@ function StockCell({ live, phys, unit }: { live: number; phys: number; unit: str
   );
 }
 
-function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEditMeta, onSaveMeta, onPrice, multi, pickedAt, canHub }: {
+/**
+ * What a row expands into: the things the table cannot show.
+ *
+ * It no longer takes the tiers or the price handlers. That is worth noticing
+ * rather than tidying past — five props went the moment the price list left,
+ * which is the measure of how much of this panel was a second copy of the
+ * row above it.
+ */
+function ProductDetail({ row, orders, deliveries, canEditMeta, onSaveMeta, canHub }: {
   row: Row;
-  activeTiers: Tier[];
-  tierPrice: (c: Comp, t: Tier) => number | null;
   orders: DocRef[];
   deliveries: DocRef[];
   canEditMeta: boolean;
   onSaveMeta: (patch: Partial<Pick<Comp, 'warranty' | 'datasheet_url' | 'warranty_value' | 'warranty_unit' | 'perf_warranty_value' | 'perf_warranty_unit'>>) => void;
-  onPrice: (c: Comp, price: number, tierName?: string, tierKey?: string) => void;
-  multi: boolean;
-  pickedAt: (c: Comp, tierKey?: string) => boolean;
   canHub: boolean;
 }) {
   const { t } = useT();
@@ -1363,49 +1436,38 @@ function ProductDetail({ row, activeTiers, tierPrice, orders, deliveries, canEdi
 
   return (
     <div className="space-y-3 pt-1">
-      {/* Tier price list — click any price to copy it (excl. PPN) for WhatsApp */}
-      <div className="flex flex-wrap gap-1.5 items-center">
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 mr-1 w-full sm:w-auto">
-          Price list · tap to {multi ? 'add at that price' : 'copy'}
-        </span>
-        {c.selling_price_idr ? (
-          <button onClick={() => onPrice(c, c.selling_price_idr!)}
-            title={multi ? 'Add at the net price' : 'Net price = Tier-1 · copy (excl. PPN) for WhatsApp'}
-            className={`px-2.5 py-1 rounded-lg border text-[11px] transition-colors ${
-              pickedAt(c) ? 'bg-emerald-500/15 border-emerald-500/40' : 'bg-slate-800/80 border-slate-700 hover:border-emerald-500/40'
-            }`}>
-            <span className="text-slate-500">{pickedAt(c) ? '✓ Net' : 'Net'}</span> <span className="tabular-nums text-slate-200 font-semibold">{fmtRupiah(c.selling_price_idr)}</span>
-          </button>
-        ) : (
-          <span className="text-[11px] text-slate-600 italic">{t('No net price —')} <Link href="/purchasing" className="text-emerald-400 hover:text-emerald-300">{t('set it in Catalog')}</Link></span>
-        )}
-        {activeTiers.map((tier) => {
-          const p = tierPrice(c, tier);
-          if (p == null) return (
-            <span key={tier.tier_id} className="px-2.5 py-1 rounded-lg bg-slate-800/60 border border-slate-700 text-[11px]">
-              <span className="text-slate-500">{tier.name}</span> <span className="text-slate-600">—</span>
+      {/* The price list USED TO BE HERE — net plus every tier, tap to copy.
+          It went the day the tiers became table columns (owner, 2026-09-10:
+          *"since the Tier 1, 2, 3 is already displayed upfront, there's no
+          need to have PRICE LIST - tap to copy again"*). The panel is now only
+          the things the row cannot show: warranty, datasheet, specs, and what
+          this item has actually done.
+
+          Two things the old block carried and nothing else did, so they stay:
+          the reserved figure (it explains the gap between Live and Physical
+          two columns to the left) and the way through to the Item Hub. */}
+      {(rsv > 0 || !c.selling_price_idr || canHub) && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          {!c.selling_price_idr && (
+            <span className="text-[11px] text-slate-500 italic">
+              {t('No net price —')} <Link href="/purchasing" className="text-emerald-400 hover:text-emerald-300">{t('set it in Catalog')}</Link>
             </span>
-          );
-          return (
-            <button key={tier.tier_id} onClick={() => onPrice(c, p, tier.name, tier.tier_id)}
-              title={multi ? `Add at ${tier.name}` : `Copy ${tier.name} price (excl. PPN) for WhatsApp`}
-              className={`px-2.5 py-1 rounded-lg border text-[11px] transition-colors ${
-                pickedAt(c, tier.tier_id) ? 'bg-emerald-500/15 border-emerald-500/40' : 'bg-slate-800/60 border-slate-700 hover:border-emerald-500/40'
-              }`}>
-              <span className="text-slate-500">{pickedAt(c, tier.tier_id) ? `✓ ${tier.name}` : tier.name}</span>{' '}
-              <span className="tabular-nums text-slate-200 font-semibold">{fmtRupiah(p)}</span>
-            </button>
-          );
-        })}
-        {rsv > 0 && <span className="text-[11px] text-amber-300/80 tabular-nums sm:ml-auto">Reserved on orders: {fmtInt(rsv)}</span>}
-        {canHub && (
-          <Link href={`/items/${c.component_id}`}
-            className={`text-[11px] text-slate-500 hover:text-emerald-300 transition-colors whitespace-nowrap ${rsv > 0 ? '' : 'sm:ml-auto'}`}
-            title={t('Everything about this item — buy, sell, stock, specs — on one page')}>
-            Item hub →
-          </Link>
-        )}
-      </div>
+          )}
+          {rsv > 0 && (
+            <span className="text-[11px] text-amber-300/80 tabular-nums"
+              title={t('Already committed on confirmed sales orders — the difference between the Live and Physical figures')}>
+              {t('Reserved on orders:')} {fmtInt(rsv)}
+            </span>
+          )}
+          {canHub && (
+            <Link href={`/items/${c.component_id}`}
+              className="text-[11px] text-slate-500 hover:text-emerald-300 transition-colors whitespace-nowrap sm:ml-auto"
+              title={t('Everything about this item — buy, sell, stock, specs — on one page')}>
+              Item hub →
+            </Link>
+          )}
+        </div>
+      )}
 
       {/* Warranty + datasheet */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

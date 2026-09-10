@@ -17,6 +17,11 @@
  * it shows what matters."*). Both are still on every row — in the expanded
  * panel, where they are editable — but neither answers a question a person
  * scanning a price list is asking. They remain sortable from the Sort menu.
+ *
+ * `brand` stays offered and stays gated by `canViewBrand`. The brand FILTER
+ * was removed the same day as sensitive — but a dropdown that enumerates every
+ * supplier brand we carry and a column a buy-side user may already read are
+ * different acts, and only the first one discloses anything.
  */
 export const PRODUCT_COLS = [
   { key: 'stock',    label: 'Stock' },

@@ -711,7 +711,6 @@ export const ID: Record<string, string> = {
   // "Item" is barang; a customer-facing price is harga jual; net price stays
   // "harga net", which is what the sales desk already says out loud.
   'All categories': 'Semua kategori',
-  'All brands': 'Semua merek',
   'Clear ×': 'Hapus ×',
   'Live/Physical': 'Tersedia/Fisik',
   'Incoming': 'Transit',
@@ -738,15 +737,23 @@ export const ID: Record<string, string> = {
     'Harga diatur di Purchasing › Items (Item Editor) — kolom Sell Price → Tiers',
   'Only items with a sell price set — the default view; untick to include unpriced items':
     'Hanya barang yang sudah ada harga jualnya — tampilan bawaan; hilangkan centang untuk memasukkan yang belum ada harganya',
-  // The Products filter bar's two dropdowns (2026-08-27).
+  // The Products filter bar. The "Show" dropdown became three tick chips on
+  // 2026-09-10 and the brand filter went with it (it enumerated every supplier
+  // brand we carry to whoever opened it).
   'Show': 'Tampilkan',
-  'Show · {list}': 'Tampilkan · {list}',
-  'Choose which items the list shows': 'Pilih barang mana yang ditampilkan daftar ini',
   'Priced': 'Ada harga',
   'In stock': 'Ada stok',
   'In stock / incoming': 'Ada stok / dalam perjalanan',
-  'Items whose goods receipt landed in the last {days} days — new products and fresh stock':
-    'Barang yang penerimaannya masuk dalam {days} hari terakhir — produk baru maupun stok baru datang',
+  'On the shelf now, or on a purchase order not yet fully received':
+    'Ada di gudang sekarang, atau sedang di PO yang belum diterima penuh',
+  // "New" = a product we have never carried, not a restock. Fresh stock of a
+  // known item is already visible in the Live figure (owner, 2026-09-10).
+  'Products we had never carried until their first stock landed, in the last {days} days. Fresh stock of an item we already sell is not new — the Live figure says that.':
+    'Produk yang belum pernah kita bawa sampai stok pertamanya datang, dalam {days} hari terakhir. Stok baru dari barang yang sudah biasa kita jual bukan barang baru — itu sudah terlihat di angka Tersedia.',
+  'Search description, model, category…': 'Cari deskripsi, model, kategori…',
+  'Reserved on orders:': 'Dipesan pada order:',
+  'Already committed on confirmed sales orders — the difference between the Live and Physical figures':
+    'Sudah terikat pada pesanan penjualan yang dikonfirmasi — selisih antara angka Tersedia dan Fisik',
   'View': 'Tampilan',
   'List density and which columns the table shows': 'Kerapatan daftar dan kolom mana yang ditampilkan tabel',
   'Density': 'Kerapatan',

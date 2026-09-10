@@ -127,3 +127,124 @@ test('a catalogue with no active tiers still shows a price', () => {
   assert.match(page(), /activeTiers\.length\s*\?[\s\S]{0,200}?'Sell price'/,
     'no fallback column when the tier ladder is empty');
 });
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The sell-side disclosure rules, 2026-09-10.
+//
+// Three of these are one-line changes that a later edit could undo without
+// anybody noticing, because in every case the WRONG version looks perfectly
+// reasonable on screen: a supplier model reads like a helpful subtitle, a
+// brand reads like useful metadata, a "New stock" badge reads like news.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Owner: *"the rule is that we only display Our Internal Description."*
+ *
+ * `descOf` falls back to `supplier_model` when we have no description of our
+ * own — right on the Item Editor, where naming a row by what we bought is the
+ * point, and a disclosure here. `sellDescOf` refuses the fallback, so a
+ * missing description shows as missing instead of borrowing the supplier's
+ * words.
+ */
+test('the product list names items by OUR description, never the supplier model', () => {
+  const src = page();
+  assert.ok(src.includes('const sellDescOf'), 'the sell-side name helper is gone');
+  // The row and the mobile card must both use it.
+  assert.ok(src.includes('{sellDescOf(r.c)}'), 'the table row no longer uses it');
+  assert.equal((src.match(/\{sellDescOf\(r\.c\)\}/g) ?? []).length, 2,
+    'both the desktop row and the mobile card must name the item our way');
+  // The dim mono sub-line that used to carry it.
+  assert.ok(!/supplier_model && descOf\(r\.c\)/.test(src),
+    'the supplier model is under the name again on a sell-side screen');
+});
+
+/**
+ * Owner: *"we don't need to filter by brand because this is sensitive
+ * information."* The FILTER was the disclosure — a dropdown that enumerated
+ * every supplier brand we carry to whoever opened it. Sorting and the column
+ * are a different act and stay gated by canViewBrand as they always were.
+ */
+test('there is no brand filter, and the mobile card stopped leaking the brand', () => {
+  const src = page();
+  assert.ok(!src.includes('filterBrand'), 'the brand filter is back');
+  assert.ok(!src.includes("t('All brands')"), 'the brand dropdown is back');
+  // The card's meta line was unconditional while the desktop column was gated,
+  // so a sales login saw on a phone exactly what the table withheld on a laptop.
+  assert.ok(!/\[r\.c\.brand,/.test(src), 'the mobile card prints the brand ungated again');
+  assert.ok(/canViewBrand \? r\.c\.brand/.test(src), 'the card must gate the brand like the column does');
+});
+
+/**
+ * Owner: *"'New' is only for New Product, not new Stock. New Stock will be
+ * reflected in the Live Stock."*
+ *
+ * The filter keys on the item's FIRST-ever goods receipt, not its latest, and
+ * the second "New stock" badge is gone. A badge that repeats the number in the
+ * column beside it teaches people to read past both.
+ */
+test('"New" means a product we have never carried, not a restock', () => {
+  const src = page();
+  assert.ok(src.includes('function isNewProduct'), 'the new-product test is gone');
+  assert.ok(/justArrived && \(arrivals\[c\.component_id\]\?\.first/.test(src),
+    'the New filter keys on the LAST receipt again — that is a restock, not a new product');
+  assert.ok(!src.includes("'New stock'"), 'the restock badge is back');
+  // The word survives in the comments that explain the rule, which is the
+  // point; what must not survive is a 'restock' VALUE anything can branch on.
+  assert.ok(!/'restock'/.test(src), "a 'restock' tag value is back");
+});
+
+/**
+ * Owner: *"since the Tier 1, 2, 3 is already displayed upfront, there's no
+ * need to have PRICE LIST - tap to copy again."*
+ *
+ * The expansion is now only what the row CANNOT show. The five props that went
+ * with the price list are the measure of how much of the panel was a second
+ * copy of the row above it.
+ */
+test('the expansion holds no second copy of the prices', () => {
+  const detail = page().slice(page().indexOf('function ProductDetail'));
+  assert.ok(!/Price list · tap to/.test(detail), 'the price list is back in the expansion');
+  assert.ok(!/tierPrice/.test(detail), 'the expansion computes tier prices again');
+  for (const gone of ['activeTiers', 'onPrice', 'pickedAt']) {
+    assert.ok(!detail.includes(`${gone}:`), `ProductDetail still takes ${gone}`);
+  }
+  // What it must still hold.
+  for (const kept of ['warrantyLabel', 'datasheet_url', 'Technical specifications', 'Last Customer Orders', 'Last Deliveries']) {
+    assert.ok(detail.includes(kept), `the expansion no longer shows ${kept}`);
+  }
+});
+
+/**
+ * Owner: *"under Tier-1, Tier-2, Tier-3 prices, we don't need to write 'net'
+ * '+5%', cause that might not be squarely true."*
+ *
+ * Exactly right, and the reason is worth keeping: a per-item override replaces
+ * a tier's price outright, and every tier above it chains from the override.
+ * So "+5%" is the CONFIGURED rule, not a promise about the row you are reading
+ * — true of most rows and quietly false of the ones somebody deliberately
+ * repriced, which is the worst kind of label.
+ */
+test('the tier headings name the tier and claim no arithmetic', () => {
+  const src = page();
+  assert.ok(!/\+\{Number\(pc\.tier!\.default_discount_pct\)/.test(src),
+    'the header states a markup step it cannot promise for every row');
+  assert.ok(!/onClick=\{\(\) => toggleSort\('price'\)\} hint="net"/.test(src),
+    '"net" is back under the first tier heading');
+});
+
+/**
+ * Owner: *"the filter options need to be two rows like in Selling Prices…
+ * change the format to tick that applies."*
+ */
+test('the filter bar is two rows, and the three filters are ticks', () => {
+  const src = page();
+  assert.ok(src.includes('function TickChip'), 'the tick chips are gone');
+  for (const n of ['pricedOnly', 'stockOnly', 'justArrived']) {
+    assert.ok(new RegExp(`TickChip on=\\{${n}\\}`).test(src), `${n} is not a tick`);
+  }
+  // The Show dropdown they replaced.
+  assert.ok(!/BarMenu width=\{256\}/.test(src), 'the Show dropdown is back');
+  // A phone needs a 44px target; the shared bar height gives it.
+  assert.match(src, /const BAR_H\s*=\s*'h-11 sm:h-9'/, 'the toolbar lost its phone-sized tap target');
+});
