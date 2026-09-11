@@ -225,3 +225,37 @@ test('the price suggestion shows on unpriced rows, not only out-of-band ones', (
   assert.ok(!/standingNow === 'within'/.test(gate[1]),
     'a correctly priced row must not be prompted — that is noise, not help');
 });
+
+/**
+ * The suggestion must LOOK clickable.
+ *
+ * It was amber text with a dotted underline — which is what this app uses for a
+ * tooltip hint, so the one affordance that said "clickable" was already spoken
+ * for, and the owner asked how to click a thing that had been a button all
+ * along. It is a pill now, and the label says what it sets.
+ *
+ * The second half of that question matters more: Tier-2 and Tier-3 are NEVER
+ * typed. `computeTierChain(netNow, …)` derives them from the net, so one click
+ * fills the row. That was already true and nothing on the row said so.
+ */
+test('the price suggestion reads as a button and says the tiers follow', () => {
+  const src = pricingPage();
+  assert.ok(!/text-amber-300\/80 hover:text-amber-200 underline underline-offset-2 decoration-dotted/.test(src),
+    'the suggestion is dotted-underline text again — that is this app\'s tooltip hint, not a button');
+  assert.match(src, /Set the net price to \$\{fmtRupiah\(range\.min\)\}/, 'the tooltip no longer says what clicking does');
+  assert.match(src, /Tier-2 and Tier-3 recalculate from it; you never type those/,
+    'the row still does not say the upper tiers are derived');
+  assert.ok(src.includes('>Set net<'), 'the suggestion lost the label that names the action');
+});
+
+/**
+ * And the reason it can say that: the upper tiers are computed from the net
+ * that is being TYPED, not the one that is saved.
+ */
+test('the upper tiers derive from the draft net, so one click fills the row', () => {
+  const src = pricingPage();
+  assert.match(src, /const chainNow = computeTierChain\(netNow, tiers,/,
+    'the tier chain no longer recomputes from the edited net');
+  assert.match(src, /const netNow = draft\[netKey\] !== undefined \? num\(draft\[netKey\]\) : r\.c\.selling_price_idr/,
+    'the net preview no longer reads what is typed');
+});

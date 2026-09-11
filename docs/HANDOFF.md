@@ -122,6 +122,31 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
+### 2026-09-11 (later still) — a button that did not look like one
+
+Owner: *"how to click on the suggested price, so i dont have to retype the
+pre-suggested price in tier 2 and tier 3?"*
+
+**Both halves of that question had answers the screen was not giving.**
+
+The suggested numbers had been clickable all along. They were amber text with a
+dotted underline — and in this app a dotted underline means *"hover for a
+tooltip"*, so the one affordance that could have said "press me" was already
+spoken for. They are bordered pills now, labelled **Set net**.
+
+**And Tier-2 and Tier-3 never need typing at all.** `computeTierChain(netNow,
+…)` derives them from the net *as it is being typed*, so one click fills the
+whole row and Save commits it. That was already true and nothing on the row
+said so, which is exactly why it had to be asked. The tooltips say it now.
+
+The guard test caught a second instance of the same invisible styling — the
+"pinned · chain says" affordance on the upper tiers — which is the test earning
+its place on the day it was written. Two clickable numbers on one row must not
+be two different shapes.
+
+669 tests pass, two of them new; build clean.
+
+
 ### 2026-09-11 (later) — the suggestion that never reached the rows that needed it
 
 Owner: *"some have price suggestions some dont? For Landed Cost with complete

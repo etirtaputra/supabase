@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-09-11T08:00:00Z',
+    title: 'Saran harga sekarang terlihat seperti tombol \u2014 karena memang tombol',
+    details: [
+      'Angka saran harga sudah bisa diklik sejak dulu, tapi tampilannya cuma teks kuning bergaris putus-putus \u2014 padahal di aplikasi ini garis putus-putus artinya \u201cada keterangan kalau di-hover\u201d, bukan \u201ctekan saya\u201d. Jadi satu-satunya tanda yang berarti \u201cbisa diklik\u201d sudah dipakai untuk hal lain. Sekarang bentuknya pil berbingkai.',
+      'Labelnya juga menyebut aksinya: **Set net**. Dan keterangan hover-nya menjelaskan bagian yang paling penting: **Tier-2 dan Tier-3 tidak perlu diketik sama sekali.** Harga net menggerakkan rantai markup, jadi begitu net-nya diisi, Tier-2 dan Tier-3 langsung ikut terhitung. Satu klik mengisi seluruh baris; tinggal Simpan.',
+      'Tombol \u201cpinned \u00b7 chain says\u201d di Tier-2/Tier-3 dapat perlakuan sama \u2014 dua angka yang bisa diklik dalam satu baris tidak boleh punya dua bentuk berbeda.',
+    ],
+  },
+  {
     at: '2026-09-11T06:00:00Z',
     title: 'Saran harga kini muncul di barang yang belum berharga; label PO jadi TUC',
     details: [

@@ -1615,11 +1615,16 @@ function SetPricingTab({
                         {i > 0 && canManage && pinned && draft[netKey] !== undefined && computed != null
                           && Number(stored) !== computed && (
                           <p className="mt-1 flex items-center justify-end gap-1 text-[10px] whitespace-nowrap">
+                            {/* Same pill as the band suggestion below, for the
+                                same reason: this was dotted-underline text,
+                                which in this app means "there is a tooltip",
+                                not "press me". Two clickable numbers on one row
+                                must not be two different shapes either. */}
                             <span className="text-amber-400/70">pinned · chain says</span>
                             <button type="button"
-                              title="Clear the pin so this tier follows the markup chain again"
+                              title={`Unpin this tier and take ${fmtRupiah(computed)} from the markup chain instead`}
                               onClick={() => setDraft((d) => ({ ...d, [k]: '' }))}
-                              className="tabular-nums text-amber-300/80 hover:text-amber-200 underline underline-offset-2 decoration-dotted">
+                              className="tabular-nums px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/25 hover:text-amber-200 transition-colors">
                               {fmtInt(computed)}
                             </button>
                           </p>
@@ -1640,17 +1645,33 @@ function SetPricingTab({
                             it is a correct row, and a prompt on it is noise. */}
                         {i === 0 && canManage && range
                           && (standingNow === 'below' || standingNow === 'above' || !(Number(netNow) > 0)) && (
+                          /* THE NUMBERS ARE BUTTONS, and they did not look like
+                             it (owner, 2026-09-11: *"how to click on the
+                             suggested price, so i dont have to retype the
+                             pre-suggested price in tier 2 and tier 3?"*).
+                             They were amber text with a dotted underline —
+                             which is what this app uses for a tooltip hint, so
+                             the one affordance that meant "clickable" was
+                             already spoken for. They are pills now.
+
+                             And the answer to the second half is that you never
+                             touch Tier-2 or Tier-3: the net drives the markup
+                             chain, so setting it recomputes them. That was
+                             true before and nothing on the row said so, which
+                             is why it needed asking. Now the label does. */
                           <p className="mt-1 flex items-center justify-end gap-1 text-[10px] whitespace-nowrap">
-                            <span className="text-slate-600">→</span>
-                            <button type="button" title={`Bottom of the ${r.profile ? bandOf(r.profile) : ''} band`}
+                            <span className="text-slate-600">Set net</span>
+                            <button type="button"
+                              title={`Set the net price to ${fmtRupiah(range.min)} — the bottom of the ${r.profile ? bandOf(r.profile) : ''} band. Tier-2 and Tier-3 recalculate from it; you never type those.`}
                               onClick={() => setDraft((d) => ({ ...d, [k]: String(range.min) }))}
-                              className="tabular-nums text-amber-300/80 hover:text-amber-200 underline underline-offset-2 decoration-dotted">
+                              className="tabular-nums px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/25 hover:text-amber-200 transition-colors">
                               {fmtInt(range.min)}
                             </button>
                             <span className="text-slate-600">–</span>
-                            <button type="button" title={`Top of the ${r.profile ? bandOf(r.profile) : ''} band`}
+                            <button type="button"
+                              title={`Set the net price to ${fmtRupiah(range.max)} — the top of the ${r.profile ? bandOf(r.profile) : ''} band. Tier-2 and Tier-3 recalculate from it; you never type those.`}
                               onClick={() => setDraft((d) => ({ ...d, [k]: String(range.max) }))}
-                              className="tabular-nums text-amber-300/80 hover:text-amber-200 underline underline-offset-2 decoration-dotted">
+                              className="tabular-nums px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/25 hover:text-amber-200 transition-colors">
                               {fmtInt(range.max)}
                             </button>
                           </p>
