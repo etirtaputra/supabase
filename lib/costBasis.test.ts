@@ -114,6 +114,21 @@ test('every basis has a label and a note a person could act on', () => {
 });
 
 /**
+ * A PO-derived landed cost is badged TUC, not "PO" (owner, 2026-09-11).
+ *
+ * The app has called this number Total Unit Cost since the cost lookup shipped
+ * — it is TUC on Product Cost Lookup, TUC on the item hub, TUC in the
+ * purchasing runbook. Badging the same number "PO" on one screen gives it a
+ * second name, and two names for one number is how a reader starts wondering
+ * whether they are two numbers.
+ */
+test('a PO-derived landed cost is badged TUC, the name the rest of the app uses', () => {
+  assert.equal(BASIS_TAG.tuc, 'TUC');
+  assert.match(BASIS_LABEL.tuc, /TUC/);
+  assert.match(BASIS_NOTE.tuc, /paid in full/, 'the note must say the PO is settled, not merely raised');
+});
+
+/**
  * There must not be a second cost resolver.
  *
  * `getComponentCost` has resolved TUC → supplier quote, with FX conversion and
@@ -186,4 +201,27 @@ test('the floor audit separates proven breaches from quoted ones', () => {
   assert.match(src, /provisional: basis\.provisional/, 'a violation does not record its basis');
   // And it must say which direction the error runs.
   assert.match(src, /worse than shown, not better/, 'the audit caveat no longer states the direction of the bias');
+});
+
+
+/**
+ * A suggestion needs a cost and a profile — NOT a price.
+ *
+ * The range used to render only when the item was out of band, which requires
+ * a price to be out of band WITH. So the row where "here is what to charge" is
+ * most useful — the one with no price at all — was the row that got nothing,
+ * while `suggestRange` sat there able to answer from the cost and the profile
+ * alone. An in-band price still gets no suggestion: that is a correct row, and
+ * a prompt on it is noise.
+ */
+test('the price suggestion shows on unpriced rows, not only out-of-band ones', () => {
+  const src = pricingPage();
+  const gate = src.match(/i === 0 && canManage && range\s*\n?\s*&& \(([^)]*standingNow[^;]*?)\) && \(/);
+  assert.ok(gate, 'the suggestion gate has moved — re-check it still covers unpriced rows');
+  assert.match(gate[1], /!\(Number\(netNow\) > 0\)/,
+    'an item with a cost and a profile but no price still gets no suggestion');
+  assert.match(gate[1], /standingNow === 'below'/);
+  assert.match(gate[1], /standingNow === 'above'/);
+  assert.ok(!/standingNow === 'within'/.test(gate[1]),
+    'a correctly priced row must not be prompted — that is noise, not help');
 });

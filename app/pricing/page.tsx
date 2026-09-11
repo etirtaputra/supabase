@@ -1624,11 +1624,22 @@ function SetPricingTab({
                             </button>
                           </p>
                         )}
-                        {/* Out of band, and we know the cost: say what would put
-                            it back, at both ends, and let one click take it.
-                            Shown under the NET box because the net is the price
-                            the band is judged on. */}
-                        {i === 0 && canManage && range && (standingNow === 'below' || standingNow === 'above') && (
+                        {/* What to charge, at both ends of the band, one click
+                            each. Shown under the NET box because the net is the
+                            price the band is judged on.
+                            
+                            IT NOW SHOWS ON UNPRICED ROWS TOO (owner, 2026-09-11:
+                            *"some have price suggestions some dont?"*). It used
+                            to require the item to be OUT of band — which meant
+                            it needed a price to be out of band WITH, so the one
+                            row where "here is what to charge" is most useful,
+                            the row with no price at all, was the row that got
+                            nothing. `suggestRange` only ever needed a cost and a
+                            profile; both were sitting right there. An in-band
+                            price still gets no suggestion: that is not a gap,
+                            it is a correct row, and a prompt on it is noise. */}
+                        {i === 0 && canManage && range
+                          && (standingNow === 'below' || standingNow === 'above' || !(Number(netNow) > 0)) && (
                           <p className="mt-1 flex items-center justify-end gap-1 text-[10px] whitespace-nowrap">
                             <span className="text-slate-600">→</span>
                             <button type="button" title={`Bottom of the ${r.profile ? bandOf(r.profile) : ''} band`}

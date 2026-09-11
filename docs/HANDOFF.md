@@ -122,6 +122,36 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
+### 2026-09-11 (later) — the suggestion that never reached the rows that needed it
+
+Owner: *"some have price suggestions some dont? For Landed Cost with complete
+payment, don't put PO, but TUC like the previous time."*
+
+**The suggestion gate required the item to be OUT of band** — and being out of
+band requires a price to be out of band *with*. So the row where "here is what
+to charge" is most useful, the one with no price at all, was the row that got
+nothing. `suggestRange` only ever needed a cost and a margin profile, and both
+were sitting right there on those rows.
+
+This is the same shape as the "Within target" chip in this session and the
+`has_cost` scope before it: **the engine computes the answer and the screen
+throws it away.** Three times now, which is worth noticing as a pattern rather
+than a coincidence — the gate is usually written for the case the author had in
+mind, and the case they did not have in mind gets silence rather than an error.
+
+An in-band price still gets no suggestion. That is not a gap; it is a correct
+row, and a prompt on it is noise.
+
+**`PO` → `TUC`.** The app has called that number Total Unit Cost since the
+cost lookup shipped — TUC on Product Cost Lookup, TUC on the item hub, TUC in
+the purchasing runbook. Badging it "PO" on one screen gave one number a second
+name, and two names for one number is how a reader starts wondering whether
+they are two numbers. The note also now says *paid in full* rather than
+"settled", which is what the owner actually means by it.
+
+667 tests pass, two of them new; build clean.
+
+
 ### 2026-09-11 — Selling Prices gets a cost BASIS, not just a landed cost
 
 Owner: *"for setting Selling Prices, please also allow to reference not only

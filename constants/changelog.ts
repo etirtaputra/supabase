@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-09-11T06:00:00Z',
+    title: 'Saran harga kini muncul di barang yang belum berharga; label PO jadi TUC',
+    details: [
+      'Saran harga (\u2192 sekian \u2013 sekian, sekali klik) dulu hanya muncul kalau barangnya sudah punya harga DAN harga itu di luar band. Padahal untuk di luar band, harus ada harganya dulu \u2014 jadi justru baris yang paling butuh saran, yang belum ada harganya sama sekali, adalah baris yang tidak dapat apa-apa.',
+      '`suggestRange` sebenarnya cuma butuh biaya dan margin profile, dua-duanya sudah ada di baris itu. Sekarang saran muncul juga untuk barang yang belum berharga. Barang yang harganya sudah PAS di dalam band tetap tidak diberi saran \u2014 itu bukan celah, itu baris yang sudah benar, dan mengusiknya cuma jadi gangguan.',
+      'Label biaya dari PO yang sudah lunas diganti dari **PO** jadi **TUC** \u2014 nama yang dipakai aplikasi ini sejak Product Cost Lookup: Total Unit Cost. Satu angka dengan dua nama bikin pembacanya mulai menebak apakah itu dua angka berbeda.',
+    ],
+  },
+  {
     at: '2026-09-11T04:00:00Z',
     title: 'Selling Prices: kalau belum ada Landed Cost, pakai harga penawaran supplier',
     details: [

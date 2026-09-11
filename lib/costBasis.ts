@@ -24,10 +24,11 @@
  *   1. `landed` — the moving-average landed cost from the stock ledger
  *      (`30.1_stock_balances.avg_cost_idr`). Goods we received, at what they
  *      actually cost us to get here. The locked architectural decision.
- *   2. `tuc`    — total unit cost from a settled PO (`computeTUC`), line cost
- *      plus its share of freight, duty, PIB and bank charges. Also a real
- *      landed cost; it covers the item whose stock has since sold out, or
- *      whose ledger row has not caught up.
+ *   2. `tuc`    — TUC, the total unit cost from a fully-paid PO (`computeTUC`):
+ *      line cost plus its share of freight, duty, PIB and bank charges. Also a
+ *      real landed cost; it covers the item whose stock has since sold out, or
+ *      whose ledger row has not caught up. Badged TUC, the name this app has
+ *      used for the number since the cost lookup shipped.
  *   3. `quote`  — a supplier's quoted price, converted to IDR at the rate on
  *      the quote. What we have before we have ever bought the thing.
  *   4. `none`   — say so. Never guess.
@@ -103,7 +104,7 @@ export const isMeasured = (b: CostBasis): boolean => b === 'landed' || b === 'tu
 
 export const BASIS_LABEL: Record<CostBasis, string> = {
   landed: 'Landed cost',
-  tuc: 'Landed cost (from PO)',
+  tuc: 'Landed cost (TUC)',
   quote: 'Supplier quote',
   none: 'No cost',
 };
@@ -111,14 +112,17 @@ export const BASIS_LABEL: Record<CostBasis, string> = {
 /** The short form that fits in a table cell beside a number. */
 export const BASIS_TAG: Record<CostBasis, string> = {
   landed: '',          // the expected case earns no badge — only exceptions do
-  tuc: 'PO',
+  // TUC, not "PO" — the app has called this Total Unit Cost since the cost
+  // lookup shipped, and two names for one number is how a reader starts
+  // wondering whether they are two numbers. (Owner, 2026-09-11.)
+  tuc: 'TUC',
   quote: 'QUOTE',
   none: '',
 };
 
 export const BASIS_NOTE: Record<CostBasis, string> = {
   landed: 'Moving-average landed cost from the stock ledger — goods received, at what they cost to get here.',
-  tuc: 'Total unit cost from a settled purchase order: the line price plus its share of freight, duty, PIB and bank charges.',
+  tuc: 'TUC — total unit cost from a purchase order that has been paid in full: the line price plus its share of freight, duty, PIB and bank charges.',
   quote: 'A supplier’s quoted price. It excludes freight, duty and fees, so the margin shown against it is BETTER than the real one will be. Treat a floor cleared on this basis as unproven.',
   none: 'Nothing prices this item yet — no goods received, no settled PO, no supplier quote.',
 };
