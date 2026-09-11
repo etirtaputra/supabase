@@ -412,3 +412,8 @@ attribution is the point of the account, not a side effect.
    written from the shipping code downward and the code wins every
    disagreement; notes are written from experience upward and record your
    mistakes with the same confidence as your successes.
+9. **A number that is not in a table may still exist.** §3.1 is the case that
+   taught this: tier prices are computed, not stored, and "the table is empty"
+   was a true sentence that produced a false report. Before you call anything
+   missing, ask whether the app DERIVES it — and if it does, find the endpoint
+   that derives it for you rather than reading the parts and guessing the whole.
