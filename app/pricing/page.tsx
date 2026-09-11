@@ -1602,7 +1602,10 @@ function SetPricingTab({
                             return rounded === n ? d : { ...d, [k]: String(rounded) };
                           })}
                           placeholder={computed != null ? fmtInt(computed) : '—'}
-                          title={i === 0 ? "The item's own net price" : pinned ? 'Pinned — clear to go back to the markup chain' : 'From the markup chain — type to pin it'}
+                          title={i === 0 ? "The item's own net price — every tier above chains up from it"
+                            : pinned ? 'PINNED: a stored override on this tier. It does NOT follow the net any more — clear the box to put it back on the markup chain.'
+                            : stored != null ? 'A stored price for this tier.'
+                            : 'FAINT = nothing stored here. The number is computed from the net by the markup chain and follows it wherever it goes. Type to pin it, which stops it following.'}
                           className={`w-24 text-right tabular-nums bg-transparent rounded px-1.5 py-1 border focus:outline-none focus:ring-1 focus:ring-emerald-500/40 ${
                             draft[k] !== undefined ? 'border-amber-500/50 text-amber-200'
                             : pinned ? 'border-violet-500/40 text-violet-200'
@@ -1615,16 +1618,14 @@ function SetPricingTab({
                         {i > 0 && canManage && pinned && draft[netKey] !== undefined && computed != null
                           && Number(stored) !== computed && (
                           <p className="mt-1 flex items-center justify-end gap-1 text-[10px] whitespace-nowrap">
-                            {/* Same pill as the band suggestion below, for the
-                                same reason: this was dotted-underline text,
-                                which in this app means "there is a tooltip",
-                                not "press me". Two clickable numbers on one row
-                                must not be two different shapes either. */}
+                            {/* Same style as the band suggestion below — two
+                                clickable numbers on one row must not be two
+                                different shapes, whichever shape wins. */}
                             <span className="text-amber-400/70">pinned · chain says</span>
                             <button type="button"
                               title={`Unpin this tier and take ${fmtRupiah(computed)} from the markup chain instead`}
                               onClick={() => setDraft((d) => ({ ...d, [k]: '' }))}
-                              className="tabular-nums px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/25 hover:text-amber-200 transition-colors">
+                              className="tabular-nums text-amber-300/80 hover:text-amber-200 underline underline-offset-2 decoration-dotted">
                               {fmtInt(computed)}
                             </button>
                           </p>
@@ -1645,33 +1646,34 @@ function SetPricingTab({
                             it is a correct row, and a prompt on it is noise. */}
                         {i === 0 && canManage && range
                           && (standingNow === 'below' || standingNow === 'above' || !(Number(netNow) > 0)) && (
-                          /* THE NUMBERS ARE BUTTONS, and they did not look like
-                             it (owner, 2026-09-11: *"how to click on the
-                             suggested price, so i dont have to retype the
-                             pre-suggested price in tier 2 and tier 3?"*).
-                             They were amber text with a dotted underline —
-                             which is what this app uses for a tooltip hint, so
-                             the one affordance that meant "clickable" was
-                             already spoken for. They are pills now.
+                          /* THE OLD LOOK, kept (owner, 2026-09-11: *"for the
+                             suggestion, i prefer the older style"*). It was
+                             briefly a pair of pills, because the dotted
+                             underline reads as "hover for a tooltip" elsewhere
+                             in this app rather than "press me". He has now seen
+                             both and chosen; taste on his own screen is his
+                             call, and the quiet version does keep a dense grid
+                             calm.
 
-                             And the answer to the second half is that you never
-                             touch Tier-2 or Tier-3: the net drives the markup
-                             chain, so setting it recomputes them. That was
-                             true before and nothing on the row said so, which
-                             is why it needed asking. Now the label does. */
+                             WHAT STAYS from that attempt is the part that was
+                             never about looks: the tooltips now say that
+                             clicking SETS THE NET, and that Tier-2 and Tier-3
+                             recalculate from it so they are never typed. That
+                             was the actual question behind "how do I click
+                             this", and it costs nothing to answer on hover. */
                           <p className="mt-1 flex items-center justify-end gap-1 text-[10px] whitespace-nowrap">
-                            <span className="text-slate-600">Set net</span>
+                            <span className="text-slate-600">→</span>
                             <button type="button"
                               title={`Set the net price to ${fmtRupiah(range.min)} — the bottom of the ${r.profile ? bandOf(r.profile) : ''} band. Tier-2 and Tier-3 recalculate from it; you never type those.`}
                               onClick={() => setDraft((d) => ({ ...d, [k]: String(range.min) }))}
-                              className="tabular-nums px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/25 hover:text-amber-200 transition-colors">
+                              className="tabular-nums text-amber-300/80 hover:text-amber-200 underline underline-offset-2 decoration-dotted">
                               {fmtInt(range.min)}
                             </button>
                             <span className="text-slate-600">–</span>
                             <button type="button"
                               title={`Set the net price to ${fmtRupiah(range.max)} — the top of the ${r.profile ? bandOf(r.profile) : ''} band. Tier-2 and Tier-3 recalculate from it; you never type those.`}
                               onClick={() => setDraft((d) => ({ ...d, [k]: String(range.max) }))}
-                              className="tabular-nums px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/25 hover:text-amber-200 transition-colors">
+                              className="tabular-nums text-amber-300/80 hover:text-amber-200 underline underline-offset-2 decoration-dotted">
                               {fmtInt(range.max)}
                             </button>
                           </p>

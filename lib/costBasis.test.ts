@@ -227,25 +227,59 @@ test('the price suggestion shows on unpriced rows, not only out-of-band ones', (
 });
 
 /**
- * The suggestion must LOOK clickable.
+ * The suggestion's LOOK is the owner's call; what it SAYS is not.
  *
- * It was amber text with a dotted underline — which is what this app uses for a
- * tooltip hint, so the one affordance that said "clickable" was already spoken
- * for, and the owner asked how to click a thing that had been a button all
- * along. It is a pill now, and the label says what it sets.
+ * It was briefly a pair of bordered pills, because a dotted underline reads as
+ * "hover for a tooltip" elsewhere in this app rather than "press me". On a row
+ * that already carries three bordered input boxes, two more boxes underneath
+ * was box soup (owner, 2026-09-11: *"the box style is clashing too much"* and
+ * *"i prefer the older style"*). He has seen both and chosen; taste on his own
+ * screen is his.
  *
- * The second half of that question matters more: Tier-2 and Tier-3 are NEVER
- * typed. `computeTierChain(netNow, …)` derives them from the net, so one click
- * fills the row. That was already true and nothing on the row said so.
+ * So this test pins the part that was never about looks: the tooltip must say
+ * that clicking SETS THE NET, and that Tier-2 and Tier-3 follow from it. That
+ * was the real question behind "how do I click this", and it costs nothing to
+ * answer on hover.
  */
-test('the price suggestion reads as a button and says the tiers follow', () => {
+test('the price suggestion says what clicking does, and that the tiers follow', () => {
   const src = pricingPage();
-  assert.ok(!/text-amber-300\/80 hover:text-amber-200 underline underline-offset-2 decoration-dotted/.test(src),
-    'the suggestion is dotted-underline text again — that is this app\'s tooltip hint, not a button');
   assert.match(src, /Set the net price to \$\{fmtRupiah\(range\.min\)\}/, 'the tooltip no longer says what clicking does');
-  assert.match(src, /Tier-2 and Tier-3 recalculate from it; you never type those/,
-    'the row still does not say the upper tiers are derived');
-  assert.ok(src.includes('>Set net<'), 'the suggestion lost the label that names the action');
+  assert.match(src, /Set the net price to \$\{fmtRupiah\(range\.max\)\}/);
+  assert.equal((src.match(/Tier-2 and Tier-3 recalculate from it; you never type those/g) ?? []).length, 2,
+    'both ends of the suggestion must say the upper tiers are derived');
+});
+
+/**
+ * The two clickable numbers on a row must share ONE shape, whichever shape is
+ * in favour. The band suggestion and the "pinned · chain says" affordance sit
+ * inches apart and do the same kind of thing.
+ */
+test('every clickable price hint on a row wears the same style', () => {
+  const src = pricingPage();
+  const hint = /className="tabular-nums text-amber-300\/80 hover:text-amber-200 underline underline-offset-2 decoration-dotted"/g;
+  assert.equal((src.match(hint) ?? []).length, 3,
+    'the band suggestion (2) and the unpin hint (1) have drifted apart in style');
+});
+
+/**
+ * THE FAINT TIER BOX is the one that gets misread, so it has to explain itself.
+ *
+ * Owner, 2026-09-11: *"if it's feint color it just follow the suggested
+ * price?"* — the mechanism is right, the cause is one word off. Faint means
+ * NOTHING IS STORED: the number is the markup chain's, computed from the net,
+ * and it follows the net wherever it goes. It has nothing to do with the
+ * suggestion, which only ever sets the net. Typing into a faint box PINS it and
+ * it stops following — which is the consequence worth knowing, and the reason
+ * the four states each name themselves on hover now.
+ */
+test('each tier box explains its own state, especially the faint one', () => {
+  const src = pricingPage();
+  assert.match(src, /FAINT = nothing stored here/, 'the faint state does not say what it means');
+  assert.match(src, /computed from the net by the markup chain and follows it/,
+    'the faint state does not say the number is derived, not stored');
+  assert.match(src, /Type to pin it, which stops it following/,
+    'the faint state does not warn that typing pins it');
+  assert.match(src, /PINNED: a stored override on this tier/, 'the pinned state no longer names itself');
 });
 
 /**
