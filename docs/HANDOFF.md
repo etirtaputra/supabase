@@ -122,6 +122,54 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
+### 2026-09-11 (latest) — the tier prices no reader outside a browser could see
+
+Owner, forwarding an agent transcript: *"see even my ai agents cannot read the
+Tier 2 and Tier 3 prices because it is as if it's not there.. Why not just make
+it appear automatically instead of the faint colors?"*
+
+**It is not a display problem, and the faint colour is not the cause.** The
+agent had asked the database and been answered honestly:
+
+| What | Where | Stored? |
+|---|---|---|
+| Net = Tier-1 | `3.0_components.selling_price_idr` | YES |
+| A hand-pinned tier | `21.1_item_tier_prices.override_price_idr` | YES |
+| **Every other tier** | nowhere | **NO — computed in the browser** |
+
+`DEYE BOS-A-Pack7.68`: Tier-1 26,000,000, **zero rows in `21.1`**, and the
+screen shows Tier-2 27,369,000 / Tier-3 28,810,000. 203 items carry a net
+price; only 159 have any override row at all. So the agent was **right about
+the database and wrong about the business** — and so would a future website be,
+and so would any SQL anybody writes.
+
+**`GET /api/agent/prices`** runs the SAME `computeTierChain` the Selling Prices
+grid runs, server-side, and returns the ladder per item with each tier marked
+`net` / `override` / `chain`. It answers as the caller, and a role that may not
+see prices gets a 403 saying so rather than an empty list it would go on to
+describe as "unpriced".
+
+**Deliberately NOT a SQL view.** Materialising the chain in Postgres would give
+one rule two implementations, and they would part company the first time
+somebody changed a step percentage or the rounding step in Settings — silently,
+in a number a customer is quoted. It also loads settings per request, because
+otherwise the server rounds to the built-in 1,000 default and returns prices a
+few hundred rupiah off the screen, which is the worst kind of wrong: it looks
+right.
+
+The schema pack is **v6** with a new §3.1 devoted to this, and the sentence is
+also in `AGENT_RULES` — a pack is read once at the start of a session, the rules
+ride along on every onboarding call.
+
+**On the owner's literal question:** the faint colour should stay. Faint means
+*nothing stored, following the net*; making it look like a stored price would
+erase the pinned-vs-derived distinction, which is the thing that actually
+changes behaviour (a pinned tier stops tracking the net). The display was
+right; the API was missing.
+
+677 tests pass, three of them new; build clean.
+
+
 ### 2026-09-11 (latest) — copy button on the Selling Prices description
 
 Owner: *"please add copy button for next to item's descriptions"* → *"in

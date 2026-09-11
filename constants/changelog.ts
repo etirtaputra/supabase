@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-09-11T12:00:00Z',
+    title: 'Harga Tier-2 dan Tier-3 kini bisa dibaca agen AI lewat API',
+    details: [
+      'Agen AI melaporkan delapan barang DEYE \u201chanya punya T1, T2/T3 kosong di ICAPROC\u201d. Dia **benar soal databasenya dan salah soal bisnisnya**: kedelapan barang itu punya harga Tier-2 dan Tier-3, terpampang di layar, dipakai menawar setiap hari \u2014 tapi memang tidak tersimpan di tabel mana pun.',
+      'Yang tersimpan cuma dua: **harga net (Tier-1)** di `3.0_components.selling_price_idr`, dan **harga yang dipatok manual** di `21.1_item_tier_prices`. Sisanya dihitung dari harga net oleh rantai markup, di browser, saat halamannya dibuka. Jadi `21.1` yang kosong artinya TIDAK ADA HARGA KHUSUS \u2014 bukan tidak ada harga.',
+      'Endpoint baru **`GET /api/agent/prices`** menjalankan fungsi yang SAMA dengan yang dipakai layar Selling Prices, di server, lalu mengembalikan seluruh tangga tier per barang \u2014 lengkap dengan penanda `net`, `override`, atau `chain`, supaya harga hasil negosiasi bisa dibedakan dari harga hasil hitungan.',
+      'Sengaja TIDAK dibuat view SQL yang menghitung ulang rantainya. Itu berarti satu aturan punya dua implementasi, dan keduanya pasti berbeda begitu ada yang mengubah persentase step atau pembulatan \u2014 diam-diam, di angka yang dikutip ke pelanggan.',
+      'Pack skema untuk agen naik ke v6 dengan bagian \u00a73.1 khusus soal ini, dan aturannya juga ikut di setiap panggilan onboarding \u2014 karena pack dibaca sekali di awal sesi, sedangkan aturan ikut di tiap panggilan.',
+    ],
+  },
+  {
     at: '2026-09-11T10:00:00Z',
     title: 'Tombol salin di samping deskripsi barang (Selling Prices)',
     details: [

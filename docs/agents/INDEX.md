@@ -5,8 +5,8 @@
 > copy in Google Drive is stale. Agent prompts point HERE, and this page names
 > the current file — otherwise every version bump would break every prompt.
 >
-> **Last updated: 2026-09-09** (later: engine v9 — the solar design pack is
-> regenerated for the six defaults the system engine no longer hides).
+> **Last updated: 2026-09-11** (v6 of the schema pack: §3.1, why a tier price
+> you cannot find in a table is a computed one and not a missing one).
 
 ## The one call that beats this page
 
@@ -28,7 +28,7 @@ superseded now and finding out after acting on it.
 
 | Pack | Current file | For | Changed |
 |---|---|---|---|
-| **Schema map** | `ICAPROC-SCHEMA_v5_2026-09-09.md` | every agent, first | v5: the landed\_cost\_open signal — imports received with no PIB/OPS |
+| **Schema map** | `ICAPROC-SCHEMA_v6_2026-09-11.md` | every agent, first | v6: §3.1 — Tier-2/3 are COMPUTED, not stored; read them from `/api/agent/prices` |
 | **Purchasing runbook** | `PURCHASING-RUNBOOK_v2_2026-09-07.md` | Hermes, buy side | v2: versioned and moved here; the mechanism behind lines-before-totals; the price-quote exception |
 | **Solar design** | `MANDA-SOLAR-DESIGN_v3_2026-09-09.md` | MANDA, engineering | v3: engine v9 — demand factor, power loss factor, headroom, battery string voltage, cable run, PSH provenance |
 | **MANDA boot prompt** | `MANDA-BOOT-PROMPT_v2_2026-09-06.md` | MANDA's config | v2: string-reporting rule |

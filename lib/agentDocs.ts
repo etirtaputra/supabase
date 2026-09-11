@@ -30,7 +30,7 @@ export const AGENT_DOCS: readonly AgentDoc[] = [
   {
     id: 'schema',
     title: 'ICAPROC schema map',
-    file: 'ICAPROC-SCHEMA_v5_2026-09-09.md',
+    file: 'ICAPROC-SCHEMA_v6_2026-09-11.md',
     audience: 'every agent, before its first query',
     first: true,
   },
@@ -67,6 +67,7 @@ export const AGENT_DOCS: readonly AgentDoc[] = [
 /** The endpoints an agent can call, and what each needs. */
 export const AGENT_ENDPOINTS = [
   { method: 'GET', path: '/api/agent/onboarding', purpose: 'who am I, what may I see, what do I read' },
+  { method: 'GET', path: '/api/agent/prices', purpose: 'the tier ladder per item — Tier-2/3 are COMPUTED, so this is the only place outside a browser that knows them' },
   { method: 'GET', path: '/api/agent/attention', purpose: 'every open signal, filtered to your role' },
   { method: 'GET', path: '/api/agent/attention/summary', purpose: 'counts and totals per signal, for a daily message' },
   { method: 'POST', path: '/api/agent/design/mounting', purpose: 'the v11 mounting engine, with catalogue and prices' },
@@ -86,5 +87,6 @@ export const AGENT_RULES = [
   'Never write 30.1_stock_balances, 21.3_item_price_history or 22.3_sales_activity_log. They are trigger-maintained.',
   'On the buy side, write line items BEFORE stating a total. See the purchasing runbook: the total trigger reads whatever the total exceeds the lines by as freight.',
   'Do not write sell-side documents (22.x-26.x) yet. Their totals are computed by the app, not by a trigger, so a direct write leaves a document whose stated total is wrong.',
+  'Tier-2 and Tier-3 selling prices are NOT in any table. Only the net (3.0_components.selling_price_idr) and hand-pinned overrides (21.1_item_tier_prices) are stored; the rest is computed from the net by the markup chain. Read them from GET /api/agent/prices. An empty 21.1 means NO OVERRIDE, never no price.',
   'Say which table a figure came from. A number without its source cannot be checked.',
 ] as const;

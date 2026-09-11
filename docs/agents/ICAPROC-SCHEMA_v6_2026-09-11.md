@@ -2,9 +2,14 @@
 
 > **Read this before your first query. Never guess a table name.**
 >
-> Written 2026-09-06, revised 2026-09-07 and 2026-09-09, against `main` @ the commit that
-> carries it. Row counts are from those days and drift; the NAMES and the RULES
-> are what matter.
+> Written 2026-09-06, revised 2026-09-07, 2026-09-09 and 2026-09-11, against `main` @ the
+> commit that carries it. Row counts are from those days and drift; the NAMES
+> and the RULES are what matter.
+>
+> **v6 adds §3.1, and it is the most important section in this file for anyone
+> answering a question about price.** A tier price you cannot find in a table is
+> not a missing price — it is a COMPUTED one. Read §3.1 before you report any
+> tier as empty.
 >
 > Why this file exists: on 2026-09-06 an agent queried `batteries`, got 3 rows,
 > and reported it as the catalogue. The real figure is 27. The table names here
@@ -100,13 +105,69 @@ separate rows, all still present.
 | Table | What |
 |---|---|
 | `20.0_customers` (489) · `20.1_customer_contacts` | CRM |
-| `21.0_price_tiers` · `21.1_item_tier_prices` (347) | tier pricing |
+| `21.0_price_tiers` · `21.1_item_tier_prices` (463) | tier pricing — **read §3.1, these do not hold what you think** |
 | `22.0_sales_quotes` (11) → `22.1_sales_quote_items` (33) | **`_items`, NOT `_line_items`** |
 | `24.0_delivery_orders` → `24.1_delivery_order_items` | DO |
 | `25.0_sales_invoices` → `25.1_sales_invoice_items` | AR |
 | `26.0_customer_receipts` | payments in |
 | `27.0_aftersales_cases` → `27.2_aftersales_updates` | service desk |
 | `28.0_support_letters` → `28.1_support_letter_items` | Surat Dukungan |
+
+### 3.1 TIER PRICES ARE MOSTLY NOT STORED. Read this before answering.
+
+**The failure this section exists to prevent happened on 2026-09-11.** An agent
+was asked to copy eight DEYE items into another system "including the selling
+prices and the tiers". It queried correctly, found a Tier-1 price on each, found
+nothing for Tier-2 and Tier-3, and reported:
+
+> *"All 8 items only have T1 set — T2/T3 are empty in ICAPROC itself."*
+
+**That was right about the database and wrong about the business.** Every one of
+those items has a Tier-2 and a Tier-3 price. The sales desk quotes them daily.
+They are on the screen. They are not in any table.
+
+Here is the actual model:
+
+| What | Where | Stored? |
+|---|---|---|
+| **Net price = Tier-1** | `3.0_components.selling_price_idr` | **YES** |
+| A tier somebody PINNED by hand | `21.1_item_tier_prices.override_price_idr` | **YES** |
+| **Every other tier** | nowhere | **NO — computed** |
+
+Each tier marks UP from the one below it:
+`tier[i] = tier[i-1] ÷ (1 − step%)`, rounded up to the price step in Settings.
+The step lives in `21.0_price_tiers.default_discount_pct` (a legacy column name
+— it is a MARKUP step, not a discount), and the first active tier is the net,
+whose step is ignored. An override replaces that tier's price outright AND
+becomes the base the next tier chains from.
+
+Concretely, `DEYE BOS-A-Pack7.68` on 2026-09-11: Tier-1 26,000,000, **zero rows
+in `21.1`**, and the screen shows Tier-2 27,369,000 and Tier-3 28,810,000.
+
+**So: an empty `21.1` means NO OVERRIDE. It never means no price.**
+
+#### How to get a tier price
+
+```
+GET https://icaproc.com/api/agent/prices
+GET https://icaproc.com/api/agent/prices?search=deye%20bos-a
+GET https://icaproc.com/api/agent/prices?component_id=<uuid>
+Header: Authorization: Bearer <access_token>
+```
+
+It runs the SAME function the Selling Prices grid runs (`computeTierChain`),
+server-side, and returns every active tier per item with a `source` of `net`,
+`override` or `chain` — so you can tell a negotiated price from a computed one.
+It answers as the caller: a role that may not see selling prices is told so,
+rather than handed an empty list it would go on to describe as "unpriced".
+
+**Do not re-implement the chain.** Not in SQL, not in your own arithmetic, not
+"×1.05 should be close enough". Rounding, the step per tier and the override
+rule all live in one function, and a second implementation is wrong the day
+somebody changes a step in Settings — silently, in your favour, in a number a
+customer is quoted.
+
+---
 
 `22.0_sales_quotes` carries one row through the whole lifecycle — `status`
 walks `draft → validated → sent → accepted → ordered → invoiced → preparing →

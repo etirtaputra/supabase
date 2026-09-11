@@ -70,3 +70,44 @@ test('the rules an agent is handed cover the mistakes actually made', () => {
     assert.ok(all.includes(must), `AGENT_RULES no longer mentions ${must}`);
   }
 });
+
+
+/**
+ * The tier-price rule has to be in the RULES, not only in the pack.
+ *
+ * On 2026-09-11 an agent reported eight items as having "T2/T3 empty in
+ * ICAPROC itself". It was right about the tables and wrong about the business:
+ * those tiers are computed from the net, not stored. The pack now has §3.1,
+ * but a pack is read once at the start of a session and the rules travel with
+ * every onboarding call — so the sentence lives in both.
+ */
+test('agents are told that tier prices are computed, not stored', () => {
+  const rule = AGENT_RULES.find((r) => /Tier-2 and Tier-3/.test(r));
+  assert.ok(rule, 'the standing rules no longer warn that tier prices are derived');
+  assert.match(rule, /NOT in any table/, 'the rule no longer says the tiers are absent from the tables');
+  assert.match(rule, /\/api\/agent\/prices/, 'the rule does not say where to get them instead');
+  assert.match(rule, /NO OVERRIDE, never no price/,
+    'the rule does not name the exact wrong conclusion it exists to prevent');
+});
+
+test('the prices endpoint is offered, and says why it exists', () => {
+  const ep = AGENT_ENDPOINTS.find((e) => e.path === '/api/agent/prices');
+  assert.ok(ep, 'the tier-price endpoint is not in the registry, so no agent will find it');
+  assert.match(ep.purpose, /COMPUTED/, 'the endpoint listing does not explain why a table read is not enough');
+});
+
+/**
+ * And the endpoint must not re-derive the chain. There is one implementation of
+ * tier pricing; a server-side copy would drift from the grid the first time a
+ * step percentage changed — silently, and in a number a customer is quoted.
+ */
+test('the prices route runs the shared chain rather than its own arithmetic', () => {
+  const src = readFileSync(join(process.cwd(), 'app', 'api', 'agent', 'prices', 'route.ts'), 'utf8');
+  assert.match(src, /import \{ computeTierChain \} from '@\/lib\/tierPricing'/,
+    'the route no longer uses the shared markup chain');
+  assert.ok(!/1 - .*discount|\* 1\.0[0-9]/.test(src), 'the route is doing tier arithmetic of its own');
+  // The rounding step is a SETTING; without loading it the server rounds to the
+  // built-in default and returns prices that differ from the screen.
+  assert.match(src, /await loadSettings\(client\)/,
+    'the route does not load settings, so its rounding will not match the grid');
+});
