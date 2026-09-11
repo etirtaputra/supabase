@@ -234,16 +234,24 @@ test('in stock means we are holding some', () => {
   assert.ok(!matchesScope({ qtyOnHand: 0, cost: 800 }, scope('in_stock')));
 });
 
-test('the cost chips are opposites', () => {
-  assert.ok(matchesScope({ qtyOnHand: 0, cost: 800 }, scope('has_cost')));
-  assert.ok(!matchesScope({ qtyOnHand: 0, cost: 800 }, scope('no_cost')));
+test('the cost chips split by BASIS, not merely by presence', () => {
+  // Landed: goods arrived and we know what they cost.
+  assert.ok(matchesScope({ qtyOnHand: 0, cost: 800 }, scope('landed_cost')));
+  assert.ok(!matchesScope({ qtyOnHand: 0, cost: 800 }, scope('quoted_cost')));
+  // Quoted: a supplier's number, no freight or duty in it yet.
+  assert.ok(matchesScope({ qtyOnHand: 0, cost: 800, provisional: true }, scope('quoted_cost')));
+  assert.ok(!matchesScope({ qtyOnHand: 0, cost: 800, provisional: true }, scope('landed_cost')));
+  // Neither.
   assert.ok(matchesScope({ qtyOnHand: 0, cost: null }, scope('no_cost')));
-  assert.ok(!matchesScope({ qtyOnHand: 0, cost: null }, scope('has_cost')));
+  assert.ok(!matchesScope({ qtyOnHand: 0, cost: null }, scope('landed_cost')));
+  assert.ok(!matchesScope({ qtyOnHand: 0, cost: null }, scope('quoted_cost')));
 });
 
-test('a zero landed cost is no landed cost, not a free item', () => {
+test('a zero cost is no cost, not a free item', () => {
   assert.ok(matchesScope({ qtyOnHand: 1, cost: 0 }, scope('no_cost')));
-  assert.ok(!matchesScope({ qtyOnHand: 1, cost: 0 }, scope('has_cost')));
+  assert.ok(!matchesScope({ qtyOnHand: 1, cost: 0 }, scope('landed_cost')));
+  assert.ok(!matchesScope({ qtyOnHand: 1, cost: 0, provisional: true }, scope('quoted_cost')),
+    'a quote of zero is not a quoted cost either');
 });
 
 test('scope NARROWS — this is the whole difference from the issue chips', () => {
@@ -251,16 +259,30 @@ test('scope NARROWS — this is the whole difference from the issue chips', () =
   // Holding stock but no cost: passes each chip alone, fails them together.
   assert.ok(matchesScope(held, scope('in_stock')));
   assert.ok(matchesScope(held, scope('no_cost')));
-  assert.ok(!matchesScope(held, scope('in_stock', 'has_cost')),
+  assert.ok(!matchesScope(held, scope('in_stock', 'landed_cost')),
     'two scope chips must AND, or clicking more would show more');
 });
 
-test('both cost chips together honestly mean "either", not "neither"', () => {
-  assert.ok(matchesScope({ qtyOnHand: 0, cost: 800 }, scope('has_cost', 'no_cost')));
-  assert.ok(matchesScope({ qtyOnHand: 0, cost: null }, scope('has_cost', 'no_cost')));
-  // …and any other chip still applies alongside the cancelled pair.
-  assert.ok(!matchesScope({ qtyOnHand: 0, cost: 800 }, scope('has_cost', 'no_cost', 'in_stock')));
-  assert.ok(matchesScope({ qtyOnHand: 3, cost: 800 }, scope('has_cost', 'no_cost', 'in_stock')));
+/**
+ * An item has exactly ONE cost basis, so ANDing two cost chips would return
+ * nothing and somebody who ticked two plainly meant "either". The group ORs
+ * inside itself and ANDs with everything else — "quoted or unpriced, of the
+ * stock I am holding" is a real question and it has an answer.
+ */
+test('the cost chips are alternatives within their group, not conditions', () => {
+  const landed = { qtyOnHand: 0, cost: 800 };
+  const quoted = { qtyOnHand: 0, cost: 800, provisional: true };
+  const none = { qtyOnHand: 0, cost: null };
+  for (const row of [landed, quoted, none]) {
+    assert.ok(matchesScope(row, scope('landed_cost', 'quoted_cost', 'no_cost')),
+      'all three selected must mean "any basis", never "no rows"');
+  }
+  assert.ok(matchesScope(quoted, scope('quoted_cost', 'no_cost')));
+  assert.ok(matchesScope(none, scope('quoted_cost', 'no_cost')));
+  assert.ok(!matchesScope(landed, scope('quoted_cost', 'no_cost')));
+  // …and the group still ANDs with a chip from outside it.
+  assert.ok(!matchesScope(quoted, scope('quoted_cost', 'no_cost', 'in_stock')));
+  assert.ok(matchesScope({ ...quoted, qtyOnHand: 3 }, scope('quoted_cost', 'no_cost', 'in_stock')));
 });
 
 test('scope and issues are independent — a row must satisfy both', () => {

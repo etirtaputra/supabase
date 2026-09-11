@@ -122,6 +122,56 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
+### 2026-09-11 — Selling Prices gets a cost BASIS, not just a landed cost
+
+Owner: *"for setting Selling Prices, please also allow to reference not only
+Landed Cost, but based on Quotes first. But once there's Landed Cost, it should
+use Landed Cost."*
+
+**The coverage problem this solves, measured (1,022 active items):**
+
+| | items |
+|---|---|
+| landed cost in the ledger | **164** |
+| no ledger cost, but a settled PO behind it | 149 |
+| neither, but a supplier has quoted it | 170 |
+| nothing at all | 539 (only **37** of them priced) |
+
+So the margin column, the floor audit and every band verdict were blank for
+858 of 1,022 items — on the screen whose entire job is deciding what to charge.
+The chain now judges **483**.
+
+**The rule already existed and Selling Prices simply never called it.**
+`getComponentCost` in `lib/computeTUC.ts` has resolved settled-PO cost →
+supplier quote, with FX conversion and staleness, since the Project Quote
+builder shipped. `lib/costBasis.ts` puts the ledger in front of it and names
+the result. No second cost engine — asserted, because "one sentence, two
+implementations" is the failure this codebase keeps undoing.
+
+**THE PART THAT MATTERS MOST: a quote basis is not a cautious landed cost, it
+is an optimistic one.** A supplier quote is EXW/FOB — no freight, duty, PIB or
+bank charges, which on this business's imports is not a rounding error. So a
+margin computed on one is systematically too GOOD, and a floor "cleared" on it
+can be breached the day the container lands. That is why the flag is called
+`provisional` and why every surface states the DIRECTION of the error rather
+than just its existence. A number that is merely uncertain can be shown
+quietly; one biased in a known direction has to say which way.
+
+What that looks like: an amber `QUOTE` badge beside the number in BOTH the Set
+Pricing grid and the Floor Audit row (the banner alone is not enough — by the
+time somebody is reading a row they have stopped reading the header), a
+`provisionalViolations` count on the audit, and the column heading changed from
+"Landed cost" to **"Cost basis"** — a heading naming one of two bases is wrong
+on every quoted row, and wrong in the flattering direction.
+
+**The scope chips are now three, not two:** `Landed cost · Quoted cost · No
+cost`. Within the group they OR (an item has exactly one basis, so ANDing two
+returns nothing and somebody who ticked two meant "either"); the group ANDs
+with `In stock` as before.
+
+665 tests pass, eighteen of them new; build clean.
+
+
 ### 2026-09-10 (latest) — Products type scale for phones
 
 Owner: *"im liking the layout and border size consistency now, but i need the

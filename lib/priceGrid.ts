@@ -129,43 +129,69 @@ export function matchesIssues(issues: Set<PriceIssue>, wanted: Set<PriceIssue>):
 export type PriceScope =
   /** We hold some. Pricing this wrong costs money on stock already bought. */
   | 'in_stock'
-  /** The ledger knows what it cost, so margin is a fact rather than a guess. */
-  | 'has_cost'
-  /** It does not, so no margin, floor or band verdict is possible. */
+  /** Goods arrived and we know what they cost — ledger average or settled PO. */
+  | 'landed_cost'
+  /**
+   * Priced off a SUPPLIER QUOTE, because nothing has landed yet.
+   *
+   * Its own chip, not folded in with landed (owner, 2026-09-11). A quote is
+   * EXW/FOB — no freight, no duty, no PIB — so every margin on this set reads
+   * BETTER than it will turn out. "Show me the ones I am judging on a quote"
+   * is the question somebody asks before trusting a floor, and it needs an
+   * answer that is one click rather than a sort and a squint.
+   */
+  | 'quoted_cost'
+  /** Nothing prices it at all, so no margin, floor or band verdict is possible. */
   | 'no_cost';
 
 export interface RowFacts {
   qtyOnHand: number;
   cost: number | null;
+  /** True when `cost` came from a supplier quote rather than goods received. */
+  provisional?: boolean;
 }
 
-export const factsOf = (r: RowFacts) => ({
-  in_stock: r.qtyOnHand > 0,
-  has_cost: r.cost != null && r.cost > 0,
-  no_cost: !(r.cost != null && r.cost > 0),
-});
+export const factsOf = (r: RowFacts) => {
+  const priced = r.cost != null && r.cost > 0;
+  return {
+    in_stock: r.qtyOnHand > 0,
+    landed_cost: priced && !r.provisional,
+    quoted_cost: priced && !!r.provisional,
+    no_cost: !priced,
+  };
+};
+
+/** The three cost chips are mutually exclusive — an item has exactly one basis. */
+const COST_SCOPES: PriceScope[] = ['landed_cost', 'quoted_cost', 'no_cost'];
 
 /**
- * Scope narrows: every selected chip must hold. Picking both cost chips is the
- * one self-cancelling combination, and it honestly means "either", so it is
- * allowed to return everything rather than nothing.
+ * Scope narrows: every selected chip must hold — EXCEPT the cost chips, which
+ * are alternatives rather than conditions.
+ *
+ * An item has exactly one cost basis, so ANDing two of them returns nothing and
+ * a person who ticked both plainly meant "either". Previously there were only
+ * two and the pair was special-cased; with three, the rule has to be stated
+ * properly: within the cost group it is an OR, and the group as a whole ANDs
+ * with everything else. "Quoted or unpriced, of the stock I am holding" is a
+ * real question and it now has an answer.
  */
 export function matchesScope(facts: RowFacts, wanted: Set<PriceScope>): boolean {
   if (wanted.size === 0) return true;
   const f = factsOf(facts);
-  if (wanted.has('has_cost') && wanted.has('no_cost')) {
-    // "either" — drop the pair and judge on whatever else is selected.
-    const rest = new Set([...wanted].filter((w) => w !== 'has_cost' && w !== 'no_cost'));
-    return matchesScope(facts, rest);
+  const costWanted = COST_SCOPES.filter((s) => wanted.has(s));
+  if (costWanted.length > 0 && !costWanted.some((s) => f[s])) return false;
+  for (const w of wanted) {
+    if (COST_SCOPES.includes(w)) continue;
+    if (!f[w]) return false;
   }
-  for (const w of wanted) if (!f[w]) return false;
   return true;
 }
 
 export const SCOPE_LABEL: Record<PriceScope, string> = {
   in_stock: 'In stock',
-  has_cost: 'Has landed cost',
-  no_cost: 'No landed cost',
+  landed_cost: 'Landed cost',
+  quoted_cost: 'Quoted cost',
+  no_cost: 'No cost',
 };
 
 /**

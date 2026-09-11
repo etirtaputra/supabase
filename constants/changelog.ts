@@ -20,6 +20,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-09-11T04:00:00Z',
+    title: 'Selling Prices: kalau belum ada Landed Cost, pakai harga penawaran supplier',
+    details: [
+      'Urutannya: **Landed Cost dulu** (rata-rata bergerak dari buku stok), lalu biaya dari PO yang sudah selesai, lalu **penawaran supplier** yang dikonversi ke Rupiah. Begitu Landed Cost ada, itu yang dipakai \u2014 selalu, bahkan kalau ada penawaran yang lebih baru dan lebih murah.',
+      'Alasannya soal cakupan: dari 1.022 barang aktif, hanya **164** punya landed cost. Kolom margin, audit batas bawah, dan penilaian band kosong untuk 858 sisanya \u2014 di layar yang justru tugasnya menentukan harga jual. Sekarang **483** barang bisa dinilai.',
+      '**Harga penawaran BUKAN landed cost yang hati-hati \u2014 itu landed cost yang terlalu optimis.** Penawaran supplier itu EXW/FOB: belum ada ongkos kirim, bea masuk, PIB, biaya bank. Jadi margin yang dihitung atasnya selalu terlihat LEBIH BAIK daripada kenyataannya, dan batas bawah yang \u201clolos\u201d atas dasar itu bisa jebol begitu barang mendarat.',
+      'Karena itu setiap baris yang memakai penawaran ditandai **QUOTE** berwarna kuning, tepat di sebelah angkanya \u2014 bukan cuma di keterangan atas, karena orang yang sedang membaca baris sudah berhenti membaca judul. Chip filter sekarang tiga: **Landed cost · Quoted cost · No cost**, jadi \u201cmana saja yang saya nilai pakai penawaran\u201d cukup satu klik.',
+      'Judul kolom berubah dari \u201cLanded cost\u201d jadi \u201cCost basis\u201d. Judul yang menyebut salah satu dari dua dasar akan salah di setiap baris penawaran \u2014 dan salahnya ke arah yang menyenangkan, yang justru jenis kesalahan yang paling gampang dipercaya.',
+      'Tidak ada mesin biaya baru: `getComponentCost` sudah menangani PO \u2192 penawaran lengkap dengan kurs sejak Project Quote dibangun. Yang ditambahkan cuma buku stok di depannya.',
+    ],
+  },
+  {
     at: '2026-09-10T14:00:00Z',
     title: 'Daftar Produk: ukuran huruf ditata untuk layar ponsel',
     details: [

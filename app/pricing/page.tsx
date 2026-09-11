@@ -38,6 +38,10 @@ import {
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 import { formatCategory } from '@/lib/formatCategory';
 import { useSettings } from '@/hooks/useSettings';
+import { useSupabaseData } from '@/hooks/useSupabaseData';
+import { computeTUCMap, getComponentCost, fxFromHistory } from '@/lib/computeTUC';
+import { deriveExchangeRates } from '@/lib/exchangeRates';
+import { resolveCost, isMeasured, BASIS_LABEL, BASIS_NOTE, BASIS_TAG, NO_COST, type ResolvedCost } from '@/lib/costBasis';
 import { BAR_SELECT, BAR_INPUT, BAR_BTN, BAR_BTN_OFF, BAR_BTN_ON, BAR_BTN_ON_SKY } from '@/constants/controls';
 
 interface Tier {
@@ -84,6 +88,16 @@ interface Violation {
   minPrice: number | null; onHand: number; leakage: number;
   ov: Override | null;          // override behind this price, if any
   defaultCompliant: boolean;    // clearing the override would already fix it
+  /**
+   * The cost behind this breach is a SUPPLIER QUOTE, not a landed cost.
+   *
+   * It still belongs in the audit — a quote is the best evidence we have for
+   * an item nothing has landed for, and a price under the floor on that basis
+   * is very likely under it in reality too, because the real cost will only be
+   * HIGHER once freight and duty are in. But it is not proven, and the leakage
+   * rupiah is not real money yet, so it is counted separately.
+   */
+  provisional: boolean;
 }
 
 export default function PricingPage() {
@@ -249,17 +263,50 @@ export default function PricingPage() {
   const stockOf = useCallback(
     (cid: string): number => Math.max(0, Number(bals.get(cid)?.qty_on_hand) || 0), [bals]);
 
-  const costOf = useCallback((cid: string): number | null => {
-    const b = bals.get(cid);
-    const c = Number(b?.avg_cost_idr) || 0;
-    return c > 0 ? c : null;
-  }, [bals]);
+  /**
+   * THE COST BASIS — landed first, a supplier quote when nothing has landed.
+   *
+   * Owner, 2026-09-11: *"please also allow to reference not only Landed Cost,
+   * but based on Quotes first. But once there's Landed Cost, it should use
+   * Landed Cost."*
+   *
+   * Before this, cost on this screen meant one thing: the ledger's
+   * moving-average landed cost. That is the right number — and 847 of 1,007
+   * active items do not have one, because landed cost only exists after goods
+   * have been received. So the margin column, the floor audit and every band
+   * verdict were blank for 84% of the catalogue, on the screen whose entire
+   * job is deciding what to charge.
+   *
+   * The fallback chain is NOT re-derived here: `getComponentCost` has resolved
+   * settled-PO cost → supplier quote (with FX and staleness) since the Project
+   * Quote builder shipped. `resolveCost` puts the ledger in front of it. One
+   * sentence, one implementation — see lib/costBasis.ts for why a quote basis
+   * is optimistic rather than merely uncertain.
+   */
+  const { data: catalog } = useSupabaseData();
+  const fx = useMemo(
+    () => fxFromHistory(catalog.pos, deriveExchangeRates(catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes)),
+    [catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes]);
+  const tucMap = useMemo(() => computeTUCMap(catalog.pos, catalog.poItems, catalog.poCosts),
+    [catalog.pos, catalog.poItems, catalog.poCosts]);
+
+  const basisOf = useCallback((cid: string): ResolvedCost => {
+    const ledger = Number(bals.get(cid)?.avg_cost_idr) || 0;
+    // Skip the fallback entirely when the ledger already answers — it wins
+    // outright, and getComponentCost walks history we would then discard.
+    if (ledger > 0) return resolveCost(ledger, null);
+    return resolveCost(null, getComponentCost(cid, tucMap, catalog.quotes, catalog.quoteItems, [], undefined, fx));
+  }, [bals, tucMap, catalog.quotes, catalog.quoteItems, fx]);
+
+  /** The number alone, for the arithmetic that does not care where it came from. */
+  const costOf = useCallback((cid: string): number | null => basisOf(cid).cost, [basisOf]);
 
   // Every (item, active tier) whose effective price sits below the tier floor.
   const violations: Violation[] = useMemo(() => {
     const out: Violation[] = [];
     for (const c of comps) {
-      const cost = costOf(c.component_id);
+      const basis = basisOf(c.component_id);
+      const cost = basis.cost;
       if (cost == null) continue;
       const onHand = Math.max(0, Number(bals.get(c.component_id)?.qty_on_hand) || 0);
       const chain = chainFor(c);
@@ -276,18 +323,27 @@ export default function PricingPage() {
         const defaultCompliant = !!ov && defPrice != null && defPrice > 0 && ((defPrice - cost) / defPrice) * 100 >= (t.margin_floor_pct || 0);
         out.push({
           comp: c, tier: t, price, cost, gp, minPrice, onHand,
+          // Leakage is money at stake on stock we are HOLDING. An item priced
+          // off a quote has not landed, so its on-hand is ~0 and its leakage
+          // is ~0 anyway — but the flag is what stops a provisional breach
+          // being read as a settled one.
           leakage: minPrice != null ? Math.max(0, minPrice - price) * onHand : 0,
-          ov, defaultCompliant,
+          ov, defaultCompliant, provisional: basis.provisional,
         });
       }
     }
     // Worst economics first: biggest at-stake rupiah, then deepest GP gap.
     return out.sort((a, b) => (b.leakage - a.leakage) || (a.gp - b.gp));
-  }, [comps, activeSorted, bals, costOf, chainFor, ovByKey]);
+  }, [comps, activeSorted, bals, basisOf, chainFor, ovByKey]);
 
   const itemsNoCost = useMemo(
     () => comps.filter((c) => costOf(c.component_id) == null && (Number(c.selling_price_idr) || 0) > 0).length,
     [comps, costOf]);
+  /** Priced items whose margin rests on a quote — the audit's own caveat. */
+  const itemsQuotedCost = useMemo(
+    () => comps.filter((c) => basisOf(c.component_id).provisional && (Number(c.selling_price_idr) || 0) > 0).length,
+    [comps, basisOf]);
+  const provisionalViolations = useMemo(() => violations.filter((v) => v.provisional).length, [violations]);
   const totalLeakage = useMemo(() => violations.reduce((s, v) => s + v.leakage, 0), [violations]);
   const violationsByTier = useMemo(() => {
     const m = new Map<string, number>();
@@ -561,7 +617,7 @@ export default function PricingPage() {
             {loading && comps.length === 0 ? (
               <div className="space-y-2">{[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-slate-800/40 rounded-2xl animate-pulse" />)}</div>
             ) : tab === 'set' ? (
-              <SetPricingTab comps={comps} tiers={activeSorted} chainFor={chainFor} costOf={costOf}
+              <SetPricingTab comps={comps} tiers={activeSorted} chainFor={chainFor} costOf={costOf} basisOf={basisOf}
                 stockOf={stockOf}
                 profileById={profileById} ovByKey={ovByKey} saving={savingRows} onSave={saveEdits}
                 onAssignProfile={assignItemProfile} canManage={canManage}
@@ -572,7 +628,8 @@ export default function PricingPage() {
                 onSave={saveTier} onAdd={addTier} onMove={moveTier} onDelete={deleteTier} onGoAudit={(tid) => { setAuditTier(tid); setTab('audit'); }} />
             ) : tab === 'audit' ? (
               <AuditTab violations={filteredViolations} allCount={violations.length} totalLeakage={totalLeakage}
-                itemsNoCost={itemsNoCost} tiers={orderedTiers.filter((t) => t.is_active)}
+                itemsNoCost={itemsNoCost} itemsQuotedCost={itemsQuotedCost} provisionalViolations={provisionalViolations}
+                tiers={orderedTiers.filter((t) => t.is_active)}
                 search={auditSearch} setSearch={setAuditSearch} tierFilter={auditTier} setTierFilter={setAuditTier}
                 bulkBusy={bulkBusy} onRaise={raiseToFloor} onClear={clearOverride} onBulkRaise={bulkRaise} />
             ) : tab === 'history' ? (
@@ -755,11 +812,13 @@ function Field({ label, title, children }: { label: string; title?: string; chil
 const tInp = 'w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-800 focus:border-emerald-500/50 outline-none text-white text-xs placeholder:text-slate-600 transition-colors';
 
 // ── Floor Audit tab ──────────────────────────────────────────────────────────
-function AuditTab({ violations, allCount, totalLeakage, itemsNoCost, tiers, search, setSearch, tierFilter, setTierFilter, bulkBusy, onRaise, onClear, onBulkRaise }: {
+function AuditTab({ violations, allCount, totalLeakage, itemsNoCost, itemsQuotedCost, provisionalViolations, tiers, search, setSearch, tierFilter, setTierFilter, bulkBusy, onRaise, onClear, onBulkRaise }: {
   violations: Violation[];
   allCount: number;
   totalLeakage: number;
   itemsNoCost: number;
+  itemsQuotedCost: number;
+  provisionalViolations: number;
   tiers: Tier[];
   search: string; setSearch: (v: string) => void;
   tierFilter: string; setTierFilter: (v: string) => void;
@@ -775,13 +834,31 @@ function AuditTab({ violations, allCount, totalLeakage, itemsNoCost, tiers, sear
     <div className="space-y-4">
       {/* Economics up top: what's at stake if this stock sells at current prices */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-        <Stat label="Prices below floor" value={String(allCount)} tone={allCount ? 'red' : 'green'} />
+        <Stat label="Prices below floor" value={String(allCount)} tone={allCount ? 'red' : 'green'}
+          hint={provisionalViolations ? `${provisionalViolations} of these are judged on a supplier quote — see below` : undefined} />
         <Stat label="Margin at risk (on-hand)" value={totalLeakage ? fmtRupiah(totalLeakage) : 'Rp 0'} tone={totalLeakage ? 'red' : 'green'}
           hint="If current on-hand stock sells at these prices instead of the floor minimum" />
-        <Stat label="Tiers audited" value={String(tiers.length)} tone="neutral" />
-        <Stat label="Priced items without landed cost" value={String(itemsNoCost)} tone={itemsNoCost ? 'amber' : 'green'}
-          hint="Have a sell price but no stock cost yet — audited once goods are received" />
+        <Stat label="On a supplier quote" value={String(itemsQuotedCost)} tone={itemsQuotedCost ? 'amber' : 'neutral'}
+          hint="Priced items with nothing landed yet, so the margin is measured against a quote — which excludes freight and duty and therefore flatters it" />
+        <Stat label="Priced items with no cost at all" value={String(itemsNoCost)} tone={itemsNoCost ? 'amber' : 'green'}
+          hint="No goods received, no settled PO and no supplier quote — nothing to audit them against" />
       </div>
+
+      {/* The audit now reaches items nothing has landed for, which is the point
+          — it used to skip 84% of the catalogue. But a breach measured against
+          a quote is UNPROVEN, and unproven in a known direction: a quote is
+          EXW/FOB, so the real cost only goes UP once freight and duty are in,
+          and a price under the floor on a quote basis is if anything further
+          under it than this says. Worth acting on, not worth reporting as
+          settled. */}
+      {provisionalViolations > 0 && (
+        <p className="text-[12px] text-amber-300/80 bg-amber-500/10 border border-amber-500/25 rounded-lg px-3 py-2">
+          <span className="font-semibold">{provisionalViolations}</span> of these {provisionalViolations === 1 ? 'is' : 'are'} measured against a
+          supplier quote rather than a landed cost — marked <span className="font-mono text-[10px] px-1 py-px rounded bg-amber-500/15">QUOTE</span> in the
+          list. A quote excludes freight, duty and fees, so the true margin is
+          worse than shown, not better. Treat them as leads, and re-check once the goods land.
+        </p>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[200px]">
@@ -824,7 +901,7 @@ function AuditTab({ violations, allCount, totalLeakage, itemsNoCost, tiers, sear
                 <th className="text-left font-semibold px-4 py-2.5">Item</th>
                 <th className="text-left font-semibold px-3 py-2.5">Tier</th>
                 <th className="text-right font-semibold px-3 py-2.5">Price</th>
-                <th className="text-right font-semibold px-3 py-2.5">Landed cost</th>
+                <th className="text-right font-semibold px-3 py-2.5" title="Landed cost where goods have arrived; a supplier quote where nothing has yet">Cost basis</th>
                 <th className="text-right font-semibold px-3 py-2.5">GP now</th>
                 <th className="text-right font-semibold px-3 py-2.5">Floor</th>
                 <th className="text-right font-semibold px-3 py-2.5">Floor min</th>
@@ -844,7 +921,13 @@ function AuditTab({ violations, allCount, totalLeakage, itemsNoCost, tiers, sear
                     {v.ov && <span className="block text-[9px] text-emerald-500/70">override</span>}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums text-sm text-slate-200 whitespace-nowrap">{fmtRupiah(v.price)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400 whitespace-nowrap">{fmtRupiah(v.cost)}</td>
+                  {/* A breach measured on a quote is marked where the number
+                      is, not only in the banner above — by the time somebody is
+                      reading a row they have stopped reading the header. */}
+                  <td className="px-3 py-2 text-right tabular-nums text-xs whitespace-nowrap" title={v.provisional ? BASIS_NOTE.quote : BASIS_NOTE.landed}>
+                    <span className={v.provisional ? 'text-amber-300/90' : 'text-slate-400'}>{fmtRupiah(v.cost)}</span>
+                    {v.provisional && <span className="ml-1 align-middle px-1 py-px rounded bg-amber-500/15 text-amber-300 text-[9px] font-bold tracking-wide">QUOTE</span>}
+                  </td>
                   <td className="px-3 py-2 text-right tabular-nums text-sm font-semibold text-red-400 whitespace-nowrap">{v.gp.toFixed(1)}%</td>
                   <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-500">{v.tier.margin_floor_pct}%</td>
                   <td className="px-3 py-2 text-right tabular-nums text-xs text-emerald-300/90 whitespace-nowrap">{v.minPrice != null ? fmtRupiah(v.minPrice) : '—'}</td>
@@ -1189,12 +1272,13 @@ function SortTh({ col, label, sortCol, sortDir, onSort, align = 'left', classNam
  * pinned cell and the tier goes back to the chain.
  */
 function SetPricingTab({
-  comps, tiers, chainFor, costOf, stockOf, profileById, ovByKey, saving, onSave, onAssignProfile, canManage, roundStep, priceLog,
+  comps, tiers, chainFor, costOf, basisOf, stockOf, profileById, ovByKey, saving, onSave, onAssignProfile, canManage, roundStep, priceLog,
 }: {
   comps: Comp[];
   tiers: Tier[];
   chainFor: (c: Comp, excludeTierId?: string) => Map<string, { price: number | null; overridden: boolean }>;
   costOf: (cid: string) => number | null;
+  basisOf: (cid: string) => ResolvedCost;
   stockOf: (cid: string) => number;
   profileById: Map<string, MarginProfile>;
   ovByKey: Map<string, Override>;
@@ -1234,17 +1318,18 @@ function SetPricingTab({
       const chain = chainFor(c);
       const priceByTier = new Map<string, number | null>();
       for (const t of tiers) priceByTier.set(t.tier_id, chain.get(t.tier_id)?.price ?? null);
-      const cost = costOf(c.component_id);
+      const basis = basisOf(c.component_id);
+      const cost = basis.cost;
       const qty = stockOf(c.component_id);
       const profile = c.margin_profile_id ? profileById.get(c.margin_profile_id) ?? null : null;
       return {
-        c, chain, priceByTier, cost, qty, profile,
+        c, chain, priceByTier, cost, basis, qty, profile,
         issues: issuesFor({ net: c.selling_price_idr, cost, priceByTier, tiers, profile }),
         gp: marginPct(c.selling_price_idr, cost),
       };
     }).filter((r) => {
       if (!matchesIssues(r.issues, wanted)) return false;
-      if (!matchesScope({ qtyOnHand: r.qty, cost: r.cost }, scope)) return false;
+      if (!matchesScope({ qtyOnHand: r.qty, cost: r.cost, provisional: r.basis.provisional }, scope)) return false;
       if (profileFilter === 'none' ? r.profile != null
         : profileFilter !== '' && r.profile?.id !== profileFilter) return false;
       if (catFilter === 'none' ? Boolean(r.c.category)
@@ -1270,7 +1355,7 @@ function SetPricingTab({
       // Ties fall back to the name, so the order never shuffles between renders.
       return c !== 0 ? c : compareCells(descOf(x.c), descOf(y.c), 'asc');
     });
-  }, [comps, tiers, chainFor, costOf, stockOf, profileById, search, wanted, scope, profileFilter, catFilter, sortCol, sortDir, priceLog]);
+  }, [comps, tiers, chainFor, basisOf, stockOf, profileById, search, wanted, scope, profileFilter, catFilter, sortCol, sortDir, priceLog]);
 
   // Counts sit on the chips, so the size of each problem is visible before
   // anyone clicks — that is what makes this a worklist rather than a filter.
@@ -1299,13 +1384,14 @@ function SetPricingTab({
   const scopeCounts = useMemo(() => {
     const m = new Map<PriceScope, number>();
     for (const c of comps) {
-      const facts = { qtyOnHand: stockOf(c.component_id), cost: costOf(c.component_id) };
-      for (const k of ['in_stock', 'has_cost', 'no_cost'] as PriceScope[]) {
+      const b = basisOf(c.component_id);
+      const facts = { qtyOnHand: stockOf(c.component_id), cost: b.cost, provisional: b.provisional };
+      for (const k of ['in_stock', 'landed_cost', 'quoted_cost', 'no_cost'] as PriceScope[]) {
         if (matchesScope(facts, new Set([k]))) m.set(k, (m.get(k) ?? 0) + 1);
       }
     }
     return m;
-  }, [comps, stockOf, costOf]);
+  }, [comps, stockOf, basisOf]);
 
   const editsFor = useCallback((cids: string[]): { component_id: string; tier_id: string | null; value: number | null }[] => {
     const out: { component_id: string; tier_id: string | null; value: number | null }[] = [];
@@ -1410,7 +1496,7 @@ function SetPricingTab({
             — and they part company the day stock sells out while the ledger
             keeps the cost. Inferring one from the other's complement is a trick
             the user has to know; a chip is not. Owner asked for it, 2026-09-08. */}
-        {(['in_stock', 'has_cost', 'no_cost'] as PriceScope[]).map((id) => (
+        {(['in_stock', 'landed_cost', 'quoted_cost', 'no_cost'] as PriceScope[]).map((id) => (
           <Chip key={id} label={SCOPE_LABEL[id]} count={scopeCounts.get(id) ?? 0} on={scope.has(id)}
             tone="scope" onClick={() => { setScope((w) => toggle(w, id)); setPage(200); }} />
         ))}
@@ -1428,7 +1514,11 @@ function SetPricingTab({
             <tr className="bg-slate-800/60 text-[11px] uppercase tracking-wide text-slate-400">
               <SortTh sortCol={sortCol} sortDir={sortDir} onSort={onSort} col="item" label="Item" />
               <SortTh sortCol={sortCol} sortDir={sortDir} onSort={onSort} col="qty" label="On hand" align="right" className="whitespace-nowrap" />
-              <SortTh sortCol={sortCol} sortDir={sortDir} onSort={onSort} col="cost" label="Landed cost" align="right" className="whitespace-nowrap" />
+              {/* "Landed cost" until 2026-09-11, when a supplier quote became the
+                  fallback. A heading that names one of the two bases would be
+                  wrong on every quoted row — and wrong in the flattering
+                  direction, which is the kind of wrong that gets believed. */}
+              <SortTh sortCol={sortCol} sortDir={sortDir} onSort={onSort} col="cost" label="Cost basis" align="right" className="whitespace-nowrap" />
               {tiers.map((t, i) => (
                 <SortTh key={t.tier_id} sortCol={sortCol} sortDir={sortDir} onSort={onSort} col={`tier:${t.tier_id}`} align="right" className="whitespace-nowrap"
                   label={i === 0 ? `${t.name} · net` : t.name} />
@@ -1469,8 +1559,23 @@ function SetPricingTab({
                   <td className={`px-3 py-1.5 text-right tabular-nums whitespace-nowrap ${r.qty > 0 ? 'text-sky-300/80' : 'text-slate-600'}`}>
                     {r.qty > 0 ? fmtInt(r.qty) : '—'}
                   </td>
-                  <td className="px-3 py-1.5 text-right tabular-nums text-slate-400 whitespace-nowrap">
-                    {r.cost == null ? <span className="text-slate-600">—</span> : fmtRupiah(r.cost)}
+                  {/* The cost, and WHERE IT CAME FROM. A quote basis excludes
+                      freight, duty and fees, so the margin beside it reads
+                      better than the truth — that cannot be silent, or a floor
+                      "cleared" here gets breached the day the goods land. The
+                      expected case (landed) carries no badge: a tag on every
+                      row is a tag nobody reads. */}
+                  <td className="px-3 py-1.5 text-right tabular-nums whitespace-nowrap" title={BASIS_NOTE[r.basis.basis]}>
+                    {r.cost == null ? <span className="text-slate-600">—</span> : (
+                      <span className={r.basis.provisional ? 'text-amber-300/90' : 'text-slate-400'}>
+                        {fmtRupiah(r.cost)}
+                        {BASIS_TAG[r.basis.basis] && (
+                          <span className={`ml-1 align-middle px-1 py-px rounded text-[9px] font-bold tracking-wide ${
+                            r.basis.provisional ? 'bg-amber-500/15 text-amber-300' : 'bg-slate-800 text-slate-500'
+                          }`}>{BASIS_TAG[r.basis.basis]}</span>
+                        )}
+                      </span>
+                    )}
                   </td>
                   {tiers.map((t, i) => {
                     const k = keyOf(cid, t.tier_id);
