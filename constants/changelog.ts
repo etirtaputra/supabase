@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: '2026-09-11T10:00:00Z',
+    title: 'Tombol salin di samping deskripsi barang (Selling Prices)',
+    details: [
+      'Di daftar Selling Prices, tiap deskripsi barang sekarang punya tombol salin kecil di sebelahnya. Sekali klik, deskripsinya masuk clipboard \u2014 siap ditempel ke WhatsApp atau dokumen.',
+      'Konfirmasinya muncul di tombolnya sendiri (berubah jadi centang sebentar), bukan lewat notifikasi melayang. Kalau menyalin sepuluh baris berturut-turut, sepuluh notifikasi cuma jadi tumpukan yang isinya sama; centang di tombol yang baru ditekan justru ada tepat di tempat mata sedang melihat.',
+      'Yang disalin adalah DESKRIPSI INTERNAL kita. Model dari supplier yang ada di bawahnya sengaja tidak diberi tombol \u2014 ini layar sisi jual, dan tulisan supplier bukan yang dikirim ke pelanggan.',
+      'Di layar besar tombolnya baru muncul saat baris di-hover supaya daftar tetap bersih; di layar sentuh tombolnya selalu terlihat, karena di sana tidak ada hover dan kontrol yang tidak terlihat sama saja dengan tidak ada.',
+    ],
+  },
+  {
     at: '2026-09-11T08:00:00Z',
     title: 'Saran harga sekarang terlihat seperti tombol \u2014 karena memang tombol',
     details: [

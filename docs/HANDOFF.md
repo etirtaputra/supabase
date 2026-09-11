@@ -122,6 +122,35 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
+### 2026-09-11 (latest) — copy button on the Selling Prices description
+
+Owner: *"please add copy button for next to item's descriptions"* → *"in
+selling prices list"*.
+
+`components/ui/CopyButton.tsx`, a small shared control. Three decisions in it
+are the kind that get tidied away by whoever did not make them:
+
+- **It confirms in place** — the icon becomes a tick for 1.2s — rather than
+  raising a toast. Somebody building a message copies several rows in a row,
+  and a toast per copy stacks into a column of identical banners where the
+  fifth tells you nothing the first did. The tick lands on the button just
+  pressed, which is where the eye already is.
+- **It copies OUR description, and the supplier model below it deliberately
+  has no button.** This is a sell-side screen; the supplier's wording is not
+  what goes to a customer. Same rule as the Products list, 2026-09-10.
+- **Dim until row-hover on desktop, always visible on touch.** `group-hover`
+  never fires on a phone, so a bare hover rule would hide the control
+  permanently there — an invisible control is an absent one.
+
+It routes through `copyOnly` rather than reaching for `navigator.clipboard`
+itself: that helper falls back to an offscreen textarea, which is the path that
+survives plain http and in-app browsers, and it is deliberately not the Web
+Share sheet (owner, 2026-09-07 — most of this office is on Windows, where a
+share sheet is a dead end).
+
+674 tests pass, three of them new; build clean.
+
+
 ### 2026-09-11 (later still) — a button that did not look like one
 
 Owner: *"how to click on the suggested price, so i dont have to retype the

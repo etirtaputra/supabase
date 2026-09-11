@@ -293,3 +293,43 @@ test('the upper tiers derive from the draft net, so one click fills the row', ()
   assert.match(src, /const netNow = draft\[netKey\] !== undefined \? num\(draft\[netKey\]\) : r\.c\.selling_price_idr/,
     'the net preview no longer reads what is typed');
 });
+
+
+/**
+ * The copy button on the Selling Prices description (owner, 2026-09-11).
+ *
+ * Two things about it are decisions rather than details, and both are the kind
+ * that get "tidied" away by someone who did not make them.
+ */
+test('the description carries a copy button, and the supplier model does not', () => {
+  const src = pricingPage();
+  assert.match(src, /<CopyButton text=\{descOf\(r\.c\)\}/, 'the description lost its copy button');
+  // OUR description is the one that goes to a customer. The supplier's model
+  // sits directly beneath it and must not get the same affordance — this
+  // screen is sell-side, and the rule has held since 2026-09-10.
+  assert.ok(!/<CopyButton text=\{r\.c\.supplier_model\}/.test(src),
+    'the supplier model got a copy button — that is the wrong string to hand a customer');
+});
+
+test('the row is a named group, so the button can hide until hover', () => {
+  const src = pricingPage();
+  assert.match(src, /className="group\/row border-t/, 'the row lost the hover group the button keys off');
+});
+
+/**
+ * A copy control must survive a phone, a plain-http page, and an in-app
+ * browser. `copyOnly` handles all three — the Web Share sheet does not, and
+ * most of this office is on Windows where it is a dead end.
+ */
+test('the copy button uses the shared clipboard helper, not its own', () => {
+  const src = readFileSync(join(process.cwd(), 'components', 'ui', 'CopyButton.tsx'), 'utf8');
+  assert.match(src, /import \{ copyOnly \} from '@\/lib\/whatsappQuote'/, 'it no longer uses the shared helper');
+  assert.ok(!/navigator\.clipboard/.test(src), 'it reaches for the clipboard directly instead of going through copyOnly');
+  assert.ok(!/navigator\.share/.test(src), 'the share sheet is back — it is a dead end on Windows');
+  // It lives inside a row that may be clickable elsewhere; copying must never
+  // also open something.
+  assert.match(src, /e\.stopPropagation\(\)/, 'a click would bubble to the row again');
+  // And it must not be invisible on touch, where hover never fires.
+  assert.match(src, /md:opacity-0 md:group-hover\/row:opacity-100/,
+    'the dim-until-hover rule is no longer desktop-only — on a phone that hides it for good');
+});

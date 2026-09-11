@@ -27,6 +27,7 @@ import Link from 'next/link';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
+import CopyButton from '@/components/ui/CopyButton';
 import { computeTierChain, roundUpToStep } from '@/lib/tierPricing';
 import { issuesFor, matchesIssues, matchesScope, marginPct,
          compareCells, suggestRange, ISSUE_LABEL, SCOPE_LABEL,
@@ -1551,9 +1552,19 @@ function SetPricingTab({
                 : gpNow > Number(r.profile.margin_target_max) ? 'above' : 'within';
               return (
                 <Fragment key={cid}>
-                <tr className="border-t border-slate-800/70 hover:bg-slate-800/30">
+                {/* `group/row` so the copy button can stay out of the way until
+                    the pointer is on the row — 200 always-lit buttons read as
+                    clutter, not as 200 affordances. Named, not bare `group`,
+                    because a bare one would also be claimed by anything nested. */}
+                <tr className="group/row border-t border-slate-800/70 hover:bg-slate-800/30">
                   <td className="px-3 py-1.5">
-                    <p className="text-slate-200 leading-tight">{descOf(r.c)}</p>
+                    <p className="text-slate-200 leading-tight flex items-start gap-1">
+                      <span>{descOf(r.c)}</span>
+                      {/* OUR description, which is the one that goes to a
+                          customer — the supplier model below it deliberately
+                          has no button. */}
+                      <CopyButton text={descOf(r.c)} title="Copy the description" />
+                    </p>
                     <p className="text-[11px] text-slate-500 font-mono">{r.c.supplier_model}</p>
                   </td>
                   <td className={`px-3 py-1.5 text-right tabular-nums whitespace-nowrap ${r.qty > 0 ? 'text-sky-300/80' : 'text-slate-600'}`}>
