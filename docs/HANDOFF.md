@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-09** · head of `main` at that point: `1c888da` (see §4, §6)
+**Last updated: 2026-09-13** · head of `main` at that point: `e008248` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -122,7 +122,75 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-09-11 (latest) — the tier prices no reader outside a browser could see
+### 2026-09-13 (latest) — settled POs now true up their own landed cost · `e008248`
+
+Owner, after three rounds of *"I still don't get it"* on `/stock/reconcile`,
+landed on the question that actually found the bug: *"when we already filled in
+all the payments, does it have to appear in true up?"* — then, once the gap was
+named: *"yes do that, auto-post on settlement but hold back the anomalies"*.
+
+**A cost lives in two books and only one of them updated itself.**
+
+- `6.0_po_costs` is the bills. Current the moment a payment is entered.
+- `30.0_stock_movements` is a photograph taken on receipt day. Append-only —
+  nothing rewrites a photograph.
+
+`pg_trigger` confirms there was never a path between them: `6.0_po_costs`
+carries exactly **one** trigger and all it does is refresh an analytics view.
+Entering the final payment moved the first book and said nothing to the second.
+The only bridge was a button on a screen nobody had a reason to open.
+
+Nobody pressed it. **24 POs, IDR 777,984,457 of understated landed cost**, the
+oldest settled January 2025 — twenty months of COGS reading low and gross
+profit reading high on every item those containers brought in. A checkpoint
+nobody reaches is not a control; it is friction with a price tag.
+
+**So the default flipped.** Posting is what happens; holding is the exception
+that must earn itself. `lib/landedAutoPost.ts` is the whole of that judgement —
+pure and tested, because it now decides with no human in the loop.
+
+Four hold reasons, each naming a suspicion about the **inputs**, never the
+arithmetic (the maths is identical either way):
+
+| Reason | Why it waits |
+|---|---|
+| `unmatched` | goods received that no PO line explains — costs are spread over the lines, so the divisor is wrong |
+| `credit` | the bills came in LOWER than the receipt booked; a true-up that REMOVES stock value is never automatic |
+| `outlier` | over **15%** of booked value (`OUTLIER_PCT`) |
+| `nothing_on_hand` | every unit sold; nothing to write, the whole variance is COGS already booked |
+
+**Size is deliberately not a rule.** `EB.41875` is the biggest correction on the
+board (IDR 141m) at an entirely ordinary 7.1%; holding POs for being big would
+rebuild the backlog out of the healthiest rows. The percentage is what says
+whether an allocation is sane. The live board makes the shape obvious: seven POs
+between 3.5% and 7.1%, and one at **32.6%** that is either a freight-heavy small
+shipment or a cost row on the wrong PO — indistinguishable from here.
+
+**`POST /api/landed/autopost` takes one `po_id`, never a sweep.** It acts on the
+event that actually happened, which is what keeps the pre-existing 24-PO backlog
+out of the ledger: IDR 777.9m of revaluation stays the owner's deliberate press
+on `/stock/reconcile`. It posts **as the caller** (never service-role), so
+`stamp_stock_movement` records the person whose payment triggered it. Safe to
+call twice — the variance is recomputed from the ledger each time, so a trued-up
+PO produces no rows and reports `already_current`.
+
+`app/purchasing/page.tsx` fires it after **both** cost-write paths
+(`handleMarkFullyPaid` and the generic `handleInsert` on `6.0_po_costs`) without
+tracking which ones mattered, and it never blocks a save — the payment is the
+user's real intent and is already committed.
+
+Verified read-only against production: **zero unexplained receipts across all 51
+POs carrying receipts**, so the `unmatched` guard currently holds nothing and is
+there for the day it doesn't.
+
+`/stock/reconcile` keeps its manual button and becomes the **exception list** —
+each held PO now says which suspicion held it, in English and Indonesian.
+
+**Offered and NOT built** (owner has not asked): a ninth attention signal,
+`landed_cost_ready`, so a held PO surfaces instead of waiting to be found. Worth
+raising — the held ones are now the only way this backlog can rebuild.
+
+### 2026-09-11 — the tier prices no reader outside a browser could see
 
 Owner, forwarding an agent transcript: *"see even my ai agents cannot read the
 Tier 2 and Tier 3 prices because it is as if it's not there.. Why not just make
