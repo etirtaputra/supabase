@@ -196,15 +196,22 @@ function ProductsInner() {
   const [filterCategory, setFilterCategory] = useState('');
   // Priced only is the DEFAULT view (owner, 2026-08-14): the sales list is for
   // quoting, and an item with no sell price cannot be quoted. Untick to see the
-  // rest; "Clear" returns to the default (priced) view, not to everything.
+  // rest; "Clear" returns to the default view, not to everything.
   // ?new=1 (the dashboard's New arrivals panel) opens this list with the new
-  // products PINNED TO THE TOP — and turns OFF "priced only", because the
+  // products PINNED TO THE TOP — and turns OFF both default ticks, because the
   // whole reason to follow that link is usually the items nobody has priced
-  // yet. It used to filter to them; now you land on them with the catalogue
-  // still underneath, which is the point of a pin.
+  // yet, and an arrival that has since sold out would otherwise vanish from the
+  // very list built to show it. It used to filter to them; now you land on them
+  // with the catalogue still underneath, which is the point of a pin.
   const arrivedDeepLink = searchParams.get('new') === '1';
   const [pricedOnly, setPricedOnly] = useState(!arrivedDeepLink);
-  const [stockOnly, setStockOnly] = useState(false);
+  // In stock or incoming is ALSO the default (owner, 2026-09-13: *"for product
+  // list, should default to items in stock / incoming and priced"*). The two
+  // ticks together answer the question the list is actually opened to answer —
+  // what can I sell today — and the catalogue is 1,022 items against roughly a
+  // hundred that are both priced and gettable. Both chips carry their count and
+  // untick in one click, so the rest is never more than that away.
+  const [stockOnly, setStockOnly] = useState(!arrivedDeepLink);
   const [newFirst, setNewFirst] = useState(arrivedDeepLink);
   // First/last goods-receipt date per item (30.0 ledger, GRN in-movements) —
   // powers the "New" product tag and the "New first" pin. `first` is the
@@ -644,7 +651,10 @@ function ProductsInner() {
     return { priced, inStock, isNew };
   }, [comps, physical, incoming, arrivals, newArrivalDays]);
 
-  const hasFilters = !!(search.trim() || filterCategory || stockOnly || newFirst);
+  // "Clear" appears when the view DEVIATES from the default, which now means an
+  // unticked default counts too — otherwise unticking Priced would leave you
+  // looking at a wider list with no visible way back to the narrow one.
+  const hasFilters = !!(search.trim() || filterCategory || newFirst || !pricedOnly || !stockOnly);
   async function saveMeta(componentId: string, patch: Partial<Pick<Comp, 'warranty' | 'datasheet_url' | 'warranty_value' | 'warranty_unit' | 'perf_warranty_value' | 'perf_warranty_unit'>>) {
     const { error } = await supabase.from('3.0_components').update(patch).eq('component_id', componentId);
     if (error) { flash(`Failed: ${error.message}`); return; }
@@ -926,7 +936,7 @@ function ProductsInner() {
             <FilterChip on={pricedOnly} count={tickCounts.priced} onClick={() => setPricedOnly((v) => !v)} label={t('Priced')}
               title={t('Only items with a sell price set — the default view; untick to include unpriced items')} />
             <FilterChip on={stockOnly} count={tickCounts.inStock} onClick={() => setStockOnly((v) => !v)} label={t('In stock')}
-              title={t('On the shelf now, or on a purchase order not yet fully received')} />
+              title={t('On the shelf now, or on a purchase order not yet fully received — part of the default view; untick to see the rest of the catalogue')} />
             {/* SEPARATED, because it is not a filter (owner's idea,
                 2026-09-10: *"when user clicks for filter for New, it just puts
                 the new items at the top, but the rest of the items is still
@@ -947,7 +957,7 @@ function ProductsInner() {
               title={tf('Floats products we had never carried until their first stock landed in the last {days} days to the top of the list, without hiding anything else. Fresh stock of an item we already sell is not new — the Live figure says that.', { days: newArrivalDays })} />
             {hasFilters && (
               // A text link, not a fifth bordered control (Selling Prices).
-              <button onClick={() => { setSearch(''); setFilterCategory(''); setStockOnly(false); setNewFirst(false); setPricedOnly(true); }}
+              <button onClick={() => { setSearch(''); setFilterCategory(''); setStockOnly(true); setNewFirst(false); setPricedOnly(true); }}
                 className="ml-1 text-xs sm:text-[11px] text-slate-500 hover:text-slate-300 underline underline-offset-2">{t('Clear')}</button>
             )}
             {/* The result count, phone only — see the note in row one. */}

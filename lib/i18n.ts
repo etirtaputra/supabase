@@ -795,8 +795,8 @@ export const ID: Record<string, string> = {
   'Priced': 'Ada harga',
   'In stock': 'Ada stok',
   'In stock / incoming': 'Ada stok / dalam perjalanan',
-  'On the shelf now, or on a purchase order not yet fully received':
-    'Ada di gudang sekarang, atau sedang di PO yang belum diterima penuh',
+  'On the shelf now, or on a purchase order not yet fully received — part of the default view; untick to see the rest of the catalogue':
+    'Ada di gudang sekarang, atau sedang di PO yang belum diterima penuh — bagian dari tampilan bawaan; hapus centang untuk melihat sisa katalog',
   // "New" = a product we have never carried, not a restock. Fresh stock of a
   // known item is already visible in the Live figure (owner, 2026-09-10).
   '↑ New first': '↑ Yang baru di atas',
