@@ -31,6 +31,7 @@ import { useAuth } from '@/hooks/useAuth';
 // Constants & Types
 import { ENUMS } from '@/constants/enums';
 import { getLatestExchangeRate, deriveExchangeRates } from '@/lib/exchangeRates';
+import { autoPostTrueUp, autoPostMessage } from '@/lib/landedAutoPostClient';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { fmtIdr, fmtInt } from '@/lib/formatters';
@@ -131,6 +132,23 @@ function MasterInsertPage() {
     window.history.replaceState(null, '', `/purchasing?tab=${tab}`);
   };
 
+  /**
+   * Let the stock ledger catch up with the bills just entered.
+   *
+   * Entering a payment moves `6.0_po_costs` and says nothing to
+   * `30.0_stock_movements` — there is no trigger between them, by design, since
+   * the allocation rules live in TypeScript beside `computeTUC` rather than in
+   * SQL. This is the bridge. It never blocks the save: the payment is already
+   * committed, and a true-up that has to wait for a human is a thing to
+   * mention, not a failure to report.
+   */
+  const trueUpAfterPayment = async (poIds: (string | number)[]) => {
+    for (const poId of Array.from(new Set(poIds.map(String)))) {
+      const msg = autoPostMessage(await autoPostTrueUp(poId));
+      if (msg) showToast(msg.text, msg.tone);
+    }
+  };
+
   const handleMarkFullyPaid = async (poId: string, amount: number, currency: string) => {
     const po = data.pos.find((p) => String(p.po_id) === poId);
     const row: Record<string, unknown> = {
@@ -146,6 +164,10 @@ function MasterInsertPage() {
     if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
     showToast('Marked as fully paid', 'success');
     refetch();
+    // Paying a PO off is exactly the moment its landed cost goes final — so the
+    // stock ledger catches up here rather than waiting for someone to remember
+    // the reconcile screen. Held POs stay on that board; nothing is lost.
+    void trueUpAfterPayment([poId]);
   };
 
   const handleStatusChange = async (poId: string, status: string) => {
@@ -435,6 +457,12 @@ function MasterInsertPage() {
     }
     showToast(`✅ Added ${cleanPayload.length} record(s)!`, 'success');
     refetch();
+    // Any cost row can be the one that settles a PO — a balance payment, or the
+    // freight invoice that arrives after it. Fire on all of them: the route
+    // recomputes from the ledger, so a PO with nothing owing is a no-op.
+    if (table === '6.0_po_costs') {
+      void trueUpAfterPayment(cleanPayload.map((r) => r.po_id).filter(Boolean) as (string | number)[]);
+    }
     if (table === '4.0_price_quotes' && insertedRows?.[0]) {
       const qId = String(insertedRows[0].quote_id);
       setLastSaved({ message: 'Quote saved!', cta: 'Raise its PO →', nextTab: 'quoting', quoteId: qId });

@@ -31,6 +31,7 @@ import { fmtDay, fmtInt, fmtIdr, fmtRupiah } from '@/lib/formatters';
 import {
   fetchLandedVariances, revaluationRows, type LandedSummary, type PoVariance,
 } from '@/lib/landedCost';
+import { autoPostVerdict, HOLD_LABEL, HOLD_NOTE } from '@/lib/landedAutoPost';
 
 interface Comp { component_id: string; supplier_model: string | null; internal_description: string | null; unit: string | null }
 
@@ -249,6 +250,11 @@ export default function ReconcilePage() {
             {shown.map((v) => {
               const isOpen = open === v.poId;
               const up = v.delta >= 0;
+              // Why the auto-poster left this one alone. 'not_ready' and
+              // 'nothing_on_hand' already say themselves elsewhere on the row —
+              // badging them twice would bury the three that mean "look at me".
+              const hold = autoPostVerdict(v).hold;
+              const flagged = hold && hold !== 'not_ready' && hold !== 'nothing_on_hand' ? hold : null;
               return (
                 <div key={v.poId} className={`rounded-2xl border overflow-hidden ${
                   v.status === 'ready' ? 'border-slate-800/80 bg-slate-900/40' : 'border-slate-800/50 bg-slate-900/20'}`}>
@@ -262,6 +268,13 @@ export default function ReconcilePage() {
                       {v.trued && (
                         <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300"
                           title={t("This PO has been trued up before — what is shown is what has come in since")}>trued before</span>
+                      )}
+                      {flagged && (
+                        // Settled POs true themselves up now, so anything still
+                        // sitting here with final bills is here ON PURPOSE. Say
+                        // which suspicion held it, not that it was held.
+                        <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300"
+                          title={t(HOLD_NOTE[flagged])}>{t(HOLD_LABEL[flagged])}</span>
                       )}
                       <span className="text-[11px] text-slate-500 truncate">
                         {supplierOf(v) || '—'} · {fmtDay(v.poDate)} · {v.currency}
@@ -328,10 +341,14 @@ export default function ReconcilePage() {
 
                       <div className="px-4 py-3 bg-slate-900/60 border-t border-slate-800/60 flex flex-wrap items-center gap-3">
                         <div className="text-[11px] text-slate-500 min-w-0 flex-1">
-                          {v.unmatched > 0 && (
-                            <span className="text-amber-400/80 mr-2">
-                              {v.unmatched} received item{v.unmatched !== 1 ? 's' : ''} no PO line explains — left alone.
-                            </span>
+                          {flagged && (
+                            <p className="text-amber-400/90 mb-1.5">
+                              <span className="font-semibold">{t('Held back from auto-posting.')}</span>{' '}
+                              {t(HOLD_NOTE[flagged])}
+                              {flagged === 'unmatched' && v.unmatched > 0 && (
+                                <> ({v.unmatched} received item{v.unmatched !== 1 ? 's' : ''} — left alone.)</>
+                              )}
+                            </p>
                           )}
                           Posting writes value-only ledger entries; quantities never move. The correction spreads over
                           everything on hand, because a moving average keeps no lots.

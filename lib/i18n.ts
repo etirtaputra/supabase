@@ -220,6 +220,24 @@ export const ID: Record<string, string> = {
     'tagihan datang setelah barangnya — catat koreksinya dan nilai stok menyusul',
   'bills landed after the goods were sold — the margin on them was overstated':
     'tagihan datang setelah barangnya terjual — marginnya tercatat terlalu tinggi',
+
+  // Landed cost — why a settled PO was NOT trued up by itself
+  'Held back from auto-posting.': 'Ditahan dari pencatatan otomatis.',
+  'awaiting bills': 'menunggu tagihan',
+  'unexplained receipt': 'penerimaan tak dijelaskan',
+  'bills came in lower': 'tagihan lebih rendah',
+  'unusually large': 'tidak biasa besarnya',
+  'nothing on hand': 'tidak ada stok tersisa',
+  'The supplier is not paid off yet — more bills are coming, so the number will move.':
+    'Pemasok belum lunas — masih ada tagihan yang akan datang, jadi angkanya masih berubah.',
+  'Goods were received against this PO that no PO line explains. Costs are spread over the lines, so the allocation cannot be trusted until that is resolved.':
+    'Ada barang diterima atas PO ini yang tidak dijelaskan oleh baris PO mana pun. Biaya dibagi berdasarkan baris, jadi pembagiannya belum bisa dipercaya sampai itu dibereskan.',
+  'The bills come to LESS than the receipt booked. That happens — a credit note, a refunded duty — but a cost row on the wrong PO looks exactly the same, and this would take value OUT of stock.':
+    'Total tagihan LEBIH KECIL dari yang dicatat saat penerimaan. Itu bisa terjadi — nota kredit, bea yang dikembalikan — tetapi biaya yang salah PO terlihat persis sama, dan ini akan MENGURANGI nilai stok.',
+  'This variance is over 15% of what the goods were booked at. Real imports land at 3–7%; this is either a very freight-heavy shipment or a cost entered against the wrong PO.':
+    'Selisih ini lebih dari 15% dari nilai barang saat dicatat. Impor biasanya 3–7%; ini entah kiriman dengan ongkos kirim sangat besar, atau biaya yang dimasukkan ke PO yang salah.',
+  'Every unit has been sold. Nothing is left to revalue — the whole difference is gross profit already overstated, and posting cannot recover it.':
+    'Semua unit sudah terjual. Tidak ada yang bisa dinilai ulang — seluruh selisihnya adalah laba kotor yang terlanjur tercatat terlalu tinggi, dan mencatatnya tidak bisa menariknya kembali.',
   '{n} item at reorder point': '{n} barang di titik pemesanan ulang',
   '{n} items at reorder point': '{n} barang di titik pemesanan ulang',
   '{n} projected to stock out before a PO raised today could arrive':
