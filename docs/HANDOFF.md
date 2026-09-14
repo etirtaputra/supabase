@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-13** · head of `main` at that point: `e008248` (see §4, §6)
+**Last updated: 2026-09-14** · head of `main` at that point: see §4 (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -121,6 +121,45 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 ---
 
 ## 4. What the previous threads did (for context, all shipped to main)
+
+### 2026-09-14 (latest) — the route that answered to nobody
+
+Asked what to improve next; this was the answer, and it took fifteen minutes.
+
+`app/api/insert-from-pdf/route.ts` held the **service-role key** — bypasses
+every RLS policy, makes `auth.uid()` NULL — and authenticated **nobody**. No
+token, no role, no check of any kind. A POST from anywhere on the internet could
+insert into `2.0_suppliers`, `3.0_components`, `1.0_companies`,
+`4.0_price_quotes`, `4.1_price_quote_line_items` and the PI table. Every row
+would land stamped `'system'`, because there was no identity to stamp.
+
+**Nothing in the app had called it for months.** Grepped the whole repo: the
+screens call `/api/extract-pdf` to parse a PDF and then save through the normal
+authenticated forms. Two docs mentioned it; no code did. So it was **deleted,
+not hardened** — dead code holding a live key.
+
+`extract-pdf` stays (it is genuinely used) and now requires a bearer token AND
+`buySide`, caps uploads at 20 MB, and logs who spent the call. It touches no
+table, but it bills `ANTHROPIC_API_KEY` on every request, and an open endpoint
+with a metered key behind it is a bill waiting for someone to find. Both call
+sites go through `lib/extractPdfClient.ts` so neither can forget the header.
+
+**`lib/apiAuth.test.ts` is the actual fix.** It walks every `app/api/**/route.ts`
+and fails the build if one acts without establishing its caller, or holds
+SERVICE_ROLE without one. Both routes were written early, worked, and were never
+looked at again — the hole was invisible precisely because nothing was broken,
+and the next route will be written under the same time pressure. All four
+assertions pass today, so every existing route does check.
+
+**Verified against `pg_policies` while here**, which moved two other things:
+the `3.0_components` anon UPDATE hole is **already closed** (only `authenticated`
+policies remain) and `6.0_po_costs` **already gates SELECT** on
+owner/buy_admin/data_entry/finance. Both were listed as open. What IS still open
+is narrower and now written down precisely in §6: `2.0_suppliers`,
+`4.0_price_quotes`, `4.1_price_quote_line_items`, `5.0_purchases` and
+`5.1_purchase_line_items` carry `authenticated read USING (true)` — any signed-in
+account, including `engineer` and `sales`, reads every supplier identity and
+every purchase and quote unit cost. `6.0_po_costs` is the model to copy.
 
 ### 2026-09-13 (latest) — settled POs now true up their own landed cost · `e008248`
 
@@ -1264,10 +1303,12 @@ I don't want is an extra column that waste space in ICAPROC or Item Editor."*
   `constants/navigation.ts` or the access tests had to move.
 
   **Why it lives here rather than on its own host yet:** a public site ships
-  the anon key in every page's source, so it cannot go live before the
-  `3.0_components` anon UPDATE policy and the two unauthenticated API routes
-  (`insert-from-pdf`, `extract-pdf`) are closed. Behind the login, none of that
-  blocks a demo the owner can click through on real data.
+  the anon key in every page's source. Two of the three blockers are now gone —
+  the `3.0_components` anon UPDATE policy (verified 2026-09-14: only
+  `authenticated` policies remain) and the two open API routes (2026-09-14:
+  `insert-from-pdf` deleted, `extract-pdf` gated). **What remains is the
+  buy-side read gap** — see the list at the end of §6. Behind the login, none of
+  it blocks a demo the owner can click through on real data.
 
   **Portability is the design constraint** (owner, 2026-09-05: demo on an
   icaproc subdomain, then port to a self-hosted VPS). Everything store-side is
@@ -1495,13 +1536,18 @@ the `DQ-` number) but the SO number is spent.
    `9.0_exchange_rate_history` has CNY at 2,244 (Jun 2024) and 2,327 (Oct 2025);
    2,643 only otherwise appears on 2026 POs. Overstates that deal ~IDR 145–180m.
 
-### Security holes — #2 FIXED 2026-09-06, #1 still open
+### Security holes — #1 and #2 both FIXED (#1 on 2026-09-14)
 
-1. **STILL OPEN. `app/api/insert-from-pdf/route.ts` has no auth and writes with
-   the service-role key.** Anyone reaching that URL can insert suppliers,
-   quotes, POs and line items into production. `extract-pdf` is also open and
-   spends `ANTHROPIC_API_KEY` for any caller. `ask` and `next-step` check the
-   bearer token correctly — copy that pattern.
+1. **FIXED 2026-09-14 — `app/api/insert-from-pdf` is DELETED, not hardened.**
+   It held the service-role key and authenticated nobody: any POST could insert
+   suppliers, components, companies, quotes and PI rows into production,
+   stamped `'system'` because there was no identity to stamp. Nothing in the app
+   had called it for months, so deleting it carried no functional risk.
+   `extract-pdf` now requires a bearer token AND `buySide`, and caps the upload
+   at 20 MB (it bills `ANTHROPIC_API_KEY` per call). **`lib/apiAuth.test.ts`
+   fails the build if any route under `app/api` skips the caller check, or holds
+   SERVICE_ROLE without one.** That guard is the real fix — both routes were
+   written early, worked, and were never looked at again.
 2. **FIXED 2026-09-06 — and it was worse than recorded here.** The note used to
    say the buy side was ungated "at the DB level" with role gating only in
    React. True, but it understated it: four tables also carried
@@ -2297,8 +2343,22 @@ model/description is not fetched, shown, or searched.**
   live ERP for a domain that does not exist.
 - **Photos + datasheets** — per 6.3 (5). Additive schema; say so and apply.
 - **BEFORE ANYTHING IS PUBLIC** (a public site ships the anon key in every
-  page): close the `3.0_components` anon UPDATE policy hole; auth the two
-  open API routes `app/api/insert-from-pdf` and `app/api/extract-pdf`.
+  page). Verified against `pg_policies` on 2026-09-14:
+  - ~~`3.0_components` anon UPDATE~~ **already closed** — only `authenticated`
+    policies remain (`catalog write` gated on `can_edit_catalog()`).
+  - ~~the two open API routes~~ **closed 2026-09-14** — `insert-from-pdf`
+    deleted, `extract-pdf` requires a token + `buySide`, guarded by
+    `lib/apiAuth.test.ts`.
+  - **STILL OPEN — buy-side reads are open to ANY signed-in account.**
+    `2.0_suppliers`, `4.0_price_quotes`, `4.1_price_quote_line_items`,
+    `5.0_purchases` and `5.1_purchase_line_items` all carry
+    `authenticated read USING (true)`, so an `engineer`, `sales` or
+    `sell_admin` login reads every supplier identity and every purchase and
+    quote UNIT COST. The buy/sell separation is enforced on writes
+    (`can_write_buy_side()`) and only in React on reads. `6.0_po_costs` is
+    the model to copy — it already gates SELECT on
+    `owner/buy_admin/data_entry/finance`. This matters more the moment the
+    Shop can mint customer logins, because "signed in" stops meaning "staff".
   **The GitHub repo is PUBLIC** — no secrets committed (all keys from env,
   no `.env` tracked) but schema/table names/RLS assumptions are readable,
   which makes those holes a published map. **Vercel team is on HOBBY**,

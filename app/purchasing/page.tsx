@@ -32,6 +32,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { ENUMS } from '@/constants/enums';
 import { getLatestExchangeRate, deriveExchangeRates } from '@/lib/exchangeRates';
 import { autoPostTrueUp, autoPostMessage } from '@/lib/landedAutoPostClient';
+import { extractPdf } from '@/lib/extractPdfClient';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { fmtIdr, fmtInt } from '@/lib/formatters';
@@ -1028,11 +1029,7 @@ function MasterInsertPage() {
     if (!file || file.type !== 'application/pdf') { showToast('Please select a PDF file', 'error'); return; }
     setPdfUploading(true);
     try {
-      const formData = new FormData();
-      formData.append('pdf', file);
-      const response = await fetch('/api/extract-pdf', { method: 'POST', body: formData });
-      if (!response.ok) throw new Error('Failed to extract PDF data');
-      const extractedData = await response.json();
+      const extractedData = await extractPdf(file) as any;
       setPdfData(extractedData);
       let message = `✅ Extracted ${extractedData.line_items?.length || 0} items from PDF!`;
       if (extractedData.supplier_name) message += `\n📦 Supplier: ${extractedData.supplier_name}`;

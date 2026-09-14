@@ -1,18 +1,59 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
+import { callerFromRequest, AgentAuthError } from '@/lib/agentApi';
+import { ROLE_PERMISSIONS } from '@/constants/roles';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+/** Anything past this is somebody else's problem, not a supplier document. */
+const MAX_PDF_BYTES = 20 * 1024 * 1024;
+
+/**
+ * POST /api/extract-pdf — read a supplier quote / PI / PO with Claude.
+ *
+ * THIS ROUTE SPENDS MONEY. Every call bills the company's Anthropic key, and
+ * until 2026-09-14 it took anyone's PDF without asking who they were: a public
+ * URL that turned an unauthenticated POST into an API charge, all day, in
+ * parallel. Nothing was stolen by it — it reads a file and returns JSON, it
+ * touches no table — but an open endpoint with a metered key behind it is a
+ * bill waiting for someone to find it, and the Shop will put this deployment
+ * on a public domain.
+ *
+ * Its sibling `insert-from-pdf` was deleted the same day: that one held the
+ * SERVICE-ROLE key with no auth at all and could write suppliers, components
+ * and price quotes straight past RLS. Nothing in the app had called it for
+ * months. `lib/apiAuth.test.ts` now fails the build if either shape comes back.
+ */
 export async function POST(request: NextRequest) {
   try {
+    // Buy-side only, and as the caller: the two screens that use this are the
+    // purchasing document forms. A role that may not see a supplier's costs has
+    // no reason to be handed a parsed supplier document either.
+    let actor: { email: string; role: string };
+    try {
+      const { email, role } = await callerFromRequest(request);
+      if (!ROLE_PERMISSIONS[role as keyof typeof ROLE_PERMISSIONS]?.buySide) {
+        return NextResponse.json({ error: 'Your role may not read supplier documents.' }, { status: 403 });
+      }
+      actor = { email, role };
+    } catch (e) {
+      if (e instanceof AgentAuthError) return NextResponse.json({ error: e.message }, { status: e.status });
+      throw e;
+    }
+
     const formData = await request.formData();
     const file = formData.get('pdf') as File;
 
     if (!file) {
       return NextResponse.json({ error: 'No PDF file provided' }, { status: 400 });
     }
+    if (file.size > MAX_PDF_BYTES) {
+      return NextResponse.json({ error: 'That PDF is too large to read (limit 20 MB).' }, { status: 413 });
+    }
+    // Who spent it, so an unexpected bill has a name attached.
+    console.log(`[extract-pdf] ${actor.email} (${actor.role}) · ${(file.size / 1024).toFixed(0)} KB`);
 
     // Convert PDF to base64
     const bytes = await file.arrayBuffer();

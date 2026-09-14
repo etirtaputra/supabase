@@ -192,8 +192,9 @@ INSERT INTO quote_history (
 ```
 POST /api/extract-pdf
 Content-Type: multipart/form-data
+Authorization: Bearer <access_token>     <- REQUIRED since 2026-09-14
 
-Body: { pdf: <file> }
+Body: { pdf: <file> }   (20 MB max)
 
 Response:
 {
@@ -206,24 +207,19 @@ Response:
 }
 ```
 
-**2. Insert Data**
-```
-POST /api/insert-from-pdf
-Content-Type: application/json
+**2. Insert Data** — ~~`POST /api/insert-from-pdf`~~ **DELETED 2026-09-14**
 
-Body: {
-  "data": <extracted_data>,
-  "mode": "formal" | "history"
-}
+That route held the **service-role key** (which bypasses every RLS policy and
+makes `auth.uid()` NULL) and authenticated nobody: any POST from anywhere could
+write suppliers, components, companies, price quotes and proforma invoices into
+production, stamped `'system'` because there was no identity to stamp.
 
-Response:
-{
-  "success": true,
-  "quote_id": 123,
-  "pi_id": 45,
-  "line_items_count": 10
-}
-```
+Nothing in the app had called it for months — the screens parse a PDF with
+`/api/extract-pdf` and then write through the normal authenticated forms, which
+is why it was deleted rather than hardened. `lib/apiAuth.test.ts` fails the
+build if it, or any route shaped like it, comes back.
+
+**To load a parsed PDF: extract, then save through the purchasing forms.**
 
 ### Claude AI Integration
 

@@ -9,6 +9,7 @@ import FieldRenderer from './FieldRenderer';
 import { Spinner } from '../ui/LoadingSkeleton';
 import QuoteItemsImportModal from './QuoteItemsImportModal';
 import type { BatchLineItemsFormProps } from '../../types/forms';
+import { extractPdf } from '../../lib/extractPdfClient';
 export default function BatchLineItemsForm({
   title,
   storageKey: storageKeyProp,
@@ -252,19 +253,7 @@ export default function BatchLineItemsForm({
     setPdfError('');
 
     try {
-      const formData = new FormData();
-      formData.append('pdf', file);
-
-      const response = await fetch('/api/extract-pdf', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to extract PDF data');
-      }
-
-      const extractedData = await response.json();
+      const extractedData = await extractPdf(file) as any;
 
       const newDraft: Record<string, any> = {};
       const validFieldNames = itemFields.map(f => f.name);
