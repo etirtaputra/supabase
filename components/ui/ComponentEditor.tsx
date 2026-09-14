@@ -20,6 +20,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
 import type { Component, PriceQuoteLineItem, PriceQuote, PurchaseOrder, PurchaseLineItem, CompetitorPrice, POCost, ComponentLink } from '../../types/database';
 import { computeTUC, computeTUCMap } from '../../lib/computeTUC';
+import { buildComponentUsage, type ComponentUsage } from '../../lib/componentUsage';
 import { WARRANTY_UNITS, warrantyLabel } from '@/lib/warranty';
 import { fetchReorderAlerts, type ReorderAlert } from '@/lib/reorder';
 import { PRINCIPAL_CATS, BALANCE_CATS, BANK_FEE_CATS, TAX_CATS } from '../../constants/costCategories';
@@ -28,13 +29,6 @@ import { CATEGORY_UNITS, hasCategoryUnit } from '../../constants/categoryUnits';
 import { categoryLabelOf, categoryPath } from '../../constants/productTaxonomy';
 import { CategoryOptionGroups } from './CategoryOptions';
 
-interface ComponentUsage {
-  quoteCount: number;
-  poCount: number;
-  lineItemCount: number;
-  piNumbers: string[];
-  poNumbers: string[];
-}
 
 interface ComponentHistoryEntry {
   id: string;
@@ -1137,49 +1131,14 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
   }, [components]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Per-component usage stats ──────────────────────────────────────────────
-  const usageMap = useMemo<Map<string, ComponentUsage>>(() => {
-    // Build lookup: quote_id → pi_number
-    const piByQuote = new Map<number, string>();
-    quotes.forEach((q) => { if (q.pi_number) piByQuote.set(q.quote_id, q.pi_number); });
-
-    // Build lookup: quote_id → po_numbers[]
-    const posByQuote = new Map<number, string[]>();
-    pos.forEach((po) => {
-      if (po.quote_id == null || !po.po_number) return;
-      const arr = posByQuote.get(po.quote_id) ?? [];
-      arr.push(po.po_number);
-      posByQuote.set(po.quote_id, arr);
-    });
-
-    // Accumulate per-component using Sets for deduplication
-    const quoteIds = new Map<string, Set<number>>();
-    const piNums = new Map<string, Set<string>>();
-    const poNums = new Map<string, Set<string>>();
-    const lineCounts = new Map<string, number>();
-
-    quoteItems.forEach((item) => {
-      const cid = item.component_id;
-      if (!cid) return;
-      if (!quoteIds.has(cid)) { quoteIds.set(cid, new Set()); piNums.set(cid, new Set()); poNums.set(cid, new Set()); }
-      quoteIds.get(cid)!.add(item.quote_id);
-      lineCounts.set(cid, (lineCounts.get(cid) ?? 0) + 1);
-      const pi = piByQuote.get(item.quote_id);
-      if (pi) piNums.get(cid)!.add(pi);
-      posByQuote.get(item.quote_id)?.forEach((p) => poNums.get(cid)!.add(p));
-    });
-
-    const map = new Map<string, ComponentUsage>();
-    quoteIds.forEach((qids, cid) => {
-      map.set(cid, {
-        quoteCount: qids.size,
-        poCount: poNums.get(cid)?.size ?? 0,
-        lineItemCount: lineCounts.get(cid) ?? 0,
-        piNumbers: [...(piNums.get(cid) ?? [])].sort(),
-        poNumbers: [...(poNums.get(cid) ?? [])].sort(),
-      });
-    });
-    return map;
-  }, [quoteItems, quotes, pos]);
+  // The rule lives in lib/componentUsage.ts, with the failing shapes as tests.
+  // It used to be inline here and counted POs by walking quote →
+  // purchases.quote_id, which answers "POs raised from a quote mentioning this
+  // item" rather than "POs that ordered this item" — 113 of 321 components
+  // wrong on the live data. `poItems` was already being passed in.
+  const usageMap = useMemo<Map<string, ComponentUsage>>(
+    () => buildComponentUsage(quoteItems, poItems, quotes, pos),
+    [quoteItems, poItems, quotes, pos]);
 
   // Which vendors each item is linked to — via the supplier quotes that list it
   // AND the POs that ordered it. Most POs carry no supplier of their own (it
