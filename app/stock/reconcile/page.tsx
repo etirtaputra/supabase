@@ -19,7 +19,7 @@
  * press twice — the variance is recomputed from the ledger, so a trued-up PO
  * drops off the list and later bills bring back only the increment.
  */
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseClient } from '@/lib/supabase';
@@ -32,6 +32,7 @@ import {
   fetchLandedVariances, revaluationRows, type LandedSummary, type PoVariance,
 } from '@/lib/landedCost';
 import { autoPostVerdict, HOLD_LABEL, HOLD_NOTE } from '@/lib/landedAutoPost';
+import { drainTrueUpQueue, drainMessage } from '@/lib/landedAutoPostClient';
 
 interface Comp { component_id: string; supplier_model: string | null; internal_description: string | null; unit: string | null }
 
@@ -57,6 +58,19 @@ export default function ReconcilePage() {
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 5000); };
 
   useEffect(() => { document.title = 'Stock · Landed cost — ICAPROC'; }, []);
+
+  // The screen that exists BECAUSE work was left undone should not be the one
+  // place that ignores the queue. Drains once per visit, before the list loads,
+  // so what it posts is already reflected in what you are looking at.
+  const drainedRef = useRef(false);
+  useEffect(() => {
+    if (drainedRef.current || !canManage) return;
+    drainedRef.current = true;
+    void drainTrueUpQueue().then((r) => {
+      const msg = drainMessage(r);
+      if (msg) { flash(msg); void load(); }
+    });
+  }, [canManage]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/stock/reconcile')}`); return; }

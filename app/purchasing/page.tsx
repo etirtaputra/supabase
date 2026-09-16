@@ -3,7 +3,7 @@
  * Top-nav layout with URL-param tab sync, optimized for desktop & mobile
  */
 'use client';
-import { useState, useMemo, Suspense, useEffect } from 'react';
+import { useState, useMemo, Suspense, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
@@ -31,7 +31,7 @@ import { useAuth } from '@/hooks/useAuth';
 // Constants & Types
 import { ENUMS } from '@/constants/enums';
 import { getLatestExchangeRate, deriveExchangeRates } from '@/lib/exchangeRates';
-import { autoPostTrueUp, autoPostMessage } from '@/lib/landedAutoPostClient';
+import { autoPostTrueUp, autoPostMessage, drainTrueUpQueue, drainMessage } from '@/lib/landedAutoPostClient';
 import { extractPdf } from '@/lib/extractPdfClient';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
@@ -143,6 +143,19 @@ function MasterInsertPage() {
    * committed, and a true-up that has to wait for a human is a thing to
    * mention, not a failure to report.
    */
+  // Clear anything the trigger queued from a path that is not this screen —
+  // an agent writing 6.0_po_costs over PostgREST, or a hand-run INSERT. Once
+  // per visit, silent unless something actually posted.
+  const drainedRef = useRef(false);
+  useEffect(() => {
+    if (drainedRef.current || !profile || !ROLE_PERMISSIONS[profile.role].canManageStock) return;
+    drainedRef.current = true;
+    void drainTrueUpQueue().then((r) => {
+      const msg = drainMessage(r);
+      if (msg) showToast(msg, 'success');
+    });
+  }, [profile]);   // eslint-disable-line react-hooks/exhaustive-deps
+
   const trueUpAfterPayment = async (poIds: (string | number)[]) => {
     for (const poId of Array.from(new Set(poIds.map(String)))) {
       const msg = autoPostMessage(await autoPostTrueUp(poId));

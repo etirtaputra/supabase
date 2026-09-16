@@ -122,6 +122,57 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
+### 2026-09-16 (later) — the true-up moves off the screen
+
+Owner: *"do the true-up server-side one next"* — closing the hole I opened on
+2026-09-13. Auto-post was wired into `app/purchasing/page.tsx`, a **React
+component**. MIRA writes `6.0_po_costs` directly over PostgREST, which is its
+documented procedure and a large share of the payments this business enters, so
+every PO MIRA settled went un-trued. The gap the feature closed had reopened for
+the path that mattered most.
+
+**The fix splits in two, and the halves must not swap places:**
+
+- A **trigger** on `6.0_po_costs` records the FACT — this PO's bills went final
+  — from any path: the screen, an agent over PostgREST, a hand-run INSERT.
+- The **route** does the arithmetic, with the same `lib/landedCost.ts` the
+  reconcile screen runs.
+
+**The trigger deliberately does NOT post the revaluation.** That shortcut would
+put pool, factor, per-line share and the materiality floor into PL/pgSQL beside
+the TypeScript — one rule, two implementations, drifting the first time a cost
+category moves, silently, inside the number every margin is measured against.
+Same trap refused for the tier-price chain on 2026-09-11. `lib/trueUpQueue.test.ts`
+fails the build if the trigger ever references `unit_cost`, `exchange_rate`,
+`qty_on_hand`, `avg_cost_idr`, `30.0_stock_movements` or `5.1_purchase_line_items`.
+
+**A queue, not a sweep** (`30.5_landed_true_up_queue`). A sweep would work and
+would also post the **IDR 777.9m backlog** on its first run — the owner's
+deliberate decision, not a side effect of a deploy. The queue is its own
+watermark: only a PO settled from now on is queued.
+
+`POST /api/landed/autopost` gains a second mode — no body drains the queue (25
+per call, ONE variance computation for the batch since it pages the whole
+ledger). Posted rows are **deleted**; held rows are **parked** with their reason
+as a standing question. History is the ledger, which is append-only and already
+has it.
+
+**Attribution now has two halves, both kept:** `30.0_stock_movements.created_by_email`
+records who drained (via `stamp_stock_movement`), and `queued_by_email` records
+who made the bills final — usually an agent.
+
+**Verified against production** with a `DO $$ … RAISE EXCEPTION $$` block that
+always rolls back: a freight bill on a settled PO queued one `pending` row; the
+same insert on a PO with no balance payment queued nothing; queue empty after.
+
+**Be plain about what "server-side" means here.** There is no cron (Vercel
+Hobby), so the DECISION and the ARITHMETIC moved off the screen — into a trigger
+and one endpoint — but a drain still runs when a buy-side screen is opened
+(`/purchasing`, `/stock/reconcile`, once per visit, silent unless something
+posted). Until someone visits, the debt is **recorded rather than lost**, which
+is the part that was missing. A real scheduler is the remaining upgrade, and it
+wants Vercel Pro.
+
 ### 2026-09-16 (latest) — the buy-side read gate, and the back doors behind it
 
 Writes to the buy side have been gated since 2026-09-06. Reads never were: five

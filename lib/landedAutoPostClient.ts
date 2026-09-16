@@ -88,3 +88,48 @@ export function autoPostMessage(r: AutoPostOutcome | null): { text: string; tone
   }
   return null;
 }
+
+/**
+ * Clear whatever the trigger has queued — POs whose bills went final by ANY
+ * path, including an agent writing `6.0_po_costs` straight over PostgREST.
+ *
+ * Called on load by the two buy-side screens. That is the deliberate design and
+ * worth being plain about: there is no cron on this deployment (Vercel Hobby),
+ * so "server-side" means the decision and the arithmetic moved off the screen —
+ * into a database trigger and one endpoint — not that a daemon runs it. Any
+ * buy-side visit drains the queue, and until someone visits, the debt is
+ * RECORDED rather than lost, which is the part that was missing before.
+ *
+ * Silent unless something actually posted: a drain that finds an empty queue is
+ * the normal case on almost every page load.
+ */
+export async function drainTrueUpQueue(): Promise<{ posted: number; held: number; postedIdr: number } | null> {
+  try {
+    const supabase = createSupabaseClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return null;
+
+    const res = await fetch('/api/landed/autopost', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({}),          // no po_id = drain
+    });
+    const j = await res.json().catch(() => null);
+    if (!j || !j.posted) return null;
+    return { posted: j.posted ?? 0, held: j.held ?? 0, postedIdr: j.posted_idr ?? 0 };
+  } catch {
+    return null;
+  }
+}
+
+/** What to say after a drain — null when nothing posted. */
+export function drainMessage(r: { posted: number; held: number; postedIdr: number } | null): string | null {
+  if (!r || r.posted <= 0) return null;
+  // Name the number: this happened without anyone asking, so it has to be
+  // legible after the fact.
+  return `Landed cost caught up — ${r.posted} PO${r.posted === 1 ? '' : 's'} trued up, ${fmtIdr(r.postedIdr)} into stock value`
+    + (r.held > 0 ? ` · ${r.held} need a look` : '');
+}
