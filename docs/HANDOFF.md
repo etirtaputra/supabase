@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-16** · head of `main` at that point: see §4 (see §4, §6)
+**Last updated: 2026-09-16** · head of `main` at that point: `ba3790f` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
