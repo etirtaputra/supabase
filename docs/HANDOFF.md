@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-14** · head of `main` at that point: `d03220e` (see §4, §6)
+**Last updated: 2026-09-16** · head of `main` at that point: see §4 (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -121,6 +121,71 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 ---
 
 ## 4. What the previous threads did (for context, all shipped to main)
+
+### 2026-09-16 (latest) — the buy-side read gate, and the back doors behind it
+
+Writes to the buy side have been gated since 2026-09-06. Reads never were: five
+tables carried `authenticated read USING (true)`, so any signed-in account read
+every supplier identity and every purchase and quote UNIT COST.
+
+**Two audit findings shaped the fix, and both would have been bugs otherwise.**
+
+1. **The read predicate is not the write predicate.** `viewer` is "read-only
+   Deal Lookup access" — `tabs.lookup` and `tabs.progress` true, `buySide`
+   false. Gating reads on `can_write_buy_side()` would have handed that role an
+   empty page. `can_read_buy_side()` is deliberately wider: the four buy-side
+   roles **plus `viewer`**.
+2. **The sell side needs these tables and never the money.** Products, the sales
+   document, item scores, catalogue signals and reorder alerts read `5.1`/`4.1`
+   for ids, quantities and dates only — that traffic is the Incoming column, the
+   arrival ETAs and the reorder alerts. So the gate is **column-shaped**: four
+   `_open` views (`constants/openViews.ts`) carry exactly what was already being
+   read, and the base tables close behind them.
+
+Those four views are **deliberately NOT `security_invoker`** — the one place in
+ICAPROC that inverts the rule, because an invoker view would re-apply the base
+RLS and blank the Incoming column. **The column list is the boundary**, which is
+why `lib/openViews.test.ts` refuses any column matching
+`cost|price|total|value|amount|po_number|currency|exchange`, and checks the
+migration's SELECT lists against the constants column for column.
+
+**THE FINDING THAT NEARLY MADE THIS COSMETIC.** Verifying stage 2 turned up
+FIVE pre-existing views — `quote_history`, `v_component_demand`,
+`v_landed_cost_summary`, `v_payment_tracking`, `v_quotes_analytics` — that read
+the same tables, are **not** `security_invoker`, and granted SELECT to
+`authenticated`. Between them: `unit_cost`, `unit_price`, `supplier_name`,
+`total_value`, `outstanding_balance`, `true_total_cost`. Closing the tables while
+those stayed open would have been a fix on paper. Their only consumer is
+`app/api/ask/route.ts`, which uses the **service-role** key and ignores grants,
+so revoking `authenticated` broke nothing.
+
+> **The general lesson, worth more than those five rows: a non-invoker view is a
+> hole in RLS that RLS cannot see.** Gating a table does nothing about a view
+> over it. Whenever a table's read policy changes, find what else selects from
+> it — `pg_get_viewdef(...) ~* '<table>'`.
+
+Also closed: `warehouse` (`canManageStock` without `buySide`, documented "no
+prices, no money") reaches `/stock`, and `fetchInTransit` was handing it every
+PO's `total_value` over the wire whether the screen printed it or not. It now
+takes `{ buySide }`, **defaulting to true** so a forgotten call site stays
+correct for the owner and only the deliberate sell-side one narrows.
+
+**Verified by impersonation** (`SET LOCAL ROLE authenticated` + jwt claims,
+rolled back): `engineer` and `sell_admin` → 0 PO lines, 0 quote lines, 0
+suppliers, leaky views denied, open views still 707/238. `buy_admin` →
+707/984/37/238, unchanged.
+
+**Untested live:** no `viewer` account exists in `user_profiles` today, so that
+branch of `can_read_buy_side()` is reasoned, not observed. Create one before
+relying on it.
+
+Checked and needed no change: `/items` and `/profitability` are owner-only;
+the command palette gates on `canBuy`; `lib/dashboard` and `lib/position`
+branch on `buySide`; `fetchRecentPayments` reads `5.0` only when `moneyOut`;
+`lib/banks` chains off `6.0_po_costs`, already gated.
+
+**Noticed, not fixed:** `app/api/ask/route.ts` queries
+`v_purchase_history_analytics`, which **does not exist** in the database.
 
 ### 2026-09-14 (latest) — the route that answered to nobody
 
@@ -2349,16 +2414,13 @@ model/description is not fetched, shown, or searched.**
   - ~~the two open API routes~~ **closed 2026-09-14** — `insert-from-pdf`
     deleted, `extract-pdf` requires a token + `buySide`, guarded by
     `lib/apiAuth.test.ts`.
-  - **STILL OPEN — buy-side reads are open to ANY signed-in account.**
-    `2.0_suppliers`, `4.0_price_quotes`, `4.1_price_quote_line_items`,
-    `5.0_purchases` and `5.1_purchase_line_items` all carry
-    `authenticated read USING (true)`, so an `engineer`, `sales` or
-    `sell_admin` login reads every supplier identity and every purchase and
-    quote UNIT COST. The buy/sell separation is enforced on writes
-    (`can_write_buy_side()`) and only in React on reads. `6.0_po_costs` is
-    the model to copy — it already gates SELECT on
-    `owner/buy_admin/data_entry/finance`. This matters more the moment the
-    Shop can mint customer logins, because "signed in" stops meaning "staff".
+  - ~~buy-side reads open to any signed-in account~~ **CLOSED 2026-09-16.**
+    All five tables now gate SELECT on `can_read_buy_side()`, and five
+    pre-existing non-invoker views that leaked the same data were revoked
+    from `authenticated`. Verified by impersonation: `engineer` and
+    `sell_admin` read 0 PO lines, 0 quote lines and 0 suppliers while the
+    open views still serve 707 incoming lines; `buy_admin` still reads
+    707/984/37/238. See §4.
   **The GitHub repo is PUBLIC** — no secrets committed (all keys from env,
   no `.env` tracked) but schema/table names/RLS assumptions are readable,
   which makes those holes a published map. **Vercel team is on HOBBY**,

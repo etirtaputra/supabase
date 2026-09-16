@@ -123,3 +123,34 @@ CREATE POLICY "buy side read" ON public."5.0_purchases"
 DROP POLICY IF EXISTS "authenticated read" ON public."5.1_purchase_line_items";
 CREATE POLICY "buy side read" ON public."5.1_purchase_line_items"
   FOR SELECT TO authenticated USING (public.can_read_buy_side());
+
+-- ── 4. Close the back doors the RLS change would NOT have covered ────────────
+-- Found while verifying stage 3, and without this the whole file is cosmetic.
+--
+-- Five pre-existing views read the buy-side tables, are NOT `security_invoker`
+-- (so they bypass RLS by design) and granted SELECT to `authenticated`:
+--
+--   quote_history          unit_cost per component, per supplier
+--   v_component_demand     min / max / avg unit cost per component
+--   v_landed_cost_summary  supplier_name, po_value, duty, VAT, true_total_cost
+--   v_payment_tracking     supplier_name, total_value, paid, outstanding
+--   v_quotes_analytics     supplier_name, unit_price per quote line
+--
+-- Every one of them hands out exactly what §3 just closed, to every signed-in
+-- account. Closing the tables while these stayed open would have been a fix on
+-- paper only.
+--
+-- **Their only consumer is `app/api/ask/route.ts`, which uses the SERVICE-ROLE
+-- key** — service-role ignores grants entirely, so revoking `authenticated`
+-- breaks nothing. Nothing else in the application references them at all.
+-- (`anon` already had no SELECT on any of them; verified 2026-09-16.)
+--
+-- THE GENERAL LESSON, worth more than these five rows: a non-invoker view is a
+-- hole in RLS that RLS cannot see. Gating a table does nothing about a view
+-- over it. Whenever a table's read policy changes, check what else selects from
+-- it — `pg_get_viewdef(...) ~* '<table>'` finds them.
+
+REVOKE ALL ON public.quote_history, public.v_component_demand,
+               public.v_landed_cost_summary, public.v_payment_tracking,
+               public.v_quotes_analytics
+  FROM authenticated, anon;
