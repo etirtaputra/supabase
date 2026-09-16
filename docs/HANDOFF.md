@@ -122,6 +122,47 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
+### 2026-09-16 (latest) — the tier rule moves onto the tables themselves
+
+Owner: *"do the mira tier-price correction next"*.
+
+**The document half was already done — by MIRA.** Verified on Drive: the prompt
+sent on 09-14 was pasted, and `MIRA-SKILL.md` (modified 09-15) now carries
+§*"Tier-2/Tier-3 prices are NOT stored — read them, never re-derive them"*,
+including the Dolibarr warning in its own words: sourcing tiers from `21.1`
+*"would push blanks into Dolibarr for the ~44 of 203 priced items that have no
+override row"*. It also applied the `sort_order` correction (with the count
+evidence) and updated its schema-pack reference from v5 to **v6**. All three
+accurate. Nothing to send.
+
+**So this thread did the half that does not depend on anyone having read
+anything.** The original failure was not carelessness: an agent queried `21.1`
+correctly, got nothing, and reported *"T2/T3 are empty in ICAPROC itself"* —
+true of the table, false of the business. The query was right; **the table does
+not say what it is.** Every mitigation so far had been a rule in a document, and
+a rule in a document survives exactly as long as the next reader's attention.
+
+`migrations/tier_price_table_comments.sql` attaches the rule to the objects. A
+`COMMENT` travels with the thing: `\d+`, `information_schema`, Supabase Studio,
+any introspecting agent, and every future reader who never saw the pack get it
+at the moment they are looking at the wrong table.
+
+| Object | What the comment says |
+|---|---|
+| `21.1_item_tier_prices` (table) | HAND-PINNED OVERRIDES ONLY. **An empty result means NO OVERRIDE, never no price.** Use `GET /api/agent/prices`. |
+| `21.1…override_price_idr` | Replaces the computed price AND becomes the base the next tier chains from; inert on the net tier. |
+| `3.0_components.selling_price_idr` | The NET, which IS Tier-1; every higher tier is computed and stored nowhere. |
+| `21.0_price_tiers.default_discount_pct` | **MISNAMED** — a MARKUP step, not a discount: `tier[i] = tier[i-1] / (1 − step/100)`, rounded up. |
+| `21.0_price_tiers.sort_order` | Load-bearing: first active tier is the net; reordering re-prices the catalogue. |
+
+The `default_discount_pct` one is worth its own line. A reader who trusts the
+name **subtracts**; the engine **divides**. On a 5% step that is 4.76% of the
+answer, in the flattering direction, on a number a customer is quoted — the kind
+of wrong that survives review because it looks plausible.
+
+No behaviour changed; comments only. Verified present in `pg_class` /
+`pg_attribute` after applying.
+
 ### 2026-09-16 (later) — the true-up moves off the screen
 
 Owner: *"do the true-up server-side one next"* — closing the hole I opened on
