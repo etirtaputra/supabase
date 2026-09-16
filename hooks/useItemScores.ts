@@ -18,6 +18,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchAllComponents } from '@/lib/fetchAllRows';
+import { V_PO_SCHEDULE, V_PO_LINE_QTY } from '@/constants/openViews';
 import { computeItemScores, type ItemScoreInput, type ItemScoreResult } from '@/lib/itemScore';
 import { useSettings } from './useSettings';
 
@@ -74,8 +75,10 @@ export function useItemScores(supabase: SupabaseClient, enabled: boolean): { sco
       supabase.from('24.0_delivery_orders').select('do_id, quote_id, status, delivered_at'),
       supabase.from('24.1_delivery_order_items').select('do_id, so_item_id, component_id, qty'),
       supabase.from('22.1_sales_quote_items').select('item_id, unit_price'),
-      supabase.from('5.0_purchases').select('po_id, po_date, actual_received_date'),
-      supabase.from('5.1_purchase_line_items').select('po_id, component_id'),
+      // Dates and links only — the score never reads a cost. Open views, so
+      // this keeps working for roles that may not see supplier prices.
+      supabase.from(V_PO_SCHEDULE).select('po_id, po_date, actual_received_date'),
+      supabase.from(V_PO_LINE_QTY).select('po_id, component_id'),
       supabase.from('8.0_component_links').select('component_id_a, component_id_b, link_type'),
     ]);
     const bals = new Map<string, { qty: number; avg: number }>();

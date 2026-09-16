@@ -28,6 +28,7 @@
  * a clearance problem, not a reorder problem.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { V_PO_SCHEDULE, V_PO_LINE_QTY } from '../constants/openViews.ts';
 import { COMMITTED_STATUSES } from './salesStatus';
 import { fetchDeliveredByQuoteComp } from './reservedStock';
 
@@ -136,8 +137,11 @@ export async function fetchReorderAlerts(supabase: SupabaseClient): Promise<Reor
       .select('component_id, quantity, source_type')
       .eq('direction', 'out').neq('source_type', 'transfer').gte('moved_at', since)
       .limit(20000),
-    supabase.from('5.0_purchases').select('po_id, status, po_date, actual_received_date'),
-    supabase.from('5.1_purchase_line_items').select('po_id, component_id, quantity').limit(8000),
+    // Reorder alerts run for warehouse and sell-side eyes too, and need only
+    // WHAT is coming and WHEN — never what it cost. Read the open views so
+    // the buy-side tables can stay shut (constants/openViews.ts).
+    supabase.from(V_PO_SCHEDULE).select('po_id, status, po_date, actual_received_date'),
+    supabase.from(V_PO_LINE_QTY).select('po_id, component_id, quantity').limit(8000),
     supabase.from('22.0_sales_quotes').select('quote_id, status'),
     supabase.from('22.1_sales_quote_items').select('quote_id, component_id, quantity, is_section'),
     fetchDeliveredByQuoteComp(supabase),

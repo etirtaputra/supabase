@@ -23,6 +23,7 @@
  */
 // Relative import keeps this runnable under `node --test` (no @/ alias there)
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { V_PO_SCHEDULE } from '../constants/openViews.ts';
 import { PRINCIPAL_CATS } from '../constants/costCategories.ts';
 
 /** Ordered, on the way, not yet fully arrived — the "Incoming" set, one owner. */
@@ -297,11 +298,25 @@ export function itemArrivalDetails(
 }
 
 // ── Fetch wrapper (independent, so a slow read never blocks the /stock view) ──
+/**
+ * `buySide` decides how much of this a caller may see, and the split is real
+ * rather than cosmetic. `/stock` is reachable by `warehouse` — `canManageStock`
+ * without `buySide` — and that role is documented "no prices, no money", yet
+ * this function used to hand it every PO's `total_value` over the wire whether
+ * the screen printed it or not. Without it, the warehouse still gets the count
+ * and the overdue warning (what is coming, and what is late); it simply stops
+ * receiving the money it was never allowed to read.
+ */
 export async function fetchInTransit(
   supabase: SupabaseClient, nowIso = new Date().toISOString(),
+  opts: { buySide: boolean } = { buySide: true },
 ): Promise<InTransitSummary> {
+  const poCols = 'po_id, status, po_date, estimated_delivery_date, supplier_id, actual_received_date'
+    + (opts.buySide ? ', po_number, currency, exchange_rate, total_value' : '');
   const [poRes, costRes] = await Promise.all([
-    supabase.from('5.0_purchases').select('po_id, po_number, status, po_date, estimated_delivery_date, supplier_id, currency, exchange_rate, total_value, actual_received_date'),
+    supabase.from(opts.buySide ? '5.0_purchases' : V_PO_SCHEDULE).select(poCols as string),
+    // 6.0_po_costs has gated SELECT on its own since before this change, so a
+    // non-buy-side caller already gets an empty list here rather than an error.
     supabase.from('6.0_po_costs').select('po_id, cost_category, amount, currency, exchange_rate'),
   ]);
   const pos = (poRes.data ?? []) as unknown as OpenPo[];

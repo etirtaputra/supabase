@@ -14,6 +14,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter, useParams } from 'next/navigation';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
+import { V_PO_SCHEDULE, V_PO_LINE_QTY } from '@/constants/openViews';
 import { useDragReorder, DRAGGING_ROW, REORDER_ROW, DROP_ZONE } from '@/components/ui/dragReorder';
 import BrandMenu from '@/components/ui/BrandMenu';
 import DocumentPresence from '@/components/ui/DocumentPresence';
@@ -269,8 +270,10 @@ export default function SalesQuotePage() {
     const [allDoRes, allDoItemRes, poRes, poLineRes] = await Promise.all([
       supabase.from('24.0_delivery_orders').select('do_id, quote_id, status'),
       supabase.from('24.1_delivery_order_items').select('do_id, component_id, qty'),
-      supabase.from('5.0_purchases').select('po_id, po_date, actual_received_date, status'),
-      supabase.from('5.1_purchase_line_items').select('po_id, component_id'),
+      // A sales document shows WHEN stock for its lines is due, never what
+      // the company paid for it. Open views (constants/openViews.ts).
+      supabase.from(V_PO_SCHEDULE).select('po_id, po_date, actual_received_date, status'),
+      supabase.from(V_PO_LINE_QTY).select('po_id, component_id'),
     ]);
 
     // Historical lead time per component: PO created → fully received.

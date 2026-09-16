@@ -19,6 +19,7 @@
  */
 // Relative imports keep this runnable under `node --test` (no @/ alias there)
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { V_PO_SCHEDULE, V_PO_LINE_QTY, V_QUOTE_LEAD_TIME } from '../constants/openViews.ts';
 import {
   INCOMING_PO_STATUSES, itemArrivalDetails, measureLead, expectedArrival,
   type OpenPo, type ReceivedPo, type EtaSource,
@@ -268,13 +269,17 @@ export async function fetchArrivals(
   supabase: SupabaseClient, opts: { buySide: boolean }, nowIso = new Date().toISOString(),
 ): Promise<ArrivingSummary> {
   // po_number is a buy-side document reference: fetched only for buy-side eyes.
+  // That used to be the whole rule; since 2026-09-16 it decides WHICH RELATION
+  // to read as well. Buy-side eyes read the table (and get po_number with it);
+  // everyone else reads the open view, which has neither po_number nor any cost
+  // column and survives `can_read_buy_side()` (constants/openViews.ts).
   const poCols = 'po_id, quote_id, status, po_date, estimated_delivery_date, supplier_id, actual_received_date'
     + (opts.buySide ? ', po_number' : '');
   const [poRes, lineRes, compRes, pqRes, recRes] = await Promise.all([
-    supabase.from('5.0_purchases').select(poCols as string),
-    supabase.from('5.1_purchase_line_items').select('po_id, component_id, quantity'),
+    supabase.from(opts.buySide ? '5.0_purchases' : V_PO_SCHEDULE).select(poCols as string),
+    supabase.from(V_PO_LINE_QTY).select('po_id, component_id, quantity'),
     supabase.from('3.0_components').select('component_id, internal_description, supplier_model, unit, selling_price_idr'),
-    supabase.from('4.0_price_quotes').select('quote_id, estimated_lead_time_days'),
+    supabase.from(V_QUOTE_LEAD_TIME).select('quote_id, estimated_lead_time_days'),
     supabase.from('30.0_stock_movements').select('source_id').eq('direction', 'in').eq('source_type', 'receipt'),
   ]);
   const pos = (poRes.data ?? []) as unknown as OpenPo[];

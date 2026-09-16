@@ -51,6 +51,7 @@ import { INCOMING_PO_STATUSES, itemArrivals, itemArrivalDetails, type ItemArriva
 import { useSettings } from '@/hooks/useSettings';
 import { PRODUCT_COLS, LEGACY_PRODUCT_COLS } from '@/constants/productColumns';
 import { BAR_SELECT, BAR_INPUT, BAR_BTN, BAR_BTN_OFF, BAR_BTN_ON, BAR_BTN_ON_SKY } from '@/constants/controls';
+import { V_PO_SCHEDULE, V_PO_LINE_QTY, V_QUOTE_LINE_LINK, V_QUOTE_LEAD_TIME } from '@/constants/openViews';
 import QuoteBasket, { useQuoteBasket } from '@/components/ui/QuoteBasket';
 import SpecRenderer from '@/components/ui/SpecRenderer';
 import { buildPriceSnippet, copyOnly } from '@/lib/whatsappQuote';
@@ -352,17 +353,21 @@ function ProductsInner() {
       supabase.from('22.1_sales_quote_items').select('quote_id, component_id, quantity, is_section'),
       // po_number only for buy-side eyes — same network-tab rule as brand/cost:
       // a column a role may not see is never fetched, not merely not rendered.
+      // Since 2026-09-16 that rule also picks the RELATION: the buy-side tables
+      // are closed by `can_read_buy_side()`, so a sell-side session reads the
+      // open views instead — same ids, quantities and dates, no costs and no
+      // po_number in them at all (constants/openViews.ts).
       // (Widened to `string` so supabase-js skips literal-parsing the dynamic select.)
-      supabase.from('5.0_purchases').select(('po_id, quote_id, status, po_date, estimated_delivery_date, supplier_id, actual_received_date' + (canSeePo ? ', po_number' : '')) as string),
-      supabase.from('5.1_purchase_line_items').select('po_id, component_id, quantity'),
-      supabase.from('4.1_price_quote_line_items').select('quote_id, component_id').limit(8000),
+      supabase.from(canSeePo ? '5.0_purchases' : V_PO_SCHEDULE).select(('po_id, quote_id, status, po_date, estimated_delivery_date, supplier_id, actual_received_date' + (canSeePo ? ', po_number' : '')) as string),
+      supabase.from(V_PO_LINE_QTY).select('po_id, component_id, quantity'),
+      supabase.from(V_QUOTE_LINE_LINK).select('quote_id, component_id').limit(8000),
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name'),
       supabase.from('8.0_component_links').select('component_id_a, component_id_b, link_type').eq('link_type', 'successor'),
       // Goods-receipt dates only (no costs — the /products network-tab rule) —
       // first receipt = the product is NEW; recent receipt = stock just arrived.
       supabase.from('30.0_stock_movements').select('component_id, moved_at').eq('direction', 'in').eq('source_type', 'receipt'),
       // Lead time as STATED on the supplier quote — feeds the Incoming hover
-      supabase.from('4.0_price_quotes').select('quote_id, estimated_lead_time_days'),
+      supabase.from(V_QUOTE_LEAD_TIME).select('quote_id, estimated_lead_time_days'),
     ]);
     const arr: Record<string, { first: string; last: string }> = {};
     for (const m of (arrRes.data ?? []) as { component_id: string; moved_at: string | null }[]) {

@@ -109,7 +109,7 @@ export default function StockPage() {
     // Reorder alerts fetch their own tables — independent, never blocks the page
     fetchReorderAlerts(supabase).then(setReorders).catch(() => setReorders([]));
     // Goods on the water — paid/ordered, not yet received — read the same way
-    fetchInTransit(supabase).then(setInTransit).catch(() => setInTransit(null));
+    fetchInTransit(supabase, undefined, { buySide: canView }).then(setInTransit).catch(() => setInTransit(null));
     // Bills that landed after the goods did — stock value still carrying the guess
     fetchLandedVariances(supabase).then(setLanded).catch(() => setLanded(null));
     const [allComps, balRes, movRes, whs, sqRes, sqiRes, custRes, deliveredMap] = await Promise.all([
@@ -181,7 +181,7 @@ export default function StockPage() {
       setShortages(shortList);
       setLoading(false);
     };
-  }, [supabase]);
+  }, [supabase, canView]);
 
   /** Re-read on demand (a drill-down closing, a transfer landing). */
   const refresh = useCallback(() => {

@@ -42,9 +42,9 @@ test('the three view tabs are gone, not hidden', () => {
 test('vendor and company are filters on the one list', () => {
   // The two deleted pages, in their proper form. Both must narrow the SAME
   // list rather than reopening a parallel one.
-  assert.match(SRC, /selectedSuppId\)\s*base = base\.filter/s,
+  assert.match(SRC, /selectedSuppId\)\s*base = base\.filter/,
     'a chosen vendor must narrow the list');
-  assert.match(SRC, /selectedCompId\)\s*base = base\.filter/s,
+  assert.match(SRC, /selectedCompId\)\s*base = base\.filter/,
     'a chosen company must narrow the list');
 });
 
