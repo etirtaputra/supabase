@@ -26,6 +26,7 @@ import LayoutToggle from './LayoutToggle';
 import { useListLayout } from '@/hooks/useListLayout';
 import { useListDefaults } from '@/hooks/useListDefaults';
 import { inRange, isOpenRange, type DateRange } from '@/lib/dateRange';
+import { BAR_INPUT, BAR_SELECT, BAR_BTN, BAR_BTN_OFF, BAR_BTN_ON_SKY } from '@/constants/controls';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -511,9 +512,17 @@ export default function DealLookupTab({
     } },
   );
 
-  const [viewMode, setViewMode]               = useState<'all' | 'by-vendor' | 'by-company'>('all');
   const [search, setSearch]                   = useState(initialSearch ?? '');
-  const [stageFilter, setStageFilter]         = useState<'all' | 'quote' | 'draft' | 'active' | 'received' | 'completed' | 'superseded'>('all');
+  // ACTIVE is the default view (owner, 2026-09-16: *"Deal Lookup page should
+  // default into Active page"*). Opening on all 287 deals meant the first act
+  // of every visit was narrowing to the ~58 that are actually running — goods
+  // ordered, not yet received, money moving. That is the screen's job.
+  //
+  // A deep link is the exception: arriving from the command palette with a PO
+  // number means you want THAT deal, and it is usually completed. Landing on
+  // Active would show an empty list over a search that matched.
+  const [stageFilter, setStageFilter]         = useState<'all' | 'quote' | 'draft' | 'active' | 'received' | 'completed' | 'superseded'>(
+    initialSearch ? 'all' : 'active');
   const [filterMismatch, setFilterMismatch]   = useState(false);
   // Deals filter on latestDate = max(quote date, PO date) — the date the deal
   // last moved, which is what "POs this month" means on the buy side.
@@ -643,21 +652,6 @@ export default function DealLookupTab({
   );
 
   // ── Portfolio summary counts ──────────────────────────────────────────────
-  const summary = useMemo(() => {
-    let openQuotes = 0, activePOs = 0, drafts = 0, received = 0, completed = 0, superseded = 0, outstandingTotal = 0;
-    for (const g of allGroups) {
-      const s = dealStage(g);
-      if (s === 'quote')          openQuotes++;
-      else if (s === 'draft')     drafts++;
-      else if (s === 'active')    activePOs++;
-      else if (s === 'received')  received++;
-      else if (s === 'completed') completed++;
-      else if (s === 'superseded') superseded++;
-      outstandingTotal += g.outstandingIdr;
-    }
-    return { openQuotes, activePOs, drafts, received, completed, superseded, outstandingTotal, total: allGroups.length };
-  }, [allGroups]);
-
   // ── Groups with quote↔PO mismatches ──────────────────────────────────────
   // Group-level: the quote vs the UNION of all its active POs, so a quote
   // legitimately split across several POs is not flagged (see
@@ -671,19 +665,21 @@ export default function DealLookupTab({
     return ids;
   }, [allGroups, quoteItems, poItems, components, acknowledgedDealMismatches]);
 
-  // ── All-mode filtered list (respects stageFilter + filterMismatch) ────────
-  const filtered = useMemo(() => {
+  // ── What you are looking at, in two steps ────────────────────────────────
+  // SCOPED is everything EXCEPT the stage chip: vendor, company, date, search,
+  // mismatch. The stage chips then count WITHIN it, so picking a vendor
+  // renumbers them instead of leaving "Active (58)" describing the whole
+  // catalogue. That is the whole reason By Vendor and By Company stopped
+  // needing to be separate pages (owner, 2026-09-16: *"can we somehow filter by
+  // vendor and company all in the All Deals so we don't need to switch to other
+  // sub-tabs"* · *"three tabs in Deal Lookup is not a good UX"*).
+  const scoped = useMemo(() => {
     const q = search.toLowerCase().trim();
-    let base = stageFilter === 'all' ? allGroups : allGroups.filter((g) => dealStage(g) === stageFilter);
+    let base = allGroups;
+    if (selectedSuppId) base = base.filter((g) => g.supplierId === selectedSuppId);
+    if (selectedCompId) base = base.filter((g) => g.company && String(g.company.company_id) === selectedCompId);
     if (!isOpenRange(range)) base = base.filter((g) => inRange(g.latestDate, range));
     if (filterMismatch) base = base.filter((g) => mismatchGroupIds.has(g.key) && !acknowledgedDealMismatches.has(g.key));
-    // NOT capped. This used to be `base.slice(0, 80)`, which silently hid 207
-    // of 287 deals — including ELEVEN Confirmed POs, ordered and unreceived,
-    // findable only by typing their number (measured 2026-08-27). It also made
-    // the section headings disagree with the chips above them: the chip counted
-    // every deal and read "Active (173)" while the heading counted the capped
-    // 80 and read "In process 39". Rendering is paged per section instead, and
-    // the page says what it is holding back.
     if (!q) return base;
     return base.filter((g) => {
       const code = g.supplier?.supplier_code?.toLowerCase() ?? '';
@@ -693,7 +689,41 @@ export default function DealLookupTab({
       return pi.includes(q) || code.includes(q) || name.includes(q) || company.includes(q)
         || g.pos.some((p) => (p.po_number ?? '').toLowerCase().includes(q));
     });
-  }, [allGroups, search, stageFilter, filterMismatch, mismatchGroupIds, range]);
+  }, [allGroups, search, selectedSuppId, selectedCompId, range, filterMismatch, mismatchGroupIds, acknowledgedDealMismatches]);
+
+  const summary = useMemo(() => {
+    let openQuotes = 0, activePOs = 0, drafts = 0, received = 0, completed = 0, superseded = 0, outstandingTotal = 0;
+    for (const g of scoped) {
+      const s = dealStage(g);
+      if (s === 'quote')          openQuotes++;
+      else if (s === 'draft')     drafts++;
+      else if (s === 'active')    activePOs++;
+      else if (s === 'received')  received++;
+      else if (s === 'completed') completed++;
+      else if (s === 'superseded') superseded++;
+      outstandingTotal += g.outstandingIdr;
+    }
+    return { openQuotes, activePOs, drafts, received, completed, superseded, outstandingTotal, total: scoped.length };
+  }, [scoped]);
+
+  // NOT capped. This used to be `base.slice(0, 80)`, which silently hid 207 of
+  // 287 deals — including ELEVEN Confirmed POs, ordered and unreceived, findable
+  // only by typing their number (measured 2026-08-27). Rendering is paged per
+  // section instead, and the page says what it is holding back.
+  const filtered = useMemo(
+    () => (stageFilter === 'all' ? scoped : scoped.filter((g) => dealStage(g) === stageFilter)),
+    [scoped, stageFilter]);
+
+  // The three figures that used to be big cards on the By Vendor page. They
+  // read off `filtered`, so they describe exactly the rows on screen — pick a
+  // vendor and they become that vendor's position, with no page to switch to.
+  // Paid is derived, never stored: ordered − outstanding. Two numbers that must
+  // agree should never be two sources.
+  const money = useMemo(() => {
+    let ordered = 0, outstanding = 0;
+    for (const g of filtered) { ordered += g.totalIdr; outstanding += g.outstandingIdr; }
+    return { ordered, outstanding, paid: ordered - outstanding };
+  }, [filtered]);
 
   // Deep-linked search (e.g. a PO number from the global palette): when it
   // resolves to exactly one deal, open its card automatically
@@ -729,11 +759,6 @@ export default function DealLookupTab({
     return Object.values(map).sort((a, b) => b.outstandingIdr - a.outstandingIdr || b.dealCount - a.dealCount);
   }, [allGroups]);
 
-  const vendorGroups = useMemo(
-    () => selectedSuppId ? allGroups.filter((g) => g.supplierId === selectedSuppId) : [],
-    [allGroups, selectedSuppId]
-  );
-
   // ── By-company stats ──────────────────────────────────────────────────────
   const companyStats = useMemo(() => {
     const map: Record<string, { company: Company; dealCount: number; openQuotes: number }> = {};
@@ -746,13 +771,6 @@ export default function DealLookupTab({
     }
     return Object.values(map).sort((a, b) => b.dealCount - a.dealCount);
   }, [allGroups]);
-
-  const companyGroups = useMemo(
-    () => selectedCompId
-      ? allGroups.filter((g) => g.company && String(g.company.company_id) === selectedCompId)
-      : [],
-    [allGroups, selectedCompId]
-  );
 
   // ── Detail renderer ───────────────────────────────────────────────────────
 
@@ -2644,119 +2662,129 @@ export default function DealLookupTab({
 
   // ── Left-panel item (vendor or company) ───────────────────────────────────
 
-  const renderLeftItem = (
-    id: string, name: string, code: string | undefined,
-    dealCount: number, openQuotes: number, outstandingIdr: number,
-    totalIdr: number, lastDate: string | undefined, selected: boolean, onClick: () => void,
-  ) => {
-    const paidIdr   = Math.max(0, totalIdr - outstandingIdr);
-    const paidPct   = totalIdr > 0 ? Math.min(100, (paidIdr / totalIdr) * 100) : 0;
-    return (
-      <button
-        key={id}
-        onClick={onClick}
-        className={`w-full text-left px-3 py-3 rounded-xl transition-colors border ${
-          selected
-            ? 'bg-white/10 border-white/20 text-white'
-            : 'bg-white/5 border-transparent hover:bg-white/10 text-slate-300'
-        }`}
-      >
-        <div className="flex items-center justify-between gap-2 mb-0.5">
-          <div className="flex items-center gap-2 min-w-0">
-            {code && (
-              <span className="inline-block px-1.5 py-0.5 bg-sky-500/15 border border-sky-500/30 text-sky-300 text-[10px] font-bold rounded leading-none flex-shrink-0">
-                {code}
-              </span>
-            )}
-            <span className="text-xs font-semibold truncate">{name}</span>
-          </div>
-          <span className="text-[10px] text-slate-500 flex-shrink-0">{dealCount} deal{dealCount !== 1 ? 's' : ''}</span>
-        </div>
-        {outstandingIdr > 0 && (
-          <p className="text-[11px] font-bold text-amber-300 tabular-nums">{fmtIdr(outstandingIdr)} outstanding</p>
-        )}
-        {openQuotes > 0 && outstandingIdr === 0 && (
-          <p className="text-[11px] text-sky-400 font-semibold">{openQuotes} open quote{openQuotes !== 1 ? 's' : ''}</p>
-        )}
-        {totalIdr > 0 && (
-          <div className="mt-1.5 flex items-center gap-2">
-            <div className="flex-1 h-1 bg-slate-700/80 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all ${paidPct >= 100 ? 'bg-emerald-500' : paidPct > 0 ? 'bg-amber-400' : 'bg-slate-600'}`}
-                style={{ width: `${paidPct}%` }}
-              />
-            </div>
-            <span className="text-[10px] text-slate-600 flex-shrink-0 tabular-nums">{paidPct.toFixed(0)}%</span>
-          </div>
-        )}
-        {lastDate && <p className="text-[10px] text-slate-600 mt-0.5">Last: {fmtDate(lastDate)}</p>}
-      </button>
-    );
-  };
 
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div>
-      {/* Mode toggle */}
-      <div className="flex items-center gap-3 mb-5 flex-wrap">
-        <div className="flex rounded-xl overflow-hidden border border-slate-700 text-xs font-semibold">
-          {(['all', 'by-vendor', 'by-company'] as const).map((mode) => (
-            <button
-              key={mode}
-              onClick={() => {
-                setViewMode(mode);
-                setExpandedKey(null);
-                setSelectedSuppId(null);
-                setSelectedCompId(null);
-              }}
-              className={`px-4 py-2 transition-colors ${
-                viewMode === mode
-                  ? 'bg-white/10 text-white'
-                  : 'text-slate-500 hover:text-slate-300'
-              }`}
+      {/* ── One view, one toolbar ────────────────────────────────────────────
+          There used to be three tabs here — All Deals / By Vendor / By Company
+          — and a visit began by guessing which one held your answer. They were
+          not three questions, they were one question with a filter on it: the
+          two extra pages re-rendered the same deals behind a picker.
+
+          So the picker moved into the bar. Choosing a vendor now narrows the
+          list in place, renumbers every stage chip, and re-reads the three
+          money figures for that vendor — which is exactly what By Vendor did,
+          minus the page. (Owner, 2026-09-16.)
+
+          The four big stat cards went with them: the stage chips below already
+          carry the same counts, and a number shown twice is a number that can
+          disagree with itself. */}
+      <div>
+          {/* ── Row 1: what you are looking at ──────────────────────────────
+              Every control dresses from constants/controls.ts — one height, one
+              radius, one border (owner's standing rule, 2026-09-10). The vendor
+              and company pickers are the two deleted tabs, in their proper
+              form. */}
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search PI, PO, supplier or company…"
+              className={`${BAR_INPUT} flex-1 min-w-[200px] max-w-sm`}
+            />
+            {/* Vendors are ordered by what we OWE them, not alphabetically:
+                opening the list should answer "who is waiting for money" before
+                it answers "where is B". */}
+            <select
+              value={selectedSuppId ?? ''}
+              onChange={(e) => { setSelectedSuppId(e.target.value || null); setExpandedKey(null); }}
+              className={`${BAR_SELECT} max-w-[190px]`}
+              title="Narrow to one vendor — the stage counts and the totals follow"
             >
-              {mode === 'all' ? 'All Deals' : mode === 'by-vendor' ? 'By Vendor' : 'By Company'}
-            </button>
-          ))}
-        </div>
-        <p className="text-xs text-slate-500">
-          {viewMode === 'all'
-            ? `${filtered.length} deal${filtered.length !== 1 ? 's' : ''} shown`
-            : viewMode === 'by-vendor'
-            ? `${vendorStats.length} vendor${vendorStats.length !== 1 ? 's' : ''}`
-            : `${companyStats.length} compan${companyStats.length !== 1 ? 'ies' : 'y'}`}
-        </p>
-      </div>
-
-      {/* ══ ALL MODE ══ */}
-      {viewMode === 'all' && (
-        <div>
-
-          {/* ── Portfolio summary bar ── */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
-            {[
-              { label: 'Open Quotes', value: summary.openQuotes, color: 'text-slate-300' },
-              { label: 'Ordered',     value: summary.activePOs,  color: 'text-blue-300'  },
-              { label: 'Received',    value: summary.received,   color: 'text-emerald-300' },
-              { label: 'Completed',   value: summary.completed,  color: 'text-emerald-400' },
-            ].map(({ label, value, color }) => (
-              <div key={label} className="rounded-xl p-3 bg-white/5 border border-white/10">
-                <p className="text-[10px] font-medium text-slate-500 mb-0.5">{label}</p>
-                <p className={`text-xl font-bold tabular-nums ${color}`}>{value}</p>
-              </div>
-            ))}
+              <option value="">All vendors</option>
+              {vendorStats.map(({ supplier, dealCount }) => (
+                <option key={String(supplier.supplier_id)} value={String(supplier.supplier_id)}>
+                  {supplier.supplier_code ? `${supplier.supplier_code} · ` : ''}{supplier.supplier_name} ({dealCount})
+                </option>
+              ))}
+            </select>
+            <select
+              value={selectedCompId ?? ''}
+              onChange={(e) => { setSelectedCompId(e.target.value || null); setExpandedKey(null); }}
+              className={`${BAR_SELECT} max-w-[190px]`}
+              title="Narrow to the company that bought — the stage counts and the totals follow"
+            >
+              <option value="">All companies</option>
+              {companyStats.map(({ company, dealCount }) => (
+                <option key={String(company.company_id)} value={String(company.company_id)}>
+                  {company.legal_name} ({dealCount})
+                </option>
+              ))}
+            </select>
+            <DateRangeFilter value={range} onChange={(r) => { rangeTouched.current = true; setRange(r); }} label="Deal date" accent="sky" align="left" />
+            <span className="flex-1" />
+            <LayoutToggle value={layout} onChange={setLayout} accent="sky" />
           </div>
 
-          {/* ── Outstanding total banner ── */}
-          {summary.outstandingTotal > 0 && (
-            <div className="mb-4 px-3 py-2 bg-white/5 border border-white/10 rounded-xl flex items-center gap-2">
-              <span className="text-[11px] font-medium text-slate-500">Total Outstanding</span>
-              <span className="text-sm font-bold text-amber-400 tabular-nums ml-auto">{fmtIdr(summary.outstandingTotal)}</span>
-            </div>
-          )}
+          {/* ── Row 2: stage chips, then the position ───────────────────────── */}
+          <div className="flex flex-wrap items-center gap-1.5 mb-3">
+            {[
+              { key: 'active' as const,     label: 'Active',   count: summary.activePOs },
+              { key: 'quote' as const,      label: 'Quotes',   count: summary.openQuotes },
+              { key: 'draft' as const,      label: 'Drafts',   count: summary.drafts },
+              { key: 'received' as const,   label: 'Received', count: summary.received },
+              { key: 'completed' as const,  label: 'Done',     count: summary.completed },
+              { key: 'superseded' as const, label: 'Void',     count: summary.superseded },
+              { key: 'all' as const,        label: 'All',      count: summary.total },
+            ].map(({ key, label, count }) => {
+              const on = stageFilter === key;
+              // A chip holding nothing is not a filter, it is a dead end — say
+              // so by look rather than by letting someone click into an empty
+              // list. Same rule as the Selling Prices chips.
+              const dead = count === 0 && !on;
+              return (
+                <button key={key} type="button" disabled={dead} aria-pressed={on}
+                  onClick={() => setStageFilter(key)}
+                  className={`${BAR_BTN} gap-1.5 pl-2.5 pr-2 ${
+                    dead ? 'bg-slate-800/40 border-slate-800 text-slate-600 cursor-default'
+                    : on ? BAR_BTN_ON_SKY : BAR_BTN_OFF}`}>
+                  {label}
+                  <span className={`tabular-nums text-xs sm:text-[11px] font-semibold px-1 rounded ${
+                    dead ? 'text-slate-700' : on ? 'bg-black/25' : 'text-slate-500'}`}>{count}</span>
+                </button>
+              );
+            })}
+            {mismatchGroupIds.size > 0 && (
+              <button type="button" aria-pressed={filterMismatch}
+                onClick={() => setFilterMismatch((v) => !v)}
+                title="Deals whose quote and PO do not agree on what was ordered"
+                className={`${BAR_BTN} gap-1.5 pl-2.5 pr-2 ${
+                  filterMismatch ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
+                  : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-amber-300 hover:border-amber-500/40'}`}>
+                ⚠ Mismatch
+                <span className={`tabular-nums text-xs sm:text-[11px] font-semibold px-1 rounded ${
+                  filterMismatch ? 'bg-black/25' : 'text-slate-500'}`}>{mismatchGroupIds.size}</span>
+              </button>
+            )}
 
-          {/* ── Color legend ── */}
+            {/* The three figures from the old By Vendor header. They describe
+                the rows ON SCREEN, so they re-read themselves as you filter —
+                which is what made the separate page unnecessary. Not buttons:
+                nothing to click, so nothing that looks clickable. */}
+            {money.ordered > 0 && (
+              <div className={`${BAR_BTN} ml-auto gap-3 px-3 bg-slate-800/60 border-slate-700/60 cursor-default`}
+                title="Across the deals currently shown. Paid is ordered minus outstanding.">
+                <span className="text-slate-500">Ordered <span className="text-slate-200 font-semibold tabular-nums">{fmtIdr(money.ordered)}</span></span>
+                <span className="text-slate-500">Paid <span className="text-emerald-300 font-semibold tabular-nums">{fmtIdr(money.paid)}</span></span>
+                <span className="text-slate-500">Outstanding <span className={`font-semibold tabular-nums ${money.outstanding > 0 ? 'text-amber-300' : 'text-slate-400'}`}>{fmtIdr(money.outstanding)}</span></span>
+              </div>
+            )}
+          </div>
+
+          {/* ── Colour legend ── */}
           <div className="flex flex-wrap items-center gap-3 mb-4 text-[11px] text-slate-600">
             {[
               { label: 'Quote',     cls: 'bg-white/15' },
@@ -2773,56 +2801,22 @@ export default function DealLookupTab({
             ))}
           </div>
 
-          {/* ── Controls: filter chips + view toggle ── */}
-          <div className="flex flex-wrap items-center gap-2 mb-4">
-            <div className="flex flex-wrap gap-1">
-              {[
-                { key: 'all' as const,        label: `All (${summary.total})` },
-                { key: 'quote' as const,      label: `Quotes (${summary.openQuotes})` },
-                { key: 'active' as const,     label: `Active (${summary.activePOs})` },
-                { key: 'draft' as const,      label: `Drafts (${summary.drafts})` },
-                { key: 'received' as const,   label: `Received (${summary.received})` },
-                { key: 'completed' as const,  label: `Done (${summary.completed})` },
-                { key: 'superseded' as const, label: `Void (${summary.superseded})` },
-              ].map(({ key, label }) => (
-                <button
-                  key={key}
-                  onClick={() => setStageFilter(key)}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors border ${
-                    stageFilter === key
-                      ? 'bg-white/10 text-white border-white/20'
-                      : 'text-slate-500 border-transparent hover:text-slate-300 hover:bg-white/5'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-              <DateRangeFilter value={range} onChange={(r) => { rangeTouched.current = true; setRange(r); }} label="Deal date" accent="sky" align="left" />
-            </div>
-            {mismatchGroupIds.size > 0 && (
-              <button
-                onClick={() => setFilterMismatch((v) => !v)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors border ${
-                  filterMismatch
-                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                    : 'text-slate-500 border-transparent hover:text-amber-400 hover:bg-amber-500/10'
-                }`}
-              >
-                ⚠ Mismatch ({mismatchGroupIds.size})
+          {/* Opening on Active is right for the daily job and wrong for a
+              search: type a PO number for a deal that has since completed and
+              the list goes quiet while the match sits one chip away. Say so,
+              and offer the one click — never silently widen the filter, and
+              never leave someone staring at an empty list that HAS an answer. */}
+          {search.trim() && stageFilter !== 'all' && scoped.length > filtered.length && (
+            <div className="mb-3 px-3 py-2 rounded-lg bg-sky-500/10 border border-sky-500/25 flex flex-wrap items-center gap-2 text-[11px]">
+              <span className="text-sky-200">
+                {scoped.length - filtered.length} more {scoped.length - filtered.length === 1 ? 'match' : 'matches'} outside <span className="font-semibold">{stageFilter}</span>.
+              </span>
+              <button type="button" onClick={() => setStageFilter('all')}
+                className="ml-auto px-2 py-1 rounded-md border border-sky-500/40 text-sky-200 font-semibold hover:bg-sky-500/15 transition-colors">
+                Show all stages
               </button>
-            )}
-            <span className="flex-1" />
-            <LayoutToggle value={layout} onChange={setLayout} accent="sky" />
-          </div>
-
-          {/* ── Search ── */}
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by PI number, supplier code or name…"
-            className="w-full max-w-lg px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-white/25 focus:bg-white/8 transition-colors mb-4"
-          />
+            </div>
+          )}
 
           {/* ── Deal list or table ── */}
           {/* "All" renders in WORK-ORDER SECTIONS: open quotes (decisions) never
@@ -2878,161 +2872,7 @@ export default function DealLookupTab({
               })}
             </div>
           )}
-        </div>
-      )}
-
-      {/* ══ BY VENDOR MODE ══ */}
-      {viewMode === 'by-vendor' && (
-        <div className="grid grid-cols-1 xl:grid-cols-[340px_1fr] 2xl:grid-cols-[420px_1fr] gap-5 xl:gap-7 items-start">
-
-          {/* Left: vendor list */}
-          <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
-            <h3 className="text-sm font-bold text-white mb-3">Vendors</h3>
-            <div className="space-y-1.5 max-h-[calc(100vh-240px)] xl:max-h-[calc(100vh-200px)] overflow-y-auto pr-0.5">
-              {vendorStats.length === 0 && (
-                <p className="text-xs text-slate-600 italic px-1 py-4 text-center">No vendors found</p>
-              )}
-              {vendorStats.map(({ supplier, dealCount, openQuotes, outstandingIdr, totalIdr, lastDate }) => {
-                const id = String(supplier.supplier_id);
-                return renderLeftItem(
-                  id, supplier.supplier_name, supplier.supplier_code,
-                  dealCount, openQuotes, outstandingIdr, totalIdr, lastDate,
-                  selectedSuppId === id,
-                  () => { setSelectedSuppId(selectedSuppId === id ? null : id); setExpandedKey(null); },
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Right: deals for selected vendor */}
-          <div>
-            {!selectedSuppId ? (
-              <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-10 flex flex-col items-center justify-center text-center min-h-[260px]">
-                <span className="text-4xl mb-3 opacity-40">🏭</span>
-                <p className="text-slate-500 text-sm">Select a vendor to view their deals</p>
-              </div>
-            ) : (() => {
-              const stat = vendorStats.find((v) => String(v.supplier.supplier_id) === selectedSuppId);
-              if (!stat) return null;
-              const totalOut = vendorGroups.reduce((s, g) => s + g.outstandingIdr, 0);
-              const totalVal = vendorGroups.reduce((s, g) => s + g.totalIdr, 0);
-              return (
-                <div className="space-y-4">
-                  {/* Vendor header */}
-                  <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-5">
-                    <div className="flex items-start justify-between gap-3 flex-wrap mb-4">
-                      <div>
-                        {stat.supplier.supplier_code && (
-                          <span className="inline-block px-2 py-1 bg-sky-500/15 border border-sky-500/30 text-sky-300 text-xs font-bold rounded mb-2">
-                            {stat.supplier.supplier_code}
-                          </span>
-                        )}
-                        <h2 className="text-xl font-bold text-white">{stat.supplier.supplier_name}</h2>
-                        {stat.supplier.location && (
-                          <p className="text-sm text-slate-400 mt-0.5">{stat.supplier.location}</p>
-                        )}
-                      </div>
-                      <span className="text-xs text-slate-500">{stat.dealCount} deal{stat.dealCount !== 1 ? 's' : ''}</span>
-                    </div>
-                    {totalVal > 0 && (
-                      <div className="grid grid-cols-3 gap-3">
-                        <div className="bg-slate-800/40 rounded-xl p-3">
-                          <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">Total Ordered</p>
-                          <p className="font-bold text-white tabular-nums">{fmtIdr(totalVal)}</p>
-                        </div>
-                        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3">
-                          <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">Paid</p>
-                          <p className="font-bold text-emerald-300 tabular-nums">{fmtIdr(totalVal - totalOut)}</p>
-                        </div>
-                        <div className={`rounded-xl p-3 ${totalOut > 0 ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-slate-800/40'}`}>
-                          <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">Outstanding</p>
-                          <p className={`font-bold tabular-nums ${totalOut > 0 ? 'text-amber-300' : 'text-slate-400'}`}>{fmtIdr(totalOut)}</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  {/* Deal list */}
-                  <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
-                    <h4 className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-3">Deals</h4>
-                    {vendorGroups.length === 0 ? (
-                      <p className="text-xs text-slate-600 italic py-4 text-center">No deals for this vendor</p>
-                    ) : (
-                      <div className="space-y-1.5">
-                        {vendorGroups.map((g) => renderDealRow(g, false))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-        </div>
-      )}
-
-      {/* ══ BY COMPANY MODE ══ */}
-      {viewMode === 'by-company' && (
-        <div className="grid grid-cols-1 xl:grid-cols-[340px_1fr] 2xl:grid-cols-[420px_1fr] gap-5 xl:gap-7 items-start">
-
-          {/* Left: company list */}
-          <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
-            <h3 className="text-sm font-bold text-white mb-3">Companies</h3>
-            <div className="space-y-1.5 max-h-[calc(100vh-240px)] xl:max-h-[calc(100vh-200px)] overflow-y-auto pr-0.5">
-              {companyStats.length === 0 && (
-                <p className="text-xs text-slate-600 italic px-1 py-4 text-center">No companies found</p>
-              )}
-              {companyStats.map(({ company, dealCount, openQuotes }) => {
-                const id = String(company.company_id);
-                return renderLeftItem(
-                  id, company.legal_name, undefined,
-                  dealCount, openQuotes, 0, 0, undefined,
-                  selectedCompId === id,
-                  () => { setSelectedCompId(selectedCompId === id ? null : id); setExpandedKey(null); },
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Right: deals for selected company */}
-          <div>
-            {!selectedCompId ? (
-              <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-10 flex flex-col items-center justify-center text-center min-h-[260px]">
-                <span className="text-4xl mb-3 opacity-40">🏢</span>
-                <p className="text-slate-500 text-sm">Select a company to view addressed deals</p>
-              </div>
-            ) : (() => {
-              const stat = companyStats.find((c) => String(c.company.company_id) === selectedCompId);
-              if (!stat) return null;
-              return (
-                <div className="space-y-4">
-                  {/* Company header */}
-                  <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-5">
-                    <div className="flex items-start justify-between gap-3 flex-wrap">
-                      <h2 className="text-xl font-bold text-white">{stat.company.legal_name}</h2>
-                      <div className="text-right text-xs text-slate-400">
-                        <p>{stat.dealCount} deal{stat.dealCount !== 1 ? 's' : ''}</p>
-                        {stat.openQuotes > 0 && (
-                          <p className="text-sky-400 font-semibold">{stat.openQuotes} open quote{stat.openQuotes !== 1 ? 's' : ''}</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  {/* Deal list */}
-                  <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
-                    <h4 className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-3">Deals</h4>
-                    {companyGroups.length === 0 ? (
-                      <p className="text-xs text-slate-600 italic py-4 text-center">No deals for this company</p>
-                    ) : (
-                      <div className="space-y-1.5">
-                        {companyGroups.map((g) => renderDealRow(g))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
