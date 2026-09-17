@@ -122,6 +122,57 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
+### 2026-09-17 (latest) — the sell side gets a write path, documents only
+
+MIRA asked for one instead of writing, which was right: the schema pack says
+*"read the sell side, do not write it — not yet"*, and **the reason verified
+out**. `22.0_sales_quotes` carries only `log_sales_quote` and
+`stamp_sales_quote` — both audit. Nothing computes `subtotal` / `ppn_amount` /
+`grand_total`. A direct insert leaves a header disagreeing with its own lines,
+with no error and nothing flagged, wrong only when somebody invoices it.
+
+**The prohibition is now replaced by a shared function.** `lib/salesTotals.ts`
+holds the arithmetic; `app/sales/[id]/page.tsx` was refactored to call it, and
+`POST /api/agent/sales/mirror` calls the same one. `lib/salesTotals.test.ts`
+fails the build if either grows its own copy.
+
+**THE FINDING THAT SHAPED THE SPLIT.** Checking whether a mirrored order should
+move stock turned up something bigger than the request:
+
+- the ledger holds exactly **5 stock-out movements, ever**, and nothing in the
+  app writes them — `app/sales/[id]/do/page.tsx` posts nothing;
+- but the goods in these orders **are** in ICAPROC: **720** TRINA panels and
+  **240** EPEVER MPPTs on hand.
+
+So **ICAPROC's stock is already overstated by everything sold through
+Dolibarr.** That is a real, pre-existing error in the number the cash-conversion
+cycle is built on, and it was invisible because the sell side has never moved
+stock at all. Owner's call: *"mirror documents first then stock as a separate
+step"* — so the endpoint posts **no** stock movement and says `stock_moved:
+false` in its own response. Every mirrored row carries `external_source` +
+`external_ref`, which makes "what still needs its stock taken off" a query
+rather than a memory.
+
+**The four answers, for the record:**
+
+| Question | Answer |
+|---|---|
+| Write path or UI only? | Write path. `22.0` already had unused `external_ref` / `external_source` columns — the schema anticipated this. |
+| No customer match? | **Refuse.** 409 with fuzzy candidates; never auto-create. "Eddy" is exactly the name that duplicates, and merging customers later corrupts history. |
+| No component match? | **Allow.** `22.1.component_id` is nullable and `description` exists — a free-text line is how the EPC builder has always handled one-offs. |
+| Retroactive lifecycle? | **End state only.** `ordered`/`invoiced`/`delivered`/`cancelled`; `validated_at`, `sent_at`, `accepted_at` stay NULL. An invented audit trail is worse than none. |
+
+Also: `external_source` + `external_ref` is the idempotency key, so a re-run
+returns the existing document instead of a twin; and a failed line insert
+deletes the header again, because PostgREST has no transaction and a header
+without lines is the exact shape this endpoint exists to prevent.
+
+**No migration needed** — RLS on `22.x` already permits `owner / sales /
+sell_admin / engineer` to write. The restriction was convention, never a gate.
+
+**NOT DONE, and it is the bigger half:** the stock leg. Nothing has deducted the
+goods for any Dolibarr sale, past or future.
+
 ### 2026-09-16 (latest) — the tier rule moves onto the tables themselves
 
 Owner: *"do the mira tier-price correction next"*.

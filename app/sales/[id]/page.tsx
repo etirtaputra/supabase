@@ -14,6 +14,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter, useParams } from 'next/navigation';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
+import { salesTotals } from '@/lib/salesTotals';
 import { V_PO_SCHEDULE, V_PO_LINE_QTY } from '@/constants/openViews';
 import { useDragReorder, DRAGGING_ROW, REORDER_ROW, DROP_ZONE } from '@/components/ui/dragReorder';
 import BrandMenu from '@/components/ui/BrandMenu';
@@ -115,13 +116,11 @@ const blankQuote = (companyId: string | null, ppnPct: number, notes = '', validi
     subtotal: 0, ppn_amount: 0, grand_total: 0, notes,
   };
 };
-/** Order value from a line list — the same arithmetic whether it runs on the
- *  rows on screen or on the merged rows a save is about to write. */
-const totalsOf = (ls: EditLine[], ppnPct: number) => {
-  const subtotal = ls.reduce((s, l) => s + (l.is_section ? 0 : num(l.quantity) * num(l.unit_price)), 0);
-  const ppn = subtotal * (ppnPct / 100);
-  return { subtotal, ppn, grand: subtotal + ppn };
-};
+/** Order value from a line list. The arithmetic itself lives in
+ *  `lib/salesTotals.ts` because nothing in the DATABASE computes these columns —
+ *  the agent sales-mirror endpoint has to reach the same numbers, and a second
+ *  copy here would drift into a header that disagrees with its own lines. */
+const totalsOf = (ls: EditLine[], ppnPct: number) => salesTotals(ls, ppnPct);
 /**
  * The empty row the editor always keeps at the bottom is an affordance, not a
  * line — it is lifted off before a merge and put back after, so a colleague's
