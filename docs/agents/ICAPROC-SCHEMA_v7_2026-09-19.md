@@ -2,14 +2,21 @@
 
 > **Read this before your first query. Never guess a table name.**
 >
-> Written 2026-09-06, revised 2026-09-07, 2026-09-09 and 2026-09-11, against `main` @ the
-> commit that carries it. Row counts are from those days and drift; the NAMES
-> and the RULES are what matter.
+> Written 2026-09-06, revised 2026-09-07, 2026-09-09, 2026-09-11 and 2026-09-19,
+> against `main` @ the commit that carries it. Row counts are from those days and
+> drift; the NAMES and the RULES are what matter.
 >
-> **v6 adds §3.1, and it is the most important section in this file for anyone
-> answering a question about price.** A tier price you cannot find in a table is
-> not a missing price — it is a COMPUTED one. Read §3.1 before you report any
-> tier as empty.
+> **v7 closes the gap that made this file guessable.** Seventeen tables existed
+> in the database and were named nowhere here, so an agent that needed one had no
+> honest option left but to invent it — the single thing this file tells you never
+> to do. **§9 is now a census of EVERY table.** If a table is not in §9, it does
+> not exist: say that, and stop. v7 also adds §5d (the money tables) and §5e
+> (settings), and names the Settings row §3.1 had been pointing at without
+> identifying.
+>
+> **v6 added §3.1, still the most important section for anyone answering a
+> question about price.** A tier price you cannot find in a table is not a missing
+> price — it is a COMPUTED one. Read §3.1 before you report any tier as empty.
 >
 > Why this file exists: on 2026-09-06 an agent queried `batteries`, got 3 rows,
 > and reported it as the catalogue. The real figure is 27. The table names here
@@ -84,6 +91,8 @@ designer for two days.
 | `10.1_quote_sections` | 488 | sections within a proposal |
 | `10.2_quote_items` | 1,441 | line items |
 | `10.3_quote_activity` | 571 | the audit log |
+| `10.4_description_library` | 0 | reusable line descriptions for the EPC quote editor |
+| `10.5_quote_notes` | 7 | internal notes on a quote — **`cleared_at IS NULL` = still open** |
 
 Header columns worth knowing: `quote_number`, `quote_date`, `customer_name`,
 `project_description` (the capacity is prose in here, not a number column),
@@ -105,12 +114,15 @@ separate rows, all still present.
 | Table | What |
 |---|---|
 | `20.0_customers` (489) · `20.1_customer_contacts` | CRM |
+| `20.2_customer_links` (0) | one customer related to another, with a free-text `note` |
 | `21.0_price_tiers` · `21.1_item_tier_prices` (463) | tier pricing — **read §3.1, these do not hold what you think** |
+| `21.2_margin_profiles` (2) | named margin bands — `loss_leader` 10–15%, `value_capture` 20–25% |
 | `22.0_sales_quotes` (11) → `22.1_sales_quote_items` (33) | **`_items`, NOT `_line_items`** |
+| `22.2_sales_description_library` (1) | reusable sales line descriptions; `section` is NOT NULL |
 | `24.0_delivery_orders` → `24.1_delivery_order_items` | DO |
 | `25.0_sales_invoices` → `25.1_sales_invoice_items` | AR |
 | `26.0_customer_receipts` | payments in |
-| `27.0_aftersales_cases` → `27.2_aftersales_updates` | service desk |
+| `27.0_aftersales_cases` → `27.1_aftersales_parts` (4) → `27.2_aftersales_updates` | service desk; `27.1` is parts per case, with an `action` |
 | `28.0_support_letters` → `28.1_support_letter_items` | Surat Dukungan |
 
 ### 3.1 TIER PRICES ARE MOSTLY NOT STORED. Read this before answering.
@@ -135,7 +147,8 @@ Here is the actual model:
 | **Every other tier** | nowhere | **NO — computed** |
 
 Each tier marks UP from the one below it:
-`tier[i] = tier[i-1] ÷ (1 − step%)`, rounded up to the price step in Settings.
+`tier[i] = tier[i-1] ÷ (1 − step%)`, rounded up to the price step in Settings —
+which is `40.0_settings`, key `defaultTierStepPct` (§5e), currently `5`.
 The step lives in `21.0_price_tiers.default_discount_pct` (a legacy column name
 — it is a MARKUP step, not a discount), and the first active tier is the net,
 whose step is ignored. An override replaces that tier's price outright AND
@@ -197,16 +210,33 @@ trigger as it passes each milestone.
 
 `30.0_stock_movements` (174, append-only ledger) · `30.1_stock_balances` (138,
 trigger-maintained) · `30.2_goods_receipts` · `30.3_warehouses` ·
-`30.4_serial_numbers`
+`30.4_serial_numbers` · `30.5_landed_true_up_queue` (0)
 
 Balances are **derived**. Never write them; post a movement.
+
+`30.5_landed_true_up_queue` is the work list behind the `landed_cost_open`
+signal in §5c: one row per PO whose landed cost still has to be re-struck, with
+`attempts`, `last_attempt_at` and an `outcome`. Empty is the healthy state — it
+means nothing is waiting, not that the feature is switched off.
 
 ## 5. Buy side — not every agent's business
 
 `1.0_companies` · `2.0_suppliers` (37) · `4.0_price_quotes` (137) →
 `4.1_price_quote_line_items` (927) · `5.0_purchases` (226) →
 `5.1_purchase_line_items` (651) · `6.0_po_costs` (341) ·
-`7.0_competitor_prices` · `9.0_exchange_rate_history`
+`7.0_competitor_prices` · `8.0_component_links` (37) ·
+`9.0_exchange_rate_history` · `payment_batches` (14)
+
+`8.0_component_links` relates two catalogue items — `component_id_a` to
+`component_id_b` — under a `link_type`: **`brand_equivalent`** (17, the same
+thing from another brand), **`normalized`** (14, comparable once you divide by
+`norm_value_a` / `norm_value_b` in `normalization_unit`) and **`successor`** (6,
+this item replaces that one). A successor link is the reason an archived item
+still matters: it says what to quote instead.
+
+`payment_batches` is one bank payment covering several PO costs, joined to
+`41.0_bank_accounts`. It has no table-number prefix because it predates the
+convention; it is buy-side money and belongs with §5d.
 
 **Since 2026-09-06 the database enforces this**, not just the app: writing any
 of these needs `owner`, `buy_admin`, `data_entry` or `finance`. A Project
@@ -357,6 +387,54 @@ invention; `panelComponentId` must be a real catalogue row.
 
 ---
 
+## 5d. Money — the `41.x` family
+
+Added to this file on 2026-09-19. It existed for weeks and was documented
+nowhere, which is how an agent ends up reporting that ICAPROC does not track
+bank accounts. It does.
+
+| Table | Rows | What |
+|---|---|---|
+| `41.0_bank_accounts` | 5 | the company's accounts — `bank_name`, `account_name`, `account_number`, `currency`, `opening_balance` |
+| `41.1_bank_transactions` | 0 | money in and out, `direction` + `amount` + `txn_date`, against one account |
+| `41.2_bank_names` | 17 | the picklist of Indonesian banks; `is_active` and `sort_order` drive the dropdown |
+| `payment_batches` | 14 | a batch payment out, linked to `bank_account_id` (§5) |
+
+`41.0_bank_accounts` carries `is_default_payment` and `is_default_receipt` —
+exactly one account should be true for each, and they are how a form picks the
+account without asking. `41.1_bank_transactions` being empty means the ledger
+has not been used yet, **not** that payments do not happen: those are in
+`26.0_customer_receipts` (in) and `payment_batches` / `6.0_po_costs` (out).
+Do not report cash position from `41.1`.
+
+**Treat all of §5d as confidential.** Account numbers are not a thing to repeat
+into a chat, a document, or an email, whatever the question was.
+
+## 5e. Settings, and the two tables that both look like settings
+
+| Table | Rows | What |
+|---|---|---|
+| `40.0_settings` | 14 | **the real one** — one row per `key`, `value` is `jsonb` |
+| `40.1_import_batches` | 0 | audit of spreadsheet imports: `entity`, `filename`, created/updated/skipped/error counts |
+| `app_settings` | — | **legacy. Do not read it.** It is not what the app uses. |
+
+The keys in `40.0_settings` that change answers:
+
+| Key | Value today | Why it matters |
+|---|---|---|
+| `defaultTierStepPct` | `5` | **the markup step §3.1 chains tiers with** |
+| `defaultCustomerTier` | `"tier-3"` | the tier a customer gets when none is set |
+| `epcCostBufferPct` | `5` | buffer added to EPC costs |
+| `quoteValidityDays` | `7` | how long a quote is good for |
+| `slowMoverDays` | `90` | the age at which stock is called slow-moving |
+
+Read the key rather than hard-coding the number. `defaultTierStepPct` is the
+one that silently changes a price you quoted (§3.1), and the day somebody moves
+it from 5 to 6, any answer carrying a memorised 5 becomes wrong with no error
+anywhere.
+
+---
+
 ## 6. What no one may write
 
 Maintained solely by `SECURITY DEFINER` triggers. Attempts are denied, and that
@@ -390,7 +468,13 @@ attribution is the point of the account, not a side effect.
 
 1. **Name the table with the number.** "3 batteries" was wrong because of the
    table, not the query. Say where a figure came from.
-2. **A name you guessed is not a name.** If it is not in this file, ask.
+2. **A name you guessed is not a name.** §9 is every table there is. If a name
+   is not in §9, it does not exist — say that, and stop. On 2026-09-19 an agent
+   needed margin profiles, found nothing in this file, tried `margin_profiles`
+   (404), then `21.2_margin_profiles` (200), and reached it on the second guess.
+   It also probed `information_schema.tables` (404) trying to discover a schema
+   it was holding a document about. The second guess landing is luck; §9 is so
+   that it never has to.
 3. **Check for a later revision** before calling anything the biggest, latest
    or current (§2).
 4. **Exclude `archived_at IS NOT NULL`** from anything describing what is
@@ -417,3 +501,93 @@ attribution is the point of the account, not a side effect.
    was a true sentence that produced a false report. Before you call anything
    missing, ask whether the app DERIVES it — and if it does, find the endpoint
    that derives it for you rather than reading the parts and guessing the whole.
+
+---
+
+## 9. Every table, once
+
+**This is the whole database — 59 tables, read from `information_schema` on
+2026-09-19.** It exists so that "I could not find a table for X" is always a
+checkable claim. Nothing outside this list exists; if you need something that
+is not here, the answer is that ICAPROC does not store it yet.
+
+Counts drift. Names do not.
+
+### Buy side — §5
+
+| Table | § | Note |
+|---|---|---|
+| `1.0_companies` | 5 | our own legal entities |
+| `2.0_suppliers` | 5 | 37 |
+| `4.0_price_quotes` → `4.1_price_quote_line_items` | 5, 5a | **no total trigger** |
+| `5.0_purchases` → `5.1_purchase_line_items` | 5, 5a | **lines first, total last** |
+| `6.0_po_costs` | 5 | freight, PIB, OPS — landed cost |
+| `7.0_competitor_prices` | 5 | |
+| `8.0_component_links` | 5 | `brand_equivalent` · `normalized` · `successor` |
+| `9.0_exchange_rate_history` | 5 | |
+| `payment_batches` | 5, 5d | no number prefix; predates the convention |
+
+### Catalogue — §1
+
+| Table | § | Note |
+|---|---|---|
+| `3.0_components` | 1 | **the one product table.** ~1,005 rows |
+
+### EPC project quotes — §2
+
+| Table | § | Note |
+|---|---|---|
+| `10.0_project_quotes` → `10.1_quote_sections` → `10.2_quote_items` | 2 | **mind the `-REV` rule** |
+| `10.3_quote_activity` | 2 | audit log |
+| `10.4_description_library` | 2 | reusable descriptions |
+| `10.5_quote_notes` | 2 | `cleared_at IS NULL` = open |
+
+### Sell side — §3
+
+| Table | § | Note |
+|---|---|---|
+| `20.0_customers` → `20.1_customer_contacts` | 3 | 489 customers |
+| `20.2_customer_links` | 3 | customer ↔ customer |
+| `21.0_price_tiers` · `21.1_item_tier_prices` | 3.1 | **tiers are mostly COMPUTED** |
+| `21.2_margin_profiles` | 3 | `loss_leader` · `value_capture` |
+| `21.3_item_price_history` | 6 | **never write** |
+| `22.0_sales_quotes` → `22.1_sales_quote_items` | 3 | `_items`, not `_line_items` |
+| `22.2_sales_description_library` | 3 | |
+| `22.3_sales_activity_log` | 6 | **never write** |
+| `24.0_delivery_orders` → `24.1_delivery_order_items` | 3 | posts nothing to stock |
+| `25.0_sales_invoices` → `25.1_sales_invoice_items` | 3 | AR |
+| `26.0_customer_receipts` | 3 | payments in |
+| `27.0_aftersales_cases` → `27.1_aftersales_parts` → `27.2_aftersales_updates` | 3 | service desk |
+| `28.0_support_letters` → `28.1_support_letter_items` | 3 | Surat Dukungan |
+
+There is **no `23.x`**. The numbering jumps 22 → 24 by design; a sales order is
+not its own table, it is `22.0_sales_quotes` carrying an SO number (§3).
+
+### Stock — §4
+
+| Table | § | Note |
+|---|---|---|
+| `30.0_stock_movements` | 4 | append-only ledger |
+| `30.1_stock_balances` | 4, 6 | **derived — never write** |
+| `30.2_goods_receipts` · `30.3_warehouses` · `30.4_serial_numbers` | 4 | |
+| `30.5_landed_true_up_queue` | 4, 5c | empty = healthy |
+
+### Settings and money — §5d, §5e
+
+| Table | § | Note |
+|---|---|---|
+| `40.0_settings` | 5e | **the real settings** |
+| `40.1_import_batches` | 5e | import audit |
+| `41.0_bank_accounts` · `41.1_bank_transactions` · `41.2_bank_names` | 5d | **confidential** |
+
+### Not yours to read
+
+Infrastructure and dead weight. Reading them produces wrong answers, not errors.
+
+| Table | Why |
+|---|---|
+| `batteries` · `pv_modules` · `hybrid_inverters` · `on_grid_inverters` · `solar_charge_controllers` | **§0 — they lie.** Use `3.0_components` |
+| `app_settings` | legacy; `40.0_settings` is the live one (§5e) |
+| `allowed_emails` | who may hold an account, and at what role |
+| `user_profiles` | identity behind `auth.uid()` (§7) |
+| `materialized_view_refresh_log` | database plumbing |

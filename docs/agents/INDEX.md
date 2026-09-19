@@ -5,8 +5,9 @@
 > copy in Google Drive is stale. Agent prompts point HERE, and this page names
 > the current file — otherwise every version bump would break every prompt.
 >
-> **Last updated: 2026-09-11** (v6 of the schema pack: §3.1, why a tier price
-> you cannot find in a table is a computed one and not a missing one).
+> **Last updated: 2026-09-19** (v7 of the schema pack: §9, a census of every
+> table in the database — seventeen of them had never been named anywhere, so
+> an agent needing one had nothing to do but guess).
 
 ## The one call that beats this page
 
@@ -28,7 +29,7 @@ superseded now and finding out after acting on it.
 
 | Pack | Current file | For | Changed |
 |---|---|---|---|
-| **Schema map** | `ICAPROC-SCHEMA_v6_2026-09-11.md` | every agent, first | v6: §3.1 — Tier-2/3 are COMPUTED, not stored; read them from `/api/agent/prices` |
+| **Schema map** | `ICAPROC-SCHEMA_v7_2026-09-19.md` | every agent, first | v7: §9 is a census of ALL 59 tables — if a name is not in §9 it does not exist; adds §5d money, §5e settings |
 | **Purchasing runbook** | `PURCHASING-RUNBOOK_v2_2026-09-07.md` | Hermes, buy side | v2: versioned and moved here; the mechanism behind lines-before-totals; the price-quote exception |
 | **Solar design** | `MANDA-SOLAR-DESIGN_v3_2026-09-09.md` | MANDA, engineering | v3: engine v9 — demand factor, power loss factor, headroom, battery string voltage, cable run, PSH provenance |
 | **MANDA boot prompt** | `MANDA-BOOT-PROMPT_v2_2026-09-06.md` | MANDA's config | v2: string-reporting rule |
