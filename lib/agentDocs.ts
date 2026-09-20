@@ -51,8 +51,15 @@ export const AGENT_DOCS: readonly AgentDoc[] = [
   {
     id: 'manda-boot',
     title: 'MANDA boot prompt',
-    file: 'MANDA-BOOT-PROMPT_v2_2026-09-06.md',
+    file: 'MANDA-BOOT-PROMPT_v3_2026-09-20.md',
     audience: "MANDA's own configuration",
+    first: false,
+  },
+  {
+    id: 'mira-boot',
+    title: 'MIRA boot prompt',
+    file: 'MIRA-BOOT-PROMPT_v1_2026-09-20.md',
+    audience: "MIRA's own configuration",
     first: false,
   },
   {
