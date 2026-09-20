@@ -366,8 +366,23 @@ export default function QuoteEditorPage() {
   // (field report, 2026-07-30). RLS agrees: can_edit_quote() only blocks
   // engineers once the ROW is already sent, so draft→sent is theirs to make.
   const isOwner = gate.profile?.role === 'owner';
+  /**
+   * May pull a SENT proposal back to draft (owner, 2026-09-20). Deliberately
+   * SEPARATE from `isOwner`, which still gates the raw pre-buffer cost figures
+   * further down — folding the Project Engineer into `isOwner` would have
+   * handed them supplier costs as a side effect of a status permission.
+   *
+   * It is not permission to EDIT a sent proposal either: `locked` below is
+   * unchanged, so the content stays read-only and only the status control is
+   * live. The database agrees and is the real gate — `quotes unsend` +
+   * `guard_quote_unsend()` in migrations/epc_engineer_unsend.sql refuse
+   * anything but the status change, whoever asks and by whatever route.
+   */
+  const canUnsend = isOwner || gate.profile?.role === 'engineer';
   const [savedStatus, setSavedStatus] = useState<ProjectQuote['status'] | null>(null);
   const locked = savedStatus === 'sent' && !isOwner;
+  /** The engineer's one move on a locked proposal: send it back to draft. */
+  const unsendOnly = locked && canUnsend;
   /**
    * Did the person actually PICK a status in this tab?
    *
@@ -1492,7 +1507,15 @@ export default function QuoteEditorPage() {
   /** @returns true only when the save actually reached the database. */
   async function save(): Promise<boolean> {
     if (!quoteRef.current) return false;
-    if (locked) { setSaveMsg('Locked: SENT quotes can only be edited by an Owner'); return false; }
+    // A locked tab still lets the un-send through — it is the one change an
+    // engineer may make here, and the content inputs are disabled so nothing
+    // else can have moved. Everything else on a SENT proposal still stops.
+    if (locked && !(unsendOnly && statusTouchedRef.current && quoteRef.current?.status === 'draft')) {
+      setSaveMsg(canUnsend
+        ? 'Locked: a SENT proposal can only be moved back to draft — edit it once it is a draft again'
+        : 'Locked: SENT quotes can only be edited by an Owner');
+      return false;
+    }
     setSaving(true);
     let ok = false;
     try {
@@ -1504,11 +1527,14 @@ export default function QuoteEditorPage() {
       // Only a STALE header may be corrected back to 'sent'. A status the
       // person picked here is intent, and must reach the database.
       const unSending = liveStatus?.status === 'sent' && quoteRef.current.status !== 'sent';
-      if (unSending && statusTouchedRef.current && !isOwner) {
+      // Deliberate intent, from someone allowed to act on it, must reach the
+      // database — this is the guard that used to eat the owner's own un-send
+      // (field report 2026-07-31), and it would have eaten the engineer's too.
+      if (unSending && statusTouchedRef.current && !canUnsend) {
         setQuote((q) => q ? { ...q, status: 'sent' } : q);
         setSavedStatus('sent');
         setSaving(false);
-        setSaveMsg('Not saved — only an Owner can move a SENT quote back to draft.');
+        setSaveMsg('Not saved — only an Owner or a Project Engineer can move a SENT quote back to draft.');
         return false;
       }
       if (unSending && !statusTouchedRef.current) {
@@ -1973,20 +1999,32 @@ export default function QuoteEditorPage() {
               whether this quote can still be edited at all. */}
           <select
             value={quote.status}
-            disabled={locked}
-            title={locked ? 'SENT — only an Owner can change the status' : undefined}
+            /* Locked means the CONTENT is read-only. The status itself stays
+               live for whoever may un-send, because that is the whole point of
+               the permission — and the list it offers narrows to the one move
+               they have, so the control cannot promise sent → accepted and
+               then be refused by the database. */
+            disabled={locked && !unsendOnly}
+            title={
+              unsendOnly ? 'SENT — you can move this back to draft; editing it needs it to be a draft first'
+              : locked ? 'SENT — only an Owner can change the status'
+              : undefined}
             onChange={(e) => { statusTouchedRef.current = true; setQuoteField('status', e.target.value as ProjectQuote['status']); }}
             /* appearance-none: the native stepper made this pill wide enough
                to squeeze the quote number off a phone header. Clamped on
                small screens, intrinsic width from sm up. */
             className={`order-2 flex-shrink-0 appearance-none text-center px-2.5 py-1 max-w-[92px] sm:max-w-none rounded-full text-[11px] font-semibold uppercase tracking-wider border-0 outline-none cursor-pointer disabled:cursor-not-allowed ${STATUS_COLORS[quote.status]}`}
           >
-            {STATUS_OPTS.map((s) => <option key={s} value={s}>{s}</option>)}
+            {(unsendOnly ? (['sent', 'draft'] as const) : STATUS_OPTS)
+              .map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
 
           {/* Save — the one thing that must never sit behind a scroll. */}
-          <button onClick={save} disabled={saving || !dirty || locked}
-            title={locked ? 'SENT quotes can only be edited by an Owner' : 'Ctrl+S / Cmd+S'}
+          <button onClick={save} disabled={saving || !dirty || (locked && !unsendOnly)}
+            title={
+              unsendOnly ? 'Save the revert to draft'
+              : locked ? 'SENT quotes can only be edited by an Owner'
+              : 'Ctrl+S / Cmd+S'}
             className="order-3 lg:order-5 flex-shrink-0 flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-semibold bg-violet-600 hover:bg-violet-500 text-white transition-all disabled:opacity-40">
             {saving ? 'Saving…' : 'Save'}
             <span className="hidden sm:inline text-white/50 text-[9px] font-normal">⌘S</span>

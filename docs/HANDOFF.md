@@ -122,6 +122,58 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
+### 2026-09-20 (latest) — a Project Engineer can un-send an EPC proposal
+
+Owner: *"give project engineer role in icaproc the ability to revert 'sent' epc
+proposals back to draft"*.
+
+A sent proposal is what the customer is holding, so it is read-only for
+everyone but the owner — right for the CONTENT, wrong for the one case that
+keeps happening: the engineer sent it, spotted something, needs it back.
+
+**The easy version of this change is much wider than the ask, in three ways
+that would all have passed review unnoticed:**
+
+1. **`can_edit_quote()` governs ALL commands.** Widening it would have handed
+   engineers **DELETE** of a sent proposal in the same edit. So it is untouched
+   and a new **UPDATE-only** policy (`quotes unsend`) adds the single
+   transition. Permissive policies are OR'd, so nothing else loosened.
+2. **`isOwner` in the editor also gates the raw pre-buffer COST figures** in
+   the cost-history popover. Folding the engineer into it would have leaked
+   supplier costs as a side effect of a *status* permission. Hence a separate
+   **`canUnsend`**, and `isOwner` keeps its narrow meaning.
+3. **Un-send is not edit.** `locked` is unchanged, so content inputs stay
+   read-only; only the status control goes live, and it offers **only**
+   `sent → draft` — a control that promises `sent → accepted` and is then
+   refused by the database teaches people the app is unreliable.
+
+`guard_quote_unsend()` (BEFORE UPDATE) then holds a non-owner to the status
+column alone, comparing `to_jsonb(NEW) - skip` against `to_jsonb(OLD) - skip`.
+**Column-agnostic on purpose:** a business field added to this table next year
+is protected the day it is added, with nobody having to remember the file. It
+fires before `log_quote_activity` (`g` < `l`), so a refused un-send never
+reaches `10.3_quote_activity` — and an accepted one is audited for free.
+
+Enforced in the DATABASE, not React. This session found two places where a
+rule lived only in the UI and was therefore not a rule; a guard a PostgREST
+call can walk around is decoration.
+
+**Verified by impersonating a real engineer account, all rolled back:**
+
+| Attempt | Result |
+|---|---|
+| sent → draft | **allowed** ✅ |
+| sent → accepted | blocked ✅ |
+| sent → draft carrying a content edit | blocked ✅ |
+| DELETE a sent proposal | blocked by RLS ✅ |
+| edit a sent proposal's content | blocked by RLS ✅ |
+
+Also fixed on the way: the stale-tab guard keyed on `!isOwner`, and would have
+eaten the engineer's deliberate un-send exactly as it once ate the owner's
+(field report 2026-07-31). It now keys on `!canUnsend`.
+
+Guarded in `lib/epcUnsend.test.ts`.
+
 ### 2026-09-17 (latest) — the sell side gets a write path, documents only
 
 MIRA asked for one instead of writing, which was right: the schema pack says
