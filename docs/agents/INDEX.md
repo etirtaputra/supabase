@@ -5,9 +5,9 @@
 > copy in Google Drive is stale. Agent prompts point HERE, and this page names
 > the current file — otherwise every version bump would break every prompt.
 >
-> **Last updated: 2026-09-19** (v7 of the schema pack: §9, a census of every
-> table in the database — seventeen of them had never been named anywhere, so
-> an agent needing one had nothing to do but guess).
+> **Last updated: 2026-09-20** (boot prompts: MANDA v3 and MIRA v1. Both now
+> start from `/api/agent/onboarding` rather than a hard-coded filename, and
+> both fix the order of authority — the packs outrank what an agent remembers).
 
 ## The one call that beats this page
 
@@ -32,7 +32,8 @@ superseded now and finding out after acting on it.
 | **Schema map** | `ICAPROC-SCHEMA_v7_2026-09-19.md` | every agent, first | v7: §9 is a census of ALL 59 tables — if a name is not in §9 it does not exist; adds §5d money, §5e settings |
 | **Purchasing runbook** | `PURCHASING-RUNBOOK_v2_2026-09-07.md` | Hermes, buy side | v2: versioned and moved here; the mechanism behind lines-before-totals; the price-quote exception |
 | **Solar design** | `MANDA-SOLAR-DESIGN_v3_2026-09-09.md` | MANDA, engineering | v3: engine v9 — demand factor, power loss factor, headroom, battery string voltage, cable run, PSH provenance |
-| **MANDA boot prompt** | `MANDA-BOOT-PROMPT_v2_2026-09-06.md` | MANDA's config | v2: string-reporting rule |
+| **MANDA boot prompt** | `MANDA-BOOT-PROMPT_v3_2026-09-20.md` | MANDA's config | v3: boots from `/api/agent/onboarding`, not a hard-coded filename; order of authority; efficiency |
+| **MIRA boot prompt** | `MIRA-BOOT-PROMPT_v1_2026-09-20.md` | MIRA's config | v1: she had none — boot call, order of authority, never guess a table name, token reuse |
 | **Agent platform** | `AGENT-PLATFORM_v3_2026-09-07.md` | the owner and me | v3: onboarding endpoint and the enforced registry |
 
 ## What each agent loads
@@ -45,7 +46,18 @@ an abandoned table with a fifth of the rows.
 carries the boot prompt. She calls `/api/agent/design/*` rather than running an
 engine of her own.
 
+**MIRA (owner role, buy and sell side):** schema map → purchasing runbook. Her
+config carries her own boot prompt. Tier prices come from
+`/api/agent/prices`, never from a table read.
+
 **Hermes (buy side):** schema map → purchasing runbook.
+
+A boot prompt is not a pack: an agent never reads the other agent's. It is the
+text that goes into that agent's system prompt, kept here and versioned so the
+deployed copy can be compared against it. A prompt that only exists in this
+folder is not doing anything — MANDA's v2 sat here unread from 2026-09-06 to
+2026-09-20 while her container ran a single sentence pointing at a filename
+that did not exist.
 
 ## The versioning rule (owner's, 2026-09-06)
 
