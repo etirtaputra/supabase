@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-20** · head of `main` at that point: `b74201c` (see §4, §6)
+**Last updated: 2026-09-21** · head of `main` at that point: `b85d680` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -174,7 +174,44 @@ eaten the engineer's deliberate un-send exactly as it once ate the owner's
 
 Guarded in `lib/epcUnsend.test.ts`.
 
-### 2026-09-17 (latest) — the sell side gets a write path, documents only
+#### 2026-09-21 — and then it still failed in the field: `.upsert()`
+
+The policy and the guard above were both right, and the engineer still got
+**"new row violates row-level security policy"** on `Q-20260919-HBI8-P`.
+
+The editor wrote the quote header with PostgREST's `.upsert()`. That is
+`INSERT … ON CONFLICT`, and Postgres applies the **INSERT** policy's WITH CHECK
+on the way in — `can_edit_quote()`, which is FALSE for an engineer while the
+quote is SENT. The request died there, before the ON CONFLICT path and with it
+the whole UPDATE-only un-send policy were ever reached. The INSERT half had
+nothing to do in the first place: New Proposal (`app/proposals/page.tsx`)
+inserts the row before the editor can open it.
+
+Re-verified by impersonation as the engineer, rolled back:
+
+| Attempt | Result |
+|---|---|
+| `INSERT … ON CONFLICT` sent → draft | `42501` refused ❌ |
+| `UPDATE` sent → draft | 1 row ✅ ← the fix |
+| the full header payload as `UPDATE` | 1 row ✅ |
+| item write once the quote is draft | 34 rows ✅ |
+| un-send carrying a content edit | refused by the guard ✅ |
+| edit a SENT quote, status untouched | refused by the guard ✅ |
+| sent → accepted | refused by the guard ✅ |
+| DELETE a sent proposal | 0 rows ✅ |
+
+**The lesson worth keeping: which COMMAND you send decides which policy judges
+you.** A table can have a perfectly correct UPDATE policy and still refuse the
+update, because the client library quietly sent an insert.
+
+Second fix in the same commit: an UPDATE that a USING clause filters out is
+**zero rows and HTTP 200, not an error**. The save now checks the returned row
+and says so, instead of reporting "Saved" for a change that never landed — the
+failure mode that would have replaced this one.
+
+`b85d680` · `app/proposals/[id]/page.tsx`, `lib/epcUnsend.test.ts`.
+
+### 2026-09-17 — the sell side gets a write path, documents only
 
 MIRA asked for one instead of writing, which was right: the schema pack says
 *"read the sell side, do not write it — not yet"*, and **the reason verified
