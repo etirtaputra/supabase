@@ -1592,31 +1592,43 @@ export default function QuoteEditorPage() {
 
       // 1. Header — write only if this tab changed header fields; otherwise
       //    just touch updated_at so other tabs' sync notices this save.
+      //
+      //    UPDATE, never upsert. The row is created by New Proposal before this
+      //    editor can open, so the INSERT half of an upsert never had anything
+      //    to do — but PostgREST's `.upsert()` IS `INSERT … ON CONFLICT`, and
+      //    Postgres checks the INSERT policy's WITH CHECK on the way in. That
+      //    policy is `can_edit_quote()`, which is FALSE for an engineer while
+      //    the quote is SENT. So the engineer's un-send was refused by a rule
+      //    about a command the save was never trying to run, and the UPDATE-only
+      //    un-send policy never got a look in. Verified against production by
+      //    impersonation (rolled back, 2026-09-21): the identical payload as an
+      //    upsert is refused, as an UPDATE it is allowed.
       const headerChanged = headerFingerprint(quoteNow) !== headerFingerprint(baseHeaderRef.current);
-      if (headerChanged) {
-        const { error: qErr } = await supabase.from('10.0_project_quotes').upsert({
-          quote_id: quoteNow.quote_id,
-          quote_number: quoteNow.quote_number,
-          quote_date: quoteNow.quote_date,
-          company_id: quoteNow.company_id ?? null,
-          customer_id: quoteNow.customer_id ?? null,
-          customer_name: quoteNow.customer_name,
-          customer_address: quoteNow.customer_address,
-          project_description: quoteNow.project_description,
-          project_type: quoteNow.project_type ?? 'custom',
-          system_specs: quoteNow.system_specs ?? {},
-          location: quoteNow.location ?? '',
-          ppn_pct: num(String(quoteNow.ppn_pct)) ?? 11,
-          status: quoteNow.status,
-          notes: quoteNow.notes,
-          group_margins: quoteNow.group_margins ?? {},
-          updated_at: new Date().toISOString(),
-        });
-        if (qErr) throw qErr;
-      } else {
-        const { error: tErr } = await supabase.from('10.0_project_quotes')
-          .update({ updated_at: new Date().toISOString() }).eq('quote_id', quoteNow.quote_id);
-        if (tErr) throw tErr;
+      const headerPatch = headerChanged ? {
+        quote_number: quoteNow.quote_number,
+        quote_date: quoteNow.quote_date,
+        company_id: quoteNow.company_id ?? null,
+        customer_id: quoteNow.customer_id ?? null,
+        customer_name: quoteNow.customer_name,
+        customer_address: quoteNow.customer_address,
+        project_description: quoteNow.project_description,
+        project_type: quoteNow.project_type ?? 'custom',
+        system_specs: quoteNow.system_specs ?? {},
+        location: quoteNow.location ?? '',
+        ppn_pct: num(String(quoteNow.ppn_pct)) ?? 11,
+        status: quoteNow.status,
+        notes: quoteNow.notes,
+        group_margins: quoteNow.group_margins ?? {},
+        updated_at: new Date().toISOString(),
+      } : { updated_at: new Date().toISOString() };
+      const { data: wrote, error: qErr } = await supabase.from('10.0_project_quotes')
+        .update(headerPatch).eq('quote_id', quoteNow.quote_id).select('quote_id');
+      if (qErr) throw qErr;
+      // An UPDATE the policy's USING clause filters out is not an error — it is
+      // zero rows and a 200. Saying "Saved" to that is how a person walks away
+      // believing a change landed that never did.
+      if (!wrote?.length) {
+        throw new Error('Not saved — the database refused this change. A SENT proposal is read-only; revert it to draft first, or ask an Owner.');
       }
       // sent_at is stamped by the DB trigger on the draft→sent transition
       if (quoteNow.status === 'sent' && !quoteNow.sent_at) {

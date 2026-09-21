@@ -101,3 +101,20 @@ test('the deliberate un-send is not eaten by the stale-tab guard', () => {
   // would have eaten the engineer's for the same reason.
   assert.match(UI, /if \(unSending && statusTouchedRef\.current && !canUnsend\)/);
 });
+
+test('the header save is an UPDATE — an upsert is judged by the INSERT policy', () => {
+  // This is what broke the first attempt in the field. PostgREST's `.upsert()`
+  // is `INSERT … ON CONFLICT`, so Postgres applies the INSERT policy's WITH
+  // CHECK — `can_edit_quote()`, FALSE for an engineer on a SENT quote — and the
+  // UPDATE-only un-send policy is never consulted. The row always exists (New
+  // Proposal inserts it), so the INSERT half was only ever a liability.
+  assert.ok(!/from\('10\.0_project_quotes'\)\s*\.?\s*\n?\s*\.upsert\(/.test(UI),
+    "the quote header must be written with .update(); .upsert() is INSERT … ON CONFLICT and is refused by the INSERT policy");
+  assert.match(UI, /\.update\(headerPatch\)\.eq\('quote_id', quoteNow\.quote_id\)\.select\('quote_id'\)/);
+});
+
+test('a header write the policy filters out is reported, not swallowed', () => {
+  // An UPDATE blocked by a USING clause is 0 rows and HTTP 200 — no error. Left
+  // unchecked, the editor would say "Saved" for a change that never landed.
+  assert.match(UI, /if \(!wrote\?\.length\) \{\s*\n\s*throw new Error\('Not saved/);
+});
