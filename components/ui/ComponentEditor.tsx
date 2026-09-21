@@ -18,6 +18,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
+import { copyOnly } from '@/lib/whatsappQuote';
 import type { Component, PriceQuoteLineItem, PriceQuote, PurchaseOrder, PurchaseLineItem, CompetitorPrice, POCost, ComponentLink } from '../../types/database';
 import { computeTUC, computeTUCMap } from '../../lib/computeTUC';
 import { buildComponentUsage, type ComponentUsage } from '../../lib/componentUsage';
@@ -89,20 +90,64 @@ function ActiveChip({ label, value, onClear }: { label: string; value?: string; 
 }
 
 // ── Copy button ─────────────────────────────────────────────────────────────────
-function CopyBtn({ text }: { text: string | null | undefined }) {
-  const [copied, setCopied] = React.useState(false);
+/**
+ * Copy one field out of a row — our description, or the supplier's model.
+ *
+ * A SPAN with `role="button"`, not a `<button>`, because the mobile card this
+ * also sits in IS a button (it opens the line-item modal) and a button inside a
+ * button is not valid HTML. The Tiers / Stock chips beside it already take this
+ * shape for the same reason.
+ *
+ * `copyOnly` rather than `navigator.clipboard` directly: that object is absent
+ * on a page served over plain http and inside some in-app browsers — which are
+ * phone browsers, the place this button was reported missing from — and
+ * `navigator.clipboard.writeText(...)` throws there before anything is copied.
+ * The helper falls back to an offscreen textarea, and tells us when even that
+ * failed so the button can say so instead of pretending.
+ */
+function CopyBtn({ text, label = 'Copy', className = '' }: {
+  text: string | null | undefined;
+  /** Name the THING, e.g. "Copy our description" — there are two per row. */
+  label?: string;
+  className?: string;
+}) {
+  const [state, setState] = React.useState<'idle' | 'ok' | 'fail'>('idle');
+  const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  // A row can unmount while the tick still shows — the list re-sorts, a filter
+  // changes — and setting state on a dead component is a warning nobody reads.
+  React.useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  const copy = React.useCallback(async (e: React.SyntheticEvent) => {
+    // The row around this opens a modal. Copying is not a reason to open it.
+    e.stopPropagation();
+    e.preventDefault();
+    const how = await copyOnly(text ?? '');
+    setState(how === 'copied' ? 'ok' : 'fail');
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setState('idle'), 1400);
+  }, [text]);
   if (!text) return null;
   return (
-    <button
-      onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1400); }); }}
-      title="Copy"
-      className="inline-flex items-center justify-center w-5 h-5 rounded text-slate-600 hover:text-slate-300 hover:bg-white/10 transition-colors flex-shrink-0 mr-1 align-middle"
+    <span
+      role="button"
+      tabIndex={0}
+      onClick={copy}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') copy(e); }}
+      title={state === 'fail' ? 'Could not reach the clipboard — select the text and copy by hand' : label}
+      aria-label={label}
+      // Wider on a phone than on a mouse: the same icon a pointer hits exactly
+      // is a thumb's guess. The negative margin keeps the TARGET big without
+      // letting the row grow around it.
+      className={`inline-flex items-center justify-center rounded transition-colors flex-shrink-0 align-middle cursor-pointer w-7 h-7 -my-1 sm:w-5 sm:h-5 sm:my-0 sm:mr-1 ${
+        state === 'ok' ? 'text-emerald-400'
+        : state === 'fail' ? 'text-amber-400'
+        : 'text-slate-600 hover:text-slate-300 hover:bg-white/10 active:text-emerald-300'
+      } ${className}`}
     >
-      {copied
-        ? <svg className="w-3 h-3 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-        : <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>
+      {state === 'ok'
+        ? <svg className="w-3.5 h-3.5 sm:w-3 sm:h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+        : <svg className="w-3.5 h-3.5 sm:w-3 sm:h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>
       }
-    </button>
+    </span>
   );
 }
 
@@ -2035,7 +2080,10 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
       c.category ?? '',
       lq ? `${lq.currency} ${lq.price.toFixed(2)}` : '',
     ].join('\t');
-    navigator.clipboard.writeText(text).then(() => {
+    // Same helper as CopyBtn, for the same reason: `navigator.clipboard` is
+    // absent over plain http and in some in-app browsers, and this row menu is
+    // reachable from a phone too.
+    void copyOnly(text).then(() => {
       setCopiedRowId(c.component_id);
       setTimeout(() => setCopiedRowId(null), 1400);
     });
@@ -3202,8 +3250,18 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                   className="w-full text-left flex items-start gap-3 px-4 py-3 active:bg-white/[0.04] transition-colors"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-semibold text-white break-words">{c.supplier_model || '(no model)'}</span>
+                    {/* Both identities, each with its own copy button — the
+                        same two lines the desktop row shows, in the same order.
+                        The phone used to show the SUPPLIER's model alone, so
+                        the description we actually sell under was unreachable
+                        from a phone, and neither could be copied at all. */}
+                    <div className="flex items-start gap-1">
+                      <CopyBtn text={c.internal_description} label="Copy our description" />
+                      <span className="text-sm font-semibold text-white break-words min-w-0">{c.internal_description || '(no description)'}</span>
+                    </div>
+                    <div className="flex items-start gap-1 mt-0.5">
+                      <CopyBtn text={c.supplier_model} label="Copy the supplier model" />
+                      <span className="text-[11px] font-mono text-slate-500 break-words min-w-0">{c.supplier_model || '(no model)'}</span>
                       {isDup && <span className="px-1.5 py-0.5 bg-red-500/15 border border-red-500/25 text-red-400 text-[9px] font-bold rounded flex-shrink-0">dup</span>}
                     </div>
                     <p className="text-[11px] text-slate-500 mt-0.5 break-words">{[c.brand, categoryLabelOf(c.category), c.unit].filter(Boolean).join(' · ') || '—'}</p>
@@ -3439,7 +3497,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                               ) : (
                                 <span className="flex items-center text-xs text-white font-medium min-w-0"
                                       style={itemW != null ? { maxWidth: itemW } : undefined}>
-                                  <CopyBtn text={c.internal_description} />
+                                  <CopyBtn text={c.internal_description} label="Copy our description" />
                                   {/* truncate lives on the TEXT, not the cell:
                                       `width` on a <td> in a table-layout:auto
                                       table is a suggestion the browser drops as
@@ -3469,7 +3527,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                               ) : (
                                 <span className="flex items-center mt-0.5 text-[11px] font-mono text-slate-500 min-w-0"
                                       style={itemW != null ? { maxWidth: itemW } : undefined}>
-                                  <CopyBtn text={c.supplier_model} />
+                                  <CopyBtn text={c.supplier_model} label="Copy the supplier model" />
                                   <span className="truncate min-w-0">
                                     <Highlight text={c.supplier_model} query={search} />
                                   </span>

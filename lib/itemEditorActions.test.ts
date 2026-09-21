@@ -132,3 +132,61 @@ test('the row menu escapes the blurred card it is drawn inside', () => {
   assert.ok(!/top: r\.bottom \+ 6,\n\s+right:/.test(src),
     'the row should no longer pre-compute the menu position');
 });
+
+/**
+ * Both identities are reachable from a phone, and both can be copied.
+ *
+ * OWNER, 2026-09-21, from a phone: *"item editor list is missing copy button
+ * for the supplier and internal description in mobile browser"*.
+ *
+ * Two faults behind one report. The mobile card rendered the SUPPLIER's model
+ * as its only title, so `internal_description` — the description we sell
+ * under, and the one the owner's standing rule says we display — was not on
+ * the phone at all; and `CopyBtn` was rendered only in the desktop table, so
+ * neither field could be copied there even when visible.
+ */
+test('the phone card carries our description and the supplier model, both copyable', () => {
+  const src = readFileSync(EDITOR, 'utf8');
+  const mobile = src.split('} : isMobile ? (')[1] ?? src.split('isMobile ? (')[1] ?? '';
+  assert.ok(mobile, 'the mobile card branch has moved — this test no longer reads it');
+  const card = mobile.slice(0, mobile.indexOf('</div>\n        ) : ('));
+  assert.match(card, /CopyBtn text=\{c\.internal_description\}/,
+    'our own description must be copyable from a phone');
+  assert.match(card, /CopyBtn text=\{c\.supplier_model\}/,
+    "the supplier's model must be copyable from a phone");
+  assert.match(card, /\{c\.internal_description \|\| '\(no description\)'\}/,
+    'the phone card must show our description, not the supplier model alone');
+});
+
+test('the copy button goes through the shared clipboard helper', () => {
+  const src = readFileSync(EDITOR, 'utf8');
+  // `navigator.clipboard` is absent over plain http and in some in-app
+  // browsers — phone browsers, which is where this was reported. Calling
+  // `.writeText(...).then(...)` on it throws before anything is copied.
+  //
+  // Comments stripped first: the file EXPLAINS why it avoids that object, and
+  // a guard that a sentence about the rule can trip is a guard that punishes
+  // writing the reason down.
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').split('\n')
+    .map((l) => l.replace(/(^|[^:])\/\/.*$/, '$1')).join('\n');
+  assert.ok(!/navigator\.clipboard/.test(code),
+    'it reaches for the clipboard directly instead of going through copyOnly');
+  assert.match(src, /import \{ copyOnly \} from '@\/lib\/whatsappQuote'/);
+});
+
+test('the copy button is a span, because the phone card around it is a button', () => {
+  const src = readFileSync(EDITOR, 'utf8');
+  const fn = src.slice(src.indexOf('function CopyBtn'), src.indexOf('// --- Brand Autocomplete'));
+  assert.ok(!/<button/.test(fn),
+    'a <button> inside the mobile card button is invalid HTML — keep the span with role="button"');
+  assert.match(fn, /role="button"[\s\S]*?tabIndex=\{0\}/);
+  assert.match(fn, /onKeyDown=\{\(e\) => \{ if \(e\.key === 'Enter' \|\| e\.key === ' '\) copy\(e\); \}\}/,
+    'role="button" without a key handler is a control the keyboard can focus and not press');
+});
+
+test('the tap target is bigger on a phone than on a mouse', () => {
+  const src = readFileSync(EDITOR, 'utf8');
+  const fn = src.slice(src.indexOf('function CopyBtn'), src.indexOf('// --- Brand Autocomplete'));
+  assert.match(fn, /w-7 h-7 -my-1 sm:w-5 sm:h-5/,
+    'the same icon a pointer hits exactly is a guess for a thumb');
+});
