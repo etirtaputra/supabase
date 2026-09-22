@@ -18,6 +18,8 @@ import type {
 } from '@/types/database';
 import { checkPoTotal, totalDisagrees } from '@/lib/poTotals';
 import { buildDealGroups, type DealGroup } from '@/lib/dealGroups';
+import { dealBalance, poBalance, remainingLabel, type DealBalance } from '@/lib/dealBalance';
+import { fetchLiveFx } from '@/lib/liveFx';
 import { PRINCIPAL_CATS, BANK_FEE_CATS, TAX_CATS } from '@/constants/costCategories';
 import { fmtIdr, fmtCcy, fmtDate } from '@/lib/formatters';
 import DateRangeFilter from './DateRangeFilter';
@@ -37,6 +39,18 @@ const FLAT_PAGE = 50;
 
 const QUOTE_STATUSES = ['Open', 'Accepted', 'Replaced', 'Rejected', 'Expired'] as const;
 const PO_STATUSES    = ['Draft', 'Sent', 'Confirmed', 'Replaced', 'Partially Received', 'Fully Received', 'Cancelled'] as const;
+
+/** Rupiah in the app's own notation, anything else as "CNY 81,060". */
+const fmtMoney = (amount: number, ccy: string): string =>
+  ccy === 'IDR' ? fmtIdr(amount) : fmtCcy(amount, ccy);
+
+/** Where the rupiah estimate's rate came from — a number without its source
+ *  cannot be checked, and this one decides how much money leaves the bank. */
+const rateNote = (b: { idrRate: number | null; idrSource: string | null }): string =>
+  b.idrSource === 'live' ? `at today's rate ${Math.round(b.idrRate ?? 0).toLocaleString()}`
+  : b.idrSource === 'po' ? `at the PO rate ${Math.round(b.idrRate ?? 0).toLocaleString()}`
+  : b.idrSource === 'mixed' ? 'rates differ between the POs'
+  : '';
 
 // ── Status color helpers (text only — for inline display) ─────────────────────
 
@@ -649,6 +663,31 @@ export default function DealLookupTab({
   const allGroups = useMemo(
     () => buildDealGroups(quotes, pos, suppliers, companies, poCosts),
     [quotes, pos, suppliers, companies, poCosts]
+  );
+
+  // ── What is still owed, in the currency it is owed in ─────────────────────
+  //
+  // Owner, 2026-09-22: *"so they know how much to transfer without calculating
+  // manually."* The rupiah figure beside it is what that transfer costs TODAY,
+  // which is why the live reference rate is fetched: the rate the PO was booked
+  // at is months old and is not what the bank will charge. It is cached in
+  // localStorage by `fetchLiveFx`, so this costs one request an hour at most,
+  // and a failure simply leaves the booked rate as the labelled fallback.
+  const [liveRates, setLiveRates] = useState<Record<string, number> | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void fetchLiveFx().then((snap) => { if (!cancelled && snap) setLiveRates(snap.rates); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const balances = useMemo(() => {
+    const m = new Map<string, DealBalance>();
+    for (const g of allGroups) m.set(g.key, dealBalance(g.pos, poCosts, { liveRates }));
+    return m;
+  }, [allGroups, poCosts, liveRates]);
+  const balanceOf = useCallback(
+    (g: DealGroup): DealBalance => balances.get(g.key) ?? dealBalance(g.pos, poCosts, { liveRates }),
+    [balances, poCosts, liveRates],
   );
 
   // ── Portfolio summary counts ──────────────────────────────────────────────
@@ -1568,10 +1607,47 @@ export default function DealLookupTab({
                               <span className="text-[10px] text-slate-600 tabular-nums ml-1">+{fmtIdr(totalCashOutExclTaxIdr - paidIdr)} fees/landed</span>
                             )}
                           </span>
-                          <span className="whitespace-nowrap ml-auto">
-                            <span className="text-[10px] text-slate-500 mr-1">Outstanding</span>
-                            <span className={`font-bold tabular-nums ${outIdr > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>{outIdr > 0 ? fmtIdr(outIdr) : '✓ Settled'}</span>
-                          </span>
+                          {/* THE number this panel exists for: what to type
+                              into the transfer, in the currency the supplier
+                              is owed in. `outIdr` above is the books figure at
+                              the PO's booked rate — right for the ledger, and
+                              not what the bank will take today. */}
+                          {(() => {
+                            const b = poBalance(po, costs, { liveRates });
+                            if (b.remaining <= 0) {
+                              return (
+                                <span className="whitespace-nowrap ml-auto">
+                                  <span className="text-[10px] text-slate-500 mr-1">To transfer</span>
+                                  <span className="font-bold tabular-nums text-emerald-400">
+                                    ✓ Settled
+                                    {b.overpaid > 0 && (
+                                      <span className="text-[10px] font-normal text-amber-400 ml-1">
+                                        {fmtMoney(b.overpaid, b.currency)} over
+                                      </span>
+                                    )}
+                                  </span>
+                                </span>
+                              );
+                            }
+                            return (
+                              <span className="whitespace-nowrap ml-auto">
+                                <span className="text-[10px] text-slate-500 mr-1">To transfer</span>
+                                <span className="font-bold tabular-nums text-amber-400">{fmtMoney(b.remaining, b.currency)}</span>
+                                {b.idr != null && b.currency !== 'IDR' && b.idrSource && (
+                                  <span className="text-[10px] font-normal text-slate-500 tabular-nums ml-1"
+                                    title={`${fmtMoney(b.total, b.currency)} ordered − ${fmtMoney(b.paid, b.currency)} paid${b.derived ? ' (payments recorded in another currency, converted back' + (b.assumedRate ? " at the PO's rate — approximate)" : ' at their own rate)') : ''}`}>
+                                    ≈ {fmtIdr(b.idr)} {rateNote(b)}
+                                  </span>
+                                )}
+                                {b.rateSuspect && (
+                                  <span className="text-[10px] font-normal text-red-400 ml-1"
+                                    title={`This PO is booked at ${Math.round(Number(po.exchange_rate) || 0).toLocaleString()} per ${b.currency}, which is far from the market rate. The ${b.currency} figure above is unaffected — it does not depend on any rate — but every rupiah total for this PO is suspect until it is corrected.`}>
+                                    ⚠ booked rate looks wrong
+                                  </span>
+                                )}
+                              </span>
+                            );
+                          })()}
                         </div>
                         {/* Total spend row with cost breakdown */}
                         {totalCashOutIdr > 0 && (() => {
@@ -2370,6 +2446,8 @@ export default function DealLookupTab({
   const renderDealRow = (g: DealGroup, showSupplier = true) => {
     const expanded = expandedKey === g.key;
     const paidPct  = g.totalIdr > 0 ? Math.min(100, (g.paidIdr / g.totalIdr) * 100) : 0;
+    const bal      = balanceOf(g);
+    const owed     = remainingLabel(bal, fmtMoney);
 
     return (
       <div
@@ -2504,11 +2582,22 @@ export default function DealLookupTab({
                 />
               </div>
               <span className="text-[10px] text-slate-500 flex-shrink-0 tabular-nums">
-                {g.outstandingIdr > 0 ? paidPct.toFixed(1) : '100'}% paid
+                {/* `bal.settled`, not the rupiah figure: a foreign order paid
+                    in full still shows a rupiah difference whenever the rate
+                    moved between booking and paying. */}
+                {bal.settled ? '100' : paidPct.toFixed(1)}% paid
               </span>
-              {g.outstandingIdr > 0 && (
-                <span className="text-[11px] font-semibold text-amber-400 tabular-nums flex-shrink-0">
-                  {fmtIdr(g.outstandingIdr)} out
+              {/* The amount to TRANSFER, in the currency the supplier is owed
+                  in — not rupiah at a rate booked months ago. The rupiah
+                  beside it is what that transfer costs today, and the tooltip
+                  names the rate it used. */}
+              {owed && (
+                <span className="text-[11px] font-semibold text-amber-400 tabular-nums flex-shrink-0"
+                  title={`Still to transfer${bal.idr ? ` — about ${fmtIdr(bal.idr)} ${rateNote(bal)}` : ''}${bal.anyAssumedRate ? '. Some payments carry no rate of their own, so this is approximate.' : ''}`}>
+                  {owed} to pay
+                  {bal.idr != null && bal.idr > 0 && bal.idrSource && (
+                    <span className="text-[10px] font-normal text-slate-500 ml-1">≈ {fmtIdr(bal.idr)}</span>
+                  )}
                 </span>
               )}
             </div>
@@ -2540,7 +2629,11 @@ export default function DealLookupTab({
         case 'stage':       cmp = STAGE_ORDER.indexOf(dealStage(a)) - STAGE_ORDER.indexOf(dealStage(b)); break;
         case 'total':       cmp = a.totalIdr - b.totalIdr; break;
         case 'paid':        cmp = (a.totalIdr > 0 ? a.paidIdr / a.totalIdr : 0) - (b.totalIdr > 0 ? b.paidIdr / b.totalIdr : 0); break;
-        case 'outstanding': cmp = a.outstandingIdr - b.outstandingIdr; break;
+        // Rank by what is actually still to be sent, converted to rupiah so a
+        // CNY deal and a USD deal can sit in one ordering. `outstandingIdr` is
+        // the old books figure and would rank a settled foreign PO above an
+        // unpaid one whenever the rate moved.
+        case 'outstanding': cmp = (balanceOf(a).idr ?? 0) - (balanceOf(b).idr ?? 0); break;
       }
       return colSort.dir === 'asc' ? cmp : -cmp;
     });
@@ -2551,7 +2644,7 @@ export default function DealLookupTab({
           <tr className="border-b border-slate-700/60 bg-slate-900/80">
             {([
               ['pi', 'PI #', 'text-left'], ['supplier', 'Supplier', 'text-left'], ['date', 'Date', 'text-left'], ['stage', 'Stage', 'text-left'],
-              ['total', 'Total', 'text-right'], ['paid', 'Paid', 'text-right'], ['outstanding', 'Outstanding', 'text-right'],
+              ['total', 'Total', 'text-right'], ['paid', 'Paid', 'text-right'], ['outstanding', 'To transfer', 'text-right'],
             ] as const).map(([k, label, align]) => (
               <th key={k} className={`py-2 px-3 whitespace-nowrap ${align}`}>
                 <button onClick={() => clickCol(k)} title={`Sort by ${label.toLowerCase()} — click again to flip`}
@@ -2641,9 +2734,23 @@ export default function DealLookupTab({
                   </div>
                 </td>
                 <td className="py-2 px-3 text-right tabular-nums whitespace-nowrap">
-                  {g.outstandingIdr > 0
-                    ? <span className="text-amber-300 font-bold">{fmtIdr(g.outstandingIdr)}</span>
-                    : <span className="text-slate-600">—</span>}
+                  {/* The transfer amount leads; the rupiah it will cost sits
+                      under it, quieter, because it is an estimate and the
+                      first number is not. */}
+                  {(() => {
+                    const bal  = balanceOf(g);
+                    const owed = remainingLabel(bal, fmtMoney);
+                    if (!owed) return <span className="text-slate-600">—</span>;
+                    return (
+                      <span className="inline-flex flex-col items-end leading-tight"
+                        title={`Still to transfer${bal.idr ? ` — about ${fmtIdr(bal.idr)} ${rateNote(bal)}` : ''}`}>
+                        <span className="text-amber-300 font-bold">{owed}</span>
+                        {bal.idr != null && bal.idr > 0 && bal.idrSource && (
+                          <span className="text-[10px] text-slate-500">≈ {fmtIdr(bal.idr)}</span>
+                        )}
+                      </span>
+                    );
+                  })()}
                 </td>
               </tr>
               {expanded && (
@@ -2847,15 +2954,23 @@ export default function DealLookupTab({
                 const rows = filtered.filter((g) => dealSection(g) === key);
                 if (!rows.length) return null;
                 const shown = fullSections.has(key) ? rows : rows.slice(0, SECTION_PAGE);
+                // The section heading answers "how much cash does this pile
+                // need", so it is the TRANSFER total at today's rate — the
+                // same basis as the column under it. The books figure (ordered
+                // − outstanding at PO rates) keeps its own home in the
+                // position trio above, where it is labelled as a position.
                 const out = key === 'process' || key === 'received'
-                  ? rows.reduce((s, g) => s + (g.outstandingIdr || 0), 0) : 0;
+                  ? rows.reduce((s, g) => s + (balanceOf(g).idr || 0), 0) : 0;
                 return (
                   <div key={key}>
                     <div className="flex items-baseline gap-2 mb-1.5" title={hint}>
                       <span className={`text-[11px] font-bold uppercase tracking-widest ${accent}`}>{label}</span>
                       <span className="text-[10px] text-slate-600 tabular-nums">{rows.length}</span>
                       {out > 0 && (
-                        <span className="ml-auto text-[10px] text-slate-500 tabular-nums">outstanding {fmtIdr(out)}</span>
+                        <span className="ml-auto text-[10px] text-slate-500 tabular-nums"
+                          title="What is still to be transferred on these deals, converted at today's reference rate">
+                          to transfer ≈ {fmtIdr(out)}
+                        </span>
                       )}
                     </div>
                     {tableView ? renderDealTable(shown) : (
