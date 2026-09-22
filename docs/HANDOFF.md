@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-21** · head of `main` at that point: `b85d680` (see §4, §6)
+**Last updated: 2026-09-22** · head of `main` at that point: `bf90cec` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -122,7 +122,84 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-09-20 (latest) — a Project Engineer can un-send an EPC proposal
+### 2026-09-22 (latest) — Module 42: Screen Usage, the evidence for cutting the menu
+
+Owner: *"a new dashboard module that counts the number of visits to which page
+which module used, the clicks to get to that page… i feel right now there's too
+many menus and pages but not sure what to get rid of."*
+
+57 destinations in 7 groups, and which of them earn their place has been a
+matter of opinion — which is what put 57 there.
+
+**It is deliberately not a list of view counts.** A count says *"Market Intel:
+3"* and leaves the decision where it was. Each entry is measured four ways and
+the verdict is a sentence:
+
+| Signal | What it decides |
+|---|---|
+| Menu vs **search** | A page people search for is a page the menu is hiding |
+| Menu vs **from a page** | Only ever opened from another screen → the link IS the menu entry |
+| One person vs the company | Named, so it can move to their role |
+| Clicks deep | Daily + 3 clicks in = a design fault. Yearly + 3 clicks in = correct |
+
+**The tracker listens to `history`, not to the router.** `usePathname()` would
+have missed five menu entries: Item Editor, New Deal, Progress, Payments and
+Deal Lookup are all `/purchasing?tab=…`, and that page switches with
+`window.history.replaceState`, which tells Next's router nothing. The pages
+most needing counting are exactly the ones the obvious hook cannot see. So
+`lib/usageTracker.ts` wraps pushState/replaceState once and listens to its own
+event — every URL change reaches it, including from a screen written next year.
+
+The way in comes from ONE capture-phase click listener walking up to the
+nearest `[data-nav]`: three attributes in `BrandMenu` (the bar, plus the two
+phone surfaces portaled to `<body>` — React children of the bar but not DOM
+descendants of it) instead of instrumenting several hundred link sites.
+Spotlight declares itself at its single `go(href)` funnel, because its results
+are buttons and **Enter is not a click**; no DOM listener could have seen the
+keyboard half, and that half is the most informative signal in the module.
+
+**The browser says WHERE; the database says WHO.** `42.0_page_views.user_id`
+defaults to `auth.uid()` and a BEFORE INSERT trigger overwrites the email, role
+and timestamp from `user_profiles`. Verified by impersonation (rolled back):
+
+| Attempt (as the engineer) | Result |
+|---|---|
+| record their own view | allowed ✅ |
+| read the log back | 0 rows — owner-only ✅ |
+| insert carrying the OWNER's user_id, email and role | stored as `abel@ptmbs.co` / `engineer` ✅ |
+| the 2001 timestamp they supplied | overwritten with `now()` ✅ |
+| delete their own trail | 0 rows — no DELETE policy ✅ |
+
+A usage log a user can forge is not evidence, and the conclusion drawn from
+this one is **which modules get deleted**.
+
+**The one wrong answer it must never give** is *"nobody uses this"* about a
+page that was merely quiet. No removal is recommended until the log holds 7
+days and 100 views; before that the page states how much evidence it has and
+suppresses every verdict.
+
+Time on a page is computed from the gap to the next view in the same tab
+(capped at 15 min), not written on leaving: `beforeunload` is unreliable and
+never fires when a phone browser is killed, so the number would be missing
+exactly for the mobile sessions worth measuring.
+
+Privacy: a normalised path only — `/proposals/:id`, never which proposal. The
+`tab` is kept (a tab IS a menu entry); `?q=huawei` is dropped. Staff screens
+only — no `/shop`, `/login` or print surfaces.
+
+`/usage` is **search-only in the menu**, on purpose: a module whose subject is
+"there are too many menu entries" does not get to add one. If it turns out to
+be opened daily, its own numbers will say so.
+
+`bf90cec` · `migrations/usage_analytics.sql` (applied to production) ·
+`lib/usage.ts` · `lib/usageTracker.ts` · `components/ui/UsageTracker.tsx` ·
+`app/usage/page.tsx` · 21 tests in `lib/usage.test.ts`. Table prefix **42.x =
+usage telemetry** recorded in `docs/ERP_ROADMAP.md`.
+
+**It records nothing about the past.** The log starts at this deploy, so the
+first useful read is around 2026-09-29.
+
+### 2026-09-20 — a Project Engineer can un-send an EPC proposal
 
 Owner: *"give project engineer role in icaproc the ability to revert 'sent' epc
 proposals back to draft"*.
@@ -2512,6 +2589,12 @@ has not decided.
 ---
 
 ## 6. NEXT MODULE — the Shop (icasolar.com storefront), continued
+
+> Left in place deliberately on 2026-09-22: the Shop is still the next module.
+> Screen Usage (§4) was a side request and did not displace it. One thing to
+> come back to around **2026-09-29**, once `/usage` has a week of log: read it
+> before designing any new menu entry, and cut what it says nobody opens.
+
 
 **Read this section whole before touching `app/shop`.** It is the live demo the
 owner is iterating on, the way ICAPROC itself was built: they click through it,
