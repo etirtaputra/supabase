@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import GlobalSpotlight from "@/components/ui/GlobalSpotlight";
 import SettingsLoader from "@/components/ui/SettingsLoader";
+import UsageTracker from "@/components/ui/UsageTracker";
 import { THEME_VARS_CSS, TAILWIND_COLORS_JS } from "@/constants/palette";
 import { THEME_BOOT_SCRIPT } from "@/lib/theme";
 
@@ -160,6 +161,10 @@ export default function RootLayout({
         {children}
         <SettingsLoader />
         <GlobalSpotlight />
+        {/* Records which screen was opened, from where, and how many clicks
+            in — the evidence behind /usage. Renders nothing, blocks nothing,
+            and swallows every failure. */}
+        <UsageTracker />
       </body>
     </html>
   );

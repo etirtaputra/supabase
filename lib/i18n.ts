@@ -434,6 +434,7 @@ export const ID: Record<string, string> = {
   'Finance': 'Keuangan',
   'Spend & Cash': 'Belanja & Kas',
   'Profitability': 'Profitabilitas',
+  'Screen Usage': 'Penggunaan Layar',
   'Item Hub': 'Pusat Barang',
   'Tech Specs': 'Spesifikasi Teknis',
   'Enter a datasheet, and compare products side by side':
@@ -590,6 +591,8 @@ export const ID: Record<string, string> = {
     'Analisa pengeluaran, rincian biaya, peta posisi',
   'GP per item / customer / rep, capital allocation, cash cycle':
     'Laba kotor per barang / pelanggan / sales, alokasi modal, siklus kas',
+  'Which screens get opened, by whom, and how many clicks deep':
+    'Layar mana yang dibuka, oleh siapa, dan berapa klik dalamnya',
   'Everything about one item — purchases, sales, pricing, FX, cash cycle, stock, specs':
     'Semua tentang satu barang — pembelian, penjualan, harga, kurs, siklus kas, stok, spesifikasi',
   'What the system calculators can size from — fill the missing specs':

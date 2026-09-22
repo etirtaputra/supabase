@@ -187,6 +187,13 @@ export const DESTINATIONS: Destination[] = [
   { href: '/spend-cash', label: 'Spend & Cash', group: 'Insights', section: null, cap: 'canViewAnalytics', inNav: true,
     hint: 'Spend analytics, cost breakdown, positioning map',
     keywords: 'insights analytics reports spend tuc costs positioning' },
+  // The menu looking at itself. Owner-only, and search-only in the menu — a
+  // module whose whole subject is "there are too many menu entries" does not
+  // get to add one (and if it turns out to be opened daily, its own numbers
+  // will say so and it can be promoted on the evidence).
+  { href: '/usage', label: 'Screen Usage', group: 'Insights', section: null, cap: 'canViewAnalytics', inNav: false,
+    hint: 'Which screens get opened, by whom, and how many clicks deep',
+    keywords: 'usage analytics telemetry page views traffic menu audit adoption dead pages clicks navigation which pages used' },
   { href: '/profitability', label: 'Profitability', group: 'Insights', section: null, cap: 'canViewEconomics', inNav: true,
     hint: 'GP per item / customer / rep, capital allocation, cash cycle',
     keywords: 'economics margin profit gp ccc dio dso dpo turnover position capital allocation gmroi' },

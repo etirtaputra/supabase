@@ -1086,6 +1086,7 @@ open New Deal with the stored quote preselected.
   - `30.x` = inventory (stock ledger, balances, locations, warehouses)
   - `40.x` = platform settings (`40.0_settings` key/value, owner-write)
   - `41.x` = treasury (`41.0_bank_accounts`, `41.1_bank_transactions`, `41.2_bank_names`)
+  - `42.x` = usage telemetry (`42.0_page_views` — which screens get opened, by whom, how many clicks deep; owner-read, identity stamped server-side)
 - **Document numbering:** human refs like `CUST-…`, `SQ-YYYYMMDD-…`, `SO-…`, `DO-…`, `INV-…`, `RCPT-…`, `GRN-…` (mirror existing `Q-YYYYMMDD-XXXX`).
 - **RLS on every new table** (authenticated-only; writes gated by role). Add a **`sales`** role to the matrix in `constants/roles.ts`; sales can manage customers/quotes/orders but not procurement or payments.
 - **Audit:** reuse the `log_quote_activity`-style trigger pattern for created/updated stamps + activity log.

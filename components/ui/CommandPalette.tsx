@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { noteNavSource } from '@/lib/usageTracker';
 import { createSupabaseClient } from '@/lib/supabase';
 import { fetchAllComponents } from '@/lib/fetchAllRows';
 import { useAuth } from '@/hooks/useAuth';
@@ -772,6 +773,10 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
   }, [index]);
 
   function go(href: string, item?: Item) {
+    // Spotlight's results are not links and Enter is not a click, so the
+    // usage tracker cannot see this navigation. It is also the one it most
+    // needs: a page people SEARCH for is a page the menu is hiding.
+    noteNavSource('spotlight');
     if (item) saveStoredRecent(item);
     if (inline) {
       window.open(href, '_blank', 'noopener');

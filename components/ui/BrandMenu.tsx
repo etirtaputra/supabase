@@ -477,6 +477,11 @@ export default function BrandMenu({
     </>
   );
 
+  // `data-nav="menu"` marks every menu surface — this bar, and the two
+  // portaled phone surfaces below, which are React children of this div but
+  // NOT DOM descendants of it, so each needs its own. /usage counts a click
+  // inside one of them as "reached from the menu", which is what separates a
+  // menu entry that works from one people route around. See lib/usageTracker.
   return (
     // NO min-width floor and, just as deliberately, no `min-w-0` either.
     //
@@ -494,7 +499,7 @@ export default function BrandMenu({
     // buttons to a second row rather than letting anything overlap. The
     // measured squeeze below is only the backstop for when even a whole row is
     // not enough.
-    <div ref={barRef} className="relative flex-1 flex items-center gap-1 lg:gap-2">
+    <div ref={barRef} data-nav="menu" className="relative flex-1 flex items-center gap-1 lg:gap-2">
       <div
         className="relative min-w-0 flex-shrink-0"
         onMouseEnter={() => setOpen(true)}
@@ -668,7 +673,7 @@ export default function BrandMenu({
              in place, the "bottom" bar pins to the header instead of the
              viewport (same hijack as the import modal). ── */}
       {mobileNav && mounted && createPortal(
-        <div className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-chrome/95 backdrop-blur-xl border-t border-slate-800/80" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        <div data-nav="menu" className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-chrome/95 backdrop-blur-xl border-t border-slate-800/80" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
           <div className="flex items-stretch">
             {[{ href: '/', label: 'Home', section: null as Section }, ...primary].map((a) => {
               const active = isActive(a.href);
@@ -691,7 +696,7 @@ export default function BrandMenu({
         document.body
       )}
       {moreOpen && mounted && createPortal(
-        <div className="md:hidden fixed inset-0 z-[120]">
+        <div data-nav="menu" className="md:hidden fixed inset-0 z-[120]">
           <div className="absolute inset-0 bg-black/60" onClick={() => setMoreOpen(false)} />
           <div className="absolute inset-x-0 bottom-0 bg-slate-900 border-t border-slate-700 rounded-t-2xl p-3 max-h-[80vh] overflow-y-auto" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
             <div className="w-10 h-1 rounded-full bg-slate-700 mx-auto mb-3" />
