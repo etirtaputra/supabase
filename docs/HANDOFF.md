@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-22** · head of `main` at that point: `bf90cec` (see §4, §6)
+**Last updated: 2026-09-22** · head of `main` at that point: `cdc03f8` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -122,7 +122,62 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-09-22 (latest) — Module 42: Screen Usage, the evidence for cutting the menu
+### 2026-09-22 (latest) — Deal Lookup says what to transfer, in the currency owed
+
+Owner: *"so they know how much to transfer without calculating manually."*
+
+The outstanding figure was already there — in rupiah, at the rate the PO was
+booked at. Right for the books, wrong for a transfer, in two ways the team was
+fixing by hand:
+
+1. **The obligation is in units of the supplier's currency.** PIO-2026017 owes
+   CNY 81,060 whatever the rupiah does.
+2. **A payment recorded in rupiah made the foreign figure vanish.** The old
+   `foreignPaid` counted only payments recorded IN the PO's currency, so
+   PIO-2026012 — USD 60,765 paid with an IDR 325,314,350 transfer — showed no
+   foreign progress at all. That payment carries its own rate (17,845), so the
+   dollars are knowable exactly: 18,230. `lib/dealBalance.ts` converts back.
+
+The four production deals read out that day ARE the acceptance test:
+
+| Deal | Ordered | Paid | Remaining |
+|---|---|---|---|
+| PIO-2026017 | CNY 115,800 | CNY 34,740 | **CNY 81,060** (exact) |
+| PIO-015-ISL-09-2026 | USD 43,865.91 | USD 12,962.91 | **USD 30,903.00** (exact) |
+| PIO-2026012 | USD 60,765 | IDR 325,314,350 @ 17,845 | **USD 42,535** (converted) |
+| PIO-013-ISL-07-2026 | USD 216 | IDR 5,652,000 @ 18,000 | 0 — **USD 98 OVER** |
+
+Shown in the card, the list column (Outstanding → **To transfer**, sorted on
+the same basis) and the per-PO panel. The rupiah beside it uses today's
+`liveFx` rate when there is one and the booked rate otherwise, and the label
+says which — a number whose rate is not shown cannot be checked, and this one
+decides how much money leaves the bank.
+
+**The books figures were left exactly as they were.** The position trio above
+still reads ordered − outstanding at PO rates, because `paid` is derived from
+it and two numbers that must agree should never have two sources.
+
+#### Three things this surfaced, none of them touched
+
+- **PIO-013-ISL-07-2026 is overpaid by USD 98.** Either the PO total is wrong
+  or the transfer was. Reported rather than clamped to "settled".
+- **Four CNY POs are booked at a USD rate** (PIO-2026013 at 17,881, EB.42277,
+  EB.42278, PIO-2026011). Every rupiah total for them is ~7× too big; flagged
+  with ⚠ where `RATE_SUSPECT_FACTOR` (3×) is exceeded against the market. The
+  CNY owed is unaffected — it depends on no rate.
+- **148 of the 151 unpaid IDR POs are 2023–2025 with NO payment rows at all**,
+  Rp 4.87bn of the Rp 4.87bn total. Almost certainly historical POs imported
+  without their payment history, not real bills. Already true of the old
+  column; the new one makes it harder to ignore. Needs an owner's decision:
+  close them out, or import the payments.
+
+Still to transfer across all live POs on 2026-09-22: **CNY 4,793,274 ·
+USD 97,968 · IDR 4,868,700,123**.
+
+`cdc03f8` · `lib/dealBalance.ts` · `components/ui/DealLookupTab.tsx` ·
+16 tests in `lib/dealBalance.test.ts`.
+
+### 2026-09-22 — Module 42: Screen Usage, the evidence for cutting the menu
 
 Owner: *"a new dashboard module that counts the number of visits to which page
 which module used, the clicks to get to that page… i feel right now there's too
