@@ -35,7 +35,7 @@
  * not yet applied) costs a rejected promise and nothing else. A usage counter
  * that can break a page is not worth having.
  */
-import { normalizePath, isTracked, type NavSource } from './usage';
+import { normalizePath, isTracked, type NavSource } from './usage.ts';
 
 export interface TrackedView {
   session_id: string;
@@ -63,9 +63,84 @@ const CLICK_WINDOW_MS = 3000;
  */
 let pending: { source: NavSource; at: number } | null = null;
 
-/** Tell the tracker how the navigation that is about to happen was chosen. */
-export function noteNavSource(source: NavSource) {
+/**
+ * The way in, written where the NEXT PAGE LOAD can still read it.
+ *
+ * FIELD FINDING, 2026-09-27, five days after this shipped: 82 views logged,
+ * **zero** of them from Spotlight — in an app where Spotlight is a main way
+ * around. Every Spotlight navigation is a hard one: on a desktop `go()` opens
+ * the result in a NEW TAB (`window.open(…, '_blank')`), and on a phone it
+ * does a full load (`location.assign`). Either way this module's memory — the
+ * `pending` above — dies with the page that set it, and the arrival was
+ * logged as "typed / refreshed". The one signal /usage exists for ("people
+ * search for this page, so the menu is hiding it") could never fire, and the
+ * same happened to every `target="_blank"` link in the app (54 of them).
+ *
+ * So the source is also written to localStorage — shared by every tab of the
+ * origin and kept across a reload — keyed by the DESTINATION path and valid for
+ * `HANDOFF_TTL_MS`. The page that lands consumes it only if it is the page that
+ * was targeted, so a stale or unrelated handoff can never be claimed.
+ */
+const HANDOFF_KEY = 'icaproc.usage.handoff';
+export const HANDOFF_TTL_MS = 30_000;
+
+export interface Handoff {
+  path: string;
+  source: NavSource;
+  from: string | null;
+  depth: number;
+  at: number;
+}
+
+/**
+ * Should a landing on `path` at `now` claim this stored handoff? Pure, so the
+ * rule is tested rather than trusted: same page, still fresh, well-formed.
+ */
+export function matchHandoff(raw: string | null, path: string, now: number): Handoff | null {
+  if (!raw) return null;
+  try {
+    const h = JSON.parse(raw) as Handoff;
+    if (!h || typeof h.path !== 'string' || typeof h.at !== 'number') return null;
+    if (h.path !== path) return null;
+    if (now - h.at < 0 || now - h.at > HANDOFF_TTL_MS) return null;
+    return h;
+  } catch {
+    return null;
+  }
+}
+
+const ls = {
+  get(k: string): string | null { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k: string, v: string) { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
+  del(k: string) { try { localStorage.removeItem(k); } catch { /* private mode */ } },
+};
+
+function writeHandoff(href: string, source: NavSource) {
+  try {
+    const u = new URL(href, location.href);
+    if (u.origin !== location.origin) return;              // not our page
+    const path = normalizePath(u.pathname, u.search);
+    if (!isTracked(path)) return;
+    const here = normalizePath(location.pathname, location.search);
+    if (path === here) return;                             // an in-page anchor
+    const h: Handoff = {
+      path, source,
+      from: here,
+      depth: Number(ss.get(DEPTH_KEY)) || 0,
+      at: Date.now(),
+    };
+    ls.set(HANDOFF_KEY, JSON.stringify(h));
+  } catch { /* a counter never breaks a page */ }
+}
+
+/**
+ * Tell the tracker how the navigation that is about to happen was chosen.
+ * Pass `href` whenever the navigation may leave this page — a new tab or a
+ * full load — so the page that lands can still say how it was reached.
+ */
+export function noteNavSource(source: NavSource, href?: string) {
   pending = { source, at: Date.now() };
+  if (href) writeHandoff(href, source);
 }
 
 const ss = {
@@ -135,7 +210,10 @@ export function startUsageTracking(
     if (!hit) return;
     const region = hit.closest('[data-nav]') as HTMLElement | null;
     const named = region?.dataset?.nav;
-    noteNavSource(named === 'menu' || named === 'spotlight' ? named : 'link');
+    // The href travels too: a link can open in a new tab (target="_blank",
+    // a middle-click, ⌘-click), and only the handoff reaches that tab.
+    const href = (hit as HTMLAnchorElement).href || undefined;
+    noteNavSource(named === 'menu' || named === 'spotlight' ? named : 'link', href);
   };
 
   const onPop = () => noteNavSource('back');
@@ -153,7 +231,16 @@ export function startUsageTracking(
       if (landed && pending && Date.now() - pending.at < CLICK_WINDOW_MS) source = pending.source;
       pending = null;
 
-      const depth = source === 'direct' ? 0 : (Number(ss.get(DEPTH_KEY)) || 0) + 1;
+      // Always consume a handoff aimed at this page, so one written for a
+      // soft navigation cannot linger and be claimed by a refresh later. Only a
+      // LANDING uses it: a soft navigation already knew its source in memory.
+      const handoff = matchHandoff(ls.get(HANDOFF_KEY), path, Date.now());
+      if (handoff) ls.del(HANDOFF_KEY);
+      const claimed = !landed && handoff ? handoff : null;
+      if (claimed) source = claimed.source;
+
+      const depth = source === 'direct' ? 0
+        : (claimed ? claimed.depth : (Number(ss.get(DEPTH_KEY)) || 0)) + 1;
       const wasLanding = !landed;
       landed = true;
 
@@ -164,7 +251,7 @@ export function startUsageTracking(
         session_id: sessionId(),
         path,
         dest_href: destHrefFor(path),
-        from_path: wasLanding ? null : prev,
+        from_path: claimed ? claimed.from : wasLanding ? null : prev,
         nav_source: source,
         depth,
         viewport: window.innerWidth < 768 ? 'phone' : 'desktop',

@@ -775,8 +775,10 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
   function go(href: string, item?: Item) {
     // Spotlight's results are not links and Enter is not a click, so the
     // usage tracker cannot see this navigation. It is also the one it most
-    // needs: a page people SEARCH for is a page the menu is hiding.
-    noteNavSource('spotlight');
+    // needs: a page people SEARCH for is a page the menu is hiding. The href
+    // matters: both branches below leave this page (a new tab, a full load),
+    // and only the handoff survives that.
+    noteNavSource('spotlight', href);
     if (item) saveStoredRecent(item);
     if (inline) {
       window.open(href, '_blank', 'noopener');

@@ -19,6 +19,7 @@ import {
   normalizePath, destinationFor, isTracked, buildUsageReport, byGroup,
   MIN_DAYS, MIN_VIEWS, type PageViewRow,
 } from './usage.ts';
+import { matchHandoff, HANDOFF_TTL_MS, type Handoff } from './usageTracker.ts';
 import { DESTINATIONS } from '../constants/navigation.ts';
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
@@ -223,7 +224,7 @@ test('Spotlight says so itself, because its results are not links', () => {
   // have seen the keyboard half. One call at the single `go(href)` funnel
   // covers both halves.
   assert.match(PALETTE, /function go\(href: string, item\?: Item\) \{\s*\n\s*\/\//);
-  assert.match(PALETTE, /noteNavSource\('spotlight'\)/);
+  assert.match(PALETTE, /noteNavSource\('spotlight', href\)/);
   assert.equal((code(PALETTE).match(/noteNavSource\(/g) ?? []).length, 1,
     'one call, at the single funnel every result goes through — not sprinkled per row');
 });
@@ -271,4 +272,54 @@ test('the landing is recorded once per page load, not once per React mount', () 
   assert.match(src, /^let landed = false;$/m, 'the landing flag must be module-level');
   assert.ok(!/let landed/.test(src.slice(src.indexOf('export function startUsageTracking'))),
     'a per-call landing flag re-records the arrival on every mount');
+});
+
+
+// ── The handoff: a source that survives a new tab or a full page load ───────
+//
+// FIELD FINDING, 2026-09-27: 82 views in five days and ZERO from Spotlight.
+// Spotlight opens its result in a new tab on a desktop and does a full load on
+// a phone, and the in-memory source died with the page that set it, so every
+// search was logged as "typed / refreshed". The verdict /usage exists for —
+// "people search for this page, so the menu is hiding it" — could never fire.
+
+const h = (o: Partial<Handoff> = {}): string => JSON.stringify({
+  path: '/stock', source: 'spotlight', from: '/', depth: 2, at: 1_000_000, ...o,
+});
+
+test('a landing claims the handoff aimed at it', () => {
+  const got = matchHandoff(h(), '/stock', 1_000_000 + 5_000);
+  assert.equal(got?.source, 'spotlight');
+  assert.equal(got?.from, '/', 'the page the search was made from travels with it');
+  assert.equal(got?.depth, 2);
+});
+
+test('…and nothing else can claim it', () => {
+  // Another page: a handoff for /stock must not be spent on /banks.
+  assert.equal(matchHandoff(h(), '/banks', 1_000_000 + 5_000), null);
+  // Stale: someone searched, wandered off, and opened /stock by hand later.
+  assert.equal(matchHandoff(h(), '/stock', 1_000_000 + HANDOFF_TTL_MS + 1), null);
+  // A clock that went backwards is not a fresh handoff either.
+  assert.equal(matchHandoff(h(), '/stock', 1_000_000 - 1), null);
+  // Junk in storage is ignored, never thrown.
+  assert.equal(matchHandoff('not json', '/stock', 1_000_000), null);
+  assert.equal(matchHandoff(null, '/stock', 1_000_000), null);
+  assert.equal(matchHandoff(JSON.stringify({ path: '/stock' }), '/stock', 1_000_000), null);
+});
+
+test('the handoff is written for Spotlight AND for every link, and only for our own pages', () => {
+  const src = code(TRACKER);
+  assert.match(src, /localStorage\.setItem/, 'must survive into a new tab — sessionStorage does not');
+  assert.match(src, /if \(u\.origin !== location\.origin\) return;/, 'an external link is not a page of ours');
+  assert.match(src, /noteNavSource\(named === 'menu' \|\| named === 'spotlight' \? named : 'link', href\);/,
+    'the 54 target="_blank" links open new tabs too');
+});
+
+test('a landing consumes the handoff whether it uses it or not', () => {
+  // Otherwise a handoff written for a soft navigation lingers, and a refresh
+  // of that page within the window is misfiled as a click.
+  const src = code(TRACKER);
+  assert.match(src, /if \(handoff\) ls\.del\(HANDOFF_KEY\);/);
+  assert.match(src, /const claimed = !landed && handoff \? handoff : null;/,
+    'only a landing may claim it — a soft navigation already knew its source');
 });
