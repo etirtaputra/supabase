@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-27** · head of `main` at that point: see `git log` — the Corporate skin commit (see §4, §6)
+**Last updated: 2026-09-27** · head of `main` at that point: `2a2e34a` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
