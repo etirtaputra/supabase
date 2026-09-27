@@ -32,8 +32,7 @@ item/price/spec data eventually feed a public website.
 - Do **not** open a pull request unless explicitly asked.
 - No `gh` CLI in this sandbox — use the `mcp__github__*` MCP tools if you need
   the GitHub API. Plain `git` over HTTPS works fine for fetch/push.
-- Head of `main` at handoff: see §4 — `7f78972` (sales merge), `7e705cb` (paging
-  loops) and the indexes commit on top of it.
+- Head of `main` at handoff: see the **Last updated** line at the top of this file.
 
 ### Vercel — https://vercel.com/etirtaputras-projects/supabase/deployments
 - Production deploys **automatically from `main`**. Pushing to main IS the release.
@@ -58,7 +57,9 @@ item/price/spec data eventually feed a public website.
   (verified 2026-08-25 — check `document.fonts.check('500 13px Rubik')` in the
   page and print it, so a wrong-font measurement can never be reported as fact).
 - Table-prefix convention: buy-side `1–9`, project quotes `10.x`, CRM `20.x`,
-  pricing `21.x`, sales quote/SO/DO/invoice/receipt `22–26.x`, inventory `30.x`.
+  pricing `21.x`, sales quote/SO/DO/invoice/receipt `22–26.x`, after-sales `27.x`,
+  support letters `28.x`, inventory `30.x`, settings `40.x`, treasury `41.x`,
+  usage telemetry `42.x`.
 - **THERE ARE TRIGGERS. The app is not the only writer.** `5.1_purchase_line_items`
   runs `recalculate_po_total()`, which rewrites `5.0_purchases.total_value` on
   every line insert/update/delete — it cost a day on 2026-08-24 because nothing
@@ -110,13 +111,16 @@ item/price/spec data eventually feed a public website.
 
 ```bash
 npx tsc --noEmit     # must be clean
-npm test             # node --test "lib/**/*.test.ts" — 334 tests at handoff, all pass
+npm test             # node --test "lib/**/*.test.ts" — 814 tests at handoff (2026-09-27), all pass
                      # WATCH THE TOTAL, not just the pass count: a suite that
                      # fails to IMPORT reports as 1 failure, not 26 missing tests
 npx eslint           # 413 problems at handoff (293 errors); just don't ADD any
 npm run build        # next build must be green
 ```
-Plus: a `constants/changelog.ts` entry in the same commit.
+Plus: a `constants/changelog.ts` entry in the same commit — **in Indonesian**,
+like every entry there. (Missed for every commit 2026-09-12 → 27 and backfilled
+in one go on 2026-09-27. Don't let it slip again: it is the owner's "What's New"
+page, and it is how the team learns anything changed.)
 
 ---
 
@@ -2761,6 +2765,30 @@ has not decided.
 ---
 
 ## 6. NEXT MODULE — the Shop (icasolar.com storefront), continued
+
+### 6.0 OPEN ITEMS from the 2026-09-11 → 27 thread — clear these FIRST
+
+Each is small, and most are waiting on ONE word from the owner. Details and
+evidence for every one are in §4 under the dated entries.
+
+| # | Item | State | What it needs |
+|---|---|---|---|
+| 1 | **MIRA posts the Dolibarr stock-outs** | Endpoint live (`POST /api/agent/sales/stock`). Nothing posted. | Owner pastes MIRA the Telegram prompt (§4, 2026-09-27). MIRA checks Dolibarr shipments for SO2608-4771, SO2608-4772, SO2609-4774, SO2609-4791 → dry-run → post. Verify afterwards: `select * from "30.0_stock_movements" where source_type='sale'`. |
+| 2 | **Historical stock is overstated** | Everything Dolibarr sold BEFORE the mirror was never taken off. | Owner chooses: a physical **stock count**, or **Dolibarr's stock levels** as an opening balance. Then build the import as ONE adjustment per item (source_type e.g. `opening_count`), dry-run first. Also: ICA550-72HMI already sits at −2 in G63. |
+| 3 | **3 blocked Dolibarr orders** | SO2609-4792/4793/4794: ICA100-36M, TRACER5210LPLI, ICA200-36M sold but ICAPROC holds NONE | Falls out of #2 (they were never received into ICAPROC). Do NOT force with `allow_negative`. |
+| 4 | **SO2609-4851 unlinked line** | Its one line IS the EPEVER XTRA3210N-G3 (`3ef54ee2-af0d-494f-942a-b875c743a083`) but `component_id` is null | Owner OK → set `22.1_sales_quote_items.component_id` on that line; then MIRA can post its stock. |
+| 5 | **Kstar CNY POs booked at a USD rate** | `migrations/fix_kstar_cny_rates.sql` written, guarded, **NOT RUN** | Owner says "run it" (or gives the PI's rate instead of the inferred 2,634). Run it via `mcp__Supabase__execute_sql`; expect `UPDATE 4`. |
+| 6 | **PIO-013-ISL-07-2026 overpaid USD 98** | IDR 5,652,000 @ 18,000 vs a USD 216 order (line items also 216) | Needs the LC advice for `LC26070001`. No July bank statements are loaded. |
+| 7 | **Read `/usage`** | Log since 2026-09-22; Spotlight attribution fixed 2026-09-27 (`1336170`) | Read around **2026-10-04** (a clean week). Use it to cut the menu. Owner-only: ⌘I → "usage". |
+| 8 | **Prevent the wrong-rate PO at entry** | Not built | New Deal form: warn when the rate is >3× off `liveFx` for that currency. Reuse `RATE_SUSPECT_FACTOR` from `lib/dealBalance.ts`. |
+| 9 | **Cancel the 148 dead Draft POs** | No longer counted as debt (`fb56650`), still clutter Draft + search | Owner OK → set status `Cancelled` (reversible, never delete). |
+| 10 | **Ask ICAPROC partly broken** | `app/api/ask/route.ts:106-107` reads `v_purchase_history_analytics`, which does NOT exist | Small fix: point it at a real view/table; purchase-history questions currently return nothing. |
+| 11 | **Load bank statements** | `41.1_bank_transactions` has nothing for July 2026 | Needed to reconcile supplier payments (and to settle #6). |
+
+Pre-existing, noted in passing and left alone: reopening a delivered DO as a
+sell-side role will fail its reversal insert — the stock-movements grant lets
+those roles insert `out` only, and `reopenDo` writes an `in`. Owner-side it works.
+
 
 > Left in place deliberately on 2026-09-22: the Shop is still the next module.
 > Screen Usage (§4) was a side request and did not displace it. One thing to

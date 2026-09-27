@@ -20,6 +20,105 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-09-27T14:36:42Z",
+    title: "Penjualan dari Dolibarr kini bisa mengurangi stok ICAPROC",
+    details: [
+      "Pesanan yang dibuat di Dolibarr sudah tercatat di ICAPROC sejak 17 September, tapi stoknya tidak pernah berkurang — buku stok hanya punya lima transaksi keluar sepanjang umurnya. Akibatnya stok di tangan, nilai stok, dan laba kotor per barang semuanya terlalu tinggi.",
+      "Sekarang ada jalur resminya: begitu barang sebuah pesanan Dolibarr **sudah dikirim**, stoknya dikurangi — dari gudang tempat barang itu benar-benar berada, dihargai dengan biaya rata-rata (landed cost), dan tidak mungkin terpotong dua kali.",
+      "Stok keluar saat barang DIKIRIM, bukan saat dipesan — aturan yang sama dengan Surat Jalan di ICAPROC. Karena ICAPROC tidak bisa melihat pengiriman di Dolibarr, MIRA yang memeriksa dan memprosesnya.",
+      "Kalau stok di ICAPROC kurang dari yang terjual, prosesnya berhenti dan melaporkannya, bukan membuat saldo minus diam-diam.",
+    ],
+  },
+  {
+    at: "2026-09-27T14:12:55Z",
+    title: "Screen Usage: pencarian (⌘I) kini tercatat dengan benar",
+    details: [
+      "Setiap buka halaman lewat pencarian sempat tercatat sebagai “ketik alamat sendiri”, karena hasil pencarian membuka tab baru (desktop) atau memuat ulang halaman (HP). Jadi saran “halaman ini sering dicari, tambahkan ke menu” tidak pernah bisa muncul. Sudah diperbaiki; data sebelum perbaikan tidak bisa dikoreksi, jadi baca laporannya mulai sekitar 4 Oktober.",
+    ],
+  },
+  {
+    at: "2026-09-27T11:36:08Z",
+    title: "PO berstatus Draft tidak lagi dihitung sebagai utang",
+    details: [
+      "148 PO Draft dari 2023–2025 — tidak satu pun pernah dibayar — ikut dihitung sebagai utang ke supplier, total Rp 4,87 miliar yang sebenarnya tidak terutang ke siapa pun. Sekarang tidak lagi. PO-nya tetap ada; hanya tidak dihitung sebagai tagihan.",
+      "Utang yang benar per 27 September: CNY 4.793.274 dan USD 67.065. Tidak ada utang rupiah yang belum dibayar.",
+      "Angka “Paid” di baris Ordered / Paid / Outstanding tidak berubah sama sekali.",
+    ],
+  },
+  {
+    at: "2026-09-22T00:41:34Z",
+    title: "Deal Lookup: sisa yang harus ditransfer, dalam mata uang supplier",
+    details: [
+      "Kolom Outstanding kini bernama **To transfer** dan menampilkan sisa tagihan dalam mata uang yang memang harus dibayar — misalnya CNY 81.060 — dengan perkiraan rupiahnya pada kurs hari ini di bawahnya. Tidak perlu menghitung manual lagi.",
+      "Pembayaran yang dicatat dalam rupiah untuk PO dolar kini ikut dihitung (sebelumnya membuat sisa dalam dolar tidak terlihat sama sekali).",
+      "Kelebihan bayar ditampilkan, dan PO dengan kurs yang tidak masuk akal diberi tanda ⚠.",
+    ],
+  },
+  {
+    at: "2026-09-22T00:11:50Z",
+    title: "Modul baru: Screen Usage — layar mana yang benar-benar dipakai",
+    details: [
+      "Mencatat setiap layar yang dibuka, oleh siapa, lewat menu atau pencarian, dan berapa klik dalamnya — untuk memutuskan menu mana yang perlu dipangkas. Hanya Owner yang bisa membacanya; buka lewat ⌘I → “usage”.",
+      "Tidak menyarankan menghapus apa pun sebelum ada data minimal 7 hari dan 100 kunjungan.",
+    ],
+  },
+  {
+    at: "2026-09-21T03:36:19Z",
+    title: "Item Editor di HP: deskripsi internal ditampilkan dan bisa disalin",
+    details: [
+      "Di HP, daftar Item Editor dulu hanya menampilkan model dari supplier. Sekarang deskripsi internal kita tampil di atasnya, dan keduanya punya tombol salin — juga berfungsi di browser dalam aplikasi seperti WhatsApp.",
+    ],
+  },
+  {
+    at: "2026-09-21T02:55:27Z",
+    title: "Project Engineer bisa mengembalikan proposal SENT ke draft",
+    details: [
+      "Engineer kini bisa mengubah status proposal EPC yang sudah SENT kembali ke Draft, lalu mengeditnya seperti biasa. Hanya perubahan status itu yang diizinkan — isi proposal yang SENT tetap terkunci, dan menghapusnya tetap hanya untuk Owner.",
+    ],
+  },
+  {
+    at: "2026-09-17T01:27:43Z",
+    title: "Pesanan dari Dolibarr bisa dicatat di ICAPROC",
+    details: [
+      "Pesanan yang masih dibuat di Dolibarr kini bisa dicatat ke ICAPROC lewat MIRA, dengan total dihitung oleh fungsi yang sama dengan editor penjualan. Pelanggan tidak pernah dibuat otomatis, dan pesanan yang sama tidak bisa tercatat dua kali.",
+    ],
+  },
+  {
+    at: "2026-09-16T22:53:07Z",
+    title: "True-up landed cost kini berjalan di server",
+    details: [
+      "Pembayaran yang melunasi PO dicatat oleh database dan diproses otomatis — tidak lagi bergantung pada seseorang membuka halaman tertentu.",
+    ],
+  },
+  {
+    at: "2026-09-16T13:50:40Z",
+    title: "Data sisi beli kini hanya terbaca oleh peran yang berhak",
+    details: [
+      "Identitas supplier dan harga beli dulu terbaca oleh semua akun. Sekarang hanya peran sisi beli (dan Viewer untuk Deal Lookup) yang bisa membacanya; sisi jual tetap mendapat yang dibutuhkannya tanpa melihat harga beli.",
+    ],
+  },
+  {
+    at: "2026-09-14T07:20:50Z",
+    title: "Celah keamanan ditutup: satu jalur API lama dihapus",
+    details: [
+      "Sebuah jalur API lama bisa menulis ke data supplier, barang dan penawaran tanpa login sama sekali. Sudah tidak dipakai berbulan-bulan, jadi dihapus.",
+    ],
+  },
+  {
+    at: "2026-09-13T09:52:53Z",
+    title: "Daftar Products terbuka pada barang yang benar-benar bisa dijual",
+    details: [
+      "Secara default kini menampilkan barang yang ada stok atau sedang dalam perjalanan, dan sudah punya harga.",
+    ],
+  },
+  {
+    at: "2026-09-13T01:01:32Z",
+    title: "PO yang sudah lunas otomatis memperbarui landed cost",
+    details: [
+      "Begitu semua pembayaran PO tercatat, biaya stoknya diperbarui sendiri. Hanya yang janggal (selisih besar, tanpa stok, atau kredit) yang ditahan untuk diperiksa.",
+    ],
+  },
+  {
     at: '2026-09-11T12:00:00Z',
     title: 'Harga Tier-2 dan Tier-3 kini bisa dibaca agen AI lewat API',
     details: [
