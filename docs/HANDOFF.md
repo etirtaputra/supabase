@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-22** · head of `main` at that point: `cdc03f8` (see §4, §6)
+**Last updated: 2026-09-27** · head of `main` at that point: `fb56650` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -122,7 +122,65 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-09-22 (latest) — Deal Lookup says what to transfer, in the currency owed
+### 2026-09-27 (latest) — a draft PO is not a bill: Rp 4.87bn nobody was owed
+
+Chasing the third finding from the transfer-figure thread. The rupiah payable
+was almost entirely phantom, and the cause was a rule this codebase already
+held in two places and had never applied in a third.
+
+**148 purchase orders, 2023-10-04 → 2025-11-18, every one status `Draft`, with
+ZERO cost rows between them.** Not one draft in three years has ever carried a
+payment. They were counted as debt anyway, and they ARE the Rp 4,868,700,123.
+
+The rest of the app already knew:
+
+| Where | What it did with a Draft |
+|---|---|
+| `dealStage()` | files it under its own heading — *"no money is running against it"* (2026-08-27, measured on these same 148) |
+| `computeAp()` (lib/position.ts) | skips Cancelled, Draft and Replaced together |
+| `dealGroups.ts` financial loop | **counted it** — Replaced and Cancelled only |
+
+So the totals contradicted the section headings printed directly above them.
+Now one rule, one home: `NOT_PAYABLE_PO_STATUS` in `lib/dealBalance.ts`, read
+by both. Real payables on 2026-09-27:
+
+    CNY 4,793,274   (10 POs)
+    USD    67,065   (2 POs)
+    IDR         0   — there are no unpaid rupiah orders at all
+
+**`paid` in the Ordered / Paid / Outstanding line does not move, and that is
+not luck.** A draft has no cost rows, so it added the identical amount to
+`totalIdr` and to `outstandingIdr`; removing it from both leaves the derived
+figure exactly where it was. That is what made this safe to change under a
+live KPI, and it is asserted in the tests rather than trusted.
+
+#### Prepared, NOT applied — `migrations/fix_kstar_cny_rates.sql`
+
+Four Shenzhen Kstar POs (EB.42277, EB.42278, PIO-2026011, PIO-2026013) carry
+`exchange_rate` 17,822–17,882 — the USD rate — on **CNY** orders, where the
+rate at the time was ~2,634. Every rupiah figure for them is ~6.8× too large.
+
+The line items settle which field is wrong: a COLAN USB cable at CNY 1.90 is
+Rp 5,005 at the real rate and Rp 33,862 at the booked one; a KSTAR GP803S 3kVA
+is Rp 8.9m versus Rp 60.4m. The amounts are CNY and right; the rate is a typo.
+None of the four has a single cost row, so nothing is restated — the file
+guards on that and on the rate not already having been corrected by hand.
+**Owner's standing rule: it is not run until they say so.**
+
+#### Still needs a document — PIO-013-ISL-07-2026
+
+USD 216 ordered (the line items total USD 216 too, so the PO is internally
+consistent) against IDR 5,652,000 paid at 18,000 = **USD 314**, i.e. Rp
+1,764,000 / USD 98 more than the order. No other PO shares its LC reference
+(`LC26070001`), and no bank transactions are loaded for July 2026, so the
+system cannot say which number is wrong. It needs the LC advice or the bank
+statement. Reported on screen rather than clamped to "settled".
+
+`fb56650` · `lib/dealBalance.ts` · `lib/dealGroups.ts` ·
+`components/ui/DealLookupTab.tsx` (the ⚠ now shows in the list, not only in
+the expanded panel) · 20 tests in `lib/dealBalance.test.ts`.
+
+### 2026-09-22 — Deal Lookup says what to transfer, in the currency owed
 
 Owner: *"so they know how much to transfer without calculating manually."*
 
