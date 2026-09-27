@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-09-27T23:35:48Z",
+    title: "Tampilan baru: Corporate — biru navy perusahaan, huruf IBM Plex",
+    details: [
+      "Ada dua tampilan baru, **Corporate** (terang) dan **Corporate Dark** (gelap). Tampilan yang sudah ada — Terminal dan Terminal Light — tidak berubah sama sekali dan tetap jadi bawaan.",
+      "Warnanya diambil dari yang sudah dilihat pelanggan: biru navy yang sama dengan Shop dan dokumen cetak kita. Tombol utama jadi navy; hijau tetap berarti lunas / selesai, jadi arti warnanya tidak berubah.",
+      "Huruf IBM Plex Sans, angka rata dalam kolom, label kecil huruf besar lebih rapat, sudut kartu sedikit lebih tegas. Semua teks memenuhi standar keterbacaan (kontras minimal 4,5:1).",
+      "Cara mencoba: Pengaturan › Tampilan → pilih Corporate → **Use on this device**. Tombol matahari/bulan di menu ICAPROC berpindah antara Corporate dan Corporate Dark. Untuk menjadikannya bawaan semua orang, klik kartunya lalu Save.",
+    ],
+  },
+  {
     at: "2026-09-27T14:36:42Z",
     title: "Penjualan dari Dolibarr kini bisa mengurangi stok ICAPROC",
     details: [

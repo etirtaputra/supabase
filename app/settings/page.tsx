@@ -45,6 +45,7 @@ import { ITEM_SCORE_FACTORS, DEFAULT_ITEM_SCORE_WEIGHTS, type ItemScoreWeights }
 import { PRESET_LABELS, type RangePreset } from '@/lib/dateRange';
 import { accountLabel, type BankAccount } from '@/lib/banks';
 import { THEMES, OFFERED_THEME_VALUES, previewTheme, endThemePreview } from '@/lib/theme';
+import { useTheme } from '@/hooks/useTheme';
 import Autocomplete from '@/components/ui/Autocomplete';
 import { fmtRupiah } from '@/lib/formatters';
 import Link from 'next/link';
@@ -403,6 +404,11 @@ function AppearanceTab({ draft, set }: { draft: AppSettings; set: <K extends key
   // nothing is persisted until Save, and a personal pick from the ICAPROC
   // menu still wins on this browser afterwards.
   const touched = useRef(false);
+  // This browser's OWN skin. A personal pick always wins over the company
+  // default on its device — so an owner who once tapped the brightness switch
+  // would save a new default and still not see it. Each card therefore also
+  // offers "use on this device", which is the personal choice, made here.
+  const { theme: mine, setTheme: setMine } = useTheme();
   useEffect(() => {
     if (touched.current) previewTheme(draft.defaultTheme);
   }, [draft.defaultTheme]);
@@ -419,40 +425,55 @@ function AppearanceTab({ draft, set }: { draft: AppSettings; set: <K extends key
             this default there, and is never overwritten by it.
           </p>
         </div>
-        {/* The terminal pair only — plus whatever the current default is, so a
-            company still sitting on a house skin can SEE its own setting even
-            though it is no longer on the menu. */}
+        {/* The offered pairs (terminal, corporate) — plus whatever the current
+            default is, so a company still sitting on a house skin can SEE its
+            own setting even though it is no longer on the menu. */}
         <div className="grid sm:grid-cols-2 gap-3 max-w-3xl">
           {THEMES.filter((t) => OFFERED_THEME_VALUES.includes(t.value) || t.value === draft.defaultTheme).map((t) => {
             const p = t.swatch;
             const active = draft.defaultTheme === t.value;
             return (
-              <button key={t.value} onClick={() => { touched.current = true; set('defaultTheme', t.value); }}
-                className={`text-left rounded-xl border p-3 transition-colors ${
-                  active ? 'border-emerald-500/50 bg-emerald-500/[0.07]' : 'border-slate-700 hover:border-slate-600 hover:bg-slate-800/40'
-                }`}>
-                <div className="flex items-center gap-2">
-                  <span className={`text-sm font-bold ${active ? 'text-emerald-300' : 'text-slate-200'}`}>{t.label}</span>
-                  {active && <span className="text-[10px] font-semibold text-emerald-400">DEFAULT</span>}
+              <div key={t.value} className={`rounded-xl border transition-colors ${
+                active ? 'border-emerald-500/50 bg-emerald-500/[0.07]' : 'border-slate-700 hover:border-slate-600 hover:bg-slate-800/40'
+              }`}>
+                <button onClick={() => { touched.current = true; set('defaultTheme', t.value); }}
+                  className="w-full text-left p-3 pb-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm font-bold ${active ? 'text-emerald-300' : 'text-slate-200'}`}>{t.label}</span>
+                    {active && <span className="text-[10px] font-semibold text-emerald-400">DEFAULT</span>}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1 leading-snug min-h-[2.4em]">{t.blurb}</p>
+                  {/* A miniature painted with the skin's REAL values */}
+                  <div className="mt-2.5 rounded-lg p-2 space-y-1.5 border border-black/10" style={{ background: p.bg }}>
+                    {[0, 1].map((i) => (
+                      <div key={i} className="rounded px-2 py-1.5 flex items-center gap-2" style={{ background: p.card }}>
+                        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: p.accent }} />
+                        <span className="h-1.5 rounded-full flex-1" style={{ background: p.ink, opacity: 0.55 }} />
+                      </div>
+                    ))}
+                  </div>
+                </button>
+                <div className="px-3 pb-2.5 flex items-center justify-end">
+                  {mine === t.value ? (
+                    <span className="text-[10px] font-semibold text-slate-500">On this device</span>
+                  ) : (
+                    <button onClick={() => setMine(t.value)}
+                      className="text-[10px] font-semibold text-slate-400 hover:text-white underline-offset-2 hover:underline">
+                      Use on this device
+                    </button>
+                  )}
                 </div>
-                <p className="text-[11px] text-slate-500 mt-1 leading-snug min-h-[2.4em]">{t.blurb}</p>
-                {/* A miniature painted with the skin's REAL values */}
-                <div className="mt-2.5 rounded-lg p-2 space-y-1.5 border border-black/10" style={{ background: p.bg }}>
-                  {[0, 1].map((i) => (
-                    <div key={i} className="rounded px-2 py-1.5 flex items-center gap-2" style={{ background: p.card }}>
-                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: p.accent }} />
-                      <span className="h-1.5 rounded-full flex-1" style={{ background: p.ink, opacity: 0.55 }} />
-                    </div>
-                  ))}
-                </div>
-              </button>
+              </div>
             );
           })}
         </div>
         <p className="text-[11px] text-slate-600 leading-snug max-w-2xl">
-          Both skins use <span className="text-slate-400">Inter</span> with monospaced figures, so columns of numbers
-          line up whichever one you pick — Terminal for a dim room, Terminal Light for a bright one. The older skins
-          (Dark, Dim, Light, Paper) are no longer offered; a browser already on one keeps it until its person changes.
+          Two designs, each with a dark and a light side — the sun/moon switch in the ICAPROC menu flips between the two
+          sides of whichever design you are on. <span className="text-slate-400">Terminal</span> is the trading-desk
+          look (Inter, market green). <span className="text-slate-400">Corporate</span> wears the company navy from our
+          Shop and printed documents, with IBM Plex type: buttons are navy, green is kept for paid and done. Every
+          figure lines up in its column in both. The older skins (Dark, Dim, Light, Paper) are no longer offered; a
+          browser already on one keeps it until its person changes.
         </p>
       </div>
     </div>

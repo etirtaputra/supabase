@@ -229,9 +229,115 @@ const TERMINAL_LIGHT_SURFACES = {
 };
 for (const [name, hex] of Object.entries(TERMINAL_LIGHT_SURFACES)) terminalLight[name] = { DEFAULT: hexToRgb(hex) };
 
+// ── Two more skins: CORPORATE (owner's ask, 2026-09-27) ─────────────────────
+// Owner: "what would you improve? to add professionalism and corporate feel?
+// But please do it as a different skin or theme, do not change or get rid of
+// the current existing ones."
+//
+// The corporate pair borrows its identity from what the company ALREADY shows
+// its customers rather than inventing one: the Shop (components/shop/shopUi.tsx)
+// and the printed documents use one navy, #1f5aa8. Wearing the same colour
+// inside the ERP is "everything connects" applied to the look — staff see the
+// brand their customers see.
+//
+// Three decisions make it read as corporate rather than as a trading desk:
+//
+//   1. ACTION IS NAVY, STATUS STAYS GREEN. Emerald carries two jobs in this
+//      app — the primary button AND "paid / done / in stock". Remapping the
+//      whole ramp to blue would have turned every "Lunas" badge blue. Instead
+//      the ramp stays a calm standard green, and only the primary-button
+//      signature (bg-emerald-600 + text-white, ~45 sites) and focus rings are
+//      re-dressed in navy by CORPORATE_SHELL_CSS below. Blue = act, green =
+//      good: the convention every enterprise suite uses.
+//   2. COOL SLATE NEUTRALS with navy-black ink, white cards on a pale grey
+//      page, and headings in deep navy (the `white` emphasis ink).
+//   3. IBM PLEX SANS — an enterprise grotesque with tabular figures — and
+//      calmer micro-labels (the ~360 uppercase tracking-widest labels are
+//      spaced for a terminal; here they are pulled in).
+//
+// Nothing in the six existing skins moves: this section only ADDS blocks.
+const corporate = clone(light), corporateDark = clone(dark);
+
+// Standard emerald / rose ramps: sober, recognisable greens and reds rather
+// than the house Kaspa teal or the market green. (The house custom emerald is
+// neon by design; a corporate screen wants the ordinary one.)
+const STD = (name) => colors[name];
+const mirrorOf = (ramp) => Object.fromEntries(STEPS.map((st, i) => [st, ramp[STEPS[STEPS.length - 1 - i]]]));
+
+// LIGHT: white cards on a cool pale page, hairline slate borders.
+// slate-600 (the faint/hint ink) is held at ≥3:1 on white — the terminal
+// light's #9ba1a9 sits at 2.5, which is fine on a trading desk and reads as
+// washed-out on a document-style screen.
+//
+// The accent INKS go one notch deeper than a plain mirror. The mirrored light
+// ramp puts text-emerald-400 at Tailwind's emerald-600 — 3.8:1 on white, and
+// the same shortfall hits sky, rose, amber and the rest (terminal-light's
+// sky-400 is 3.8 too). Text steps are 400 and below, so for every accent
+// scale 400 reads 700, 300 reads 800 and so on down; 500 and up — the fills,
+// dots and /10 tints — stay the plain mirror. Asserted in lib/palette.test.ts.
+const deeperInk = (ramp) => {
+  const m = mirrorOf(ramp);
+  return { ...m, 400: ramp[700], 300: ramp[800], 200: ramp[900], 100: ramp[950], 50: ramp[950] };
+};
+const CORPORATE_FIX = {
+  slate: {
+    950: '#ffffff', 900: '#ffffff', 800: '#e2e8f0', 700: '#cbd5e1', 600: '#7c8a9e',
+    500: '#5a6779', 400: '#43505f', 300: '#2f3b4b', 200: '#1e2939', 100: '#141d2b', 50: '#0b1220',
+  },
+};
+for (const s of SCALES) {
+  if (s === 'slate') continue;
+  // emerald and rose take the STANDARD ramps (above); the rest keep the ramp
+  // every other skin uses (including the house violet), just inked deeper.
+  const src = s === 'emerald' || s === 'rose' ? STD(s) : (CUSTOM[s] ?? colors[s]);
+  CORPORATE_FIX[s] = deeperInk(src);
+}
+for (const [scale, steps] of Object.entries(CORPORATE_FIX)) {
+  for (const [step, hex] of Object.entries(steps)) corporate[scale][step] = hexToRgb(hex);
+}
+corporate.white = { DEFAULT: hexToRgb('#0b1f3a') };   // emphasis ink: deep navy, not black
+const CORPORATE_SURFACES = {
+  chrome: '#ffffff', canvas: '#f3f5f8', sunken: '#eef1f5', raised: '#f6f8fb',
+  rail: '#f9fafc', deep: '#ffffff', navy: '#eaf1fa', moss: '#e7f6ef', moss2: '#cdeede',
+};
+for (const [name, hex] of Object.entries(CORPORATE_SURFACES)) corporate[name] = { DEFAULT: hexToRgb(hex) };
+
+// DARK: navy-graphite, NOT near-black (the office's cheap panels smear black —
+// owner, 2026-08-28). The surfaces sit at Dim/Terminal's lightness with a blue
+// cast. The text steps hold Terminal's contrast, except the muted ink (500),
+// which is lifted to clear 4.5 on a card, not only on the page — every text
+// ink in both corporate skins is held to AA by lib/palette.test.ts.
+const CORPORATE_DARK_FIX = {
+  slate: {
+    950: '#19212e', 900: '#212a39', 800: '#2c3748', 700: '#3a4659',
+    600: '#586579', 500: '#8794a9', 400: '#adb8c8', 300: '#d0d8e3', 200: '#e6ebf2', 100: '#f0f3f7', 50: '#f8fafc',
+  },
+  emerald: Object.fromEntries(STEPS.map((st) => [st, STD('emerald')[st]])),
+  rose: Object.fromEntries(STEPS.map((st) => [st, STD('rose')[st]])),
+};
+for (const [scale, steps] of Object.entries(CORPORATE_DARK_FIX)) {
+  for (const [step, hex] of Object.entries(steps)) corporateDark[scale][step] = hexToRgb(hex);
+}
+const CORPORATE_DARK_SURFACES = {
+  chrome: '#161e2a', canvas: '#1b2431', sunken: '#18202c', raised: '#253042',
+  rail: '#1e2735', deep: '#141b26', navy: '#1d3151', moss: '#113f31', moss2: '#17543f',
+};
+for (const [name, hex] of Object.entries(CORPORATE_DARK_SURFACES)) corporateDark[name] = { DEFAULT: hexToRgb(hex) };
+
+// The brand navy, as its own tokens — only the corporate skins define them and
+// only CORPORATE_SHELL_CSS reads them. Light: the Shop's #1f5aa8 (white text
+// 6.9:1). Dark: lifted so it separates from the navy-graphite page while white
+// text on it still clears AA.
+const BRAND = {
+  corporate: { brand: '#1f5aa8', hover: '#17457f' },
+  'corporate-dark': { brand: '#2f6fc4', hover: '#2a61ad' },
+};
+const brandBlock = (b) => `--c-brand:${hexToRgb(b.brand)};--c-brand-hover:${hexToRgb(b.hover)}`;
+
 const APP_BG_EXTRA = {
   dim: hexToRgb('#1e222a'), paper: hexToRgb('#ece6d7'),
   terminal: hexToRgb('#1e222a'), 'terminal-light': hexToRgb('#f6f7f9'),
+  corporate: hexToRgb('#f3f5f8'), 'corporate-dark': hexToRgb('#1b2431'),
 };
 
 // ── Type, as a theme token ──────────────────────────────────────────────────
@@ -247,6 +353,10 @@ const FONTS = {
   terminal: {
     sans: "Inter, 'Inter Tight', system-ui, -apple-system, 'Segoe UI', sans-serif",
     mono: "'JetBrains Mono', 'Roboto Mono', ui-monospace, SFMono-Regular, monospace",
+  },
+  corporate: {
+    sans: "'IBM Plex Sans', Inter, system-ui, -apple-system, 'Segoe UI', sans-serif",
+    mono: "'IBM Plex Mono', 'Roboto Mono', ui-monospace, SFMono-Regular, monospace",
   },
 };
 const fontBlock = (f) => `--font-app:${f.sans};--font-mono-app:${f.mono}`;
@@ -298,6 +408,49 @@ const TERMINAL_SHELL_CSS = [
   `${T} [class*="bg-chrome/80"],${TL} [class*="bg-chrome/80"],${TT} [class*="bg-chrome/80"]{background-color:rgb(var(--c-chrome));backdrop-filter:none}`,
 ].join('\n');
 
+/**
+ * The corporate skins' geometry and dress, scoped to those two skins alone —
+ * the same technique as TERMINAL_SHELL_CSS, and for the same reason: the look
+ * lives in ~4,200 class sites that cannot be re-authored per skin.
+ */
+const C = ':root[data-theme="corporate"]';
+const CD = ':root[data-theme="corporate-dark"]';
+const both = (sel) => `${C} ${sel},${CD} ${sel}`;
+const CORPORATE_SHELL_CSS = [
+  // Corners: measured, not square — between the house's pill-soft cards and
+  // the terminal's near-square ones.
+  `${both('.rounded-2xl')}{border-radius:.625rem}`,
+  `${both('.rounded-xl')}{border-radius:.5rem}`,
+  `${both('.rounded-lg')}{border-radius:.375rem}`,
+  // Flat panels: the decorative inner ring goes, the hairline border stays.
+  // (Attribute substring match — the literal class name, no CSS escaping.)
+  `${both('[class*="ring-white/5"]')}{--tw-ring-color:transparent}`,
+  // Figures line up in every column, not only where a screen asked.
+  `${C},${CD}{font-feature-settings:"tnum" 1}`,
+  // The uppercase micro-labels are spaced for a terminal (0.1em). A report
+  // spaces its captions more quietly.
+  `${both('.tracking-widest')}{letter-spacing:.06em}`,
+  `${both('.tracking-wider')}{letter-spacing:.04em}`,
+  // ACTION IS NAVY. The primary button's signature across the app is the
+  // exact token pair bg-emerald-600 + text-white (`~=` matches a whole class
+  // word, so the tints bg-emerald-600/30 are NOT caught). Only the fill and
+  // the ink move; size, padding and states stay the screen's own. The text is
+  // a literal white because `text-white` is the navy emphasis ink in the light
+  // skin — which would put navy on navy.
+  `${both('[class~="bg-emerald-600"][class~="text-white"]')}{background-color:rgb(var(--c-brand));color:#fff}`,
+  `${both('[class~="bg-emerald-600"][class~="text-white"]:hover:not(:disabled)')}{background-color:rgb(var(--c-brand-hover))}`,
+  // Focus is the brand too, so the field you are typing in is unmistakable
+  // and never confused with a green "valid" state.
+  `${both('[class*="focus:border-emerald"]:focus')}{border-color:rgb(var(--c-brand) / .7)}`,
+  `${both('[class*="focus:ring-emerald"]:focus')}{--tw-ring-color:rgb(var(--c-brand) / .35)}`,
+  // Solid chrome: a translucent sticky header ghosts whatever scrolls under it.
+  `${both('[class*="bg-chrome/80"]')}{background-color:rgb(var(--c-chrome));backdrop-filter:none}`,
+  // Light only: cards lift off the page with a hairline shadow, the way a
+  // sheet of paper does, instead of relying on the border alone.
+  `${C} [class~="rounded-2xl"][class~="border"]{box-shadow:0 1px 2px rgb(16 24 40 / .05)}`,
+  `${C} [class*="shadow-black"]{--tw-shadow-color:rgb(16 24 40 / .10);--tw-shadow:var(--tw-shadow-colored)}`,
+].join('\n');
+
 const varName = (s, step) => step === 'DEFAULT' ? `--c-${s}` : `--c-${s}-${step}`;
 const block = (map, bg) => {
   const lines = [];
@@ -325,8 +478,11 @@ const css = [
   `:root[data-theme="light"]{${block(light, APP_BG.light)};${fontBlock(FONTS.house)}}`,
   `:root[data-theme="dim"]{${block(dim, APP_BG_EXTRA.dim)};${fontBlock(FONTS.house)}}`,
   `:root[data-theme="paper"]{${block(paper, APP_BG_EXTRA.paper)};${fontBlock(FONTS.house)}}`,
+  `:root[data-theme="corporate"]{${block(corporate, APP_BG_EXTRA.corporate)};${fontBlock(FONTS.corporate)};${brandBlock(BRAND.corporate)}}`,
+  `:root[data-theme="corporate-dark"]{${block(corporateDark, APP_BG_EXTRA['corporate-dark'])};${fontBlock(FONTS.corporate)};${brandBlock(BRAND['corporate-dark'])}}`,
   SHADOW_FIX,
   TERMINAL_SHELL_CSS,
+  CORPORATE_SHELL_CSS,
 ].join('\n');
 
 // Colors object for the Tailwind CDN config (raw JS source text).
@@ -361,7 +517,7 @@ export const THEME_VARS_CSS = ${JSON.stringify(css)};
 
 export const TAILWIND_COLORS_JS = ${JSON.stringify(colorsJs)};
 
-export type ThemeName = 'dark' | 'light' | 'dim' | 'paper' | 'terminal' | 'terminal-light';
+export type ThemeName = 'dark' | 'light' | 'dim' | 'paper' | 'terminal' | 'terminal-light' | 'corporate' | 'corporate-dark';
 
 /**
  * The scales and steps this palette actually defines. Emitted so anything that

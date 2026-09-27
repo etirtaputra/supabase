@@ -353,16 +353,17 @@ export default function BrandMenu({
              pills it is not. Measured below. */}
       <div className="flex items-center gap-2 px-1.5 pt-1 pb-1.5 mb-0.5 border-b border-slate-800/70">
         {/* Appearance. `pickOffered` (lib/theme.ts) keeps both sides inside the
-            offered pair — someone on a hidden legacy skin sees the side they
-            are on lit, and moves onto the offered pair when they press it. */}
+            pair you are in — Corporate flips to Corporate Dark, Terminal to
+            Terminal Light. Someone on a hidden legacy skin sees the side they
+            are on lit, and moves onto the terminal pair when they press it. */}
         <div role="group" aria-label={t('Appearance')} className="flex items-center gap-0.5 p-0.5 rounded-full bg-slate-800/70 flex-shrink-0">
           {([false, true] as const).map((light) => {
             const on = isLightTheme(theme) === light;
-            const label = THEMES.find((th) => th.value === pickOffered(light))?.label ?? '';
+            const label = THEMES.find((th) => th.value === pickOffered(light, theme))?.label ?? '';
             return (
               <button
                 key={String(light)}
-                onClick={() => setTheme(pickOffered(light))}
+                onClick={() => setTheme(pickOffered(light, theme))}
                 aria-pressed={on}
                 aria-label={label}
                 title={on ? label : tf('Switch to {what}', { what: label })}

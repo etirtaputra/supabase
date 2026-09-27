@@ -43,7 +43,7 @@ test('every colour variable a screen names is defined by every skin', () => {
   assert.ok(used.size > 0, 'no colour variables found — has the scan stopped working?');
 
   const skins = blocks().filter((b) => b.body.includes('--c-slate-900'));
-  assert.ok(skins.length >= 6, `expected every skin's block, found ${skins.length}`);
+  assert.ok(skins.length >= 8, `expected every skin's block, found ${skins.length}`);
 
   const missing: string[] = [];
   for (const v of [...used].sort()) {
@@ -69,6 +69,79 @@ test('the default skin is a real skin, and it is the terminal one', () => {
   assert.equal(appBg(def!.body), appBg(term!.body),
     'the unattributed default must be the terminal skin, whatever colour that is');
   assert.ok(def!.body.includes('--font-app:Inter'), 'and it should carry the terminal typeface');
+});
+
+// ── The corporate pair (owner, 2026-09-27) ──────────────────────────────────
+// "Do it as a different skin — do not change or get rid of the current ones."
+
+const rgbOf = (body: string, v: string): number[] => {
+  const m = new RegExp(`--c-${v}:(\\d+ \\d+ \\d+)`).exec(body);
+  assert.ok(m, `--c-${v} is not defined`);
+  return m![1].split(' ').map(Number);
+};
+const contrast = (a: number[], b: number[]): number => {
+  const lum = ([r, g, bl]: number[]) => {
+    const f = (c: number) => { const x = c / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; };
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(bl);
+  };
+  const [hi, lo] = [lum(a), lum(b)].sort((p, q) => q - p);
+  return (hi + 0.05) / (lo + 0.05);
+};
+
+test('the corporate skins keep every text ink readable (4.5:1) on the page and on a card', () => {
+  const inks = ['white', 'slate-200', 'slate-300', 'slate-400', 'slate-500',
+    'emerald-400', 'rose-400', 'red-400', 'amber-300', 'amber-400', 'sky-400', 'blue-400', 'violet-400'];
+  const low: string[] = [];
+  for (const name of ['corporate', 'corporate-dark']) {
+    const body = blocks().find((b) => b.name === name && b.body.includes('--c-slate-900'))?.body;
+    assert.ok(body, `no ${name} block`);
+    for (const bg of ['app-bg', 'slate-900']) {
+      for (const ink of inks) {
+        const r = contrast(rgbOf(body!, ink), rgbOf(body!, bg));
+        if (r < 4.5) low.push(`${name}: ${ink} on ${bg} = ${r.toFixed(2)}`);
+      }
+    }
+    // The navy primary button carries literal white text.
+    const onBrand = contrast([255, 255, 255], rgbOf(body!, 'brand'));
+    const onHover = contrast([255, 255, 255], rgbOf(body!, 'brand-hover'));
+    if (onBrand < 4.5) low.push(`${name}: white on brand = ${onBrand.toFixed(2)}`);
+    if (onHover < 4.5) low.push(`${name}: white on brand-hover = ${onHover.toFixed(2)}`);
+  }
+  assert.deepEqual(low, [], 'under WCAG AA — a corporate skin that is harder to read is not more professional');
+});
+
+test('the corporate skin only ADDS — nothing it defines leaks into another skin', () => {
+  // The brand tokens exist only in the two corporate blocks…
+  // (Only the skins' VARIABLE blocks — a scoped rule such as
+  // `:root[data-theme="corporate-dark"]{font-feature-settings:…}` has the same
+  // shape to the scanner.)
+  for (const b of blocks().filter((x) => x.body.includes('--c-slate-900'))) {
+    const isCorp = b.name === 'corporate' || b.name === 'corporate-dark';
+    assert.equal(b.body.includes('--c-brand:'), isCorp, `${b.name} ${isCorp ? 'lacks' : 'carries'} the brand token`);
+  }
+  // …and every rule that re-dresses buttons, labels or corners is scoped to
+  // them: a bare `.tracking-widest{…}` would re-space all eight skins.
+  const rules = THEME_VARS_CSS.split('\n').filter((l) => /c-brand|tracking-wid|IBM Plex/.test(l));
+  assert.ok(rules.length > 0, 'the corporate rules have gone — has the scan stopped working?');
+  for (const r of rules) {
+    const selectors = r.startsWith(':root[data-theme="corporate') && r.includes('{--c-') ? [] : r.split('{')[0].split(',');
+    for (const sel of selectors) {
+      assert.match(sel.trim(), /^:root\[data-theme="corporate(-dark)?"\]/, `unscoped corporate rule: ${sel}`);
+    }
+  }
+});
+
+test('the navy button re-dress still has buttons to dress', () => {
+  // The corporate skin finds the primary button by its exact class pair. If
+  // the app ever renames it, the skin silently stops being navy — so check
+  // the pair is still in use.
+  let n = 0;
+  for (const f of [...sourceFiles('app'), ...sourceFiles('components')]) {
+    for (const m of readFileSync(f, 'utf8').matchAll(/["'`][^"'`]*\bbg-emerald-600\b(?!\/)[^"'`]*["'`]/g)) {
+      if (/\btext-white\b/.test(m[0])) n++;
+    }
+  }
+  assert.ok(n >= 20, `only ${n} bg-emerald-600 + text-white buttons left — the corporate re-dress is aimed at nothing`);
 });
 
 /**

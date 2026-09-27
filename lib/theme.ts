@@ -1,5 +1,7 @@
 /**
- * ICAPROC — the four skins: dark · dim · light · paper.
+ * ICAPROC — the skins: the terminal pair (default), the corporate pair
+ * (2026-09-27), and the four house originals (dark · dim · light · paper,
+ * hidden but kept).
  *
  * The PERSONAL choice still lives in localStorage per browser (nothing to
  * sync, works before any network call) — but since 2026-08-01 there is also a
@@ -46,36 +48,56 @@ export const DEFAULT_THEME: ThemeName = 'terminal';
  * picker; the menu became a one-tap switch on 2026-08-28 and the duplicate
  * went with it.)
  */
-export const OFFERED_THEME_VALUES: ThemeName[] = ['terminal', 'terminal-light'];
+export const OFFERED_THEME_VALUES: ThemeName[] = ['terminal', 'terminal-light', 'corporate-dark', 'corporate'];
 
 /**
- * Which skins are LIGHT. Six skins, but only ever two answers to "is the
+ * The offered skins come in PAIRS — one dark, one light, same design — and the
+ * brightness switch moves within the pair you are in. Before the corporate
+ * pair (owner, 2026-09-27) there was only one pair and "the offered skin of
+ * that brightness" was a single answer; with two, a tap from Corporate must
+ * land on Corporate Dark, not on Terminal. Terminal comes first: it is the
+ * pair a legacy skin leaves for.
+ */
+export const THEME_PAIRS: [dark: ThemeName, light: ThemeName][] = [
+  ['terminal', 'terminal-light'],
+  ['corporate-dark', 'corporate'],
+];
+
+/**
+ * Which skins are LIGHT. Eight skins, but only ever two answers to "is the
  * screen bright or dark" — which is what the one-tap switch in the wordmark
  * menu asks, and what its icon has to be honest about.
  */
-export const LIGHT_THEMES: ThemeName[] = ['light', 'paper', 'terminal-light'];
+export const LIGHT_THEMES: ThemeName[] = ['light', 'paper', 'terminal-light', 'corporate'];
 export const isLightTheme = (t: ThemeName): boolean => LIGHT_THEMES.includes(t);
 
 /**
  * What one tap of the brightness switch gives you from here.
  *
- * It always lands in the OFFERED pair, never on a hidden legacy skin — six
- * skins behind a two-state switch is how someone ends up on Paper without
- * having asked for it. Someone sitting on a legacy skin therefore leaves it
+ * It always lands on an OFFERED skin, in the pair you are already in, never
+ * on a hidden legacy skin — eight skins behind a two-state switch is how
+ * someone ends up on Paper without having asked for it. Someone sitting on a legacy skin therefore leaves it
  * the first time they tap, which is a choice they just made, not a migration
  * done behind their back (LEGACY_THEME_MIGRATION is the one that runs
- * unasked, and it runs once). Settings › Appearance still has all six.
+ * unasked, and it runs once).
  */
-export const nextTheme = (t: ThemeName): ThemeName => pickOffered(!isLightTheme(t));
+export const nextTheme = (t: ThemeName): ThemeName => pickOffered(!isLightTheme(t), t);
 
 /**
- * The offered skin of a given brightness. The segmented switch in the wordmark
- * menu shows BOTH and highlights the one in effect, so it sets a side outright
- * rather than flipping — but it must still only ever reach the offered pair,
- * for the same reason `nextTheme` must.
+ * The offered skin of a given brightness, in the pair `from` belongs to. The
+ * segmented switch in the wordmark menu shows BOTH and highlights the one in
+ * effect, so it sets a side outright rather than flipping — but it must still
+ * only ever reach an offered skin, for the same reason `nextTheme` must. A
+ * skin outside every pair (a hidden legacy one) lands on the first pair.
  */
-export const pickOffered = (light: boolean): ThemeName =>
-  OFFERED_THEME_VALUES.find((v) => isLightTheme(v) === light) ?? DEFAULT_THEME;
+export const pickOffered = (light: boolean, from?: ThemeName): ThemeName => {
+  const pair = THEME_PAIRS.find((p) => from !== undefined && p.includes(from)) ?? THEME_PAIRS[0];
+  return pair[light ? 1 : 0];
+};
+
+/** The dark/light pair a skin belongs to, or null for a hidden legacy skin. */
+export const pairOf = (t: ThemeName): [ThemeName, ThemeName] | null =>
+  THEME_PAIRS.find((p) => p.includes(t)) ?? null;
 
 /**
  * What a browser that chose a skin BEFORE the terminal pair existed should
@@ -123,11 +145,18 @@ export const THEMES: {
     swatch: { bg: '#1e222a', card: '#232730', ink: '#e8eaee', accent: '#0ecb81' } },
   { value: 'terminal-light', label: 'Terminal Light', blurb: 'Trading-desk light — white cards on soft grey, the same figures',
     swatch: { bg: '#f6f7f9', card: '#ffffff', ink: '#0d0e11', accent: '#089981' } },
+  // The corporate pair (2026-09-27): the Shop's and the printed documents'
+  // navy as the action colour, cool slate neutrals, IBM Plex Sans. Swatches
+  // are the REAL values from CORPORATE_SURFACES / BRAND in the generator.
+  { value: 'corporate', label: 'Corporate', blurb: 'Company navy on white — the colours of our documents and Shop, IBM Plex type, calm labels',
+    swatch: { bg: '#f3f5f8', card: '#ffffff', ink: '#0b1f3a', accent: '#1f5aa8' } },
+  { value: 'corporate-dark', label: 'Corporate Dark', blurb: 'The same corporate look on navy-graphite — for dim rooms, never pure black',
+    swatch: { bg: '#1b2431', card: '#212a39', ink: '#f0f3f7', accent: '#2f6fc4' } },
 ];
 
 export const isTheme = (v: unknown): v is ThemeName =>
   v === 'dark' || v === 'light' || v === 'dim' || v === 'paper'
-  || v === 'terminal' || v === 'terminal-light';
+  || v === 'terminal' || v === 'terminal-light' || v === 'corporate' || v === 'corporate-dark';
 
 /**
  * Runs before first paint, inlined in <head>. Written as a plain string
@@ -137,7 +166,7 @@ export const isTheme = (v: unknown): v is ThemeName =>
  * localStorage access; a throw here would blank the page).
  * Mirrors the resolution order above: personal → cached company default.
  */
-export const THEME_BOOT_SCRIPT = `(function(){try{var v=['dark','light','dim','paper','terminal','terminal-light'];var l=window.localStorage;var K=${JSON.stringify(
+export const THEME_BOOT_SCRIPT = `(function(){try{var v=['dark','light','dim','paper','terminal','terminal-light','corporate','corporate-dark'];var l=window.localStorage;var K=${JSON.stringify(
   THEME_STORAGE_KEY,
 )};var t=l.getItem(K);var M=${JSON.stringify(THEME_MIGRATED_KEY)};if(!l.getItem(M)){var m=${JSON.stringify(
   LEGACY_THEME_MIGRATION,
@@ -275,7 +304,7 @@ export function endThemePreview(): void {
 }
 
 /**
- * Flip between bright and dark, in one tap.
+ * Flip between bright and dark, in one tap, staying in the same pair.
  *
  * This used to cycle through every skin in `THEMES` order — written when
  * there were four and never updated when there were six, so a switch the

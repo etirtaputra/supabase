@@ -42,7 +42,8 @@ tailwind.config = {
   theme: {
     extend: {
       // The typeface is a THEME token, not a constant: the house skins keep
-      // Rubik, the terminal pair switches to Inter with monospaced figures.
+      // Rubik, the terminal pair switches to Inter with monospaced figures,
+      // the corporate pair to IBM Plex Sans.
       // Both resolve through one variable set per theme in the palette.
       fontFamily: {
         sans: ['var(--font-app)', 'Rubik', 'Inter', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
@@ -64,7 +65,7 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800&family=Roboto+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800&family=Roboto+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
         {/* The palette must exist before Tailwind's utilities reference it, and
             the stored choice must be applied before the first paint — a flash
             of the wrong theme on every load is worse than no theme at all. */}
@@ -77,7 +78,7 @@ export default function RootLayout({
           /* Form controls and scrollbars are painted by the browser, not by a
              utility class, so they need telling which skin is in play. */
           :root { color-scheme: dark; }
-          :root[data-theme="light"], :root[data-theme="paper"], :root[data-theme="terminal-light"] { color-scheme: light; }
+          :root[data-theme="light"], :root[data-theme="paper"], :root[data-theme="terminal-light"], :root[data-theme="corporate"] { color-scheme: light; }
           :root[data-theme="terminal"] { color-scheme: dark; }
 
           /* ── The dropdown chevron (owner, 2026-08-26: "too close to the
@@ -105,7 +106,7 @@ export default function RootLayout({
              data-URI cannot interpolate a var(), so the whole url() is the
              variable. */
           :root { --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 9l-7 7-7-7'/%3E%3C/svg%3E"); }
-          :root[data-theme="light"], :root[data-theme="paper"], :root[data-theme="terminal-light"] {
+          :root[data-theme="light"], :root[data-theme="paper"], :root[data-theme="terminal-light"], :root[data-theme="corporate"] {
             --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
           }
           select:not([multiple]):not([size]):not(.appearance-none) {
