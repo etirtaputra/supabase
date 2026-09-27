@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   poBalance, dealBalance, remainingLabel, isPrincipal, settledTolerance,
-  RATE_SUSPECT_FACTOR, type BalancePo, type BalanceCost,
+  RATE_SUSPECT_FACTOR, NOT_PAYABLE_PO_STATUS, type BalancePo, type BalanceCost,
 } from './dealBalance.ts';
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
@@ -219,4 +219,58 @@ test('the deal lookup does not keep its own copy of the arithmetic', () => {
   const body = TAB.slice(TAB.indexOf('const renderDealRow'));
   assert.ok(!/total_value\)\s*-\s*/.test(body), 'the remaining balance must come from lib/dealBalance');
   assert.match(TAB, /import \{ dealBalance, poBalance, remainingLabel/);
+});
+
+// ── A draft is not a bill ───────────────────────────────────────────────────
+
+test('a DRAFT PO is not a payable — the Rp 4.87bn that nobody was owed', () => {
+  // Checked against production on 2026-09-27: 148 drafts, 2023-10-04 to
+  // 2025-11-18, with ZERO cost rows between them. Not one draft in this
+  // company's history has ever carried a payment, and every one of them was
+  // being counted as debt.
+  const d = dealBalance(
+    [
+      po({ po_id: 'draft', currency: 'IDR', total_value: 2_000_000, status: 'Draft' }),
+      po({ po_id: 'real', currency: 'IDR', total_value: 500_000, status: 'Confirmed' }),
+    ], [],
+  );
+  assert.equal(d.lines.length, 1);
+  assert.equal(d.lines[0].remaining, 500_000, 'the draft must not be in the transfer total');
+  assert.equal(remainingLabel(d, (n, c) => `${c} ${n}`), 'IDR 500000');
+});
+
+test('the rule has ONE home, and the books totals read it too', () => {
+  // It lived in three places with two different answers: dealStage() filed a
+  // draft under "no money is running against it", computeAp() skipped it, and
+  // dealGroups' financial loop counted it. The totals therefore disagreed with
+  // the section headings printed directly above them.
+  assert.deepEqual([...NOT_PAYABLE_PO_STATUS].sort(), ['Cancelled', 'Draft', 'Replaced']);
+  const groups = read('lib/dealGroups.ts');
+  assert.match(groups, /import \{ NOT_PAYABLE_PO_STATUS \} from '\.\/dealBalance\.ts'/);
+  assert.match(groups, /if \(NOT_PAYABLE_PO_STATUS\.has\(po\.status \?\? ''\)\) continue;/);
+  assert.ok(!/po\.status === 'Replaced' \|\| po\.status === 'Cancelled'/.test(groups),
+    'a second copy of the rule is how the two answers happened');
+  // The other two sites must keep agreeing with it.
+  assert.match(read('lib/position.ts'), /=== 'Cancelled' \|\| \(po\.status \?\? ''\) === 'Draft'/);
+  assert.match(read('components/ui/DealLookupTab.tsx'), /if \(g\.poStatus === 'Draft'\) return 'draft';/);
+});
+
+test("excluding drafts cannot move `paid`, which is derived from the other two", () => {
+  // The position line is Ordered / Paid / Outstanding with paid = ordered −
+  // outstanding. A draft has no cost rows, so it contributed the SAME amount
+  // to ordered and to outstanding; removing it from both leaves paid exactly
+  // where it was. That is why this was safe to change under a live KPI.
+  const withDraft = dealBalance(
+    [
+      po({ po_id: 'd', currency: 'IDR', total_value: 9_000_000, status: 'Draft' }),
+      po({ po_id: 'r', currency: 'IDR', total_value: 1_000_000, status: 'Confirmed' }),
+    ],
+    [pay({ po_id: 'r', currency: 'IDR', amount: 400_000 })],
+  );
+  const withoutDraft = dealBalance(
+    [po({ po_id: 'r', currency: 'IDR', total_value: 1_000_000, status: 'Confirmed' })],
+    [pay({ po_id: 'r', currency: 'IDR', amount: 400_000 })],
+  );
+  assert.equal(withDraft.lines[0].paid, withoutDraft.lines[0].paid);
+  assert.equal(withDraft.lines[0].remaining, 600_000);
 });

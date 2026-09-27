@@ -14,6 +14,7 @@
 
 import type { PriceQuote, PurchaseOrder, Supplier, Company, POCost } from '@/types/database';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
+import { NOT_PAYABLE_PO_STATUS } from './dealBalance.ts';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -179,8 +180,16 @@ export function buildDealGroups(
     let foreignCurrencyMixed = false;
 
     for (const po of g.pos) {
-      // Voided POs don't contribute to outstanding balance
-      if (po.status === 'Replaced' || po.status === 'Cancelled') continue;
+      // One rule, one home — see NOT_PAYABLE_PO_STATUS. This loop used to skip
+      // Replaced and Cancelled only, so 148 never-issued DRAFTS counted as
+      // Rp 4.87bn of debt in `outstandingIdr`, in the vendor roll-up, and in
+      // the Ordered/Paid/Outstanding line — while the sections printed above
+      // them already filed those same drafts under "not money" (2026-08-27).
+      //
+      // `paid` is unaffected: a draft has no cost rows at all, so it added the
+      // identical amount to `totalIdr` and to `outstandingIdr`, and the
+      // Ordered − Outstanding identity holds before and after.
+      if (NOT_PAYABLE_PO_STATUS.has(po.status ?? '')) continue;
 
       const tIdr       = poTotalIdr(po);
       const costs      = poCosts.filter((c) => String(c.po_id) === String(po.po_id));

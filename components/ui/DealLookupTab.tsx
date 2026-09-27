@@ -2744,7 +2744,14 @@ export default function DealLookupTab({
                     return (
                       <span className="inline-flex flex-col items-end leading-tight"
                         title={`Still to transfer${bal.idr ? ` — about ${fmtIdr(bal.idr)} ${rateNote(bal)}` : ''}`}>
-                        <span className="text-amber-300 font-bold">{owed}</span>
+                        <span className="text-amber-300 font-bold">
+                          {owed}
+                          {/* Visible without expanding the row: a booked rate
+                              this far from the market makes every rupiah total
+                              for the deal wrong, and the person reading this
+                              column is the one about to move money. */}
+                          {bal.anySuspectRate && <span className="text-red-400 ml-1" title="This deal's PO is booked at an exchange rate far from the market — the foreign amount is right, every rupiah figure for it is not. Open the deal for detail.">⚠</span>}
+                        </span>
                         {bal.idr != null && bal.idr > 0 && bal.idrSource && (
                           <span className="text-[10px] text-slate-500">≈ {fmtIdr(bal.idr)}</span>
                         )}

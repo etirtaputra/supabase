@@ -96,8 +96,26 @@ export interface DealBalance {
   perPo: PoBalance[];
 }
 
-/** A superseded or abandoned order is not a bill. */
-export const VOID_PO_STATUS = new Set(['Replaced', 'Cancelled']);
+/**
+ * A PO in one of these states is not a bill, and must not be counted as one.
+ *
+ * DRAFT is the one that matters, and it was the expensive omission. A draft has
+ * not been issued to anybody: no supplier is waiting on it, no goods are
+ * coming, and in three years of this company's history not one draft has ever
+ * carried a payment — 148 of them from 2023-10-04 to 2025-11-18, and **zero
+ * cost rows between them** (checked 2026-09-27). Counting them made the
+ * buy side look like it owed Rp 4,868,700,123 that nobody was owed.
+ *
+ * The rest of the app already knew. `dealStage()` files a draft under its own
+ * heading with the note *"no money is running against it"* (2026-08-27), and
+ * `computeAp()` in lib/position.ts skips Cancelled, Draft and Replaced alike.
+ * `dealGroups.ts` was the one place the rule had not reached, so the totals
+ * disagreed with the sections printed directly above them.
+ */
+export const NOT_PAYABLE_PO_STATUS = new Set(['Replaced', 'Cancelled', 'Draft']);
+
+/** @deprecated the old name, kept so nothing silently changes meaning. */
+export const VOID_PO_STATUS = NOT_PAYABLE_PO_STATUS;
 
 /**
  * Principal only. Bank fees, duty, VAT and freight are real money, but they are
@@ -198,7 +216,7 @@ export function dealBalance(
   opts: { liveRates?: Record<string, number> | null } = {},
 ): DealBalance {
   const perPo = pos
-    .filter((p) => !VOID_PO_STATUS.has(p.status ?? ''))
+    .filter((p) => !NOT_PAYABLE_PO_STATUS.has(p.status ?? ''))
     .map((p) => poBalance(p, costs, opts));
 
   const byCcy = new Map<string, { currency: string; total: number; paid: number; remaining: number }>();
