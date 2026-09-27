@@ -120,9 +120,17 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Already mirrored? Idempotency before anything else ──────────────────
+    // Case-INSENSITIVE on the source. Found 2026-09-27: eight of the ten
+    // mirrored orders say "Dolibarr" (written before this endpoint existed) and
+    // two say "dolibarr" (written through it, which lower-cases). An exact
+    // match missed all eight, so re-mirroring SO2608-4771 would have made a
+    // second copy of it — and the stock leg would then have had two orders to
+    // take the same goods off for. `\` `%` `_` are escaped so the value is
+    // compared, never pattern-matched.
     const { data: existing } = await client.from(SALES)
       .select('quote_id, quote_number, status, grand_total')
-      .eq('external_source', externalSource).eq('external_ref', externalRef).maybeSingle();
+      .ilike('external_source', externalSource.replace(/[\\%_]/g, (c) => `\\${c}`))
+      .eq('external_ref', externalRef).maybeSingle();
     if (existing) {
       return NextResponse.json({
         created: false, outcome: 'already_mirrored',

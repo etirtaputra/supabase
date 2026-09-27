@@ -82,8 +82,11 @@ test('the mirror refuses to invent a customer, and refuses a duplicate import', 
   assert.ok(!/from\('20\.0_customers'\)[\s\S]{0,200}?\.insert\(/.test(MIRROR),
     'the mirror must never create a customer row — a duplicate is cheap to make and expensive to unpick');
   assert.match(MIRROR, /already_mirrored/);
-  assert.match(MIRROR, /\.eq\('external_source', externalSource\)\.eq\('external_ref', externalRef\)/,
-    'external_source + external_ref is the idempotency key');
+  // Case-insensitive on the source: rows written before the endpoint say
+  // "Dolibarr", rows written through it say "dolibarr" (found 2026-09-27).
+  assert.match(MIRROR, /\.ilike\('external_source', externalSource\.replace\(/,
+    'external_source + external_ref is the idempotency key, and the source must match whatever its case');
+  assert.match(MIRROR, /\.eq\('external_ref', externalRef\)\.maybeSingle\(\)/);
 });
 
 test('the mirror posts NO stock, and says so in its own answer', () => {
