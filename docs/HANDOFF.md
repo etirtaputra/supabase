@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-27** · head of `main` at that point: `fb56650` (see §4, §6)
+**Last updated: 2026-09-27** · head of `main` at that point: `8f77a07` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -122,7 +122,66 @@ Plus: a `constants/changelog.ts` entry in the same commit.
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-09-27 (latest) — a draft PO is not a bill: Rp 4.87bn nobody was owed
+### 2026-09-27 (latest) — Dolibarr sales can take their goods off stock
+
+Owner, 2026-09-17: *"mirror documents first then stock as a separate step"*;
+2026-09-27: go ahead. The ledger then held **five** stock-outs in its whole
+life against ten mirrored Dolibarr sales, so on-hand — and everything read off
+it: available-to-sell, stock value, DIO/CCC, COGS/GP — was overstated by every
+sale made there.
+
+**`POST /api/agent/sales/stock`**, rules in `lib/saleStock.ts` (pure, tested):
+
+| Rule | Why |
+|---|---|
+| Stock leaves on **delivery**, not on order | Same rule as the native DO flow. ICAPROC cannot see Dolibarr's shipments; the caller states the goods left. |
+| Never twice | Counts what left by EITHER door — its own `sale` moves and any DO on the same order — and moves only the remainder |
+| From where the goods ARE | Biggest holding first, split if needed. TRINA sits in G25; taking it from MAIN makes two wrong balances |
+| A shortfall is refused and reported | `allow_negative` to override. It is a finding about ICAPROC's stock |
+| No catalogue item → no movement, said out loud | "Karet Spons" is revenue without stock |
+| Cost never stated | Out carries 0; `stamp_stock_movement` prices it at moving average; response reads it back with its source |
+
+Route refusals: native orders (they go through their DO), quotations and
+cancelled orders, and `reverse` for any role that cannot book stock IN.
+
+`migrations/sale_stock_leg.sql` (**applied**) widens one grant by one word:
+sell-side roles could insert an OUT with source `delivery`; now also `sale`. No
+IN is widened. Impersonation as sell_admin, rolled back: out under `sale`
+allowed and priced by the DB at IDR 704 (sent as 0) · IN under `sale` refused ·
+out under any other source refused.
+
+**Fixed on the way — a duplicate waiting to happen.** The mirror's idempotency
+check matched `external_source` exactly; 8 of the 10 rows say `Dolibarr`
+(pre-endpoint), 2 say `dolibarr`. Re-mirroring SO2608-4771 would have made a
+second copy — and then two orders for the same goods. Now case-insensitive.
+
+#### What the real planner says about the ten (production snapshot, NOTHING POSTED)
+
+| Order | Status | Would do |
+|---|---|---|
+| SO2608-4771 | ordered | 6 × ICA550-72HMI from MAIN · COGS ≈ Rp 5,328,174 |
+| SO2608-4772 | ordered | 1 × ICA200-72M from MAIN · Rp 642,046 |
+| SO2609-4774 | ordered | 5 × EPEVER XTRA3210N from G63 · Rp 3,309,915 |
+| SO2609-4791 | ordered | 13 × TRINA 620W from G25 · Rp 17,844,983 |
+| SO2609-4792 / 4793 / 4794 | ordered | **blocked** — ICA100-36M, TRACER5210LPLI, ICA200-36M were sold, ICAPROC holds **none** |
+| SO2609-4851 | delivered | its line IS the XTRA3210N, but unlinked → moves nothing until linked |
+| SO2609-4853 | delivered | Karet Spons — genuinely not stock |
+| PR2609-2255 | validated | refused — a quotation |
+
+Nothing was posted because seven say only "ordered": whether they shipped is in
+Dolibarr, not here. **MIRA is the one to check and post** (dry-run first). Also
+seen: ICA550-72HMI already sits at **−2** in G63 from before.
+
+**The bigger truth this makes visible:** the stock leg fixes ICAPROC going
+FORWARD. Everything Dolibarr sold before the mirror existed was never taken off
+either, so on-hand is still overstated by history. That needs a stock COUNT (or
+Dolibarr's own stock levels) as an opening balance — not more code.
+
+`8f77a07` · `app/api/agent/sales/stock/route.ts` · `lib/saleStock.ts` ·
+`migrations/sale_stock_leg.sql` · 21 tests in `lib/saleStock.test.ts` · the
+endpoint + rule registered in `lib/agentDocs.ts` (served by onboarding).
+
+### 2026-09-27 — a draft PO is not a bill: Rp 4.87bn nobody was owed
 
 Chasing the third finding from the transfer-figure thread. The rupiah payable
 was almost entirely phantom, and the cause was a rule this codebase already
