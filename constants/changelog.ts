@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-09-28T07:14:35Z",
+    title: "Dokumen cetak: “Rp” kini di judul kolom",
+    details: [
+      "Di Penawaran Harga / Faktur, kolom kini berjudul “Harga (Rp)” dan “Jumlah (Rp)”, dan setiap baris cukup angkanya. Di Proposal EPC, kolom “Amount (Rp)”.",
+      "Blok total di bawah tabel (Subtotal, PPN, Grand Total, Terbayar, Sisa Tagihan) tetap menulis “Rp”, karena angkanya berdiri sendiri, bukan di dalam kolom.",
+      "Surat Jalan dan Surat Dukungan tidak memuat harga, jadi tidak berubah.",
+    ],
+  },
+  {
     at: "2026-09-28T07:02:51Z",
     title: "Corporate kini tampilan bawaan untuk semua orang",
     details: [

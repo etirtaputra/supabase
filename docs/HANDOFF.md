@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-28** · head of `main` at that point: `71c3c4b` (see §4, §6)
+**Last updated: 2026-09-28** · head of `main` at that point: see the top of `git log` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -111,7 +111,7 @@ item/price/spec data eventually feed a public website.
 
 ```bash
 npx tsc --noEmit     # must be clean
-npm test             # node --test "lib/**/*.test.ts" — 840 tests at handoff (2026-09-27), all pass
+npm test             # node --test "lib/**/*.test.ts" — 841 tests at handoff (2026-09-27), all pass
                      # WATCH THE TOTAL, not just the pass count: a suite that
                      # fails to IMPORT reports as 1 failure, not 26 missing tests
 npx eslint           # 419 problems at handoff (298 errors); just don't ADD any
@@ -126,7 +126,19 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-09-28 (latest) — Corporate is the default; brightness kept
+### 2026-09-28 (latest) — Rp in the column header on printed documents too
+
+Owner: *"yes, move Rp to the column header in the PDFs too"*.
+`moneyUnitDoc()` / `fmtMoneyCellDoc()` in `lib/formatters.ts` (document
+currency + document number format). Price quote / invoice print: "Harga (Rp)",
+"Jumlah (Rp)" with digit cells; EPC proposal print: "Amount (Rp)" (section
+totals). The totals block keeps its symbol (not a column). DO and support
+letter carry no prices. The proposal's economics table already said "(Rp)".
+Measured: the capitalised 7pt headers fit their columns (HARGA (RP) 65/84px,
+JUMLAH (RP) 72/94px, AMOUNT (RP) 74/84px). Guard extended in
+`lib/moneyColumns.test.ts` (also now reads `<td />` as an empty cell). 841 tests.
+
+### 2026-09-28 — Corporate is the default; brightness kept
 
 Owner: *"make Corporate the default, but color preference (light or dark)
 follow the user's current preference."*

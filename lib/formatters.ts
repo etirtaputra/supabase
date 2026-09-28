@@ -190,6 +190,16 @@ export const fmtIntDoc = (n: number): string => formatNumber(Math.round(n), getS
 export const fmtQtyDoc = (n: number): string =>
   Number.isInteger(n) ? formatNumber(n, getSettings().numberDocument, 0) : formatNumber(n, getSettings().numberDocument, 0, 3);
 
+/**
+ * The money column rule on PRINTED documents too (owner, 2026-09-28: "move Rp
+ * to the column header in the PDFs too"): a price/amount column's header says
+ * "Harga (Rp)" once and each line carries digits. The totals block under the
+ * table (Subtotal, PPN, Grand Total, Terbayar, Sisa) keeps its symbol — those
+ * amounts stand on their own, like a tile on screen.
+ */
+export const moneyUnitDoc = (): string => getSettings().currencyDocument.symbol.trim() || 'Rp';
+export const fmtMoneyCellDoc = (n: number): string => fmtIntDoc(n);
+
 /** Rupiah on a printed document: "Rp1,234,567" (symbol/position/spacing configurable). */
 export const fmtRupiahDoc = (n: number): string =>
   applyCurrency(formatNumber(Math.round(n), getSettings().numberDocument, 0), getSettings().currencyDocument);

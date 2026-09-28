@@ -33,7 +33,8 @@ test('a table cell shows digits; the unit lives in its header', () => {
   for (const f of [...tsx('app'), ...tsx('components')]) {
     if (/\/(print|do)\/|app\/shop\//.test(f) || f in MAY_CARRY_CURRENCY) continue;
     const src = readFileSync(f, 'utf8');
-    for (const m of src.matchAll(/<td\b[\s\S]*?<\/td>/g)) {
+    // `<td />` is an empty cell, not the start of one that runs to the next </td>.
+    for (const m of src.matchAll(/<td\b(?![^>]*\/>)[\s\S]*?<\/td>/g)) {
       // Tooltips keep their symbol — a tooltip is a sentence, not the cell.
       const cell = m[0].replace(/title=\{`[^`]*`\}|title=\{[^}]*\}|title="[^"]*"/g, '');
       if (/\b(fmtRupiah|fmtIdr)\(/.test(cell)) bad.push(`${f}:${src.slice(0, m.index).split('\n').length}`);
@@ -44,4 +45,17 @@ test('a table cell shows digits; the unit lives in its header', () => {
 
 test('the exemptions are still real files', () => {
   for (const f of Object.keys(MAY_CARRY_CURRENCY)) assert.ok(readFileSync(f, 'utf8').length > 0, f);
+});
+
+test('printed documents too: line columns carry digits, the header carries the unit', () => {
+  // Owner, 2026-09-28: "move Rp to the column header in the PDFs too". The
+  // totals block under the table keeps its symbol — it is not a column.
+  for (const f of ['app/sales/[id]/print/page.tsx', 'app/proposals/[id]/print/page.tsx']) {
+    const src = readFileSync(f, 'utf8');
+    assert.match(src, /\(\{moneyUnitDoc\(\)\}\)<\/th>/, `${f}: no column header carries the unit`);
+    for (const m of src.matchAll(/<td\b(?![^>]*\/>)[\s\S]*?<\/td>/g)) {
+      assert.ok(!/\b(fmtIdr2?|fmtRupiahDoc2?)\(/.test(m[0]),
+        `${f}:${src.slice(0, m.index).split('\n').length} formats a line with the currency symbol`);
+    }
+  }
 });

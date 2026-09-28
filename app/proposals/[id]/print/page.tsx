@@ -8,7 +8,7 @@ import { specFileTag, type SystemSpecs } from '@/lib/projectSpec';
 import { useQuotesGate } from '@/hooks/useQuotesGate';
 import { DEFAULT_EXPORT_COLS, EXPORT_COL_KEYS, EXPORT_COL_LABELS, loadExportCols, saveExportCols, type ExportCols } from '@/lib/exportCols';
 import { computeEnergyEconomics, fmtPayback, ECON_DEFAULTS } from '@/lib/energyEconomics';
-import { fmtRupiahDoc as fmtIdr, fmtRupiahDoc2 as fmtIdr2, fmtIntDoc, fmtQtyDoc, fmtNumDoc, fmtDayDoc } from '@/lib/formatters';
+import { fmtRupiahDoc as fmtIdr, fmtRupiahDoc2 as fmtIdr2, fmtIntDoc, fmtQtyDoc, fmtNumDoc, fmtDayDoc, moneyUnitDoc, fmtMoneyCellDoc } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
 import { useT } from '@/hooks/useT';
 import { usePrintFileName } from '@/hooks/usePrintFileName';
@@ -271,7 +271,7 @@ export default function PrintPage() {
               {cols.brand && <th style={{ width: '75px' }}>Brand</th>}
               {cols.qty && <th className="right" style={{ width: '60px' }}>Qty</th>}
               {cols.unit && <th style={{ width: '60px' }}>Unit</th>}
-              {cols.amount && <th className="right" style={{ width: '95px' }}>Amount</th>}
+              {cols.amount && <th className="right" style={{ width: '95px' }}>Amount ({moneyUnitDoc()})</th>}
             </tr>
           </thead>
           <tbody>
@@ -295,7 +295,7 @@ export default function PrintPage() {
                             {sec.title}
                             {cols.lead && sec.lead_time && <span className="lead-tag"> · lead time {sec.lead_time}</span>}
                           </td>
-                          {cols.amount && <td className="num">{secTotal > 0 ? fmtIdr(secTotal) : ''}</td>}
+                          {cols.amount && <td className="num">{secTotal > 0 ? fmtMoneyCellDoc(secTotal) : ''}</td>}
                         </tr>
                         {mainItems.map((item) => {
                           const subItems = sec.items.filter((i) => i.parent_item_id === item.item_id);

@@ -15,7 +15,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
 import { DEFAULT_SALES_COLS, SALES_COL_KEYS, SALES_COL_LABELS, loadSalesCols, saveSalesCols, type SalesExportCols } from '@/lib/salesExportCols';
-import { fmtRupiahDoc as fmtIdr, fmtIntDoc, fmtQtyDoc, fmtDayDoc as fmtDate } from '@/lib/formatters';
+import { fmtRupiahDoc as fmtIdr, fmtIntDoc, fmtQtyDoc, fmtDayDoc as fmtDate, moneyUnitDoc, fmtMoneyCellDoc } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
 import { usePrintFileName } from '@/hooks/usePrintFileName';
 import PrintFileNameNotice from '@/components/ui/PrintFileNameNotice';
@@ -227,8 +227,8 @@ export default function SalesPrintPage() {
               <th>Items</th>
               {cols.qty && <th className="right" style={{ width: '55px' }}>Qty</th>}
               {cols.unit && <th style={{ width: '55px' }}>Unit</th>}
-              {cols.price && <th className="right" style={{ width: '95px' }}>Harga</th>}
-              {cols.amount && <th className="right" style={{ width: '105px' }}>Jumlah</th>}
+              {cols.price && <th className="right" style={{ width: '95px' }}>Harga ({moneyUnitDoc()})</th>}
+              {cols.amount && <th className="right" style={{ width: '105px' }}>Jumlah ({moneyUnitDoc()})</th>}
             </tr>
           </thead>
           <tbody>
@@ -247,8 +247,8 @@ export default function SalesPrintPage() {
                     <td>{l.description || '—'}{cols.lead && l.lead_time ? <span className="lead-tag"> · lead time {l.lead_time}</span> : null}</td>
                     {cols.qty && <td className="num">{fmtQtyDoc(Number(l.quantity))}</td>}
                     {cols.unit && <td style={{ color: '#64748b', whiteSpace: 'nowrap' }}>{l.unit}</td>}
-                    {cols.price && <td className="num">{fmtIdr(Number(l.unit_price))}</td>}
-                    {cols.amount && <td className="num">{fmtIdr(amt)}</td>}
+                    {cols.price && <td className="num">{fmtMoneyCellDoc(Number(l.unit_price))}</td>}
+                    {cols.amount && <td className="num">{fmtMoneyCellDoc(amt)}</td>}
                   </tr>
                   {cols.notes && l.note && (
                     <tr className="note-row"><td colSpan={colCount}>↳ {l.note}</td></tr>
