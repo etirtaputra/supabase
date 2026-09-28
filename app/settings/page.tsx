@@ -18,7 +18,7 @@
  */
 'use client';
 import { useT } from '@/hooks/useT';
-import { Fragment, useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { Fragment, useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth, type UserProfile } from '@/hooks/useAuth';
@@ -44,7 +44,7 @@ import { useDragReorder, DRAGGING_ROW, REORDER_ROW } from '@/components/ui/dragR
 import { ITEM_SCORE_FACTORS, DEFAULT_ITEM_SCORE_WEIGHTS, type ItemScoreWeights } from '@/lib/itemScore';
 import { PRESET_LABELS, type RangePreset } from '@/lib/dateRange';
 import { accountLabel, type BankAccount } from '@/lib/banks';
-import { THEMES, OFFERED_THEME_VALUES, previewTheme, endThemePreview } from '@/lib/theme';
+import { THEMES, OFFERED_THEME_VALUES, type ThemeName } from '@/lib/theme';
 import { useTheme } from '@/hooks/useTheme';
 import Autocomplete from '@/components/ui/Autocomplete';
 import { fmtRupiah } from '@/lib/formatters';
@@ -158,6 +158,17 @@ export default function SettingsPage() {
 
   const revert = () => setEdited(null);
 
+  // The company skin saves on its own, outside the draft: it is a one-click
+  // choice on a tab whose other click (this device's skin) needs no Save, and
+  // mixing the two is what left Save lit after a skin looked applied. An
+  // in-progress draft on another tab is carried along, not discarded.
+  const makeDefaultSkin = async (theme: ThemeName) => {
+    const { error } = await saveSettings(supabase, { defaultTheme: theme }, profile?.email ?? '');
+    if (error) { flash(`Could not save — ${error}`); return; }
+    setEdited((d) => (d ? { ...d, defaultTheme: theme } : d));
+    flash(`${THEMES.find((t) => t.value === theme)?.label ?? theme} is now the company default`);
+  };
+
   if (authLoading || !user || (profile && !isOwner)) {
     return (
       <div className="min-h-screen bg-chrome flex items-center justify-center">
@@ -206,7 +217,7 @@ export default function SettingsPage() {
         )}
 
         {tab === 'format'   && <FormatTab draft={draft} set={set} />}
-        {tab === 'appearance' && <AppearanceTab draft={draft} set={set} />}
+        {tab === 'appearance' && <AppearanceTab companyDefault={live.defaultTheme} onMakeDefault={makeDefaultSkin} />}
         {tab === 'menu'     && <MenuOrderTab draft={draft} set={set} />}
         {tab === 'dashboard' && <DashboardTab draft={draft} set={set} />}
         {tab === 'lists'    && <ListsTab draft={draft} set={set} />}
@@ -393,54 +404,54 @@ function FormatTab({ draft, set }: { draft: AppSettings; set: <K extends keyof A
 }
 
 // ── Appearance ──────────────────────────────────────────────────────────────
-// The COMPANY DEFAULT skin — what a browser shows before its person touches
-// the switcher in the ICAPROC menu. A personal choice always wins and is never
-// overwritten by changing this (see lib/theme.ts for the resolution order).
+// Two separate choices, kept visibly separate (owner, 2026-09-28: "when I
+// click on corporate it is not applied in all pages, and there's still the
+// Save button"). Clicking a card used to only PREVIEW the skin on this screen
+// and put it in the Save draft as the company default — so it looked applied,
+// vanished on the next page, and left Save lit. Now:
+//
+//   • clicking a card = THIS DEVICE's skin, applied everywhere at once and
+//     remembered (the same personal choice the sun/moon switch makes);
+//   • "Make company default" = what browsers that never chose show; saved on
+//     the spot, never through the page's Save button.
+//
+// A personal choice always wins over the company default on its device and is
+// never overwritten by it (see lib/theme.ts for the resolution order).
 
-function AppearanceTab({ draft, set }: { draft: AppSettings; set: <K extends keyof AppSettings>(k: K, v: AppSettings[K]) => void }) {
-  // Selecting a card paints the whole screen in that skin immediately — the
-  // choice must be judged on real pages, not on a miniature. The preview
-  // follows the DRAFT (so Revert repaints too) and ends when the tab is left:
-  // nothing is persisted until Save, and a personal pick from the ICAPROC
-  // menu still wins on this browser afterwards.
-  const touched = useRef(false);
-  // This browser's OWN skin. A personal pick always wins over the company
-  // default on its device — so an owner who once tapped the brightness switch
-  // would save a new default and still not see it. Each card therefore also
-  // offers "use on this device", which is the personal choice, made here.
+function AppearanceTab({ companyDefault, onMakeDefault }: {
+  companyDefault: ThemeName;
+  onMakeDefault: (t: ThemeName) => Promise<void>;
+}) {
   const { theme: mine, setTheme: setMine } = useTheme();
-  useEffect(() => {
-    if (touched.current) previewTheme(draft.defaultTheme);
-  }, [draft.defaultTheme]);
-  useEffect(() => () => { endThemePreview(); }, []);
+  const [savingDefault, setSavingDefault] = useState<ThemeName | null>(null);
   return (
     <div className="space-y-5">
       <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 space-y-3">
         <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Default skin</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Skin</p>
           <p className="text-[11px] text-slate-500 mt-1 leading-snug max-w-2xl">
-            What every browser shows before its person picks for themselves. Selecting a skin previews it on this
-            screen right away; it becomes the company default only when you Save. Anyone can still choose their own
-            skin from the ICAPROC menu (Appearance) — that personal choice is remembered on their device, wins over
-            this default there, and is never overwritten by it.
+            Click a skin to use it on this device — every page changes at once, no Save needed. &ldquo;Make company
+            default&rdquo; sets what everyone else sees until they pick their own skin; anyone who already picked one
+            keeps it.
           </p>
         </div>
-        {/* The offered pairs (terminal, corporate) — plus whatever the current
-            default is, so a company still sitting on a house skin can SEE its
-            own setting even though it is no longer on the menu. */}
+        {/* The offered pairs (terminal, corporate) — plus whatever is in effect
+            here or as the company default, so a skin that is no longer offered
+            can still be SEEN when it is the one in force. */}
         <div className="grid sm:grid-cols-2 gap-3 max-w-3xl">
-          {THEMES.filter((t) => OFFERED_THEME_VALUES.includes(t.value) || t.value === draft.defaultTheme).map((t) => {
+          {THEMES.filter((t) => OFFERED_THEME_VALUES.includes(t.value) || t.value === companyDefault || t.value === mine).map((t) => {
             const p = t.swatch;
-            const active = draft.defaultTheme === t.value;
+            const active = mine === t.value;
+            const isDefault = companyDefault === t.value;
             return (
               <div key={t.value} className={`rounded-xl border transition-colors ${
                 active ? 'border-emerald-500/50 bg-emerald-500/[0.07]' : 'border-slate-700 hover:border-slate-600 hover:bg-slate-800/40'
               }`}>
-                <button onClick={() => { touched.current = true; set('defaultTheme', t.value); }}
+                <button onClick={() => setMine(t.value)} aria-pressed={active}
                   className="w-full text-left p-3 pb-2">
                   <div className="flex items-center gap-2">
                     <span className={`text-sm font-bold ${active ? 'text-emerald-300' : 'text-slate-200'}`}>{t.label}</span>
-                    {active && <span className="text-[10px] font-semibold text-emerald-400">DEFAULT</span>}
+                    {active && <span className="text-[10px] font-semibold text-emerald-400">IN USE</span>}
                   </div>
                   <p className="text-[11px] text-slate-500 mt-1 leading-snug min-h-[2.4em]">{t.blurb}</p>
                   {/* A miniature painted with the skin's REAL values */}
@@ -454,12 +465,13 @@ function AppearanceTab({ draft, set }: { draft: AppSettings; set: <K extends key
                   </div>
                 </button>
                 <div className="px-3 pb-2.5 flex items-center justify-end">
-                  {mine === t.value ? (
-                    <span className="text-[10px] font-semibold text-slate-500">On this device</span>
+                  {isDefault ? (
+                    <span className="text-[10px] font-semibold text-slate-500">Company default</span>
                   ) : (
-                    <button onClick={() => setMine(t.value)}
-                      className="text-[10px] font-semibold text-slate-400 hover:text-white underline-offset-2 hover:underline">
-                      Use on this device
+                    <button onClick={async () => { setSavingDefault(t.value); await onMakeDefault(t.value); setSavingDefault(null); }}
+                      disabled={savingDefault !== null}
+                      className="text-[10px] font-semibold text-slate-400 hover:text-white underline-offset-2 hover:underline disabled:opacity-50">
+                      {savingDefault === t.value ? 'Saving…' : 'Make company default'}
                     </button>
                   )}
                 </div>

@@ -437,7 +437,13 @@ const CORPORATE_SHELL_CSS = [
   // the ink move; size, padding and states stay the screen's own. The text is
   // a literal white because `text-white` is the navy emphasis ink in the light
   // skin — which would put navy on navy.
-  `${both('[class~="bg-emerald-600"][class~="text-white"]')}{background-color:rgb(var(--c-brand));color:#fff}`,
+  //
+  // A DISABLED button that states its own disabled look (`disabled:bg-…`,
+  // e.g. Settings' Save: disabled:bg-slate-800) is left to it. This rule
+  // out-specifies Tailwind's `disabled:` variants, so without the exclusion a
+  // greyed-out Save rendered as a live navy button (owner, 2026-09-28: "there's
+  // still showing the Save button even though it is applied").
+  `${both('[class~="bg-emerald-600"][class~="text-white"]:not(:disabled)')},${both('[class~="bg-emerald-600"][class~="text-white"]:disabled:not([class*="disabled:bg-"])')}{background-color:rgb(var(--c-brand));color:#fff}`,
   `${both('[class~="bg-emerald-600"][class~="text-white"]:hover:not(:disabled)')}{background-color:rgb(var(--c-brand-hover))}`,
   // Focus is the brand too, so the field you are typing in is unmistakable
   // and never confused with a green "valid" state.

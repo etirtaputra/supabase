@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-09-28T00:57:50Z",
+    title: "Pilih tampilan: satu klik langsung berlaku di semua halaman",
+    details: [
+      "Di Pengaturan › Tampilan, klik sebuah tampilan (misalnya Corporate) sekarang langsung dipakai di perangkat ini, di semua halaman, tanpa perlu Save. Sebelumnya klik itu hanya pratinjau di layar Pengaturan dan hilang begitu pindah halaman.",
+      "Untuk menjadikannya tampilan bawaan semua orang, klik **Make company default** di bawah kartunya. Langsung tersimpan, tanpa tombol Save.",
+      "Diperbaiki: di tampilan Corporate, tombol Save yang seharusnya abu-abu (tidak ada yang perlu disimpan) tampil biru seperti tombol aktif. Sekarang abu-abu lagi.",
+    ],
+  },
+  {
     at: "2026-09-27T23:35:48Z",
     title: "Tampilan baru: Corporate — biru navy perusahaan, huruf IBM Plex",
     details: [

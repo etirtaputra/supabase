@@ -289,21 +289,6 @@ export function applyCompanyDefaultTheme(theme: ThemeName): void {
 }
 
 /**
- * Settings › Appearance preview: paint a skin on the spot so the owner sees
- * what they are choosing BEFORE saving. Persists nothing and never touches
- * `current` — ending the preview repaints whatever is actually in effect
- * (their personal pick, usually), so browsing the options is consequence-free.
- */
-export function previewTheme(theme: ThemeName): void {
-  paint(theme);
-}
-
-/** Leave preview mode: repaint the theme actually in effect. */
-export function endThemePreview(): void {
-  paint(current);
-}
-
-/**
  * Flip between bright and dark, in one tap, staying in the same pair.
  *
  * This used to cycle through every skin in `THEMES` order — written when

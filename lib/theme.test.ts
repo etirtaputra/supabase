@@ -9,6 +9,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { THEME_VARS_CSS } from '../constants/palette.ts';
 import { nextTheme, pickOffered, pairOf, isLightTheme, isTheme, LIGHT_THEMES, THEMES, THEME_PAIRS, OFFERED_THEME_VALUES, THEME_BOOT_SCRIPT } from './theme.ts';
 
 test('every skin is classified bright or dark — none is left unanswered', () => {
@@ -107,4 +109,27 @@ test('picking the side you are already on is a no-op, from any skin', () => {
 
 test('the two sides agree with the flip — one rule, not two', () => {
   for (const th of THEMES) assert.equal(nextTheme(th.value), pickOffered(!isLightTheme(th.value), th.value));
+});
+
+// ── Settings › Appearance: a click is the real thing (owner, 2026-09-28) ─────
+// "When I click on corporate it is not applied in all pages, and somehow
+// there's still the Save button." A card click only PREVIEWED the skin on that
+// screen (gone on the next page) and put it in the Save draft. A click must be
+// this device's choice, applied everywhere; the company default saves itself.
+
+test('Settings applies a skin for real, and never through the Save draft', () => {
+  const src = readFileSync('app/settings/page.tsx', 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  assert.ok(!/previewTheme|endThemePreview/.test(src), 'a preview that ends when you leave the tab is what looked applied and was not');
+  assert.ok(!/set\(\s*'defaultTheme'/.test(src), "the skin must not go into the draft — that is what left Save lit");
+  assert.match(src, /onClick=\{\(\) => setMine\(t\.value\)\}/, 'a card click must set THIS device’s skin');
+  assert.match(src, /saveSettings\(supabase, \{ defaultTheme: theme \}/, 'the company default saves on the spot');
+});
+
+test('the navy button re-dress leaves a greyed-out button grey', () => {
+  const rule = THEME_VARS_CSS.split('\n').find((l) => l.includes('background-color:rgb(var(--c-brand))'));
+  assert.ok(rule, 'the corporate primary-button rule is gone');
+  assert.match(rule!, /:not\(:disabled\)/, 'an enabled button only');
+  assert.match(rule!, /:disabled:not\(\[class\*="disabled:bg-"\]\)/,
+    'a disabled button keeps its own disabled:bg-… look — Settings’ Save rendered navy while greyed out');
 });

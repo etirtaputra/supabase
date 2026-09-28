@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-27** · head of `main` at that point: `2a2e34a` (see §4, §6)
+**Last updated: 2026-09-28** · head of `main` at that point: see the top of `git log` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -111,7 +111,7 @@ item/price/spec data eventually feed a public website.
 
 ```bash
 npx tsc --noEmit     # must be clean
-npm test             # node --test "lib/**/*.test.ts" — 820 tests at handoff (2026-09-27), all pass
+npm test             # node --test "lib/**/*.test.ts" — 822 tests at handoff (2026-09-27), all pass
                      # WATCH THE TOTAL, not just the pass count: a suite that
                      # fails to IMPORT reports as 1 failure, not 26 missing tests
 npx eslint           # 421 problems at handoff (298 errors); just don't ADD any
@@ -126,7 +126,33 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-09-27 (latest) — a Corporate skin pair, added beside the others
+### 2026-09-28 (latest) — a skin click is the real thing; a grey Save stays grey
+
+Owner, the morning after Corporate shipped: *"when i click on corporate dark or
+light, it is not applied in all pages, and somehow there's still showing the
+'Save' button even though it is applied."* Two real bugs, both mine:
+
+1. **The card click was only a preview.** Settings › Appearance painted the
+   skin on that screen (`previewTheme`), put it in the Save draft as the
+   company default, and repainted the old skin when the tab unmounted. It
+   looked applied and vanished on the next page. Only the small "Use on this
+   device" link actually applied it. Now a card click IS this device's skin
+   (`setTheme`, persisted, every page), and **"Make company default"** saves
+   `defaultTheme` on the spot via `saveSettings`. It never touches the draft,
+   and a draft in progress on another tab is carried along, not discarded.
+   `previewTheme` / `endThemePreview` were deleted from `lib/theme.ts` (no
+   other caller).
+2. **A disabled Save rendered as a live navy button.** The corporate rule
+   `[class~=bg-emerald-600][class~=text-white]` out-specifies Tailwind's
+   `disabled:bg-slate-800`. Now it is `:not(:disabled)`, plus disabled buttons
+   that state no `disabled:bg-…` of their own (so a faded `disabled:opacity-50`
+   button stays faded navy). Measured in Chromium, corporate: disabled Save
+   `rgb(226,232,240)` grey, enabled `rgb(31,90,168)` navy, faded button navy
+   at opacity 0.5. Terminal Light: unchanged.
+
+Two tests in `lib/theme.test.ts` hold both (822 total).
+
+### 2026-09-27 — a Corporate skin pair, added beside the others
 
 Owner: *"How about fixing the design and user interface, color and text? what
 would you improve? to add professionalism and corporate feel? But please do it
@@ -2833,7 +2859,7 @@ evidence for every one are in §4 under the dated entries.
 | 10 | **Ask ICAPROC partly broken** | `app/api/ask/route.ts:106-107` reads `v_purchase_history_analytics`, which does NOT exist | Small fix: point it at a real view/table; purchase-history questions currently return nothing. |
 | 11 | **Load bank statements** | `41.1_bank_transactions` has nothing for July 2026 | Needed to reconcile supplier payments (and to settle #6). |
 
-| 12 | **Owner tries the Corporate skin** | Shipped 2026-09-27 (§4). Terminal is still the default. | Owner: Settings › Tampilan → Corporate → "Use on this device". If he likes it, Save it as the company default (people who already picked a skin keep theirs). |
+| 12 | **Owner tries the Corporate skin** | Shipped 2026-09-27; click-to-apply fixed 2026-09-28 (§4). Terminal is still the default. | Owner: Settings › Tampilan → click Corporate (applies at once). If he likes it, "Make company default" (people who already picked a skin keep theirs). |
 
 Pre-existing, noted in passing and left alone: reopening a delivered DO as a
 sell-side role will fail its reversal insert — the stock-movements grant lets
